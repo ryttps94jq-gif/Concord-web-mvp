@@ -1,549 +1,97 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica-Bold;\f1\fswiss\fcharset0 Helvetica;\f2\fnil\fcharset0 .SFNS-Regular;
-\f3\fnil\fcharset0 AppleColorEmoji;\f4\fswiss\fcharset0 Helvetica-BoldOblique;\f5\fnil\fcharset128 HiraginoSans-W6;
-}
-{\colortbl;\red255\green255\blue255;\red154\green154\blue154;}
-{\*\expandedcolortbl;;\csgray\c66667;}
-{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc0\levelnfcn0\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}.}{\leveltext\leveltemplateid1\'02\'00.;}{\levelnumbers\'01;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
-{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
-\margl1440\margr1440\vieww29200\viewh16620\viewkind0
-\deftab560
-\pard\pardeftab560\slleading20\sa60\partightenfactor0
-
-\f0\b\fs47\fsmilli23870 \cf0 Github community Readme\
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\fs29\fsmilli14630 \cf0 \
-ConcordOS \'96 Community Edition (CE)\
-\
-Local-First AI \'95 DTU Engine \'95 CRETI Reasoning \'95 PersonaOS \'95 Forge Mode\
-\
-ConcordOS Community Edition (CE) is the first fully local-first cognitive OS designed to help individuals, researchers, and creators organize, synthesize, and evolve knowledge using DTUs (Discrete Thought Units) \'97 a structured knowledge format built on CRETI:
-\f1\b0  \
-Core \'95 Reasoning \'95 Evidence \'95 Testing \'95 Impact\
-
-\f0\b \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-\cf0 ConcordOS CE runs entirely offline, does not require cloud accounts, does not collect user data, and will never run ads.\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 It is free, open, auditable, and built with a straightforward monolithic architecture for clarity and longevity.\
-
-\f1\b0 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u11088 
-\f0\b  Features\
-\
-DTU Engine\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Create, store, inspect, and evolve knowledge blocks.\
-	\'95	Autogen + Evolution hooks included (stubbed for now).\
-\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 Ask Concord\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Local-first reasoning engine.\
-	\'95	Optional hook for connecting any LLM API.\
-	\'95	Offline stub included for machines with no internet.\
-\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 PersonaOS\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Define personas that store their own DTUs.\
-	\'95	Ideal for world-building, NPC logic, research helpers.\
-\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 Forge Mode (CRETI)\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Converts any idea into a structured CRETI DTU:\
-\pard\pardeftab560\li1440\slleading80\partightenfactor0
-\cf0 	\'95	Core insight\
-	\'95	Supporting reasoning\
-	\'95	Evidence\
-	\'95	Testing paths\
-	\'95	Predicted impact\
-\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 OS Stack\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Modular OS toggles (dreamOS, evolutionOS, autogenOS, crawlOS).\
-	\'95	Autoprocess heartbeat (stubbed for community version).\
-\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 Whitelisted Autocrawl (optional)\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Fully safe, public-domain-only crawling (stubbed).\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-
-\f3 \uc0\u55356 \u57256 
-\f0\b  Concord Studio (UI Included)\
-\
-ConcordOS CE ships with Concord Studio, a clean, local-first interface that gives users everything they need to interact with the system:\
-\
-UI Features\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Ask Concord Panel\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Local reasoning, DTU-aware responses, online/offline modes.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	DTU Browser\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Visual list of DTUs sorted by time, tag, or type.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	DTU Inspector\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 See raw CRETI structure, metadata, tags, lineage, and content.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	PersonaOS Panel\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Choose personas, send messages, receive structured DTUs.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Forge Mode UI\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Turn ideas into CRETI-formatted DTUs with one click.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	OS Stack Dashboard\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Toggle dreamOS, evolutionOS, autogenOS, crawlOS.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Heartbeat & Autoprocess\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Trigger evolution/autogen cycles manually.\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Safe Autocrawl Panel\
-\pard\pardeftab560\li720\slleading80\pardirnatural\partightenfactor0
-\cf0 Shows crawl whitelist, rate limits, and crawl status.\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading20\sa60\pardirnatural\partightenfactor0
-
-\fs47\fsmilli23870 \cf0 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f1\b0\fs29\fsmilli14630 \cf0 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\sa80\partightenfactor0
-
-\f3\b0\fs38\fsmilli19250 \cf0 \uc0\u55357 \u56960 
-\f0\b  Quick Start\
-\pard\pardeftab560\pardirnatural\partightenfactor0
-\ls1\ilvl0
-\f1\b0\fs29\fsmilli14630 \cf0 {\listtext	1.	}Install: npm install\
-{\listtext	2.	}Run server: npm start
-\f0\b (The API starts at:
-\f1\b0 http://localhost:5050)\
-{\listtext	3.	}cd concord-web-mvp\
-{\listtext	4.	}npm install\
-{\listtext	5.	}npm run dev\
-{\listtext	6.	}Try Creating a dtu: curl -X POST http://localhost:5050/api/dtus.                                                      -H "Content-Type: application/json"   -d '\{"content": "My first DTU!", "tags": ["demo"]\}'\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 \
-API Overview:\
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrt\brdrnil \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\f0\b\fs26\fsmilli13090 \cf0 Path
-\f1\b0\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\f0\b\fs26\fsmilli13090 \cf0 Method
-\f1\b0\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\f0\b\fs26\fsmilli13090 \cf0 Description
-\f1\b0\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/ask
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Ask Concord (online/offline)
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/dtus
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET/POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 List or create DTUs
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/dtus/:id
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Inspect a DTU
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/personas
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 List personas
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/persona/send
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Send a message to a persona
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/forge/suggest
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Create CRETI DTU drafts
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/os/state
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 OS layer states
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/os/toggle
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Enable/disable OS components
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/autoprocess/...
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET/POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Heartbeat, evolution, autogen
-\fs18\fsmilli9240 \cell \row
-
-\itap1\trowd \taflags1 \trgaph108\trleft-108 \trbrdrl\brdrnil \trbrdrt\brdrnil \trbrdrr\brdrnil 
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx2880
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx5760
-\clvertalt \clshdrawnil \clbrdrt\brdrs\brdrw20\brdrcf2 \clbrdrl\brdrs\brdrw20\brdrcf2 \clbrdrb\brdrs\brdrw20\brdrcf2 \clbrdrr\brdrs\brdrw20\brdrcf2 \clpadt20 \clpadl100 \clpadb20 \clpadr100 \gaph\cellx8640
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 /api/autocrawl/...
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 GET/POST
-\fs18\fsmilli9240 \cell 
-\pard\intbl\itap1\pardeftab560\slleading80\partightenfactor0
-
-\fs26\fsmilli13090 \cf0 Safe crawling toggle
-\fs29\fsmilli14630 \cell \lastrow\row
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 The community edition includes stubs for advanced OS modules.\
-Full versions unlock after funding + compliance review.\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u55357 \u56594 
-\f0\b  Privacy & Ethics\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	No tracking. No analytics. No telemetry.\
-	\'95	Everything runs on your own machine.\
-	\'95	Your DTUs are yours \'97 locally stored, portable, modular.\
-	\'95	ConcordOS CE will never become ad-driven or surveillance-based.\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u55358 \u56817 
-\f0\b  Why Monolithic Architecture?\
-\
-This release uses a single-file architecture because:\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Easy to fork\
-	\'95	Easy to audit\
-	\'95	Easy to customize\
-	\'95	No patch-chains or dependency tangles\
-\
-A full modular version will be released later, but a clean monolith is ideal for open-source adoption.\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u55357 \u56826 
-\f0\b  Roadmap (High Level)\
-\
-v1.0 \'96 Community Edition (This Release)\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	DTU Engine\
-	\'95	CRETI Forge\
-	\'95	Ask Concord\
-	\'95	PersonaOS\
-	\'95	Local-first design\
-\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-\cf0 v2.0 \'96 Extended OS\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Real evolution engine\
-	\'95	Autogen engine\
-	\'95	CrawlOS w/ safe domain sets\
-	\'95	Schema-based DTU networking\
-\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-\cf0 v3.0 \'96 Concord Global\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	DTU Marketplace\
-	\'95	Cryptographic creator attribution\
-	\'95	Reputation-based DTU refinement\
-	\'95	Developer SDK\
-	\'95	Research Institute integrations\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u55358 \u56605 
-\f0\b  Contributing\
-\
-Contributions welcome!\
-Open PRs for:\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	New reasoning utilities\
-	\'95	DTU tools\
-	\'95	Improvements to CRETI logic\
-	\'95	Persona scripts\
-	\'95	Front-end Studio components\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f1\b0 \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f2 \cf0 \uc0\u11835 
-\f1 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f0\b \cf0 \
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-
-\f3\b0 \cf0 \uc0\u55357 \u56540 
-\f0\b  License\
-\
-Apache 2.0 (see LICENSE)\
-\
-This ensures:\
-\pard\pardeftab560\li720\slleading80\partightenfactor0
-\cf0 	\'95	Full commercial use is allowed\
-	\'95	ConcordOS CE stays legally safe\
-	\'95	Forks cannot claim exclusive rights\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0 	\'95	You maintain control of the 
-\f4\i Trademarks / Branding / Global Edition
-\f0\i0 \
-
-\f1\b0 \
-concord/\
-\pard\pardeftab560\slleading80\pardirnatural\partightenfactor0
-\cf0  
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  server/            # Node backend (monolith)\
-\pard\pardeftab560\slleading80\partightenfactor0
-\cf0  \uc0\u9474    
-\f0\b \uc0\u9492 \u9472 
-\f1\b0  server.js\
- \uc0\u9474 \
- 
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  concord-web-mvp/   # React UI (Concord Studio)\
- \uc0\u9474    
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  src/\
- \uc0\u9474    \u9474    
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  App.jsx\
- \uc0\u9474    \u9474    
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  components/\
- \uc0\u9474    \u9474    
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  util/\
- \uc0\u9474    \u9474    
-\f0\b \uc0\u9492 \u9472 
-\f1\b0  ...\
- \uc0\u9474    
-\f0\b \uc0\u9492 \u9472 
-\f1\b0  index.html\
- \uc0\u9474 \
- 
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  README.md\
- 
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  LICENSE\
- 
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  ROADMAP.md\
- 
-\f5\b \'84\'a5
-\f0 \uc0\u9472 
-\f1\b0  CONTRIBUTING.md\
- 
-\f0\b \uc0\u9492 \u9472 
-\f1\b0  docs/\
-      
-\f0\b \uc0\u9492 \u9472 
-\f1\b0  api-reference.md  (optional)}
+# Concord (Community Edition)
+
+**Concord** is a fully local, modular cognitive engine designed to run offline, create knowledge structures (DTUs), and support OS-like reasoning layers for personal, research, and creative use.
+
+This repository contains the *Community Edition*, which includes:
+
+- ✔ Fully local backend (`server.js`)
+- ✔ Local DTU engine + starter DTUs
+- ✔ Working UI (`src/App.jsx`, `main.jsx`)
+- ✔ PersonaOS (simple persona-to-DTU interaction)
+- ✔ CRETI engine (Core / Reasoning / Evidence / Testing / Impact)
+- ✔ OS Stack toggles (dream, evolution, autogen, autocrawl)
+- ✔ Autoprocess heartbeat system
+- ✔ Full open-source license (Apache 2.0)
+
+Concord CE is built for:
+- Researchers  
+- Students  
+- Innovators  
+- Developers  
+- Anyone who wants a *local-first cognitive workspace*  
+
+No ads.  
+No tracking.  
+No cloud dependencies.
+
+---
+
+## 🔧 Getting Started
+
+### **1. Install dependencies npm install
+### **2. Run backend** node server.js
+### **3. Run frontend** npm run dev
+Then open the URL shown in your terminal (usually `http://localhost:5173`).
+
+---
+
+## 📦 Included Starter DTUs
+
+In `dtus.js`, the repo includes safe starter DTUs:
+
+- Concord Overview  
+- CRETI Template  
+- PersonaOS Sample Persona  
+- Evolution / Dream sample seeds  
+- Basic knowledge scaffolds  
+
+These are safe, simple, and do not expose deeper Concord logic.
+
+---
+
+## 🛡 License
+
+This project is licensed under the **Apache License 2.0**, allowing:
+
+- personal use  
+- commercial use  
+- modification  
+- distribution  
+
+Only requirement: derivative works must preserve attribution and the license text.
+
+---
+
+## 🚧 Roadmap (Community Edition)
+
+The Community Edition is intentionally minimal.  
+Future iterations (non-open repositories) will include:
+
+- DTU Marketplace  
+- Global OS  
+- Multi-agent Concord Council  
+- CRETI Auto-Expansion Engine  
+- CRI (Concord Research Institute) integrations  
+- USB ecosystem modules (not part of this repo)  
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome.  
+Please see `CONTRIBUTING.md` for contribution guidelines.
+
+---
+
+## 🔒 Security
+
+Issues related to vulnerabilities should be reported privately.  
+See `SECURITY.md` for details.
+
+---
+
+## 🌍 Mission
+
+Concord CE is the first step toward a world where knowledge, tools, and innovation are accessible to everyone — **offline or online**, regardless of geography or income.
+
+Welcome to the next chapter.
