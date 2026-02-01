@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 10, 10, 15;
+  --background-end-rgb: 13, 13, 20;
+
+  /* Lattice Empire Theme */
+  --lattice-void: #0a0a0f;
+  --lattice-deep: #0d0d14;
+  --lattice-surface: #12121a;
+  --lattice-elevated: #1a1a24;
+  --lattice-border: #2a2a3a;
+
+  /* Neon Accents */
+  --neon-blue: #00d4ff;
+  --neon-cyan: #00fff7;
+  --neon-purple: #a855f7;
+  --neon-pink: #ec4899;
+  --neon-green: #22c55e;
+
+  /* Resonance Spectrum */
+  --resonance-low: #3b82f6;
+  --resonance-mid: #8b5cf6;
+  --resonance-high: #ec4899;
+  --resonance-peak: #f43f5e;
+
+  /* Sovereignty */
+  --sovereignty-locked: #22c55e;
+  --sovereignty-warning: #f59e0b;
+  --sovereignty-danger: #ef4444;
+}
+
+@layer base {
+  body {
+    @apply bg-lattice-void text-white antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  * {
+    @apply border-lattice-border;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-lattice-deep;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-lattice-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neon-blue/50;
+  }
+}
+
+@layer components {
+  /* Lens Card */
+  .lens-card {
+    @apply bg-lattice-surface border border-lattice-border rounded-lg p-4;
+    @apply transition-all duration-200;
+    @apply hover:border-neon-blue/50 hover:shadow-neon-blue;
+  }
+
+  /* Sovereignty Lock Indicator */
+  .sovereignty-lock {
+    @apply relative overflow-hidden;
+  }
+
+  .sovereignty-lock::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-sovereignty-locked/20 to-transparent;
+    @apply pointer-events-none;
+  }
+
+  /* Resonance Glow */
+  .resonance-glow {
+    @apply relative;
+  }
+
+  .resonance-glow::after {
+    content: '';
+    @apply absolute inset-0 rounded-lg;
+    @apply bg-gradient-to-r from-resonance-low/10 via-resonance-mid/10 to-resonance-high/10;
+    @apply animate-resonance-wave pointer-events-none;
+  }
+
+  /* DTU Badge */
+  .dtu-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+    @apply bg-neon-blue/20 text-neon-blue border border-neon-blue/30;
+  }
+
+  .dtu-badge.mega {
+    @apply bg-neon-purple/20 text-neon-purple border-neon-purple/30;
+  }
+
+  .dtu-badge.hyper {
+    @apply bg-neon-pink/20 text-neon-pink border-neon-pink/30;
+  }
+
+  /* Neon Button */
+  .btn-neon {
+    @apply px-4 py-2 rounded-lg font-medium;
+    @apply bg-neon-blue/10 text-neon-blue border border-neon-blue/30;
+    @apply hover:bg-neon-blue/20 hover:border-neon-blue/50;
+    @apply transition-all duration-200;
+    @apply active:scale-95;
+  }
+
+  .btn-neon.purple {
+    @apply bg-neon-purple/10 text-neon-purple border-neon-purple/30;
+    @apply hover:bg-neon-purple/20 hover:border-neon-purple/50;
+  }
+
+  .btn-neon.pink {
+    @apply bg-neon-pink/10 text-neon-pink border-neon-pink/30;
+    @apply hover:bg-neon-pink/20 hover:border-neon-pink/50;
+  }
+
+  /* Input Field */
+  .input-lattice {
+    @apply w-full px-4 py-2 rounded-lg;
+    @apply bg-lattice-deep border border-lattice-border;
+    @apply text-white placeholder:text-gray-500;
+    @apply focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30;
+    @apply transition-all duration-200;
+  }
+
+  /* Panel */
+  .panel {
+    @apply bg-lattice-surface border border-lattice-border rounded-xl;
+    @apply shadow-lg;
+  }
+
+  /* Graph Container */
+  .graph-container {
+    @apply w-full h-full min-h-[400px];
+    @apply bg-lattice-deep rounded-lg border border-lattice-border;
+  }
+
+  /* 70% Lock Indicator */
+  .lock-70 {
+    @apply relative;
+  }
+
+  .lock-70::after {
+    content: '70%';
+    @apply absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] font-bold;
+    @apply bg-sovereignty-locked text-white rounded;
+  }
+}
+
+@layer utilities {
+  /* Text Gradient */
+  .text-gradient-neon {
+    @apply bg-gradient-to-r from-neon-blue via-neon-cyan to-neon-purple;
+    @apply bg-clip-text text-transparent;
+  }
+
+  /* Glow Effects */
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+  }
+
+  .glow-pink {
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
+  }
+
+  /* Glass Effect */
+  .glass {
+    @apply backdrop-blur-md bg-white/5;
+  }
+
+  /* No Scrollbar */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
