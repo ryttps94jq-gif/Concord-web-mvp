@@ -23,6 +23,7 @@ interface ResonanceEmpireGraphProps {
   onNodeClick?: (node: Node) => void;
   height?: number;
   showLabels?: boolean;
+  fullHeight?: boolean;
 }
 
 const tierColors = {
@@ -38,7 +39,9 @@ export function ResonanceEmpireGraph({
   onNodeClick,
   height = 400,
   showLabels = false,
+  fullHeight = false,
 }: ResonanceEmpireGraphProps) {
+  const effectiveHeight = fullHeight ? 600 : height;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height });
@@ -50,7 +53,7 @@ export function ResonanceEmpireGraph({
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.clientWidth,
-          height,
+          height: effectiveHeight,
         });
       }
     };
@@ -58,7 +61,7 @@ export function ResonanceEmpireGraph({
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
-  }, [height]);
+  }, [effectiveHeight]);
 
   // Canvas rendering
   useEffect(() => {

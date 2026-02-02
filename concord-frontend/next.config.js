@@ -5,9 +5,6 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: process.env.NODE_ENV === 'development',
   },
-  experimental: {
-    serverActions: true,
-  },
   // PWA configuration
   async headers() {
     return [

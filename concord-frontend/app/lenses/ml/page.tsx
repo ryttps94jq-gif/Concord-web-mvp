@@ -15,6 +15,15 @@ interface Model {
   lastTrained?: string;
 }
 
+interface TrainingJob {
+  id: string;
+  modelName: string;
+  status: 'ready' | 'training' | 'failed';
+  progress: number;
+  startedAt: string;
+  eta?: string;
+}
+
 export default function MLLensPage() {
   useLensNav('ml');
 
@@ -218,7 +227,7 @@ export default function MLLensPage() {
               </tr>
             </thead>
             <tbody>
-              {trainingJobs?.jobs?.map((job: any) => (
+              {trainingJobs?.jobs?.map((job: TrainingJob) => (
                 <tr key={job.id} className="border-b border-lattice-border/50">
                   <td className="py-3 font-medium">{job.modelName}</td>
                   <td className="py-3">

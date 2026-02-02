@@ -6,7 +6,7 @@ import { api } from '@/lib/api/client';
 import { Search, Bell, User, Command, Activity, Zap } from 'lucide-react';
 
 export function Topbar() {
-  const { sidebarCollapsed, setCommandPaletteOpen, currentLens } = useUIStore();
+  const { sidebarCollapsed, setCommandPaletteOpen, activeLens } = useUIStore();
 
   const { data: resonance } = useQuery({
     queryKey: ['resonance-quick'],
@@ -28,7 +28,7 @@ export function Topbar() {
       {/* Current Lens Title */}
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold capitalize">
-          {currentLens || 'Dashboard'}
+          {activeLens || 'Dashboard'}
         </h1>
       </div>
 
