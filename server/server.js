@@ -10361,6 +10361,138 @@ app.get("/api/integrations", async (req, res) => res.json(await runMacro("integr
 console.log("[Concord] Wave 8: Integrations Ecosystem loaded");
 
 // ============================================================================
+// WAVE 9: DATABASE INTEGRATIONS (PostgreSQL + Redis)
+// ============================================================================
+
+const PG_CONFIG = {
+  enabled: !!process.env.POSTGRES_URL || !!process.env.DATABASE_URL,
+  url: process.env.POSTGRES_URL || process.env.DATABASE_URL || null,
+  pool: { min: 2, max: 10, idleTimeoutMillis: 30000 },
+  ssl: process.env.POSTGRES_SSL === "true" ? { rejectUnauthorized: false } : false
+};
+
+let pgPool = null;
+
+async function initPostgres() {
+  if (!PG_CONFIG.enabled) return { ok: false, reason: "PostgreSQL not configured" };
+  try {
+    const { default: pg } = await import("pg");
+    pgPool = new pg.Pool({ connectionString: PG_CONFIG.url, min: PG_CONFIG.pool.min, max: PG_CONFIG.pool.max, idleTimeoutMillis: PG_CONFIG.pool.idleTimeoutMillis, ssl: PG_CONFIG.ssl });
+    await pgPool.query("SELECT 1");
+    console.log("[PostgreSQL] Connected successfully");
+    return { ok: true };
+  } catch (e) { console.warn("[PostgreSQL] Connection failed:", e.message); pgPool = null; return { ok: false, error: e.message }; }
+}
+
+async function runMigrations() {
+  if (!pgPool) return { ok: false, reason: "No PostgreSQL connection" };
+  const migrations = [
+    `CREATE TABLE IF NOT EXISTS dtus (id VARCHAR(64) PRIMARY KEY, title TEXT NOT NULL, tier VARCHAR(32) DEFAULT 'regular', tags JSONB DEFAULT '[]', human JSONB DEFAULT '{}', core JSONB DEFAULT '{}', machine JSONB DEFAULT '{}', lineage JSONB DEFAULT '{}', source VARCHAR(64), meta JSONB DEFAULT '{}', authority JSONB DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), hash VARCHAR(128), user_id VARCHAR(64), org_id VARCHAR(64))`,
+    `CREATE INDEX IF NOT EXISTS idx_dtus_tier ON dtus(tier)`,
+    `CREATE INDEX IF NOT EXISTS idx_dtus_tags ON dtus USING GIN(tags)`,
+    `CREATE INDEX IF NOT EXISTS idx_dtus_user ON dtus(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dtus_org ON dtus(org_id)`,
+    `CREATE TABLE IF NOT EXISTS sessions (id VARCHAR(64) PRIMARY KEY, user_id VARCHAR(64), messages JSONB DEFAULT '[]', style_vector JSONB DEFAULT '{}', cloud_opt_in BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS plugins (id VARCHAR(64) PRIMARY KEY, name VARCHAR(256) NOT NULL, version VARCHAR(32), description TEXT, github_url TEXT, category VARCHAR(64), downloads INTEGER DEFAULT 0, rating DECIMAL(3,2) DEFAULT 0, status VARCHAR(32) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS webhooks (id VARCHAR(64) PRIMARY KEY, name VARCHAR(256), url TEXT NOT NULL, events JSONB DEFAULT '[]', secret VARCHAR(256), enabled BOOLEAN DEFAULT TRUE, trigger_count INTEGER DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS automations (id VARCHAR(64) PRIMARY KEY, name VARCHAR(256), trigger JSONB, conditions JSONB DEFAULT '[]', actions JSONB DEFAULT '[]', enabled BOOLEAN DEFAULT TRUE, run_count INTEGER DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS collab_sessions (id VARCHAR(64) PRIMARY KEY, dtu_id VARCHAR(64), creator_id VARCHAR(64), mode VARCHAR(32) DEFAULT 'edit', participants JSONB DEFAULT '[]', changes JSONB DEFAULT '[]', expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS whiteboards (id VARCHAR(64) PRIMARY KEY, title VARCHAR(256), elements JSONB DEFAULT '[]', linked_dtus JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`
+  ];
+  let applied = 0;
+  for (const sql of migrations) { try { await pgPool.query(sql); applied++; } catch (e) {} }
+  return { ok: true, applied, total: migrations.length };
+}
+
+register("db", "status", async (ctx, input) => {
+  return { ok: true, postgres: { enabled: PG_CONFIG.enabled, connected: !!pgPool, pool: pgPool ? { total: pgPool.totalCount, idle: pgPool.idleCount, waiting: pgPool.waitingCount } : null }, redis: { enabled: REDIS_CONFIG.enabled, connected: !!redisClient }, mode: pgPool ? "postgresql" : "in-memory" };
+});
+
+register("db", "migrate", async (ctx, input) => { return await runMigrations(); });
+
+register("db", "query", async (ctx, input) => {
+  const { sql, params } = input;
+  if (!pgPool) return { ok: false, error: "PostgreSQL not connected" };
+  if (!sql) return { ok: false, error: "SQL query required" };
+  try { const result = await pgPool.query(sql, params || []); return { ok: true, rows: result.rows, rowCount: result.rowCount }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+register("db", "syncToPostgres", async (ctx, input) => {
+  if (!pgPool) return { ok: false, error: "PostgreSQL not connected" };
+  const batch = Number(input.batchSize) || 100;
+  let synced = 0;
+  const dtus = dtusArray();
+  for (let i = 0; i < dtus.length; i += batch) {
+    for (const dtu of dtus.slice(i, i + batch)) {
+      try {
+        await pgPool.query(`INSERT INTO dtus (id, title, tier, tags, human, core, machine, lineage, source, meta, authority, created_at, updated_at, hash, user_id, org_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, tier=EXCLUDED.tier, tags=EXCLUDED.tags, human=EXCLUDED.human, core=EXCLUDED.core, machine=EXCLUDED.machine, lineage=EXCLUDED.lineage, meta=EXCLUDED.meta, authority=EXCLUDED.authority, updated_at=NOW()`,
+          [dtu.id, dtu.title, dtu.tier, JSON.stringify(dtu.tags||[]), JSON.stringify(dtu.human||{}), JSON.stringify(dtu.core||{}), JSON.stringify(dtu.machine||{}), JSON.stringify(dtu.lineage||{}), dtu.source, JSON.stringify(dtu.meta||{}), JSON.stringify(dtu.authority||{}), dtu.createdAt, dtu.updatedAt, dtu.hash, dtu.meta?.userId||null, dtu.meta?.orgId||null]);
+        synced++;
+      } catch (e) {}
+    }
+  }
+  return { ok: true, synced, total: dtus.length };
+});
+
+const REDIS_CONFIG = { enabled: !!process.env.REDIS_URL, url: process.env.REDIS_URL || null, prefix: process.env.REDIS_PREFIX || "concord:", ttl: Number(process.env.REDIS_TTL) || 300 };
+let redisClient = null;
+
+async function initRedis() {
+  if (!REDIS_CONFIG.enabled) return { ok: false, reason: "Redis not configured" };
+  try {
+    const { createClient } = await import("redis");
+    redisClient = createClient({ url: REDIS_CONFIG.url });
+    redisClient.on("error", (err) => console.warn("[Redis] Error:", err.message));
+    await redisClient.connect();
+    console.log("[Redis] Connected successfully");
+    return { ok: true };
+  } catch (e) { console.warn("[Redis] Connection failed:", e.message); redisClient = null; return { ok: false, error: e.message }; }
+}
+
+register("redis", "get", async (ctx, input) => {
+  const { key } = input;
+  if (!redisClient) return await runMacro("cache", "get", { key }, ctx);
+  try { const value = await redisClient.get(REDIS_CONFIG.prefix + key); if (!value) return { ok: false, miss: true }; return { ok: true, data: JSON.parse(value) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+register("redis", "set", async (ctx, input) => {
+  const { key, data, ttl } = input;
+  if (!redisClient) return await runMacro("cache", "set", { key, data, ttl }, ctx);
+  try { await redisClient.setEx(REDIS_CONFIG.prefix + key, ttl || REDIS_CONFIG.ttl, JSON.stringify(data)); return { ok: true, key, cached: true, backend: "redis" }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+register("redis", "del", async (ctx, input) => {
+  const { key, pattern } = input;
+  if (!redisClient) return await runMacro("cache", "invalidate", { key, pattern }, ctx);
+  try {
+    if (key) { await redisClient.del(REDIS_CONFIG.prefix + key); return { ok: true, deleted: 1 }; }
+    if (pattern) { const keys = await redisClient.keys(REDIS_CONFIG.prefix + pattern); if (keys.length > 0) await redisClient.del(keys); return { ok: true, deleted: keys.length }; }
+    return { ok: false, error: "Key or pattern required" };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+register("redis", "stats", async (ctx, input) => {
+  if (!redisClient) return { ok: true, enabled: false, fallback: "in-memory" };
+  try { const info = await redisClient.info("memory"); const keyCount = await redisClient.dbSize(); return { ok: true, enabled: true, keys: keyCount, info: info.slice(0, 500) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+app.get("/api/db/status", async (req, res) => res.json(await runMacro("db", "status", {}, makeCtx(req))));
+app.post("/api/db/migrate", async (req, res) => res.json(await runMacro("db", "migrate", {}, makeCtx(req))));
+app.post("/api/db/sync", async (req, res) => res.json(await runMacro("db", "syncToPostgres", req.body, makeCtx(req))));
+app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req))));
+
+setTimeout(async () => {
+  if (PG_CONFIG.enabled) { const pg = await initPostgres(); if (pg.ok) await runMigrations(); }
+  if (REDIS_CONFIG.enabled) await initRedis();
+}, 1000);
+
+console.log("[Concord] Wave 9: Database Integrations loaded");
+
+// ============================================================================
 // END CONCORD ENHANCEMENTS v4.0 - ALL WAVES COMPLETE
 // ============================================================================
 

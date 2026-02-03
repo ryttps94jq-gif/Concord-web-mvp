@@ -202,6 +202,142 @@ export const apiHelpers = {
   events: {
     list: () => api.get('/api/events'),
   },
+
+  // v4.0 APIs
+
+  // Plugin Marketplace
+  marketplace: {
+    browse: (params?: { search?: string; category?: string; page?: number }) =>
+      api.get('/api/marketplace/browse', { params }),
+    submit: (data: { name: string; githubUrl: string; description?: string; category?: string }) =>
+      api.post('/api/marketplace/submit', data),
+    install: (data: { pluginId?: string; fromGithub?: boolean; githubUrl?: string }) =>
+      api.post('/api/marketplace/install', data),
+    installed: () => api.get('/api/marketplace/installed'),
+    review: (data: { pluginId: string; rating: number; comment?: string }) =>
+      api.post('/api/marketplace/review', data),
+  },
+
+  // Graph Queries
+  graph: {
+    query: (dsl: string) => api.post('/api/graph/query', { dsl }),
+    visual: (params?: { tier?: string; limit?: number }) =>
+      api.get('/api/graph/visual', { params }),
+    force: (params?: { centerNode?: string; depth?: number; maxNodes?: number }) =>
+      api.get('/api/graph/force', { params }),
+  },
+
+  // Schema System
+  schema: {
+    list: () => api.get('/api/schema'),
+    create: (data: { name: string; kind: string; fields: any[] }) =>
+      api.post('/api/schema', data),
+    validate: (data: { schemaName: string; data: any }) =>
+      api.post('/api/schema/validate', data),
+    apply: (data: { schemaName: string; dtuId: string; data: any }) =>
+      api.post('/api/schema/apply', data),
+  },
+
+  // Auto-Tagging
+  autotag: {
+    analyze: (data: { dtuId?: string; content?: string }) =>
+      api.post('/api/autotag/analyze', data),
+    apply: (data: { dtuId: string; tags?: string[]; domain?: string }) =>
+      api.post('/api/autotag/apply', data),
+    batch: (data: { tier?: string; limit?: number; dryRun?: boolean }) =>
+      api.post('/api/autotag/batch', data),
+  },
+
+  // Visual
+  visual: {
+    moodboard: (params?: { tags?: string; tier?: string; maxNodes?: number }) =>
+      api.get('/api/visual/moodboard', { params }),
+    sunburst: (params?: { maxDepth?: number; maxNodes?: number }) =>
+      api.get('/api/visual/sunburst', { params }),
+    timeline: (params?: { startDate?: string; endDate?: string; limit?: number }) =>
+      api.get('/api/visual/timeline', { params }),
+  },
+
+  // Collaboration
+  collab: {
+    sessions: () => api.get('/api/collab/sessions'),
+    createSession: (data: { dtuId: string; mode?: string }) =>
+      api.post('/api/collab/session', data),
+    join: (data: { sessionId: string; userId?: string }) =>
+      api.post('/api/collab/join', data),
+    edit: (data: { sessionId: string; path: string; value: any }) =>
+      api.post('/api/collab/edit', data),
+    merge: (sessionId: string) => api.post('/api/collab/merge', { sessionId }),
+  },
+
+  // Whiteboard
+  whiteboard: {
+    list: () => api.get('/api/whiteboards'),
+    get: (id: string) => api.get(`/api/whiteboard/${id}`),
+    create: (data: { title: string; linkedDtus?: string[] }) =>
+      api.post('/api/whiteboard', data),
+    update: (id: string, data: { elements?: any[]; linkedDtus?: string[] }) =>
+      api.put(`/api/whiteboard/${id}`, data),
+  },
+
+  // Webhooks & Automations
+  webhooks: {
+    list: () => api.get('/api/webhooks'),
+    create: (data: { name: string; url: string; events: string[] }) =>
+      api.post('/api/webhooks', data),
+    delete: (id: string) => api.delete(`/api/webhooks/${id}`),
+    toggle: (id: string, enabled: boolean) =>
+      api.post(`/api/webhooks/${id}/toggle`, { enabled }),
+  },
+
+  automations: {
+    list: () => api.get('/api/automations'),
+    create: (data: { name: string; trigger: any; actions: any[] }) =>
+      api.post('/api/automations', data),
+    run: (id: string, triggerData?: any) =>
+      api.post(`/api/automations/${id}/run`, triggerData || {}),
+    delete: (id: string) => api.delete(`/api/automations/${id}`),
+  },
+
+  // Integrations
+  integrations: {
+    list: () => api.get('/api/integrations'),
+    obsidianExport: (data: { dtuIds?: string[]; includeLineage?: boolean }) =>
+      api.post('/api/obsidian/export', data),
+    obsidianImport: (files: any[]) => api.post('/api/obsidian/import', { files }),
+    notionImport: (pages: any[]) => api.post('/api/notion/import', { pages }),
+  },
+
+  // Database & Performance
+  db: {
+    status: () => api.get('/api/db/status'),
+    migrate: () => api.post('/api/db/migrate', {}),
+    sync: (batchSize?: number) => api.post('/api/db/sync', { batchSize }),
+  },
+
+  redis: {
+    stats: () => api.get('/api/redis/stats'),
+  },
+
+  perf: {
+    metrics: () => api.get('/api/perf/metrics'),
+    gc: () => api.post('/api/perf/gc', {}),
+  },
+
+  backpressure: {
+    status: () => api.get('/api/backpressure/status'),
+  },
+
+  // PWA & Mobile
+  pwa: {
+    manifest: () => api.get('/manifest.json'),
+    swConfig: () => api.get('/api/pwa/sw-config'),
+  },
+
+  mobile: {
+    shortcuts: () => api.get('/api/mobile/shortcuts'),
+    dtu: (id: string) => api.get(`/api/mobile/dtu/${id}`),
+  },
 };
 
 export default api;
