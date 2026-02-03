@@ -26,12 +26,6 @@ async function tryLoadDotenv() {
   try {
     const dotenv = await import("dotenv");
     const result = envPath ? dotenv.config({ path: envPath }) : dotenv.config();
-// LLM toggle: default ON only when a key is present; override via CONCORD_LLM_DEFAULT_FORCED/LLM_DEFAULT_FORCED (0/1/true/false/yes/on)
-const __envBool = (v) => String(v ?? "").toLowerCase().trim();
-const __llmDefaultForcedRaw = (process.env.CONCORD_LLM_DEFAULT_FORCED ?? process.env.LLM_DEFAULT_FORCED ?? null);
-const __llmForced = (__llmDefaultForcedRaw !== null) ? __envBool(__llmDefaultForcedRaw) : "";
-
-
     DOTENV.loaded = !result?.error;
     DOTENV.path = envPath || "(default)";
     DOTENV.error = result?.error ? String(result.error) : null;
@@ -45,12 +39,16 @@ await tryLoadDotenv();
 
 // ---- config ----
 const PORT = Number(process.env.PORT || 5050);
-const VERSION = "3.0.0-full-simulation";
+const VERSION = "4.0.0-full-simulation";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL_FAST = process.env.OPENAI_MODEL_FAST || process.env.OPENAI_MODEL || "gpt-4o-mini";
-const OPENAI_MODEL_SMART = process.env.OPENAI_MODEL_SMART || "gpt-4.1"; // safe default; overridden by .env
+const OPENAI_MODEL_SMART = process.env.OPENAI_MODEL_SMART || "gpt-4.1";
 const LLM_READY = Boolean(OPENAI_API_KEY);
+// LLM toggle: default ON only when a key is present
+const __envBool = (v) => String(v ?? "").toLowerCase().trim();
+const __llmDefaultForcedRaw = (process.env.CONCORD_LLM_DEFAULT_FORCED ?? process.env.LLM_DEFAULT_FORCED ?? null);
+const __llmForced = (__llmDefaultForcedRaw !== null) ? __envBool(__llmDefaultForcedRaw) : "";
 const DEFAULT_LLM_ON = (__llmDefaultForcedRaw !== null)
   ? (["1","true","yes","y","on"].includes(__llmForced))
   : Boolean((process.env.OPENAI_API_KEY || "").trim());
