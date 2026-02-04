@@ -20082,6 +20082,607 @@ function kernelTick(event) {
 
 // Ensure regi
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONCORD ECONOMIC ENGINE v2.1
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---- Stripe Integration (lazy load) ----
+let stripe = null;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const STRIPE_ENABLED = Boolean(STRIPE_SECRET_KEY);
+
+async function getStripe() {
+  if (!STRIPE_ENABLED) return null;
+  if (!stripe) {
+    try {
+      const Stripe = (await import('stripe')).default;
+      stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    } catch (e) {
+      console.warn('[Economic] Stripe not available:', e.message);
+    }
+  }
+  return stripe;
+}
+
+// ---- Economic Constants ----
+const ECONOMIC_CONFIG = Object.freeze({
+  TOKEN_PURCHASE_FEE: 0.0146,        // 1.46% fee on token purchases
+  MARKETPLACE_FEE: 0.04,              // 4% marketplace fee (adjustable 3-5%)
+  CREATOR_SHARE: 0.70,                // 70% to creator
+  ROYALTY_SHARE: 0.20,                // 20% to royalty wheel
+  TREASURY_SHARE: 0.10,               // 10% to Concord treasury
+
+  // Royalty wheel decay by generation
+  ROYALTY_DECAY: [0.30, 0.20, 0.10, 0.05, 0.03, 0.02, 0.01],
+
+  // Token packages (CT = Concord Tokens)
+  TOKEN_PACKAGES: [
+    { id: 'pack_500', tokens: 500, price: 500, bonus: 0 },      // $5.00
+    { id: 'pack_2000', tokens: 2200, price: 1800, bonus: 0.10 }, // $18.00, 10% bonus
+    { id: 'pack_10000', tokens: 12000, price: 8000, bonus: 0.20 }, // $80.00, 20% bonus
+  ],
+
+  // Subscription tiers
+  TIERS: {
+    free: { name: 'Free', price: 0, ingestLimit: 10, tokensPerMonth: 100 },
+    pro: { name: 'Pro', price: 1200, ingestLimit: -1, tokensPerMonth: 2000 },    // $12/mo
+    teams: { name: 'Teams', price: 2900, ingestLimit: -1, tokensPerMonth: 5000 }, // $29/seat/mo
+  },
+
+  // Stripe price IDs (set in env)
+  STRIPE_PRICES: {
+    pro: process.env.STRIPE_PRICE_PRO || '',
+    teams: process.env.STRIPE_PRICE_TEAMS || '',
+  },
+});
+
+// ---- Economic State ----
+function ensureEconomicState() {
+  if (!STATE.economic) {
+    STATE.economic = {
+      wallets: new Map(),           // odId -> { balance, tier, stripeCustomerId, ... }
+      listings: new Map(),          // listingId -> { dtuId, price, seller, ... }
+      transactions: [],             // transaction log
+      treasury: 0,                  // Concord treasury balance
+      ingestTracking: new Map(),    // odId -> { date, count }
+    };
+  }
+  return STATE.economic;
+}
+
+// ---- Wallet Management ----
+function getWallet(odId) {
+  ensureEconomicState();
+  if (!STATE.economic.wallets.has(odId)) {
+    STATE.economic.wallets.set(odId, {
+      odId,
+      balance: 0,
+      tier: 'free',
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      tokensEarned: 0,
+      tokensSpent: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  }
+  return STATE.economic.wallets.get(odId);
+}
+
+function creditWallet(odId, amount, reason = '') {
+  const wallet = getWallet(odId);
+  wallet.balance += amount;
+  wallet.tokensEarned += amount;
+  wallet.updatedAt = Date.now();
+  logTransaction({ type: 'credit', odId, amount, reason, balance: wallet.balance });
+  return wallet;
+}
+
+function debitWallet(odId, amount, reason = '') {
+  const wallet = getWallet(odId);
+  if (wallet.balance < amount) {
+    throw new Error(`Insufficient balance: have ${wallet.balance}, need ${amount}`);
+  }
+  wallet.balance -= amount;
+  wallet.tokensSpent += amount;
+  wallet.updatedAt = Date.now();
+  logTransaction({ type: 'debit', odId, amount, reason, balance: wallet.balance });
+  return wallet;
+}
+
+function logTransaction(tx) {
+  ensureEconomicState();
+  STATE.economic.transactions.push({
+    ...tx,
+    id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: Date.now(),
+  });
+  // Keep only last 10000 transactions in memory
+  if (STATE.economic.transactions.length > 10000) {
+    STATE.economic.transactions = STATE.economic.transactions.slice(-10000);
+  }
+}
+
+// ---- Token Purchase System (1.46% fee) ----
+app.post('/api/economic/tokens/purchase', async (req, res) => {
+  try {
+    const { odId, packageId } = req.body;
+    if (!odId || !packageId) return res.status(400).json({ error: 'Missing odId or packageId' });
+
+    const pkg = ECONOMIC_CONFIG.TOKEN_PACKAGES.find(p => p.id === packageId);
+    if (!pkg) return res.status(400).json({ error: 'Invalid package' });
+
+    const stripeClient = await getStripe();
+    if (!stripeClient) {
+      return res.status(503).json({ error: 'Payment system not configured' });
+    }
+
+    const wallet = getWallet(odId);
+
+    // Create or get Stripe customer
+    let customerId = wallet.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripeClient.customers.create({
+        metadata: { odId },
+      });
+      customerId = customer.id;
+      wallet.stripeCustomerId = customerId;
+    }
+
+    // Create checkout session
+    const session = await stripeClient.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `${pkg.tokens} Concord Tokens`,
+            description: pkg.bonus > 0 ? `Includes ${Math.round(pkg.bonus * 100)}% bonus!` : undefined,
+          },
+          unit_amount: pkg.price,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${process.env.FRONTEND_URL || 'https://concord-os.org'}/billing?success=true`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://concord-os.org'}/billing?canceled=true`,
+      metadata: {
+        odId,
+        packageId,
+        tokens: pkg.tokens,
+        type: 'token_purchase',
+      },
+    });
+
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (e) {
+    console.error('[Economic] Token purchase error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Subscription Management ----
+app.post('/api/economic/subscribe', async (req, res) => {
+  try {
+    const { odId, tier } = req.body;
+    if (!odId || !tier) return res.status(400).json({ error: 'Missing odId or tier' });
+
+    const tierConfig = ECONOMIC_CONFIG.TIERS[tier];
+    if (!tierConfig || tier === 'free') {
+      return res.status(400).json({ error: 'Invalid tier' });
+    }
+
+    const priceId = ECONOMIC_CONFIG.STRIPE_PRICES[tier];
+    if (!priceId) {
+      return res.status(503).json({ error: 'Subscription not configured for this tier' });
+    }
+
+    const stripeClient = await getStripe();
+    if (!stripeClient) {
+      return res.status(503).json({ error: 'Payment system not configured' });
+    }
+
+    const wallet = getWallet(odId);
+
+    // Create or get Stripe customer
+    let customerId = wallet.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripeClient.customers.create({
+        metadata: { odId },
+      });
+      customerId = customer.id;
+      wallet.stripeCustomerId = customerId;
+    }
+
+    // Create checkout session for subscription
+    const session = await stripeClient.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      success_url: `${process.env.FRONTEND_URL || 'https://concord-os.org'}/billing?success=true`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://concord-os.org'}/billing?canceled=true`,
+      metadata: { odId, tier, type: 'subscription' },
+    });
+
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (e) {
+    console.error('[Economic] Subscribe error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Stripe Webhook Handler ----
+app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const stripeClient = await getStripe();
+  if (!stripeClient) return res.status(503).send('Stripe not configured');
+
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripeClient.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (e) {
+    console.error('[Economic] Webhook signature verification failed:', e.message);
+    return res.status(400).send(`Webhook Error: ${e.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const { odId, type, packageId, tokens, tier } = session.metadata || {};
+
+        if (type === 'token_purchase' && odId && tokens) {
+          // Apply 1.46% fee (already collected by Stripe, we credit net tokens)
+          const netTokens = Math.floor(Number(tokens));
+          creditWallet(odId, netTokens, `Token purchase: ${packageId}`);
+
+          // Fee goes to treasury
+          const fee = Math.ceil(netTokens * ECONOMIC_CONFIG.TOKEN_PURCHASE_FEE);
+          ensureEconomicState();
+          STATE.economic.treasury += fee;
+
+          console.log(`[Economic] Token purchase: ${odId} received ${netTokens} CT (fee: ${fee})`);
+        }
+
+        if (type === 'subscription' && odId && tier) {
+          const wallet = getWallet(odId);
+          wallet.tier = tier;
+          wallet.stripeSubscriptionId = session.subscription;
+          wallet.updatedAt = Date.now();
+
+          // Credit monthly tokens
+          const tierConfig = ECONOMIC_CONFIG.TIERS[tier];
+          if (tierConfig?.tokensPerMonth) {
+            creditWallet(odId, tierConfig.tokensPerMonth, `${tier} subscription monthly tokens`);
+          }
+
+          console.log(`[Economic] Subscription: ${odId} upgraded to ${tier}`);
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        // Find wallet by subscription ID and downgrade
+        ensureEconomicState();
+        for (const [, wallet] of STATE.economic.wallets) {
+          if (wallet.stripeSubscriptionId === subscription.id) {
+            wallet.tier = 'free';
+            wallet.stripeSubscriptionId = null;
+            wallet.updatedAt = Date.now();
+            console.log(`[Economic] Subscription canceled: ${wallet.odId} downgraded to free`);
+            break;
+          }
+        }
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object;
+        // Monthly token grant for subscriptions
+        if (invoice.subscription) {
+          ensureEconomicState();
+          for (const [, wallet] of STATE.economic.wallets) {
+            if (wallet.stripeSubscriptionId === invoice.subscription) {
+              const tierConfig = ECONOMIC_CONFIG.TIERS[wallet.tier];
+              if (tierConfig?.tokensPerMonth) {
+                creditWallet(wallet.odId, tierConfig.tokensPerMonth, `${wallet.tier} monthly tokens`);
+              }
+              break;
+            }
+          }
+        }
+        break;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (e) {
+    console.error('[Economic] Webhook processing error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- DTU Marketplace ----
+app.post('/api/economic/marketplace/list', (req, res) => {
+  try {
+    const { odId, dtuId, price, description } = req.body;
+    if (!odId || !dtuId || !price) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    ensureEconomicState();
+    const listingId = `listing_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    STATE.economic.listings.set(listingId, {
+      id: listingId,
+      dtuId,
+      seller: odId,
+      price: Number(price),
+      description: description || '',
+      status: 'active',
+      createdAt: Date.now(),
+      sales: 0,
+    });
+
+    res.json({ listingId, message: 'DTU listed successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/economic/marketplace/buy', (req, res) => {
+  try {
+    const { odId, listingId } = req.body;
+    if (!odId || !listingId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    ensureEconomicState();
+    const listing = STATE.economic.listings.get(listingId);
+    if (!listing || listing.status !== 'active') {
+      return res.status(404).json({ error: 'Listing not found or inactive' });
+    }
+
+    if (listing.seller === odId) {
+      return res.status(400).json({ error: 'Cannot buy your own listing' });
+    }
+
+    const buyerWallet = getWallet(odId);
+    if (buyerWallet.balance < listing.price) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    // Calculate splits
+    const marketplaceFee = Math.ceil(listing.price * ECONOMIC_CONFIG.MARKETPLACE_FEE);
+    const netAmount = listing.price - marketplaceFee;
+    const creatorAmount = Math.floor(netAmount * ECONOMIC_CONFIG.CREATOR_SHARE);
+    const royaltyAmount = Math.floor(netAmount * ECONOMIC_CONFIG.ROYALTY_SHARE);
+    const treasuryAmount = netAmount - creatorAmount - royaltyAmount;
+
+    // Debit buyer
+    debitWallet(odId, listing.price, `Purchase: ${listing.dtuId}`);
+
+    // Credit seller
+    creditWallet(listing.seller, creatorAmount, `Sale: ${listing.dtuId}`);
+
+    // Process royalty wheel
+    processRoyaltyWheel(listing.dtuId, royaltyAmount);
+
+    // Treasury
+    STATE.economic.treasury += treasuryAmount + marketplaceFee;
+
+    // Update listing
+    listing.sales += 1;
+
+    // Log transaction
+    logTransaction({
+      type: 'marketplace_sale',
+      listingId,
+      dtuId: listing.dtuId,
+      buyer: odId,
+      seller: listing.seller,
+      price: listing.price,
+      creatorAmount,
+      royaltyAmount,
+      treasuryAmount,
+      marketplaceFee,
+    });
+
+    res.json({
+      success: true,
+      dtuId: listing.dtuId,
+      paid: listing.price,
+      breakdown: { creatorAmount, royaltyAmount, treasuryAmount, marketplaceFee },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Royalty Wheel ----
+function processRoyaltyWheel(dtuId, totalRoyalty) {
+  if (totalRoyalty <= 0) return;
+
+  // Get DTU and its references
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu || !dtu.references || dtu.references.length === 0) {
+    // No references, royalty goes to treasury
+    ensureEconomicState();
+    STATE.economic.treasury += totalRoyalty;
+    return;
+  }
+
+  let remaining = totalRoyalty;
+  const decay = ECONOMIC_CONFIG.ROYALTY_DECAY;
+
+  // Process each generation of references
+  let currentRefs = [...dtu.references];
+  let generation = 0;
+  const processed = new Set();
+
+  while (currentRefs.length > 0 && generation < decay.length && remaining > 0) {
+    const genShare = decay[generation];
+    const genAmount = Math.floor(totalRoyalty * genShare);
+    const perRef = Math.floor(genAmount / currentRefs.length);
+
+    const nextRefs = [];
+
+    for (const refId of currentRefs) {
+      if (processed.has(refId)) continue;
+      processed.add(refId);
+
+      const refDtu = STATE.dtus?.get(refId);
+      if (refDtu && refDtu.authorId && perRef > 0) {
+        creditWallet(refDtu.authorId, perRef, `Royalty gen${generation + 1}: ${dtuId}`);
+        remaining -= perRef;
+      }
+
+      // Queue next generation
+      if (refDtu?.references) {
+        nextRefs.push(...refDtu.references.filter(r => !processed.has(r)));
+      }
+    }
+
+    currentRefs = nextRefs;
+    generation++;
+  }
+
+  // Remaining goes to treasury
+  if (remaining > 0) {
+    ensureEconomicState();
+    STATE.economic.treasury += remaining;
+  }
+}
+
+// ---- Ingest Rate Limiter ----
+function checkIngestLimit(odId) {
+  ensureEconomicState();
+  const wallet = getWallet(odId);
+  const tierConfig = ECONOMIC_CONFIG.TIERS[wallet.tier] || ECONOMIC_CONFIG.TIERS.free;
+
+  // Unlimited for paid tiers
+  if (tierConfig.ingestLimit === -1) {
+    return { allowed: true, remaining: -1, limit: -1 };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const tracking = STATE.economic.ingestTracking.get(odId) || { date: today, count: 0 };
+
+  // Reset if new day
+  if (tracking.date !== today) {
+    tracking.date = today;
+    tracking.count = 0;
+  }
+
+  const remaining = tierConfig.ingestLimit - tracking.count;
+  return {
+    allowed: remaining > 0,
+    remaining,
+    limit: tierConfig.ingestLimit,
+    tier: wallet.tier,
+  };
+}
+
+function recordIngest(odId, pageCount = 1) {
+  ensureEconomicState();
+  const today = new Date().toISOString().slice(0, 10);
+  const tracking = STATE.economic.ingestTracking.get(odId) || { date: today, count: 0 };
+
+  if (tracking.date !== today) {
+    tracking.date = today;
+    tracking.count = 0;
+  }
+
+  tracking.count += pageCount;
+  STATE.economic.ingestTracking.set(odId, tracking);
+  return tracking;
+}
+
+// Ingest limit check endpoint
+app.get('/api/economic/ingest-limit/:odId', (req, res) => {
+  const result = checkIngestLimit(req.params.odId);
+  res.json(result);
+});
+
+// Hook into existing ingest endpoint
+app.post('/api/economic/ingest-check', (req, res) => {
+  const { odId, pageCount = 1 } = req.body;
+  if (!odId) return res.status(400).json({ error: 'Missing odId' });
+
+  const limit = checkIngestLimit(odId);
+  if (!limit.allowed) {
+    return res.status(429).json({
+      error: 'Daily ingest limit reached',
+      ...limit,
+      upgrade: 'Upgrade to Pro for unlimited ingestion',
+    });
+  }
+
+  recordIngest(odId, pageCount);
+  res.json({ allowed: true, remaining: limit.remaining - pageCount });
+});
+
+// ---- Economic Status Endpoints ----
+app.get('/api/economic/wallet/:odId', (req, res) => {
+  const wallet = getWallet(req.params.odId);
+  const ingestStatus = checkIngestLimit(req.params.odId);
+  res.json({ ...wallet, ingestStatus });
+});
+
+app.get('/api/economic/marketplace', (req, res) => {
+  ensureEconomicState();
+  const listings = Array.from(STATE.economic.listings.values())
+    .filter(l => l.status === 'active')
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 100);
+  res.json({ listings, count: listings.length });
+});
+
+app.get('/api/economic/config', (req, res) => {
+  res.json({
+    tiers: ECONOMIC_CONFIG.TIERS,
+    tokenPackages: ECONOMIC_CONFIG.TOKEN_PACKAGES,
+    fees: {
+      tokenPurchase: ECONOMIC_CONFIG.TOKEN_PURCHASE_FEE,
+      marketplace: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+    },
+    splits: {
+      creator: ECONOMIC_CONFIG.CREATOR_SHARE,
+      royalty: ECONOMIC_CONFIG.ROYALTY_SHARE,
+      treasury: ECONOMIC_CONFIG.TREASURY_SHARE,
+    },
+    stripeEnabled: STRIPE_ENABLED,
+  });
+});
+
+app.get('/api/economic/stats', (req, res) => {
+  ensureEconomicState();
+  const wallets = Array.from(STATE.economic.wallets.values());
+  res.json({
+    totalWallets: wallets.length,
+    totalTokensCirculating: wallets.reduce((sum, w) => sum + w.balance, 0),
+    treasury: STATE.economic.treasury,
+    activeListings: Array.from(STATE.economic.listings.values()).filter(l => l.status === 'active').length,
+    totalTransactions: STATE.economic.transactions.length,
+    tierBreakdown: {
+      free: wallets.filter(w => w.tier === 'free').length,
+      pro: wallets.filter(w => w.tier === 'pro').length,
+      teams: wallets.filter(w => w.tier === 'teams').length,
+    },
+  });
+});
+
+console.log(`[Economic] Engine initialized | Stripe: ${STRIPE_ENABLED ? 'enabled' : 'disabled'}`);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END ECONOMIC ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // ---- test surface (safe exports; no side effects) ----
 export const __TEST__ = Object.freeze({
   VERSION,
