@@ -20407,12 +20407,37 @@ app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), asy
   }
 });
 
-// ---- DTU Marketplace ----
+// ---- Universal Marketplace ----
+// Supports: DTUs, Lenses, Graphs, Templates, Simulations, Personas, Macros, Datasets, Integrations
+const MARKETPLACE_ASSET_TYPES = Object.freeze({
+  dtu: { name: 'DTU', icon: 'cube', hasRoyalties: true },
+  lens: { name: 'Custom Lens', icon: 'eye', hasRoyalties: false },
+  graph: { name: 'Knowledge Graph', icon: 'share2', hasRoyalties: true },
+  template: { name: 'Template', icon: 'file-text', hasRoyalties: true },
+  simulation: { name: 'Simulation', icon: 'flask', hasRoyalties: true },
+  persona: { name: 'AI Persona', icon: 'user', hasRoyalties: false },
+  macro: { name: 'Macro/Automation', icon: 'zap', hasRoyalties: false },
+  dataset: { name: 'Dataset/Collection', icon: 'database', hasRoyalties: true },
+  integration: { name: 'Integration/Plugin', icon: 'plug', hasRoyalties: false },
+  theme: { name: 'Theme/Style', icon: 'palette', hasRoyalties: false },
+  workflow: { name: 'Workflow', icon: 'git-branch', hasRoyalties: true },
+  model: { name: 'ML Model', icon: 'brain', hasRoyalties: true },
+});
+
+// List any asset on marketplace
 app.post('/api/economic/marketplace/list', (req, res) => {
   try {
-    const { odId, dtuId, price, description } = req.body;
-    if (!odId || !dtuId || !price) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const { odId, assetType, assetId, price, title, description, tags, preview, license } = req.body;
+
+    if (!odId || !assetType || !assetId || !price || !title) {
+      return res.status(400).json({ error: 'Missing required fields: odId, assetType, assetId, price, title' });
+    }
+
+    if (!MARKETPLACE_ASSET_TYPES[assetType]) {
+      return res.status(400).json({
+        error: 'Invalid asset type',
+        validTypes: Object.keys(MARKETPLACE_ASSET_TYPES),
+      });
     }
 
     ensureEconomicState();
@@ -20420,21 +20445,66 @@ app.post('/api/economic/marketplace/list', (req, res) => {
 
     STATE.economic.listings.set(listingId, {
       id: listingId,
-      dtuId,
+      assetType,
+      assetId,
+      title,
       seller: odId,
       price: Number(price),
       description: description || '',
+      tags: tags || [],
+      preview: preview || null,
+      license: license || 'standard',
       status: 'active',
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       sales: 0,
+      rating: null,
+      reviews: [],
     });
 
-    res.json({ listingId, message: 'DTU listed successfully' });
+    res.json({
+      listingId,
+      assetType,
+      message: `${MARKETPLACE_ASSET_TYPES[assetType].name} listed successfully`,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
+// Update listing
+app.patch('/api/economic/marketplace/listing/:listingId', (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { odId, price, title, description, tags, status } = req.body;
+
+    ensureEconomicState();
+    const listing = STATE.economic.listings.get(listingId);
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    if (listing.seller !== odId) {
+      return res.status(403).json({ error: 'Not authorized to edit this listing' });
+    }
+
+    if (price !== undefined) listing.price = Number(price);
+    if (title !== undefined) listing.title = title;
+    if (description !== undefined) listing.description = description;
+    if (tags !== undefined) listing.tags = tags;
+    if (status !== undefined && ['active', 'paused', 'removed'].includes(status)) {
+      listing.status = status;
+    }
+    listing.updatedAt = Date.now();
+
+    res.json({ listing, message: 'Listing updated' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Buy any asset
 app.post('/api/economic/marketplace/buy', (req, res) => {
   try {
     const { odId, listingId } = req.body;
@@ -20460,18 +20530,34 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
     // Calculate splits
     const marketplaceFee = Math.ceil(listing.price * ECONOMIC_CONFIG.MARKETPLACE_FEE);
     const netAmount = listing.price - marketplaceFee;
-    const creatorAmount = Math.floor(netAmount * ECONOMIC_CONFIG.CREATOR_SHARE);
-    const royaltyAmount = Math.floor(netAmount * ECONOMIC_CONFIG.ROYALTY_SHARE);
-    const treasuryAmount = netAmount - creatorAmount - royaltyAmount;
+
+    const assetConfig = MARKETPLACE_ASSET_TYPES[listing.assetType];
+    let creatorAmount, royaltyAmount, treasuryAmount;
+
+    if (assetConfig.hasRoyalties) {
+      creatorAmount = Math.floor(netAmount * ECONOMIC_CONFIG.CREATOR_SHARE);
+      royaltyAmount = Math.floor(netAmount * ECONOMIC_CONFIG.ROYALTY_SHARE);
+      treasuryAmount = netAmount - creatorAmount - royaltyAmount;
+    } else {
+      // No royalties for this asset type - creator gets full net
+      creatorAmount = netAmount;
+      royaltyAmount = 0;
+      treasuryAmount = 0;
+    }
 
     // Debit buyer
-    debitWallet(odId, listing.price, `Purchase: ${listing.dtuId}`);
+    debitWallet(odId, listing.price, `Purchase: ${listing.title}`);
 
     // Credit seller
-    creditWallet(listing.seller, creatorAmount, `Sale: ${listing.dtuId}`);
+    creditWallet(listing.seller, creatorAmount, `Sale: ${listing.title}`);
 
-    // Process royalty wheel
-    processRoyaltyWheel(listing.dtuId, royaltyAmount);
+    // Process royalty wheel (only for DTUs and other reference-able assets)
+    if (royaltyAmount > 0 && listing.assetType === 'dtu') {
+      processRoyaltyWheel(listing.assetId, royaltyAmount);
+    } else if (royaltyAmount > 0) {
+      // For non-DTU assets, royalty pool goes to treasury for now
+      STATE.economic.treasury += royaltyAmount;
+    }
 
     // Treasury
     STATE.economic.treasury += treasuryAmount + marketplaceFee;
@@ -20479,11 +20565,29 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
     // Update listing
     listing.sales += 1;
 
+    // Record purchase for buyer (so they can access the asset)
+    const purchaseRecord = {
+      id: `purchase_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      buyer: odId,
+      listingId,
+      assetType: listing.assetType,
+      assetId: listing.assetId,
+      title: listing.title,
+      purchasedAt: Date.now(),
+    };
+
+    // Store purchases in wallet
+    const wallet = getWallet(odId);
+    wallet.purchases = wallet.purchases || [];
+    wallet.purchases.push(purchaseRecord);
+
     // Log transaction
     logTransaction({
       type: 'marketplace_sale',
       listingId,
-      dtuId: listing.dtuId,
+      assetType: listing.assetType,
+      assetId: listing.assetId,
+      title: listing.title,
       buyer: odId,
       seller: listing.seller,
       price: listing.price,
@@ -20495,13 +20599,138 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
 
     res.json({
       success: true,
-      dtuId: listing.dtuId,
+      purchase: purchaseRecord,
       paid: listing.price,
       breakdown: { creatorAmount, royaltyAmount, treasuryAmount, marketplaceFee },
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Browse marketplace with filters
+app.get('/api/economic/marketplace', (req, res) => {
+  ensureEconomicState();
+
+  const { type, search, minPrice, maxPrice, sort, limit = 50, offset = 0 } = req.query;
+
+  let listings = Array.from(STATE.economic.listings.values())
+    .filter(l => l.status === 'active');
+
+  // Filter by type
+  if (type && type !== 'all') {
+    listings = listings.filter(l => l.assetType === type);
+  }
+
+  // Search in title/description
+  if (search) {
+    const searchLower = String(search).toLowerCase();
+    listings = listings.filter(l =>
+      l.title.toLowerCase().includes(searchLower) ||
+      l.description.toLowerCase().includes(searchLower) ||
+      (l.tags && l.tags.some(t => t.toLowerCase().includes(searchLower)))
+    );
+  }
+
+  // Price filters
+  if (minPrice) listings = listings.filter(l => l.price >= Number(minPrice));
+  if (maxPrice) listings = listings.filter(l => l.price <= Number(maxPrice));
+
+  // Sort
+  if (sort === 'price_asc') listings.sort((a, b) => a.price - b.price);
+  else if (sort === 'price_desc') listings.sort((a, b) => b.price - a.price);
+  else if (sort === 'sales') listings.sort((a, b) => b.sales - a.sales);
+  else if (sort === 'oldest') listings.sort((a, b) => a.createdAt - b.createdAt);
+  else listings.sort((a, b) => b.createdAt - a.createdAt); // newest first (default)
+
+  const total = listings.length;
+  listings = listings.slice(Number(offset), Number(offset) + Number(limit));
+
+  res.json({
+    listings,
+    total,
+    assetTypes: MARKETPLACE_ASSET_TYPES,
+    pagination: { limit: Number(limit), offset: Number(offset), hasMore: Number(offset) + listings.length < total },
+  });
+});
+
+// Get single listing details
+app.get('/api/economic/marketplace/listing/:listingId', (req, res) => {
+  ensureEconomicState();
+  const listing = STATE.economic.listings.get(req.params.listingId);
+
+  if (!listing) {
+    return res.status(404).json({ error: 'Listing not found' });
+  }
+
+  res.json({ listing, assetTypeInfo: MARKETPLACE_ASSET_TYPES[listing.assetType] });
+});
+
+// Get user's purchases
+app.get('/api/economic/purchases/:odId', (req, res) => {
+  const wallet = getWallet(req.params.odId);
+  res.json({ purchases: wallet.purchases || [] });
+});
+
+// Get user's listings
+app.get('/api/economic/my-listings/:odId', (req, res) => {
+  ensureEconomicState();
+  const listings = Array.from(STATE.economic.listings.values())
+    .filter(l => l.seller === req.params.odId)
+    .sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ listings });
+});
+
+// Add review to listing
+app.post('/api/economic/marketplace/review', (req, res) => {
+  try {
+    const { odId, listingId, rating, comment } = req.body;
+
+    if (!odId || !listingId || !rating) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be 1-5' });
+    }
+
+    ensureEconomicState();
+    const listing = STATE.economic.listings.get(listingId);
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Check if user purchased this
+    const wallet = getWallet(odId);
+    const hasPurchased = (wallet.purchases || []).some(p => p.listingId === listingId);
+
+    if (!hasPurchased) {
+      return res.status(403).json({ error: 'Must purchase to review' });
+    }
+
+    // Add review
+    listing.reviews = listing.reviews || [];
+    listing.reviews.push({
+      reviewer: odId,
+      rating: Number(rating),
+      comment: comment || '',
+      createdAt: Date.now(),
+    });
+
+    // Update average rating
+    const totalRating = listing.reviews.reduce((sum, r) => sum + r.rating, 0);
+    listing.rating = totalRating / listing.reviews.length;
+
+    res.json({ message: 'Review added', rating: listing.rating, reviewCount: listing.reviews.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get marketplace asset types
+app.get('/api/economic/marketplace/types', (req, res) => {
+  res.json({ assetTypes: MARKETPLACE_ASSET_TYPES });
 });
 
 // ---- Royalty Wheel ----
