@@ -2486,25 +2486,63 @@ register("multimodal","vision_analyze", async (ctx, input={}) => {
   if (!ctx.state.__chicken3?.multimodalEnabled) return { ok:false, error:"multimodal disabled" };
   if (!flags.multimodalOptIn) return { ok:false, error:"session multimodal opt-in required" };
 
+  const imageB64 = String(input.imageBase64 || "");
+  const prompt = String(input.prompt || "Analyze this image in detail.");
+  if (!imageB64) return { ok:false, error:"imageBase64 required" };
+
   // Governed execution: all external/tool-like calls route through governedCall.
   return await governedCall(ctx, "multimodal.vision_analyze", async () => {
 
   // Local-first: Ollama (llava) if configured
-  const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-  const model = String(process.env.OLLAMA_VISION_MODEL || "llava");
-  const imageB64 = String(input.imageBase64 || "");
-  const prompt = String(input.prompt || "Analyze this image for lattice context.");
-  if (!imageB64) return { ok:false, error:"imageBase64 required" };
+  const OLLAMA_URL = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "";
+  if (OLLAMA_URL) {
+    const model = String(process.env.OLLAMA_VISION_MODEL || "llava");
+    const payload = {
+      model,
+      messages: [{ role:"user", content: prompt, images: [imageB64] }]
+    };
+    const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(e=>null);
+    if (r && r.ok) {
+      const j = await r.json().catch(()=>null);
+      const content = j?.message?.content || j?.response || "";
+      return { ok:true, content, source: "ollama_llava" };
+    }
+  }
 
-  const payload = {
-    model,
-    messages: [{ role:"user", content: prompt, images: [imageB64] }]
-  };
-  const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(e=>null);
-  if (!r || !r.ok) return { ok:false, error:`ollama vision failed`, status: r?.status || 0 };
-  const j = await r.json().catch(()=>null);
-  const content = j?.message?.content || j?.response || "";
-  return { ok:true, content };
+  // Cloud fallback: OpenAI GPT-4 Vision
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+  if (OPENAI_API_KEY) {
+    const payload = {
+      model: "gpt-4o",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageB64}` } }
+        ]
+      }],
+      max_tokens: 1000
+    };
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }).catch(e => null);
+
+    if (!r || !r.ok) {
+      const errText = await r?.text().catch(() => "") || "";
+      return { ok:false, error:"OpenAI Vision API failed", status: r?.status || 0, detail: errText };
+    }
+    const j = await r.json().catch(() => null);
+    const content = j?.choices?.[0]?.message?.content || "";
+    return { ok:true, content, source: "openai_gpt4_vision" };
+  }
+
+  return { ok:false, error:"No vision backend configured. Set OLLAMA_URL or OPENAI_API_KEY" };
   });
 }, { public:false });
 
@@ -2514,21 +2552,57 @@ register("multimodal","image_generate", async (ctx, input={}) => {
   if (!ctx.state.__chicken3?.multimodalEnabled) return { ok:false, error:"multimodal disabled" };
   if (!flags.multimodalOptIn) return { ok:false, error:"session multimodal opt-in required" };
 
+  const prompt = String(input.prompt || "");
+  if (!prompt) return { ok:false, error:"prompt required" };
+
   return await governedCall(ctx, "multimodal.image_generate", async () => {
 
   // Local-first: Stable Diffusion / ComfyUI HTTP if configured
   const SD_URL = process.env.SD_URL || process.env.COMFYUI_URL || process.env.A1111_URL || "";
-  const prompt = String(input.prompt || "");
-  if (!prompt) return { ok:false, error:"prompt required" };
-  if (!SD_URL) return { ok:false, error:"No local image-gen endpoint configured (set SD_URL or COMFYUI_URL or A1111_URL)" };
+  if (SD_URL) {
+    const body = { prompt, steps: clamp(Number(input.steps || 30), 5, 80) };
+    const r = await fetch(SD_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) }).catch(e=>null);
+    if (r && r.ok) {
+      const j = await r.json().catch(()=>null);
+      const img = j?.images?.[0] || j?.image || j?.data?.[0] || null;
+      return { ok:true, image: img, source: "stable_diffusion", raw: j };
+    }
+  }
 
-  const body = { prompt, steps: clamp(Number(input.steps || 30), 5, 80) };
-  const r = await fetch(SD_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) }).catch(e=>null);
-  if (!r || !r.ok) return { ok:false, error:"local image-gen failed", status: r?.status || 0 };
-  const j = await r.json().catch(()=>null);
-  // Accept common response shapes
-  const img = j?.images?.[0] || j?.image || j?.data?.[0] || null;
-  return { ok:true, image: img, raw: j };
+  // Cloud fallback: OpenAI DALL-E
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+  if (OPENAI_API_KEY) {
+    const size = String(input.size || "1024x1024"); // 1024x1024, 1792x1024, 1024x1792
+    const quality = String(input.quality || "standard"); // standard, hd
+    const model = String(input.model || "dall-e-3");
+
+    const r = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        n: 1,
+        size,
+        quality,
+        response_format: "b64_json"
+      })
+    }).catch(e => null);
+
+    if (!r || !r.ok) {
+      const errText = await r?.text().catch(() => "") || "";
+      return { ok:false, error:"OpenAI DALL-E API failed", status: r?.status || 0, detail: errText };
+    }
+    const j = await r.json().catch(() => null);
+    const imageB64 = j?.data?.[0]?.b64_json || "";
+    const revisedPrompt = j?.data?.[0]?.revised_prompt || prompt;
+    return { ok:true, image: imageB64, source: "openai_dalle", revisedPrompt };
+  }
+
+  return { ok:false, error:"No image generation backend configured. Set SD_URL or OPENAI_API_KEY" };
   });
 }, { public:false });
 
@@ -2538,15 +2612,63 @@ register("voice","transcribe", async (ctx, input={}) => {
   if (!ctx.state.__chicken3?.voiceEnabled) return { ok:false, error:"voice disabled" };
   if (!flags.voiceOptIn) return { ok:false, error:"session voice opt-in required" };
 
+  // Local-first: whisper.cpp binary
   const bin = process.env.WHISPER_CPP_BIN || "";
-  if (!bin) return { ok:false, error:"WHISPER_CPP_BIN not set (local-first)" };
-  const audioPath = String(input.audioPath || "");
-  if (!audioPath) return { ok:false, error:"audioPath required (server-side file path)" };
-  const args = [ "-f", audioPath, "--output-txt" ];
-  const p = spawnSync(bin, args, { encoding:"utf-8" });
-  if (p.error) return { ok:false, error:String(p.error) };
-  const out = (p.stdout || "") + (p.stderr || "");
-  return { ok:true, transcript: out.trim() };
+  if (bin) {
+    const audioPath = String(input.audioPath || "");
+    if (!audioPath) return { ok:false, error:"audioPath required (server-side file path)" };
+    const args = [ "-f", audioPath, "--output-txt" ];
+    const p = spawnSync(bin, args, { encoding:"utf-8" });
+    if (p.error) return { ok:false, error:String(p.error) };
+    const out = (p.stdout || "") + (p.stderr || "");
+    return { ok:true, transcript: out.trim(), source: "whisper_cpp" };
+  }
+
+  // Cloud fallback: OpenAI Whisper API
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+  if (OPENAI_API_KEY) {
+    const audioBase64 = String(input.audioBase64 || "");
+    const audioPath = String(input.audioPath || "");
+    let audioBuffer = null;
+
+    if (audioBase64) {
+      audioBuffer = Buffer.from(audioBase64, "base64");
+    } else if (audioPath && fs.existsSync(audioPath)) {
+      audioBuffer = fs.readFileSync(audioPath);
+    }
+
+    if (!audioBuffer) return { ok:false, error:"audioBase64 or valid audioPath required" };
+
+    const FormData = (await import("node:buffer")).Blob ? globalThis.FormData : null;
+    if (!FormData) {
+      // Node 18+ has native FormData, use fetch with multipart
+      const boundary = `----formdata-${Date.now()}`;
+      const filename = "audio.webm";
+      const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: audio/webm\r\n\r\n`),
+        audioBuffer,
+        Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--${boundary}--\r\n`)
+      ]);
+
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`
+        },
+        body
+      }).catch(e => null);
+
+      if (!r || !r.ok) {
+        const errText = await r?.text().catch(() => "") || "";
+        return { ok:false, error:"OpenAI Whisper API failed", status: r?.status || 0, detail: errText };
+      }
+      const j = await r.json().catch(() => null);
+      return { ok:true, transcript: j?.text || "", source: "openai_whisper" };
+    }
+  }
+
+  return { ok:false, error:"No transcription backend configured. Set WHISPER_CPP_BIN or OPENAI_API_KEY" };
 }, { public:false });
 
 register("voice","tts", async (ctx, input={}) => {
@@ -2555,21 +2677,54 @@ register("voice","tts", async (ctx, input={}) => {
   if (!ctx.state.__chicken3?.voiceEnabled) return { ok:false, error:"voice disabled" };
   if (!flags.voiceOptIn) return { ok:false, error:"session voice opt-in required" };
 
-  const bin = process.env.PIPER_BIN || "";
-  if (!bin) return { ok:false, error:"PIPER_BIN not set (local-first)" };
   const text = String(input.text || "");
   if (!text) return { ok:false, error:"text required" };
-  const voice = String(process.env.PIPER_VOICE || "");
-  const args = voice ? ["--model", voice] : [];
-  const p = spawnSync(bin, args, { input: text, encoding:"utf-8" });
-  if (p.error) return { ok:false, error:String(p.error) };
-  // Piper usually outputs audio bytes; simplest local-first contract is: write to a file path if provided.
-  const outPath = String(input.outPath || "");
-  if (outPath) {
-    try { fs.writeFileSync(outPath, p.stdout); } catch {}
-    return { ok:true, outPath, note:"TTS wrote audio to outPath (best-effort)." };
+
+  // Local-first: Piper binary
+  const bin = process.env.PIPER_BIN || "";
+  if (bin) {
+    const voice = String(process.env.PIPER_VOICE || "");
+    const args = voice ? ["--model", voice] : [];
+    const p = spawnSync(bin, args, { input: text, encoding:"utf-8" });
+    if (p.error) return { ok:false, error:String(p.error) };
+    const outPath = String(input.outPath || "");
+    if (outPath) {
+      try { fs.writeFileSync(outPath, p.stdout); } catch {}
+      return { ok:true, outPath, source: "piper", note:"TTS wrote audio to outPath." };
+    }
+    return { ok:true, source: "piper", audioBase64: Buffer.from(p.stdout).toString("base64") };
   }
-  return { ok:true, note:"TTS invoked. For audio transport, provide outPath to write a wav file.", stderr: String(p.stderr||"") };
+
+  // Cloud fallback: OpenAI TTS API
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+  if (OPENAI_API_KEY) {
+    const voice = String(input.voice || "alloy"); // alloy, echo, fable, onyx, nova, shimmer
+    const model = String(input.model || "tts-1"); // tts-1 or tts-1-hd
+
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ model, input: text, voice, response_format: "mp3" })
+    }).catch(e => null);
+
+    if (!r || !r.ok) {
+      const errText = await r?.text().catch(() => "") || "";
+      return { ok:false, error:"OpenAI TTS API failed", status: r?.status || 0, detail: errText };
+    }
+
+    const audioBuffer = Buffer.from(await r.arrayBuffer());
+    const outPath = String(input.outPath || "");
+    if (outPath) {
+      try { fs.writeFileSync(outPath, audioBuffer); } catch {}
+      return { ok:true, outPath, source: "openai_tts", format: "mp3" };
+    }
+    return { ok:true, source: "openai_tts", format: "mp3", audioBase64: audioBuffer.toString("base64") };
+  }
+
+  return { ok:false, error:"No TTS backend configured. Set PIPER_BIN or OPENAI_API_KEY" };
 }, { public:false });
 
 register("tools","web_search", async (ctx, input={}) => {

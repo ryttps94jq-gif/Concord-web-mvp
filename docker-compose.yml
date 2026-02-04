@@ -13,7 +13,7 @@ services:
       - PORT=5050
       - DATA_DIR=/data
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://yourdomain.com}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://concord-os.org}
     volumes:
       - concord-data:/data
     networks:
@@ -31,7 +31,7 @@ services:
       context: ./concord-frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5050}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://concord-os.org}
     container_name: concord-frontend
     restart: unless-stopped
     environment:
