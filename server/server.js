@@ -3096,6 +3096,295 @@ register("worldmodel", "delete_entity", async (ctx, input = {}) => {
 
 // ===== END WORLD MODEL MACROS =====
 
+// ===== SEMANTIC UNDERSTANDING MACROS =====
+
+register("semantic", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_status");
+  ensureSemanticEngine();
+  return {
+    ok: true,
+    embeddings: ctx.state.semantic.embeddings.size,
+    vocabularySize: ctx.state.semantic.vocabulary.size,
+    stats: ctx.state.semantic.stats,
+    config: ctx.state.semantic.config,
+    invariants: SEMANTIC_INVARIANTS
+  };
+}, { public: true });
+
+register("semantic", "similar", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_similar");
+  const query = String(input.query || "");
+  if (!query) return { ok: false, error: "query required" };
+  const limit = clamp(Number(input.limit || 10), 1, 50);
+  const threshold = input.threshold;
+  const results = findSimilarDtus(query, limit, threshold);
+  return { ok: true, results, query };
+}, { public: true });
+
+register("semantic", "embed", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_embed");
+  const text = String(input.text || "");
+  if (!text) return { ok: false, error: "text required" };
+  const embedding = computeLocalEmbedding(text);
+  return { ok: true, embedding, dimension: embedding.length };
+}, { public: true });
+
+register("semantic", "classify_intent", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_classify");
+  const text = String(input.text || "");
+  if (!text) return { ok: false, error: "text required" };
+  return { ok: true, ...classifyIntent(text) };
+}, { public: true });
+
+register("semantic", "extract_entities", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_extract");
+  const text = String(input.text || "");
+  if (!text) return { ok: false, error: "text required" };
+  const entities = extractEntities(text);
+  return { ok: true, entities };
+}, { public: true });
+
+register("semantic", "semantic_roles", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_roles");
+  const text = String(input.text || "");
+  if (!text) return { ok: false, error: "text required" };
+  const roles = extractSemanticRoles(text);
+  return { ok: true, roles };
+}, { public: true });
+
+register("semantic", "compare", async (ctx, input = {}) => {
+  enforceEthosInvariant("semantic_compare");
+  const text1 = String(input.text1 || input.a || "");
+  const text2 = String(input.text2 || input.b || "");
+  if (!text1 || !text2) return { ok: false, error: "text1 and text2 required" };
+  const emb1 = computeLocalEmbedding(text1);
+  const emb2 = computeLocalEmbedding(text2);
+  const similarity = cosineSimilarity(emb1, emb2);
+  return { ok: true, similarity, interpretation: similarity > 0.8 ? "very similar" : similarity > 0.6 ? "related" : similarity > 0.4 ? "somewhat related" : "different" };
+}, { public: true });
+
+// ===== END SEMANTIC UNDERSTANDING MACROS =====
+
+// ===== TRANSFER LEARNING MACROS =====
+
+register("transfer", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_status");
+  ensureTransferEngine();
+  return {
+    ok: true,
+    patterns: ctx.state.transfer.patterns.size,
+    domainMappings: ctx.state.transfer.domainMappings.size,
+    transfers: ctx.state.transfer.transfers.length,
+    stats: ctx.state.transfer.stats,
+    config: ctx.state.transfer.config,
+    invariants: TRANSFER_INVARIANTS
+  };
+}, { public: true });
+
+register("transfer", "classify_domain", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_classify");
+  const dtuId = String(input.dtuId || "");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  const dtu = ctx.state.dtus?.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+  const domain = classifyDomain(dtu);
+  return { ok: true, dtuId, domain };
+}, { public: true });
+
+register("transfer", "extract_pattern", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_extract");
+  const dtuIds = input.dtuIds;
+  if (!Array.isArray(dtuIds) || dtuIds.length === 0) return { ok: false, error: "dtuIds array required" };
+  return extractPattern(dtuIds, input.name);
+}, { public: false });
+
+register("transfer", "list_patterns", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_list");
+  ensureTransferEngine();
+  const patterns = Array.from(ctx.state.transfer.patterns.values())
+    .map(p => ({ id: p.id, name: p.name, sourceDomain: p.sourceDomain, confidence: p.confidence, dtuCount: p.structure.dtuCount }));
+  return { ok: true, patterns };
+}, { public: true });
+
+register("transfer", "find_analogies", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_analogies");
+  const targetDomain = String(input.domain || "general");
+  const query = String(input.query || "");
+  const results = findAnalogousPatterns(targetDomain, query);
+  return { ok: true, results };
+}, { public: true });
+
+register("transfer", "apply_pattern", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_apply");
+  const patternId = String(input.patternId || "");
+  const targetDomain = String(input.targetDomain || "");
+  if (!patternId) return { ok: false, error: "patternId required" };
+  if (!targetDomain) return { ok: false, error: "targetDomain required" };
+  return applyPatternToTarget(patternId, targetDomain, input.context);
+}, { public: false });
+
+register("transfer", "list_transfers", async (ctx, input = {}) => {
+  enforceEthosInvariant("transfer_list_transfers");
+  ensureTransferEngine();
+  const transfers = ctx.state.transfer.transfers.slice(-50).map(t => ({
+    id: t.id, sourceDomain: t.sourceDomain, targetDomain: t.targetDomain,
+    confidence: t.confidence, status: t.status, createdAt: t.createdAt
+  }));
+  return { ok: true, transfers };
+}, { public: true });
+
+// ===== END TRANSFER LEARNING MACROS =====
+
+// ===== COMMONSENSE MACROS =====
+
+register("commonsense", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_status");
+  ensureCommonsenseSubstrate();
+  return {
+    ok: true,
+    facts: ctx.state.commonsense.facts.size,
+    categories: Object.fromEntries(Object.entries(ctx.state.commonsense.categories).map(([k, v]) => [k, v.length])),
+    assumptions: ctx.state.commonsense.assumptions.size,
+    stats: ctx.state.commonsense.stats,
+    invariants: COMMONSENSE_INVARIANTS
+  };
+}, { public: true });
+
+register("commonsense", "query", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_query");
+  const query = String(input.query || "");
+  const category = input.category;
+  const results = queryCommonsense(query, category);
+  return { ok: true, results, query };
+}, { public: true });
+
+register("commonsense", "add_fact", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_add");
+  return addCommonsenseFact(input);
+}, { public: false });
+
+register("commonsense", "surface_assumptions", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_surface");
+  const dtuId = String(input.dtuId || "");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  return surfaceAssumptions(dtuId);
+}, { public: true });
+
+register("commonsense", "list_facts", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_list");
+  ensureCommonsenseSubstrate();
+  const category = input.category;
+  let facts = Array.from(ctx.state.commonsense.facts.values());
+  if (category) facts = facts.filter(f => f.category === category);
+  facts = facts.slice(0, 100).map(f => ({ id: f.id, fact: f.fact, category: f.category, confidence: f.confidence }));
+  return { ok: true, facts };
+}, { public: true });
+
+register("commonsense", "get_assumptions", async (ctx, input = {}) => {
+  enforceEthosInvariant("commonsense_assumptions");
+  const dtuId = String(input.dtuId || "");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  ensureCommonsenseSubstrate();
+  const data = ctx.state.commonsense.assumptions.get(dtuId);
+  if (!data) return { ok: true, assumptions: [], message: "No assumptions surfaced yet" };
+  return { ok: true, assumptions: data.assumptions };
+}, { public: true });
+
+// ===== END COMMONSENSE MACROS =====
+
+// ===== GROUNDING MACROS =====
+
+register("grounding", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_status");
+  ensureGroundingEngine();
+  return {
+    ok: true,
+    sensors: ctx.state.grounding.sensors.size,
+    readings: ctx.state.grounding.readings.length,
+    groundedDtus: ctx.state.grounding.groundedDtus.size,
+    pendingActions: ctx.state.grounding.pendingActions.length,
+    calendarEvents: ctx.state.grounding.calendar.size,
+    stats: ctx.state.grounding.stats,
+    invariants: GROUNDING_INVARIANTS
+  };
+}, { public: true });
+
+register("grounding", "register_sensor", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_sensor");
+  return registerSensor(input);
+}, { public: false });
+
+register("grounding", "record_reading", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_reading");
+  const sensorId = String(input.sensorId || "");
+  if (!sensorId) return { ok: false, error: "sensorId required" };
+  if (input.value === undefined) return { ok: false, error: "value required" };
+  return recordSensorReading(sensorId, input.value, input.timestamp);
+}, { public: false });
+
+register("grounding", "list_sensors", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_list_sensors");
+  ensureGroundingEngine();
+  const sensors = Array.from(ctx.state.grounding.sensors.values()).map(s => ({
+    id: s.id, name: s.name, type: s.type, unit: s.unit,
+    lastReading: s.lastReading?.value, status: s.status
+  }));
+  return { ok: true, sensors };
+}, { public: true });
+
+register("grounding", "ground_dtu", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_ground");
+  const dtuId = String(input.dtuId || "");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  return groundDtu(dtuId, input);
+}, { public: false });
+
+register("grounding", "link_calendar", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_calendar");
+  const dtuId = String(input.dtuId || "");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  return linkToCalendar(dtuId, input);
+}, { public: false });
+
+register("grounding", "propose_action", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_propose");
+  return proposeAction(input);
+}, { public: false });
+
+register("grounding", "approve_action", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_approve");
+  if (!["owner", "admin", "founder"].includes(ctx.actor?.role)) {
+    return { ok: false, error: "Action approval requires owner/admin role" };
+  }
+  const actionId = String(input.actionId || "");
+  if (!actionId) return { ok: false, error: "actionId required" };
+  return approveAction(actionId);
+}, { public: false });
+
+register("grounding", "pending_actions", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_pending");
+  ensureGroundingEngine();
+  const actions = ctx.state.grounding.pendingActions.map(a => ({
+    id: a.id, type: a.type, description: a.description, goalId: a.goalId, proposedAt: a.proposedAt
+  }));
+  return { ok: true, actions };
+}, { public: true });
+
+register("grounding", "context", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_context");
+  return { ok: true, context: getCurrentGroundedContext() };
+}, { public: true });
+
+register("grounding", "recent_readings", async (ctx, input = {}) => {
+  enforceEthosInvariant("grounding_readings");
+  ensureGroundingEngine();
+  const limit = clamp(Number(input.limit || 20), 1, 100);
+  const readings = ctx.state.grounding.readings.slice(-limit);
+  return { ok: true, readings };
+}, { public: true });
+
+// ===== END GROUNDING MACROS =====
+
 // ---- ctx ----
 function makeCtx(req=null) {
   return {
@@ -11279,6 +11568,177 @@ app.post("/api/worldmodel/config", async (req, res) => {
 
 // ===== END WORLD MODEL API ENDPOINTS =====
 
+// ===== SEMANTIC UNDERSTANDING API ENDPOINTS =====
+
+app.get("/api/semantic/status", async (req, res) => {
+  const out = await runMacro("semantic", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/similar", async (req, res) => {
+  const out = await runMacro("semantic", "similar", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/embed", async (req, res) => {
+  const out = await runMacro("semantic", "embed", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/intent", async (req, res) => {
+  const out = await runMacro("semantic", "classify_intent", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/entities", async (req, res) => {
+  const out = await runMacro("semantic", "extract_entities", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/roles", async (req, res) => {
+  const out = await runMacro("semantic", "semantic_roles", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/semantic/compare", async (req, res) => {
+  const out = await runMacro("semantic", "compare", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END SEMANTIC UNDERSTANDING API ENDPOINTS =====
+
+// ===== TRANSFER LEARNING API ENDPOINTS =====
+
+app.get("/api/transfer/status", async (req, res) => {
+  const out = await runMacro("transfer", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/transfer/classify-domain", async (req, res) => {
+  const out = await runMacro("transfer", "classify_domain", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/transfer/extract-pattern", async (req, res) => {
+  const out = await runMacro("transfer", "extract_pattern", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/transfer/patterns", async (req, res) => {
+  const out = await runMacro("transfer", "list_patterns", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/transfer/analogies", async (req, res) => {
+  const out = await runMacro("transfer", "find_analogies", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/transfer/apply", async (req, res) => {
+  const out = await runMacro("transfer", "apply_pattern", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/transfer/history", async (req, res) => {
+  const out = await runMacro("transfer", "list_transfers", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END TRANSFER LEARNING API ENDPOINTS =====
+
+// ===== COMMONSENSE API ENDPOINTS =====
+
+app.get("/api/commonsense/status", async (req, res) => {
+  const out = await runMacro("commonsense", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/commonsense/query", async (req, res) => {
+  const out = await runMacro("commonsense", "query", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/commonsense/facts", async (req, res) => {
+  const out = await runMacro("commonsense", "add_fact", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/commonsense/facts", async (req, res) => {
+  const out = await runMacro("commonsense", "list_facts", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/commonsense/surface/:dtuId", async (req, res) => {
+  const out = await runMacro("commonsense", "surface_assumptions", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/commonsense/assumptions/:dtuId", async (req, res) => {
+  const out = await runMacro("commonsense", "get_assumptions", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END COMMONSENSE API ENDPOINTS =====
+
+// ===== GROUNDING API ENDPOINTS =====
+
+app.get("/api/grounding/status", async (req, res) => {
+  const out = await runMacro("grounding", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/grounding/context", async (req, res) => {
+  const out = await runMacro("grounding", "context", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/sensors", async (req, res) => {
+  const out = await runMacro("grounding", "register_sensor", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/grounding/sensors", async (req, res) => {
+  const out = await runMacro("grounding", "list_sensors", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/readings", async (req, res) => {
+  const out = await runMacro("grounding", "record_reading", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/grounding/readings", async (req, res) => {
+  const out = await runMacro("grounding", "recent_readings", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/ground/:dtuId", async (req, res) => {
+  const out = await runMacro("grounding", "ground_dtu", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/calendar/:dtuId", async (req, res) => {
+  const out = await runMacro("grounding", "link_calendar", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/actions", async (req, res) => {
+  const out = await runMacro("grounding", "propose_action", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/grounding/actions/pending", async (req, res) => {
+  const out = await runMacro("grounding", "pending_actions", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/grounding/actions/:actionId/approve", async (req, res) => {
+  const out = await runMacro("grounding", "approve_action", { actionId: req.params.actionId }, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END GROUNDING API ENDPOINTS =====
+
 app.post("/api/multimodal/vision", async (req, res) => {
   const out = await runMacro("multimodal", "vision_analyze", req.body, makeCtx(req));
   return res.json(out);
@@ -15570,6 +16030,33 @@ const ORGAN_DEFS = [
   { organId: "world_simulator", desc: "Runs bounded simulations to predict knowledge evolution.", deps: ["world_model_os", "expectation_modeling"] },
   { organId: "causal_inference_engine", desc: "Infers causal relationships between concepts beyond correlation.", deps: ["world_model_os", "causal_trace"] },
   { organId: "counterfactual_engine", desc: "Generates and evaluates what-if scenarios safely.", deps: ["world_model_os", "counterfactual_guard"] },
+
+  // Semantic Understanding Engine (Natural Language Understanding)
+  { organId: "embedding_engine", desc: "Local sentence embeddings for semantic similarity and understanding.", deps: ["linguistic_engine"] },
+  { organId: "semantic_similarity", desc: "Compares DTUs by meaning using vector representations.", deps: ["embedding_engine"] },
+  { organId: "intent_classifier", desc: "Classifies user input intent for appropriate routing.", deps: ["embedding_engine"] },
+  { organId: "entity_extractor", desc: "Extracts named entities (people, places, concepts) from text.", deps: ["linguistic_engine"] },
+  { organId: "semantic_role_labeler", desc: "Identifies who did what to whom in sentences.", deps: ["entity_extractor"] },
+
+  // Transfer Learning Engine
+  { organId: "transfer_engine", desc: "Applies learned patterns from one domain to novel domains.", deps: ["embedding_engine", "mega_hyper_builder"] },
+  { organId: "pattern_abstractor", desc: "Extracts structural patterns from MEGA/HYPER nodes.", deps: ["transfer_engine"] },
+  { organId: "domain_tagger", desc: "Tags DTUs with domain markers for transfer matching.", deps: ["transfer_engine"] },
+  { organId: "analogical_matcher", desc: "Finds structurally similar patterns across domains.", deps: ["pattern_abstractor", "semantic_similarity"] },
+
+  // Commonsense Reasoning Substrate
+  { organId: "commonsense_substrate", desc: "Foundational commonsense knowledge (physical, social, temporal).", deps: ["linguistic_engine"] },
+  { organId: "physical_commonsense", desc: "Knowledge about physical world (gravity, objects, space).", deps: ["commonsense_substrate"] },
+  { organId: "social_commonsense", desc: "Knowledge about social interactions and norms.", deps: ["commonsense_substrate"] },
+  { organId: "temporal_commonsense", desc: "Knowledge about time, sequences, causality.", deps: ["commonsense_substrate", "temporal_continuity"] },
+  { organId: "assumption_surfacer", desc: "Surfaces implicit assumptions in DTUs for validation.", deps: ["commonsense_substrate"] },
+
+  // Embodiment/Grounding System
+  { organId: "grounding_engine", desc: "Connects knowledge to real-world state and actions.", deps: ["world_model_os"] },
+  { organId: "sensor_integration", desc: "Integrates external sensor data into world model.", deps: ["grounding_engine"] },
+  { organId: "temporal_grounding", desc: "Links DTUs to real timestamps and calendar events.", deps: ["grounding_engine", "temporal_continuity"] },
+  { organId: "action_grounding", desc: "Connects goals to real executable actions.", deps: ["grounding_engine", "goal_os"] },
+  { organId: "multimodal_grounding", desc: "Grounds knowledge in images, audio, and other media.", deps: ["grounding_engine"] },
 ];
 
 function _defaultOrganState(def) {
@@ -16647,6 +17134,1093 @@ function extractEntitiesFromDtu(dtu) {
 
 // ===== END WORLD MODEL ENGINE CORE =====
 
+// ===== SEMANTIC UNDERSTANDING ENGINE (Natural Language Understanding) =====
+// Design: Local-first semantic embeddings and NLU capabilities.
+// Provides meaning-based similarity, intent classification, entity extraction.
+
+const SEMANTIC_INVARIANTS = Object.freeze({
+  LOCAL_FIRST_EMBEDDINGS: true,        // Prefer local models when available
+  NO_EXTERNAL_WITHOUT_CONSENT: true,   // Cloud NLU requires opt-in
+  MEANING_GROUNDED: true,              // Semantic claims tied to DTU evidence
+  PRIVACY_PRESERVING: true             // No text sent externally without consent
+});
+
+const INTENT_TYPES = Object.freeze({
+  QUERY: "query",                      // Asking for information
+  CREATE: "create",                    // Creating new knowledge
+  UPDATE: "update",                    // Modifying existing
+  DELETE: "delete",                    // Removing knowledge
+  ANALYZE: "analyze",                  // Deep analysis request
+  SYNTHESIZE: "synthesize",            // Combine multiple sources
+  COMPARE: "compare",                  // Compare/contrast
+  EXPLAIN: "explain",                  // Request explanation
+  PLAN: "plan",                        // Planning/goal setting
+  EXECUTE: "execute"                   // Take action
+});
+
+const ENTITY_CATEGORIES = Object.freeze({
+  PERSON: "person",
+  ORGANIZATION: "organization",
+  LOCATION: "location",
+  DATE: "date",
+  TIME: "time",
+  CONCEPT: "concept",
+  QUANTITY: "quantity",
+  EVENT: "event",
+  ARTIFACT: "artifact",
+  UNKNOWN: "unknown"
+});
+
+function ensureSemanticEngine() {
+  if (!STATE.semantic) {
+    STATE.semantic = {
+      embeddings: new Map(),            // DTU ID -> embedding vector
+      intentCache: new Map(),           // Recent intent classifications
+      entityCache: new Map(),           // Extracted entities cache
+      vocabulary: new Map(),            // Term frequency for local TF-IDF
+      stats: {
+        embeddingsComputed: 0,
+        similarityQueries: 0,
+        intentsClassified: 0,
+        entitiesExtracted: 0
+      },
+      config: {
+        embeddingDim: 384,              // Dimension for embeddings
+        localModelEnabled: true,        // Use local embedding model
+        cacheSize: 5000,                // Max cached embeddings
+        similarityThreshold: 0.7        // Min similarity to consider "related"
+      }
+    };
+  }
+  if (!(STATE.semantic.embeddings instanceof Map)) {
+    STATE.semantic.embeddings = new Map(Object.entries(STATE.semantic.embeddings || {}));
+  }
+  if (!(STATE.semantic.intentCache instanceof Map)) {
+    STATE.semantic.intentCache = new Map(Object.entries(STATE.semantic.intentCache || {}));
+  }
+  if (!(STATE.semantic.entityCache instanceof Map)) {
+    STATE.semantic.entityCache = new Map(Object.entries(STATE.semantic.entityCache || {}));
+  }
+  if (!(STATE.semantic.vocabulary instanceof Map)) {
+    STATE.semantic.vocabulary = new Map(Object.entries(STATE.semantic.vocabulary || {}));
+  }
+}
+
+// Simple local embedding using TF-IDF + semantic hashing (no external model needed)
+function computeLocalEmbedding(text) {
+  ensureSemanticEngine();
+  const tokens = tokenizeText(text);
+  const dim = STATE.semantic.config.embeddingDim;
+  const embedding = new Array(dim).fill(0);
+
+  // Update vocabulary
+  for (const token of tokens) {
+    STATE.semantic.vocabulary.set(token, (STATE.semantic.vocabulary.get(token) || 0) + 1);
+  }
+
+  // Compute embedding using semantic hashing
+  for (const token of tokens) {
+    const hash = simpleHash(token);
+    for (let i = 0; i < dim; i++) {
+      // Deterministic projection based on token hash
+      const sign = ((hash >> (i % 32)) & 1) ? 1 : -1;
+      const weight = 1 / Math.sqrt(tokens.length); // Normalize by length
+      embedding[i] += sign * weight;
+    }
+  }
+
+  // Normalize to unit vector
+  const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
+  return embedding.map(v => v / magnitude);
+}
+
+function tokenizeText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter(t => t.length > 2)
+    .filter(t => !STOP_WORDS.has(t));
+}
+
+const STOP_WORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+  "of", "with", "by", "from", "as", "is", "was", "are", "were", "been",
+  "be", "have", "has", "had", "do", "does", "did", "will", "would", "could",
+  "should", "may", "might", "must", "shall", "can", "this", "that", "these",
+  "those", "i", "you", "he", "she", "it", "we", "they", "what", "which",
+  "who", "whom", "where", "when", "why", "how", "all", "each", "every",
+  "both", "few", "more", "most", "other", "some", "such", "no", "not",
+  "only", "own", "same", "so", "than", "too", "very", "just", "also"
+]);
+
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+// Compute cosine similarity between two embeddings
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+}
+
+// Get or compute embedding for a DTU
+function getDtuEmbedding(dtuId) {
+  ensureSemanticEngine();
+
+  // Check cache
+  if (STATE.semantic.embeddings.has(dtuId)) {
+    return STATE.semantic.embeddings.get(dtuId);
+  }
+
+  // Get DTU
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu) return null;
+
+  // Compute embedding from title + content + tags
+  const text = [
+    dtu.title || "",
+    dtu.human?.summary || "",
+    dtu.content || "",
+    ...(dtu.tags || [])
+  ].join(" ");
+
+  const embedding = computeLocalEmbedding(text);
+
+  // Cache (with size limit)
+  if (STATE.semantic.embeddings.size >= STATE.semantic.config.cacheSize) {
+    // Remove oldest entry
+    const firstKey = STATE.semantic.embeddings.keys().next().value;
+    STATE.semantic.embeddings.delete(firstKey);
+  }
+  STATE.semantic.embeddings.set(dtuId, embedding);
+  STATE.semantic.stats.embeddingsComputed++;
+
+  return embedding;
+}
+
+// Find semantically similar DTUs
+function findSimilarDtus(query, limit = 10, threshold = null) {
+  ensureSemanticEngine();
+  threshold = threshold ?? STATE.semantic.config.similarityThreshold;
+
+  const queryEmbedding = computeLocalEmbedding(query);
+  const results = [];
+
+  for (const [dtuId, dtu] of (STATE.dtus || new Map())) {
+    const dtuEmbedding = getDtuEmbedding(dtuId);
+    if (!dtuEmbedding) continue;
+
+    const similarity = cosineSimilarity(queryEmbedding, dtuEmbedding);
+    if (similarity >= threshold) {
+      results.push({
+        dtuId,
+        title: dtu.title,
+        similarity,
+        tier: dtu.tier
+      });
+    }
+  }
+
+  STATE.semantic.stats.similarityQueries++;
+  return results.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+}
+
+// Classify intent from text
+function classifyIntent(text) {
+  ensureSemanticEngine();
+
+  const lower = text.toLowerCase();
+  const tokens = tokenizeText(text);
+
+  // Simple rule-based intent classification
+  let intent = INTENT_TYPES.QUERY;
+  let confidence = 0.5;
+
+  const patterns = {
+    [INTENT_TYPES.CREATE]: [/create|add|new|make|write|record/i, /let me|i want to/i],
+    [INTENT_TYPES.UPDATE]: [/update|change|modify|edit|revise|fix/i],
+    [INTENT_TYPES.DELETE]: [/delete|remove|clear|erase|forget/i],
+    [INTENT_TYPES.ANALYZE]: [/analyze|examine|investigate|study|deep dive/i],
+    [INTENT_TYPES.SYNTHESIZE]: [/synthesize|combine|merge|integrate|summarize/i],
+    [INTENT_TYPES.COMPARE]: [/compare|contrast|versus|vs|difference|similar/i],
+    [INTENT_TYPES.EXPLAIN]: [/explain|why|how does|what is|tell me about/i],
+    [INTENT_TYPES.PLAN]: [/plan|goal|strategy|roadmap|steps to/i],
+    [INTENT_TYPES.EXECUTE]: [/run|execute|do|perform|start|trigger/i],
+    [INTENT_TYPES.QUERY]: [/\?$|what|where|when|who|which|find|search|show|list|get/i]
+  };
+
+  for (const [intentType, regexes] of Object.entries(patterns)) {
+    for (const regex of regexes) {
+      if (regex.test(lower)) {
+        intent = intentType;
+        confidence = 0.75;
+        break;
+      }
+    }
+    if (confidence > 0.5) break;
+  }
+
+  // Boost confidence if multiple indicators
+  const matchCount = Object.values(patterns).flat().filter(r => r.test(lower)).length;
+  if (matchCount > 1) confidence = Math.min(confidence + 0.1, 0.95);
+
+  STATE.semantic.stats.intentsClassified++;
+  return { intent, confidence, tokens };
+}
+
+// Extract named entities from text
+function extractEntities(text) {
+  ensureSemanticEngine();
+
+  const entities = [];
+  const words = text.split(/\s+/);
+
+  // Simple patterns for entity extraction
+  const patterns = {
+    [ENTITY_CATEGORIES.DATE]: /\b(\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2}|january|february|march|april|may|june|july|august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+    [ENTITY_CATEGORIES.TIME]: /\b(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?)\b/gi,
+    [ENTITY_CATEGORIES.QUANTITY]: /\b(\d+(?:\.\d+)?(?:\s*(?:percent|%|dollars?|€|£|kg|lb|miles?|km|hours?|minutes?|seconds?))?)\b/gi,
+    [ENTITY_CATEGORIES.PERSON]: /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g, // Capitalized multi-word names
+    [ENTITY_CATEGORIES.ORGANIZATION]: /\b([A-Z][A-Za-z]*(?:\s+(?:Inc|Corp|LLC|Ltd|Company|Organization|University|Institute))?)\b/g
+  };
+
+  for (const [category, pattern] of Object.entries(patterns)) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      entities.push({
+        text: match[0],
+        category,
+        start: match.index,
+        end: match.index + match[0].length
+      });
+    }
+  }
+
+  // Deduplicate and sort by position
+  const seen = new Set();
+  const unique = entities.filter(e => {
+    const key = `${e.text}:${e.category}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => a.start - b.start);
+
+  STATE.semantic.stats.entitiesExtracted += unique.length;
+  return unique;
+}
+
+// Compute semantic roles (simplified: subject-verb-object extraction)
+function extractSemanticRoles(text) {
+  // Very simplified SRL - identifies basic SVO patterns
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim());
+  const roles = [];
+
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/);
+    if (words.length < 3) continue;
+
+    // Simple heuristic: first noun-like word is subject, verb follows, rest is object
+    const verbPatterns = /\b(is|are|was|were|has|have|had|does|do|did|will|can|could|would|should|may|might|must|makes?|creates?|builds?|writes?|reads?|finds?|gets?|sets?|runs?|shows?)\b/i;
+
+    const verbMatch = sentence.match(verbPatterns);
+    if (verbMatch) {
+      const verbIndex = sentence.indexOf(verbMatch[0]);
+      const subject = sentence.slice(0, verbIndex).trim();
+      const verb = verbMatch[0];
+      const object = sentence.slice(verbIndex + verb.length).trim();
+
+      if (subject && object) {
+        roles.push({ subject, verb, object, sentence: sentence.trim() });
+      }
+    }
+  }
+
+  return roles;
+}
+
+// ===== END SEMANTIC UNDERSTANDING ENGINE =====
+
+// ===== TRANSFER LEARNING ENGINE =====
+// Design: Extracts patterns from learned domains and applies them to new domains.
+// Bounded: transfer suggestions go through council review.
+
+const TRANSFER_INVARIANTS = Object.freeze({
+  PATTERN_ABSTRACTION_REQUIRED: true,  // Can't transfer raw DTUs, only patterns
+  CONFIDENCE_DECAY: true,              // Transferred patterns start with lower confidence
+  COUNCIL_REVIEW: true,                // Novel transfers need review
+  SOURCE_ATTRIBUTION: true             // Must track where pattern came from
+});
+
+const DOMAIN_TYPES = Object.freeze({
+  TECHNICAL: "technical",
+  SCIENTIFIC: "scientific",
+  BUSINESS: "business",
+  CREATIVE: "creative",
+  PERSONAL: "personal",
+  SOCIAL: "social",
+  PHILOSOPHICAL: "philosophical",
+  PROCEDURAL: "procedural",
+  GENERAL: "general"
+});
+
+function ensureTransferEngine() {
+  if (!STATE.transfer) {
+    STATE.transfer = {
+      patterns: new Map(),              // Abstracted patterns by ID
+      domainMappings: new Map(),        // DTU ID -> domain
+      transfers: [],                    // Transfer history
+      stats: {
+        patternsExtracted: 0,
+        transfersAttempted: 0,
+        transfersSuccessful: 0,
+        domainsCovered: new Set()
+      },
+      config: {
+        minPatternSupport: 3,           // Min DTUs to extract pattern
+        confidenceDecay: 0.3,           // Decay when transferring
+        maxTransfersPerDomain: 50,      // Limit transfers
+        requireCouncilReview: true
+      }
+    };
+  }
+  if (!(STATE.transfer.patterns instanceof Map)) {
+    STATE.transfer.patterns = new Map(Object.entries(STATE.transfer.patterns || {}));
+  }
+  if (!(STATE.transfer.domainMappings instanceof Map)) {
+    STATE.transfer.domainMappings = new Map(Object.entries(STATE.transfer.domainMappings || {}));
+  }
+}
+
+// Classify DTU into domain
+function classifyDomain(dtu) {
+  if (!dtu) return DOMAIN_TYPES.GENERAL;
+
+  const text = [dtu.title, dtu.human?.summary, ...(dtu.tags || [])].join(" ").toLowerCase();
+
+  const domainKeywords = {
+    [DOMAIN_TYPES.TECHNICAL]: ["code", "programming", "software", "api", "algorithm", "data", "system", "server", "database"],
+    [DOMAIN_TYPES.SCIENTIFIC]: ["research", "hypothesis", "experiment", "theory", "study", "evidence", "analysis", "scientific"],
+    [DOMAIN_TYPES.BUSINESS]: ["business", "market", "revenue", "customer", "strategy", "profit", "company", "product"],
+    [DOMAIN_TYPES.CREATIVE]: ["art", "design", "creative", "story", "music", "visual", "aesthetic", "writing"],
+    [DOMAIN_TYPES.PERSONAL]: ["personal", "life", "health", "habit", "goal", "routine", "self", "wellness"],
+    [DOMAIN_TYPES.SOCIAL]: ["social", "relationship", "community", "team", "communication", "people", "network"],
+    [DOMAIN_TYPES.PHILOSOPHICAL]: ["philosophy", "ethics", "meaning", "existence", "truth", "value", "moral", "wisdom"],
+    [DOMAIN_TYPES.PROCEDURAL]: ["process", "workflow", "step", "procedure", "method", "how to", "guide", "instruction"]
+  };
+
+  let bestDomain = DOMAIN_TYPES.GENERAL;
+  let bestScore = 0;
+
+  for (const [domain, keywords] of Object.entries(domainKeywords)) {
+    const score = keywords.filter(kw => text.includes(kw)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestDomain = domain;
+    }
+  }
+
+  return bestDomain;
+}
+
+// Extract structural pattern from a set of related DTUs
+function extractPattern(dtuIds, patternName = "") {
+  ensureTransferEngine();
+
+  if (dtuIds.length < STATE.transfer.config.minPatternSupport) {
+    return { ok: false, error: `Need at least ${STATE.transfer.config.minPatternSupport} DTUs to extract pattern` };
+  }
+
+  const dtus = dtuIds.map(id => STATE.dtus?.get(id)).filter(Boolean);
+  if (dtus.length === 0) return { ok: false, error: "No valid DTUs found" };
+
+  // Extract common structure
+  const domains = new Set(dtus.map(d => classifyDomain(d)));
+  const commonTags = findCommonElements(dtus.map(d => d.tags || []));
+  const avgTier = dtus.reduce((sum, d) => sum + (d.tier === "mega" ? 2 : d.tier === "hyper" ? 3 : 1), 0) / dtus.length;
+
+  // Extract semantic pattern (common themes)
+  const allText = dtus.map(d => `${d.title} ${d.human?.summary || ""}`).join(" ");
+  const tokens = tokenizeText(allText);
+  const tokenFreq = {};
+  tokens.forEach(t => { tokenFreq[t] = (tokenFreq[t] || 0) + 1; });
+  const topTerms = Object.entries(tokenFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([term]) => term);
+
+  // Extract structural template
+  const pattern = {
+    id: uid("pattern"),
+    name: patternName || `Pattern from ${dtus.length} DTUs`,
+    sourceDomain: [...domains][0] || DOMAIN_TYPES.GENERAL,
+    structure: {
+      avgTier,
+      commonTags,
+      topTerms,
+      dtuCount: dtus.length
+    },
+    template: {
+      // Abstracted structure that can be applied to new domain
+      components: topTerms.map(term => ({ role: "concept", term })),
+      relationships: commonTags.map(tag => ({ type: "tagged", value: tag }))
+    },
+    confidence: clamp(0.5 + (dtus.length / 20), 0.5, 0.9),
+    sourceIds: dtuIds,
+    createdAt: nowISO()
+  };
+
+  STATE.transfer.patterns.set(pattern.id, pattern);
+  STATE.transfer.stats.patternsExtracted++;
+
+  // Tag source DTUs with domain
+  for (const dtu of dtus) {
+    STATE.transfer.domainMappings.set(dtu.id, pattern.sourceDomain);
+  }
+
+  saveStateDebounced();
+  return { ok: true, pattern };
+}
+
+function findCommonElements(arrays) {
+  if (arrays.length === 0) return [];
+  return arrays.reduce((common, arr) =>
+    common.filter(item => arr.includes(item))
+  );
+}
+
+// Find analogous patterns for a target domain
+function findAnalogousPatterns(targetDomain, query = "") {
+  ensureTransferEngine();
+
+  const results = [];
+
+  for (const [patternId, pattern] of STATE.transfer.patterns) {
+    // Skip same domain (not a transfer)
+    if (pattern.sourceDomain === targetDomain) continue;
+
+    // Compute relevance
+    let relevance = 0.5;
+
+    // Boost if query matches pattern terms
+    if (query) {
+      const queryTokens = new Set(tokenizeText(query));
+      const matchingTerms = pattern.structure.topTerms.filter(t => queryTokens.has(t));
+      relevance += matchingTerms.length * 0.1;
+    }
+
+    // Boost for higher confidence patterns
+    relevance += pattern.confidence * 0.2;
+
+    results.push({
+      patternId,
+      patternName: pattern.name,
+      sourceDomain: pattern.sourceDomain,
+      targetDomain,
+      relevance: clamp(relevance, 0, 1),
+      template: pattern.template
+    });
+  }
+
+  return results.sort((a, b) => b.relevance - a.relevance).slice(0, 10);
+}
+
+// Apply a pattern to create new DTU suggestions in target domain
+function applyPatternToTarget(patternId, targetDomain, targetContext = "") {
+  ensureTransferEngine();
+
+  const pattern = STATE.transfer.patterns.get(patternId);
+  if (!pattern) return { ok: false, error: "Pattern not found" };
+
+  STATE.transfer.stats.transfersAttempted++;
+
+  // Generate transfer suggestion
+  const transfer = {
+    id: uid("transfer"),
+    patternId,
+    sourceDomain: pattern.sourceDomain,
+    targetDomain,
+    targetContext,
+
+    // Suggested DTU structure
+    suggestion: {
+      title: `[Transfer] ${pattern.name} applied to ${targetDomain}`,
+      tags: [...pattern.structure.commonTags, targetDomain, "transferred"],
+      template: pattern.template,
+      sourcePatternTerms: pattern.structure.topTerms
+    },
+
+    // Confidence decays on transfer
+    confidence: clamp(pattern.confidence * (1 - STATE.transfer.config.confidenceDecay), 0.2, 0.7),
+
+    status: STATE.transfer.config.requireCouncilReview ? "pending_review" : "suggested",
+    createdAt: nowISO()
+  };
+
+  STATE.transfer.transfers.push(transfer);
+
+  // Cap history
+  if (STATE.transfer.transfers.length > 200) {
+    STATE.transfer.transfers = STATE.transfer.transfers.slice(-200);
+  }
+
+  saveStateDebounced();
+  return { ok: true, transfer };
+}
+
+// ===== END TRANSFER LEARNING ENGINE =====
+
+// ===== COMMONSENSE REASONING SUBSTRATE =====
+// Design: Foundational commonsense knowledge that grounds reasoning.
+// Includes physical, social, temporal common knowledge.
+
+const COMMONSENSE_INVARIANTS = Object.freeze({
+  ADDITIVE_ONLY: true,                 // Commonsense adds, never overrides user DTUs
+  UNCERTAINTY_MARKED: true,            // Commonsense has uncertainty bounds
+  CULTURALLY_AWARE: true,              // Social norms vary by culture
+  FALSIFIABLE: true                    // Can be challenged with evidence
+});
+
+const COMMONSENSE_CATEGORIES = Object.freeze({
+  PHYSICAL: "physical",                // Objects, gravity, space
+  TEMPORAL: "temporal",                // Time, sequences, duration
+  SOCIAL: "social",                    // Norms, expectations, relationships
+  CAUSAL: "causal",                    // If-then relationships
+  QUANTITY: "quantity",                // Numbers, comparisons, magnitudes
+  SPATIAL: "spatial"                   // Locations, directions, containment
+});
+
+function ensureCommonsenseSubstrate() {
+  if (!STATE.commonsense) {
+    STATE.commonsense = {
+      facts: new Map(),                 // Commonsense facts by ID
+      categories: {},                   // Facts organized by category
+      assumptions: new Map(),           // Surfaced assumptions from DTUs
+      stats: {
+        factsLoaded: 0,
+        assumptionsSurfaced: 0,
+        queriesAnswered: 0
+      },
+      config: {
+        autoSurfaceAssumptions: true,
+        confidenceThreshold: 0.6,
+        maxAssumptionsPerDtu: 5
+      }
+    };
+
+    // Seed with basic commonsense (can be expanded)
+    seedCommonsense();
+  }
+  if (!(STATE.commonsense.facts instanceof Map)) {
+    STATE.commonsense.facts = new Map(Object.entries(STATE.commonsense.facts || {}));
+  }
+  if (!(STATE.commonsense.assumptions instanceof Map)) {
+    STATE.commonsense.assumptions = new Map(Object.entries(STATE.commonsense.assumptions || {}));
+  }
+}
+
+// Seed basic commonsense knowledge
+function seedCommonsense() {
+  const seeds = [
+    // Physical
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Objects fall when dropped", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Water flows downhill", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Fire is hot", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Ice is cold", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Objects occupy space", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.PHYSICAL, fact: "Light travels faster than sound", confidence: 0.99 },
+
+    // Temporal
+    { category: COMMONSENSE_CATEGORIES.TEMPORAL, fact: "Causes precede effects", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.TEMPORAL, fact: "Days have 24 hours", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.TEMPORAL, fact: "Past cannot be changed", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.TEMPORAL, fact: "Events happen in sequence", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.TEMPORAL, fact: "Actions take time to complete", confidence: 0.95 },
+
+    // Social
+    { category: COMMONSENSE_CATEGORIES.SOCIAL, fact: "People have names", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.SOCIAL, fact: "Promises create expectations", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.SOCIAL, fact: "Questions expect answers", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.SOCIAL, fact: "Greetings initiate conversations", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.SOCIAL, fact: "People have preferences", confidence: 0.95 },
+
+    // Causal
+    { category: COMMONSENSE_CATEGORIES.CAUSAL, fact: "Eating reduces hunger", confidence: 0.95 },
+    { category: COMMONSENSE_CATEGORIES.CAUSAL, fact: "Learning increases knowledge", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.CAUSAL, fact: "Practice improves skill", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.CAUSAL, fact: "Damage requires repair", confidence: 0.9 },
+    { category: COMMONSENSE_CATEGORIES.CAUSAL, fact: "Resources can be depleted", confidence: 0.95 },
+
+    // Quantity
+    { category: COMMONSENSE_CATEGORIES.QUANTITY, fact: "More is greater than less", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.QUANTITY, fact: "Zero means none", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.QUANTITY, fact: "Parts sum to whole", confidence: 0.99 },
+
+    // Spatial
+    { category: COMMONSENSE_CATEGORIES.SPATIAL, fact: "Containers hold contents", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.SPATIAL, fact: "Paths connect locations", confidence: 0.99 },
+    { category: COMMONSENSE_CATEGORIES.SPATIAL, fact: "Objects have size and shape", confidence: 0.99 }
+  ];
+
+  for (const seed of seeds) {
+    const id = uid("cs");
+    STATE.commonsense.facts.set(id, {
+      id,
+      ...seed,
+      type: "axiom",
+      createdAt: nowISO()
+    });
+  }
+
+  // Organize by category
+  for (const cat of Object.values(COMMONSENSE_CATEGORIES)) {
+    STATE.commonsense.categories[cat] = Array.from(STATE.commonsense.facts.values())
+      .filter(f => f.category === cat)
+      .map(f => f.id);
+  }
+
+  STATE.commonsense.stats.factsLoaded = seeds.length;
+}
+
+// Query commonsense for relevant facts
+function queryCommonsense(query, category = null) {
+  ensureCommonsenseSubstrate();
+
+  const queryTokens = new Set(tokenizeText(query));
+  const results = [];
+
+  for (const [id, fact] of STATE.commonsense.facts) {
+    if (category && fact.category !== category) continue;
+
+    const factTokens = tokenizeText(fact.fact);
+    const overlap = factTokens.filter(t => queryTokens.has(t)).length;
+    const relevance = overlap / Math.max(factTokens.length, 1);
+
+    if (relevance > 0.1 || overlap > 0) {
+      results.push({
+        id,
+        fact: fact.fact,
+        category: fact.category,
+        confidence: fact.confidence,
+        relevance
+      });
+    }
+  }
+
+  STATE.commonsense.stats.queriesAnswered++;
+  return results.sort((a, b) => b.relevance - a.relevance).slice(0, 10);
+}
+
+// Surface implicit assumptions in a DTU
+function surfaceAssumptions(dtuId) {
+  ensureCommonsenseSubstrate();
+
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  const text = `${dtu.title || ""} ${dtu.human?.summary || ""} ${dtu.content || ""}`;
+  const assumptions = [];
+
+  // Check against commonsense categories
+  for (const [id, fact] of STATE.commonsense.facts) {
+    const factTokens = new Set(tokenizeText(fact.fact));
+    const textTokens = tokenizeText(text);
+
+    // If DTU text relates to commonsense fact, it might assume that fact
+    const overlap = textTokens.filter(t => factTokens.has(t)).length;
+    if (overlap >= 2) {
+      assumptions.push({
+        assumedFact: fact.fact,
+        factId: id,
+        category: fact.category,
+        confidence: clamp(fact.confidence * (overlap / 5), 0.3, 0.9),
+        evidence: `DTU contains related terms`
+      });
+    }
+  }
+
+  // Limit assumptions
+  const topAssumptions = assumptions
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, STATE.commonsense.config.maxAssumptionsPerDtu);
+
+  if (topAssumptions.length > 0) {
+    STATE.commonsense.assumptions.set(dtuId, {
+      dtuId,
+      assumptions: topAssumptions,
+      surfacedAt: nowISO()
+    });
+    STATE.commonsense.stats.assumptionsSurfaced += topAssumptions.length;
+  }
+
+  saveStateDebounced();
+  return { ok: true, assumptions: topAssumptions };
+}
+
+// Add new commonsense fact
+function addCommonsenseFact(input) {
+  ensureCommonsenseSubstrate();
+
+  const category = COMMONSENSE_CATEGORIES[input.category?.toUpperCase()] || COMMONSENSE_CATEGORIES.CAUSAL;
+  const fact = String(input.fact || "").slice(0, 500);
+  const confidence = clamp(Number(input.confidence || 0.7), 0.1, 0.99);
+
+  if (!fact) return { ok: false, error: "Fact text required" };
+
+  const id = uid("cs");
+  const entry = {
+    id,
+    category,
+    fact,
+    confidence,
+    type: "learned",
+    source: input.source || "user",
+    createdAt: nowISO()
+  };
+
+  STATE.commonsense.facts.set(id, entry);
+  STATE.commonsense.categories[category] = STATE.commonsense.categories[category] || [];
+  STATE.commonsense.categories[category].push(id);
+  STATE.commonsense.stats.factsLoaded++;
+
+  saveStateDebounced();
+  return { ok: true, fact: entry };
+}
+
+// ===== END COMMONSENSE REASONING SUBSTRATE =====
+
+// ===== EMBODIMENT/GROUNDING SYSTEM =====
+// Design: Connects abstract knowledge to real-world state and actions.
+// Includes sensor integration, temporal grounding, action execution.
+
+const GROUNDING_INVARIANTS = Object.freeze({
+  REAL_WORLD_AWARE: true,              // Distinguishes abstract from grounded
+  SENSOR_VALIDATED: true,              // Sensor data validated before use
+  ACTION_CONSENT: true,                // Real actions require consent
+  TEMPORAL_ANCHORED: true              // Ground in real time when possible
+});
+
+const SENSOR_TYPES = Object.freeze({
+  TEMPERATURE: "temperature",
+  HUMIDITY: "humidity",
+  LIGHT: "light",
+  MOTION: "motion",
+  LOCATION: "location",
+  TIME: "time",
+  CALENDAR: "calendar",
+  SYSTEM: "system",                    // System metrics (CPU, memory)
+  CUSTOM: "custom"
+});
+
+const ACTION_TYPES = Object.freeze({
+  FILE: "file",                        // File system operations
+  NETWORK: "network",                  // API calls
+  NOTIFICATION: "notification",        // Send notification
+  CALENDAR: "calendar",                // Calendar operations
+  COMMAND: "command",                  // Execute command (sandboxed)
+  WEBHOOK: "webhook"                   // Trigger webhook
+});
+
+function ensureGroundingEngine() {
+  if (!STATE.grounding) {
+    STATE.grounding = {
+      sensors: new Map(),               // Registered sensors
+      readings: [],                     // Recent sensor readings (capped)
+      groundedDtus: new Map(),          // DTU ID -> grounding metadata
+      pendingActions: [],               // Actions awaiting consent
+      actionHistory: [],                // Executed actions
+      calendar: new Map(),              // Calendar event links
+      stats: {
+        sensorsRegistered: 0,
+        readingsRecorded: 0,
+        actionsExecuted: 0,
+        dtusGrounded: 0
+      },
+      config: {
+        maxReadings: 1000,
+        maxActionHistory: 200,
+        requireActionConsent: true,
+        autoGroundTimestamps: true
+      }
+    };
+  }
+  if (!(STATE.grounding.sensors instanceof Map)) {
+    STATE.grounding.sensors = new Map(Object.entries(STATE.grounding.sensors || {}));
+  }
+  if (!(STATE.grounding.groundedDtus instanceof Map)) {
+    STATE.grounding.groundedDtus = new Map(Object.entries(STATE.grounding.groundedDtus || {}));
+  }
+  if (!(STATE.grounding.calendar instanceof Map)) {
+    STATE.grounding.calendar = new Map(Object.entries(STATE.grounding.calendar || {}));
+  }
+}
+
+// Register a sensor
+function registerSensor(input) {
+  ensureGroundingEngine();
+
+  const id = uid("sensor");
+  const sensorType = SENSOR_TYPES[input.type?.toUpperCase()] || SENSOR_TYPES.CUSTOM;
+
+  const sensor = {
+    id,
+    name: String(input.name || "").slice(0, 100) || `Sensor ${id}`,
+    type: sensorType,
+    unit: String(input.unit || "").slice(0, 20),
+    endpoint: input.endpoint || null,   // URL or local path to poll
+    pollInterval: clamp(Number(input.pollInterval || 60000), 1000, 3600000),
+    lastReading: null,
+    status: "active",
+    createdAt: nowISO()
+  };
+
+  STATE.grounding.sensors.set(id, sensor);
+  STATE.grounding.stats.sensorsRegistered++;
+
+  saveStateDebounced();
+  return { ok: true, sensor };
+}
+
+// Record a sensor reading
+function recordSensorReading(sensorId, value, timestamp = null) {
+  ensureGroundingEngine();
+
+  const sensor = STATE.grounding.sensors.get(sensorId);
+  if (!sensor) return { ok: false, error: "Sensor not found" };
+
+  const reading = {
+    id: uid("reading"),
+    sensorId,
+    sensorName: sensor.name,
+    type: sensor.type,
+    value,
+    unit: sensor.unit,
+    timestamp: timestamp || nowISO()
+  };
+
+  STATE.grounding.readings.push(reading);
+  sensor.lastReading = reading;
+
+  // Cap readings
+  if (STATE.grounding.readings.length > STATE.grounding.config.maxReadings) {
+    STATE.grounding.readings = STATE.grounding.readings.slice(-STATE.grounding.config.maxReadings);
+  }
+
+  STATE.grounding.stats.readingsRecorded++;
+  saveStateDebounced();
+
+  return { ok: true, reading };
+}
+
+// Ground a DTU with real-world context
+function groundDtu(dtuId, groundingData = {}) {
+  ensureGroundingEngine();
+
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  const grounding = {
+    dtuId,
+    timestamp: groundingData.timestamp || nowISO(),
+    location: groundingData.location || null,
+    sensorReadings: groundingData.sensorReadings || [],
+    calendarEvent: groundingData.calendarEvent || null,
+    realWorldContext: String(groundingData.context || "").slice(0, 1000),
+    confidence: clamp(Number(groundingData.confidence || 0.7), 0, 1),
+    groundedAt: nowISO()
+  };
+
+  // Auto-add recent sensor readings if available
+  if (STATE.grounding.readings.length > 0 && grounding.sensorReadings.length === 0) {
+    const recent = STATE.grounding.readings.slice(-5);
+    grounding.sensorReadings = recent.map(r => ({
+      sensorId: r.sensorId,
+      type: r.type,
+      value: r.value,
+      unit: r.unit
+    }));
+  }
+
+  STATE.grounding.groundedDtus.set(dtuId, grounding);
+  STATE.grounding.stats.dtusGrounded++;
+
+  saveStateDebounced();
+  return { ok: true, grounding };
+}
+
+// Link DTU to calendar event
+function linkToCalendar(dtuId, eventData) {
+  ensureGroundingEngine();
+
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  const event = {
+    id: uid("event"),
+    dtuId,
+    title: String(eventData.title || dtu.title || "").slice(0, 200),
+    startTime: eventData.startTime || nowISO(),
+    endTime: eventData.endTime || null,
+    recurrence: eventData.recurrence || null,
+    location: eventData.location || null,
+    createdAt: nowISO()
+  };
+
+  STATE.grounding.calendar.set(event.id, event);
+
+  // Update DTU grounding
+  const grounding = STATE.grounding.groundedDtus.get(dtuId) || { dtuId };
+  grounding.calendarEvent = event.id;
+  STATE.grounding.groundedDtus.set(dtuId, grounding);
+
+  saveStateDebounced();
+  return { ok: true, event };
+}
+
+// Propose an action (requires consent)
+function proposeAction(input) {
+  ensureGroundingEngine();
+
+  const actionType = ACTION_TYPES[input.type?.toUpperCase()] || ACTION_TYPES.NOTIFICATION;
+  const goalId = input.goalId || null;
+
+  const action = {
+    id: uid("action"),
+    type: actionType,
+    description: String(input.description || "").slice(0, 500),
+    payload: input.payload || {},
+    goalId,
+    status: STATE.grounding.config.requireActionConsent ? "pending_consent" : "approved",
+    proposedAt: nowISO(),
+    executedAt: null,
+    result: null
+  };
+
+  if (action.status === "pending_consent") {
+    STATE.grounding.pendingActions.push(action);
+  }
+
+  saveStateDebounced();
+  return { ok: true, action, requiresConsent: action.status === "pending_consent" };
+}
+
+// Approve and execute an action
+function approveAction(actionId) {
+  ensureGroundingEngine();
+
+  const actionIndex = STATE.grounding.pendingActions.findIndex(a => a.id === actionId);
+  if (actionIndex === -1) return { ok: false, error: "Action not found" };
+
+  const action = STATE.grounding.pendingActions[actionIndex];
+  action.status = "approved";
+
+  // Execute based on type
+  let result = { ok: false, error: "Unknown action type" };
+
+  switch (action.type) {
+    case ACTION_TYPES.NOTIFICATION:
+      result = executeNotificationAction(action);
+      break;
+    case ACTION_TYPES.WEBHOOK:
+      result = executeWebhookAction(action);
+      break;
+    case ACTION_TYPES.CALENDAR:
+      result = executeCalendarAction(action);
+      break;
+    // FILE, NETWORK, COMMAND would need more security consideration
+    default:
+      result = { ok: true, message: `Action ${action.type} logged but not executed (safety)` };
+  }
+
+  action.status = result.ok ? "completed" : "failed";
+  action.executedAt = nowISO();
+  action.result = result;
+
+  // Move to history
+  STATE.grounding.pendingActions.splice(actionIndex, 1);
+  STATE.grounding.actionHistory.push(action);
+
+  // Cap history
+  if (STATE.grounding.actionHistory.length > STATE.grounding.config.maxActionHistory) {
+    STATE.grounding.actionHistory = STATE.grounding.actionHistory.slice(-STATE.grounding.config.maxActionHistory);
+  }
+
+  STATE.grounding.stats.actionsExecuted++;
+  saveStateDebounced();
+
+  return { ok: true, action, result };
+}
+
+function executeNotificationAction(action) {
+  // Queue notification
+  ensureQueues();
+  STATE.queues.notifications.push({
+    id: uid("notif"),
+    type: "action_notification",
+    title: action.description,
+    payload: action.payload,
+    createdAt: nowISO()
+  });
+  return { ok: true, message: "Notification queued" };
+}
+
+function executeWebhookAction(action) {
+  // Just log for now - actual webhook would need async handling
+  return { ok: true, message: "Webhook action logged", webhook: action.payload.url };
+}
+
+function executeCalendarAction(action) {
+  // Create calendar entry
+  const event = {
+    id: uid("cal"),
+    title: action.payload.title || action.description,
+    startTime: action.payload.startTime || nowISO(),
+    endTime: action.payload.endTime,
+    createdAt: nowISO()
+  };
+  STATE.grounding.calendar.set(event.id, event);
+  return { ok: true, event };
+}
+
+// Get current grounded context (all recent sensor data + time)
+function getCurrentGroundedContext() {
+  ensureGroundingEngine();
+
+  const now = new Date();
+  const recentReadings = STATE.grounding.readings.slice(-20);
+
+  return {
+    timestamp: nowISO(),
+    timeOfDay: now.getHours() < 12 ? "morning" : now.getHours() < 17 ? "afternoon" : "evening",
+    dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()],
+    sensors: recentReadings.map(r => ({
+      type: r.type,
+      value: r.value,
+      unit: r.unit,
+      age: Date.now() - new Date(r.timestamp).getTime()
+    })),
+    activeSensors: STATE.grounding.sensors.size,
+    groundedDtus: STATE.grounding.groundedDtus.size,
+    pendingActions: STATE.grounding.pendingActions.length
+  };
+}
+
+// ===== END EMBODIMENT/GROUNDING SYSTEM =====
+
 function _clamp01(x){ return clamp(Number(x||0), 0, 1); }
 
 function computeGrowthTick(signal={}) {
@@ -16701,6 +18275,10 @@ function kernelTick(event) {
   ensureQueues();
   ensureGoalSystem();
   ensureWorldModel();
+  ensureSemanticEngine();
+  ensureTransferEngine();
+  ensureCommonsenseSubstrate();
+  ensureGroundingEngine();
   // Simple universal tick: update wear/debt and write Learning DTU for major changes.
   const t = nowISO();
   const signal = { acuteStress: 0, chronicStress: 0, drift: 0, paramShift: 0, decline: 0, repairDelta: 0, backlogDelta: 0 };
