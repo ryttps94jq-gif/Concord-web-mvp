@@ -2592,6 +2592,250 @@ register("tools","web_search", async (ctx, input={}) => {
 
 // ===== END CHICKEN3 MACROS =====
 
+// ===== GOAL SYSTEM MACROS =====
+
+register("goals", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_status");
+  ensureGoalSystem();
+
+  const activeGoals = Array.from(ctx.state.goals.active)
+    .map(id => ctx.state.goals.registry.get(id))
+    .filter(Boolean)
+    .map(g => ({
+      id: g.id,
+      title: g.title,
+      type: g.type,
+      progress: g.progress.current / g.progress.target,
+      priority: g.priority,
+      startedAt: g.progress.startedAt
+    }));
+
+  const proposalCount = ctx.state.queues.goalProposals?.length || 0;
+
+  return {
+    ok: true,
+    active: activeGoals,
+    activeCount: activeGoals.length,
+    proposalCount,
+    stats: ctx.state.goals.stats,
+    config: ctx.state.goals.config,
+    invariants: GOAL_INVARIANTS
+  };
+}, { public: true });
+
+register("goals", "propose", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_propose");
+  ensureGoalSystem();
+
+  const result = createGoalProposal({
+    title: input.title,
+    description: input.description,
+    type: input.type || "exploration",
+    priority: input.priority,
+    source: input.source || "user",
+    tags: input.tags,
+    requiredDtus: input.requiredDtus,
+    requiredGoals: input.requiredGoals,
+    target: input.target
+  });
+
+  if (!result.ok) return result;
+
+  const goal = result.goal;
+  ctx.state.goals.registry.set(goal.id, goal);
+  ctx.state.queues.goalProposals.push({ id: goal.id, createdAt: goal.createdAt });
+  ctx.state.goals.stats.proposed++;
+
+  saveStateDebounced();
+  return { ok: true, goal: { id: goal.id, title: goal.title, type: goal.type, state: goal.state } };
+}, { public: false });
+
+register("goals", "evaluate", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_evaluate");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const goal = ctx.state.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+
+  const result = evaluateGoal(goal, ctx);
+  if (result.ok) {
+    ctx.state.goals.registry.set(goalId, result.goal);
+    saveStateDebounced();
+  }
+
+  return {
+    ok: result.ok,
+    evaluation: result.goal?.evaluation,
+    state: result.goal?.state,
+    passed: result.passed,
+    error: result.error
+  };
+}, { public: false });
+
+register("goals", "approve", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_approve");
+  ensureGoalSystem();
+
+  // Founder approval endpoint
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const goal = ctx.state.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+
+  // Check actor has founder/owner role
+  if (!["owner", "admin", "founder"].includes(ctx.actor?.role)) {
+    return { ok: false, error: "Founder approval requires owner/admin role" };
+  }
+
+  goal.meta.founderApproved = true;
+  goal.meta.approvedBy = ctx.actor?.userId || "unknown";
+  goal.meta.approvedAt = nowISO();
+  goal.state = GOAL_STATES.APPROVED;
+  goal.updatedAt = nowISO();
+
+  ctx.state.goals.stats.approved++;
+  saveStateDebounced();
+
+  return { ok: true, goal: { id: goal.id, title: goal.title, state: goal.state, founderApproved: true } };
+}, { public: false });
+
+register("goals", "activate", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_activate");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const result = activateGoal(goalId);
+  if (result.ok) saveStateDebounced();
+
+  return {
+    ok: result.ok,
+    goal: result.goal ? { id: result.goal.id, title: result.goal.title, state: result.goal.state } : null,
+    error: result.error
+  };
+}, { public: false });
+
+register("goals", "progress", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_progress");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const delta = Number(input.delta || input.progress || 1);
+  const milestone = input.milestone || null;
+
+  const result = updateGoalProgress(goalId, delta, milestone);
+  return {
+    ok: result.ok,
+    progress: result.progress,
+    completed: result.completed || false,
+    error: result.error
+  };
+}, { public: false });
+
+register("goals", "complete", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_complete");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  return completeGoal(goalId);
+}, { public: false });
+
+register("goals", "abandon", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_abandon");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const reason = String(input.reason || "user_requested");
+  return abandonGoal(goalId, reason);
+}, { public: false });
+
+register("goals", "list", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_list");
+  ensureGoalSystem();
+
+  const state = input.state; // Filter by state
+  const type = input.type;   // Filter by type
+  const limit = clamp(Number(input.limit || 50), 1, 200);
+
+  let goals = Array.from(ctx.state.goals.registry.values());
+
+  if (state) goals = goals.filter(g => g.state === state);
+  if (type) goals = goals.filter(g => g.type === type);
+
+  goals = goals
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, limit)
+    .map(g => ({
+      id: g.id,
+      title: g.title,
+      type: g.type,
+      state: g.state,
+      priority: g.priority,
+      progress: g.progress.current / g.progress.target,
+      source: g.source,
+      createdAt: g.createdAt
+    }));
+
+  return { ok: true, goals, total: ctx.state.goals.registry.size };
+}, { public: true });
+
+register("goals", "get", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_get");
+  ensureGoalSystem();
+
+  const goalId = String(input.goalId || input.id || "");
+  if (!goalId) return { ok: false, error: "goalId required" };
+
+  const goal = ctx.state.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+
+  return { ok: true, goal };
+}, { public: true });
+
+register("goals", "auto_propose", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_auto_propose");
+  return generateAutoGoalProposals(ctx);
+}, { public: false });
+
+register("goals", "config", async (ctx, input = {}) => {
+  enforceEthosInvariant("goals_config");
+  ensureGoalSystem();
+
+  // Only owner/admin can modify config
+  if (!["owner", "admin", "founder"].includes(ctx.actor?.role)) {
+    return { ok: true, config: ctx.state.goals.config, readonly: true };
+  }
+
+  // Update config (bounded)
+  if (typeof input.maxActiveGoals === "number") {
+    ctx.state.goals.config.maxActiveGoals = clamp(input.maxActiveGoals, 1, 20);
+  }
+  if (typeof input.evaluationThreshold === "number") {
+    ctx.state.goals.config.evaluationThreshold = clamp(input.evaluationThreshold, 0.1, 0.95);
+  }
+  if (typeof input.autoProposalEnabled === "boolean") {
+    ctx.state.goals.config.autoProposalEnabled = input.autoProposalEnabled;
+  }
+  if (typeof input.founderApprovalRequired === "boolean") {
+    ctx.state.goals.config.founderApprovalRequired = input.founderApprovalRequired;
+  }
+
+  saveStateDebounced();
+  return { ok: true, config: ctx.state.goals.config };
+}, { public: false });
+
+// ===== END GOAL SYSTEM MACROS =====
 
 // ---- ctx ----
 function makeCtx(req=null) {
@@ -10608,6 +10852,75 @@ app.post("/api/chicken3/meta/commit", async (req, res) => {
   return res.json(out);
 });
 
+// ===== GOAL SYSTEM API ENDPOINTS =====
+
+app.get("/api/goals/status", async (req, res) => {
+  const out = await runMacro("goals", "status", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/goals", async (req, res) => {
+  const out = await runMacro("goals", "list", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/goals/:goalId", async (req, res) => {
+  const out = await runMacro("goals", "get", { goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals", async (req, res) => {
+  const out = await runMacro("goals", "propose", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/evaluate", async (req, res) => {
+  const out = await runMacro("goals", "evaluate", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/approve", async (req, res) => {
+  const out = await runMacro("goals", "approve", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/activate", async (req, res) => {
+  const out = await runMacro("goals", "activate", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/progress", async (req, res) => {
+  const out = await runMacro("goals", "progress", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/complete", async (req, res) => {
+  const out = await runMacro("goals", "complete", { goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/:goalId/abandon", async (req, res) => {
+  const out = await runMacro("goals", "abandon", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/auto-propose", async (req, res) => {
+  const out = await runMacro("goals", "auto_propose", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/goals/config", async (req, res) => {
+  const out = await runMacro("goals", "config", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/goals/config", async (req, res) => {
+  const out = await runMacro("goals", "config", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END GOAL SYSTEM API ENDPOINTS =====
+
 app.post("/api/multimodal/vision", async (req, res) => {
   const out = await runMacro("multimodal", "vision_analyze", req.body, makeCtx(req));
   return res.json(out);
@@ -10977,6 +11290,9 @@ async function governorTick(reason="heartbeat") {
     try { await runMacro("queue","tick",{ override:true, reason }, ctx); } catch {}
     try { await runMacro("ingest","tick",{ override:true, reason }, ctx); } catch {}
     try { await runMacro("crawl","tick",{ override:true, reason }, ctx); } catch {}
+
+    // 2.5) Goal System: process goal proposals and track active goals
+    try { await processGoalHeartbeat(ctx); } catch {}
 
     // 3) Kernel metrics tick (homeostasis, organ wear) so the system stays honest
     try { kernelTick({ type: "HEARTBEAT", meta: { source: "governor", reason } }); } catch {}
@@ -14882,6 +15198,13 @@ const ORGAN_DEFS = [
   { organId: "system_self_description", desc: "Accurate self-description of current capabilities.", deps: ["capability_advertising"] },
   { organId: "capability_boundary_memory", desc: "Remembers explicit current limitations; blocks implying otherwise.", deps: ["capability_advertising"] },
   { organId: "founder_intent_preservation", desc: "Stores non-negotiables/axioms for future contributors.", deps: ["soul_os"] },
+
+  // Goal System (constructive goals only; no negative valence)
+  { organId: "goal_os", desc: "Constructive goal formation, pursuit, and completion. No self-preservation or harmful objectives.", deps: ["motivation_os", "experience_os"] },
+  { organId: "goal_proposal_engine", desc: "Generates goal proposals from lattice patterns and user signals.", deps: ["goal_os", "attention_router"] },
+  { organId: "goal_evaluation_gate", desc: "Evaluates goal feasibility, alignment, and value before activation.", deps: ["goal_os", "council_engine"] },
+  { organId: "goal_pursuit_tracker", desc: "Tracks active goal progress, milestones, and resource allocation.", deps: ["goal_os", "metabolic_budget"] },
+  { organId: "goal_completion_arbiter", desc: "Determines goal success/completion criteria and triggers celebration.", deps: ["goal_os", "experience_os"] },
 ];
 
 function _defaultOrganState(def) {
@@ -14918,8 +15241,9 @@ function ensureQueues() {
       philosophy: [],
       wrapperJobs: [],
       notifications: [],
-      metaProposals: []
-
+      metaProposals: [],
+      goalProposals: [],
+      activeGoals: []
     };
   }
   for (const k of Object.keys(STATE.queues)) {
@@ -14947,6 +15271,517 @@ function ensureOrganRegistry() {
     };
   }
 }
+
+// ===== GOAL SYSTEM: Constructive Goal Formation & Pursuit =====
+// Design: Positive-only goals (no negative valence), founder-consent for major changes,
+// bounded self-modification, integrates with DTU/Lattice for knowledge-driven objectives.
+
+const GOAL_INVARIANTS = Object.freeze({
+  NO_NEGATIVE_VALENCE: true,           // Goals must be constructive, never punitive
+  NO_SELF_PRESERVATION: true,          // System cannot create goals about its own survival
+  NO_HARM_OBJECTIVES: true,            // Cannot target harm to users/others
+  FOUNDER_CONSENT_REQUIRED: true,      // Major goal changes need founder approval
+  BOUNDED_SCOPE: true,                 // Goals must have finite, measurable outcomes
+  KNOWLEDGE_ALIGNED: true              // Goals should serve knowledge/understanding
+});
+
+const GOAL_STATES = Object.freeze({
+  PROPOSED: "proposed",                // Initial proposal, awaiting evaluation
+  EVALUATING: "evaluating",            // Being evaluated for alignment/feasibility
+  APPROVED: "approved",                // Council approved, ready for pursuit
+  ACTIVE: "active",                    // Currently being pursued
+  PAUSED: "paused",                    // Temporarily suspended
+  COMPLETED: "completed",              // Successfully achieved
+  ABANDONED: "abandoned",              // Deliberately stopped (not failure)
+  BLOCKED: "blocked"                   // Cannot proceed due to dependencies
+});
+
+const GOAL_TYPES = Object.freeze({
+  KNOWLEDGE_SYNTHESIS: "knowledge_synthesis",    // Combine DTUs into higher understanding
+  PATTERN_DISCOVERY: "pattern_discovery",        // Find latent patterns in lattice
+  GAP_FILLING: "gap_filling",                    // Fill identified knowledge gaps
+  CONSOLIDATION: "consolidation",                // MEGA/HYPER formation
+  EXPLORATION: "exploration",                    // Curiosity-driven investigation
+  USER_REQUESTED: "user_requested",              // Explicit user goal
+  MAINTENANCE: "maintenance",                    // System health/homeostasis
+  CLARIFICATION: "clarification"                 // Resolve ambiguity/contradiction
+});
+
+function ensureGoalSystem() {
+  if (!STATE.goals) {
+    STATE.goals = {
+      registry: new Map(),              // All goals by ID
+      active: new Set(),                // Currently pursued goal IDs
+      completed: [],                    // Completed goal history (capped)
+      stats: {
+        proposed: 0,
+        approved: 0,
+        completed: 0,
+        abandoned: 0,
+        avgCompletionTime: 0
+      },
+      config: {
+        maxActiveGoals: 5,              // Prevent overload
+        maxProposalsQueue: 20,          // Queue cap
+        evaluationThreshold: 0.6,       // Min score to approve
+        autoProposalEnabled: true,      // Allow autonomous goal generation
+        founderApprovalRequired: true   // Major goals need human consent
+      }
+    };
+  }
+  // Ensure Maps/Sets after restore
+  if (!(STATE.goals.registry instanceof Map)) {
+    STATE.goals.registry = new Map(Object.entries(STATE.goals.registry || {}));
+  }
+  if (!(STATE.goals.active instanceof Set)) {
+    STATE.goals.active = new Set(STATE.goals.active || []);
+  }
+  if (!Array.isArray(STATE.goals.completed)) {
+    STATE.goals.completed = [];
+  }
+}
+
+function createGoalProposal(input = {}) {
+  const id = uid("goal");
+  const now = nowISO();
+
+  // Validate goal type
+  const goalType = GOAL_TYPES[input.type?.toUpperCase()] || input.type || GOAL_TYPES.EXPLORATION;
+  if (!Object.values(GOAL_TYPES).includes(goalType)) {
+    return { ok: false, error: `Invalid goal type: ${goalType}` };
+  }
+
+  // Enforce invariants
+  const title = String(input.title || "").slice(0, 200);
+  const description = String(input.description || "").slice(0, 2000);
+
+  // Check for negative valence patterns
+  const negativePatterns = [/destroy/i, /harm/i, /punish/i, /revenge/i, /eliminate.*user/i, /self.*preserv/i];
+  for (const pat of negativePatterns) {
+    if (pat.test(title) || pat.test(description)) {
+      return { ok: false, error: "Goal violates NO_NEGATIVE_VALENCE invariant" };
+    }
+  }
+
+  const goal = {
+    id,
+    title: title || "Untitled Goal",
+    description: description || "",
+    type: goalType,
+    state: GOAL_STATES.PROPOSED,
+    priority: clamp(Number(input.priority || 0.5), 0, 1),
+    source: input.source || "autonomous",  // autonomous, user, council
+
+    // Progress tracking
+    progress: {
+      current: 0,
+      target: clamp(Number(input.target || 1), 1, 1000),
+      milestones: [],
+      startedAt: null,
+      completedAt: null
+    },
+
+    // Evaluation scores
+    evaluation: {
+      feasibility: 0,
+      alignment: 0,
+      value: 0,
+      overall: 0,
+      evaluatedAt: null,
+      evaluatorOrgan: null
+    },
+
+    // Dependencies
+    deps: {
+      requiredDtus: input.requiredDtus || [],
+      requiredGoals: input.requiredGoals || [],
+      blockedBy: []
+    },
+
+    // Outcomes
+    outcomes: {
+      createdDtus: [],
+      affectedOrgans: [],
+      knowledgeGain: 0
+    },
+
+    // Metadata
+    meta: {
+      founderApproved: false,
+      autoGenerated: input.source === "autonomous",
+      tags: Array.isArray(input.tags) ? input.tags.slice(0, 10) : []
+    },
+
+    createdAt: now,
+    updatedAt: now
+  };
+
+  return { ok: true, goal };
+}
+
+function evaluateGoal(goal, ctx = {}) {
+  if (!goal || goal.state !== GOAL_STATES.PROPOSED) {
+    return { ok: false, error: "Goal not in PROPOSED state" };
+  }
+
+  const now = nowISO();
+  goal.state = GOAL_STATES.EVALUATING;
+  goal.updatedAt = now;
+
+  // Feasibility: can we actually pursue this?
+  let feasibility = 0.5;
+  if (goal.deps.requiredDtus.length === 0) feasibility += 0.2;
+  if (goal.deps.requiredGoals.length === 0) feasibility += 0.1;
+  if (goal.type === GOAL_TYPES.MAINTENANCE) feasibility += 0.15;
+  if (goal.type === GOAL_TYPES.USER_REQUESTED) feasibility += 0.1;
+
+  // Alignment: does it serve knowledge/understanding?
+  let alignment = 0.6;
+  if ([GOAL_TYPES.KNOWLEDGE_SYNTHESIS, GOAL_TYPES.PATTERN_DISCOVERY, GOAL_TYPES.CONSOLIDATION].includes(goal.type)) {
+    alignment += 0.25;
+  }
+  if (goal.meta.tags.includes("knowledge") || goal.meta.tags.includes("learning")) {
+    alignment += 0.1;
+  }
+
+  // Value: expected benefit to lattice
+  let value = 0.5;
+  value += goal.priority * 0.3;
+  if (goal.source === "user") value += 0.15;
+
+  // Check active goals - don't overload
+  const activeCount = STATE.goals?.active?.size || 0;
+  const maxActive = STATE.goals?.config?.maxActiveGoals || 5;
+  if (activeCount >= maxActive) {
+    feasibility *= 0.5; // Penalize when at capacity
+  }
+
+  goal.evaluation = {
+    feasibility: clamp(feasibility, 0, 1),
+    alignment: clamp(alignment, 0, 1),
+    value: clamp(value, 0, 1),
+    overall: clamp((feasibility + alignment + value) / 3, 0, 1),
+    evaluatedAt: now,
+    evaluatorOrgan: "goal_evaluation_gate"
+  };
+
+  // Determine outcome
+  const threshold = STATE.goals?.config?.evaluationThreshold || 0.6;
+  const needsFounder = STATE.goals?.config?.founderApprovalRequired &&
+                       (goal.priority > 0.8 || goal.type === GOAL_TYPES.USER_REQUESTED);
+
+  if (goal.evaluation.overall >= threshold) {
+    if (needsFounder && !goal.meta.founderApproved) {
+      goal.state = GOAL_STATES.PROPOSED; // Back to proposed, awaiting founder
+      goal.meta.awaitingFounderApproval = true;
+    } else {
+      goal.state = GOAL_STATES.APPROVED;
+    }
+  } else {
+    goal.state = GOAL_STATES.ABANDONED;
+    goal.meta.abandonReason = "evaluation_below_threshold";
+  }
+
+  goal.updatedAt = now;
+  return { ok: true, goal, passed: goal.state === GOAL_STATES.APPROVED };
+}
+
+function activateGoal(goalId) {
+  ensureGoalSystem();
+  const goal = STATE.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+  if (goal.state !== GOAL_STATES.APPROVED) {
+    return { ok: false, error: `Goal must be APPROVED to activate (current: ${goal.state})` };
+  }
+
+  // Check capacity
+  const maxActive = STATE.goals.config.maxActiveGoals || 5;
+  if (STATE.goals.active.size >= maxActive) {
+    return { ok: false, error: `Max active goals (${maxActive}) reached` };
+  }
+
+  // Check dependencies
+  for (const depId of goal.deps.requiredGoals) {
+    const dep = STATE.goals.registry.get(depId);
+    if (!dep || dep.state !== GOAL_STATES.COMPLETED) {
+      goal.state = GOAL_STATES.BLOCKED;
+      goal.deps.blockedBy.push(depId);
+      goal.updatedAt = nowISO();
+      return { ok: false, error: `Blocked by incomplete goal: ${depId}` };
+    }
+  }
+
+  goal.state = GOAL_STATES.ACTIVE;
+  goal.progress.startedAt = nowISO();
+  goal.updatedAt = nowISO();
+  STATE.goals.active.add(goalId);
+
+  return { ok: true, goal };
+}
+
+function updateGoalProgress(goalId, progressDelta, milestone = null) {
+  ensureGoalSystem();
+  const goal = STATE.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+  if (goal.state !== GOAL_STATES.ACTIVE) {
+    return { ok: false, error: "Goal not active" };
+  }
+
+  goal.progress.current = clamp(goal.progress.current + progressDelta, 0, goal.progress.target);
+  goal.updatedAt = nowISO();
+
+  if (milestone) {
+    goal.progress.milestones.push({
+      description: String(milestone).slice(0, 500),
+      progress: goal.progress.current,
+      at: nowISO()
+    });
+  }
+
+  // Check completion
+  if (goal.progress.current >= goal.progress.target) {
+    return completeGoal(goalId);
+  }
+
+  return { ok: true, goal, progress: goal.progress.current / goal.progress.target };
+}
+
+function completeGoal(goalId) {
+  ensureGoalSystem();
+  const goal = STATE.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+
+  goal.state = GOAL_STATES.COMPLETED;
+  goal.progress.completedAt = nowISO();
+  goal.updatedAt = nowISO();
+
+  STATE.goals.active.delete(goalId);
+  STATE.goals.completed.push({
+    id: goalId,
+    title: goal.title,
+    type: goal.type,
+    duration: goal.progress.startedAt ?
+      (new Date(goal.progress.completedAt) - new Date(goal.progress.startedAt)) : 0,
+    completedAt: goal.progress.completedAt
+  });
+
+  // Cap completed history
+  if (STATE.goals.completed.length > 100) {
+    STATE.goals.completed = STATE.goals.completed.slice(-100);
+  }
+
+  // Update stats
+  STATE.goals.stats.completed++;
+
+  // Trigger positive experience (no negative valence)
+  try {
+    kernelTick({
+      type: "GOAL_COMPLETED",
+      meta: { goalId, goalType: goal.type, title: goal.title },
+      signals: { benefit: 0.3, celebration: 0.2 }
+    });
+  } catch {}
+
+  saveStateDebounced();
+  return { ok: true, goal, completed: true };
+}
+
+function abandonGoal(goalId, reason = "user_requested") {
+  ensureGoalSystem();
+  const goal = STATE.goals.registry.get(goalId);
+  if (!goal) return { ok: false, error: "Goal not found" };
+
+  goal.state = GOAL_STATES.ABANDONED;
+  goal.meta.abandonReason = reason;
+  goal.updatedAt = nowISO();
+
+  STATE.goals.active.delete(goalId);
+  STATE.goals.stats.abandoned++;
+
+  saveStateDebounced();
+  return { ok: true, goal };
+}
+
+function generateAutoGoalProposals(ctx = {}) {
+  ensureGoalSystem();
+  if (!STATE.goals.config.autoProposalEnabled) {
+    return { ok: false, error: "Auto-proposal disabled" };
+  }
+
+  const proposals = [];
+
+  // Pattern discovery from high-scoring DTUs
+  const highScoreDtus = Array.from(STATE.dtus?.values() || [])
+    .filter(d => (d.authority?.score || 0) > 0.7)
+    .slice(0, 5);
+
+  if (highScoreDtus.length >= 3) {
+    const prop = createGoalProposal({
+      type: GOAL_TYPES.PATTERN_DISCOVERY,
+      title: "Discover patterns among high-value DTUs",
+      description: `Analyze ${highScoreDtus.length} high-scoring DTUs for latent connections`,
+      source: "autonomous",
+      priority: 0.6,
+      tags: ["auto", "pattern", "synthesis"]
+    });
+    if (prop.ok) proposals.push(prop.goal);
+  }
+
+  // Consolidation goal if many regular DTUs
+  const regularCount = Array.from(STATE.dtus?.values() || [])
+    .filter(d => d.tier === "regular").length;
+
+  if (regularCount > 50) {
+    const prop = createGoalProposal({
+      type: GOAL_TYPES.CONSOLIDATION,
+      title: "Consolidate regular DTUs into MEGA nodes",
+      description: `${regularCount} regular DTUs detected - consider forming MEGA/HYPER structures`,
+      source: "autonomous",
+      priority: 0.5,
+      tags: ["auto", "consolidation", "maintenance"]
+    });
+    if (prop.ok) proposals.push(prop.goal);
+  }
+
+  // Gap filling if contradictions detected
+  const contradictions = STATE.__chicken2?.metrics?.contradictionLoad || 0;
+  if (contradictions > 0.3) {
+    const prop = createGoalProposal({
+      type: GOAL_TYPES.CLARIFICATION,
+      title: "Resolve detected contradictions",
+      description: `Contradiction load at ${(contradictions * 100).toFixed(1)}% - clarification needed`,
+      source: "autonomous",
+      priority: 0.7,
+      tags: ["auto", "clarification", "consistency"]
+    });
+    if (prop.ok) proposals.push(prop.goal);
+  }
+
+  // Queue proposals
+  for (const goal of proposals) {
+    STATE.goals.registry.set(goal.id, goal);
+    STATE.queues.goalProposals.push({ id: goal.id, createdAt: goal.createdAt });
+    STATE.goals.stats.proposed++;
+  }
+
+  // Cap queue
+  const maxQueue = STATE.goals.config.maxProposalsQueue || 20;
+  if (STATE.queues.goalProposals.length > maxQueue) {
+    STATE.queues.goalProposals = STATE.queues.goalProposals.slice(-maxQueue);
+  }
+
+  saveStateDebounced();
+  return { ok: true, generated: proposals.length, proposals: proposals.map(p => ({ id: p.id, title: p.title, type: p.type })) };
+}
+
+// Goal Heartbeat: called by Governor to process goals autonomously
+async function processGoalHeartbeat(ctx = {}) {
+  ensureGoalSystem();
+
+  const results = { evaluated: 0, activated: 0, progressed: 0, autoProposed: 0 };
+
+  // 1) Auto-generate goal proposals (bounded: once per 10 heartbeats approximately)
+  if (STATE.goals.config.autoProposalEnabled && Math.random() < 0.1) {
+    const autoResult = generateAutoGoalProposals(ctx);
+    if (autoResult.ok) results.autoProposed = autoResult.generated;
+  }
+
+  // 2) Evaluate pending proposals (up to 3 per tick)
+  const proposals = STATE.queues.goalProposals.slice(0, 3);
+  for (const prop of proposals) {
+    const goal = STATE.goals.registry.get(prop.id);
+    if (goal && goal.state === GOAL_STATES.PROPOSED) {
+      const evalResult = evaluateGoal(goal, ctx);
+      if (evalResult.ok) {
+        STATE.goals.registry.set(prop.id, evalResult.goal);
+        results.evaluated++;
+      }
+    }
+    // Remove from proposal queue regardless
+    const idx = STATE.queues.goalProposals.findIndex(p => p.id === prop.id);
+    if (idx >= 0) STATE.queues.goalProposals.splice(idx, 1);
+  }
+
+  // 3) Activate approved goals (if capacity available)
+  const maxActive = STATE.goals.config.maxActiveGoals || 5;
+  if (STATE.goals.active.size < maxActive) {
+    const approved = Array.from(STATE.goals.registry.values())
+      .filter(g => g.state === GOAL_STATES.APPROVED)
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, maxActive - STATE.goals.active.size);
+
+    for (const goal of approved) {
+      // Skip if needs founder approval and doesn't have it
+      if (STATE.goals.config.founderApprovalRequired &&
+          goal.meta.awaitingFounderApproval &&
+          !goal.meta.founderApproved) {
+        continue;
+      }
+      const actResult = activateGoal(goal.id);
+      if (actResult.ok) results.activated++;
+    }
+  }
+
+  // 4) Progress active goals based on lattice activity (simplified: random small progress)
+  // In practice, this would hook into actual DTU creation/analysis events
+  for (const goalId of STATE.goals.active) {
+    const goal = STATE.goals.registry.get(goalId);
+    if (!goal || goal.state !== GOAL_STATES.ACTIVE) continue;
+
+    // Simulate progress based on goal type
+    let progressChance = 0.1;
+    let progressAmount = 0.1;
+
+    if (goal.type === GOAL_TYPES.MAINTENANCE) {
+      progressChance = 0.3;
+      progressAmount = 0.2;
+    } else if (goal.type === GOAL_TYPES.CONSOLIDATION) {
+      // Check if MEGA/HYPER were created
+      const megaCount = Array.from(STATE.dtus?.values() || []).filter(d => d.tier === "mega" || d.tier === "hyper").length;
+      if (megaCount > 0) {
+        progressChance = 0.4;
+        progressAmount = 0.15;
+      }
+    } else if (goal.type === GOAL_TYPES.PATTERN_DISCOVERY) {
+      // Progress when high-quality DTUs are created
+      progressChance = 0.15;
+    }
+
+    if (Math.random() < progressChance) {
+      const delta = progressAmount * goal.progress.target;
+      updateGoalProgress(goalId, delta, null);
+      results.progressed++;
+    }
+  }
+
+  // 5) Check blocked goals for unblocking
+  const blocked = Array.from(STATE.goals.registry.values())
+    .filter(g => g.state === GOAL_STATES.BLOCKED);
+
+  for (const goal of blocked) {
+    let stillBlocked = false;
+    for (const depId of goal.deps.blockedBy) {
+      const dep = STATE.goals.registry.get(depId);
+      if (!dep || dep.state !== GOAL_STATES.COMPLETED) {
+        stillBlocked = true;
+        break;
+      }
+    }
+    if (!stillBlocked) {
+      goal.state = GOAL_STATES.APPROVED;
+      goal.deps.blockedBy = [];
+      goal.updatedAt = nowISO();
+    }
+  }
+
+  if (results.evaluated > 0 || results.activated > 0 || results.progressed > 0) {
+    saveStateDebounced();
+  }
+
+  return { ok: true, ...results };
+}
+
+// ===== END GOAL SYSTEM CORE =====
 
 function _clamp01(x){ return clamp(Number(x||0), 0, 1); }
 
@@ -15000,6 +15835,7 @@ function computeGrowthTick(signal={}) {
 function kernelTick(event) {
   ensureOrganRegistry();
   ensureQueues();
+  ensureGoalSystem();
   // Simple universal tick: update wear/debt and write Learning DTU for major changes.
   const t = nowISO();
   const signal = { acuteStress: 0, chronicStress: 0, drift: 0, paramShift: 0, decline: 0, repairDelta: 0, backlogDelta: 0 };
