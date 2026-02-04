@@ -20912,6 +20912,437 @@ console.log(`[Economic] Engine initialized | Stripe: ${STRIPE_ENABLED ? 'enabled
 // END ECONOMIC ENGINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// REALM SYSTEM: Local vs Global Knowledge Separation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/*
+ * REALM PHILOSOPHY:
+ * - LOCAL: User's personal DTUs, creative freedom, light council approval
+ * - GLOBAL: Shared/public DTUs, requires full council approval to publish
+ *
+ * Everyone starts with their own unique local experience.
+ * Global becomes curated, high-quality shared knowledge.
+ * Users must MANUALLY choose to publish to global.
+ */
+
+const REALM_TYPES = Object.freeze({
+  local: { name: 'Local', description: 'Personal knowledge, creative freedom', councilThreshold: 0.3 },
+  global: { name: 'Global', description: 'Shared knowledge, council approved', councilThreshold: 0.7 },
+});
+
+// ---- Global DTU Store (separate from local STATE.dtus) ----
+function ensureGlobalState() {
+  if (!STATE.global) {
+    STATE.global = {
+      dtus: new Map(),                    // Global DTUs
+      pendingPublish: new Map(),          // DTUs awaiting council approval for global
+      syncLog: [],                        // Record of syncs
+    };
+  }
+  return STATE.global;
+}
+
+// ---- Publish Local DTU to Global (requires council approval) ----
+app.post('/api/realm/publish-to-global', async (req, res) => {
+  try {
+    const { odId, dtuId, reason } = req.body;
+    if (!odId || !dtuId) {
+      return res.status(400).json({ error: 'Missing odId or dtuId' });
+    }
+
+    // Get the local DTU
+    const localDtu = STATE.dtus.get(dtuId);
+    if (!localDtu) {
+      return res.status(404).json({ error: 'DTU not found in local' });
+    }
+
+    // Check if user owns this DTU
+    if (localDtu.authorId && localDtu.authorId !== odId && localDtu.source !== odId) {
+      return res.status(403).json({ error: 'Not authorized to publish this DTU' });
+    }
+
+    ensureGlobalState();
+
+    // Check if already published or pending
+    if (STATE.global.dtus.has(dtuId)) {
+      return res.status(400).json({ error: 'DTU already exists in global' });
+    }
+    if (STATE.global.pendingPublish.has(dtuId)) {
+      return res.status(400).json({ error: 'DTU already pending global approval' });
+    }
+
+    // Create publish request for council
+    const publishRequest = {
+      id: `publish_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      dtuId,
+      dtu: { ...localDtu },
+      requestedBy: odId,
+      reason: reason || '',
+      status: 'pending',
+      votes: {},
+      votesFor: 0,
+      votesAgainst: 0,
+      createdAt: Date.now(),
+      threshold: REALM_TYPES.global.councilThreshold,
+    };
+
+    STATE.global.pendingPublish.set(dtuId, publishRequest);
+
+    // Auto-approve if DTU already has high council score
+    const councilScore = localDtu.authority?.score || 0;
+    if (councilScore >= REALM_TYPES.global.councilThreshold) {
+      // Auto-approve: copy to global
+      const globalDtu = {
+        ...localDtu,
+        realm: 'global',
+        publishedAt: Date.now(),
+        publishedBy: odId,
+        originalLocalId: dtuId,
+        globalId: `global_${dtuId}`,
+        syncCount: 0,
+      };
+      STATE.global.dtus.set(dtuId, globalDtu);
+      STATE.global.pendingPublish.delete(dtuId);
+
+      return res.json({
+        status: 'approved',
+        message: 'DTU auto-approved for global (high council score)',
+        globalDtu,
+      });
+    }
+
+    res.json({
+      status: 'pending',
+      message: 'DTU submitted for council review',
+      publishRequest: { id: publishRequest.id, dtuId, status: 'pending' },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Council Vote on Global Publish ----
+app.post('/api/realm/vote-publish', async (req, res) => {
+  try {
+    const { odId, dtuId, vote, reason } = req.body;
+    if (!odId || !dtuId || vote === undefined) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    ensureGlobalState();
+    const request = STATE.global.pendingPublish.get(dtuId);
+    if (!request) {
+      return res.status(404).json({ error: 'No pending publish request for this DTU' });
+    }
+
+    // Record vote
+    const voteValue = vote === true || vote === 'yes' || vote === 1;
+    request.votes[odId] = { vote: voteValue, reason: reason || '', at: Date.now() };
+
+    // Tally votes
+    const votes = Object.values(request.votes);
+    request.votesFor = votes.filter(v => v.vote).length;
+    request.votesAgainst = votes.filter(v => !v.vote).length;
+
+    const totalVotes = request.votesFor + request.votesAgainst;
+    const approvalRatio = totalVotes > 0 ? request.votesFor / totalVotes : 0;
+
+    // Check if threshold met (need at least 3 votes and > threshold approval)
+    if (totalVotes >= 3 && approvalRatio >= request.threshold) {
+      // Approved: copy to global
+      const globalDtu = {
+        ...request.dtu,
+        realm: 'global',
+        publishedAt: Date.now(),
+        publishedBy: request.requestedBy,
+        originalLocalId: dtuId,
+        globalId: `global_${dtuId}`,
+        councilApproval: { votesFor: request.votesFor, votesAgainst: request.votesAgainst, ratio: approvalRatio },
+        syncCount: 0,
+      };
+      STATE.global.dtus.set(dtuId, globalDtu);
+      STATE.global.pendingPublish.delete(dtuId);
+
+      return res.json({
+        status: 'approved',
+        message: 'DTU approved for global by council',
+        globalDtu,
+      });
+    }
+
+    // Check if rejected (> 50% against with enough votes)
+    if (totalVotes >= 3 && request.votesAgainst > request.votesFor) {
+      request.status = 'rejected';
+      return res.json({
+        status: 'rejected',
+        message: 'DTU rejected by council',
+        votesFor: request.votesFor,
+        votesAgainst: request.votesAgainst,
+      });
+    }
+
+    res.json({
+      status: 'pending',
+      votesFor: request.votesFor,
+      votesAgainst: request.votesAgainst,
+      totalVotes,
+      threshold: request.threshold,
+      message: `Need ${Math.ceil(request.threshold * 100)}% approval with at least 3 votes`,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Sync Single Global DTU to Local ----
+app.post('/api/realm/sync', async (req, res) => {
+  try {
+    const { odId, dtuId } = req.body;
+    if (!odId || !dtuId) {
+      return res.status(400).json({ error: 'Missing odId or dtuId' });
+    }
+
+    ensureGlobalState();
+    const globalDtu = STATE.global.dtus.get(dtuId);
+    if (!globalDtu) {
+      return res.status(404).json({ error: 'DTU not found in global' });
+    }
+
+    // Check if already in local
+    const existingLocal = STATE.dtus.get(dtuId);
+    if (existingLocal) {
+      return res.json({
+        status: 'exists',
+        message: 'DTU already exists in your local',
+        dtu: existingLocal,
+      });
+    }
+
+    // Copy to local with citation
+    const localCopy = {
+      ...globalDtu,
+      id: dtuId,
+      realm: 'local',
+      syncedFrom: 'global',
+      syncedAt: Date.now(),
+      syncedBy: odId,
+      references: [...(globalDtu.references || []), globalDtu.originalLocalId].filter(Boolean),
+      meta: {
+        ...(globalDtu.meta || {}),
+        globalCitation: {
+          globalId: globalDtu.globalId,
+          publishedBy: globalDtu.publishedBy,
+          publishedAt: globalDtu.publishedAt,
+        },
+      },
+    };
+
+    STATE.dtus.set(dtuId, localCopy);
+
+    // Increment sync count on global
+    globalDtu.syncCount = (globalDtu.syncCount || 0) + 1;
+
+    // Log sync
+    STATE.global.syncLog.push({
+      type: 'single',
+      dtuId,
+      syncedBy: odId,
+      at: Date.now(),
+    });
+
+    res.json({
+      status: 'synced',
+      message: 'Global DTU synced to your local with citation',
+      dtu: localCopy,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Sync All Global DTUs to Local ----
+app.post('/api/realm/sync-all', async (req, res) => {
+  try {
+    const { odId } = req.body;
+    if (!odId) {
+      return res.status(400).json({ error: 'Missing odId' });
+    }
+
+    ensureGlobalState();
+    const globalDtus = Array.from(STATE.global.dtus.values());
+
+    if (globalDtus.length === 0) {
+      return res.json({ synced: 0, skipped: 0, message: 'No global DTUs to sync' });
+    }
+
+    let synced = 0;
+    let skipped = 0;
+
+    for (const globalDtu of globalDtus) {
+      const dtuId = globalDtu.originalLocalId || globalDtu.id;
+
+      // Skip if already exists
+      if (STATE.dtus.has(dtuId)) {
+        skipped++;
+        continue;
+      }
+
+      // Copy to local with citation
+      const localCopy = {
+        ...globalDtu,
+        id: dtuId,
+        realm: 'local',
+        syncedFrom: 'global',
+        syncedAt: Date.now(),
+        syncedBy: odId,
+        references: [...(globalDtu.references || []), globalDtu.originalLocalId].filter(Boolean),
+        meta: {
+          ...(globalDtu.meta || {}),
+          globalCitation: {
+            globalId: globalDtu.globalId,
+            publishedBy: globalDtu.publishedBy,
+            publishedAt: globalDtu.publishedAt,
+          },
+        },
+      };
+
+      STATE.dtus.set(dtuId, localCopy);
+      globalDtu.syncCount = (globalDtu.syncCount || 0) + 1;
+      synced++;
+    }
+
+    // Log sync
+    STATE.global.syncLog.push({
+      type: 'all',
+      syncedBy: odId,
+      synced,
+      skipped,
+      at: Date.now(),
+    });
+
+    res.json({
+      status: 'completed',
+      synced,
+      skipped,
+      total: globalDtus.length,
+      message: `Synced ${synced} global DTUs to local (${skipped} already existed)`,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---- Browse Global DTUs ----
+app.get('/api/realm/global', (req, res) => {
+  ensureGlobalState();
+
+  const { search, tags, sort, limit = 50, offset = 0 } = req.query;
+
+  let dtus = Array.from(STATE.global.dtus.values());
+
+  // Search filter
+  if (search) {
+    const searchLower = String(search).toLowerCase();
+    dtus = dtus.filter(d =>
+      d.title?.toLowerCase().includes(searchLower) ||
+      d.human?.summary?.toLowerCase().includes(searchLower) ||
+      (d.tags && d.tags.some(t => t.toLowerCase().includes(searchLower)))
+    );
+  }
+
+  // Tags filter
+  if (tags) {
+    const tagList = String(tags).split(',').map(t => t.trim().toLowerCase());
+    dtus = dtus.filter(d =>
+      d.tags && d.tags.some(t => tagList.includes(t.toLowerCase()))
+    );
+  }
+
+  // Sort
+  if (sort === 'popular') dtus.sort((a, b) => (b.syncCount || 0) - (a.syncCount || 0));
+  else if (sort === 'oldest') dtus.sort((a, b) => (a.publishedAt || 0) - (b.publishedAt || 0));
+  else dtus.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0)); // newest first
+
+  const total = dtus.length;
+  dtus = dtus.slice(Number(offset), Number(offset) + Number(limit));
+
+  res.json({
+    dtus,
+    total,
+    pagination: { limit: Number(limit), offset: Number(offset), hasMore: Number(offset) + dtus.length < total },
+  });
+});
+
+// ---- Get Pending Global Publish Requests ----
+app.get('/api/realm/pending', (req, res) => {
+  ensureGlobalState();
+  const pending = Array.from(STATE.global.pendingPublish.values())
+    .filter(p => p.status === 'pending')
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  res.json({ pending, count: pending.length });
+});
+
+// ---- Get Local DTUs (filtered to local realm) ----
+app.get('/api/realm/local', (req, res) => {
+  const { odId, search, limit = 50, offset = 0 } = req.query;
+
+  let dtus = Array.from(STATE.dtus.values());
+
+  // Filter to user's DTUs or all local if no odId
+  if (odId) {
+    dtus = dtus.filter(d =>
+      d.authorId === odId ||
+      d.source === odId ||
+      d.syncedBy === odId
+    );
+  }
+
+  // Search
+  if (search) {
+    const searchLower = String(search).toLowerCase();
+    dtus = dtus.filter(d =>
+      d.title?.toLowerCase().includes(searchLower) ||
+      d.human?.summary?.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Sort by newest
+  dtus.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  const total = dtus.length;
+  dtus = dtus.slice(Number(offset), Number(offset) + Number(limit));
+
+  res.json({
+    dtus,
+    total,
+    pagination: { limit: Number(limit), offset: Number(offset), hasMore: Number(offset) + dtus.length < total },
+  });
+});
+
+// ---- Realm Stats ----
+app.get('/api/realm/stats', (req, res) => {
+  ensureGlobalState();
+  res.json({
+    local: {
+      total: STATE.dtus.size,
+    },
+    global: {
+      total: STATE.global.dtus.size,
+      pending: STATE.global.pendingPublish.size,
+      totalSyncs: STATE.global.syncLog.length,
+    },
+    realmTypes: REALM_TYPES,
+  });
+});
+
+console.log('[Realm] Local/Global separation initialized');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END REALM SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // ---- test surface (safe exports; no side effects) ----
 export const __TEST__ = Object.freeze({
   VERSION,
