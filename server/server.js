@@ -10849,10 +10849,38 @@ app.get("/api/status", (req, res) => {
     sims: STATE.lastSim ? 1 : 0,
     macroDomains: listDomains(),
     crawlQueue: STATE.crawlQueue.length,
-    settings: STATE.settings
+    settings: STATE.settings,
+    seed: SEED_INFO,
+    stateDisk: STATE_DISK
   });
 });
 
+// Force reseed DTUs from dtus.js (useful for debugging empty state)
+app.post("/api/reseed", async (req, res) => {
+  try {
+    const force = req.body?.force === true;
+    if (!force && STATE.dtus.size > 0) {
+      return res.json({ ok: false, error: "DTUs already exist. Pass { force: true } to reseed anyway.", currentCount: STATE.dtus.size });
+    }
+    const seeds = await tryLoadSeedDTUs();
+    if (!seeds.length) {
+      return res.json({ ok: false, error: SEED_INFO.error || "No seeds found in dtus.js", seedInfo: SEED_INFO });
+    }
+    let added = 0;
+    for (const s of seeds) {
+      const d = toOptionADTU(s);
+      if (!STATE.dtus.has(d.id)) {
+        STATE.dtus.set(d.id, d);
+        added++;
+      }
+    }
+    saveStateDebounced();
+    log("reseed", "Manual reseed from dtus.js", { added, total: STATE.dtus.size });
+    return res.json({ ok: true, added, total: STATE.dtus.size, seedInfo: SEED_INFO });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
 
 // Time (authoritative; never uses LLM)
 app.get("/api/time", (req, res) => {
