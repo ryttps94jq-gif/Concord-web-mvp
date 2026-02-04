@@ -3385,6 +3385,289 @@ register("grounding", "recent_readings", async (ctx, input = {}) => {
 
 // ===== END GROUNDING MACROS =====
 
+// ===== REASONING CHAINS MACROS =====
+
+register("reasoning", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_status");
+  ensureReasoningEngine();
+  return {
+    ok: true,
+    chains: ctx.state.reasoning.chains.size,
+    steps: ctx.state.reasoning.steps.size,
+    stats: ctx.state.reasoning.stats,
+    config: ctx.state.reasoning.config,
+    invariants: REASONING_INVARIANTS
+  };
+}, { public: true });
+
+register("reasoning", "create_chain", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_create");
+  return createReasoningChain(input);
+}, { public: false });
+
+register("reasoning", "add_step", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_step");
+  const chainId = String(input.chainId || "");
+  if (!chainId) return { ok: false, error: "chainId required" };
+  return addReasoningStep(chainId, input);
+}, { public: false });
+
+register("reasoning", "conclude", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_conclude");
+  const chainId = String(input.chainId || "");
+  if (!chainId) return { ok: false, error: "chainId required" };
+  return concludeChain(chainId, input);
+}, { public: false });
+
+register("reasoning", "get_trace", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_trace");
+  const chainId = String(input.chainId || "");
+  if (!chainId) return { ok: false, error: "chainId required" };
+  return getReasoningTrace(chainId);
+}, { public: true });
+
+register("reasoning", "validate_step", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_validate");
+  const stepId = String(input.stepId || "");
+  if (!stepId) return { ok: false, error: "stepId required" };
+  return validateStep(stepId);
+}, { public: true });
+
+register("reasoning", "list_chains", async (ctx, input = {}) => {
+  enforceEthosInvariant("reasoning_list");
+  ensureReasoningEngine();
+  const chains = Array.from(ctx.state.reasoning.chains.values())
+    .slice(-50)
+    .map(c => ({ id: c.id, question: c.question, status: c.status, stepCount: c.steps.length, confidence: c.confidence }));
+  return { ok: true, chains };
+}, { public: true });
+
+// ===== END REASONING CHAINS MACROS =====
+
+// ===== HYPOTHESIS ENGINE MACROS =====
+
+register("hypothesis", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_status");
+  ensureHypothesisEngine();
+  return {
+    ok: true,
+    hypotheses: ctx.state.hypothesisEngine.hypotheses.size,
+    experiments: ctx.state.hypothesisEngine.experiments.size,
+    evidence: ctx.state.hypothesisEngine.evidence.size,
+    stats: ctx.state.hypothesisEngine.stats,
+    config: ctx.state.hypothesisEngine.config,
+    invariants: HYPOTHESIS_INVARIANTS
+  };
+}, { public: true });
+
+register("hypothesis", "propose", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_propose");
+  return proposeHypothesis(input);
+}, { public: false });
+
+register("hypothesis", "design_experiment", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_experiment");
+  const hypothesisId = String(input.hypothesisId || "");
+  if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
+  return designExperiment(hypothesisId, input);
+}, { public: false });
+
+register("hypothesis", "record_evidence", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_evidence");
+  const hypothesisId = String(input.hypothesisId || "");
+  if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
+  return recordEvidence(hypothesisId, input);
+}, { public: false });
+
+register("hypothesis", "evaluate", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_evaluate");
+  const hypothesisId = String(input.hypothesisId || "");
+  if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
+  return evaluateHypothesis(hypothesisId);
+}, { public: false });
+
+register("hypothesis", "get", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_get");
+  ensureHypothesisEngine();
+  const hypothesisId = String(input.hypothesisId || input.id || "");
+  if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
+  const h = ctx.state.hypothesisEngine.hypotheses.get(hypothesisId);
+  if (!h) return { ok: false, error: "Hypothesis not found" };
+  return { ok: true, hypothesis: h };
+}, { public: true });
+
+register("hypothesis", "list", async (ctx, input = {}) => {
+  enforceEthosInvariant("hypothesis_list");
+  ensureHypothesisEngine();
+  const state = input.state;
+  let hypotheses = Array.from(ctx.state.hypothesisEngine.hypotheses.values());
+  if (state) hypotheses = hypotheses.filter(h => h.state === state);
+  hypotheses = hypotheses.slice(-50).map(h => ({
+    id: h.id, statement: h.statement.slice(0, 100), state: h.state,
+    posteriorConfidence: h.posteriorConfidence, evidenceCount: h.evidenceFor.length + h.evidenceAgainst.length
+  }));
+  return { ok: true, hypotheses };
+}, { public: true });
+
+// ===== END HYPOTHESIS ENGINE MACROS =====
+
+// ===== METACOGNITION MACROS =====
+
+register("metacognition", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_status");
+  ensureMetacognitionSystem();
+  return {
+    ok: true,
+    assessments: ctx.state.metacognition.assessments.length,
+    predictions: ctx.state.metacognition.predictions.size,
+    blindSpots: ctx.state.metacognition.blindSpots.length,
+    stats: ctx.state.metacognition.stats,
+    invariants: METACOGNITION_INVARIANTS
+  };
+}, { public: true });
+
+register("metacognition", "assess", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_assess");
+  const topic = String(input.topic || "");
+  if (!topic) return { ok: false, error: "topic required" };
+  return assessKnowledge(topic);
+}, { public: true });
+
+register("metacognition", "predict", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_predict");
+  return recordPrediction(input);
+}, { public: false });
+
+register("metacognition", "resolve_prediction", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_resolve");
+  const predictionId = String(input.predictionId || input.id || "");
+  if (!predictionId) return { ok: false, error: "predictionId required" };
+  const wasCorrect = input.correct === true || input.wasCorrect === true;
+  return resolvePrediction(predictionId, wasCorrect);
+}, { public: false });
+
+register("metacognition", "calibration", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_calibration");
+  return getCalibrationReport();
+}, { public: true });
+
+register("metacognition", "select_strategy", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_strategy");
+  const problem = String(input.problem || "");
+  if (!problem) return { ok: false, error: "problem description required" };
+  return selectStrategy(problem);
+}, { public: true });
+
+register("metacognition", "blind_spots", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_blindspots");
+  ensureMetacognitionSystem();
+  const spots = ctx.state.metacognition.blindSpots.slice(-20);
+  return { ok: true, blindSpots: spots };
+}, { public: true });
+
+// ===== END METACOGNITION MACROS =====
+
+// ===== EXPLANATION ENGINE MACROS =====
+
+register("explanation", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("explanation_status");
+  ensureExplanationEngine();
+  return {
+    ok: true,
+    generated: ctx.state.explanations.generated.length,
+    stats: ctx.state.explanations.stats,
+    invariants: EXPLANATION_INVARIANTS
+  };
+}, { public: true });
+
+register("explanation", "generate", async (ctx, input = {}) => {
+  enforceEthosInvariant("explanation_generate");
+  return generateExplanation(input);
+}, { public: true });
+
+register("explanation", "explain_dtu", async (ctx, input = {}) => {
+  enforceEthosInvariant("explanation_dtu");
+  const dtuId = String(input.dtuId || "");
+  const changeType = String(input.changeType || "created");
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  return explainDtuChange(dtuId, changeType);
+}, { public: true });
+
+register("explanation", "recent", async (ctx, input = {}) => {
+  enforceEthosInvariant("explanation_recent");
+  ensureExplanationEngine();
+  const limit = clamp(Number(input.limit || 20), 1, 100);
+  const explanations = ctx.state.explanations.generated.slice(-limit);
+  return { ok: true, explanations };
+}, { public: true });
+
+// ===== END EXPLANATION ENGINE MACROS =====
+
+// ===== META-LEARNING MACROS =====
+
+register("metalearning", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_status");
+  ensureMetaLearningSystem();
+  return {
+    ok: true,
+    strategies: ctx.state.metaLearning.strategies.size,
+    performance: ctx.state.metaLearning.performance.length,
+    adaptations: ctx.state.metaLearning.adaptations.length,
+    curriculums: ctx.state.metaLearning.curriculum.length,
+    stats: ctx.state.metaLearning.stats,
+    invariants: META_LEARNING_INVARIANTS
+  };
+}, { public: true });
+
+register("metalearning", "define_strategy", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_define");
+  return defineLearningStrategy(input);
+}, { public: false });
+
+register("metalearning", "record_outcome", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_outcome");
+  const strategyId = String(input.strategyId || "");
+  if (!strategyId) return { ok: false, error: "strategyId required" };
+  return recordStrategyOutcome(strategyId, input);
+}, { public: false });
+
+register("metalearning", "adapt", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_adapt");
+  const strategyId = String(input.strategyId || "");
+  if (!strategyId) return { ok: false, error: "strategyId required" };
+  return adaptStrategy(strategyId);
+}, { public: false });
+
+register("metalearning", "curriculum", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_curriculum");
+  const topic = String(input.topic || "");
+  if (!topic) return { ok: false, error: "topic required" };
+  return generateCurriculum(topic, input);
+}, { public: true });
+
+register("metalearning", "best_strategy", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_best");
+  const domain = String(input.domain || "general");
+  return getBestStrategy(domain);
+}, { public: true });
+
+register("metalearning", "list_strategies", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_list");
+  ensureMetaLearningSystem();
+  const strategies = Array.from(ctx.state.metaLearning.strategies.values())
+    .map(s => ({ id: s.id, name: s.name, domain: s.domain, uses: s.uses, avgPerformance: s.avgPerformance }));
+  return { ok: true, strategies };
+}, { public: true });
+
+register("metalearning", "adaptations", async (ctx, input = {}) => {
+  enforceEthosInvariant("metalearning_adaptations");
+  ensureMetaLearningSystem();
+  const adaptations = ctx.state.metaLearning.adaptations.slice(-30);
+  return { ok: true, adaptations };
+}, { public: true });
+
+// ===== END META-LEARNING MACROS =====
+
 // ---- ctx ----
 function makeCtx(req=null) {
   return {
@@ -11739,6 +12022,191 @@ app.post("/api/grounding/actions/:actionId/approve", async (req, res) => {
 
 // ===== END GROUNDING API ENDPOINTS =====
 
+// ===== REASONING CHAINS API ENDPOINTS =====
+
+app.get("/api/reasoning/status", async (req, res) => {
+  const out = await runMacro("reasoning", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/reasoning/chains", async (req, res) => {
+  const out = await runMacro("reasoning", "create_chain", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/reasoning/chains", async (req, res) => {
+  const out = await runMacro("reasoning", "list_chains", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/reasoning/chains/:chainId/steps", async (req, res) => {
+  const out = await runMacro("reasoning", "add_step", { ...req.body, chainId: req.params.chainId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/reasoning/chains/:chainId/conclude", async (req, res) => {
+  const out = await runMacro("reasoning", "conclude", { ...req.body, chainId: req.params.chainId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/reasoning/chains/:chainId/trace", async (req, res) => {
+  const out = await runMacro("reasoning", "get_trace", { chainId: req.params.chainId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/reasoning/steps/:stepId/validate", async (req, res) => {
+  const out = await runMacro("reasoning", "validate_step", { stepId: req.params.stepId }, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END REASONING CHAINS API ENDPOINTS =====
+
+// ===== HYPOTHESIS ENGINE API ENDPOINTS =====
+
+app.get("/api/hypothesis/status", async (req, res) => {
+  const out = await runMacro("hypothesis", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/hypothesis", async (req, res) => {
+  const out = await runMacro("hypothesis", "propose", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/hypothesis", async (req, res) => {
+  const out = await runMacro("hypothesis", "list", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/hypothesis/:hypothesisId", async (req, res) => {
+  const out = await runMacro("hypothesis", "get", { hypothesisId: req.params.hypothesisId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/hypothesis/:hypothesisId/experiment", async (req, res) => {
+  const out = await runMacro("hypothesis", "design_experiment", { ...req.body, hypothesisId: req.params.hypothesisId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/hypothesis/:hypothesisId/evidence", async (req, res) => {
+  const out = await runMacro("hypothesis", "record_evidence", { ...req.body, hypothesisId: req.params.hypothesisId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/hypothesis/:hypothesisId/evaluate", async (req, res) => {
+  const out = await runMacro("hypothesis", "evaluate", { hypothesisId: req.params.hypothesisId }, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END HYPOTHESIS ENGINE API ENDPOINTS =====
+
+// ===== METACOGNITION API ENDPOINTS =====
+
+app.get("/api/metacognition/status", async (req, res) => {
+  const out = await runMacro("metacognition", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/assess", async (req, res) => {
+  const out = await runMacro("metacognition", "assess", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/predict", async (req, res) => {
+  const out = await runMacro("metacognition", "predict", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/predictions/:predictionId/resolve", async (req, res) => {
+  const out = await runMacro("metacognition", "resolve_prediction", { ...req.body, predictionId: req.params.predictionId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metacognition/calibration", async (req, res) => {
+  const out = await runMacro("metacognition", "calibration", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/strategy", async (req, res) => {
+  const out = await runMacro("metacognition", "select_strategy", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metacognition/blindspots", async (req, res) => {
+  const out = await runMacro("metacognition", "blind_spots", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END METACOGNITION API ENDPOINTS =====
+
+// ===== EXPLANATION ENGINE API ENDPOINTS =====
+
+app.get("/api/explanation/status", async (req, res) => {
+  const out = await runMacro("explanation", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/explanation", async (req, res) => {
+  const out = await runMacro("explanation", "generate", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/explanation/dtu/:dtuId", async (req, res) => {
+  const out = await runMacro("explanation", "explain_dtu", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/explanation/recent", async (req, res) => {
+  const out = await runMacro("explanation", "recent", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END EXPLANATION ENGINE API ENDPOINTS =====
+
+// ===== META-LEARNING API ENDPOINTS =====
+
+app.get("/api/metalearning/status", async (req, res) => {
+  const out = await runMacro("metalearning", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metalearning/strategies", async (req, res) => {
+  const out = await runMacro("metalearning", "define_strategy", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metalearning/strategies", async (req, res) => {
+  const out = await runMacro("metalearning", "list_strategies", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metalearning/strategies/:strategyId/outcome", async (req, res) => {
+  const out = await runMacro("metalearning", "record_outcome", { ...req.body, strategyId: req.params.strategyId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metalearning/strategies/:strategyId/adapt", async (req, res) => {
+  const out = await runMacro("metalearning", "adapt", { strategyId: req.params.strategyId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metalearning/strategies/best", async (req, res) => {
+  const out = await runMacro("metalearning", "best_strategy", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metalearning/curriculum", async (req, res) => {
+  const out = await runMacro("metalearning", "curriculum", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metalearning/adaptations", async (req, res) => {
+  const out = await runMacro("metalearning", "adaptations", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END META-LEARNING API ENDPOINTS =====
+
 app.post("/api/multimodal/vision", async (req, res) => {
   const out = await runMacro("multimodal", "vision_analyze", req.body, makeCtx(req));
   return res.json(out);
@@ -16057,6 +16525,32 @@ const ORGAN_DEFS = [
   { organId: "temporal_grounding", desc: "Links DTUs to real timestamps and calendar events.", deps: ["grounding_engine", "temporal_continuity"] },
   { organId: "action_grounding", desc: "Connects goals to real executable actions.", deps: ["grounding_engine", "goal_os"] },
   { organId: "multimodal_grounding", desc: "Grounds knowledge in images, audio, and other media.", deps: ["grounding_engine"] },
+
+  // Reasoning Chains Engine
+  { organId: "reasoning_chain_engine", desc: "Multi-step reasoning with traceable logic chains.", deps: ["linguistic_engine", "causal_trace"] },
+  { organId: "inference_step_tracker", desc: "Tracks individual inference steps with justifications.", deps: ["reasoning_chain_engine"] },
+  { organId: "chain_validator", desc: "Validates reasoning chain consistency and soundness.", deps: ["reasoning_chain_engine"] },
+
+  // Hypothesis Engine (Scientific Method)
+  { organId: "hypothesis_engine", desc: "Scientific method: propose, test, validate/reject hypotheses.", deps: ["reasoning_chain_engine", "world_model_os"] },
+  { organId: "experiment_designer", desc: "Designs tests to validate or falsify hypotheses.", deps: ["hypothesis_engine"] },
+  { organId: "evidence_evaluator", desc: "Evaluates evidence strength for/against hypotheses.", deps: ["hypothesis_engine"] },
+
+  // Metacognition System
+  { organId: "metacognition_engine", desc: "Thinking about thinking; self-assessment of reasoning.", deps: ["reasoning_chain_engine"] },
+  { organId: "confidence_calibrator", desc: "Calibrates confidence estimates based on outcomes.", deps: ["metacognition_engine", "confidence_arbitration"] },
+  { organId: "blind_spot_detector", desc: "Identifies knowledge gaps and reasoning weaknesses.", deps: ["metacognition_engine"] },
+  { organId: "strategy_selector", desc: "Chooses appropriate reasoning strategy for context.", deps: ["metacognition_engine"] },
+
+  // Explanation Engine
+  { organId: "explanation_engine", desc: "Generates WHY explanations for all decisions.", deps: ["reasoning_chain_engine", "interpretability"] },
+  { organId: "causal_explainer", desc: "Explains causal chains behind outcomes.", deps: ["explanation_engine", "causal_trace"] },
+  { organId: "counterfactual_explainer", desc: "Explains via 'what if' alternatives.", deps: ["explanation_engine", "counterfactual_engine"] },
+
+  // Meta-Learning System
+  { organId: "meta_learning_engine", desc: "Learning how to learn; adjusts learning strategies.", deps: ["metacognition_engine", "transfer_engine"] },
+  { organId: "strategy_optimizer", desc: "Optimizes learning parameters based on performance.", deps: ["meta_learning_engine"] },
+  { organId: "curriculum_generator", desc: "Generates optimal learning sequences.", deps: ["meta_learning_engine"] },
 ];
 
 function _defaultOrganState(def) {
@@ -18221,6 +18715,1260 @@ function getCurrentGroundedContext() {
 
 // ===== END EMBODIMENT/GROUNDING SYSTEM =====
 
+// ===== REASONING CHAINS ENGINE =====
+// Design: Multi-step reasoning with traceable logic. Every inference is justified.
+
+const REASONING_INVARIANTS = Object.freeze({
+  EVERY_STEP_JUSTIFIED: true,          // No unjustified leaps
+  CHAIN_TRACEABLE: true,               // Can follow reasoning back
+  ASSUMPTIONS_EXPLICIT: true,          // Hidden assumptions surfaced
+  VALIDITY_CHECKED: true               // Logic validated
+});
+
+const INFERENCE_TYPES = Object.freeze({
+  DEDUCTION: "deduction",              // A→B, A ∴ B
+  INDUCTION: "induction",              // Patterns → generalization
+  ABDUCTION: "abduction",              // Effect → best explanation
+  ANALOGY: "analogy",                  // A:B :: C:D
+  CAUSAL: "causal",                    // Cause → effect
+  TEMPORAL: "temporal",                // Before → after
+  COMPOSITION: "composition",          // Parts → whole
+  DECOMPOSITION: "decomposition"       // Whole → parts
+});
+
+function ensureReasoningEngine() {
+  if (!STATE.reasoning) {
+    STATE.reasoning = {
+      chains: new Map(),                // Reasoning chains by ID
+      steps: new Map(),                 // Individual steps
+      validations: [],                  // Validation history
+      stats: {
+        chainsCreated: 0,
+        stepsExecuted: 0,
+        validationsPassed: 0,
+        validationsFailed: 0
+      },
+      config: {
+        maxChainLength: 20,             // Prevent infinite chains
+        requireJustification: true,
+        autoValidate: true
+      }
+    };
+  }
+  if (!(STATE.reasoning.chains instanceof Map)) {
+    STATE.reasoning.chains = new Map(Object.entries(STATE.reasoning.chains || {}));
+  }
+  if (!(STATE.reasoning.steps instanceof Map)) {
+    STATE.reasoning.steps = new Map(Object.entries(STATE.reasoning.steps || {}));
+  }
+}
+
+// Create a new reasoning chain
+function createReasoningChain(input = {}) {
+  ensureReasoningEngine();
+
+  const id = uid("chain");
+  const now = nowISO();
+
+  const chain = {
+    id,
+    question: String(input.question || "").slice(0, 1000),
+    goal: String(input.goal || "derive_conclusion").slice(0, 200),
+    steps: [],
+    assumptions: [],
+    conclusion: null,
+    status: "active",
+    confidence: 1.0,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  STATE.reasoning.chains.set(id, chain);
+  STATE.reasoning.stats.chainsCreated++;
+
+  return { ok: true, chain };
+}
+
+// Add a step to a reasoning chain
+function addReasoningStep(chainId, input = {}) {
+  ensureReasoningEngine();
+
+  const chain = STATE.reasoning.chains.get(chainId);
+  if (!chain) return { ok: false, error: "Chain not found" };
+  if (chain.status !== "active") return { ok: false, error: "Chain not active" };
+  if (chain.steps.length >= STATE.reasoning.config.maxChainLength) {
+    return { ok: false, error: "Chain length limit reached" };
+  }
+
+  const inferenceType = INFERENCE_TYPES[input.type?.toUpperCase()] || input.type || INFERENCE_TYPES.DEDUCTION;
+
+  const stepId = uid("step");
+  const step = {
+    id: stepId,
+    chainId,
+    index: chain.steps.length,
+    type: inferenceType,
+
+    // What we're reasoning from
+    premises: Array.isArray(input.premises) ? input.premises.slice(0, 10) : [],
+    premiseDtuIds: Array.isArray(input.premiseDtuIds) ? input.premiseDtuIds.slice(0, 10) : [],
+
+    // What we conclude
+    conclusion: String(input.conclusion || "").slice(0, 1000),
+
+    // Justification (required)
+    justification: String(input.justification || "").slice(0, 500),
+    rule: String(input.rule || "").slice(0, 200),  // e.g., "modus ponens", "pattern generalization"
+
+    // Confidence decay
+    confidence: clamp(Number(input.confidence || 0.9), 0.1, 1.0),
+
+    // Assumptions made
+    assumptions: Array.isArray(input.assumptions) ? input.assumptions.slice(0, 5) : [],
+
+    createdAt: nowISO()
+  };
+
+  // Validate step has justification
+  if (STATE.reasoning.config.requireJustification && !step.justification) {
+    return { ok: false, error: "Justification required for inference step" };
+  }
+
+  // Add to chain
+  chain.steps.push(stepId);
+  chain.assumptions.push(...step.assumptions);
+
+  // Confidence decays with each step
+  chain.confidence *= step.confidence;
+  chain.updatedAt = nowISO();
+
+  STATE.reasoning.steps.set(stepId, step);
+  STATE.reasoning.stats.stepsExecuted++;
+
+  // Auto-validate if enabled
+  if (STATE.reasoning.config.autoValidate) {
+    validateStep(stepId);
+  }
+
+  saveStateDebounced();
+  return { ok: true, step, chainConfidence: chain.confidence };
+}
+
+// Validate a reasoning step
+function validateStep(stepId) {
+  ensureReasoningEngine();
+
+  const step = STATE.reasoning.steps.get(stepId);
+  if (!step) return { ok: false, error: "Step not found" };
+
+  const issues = [];
+
+  // Check: has premises
+  if (step.premises.length === 0 && step.premiseDtuIds.length === 0) {
+    issues.push("No premises provided");
+  }
+
+  // Check: has conclusion
+  if (!step.conclusion) {
+    issues.push("No conclusion stated");
+  }
+
+  // Check: has justification
+  if (!step.justification) {
+    issues.push("No justification provided");
+  }
+
+  // Check: inference type is valid
+  if (!Object.values(INFERENCE_TYPES).includes(step.type)) {
+    issues.push(`Unknown inference type: ${step.type}`);
+  }
+
+  // Check: deduction requires rule
+  if (step.type === INFERENCE_TYPES.DEDUCTION && !step.rule) {
+    issues.push("Deductive reasoning should specify the rule applied");
+  }
+
+  const valid = issues.length === 0;
+
+  if (valid) {
+    STATE.reasoning.stats.validationsPassed++;
+  } else {
+    STATE.reasoning.stats.validationsFailed++;
+  }
+
+  STATE.reasoning.validations.push({
+    stepId,
+    valid,
+    issues,
+    validatedAt: nowISO()
+  });
+
+  // Cap validations
+  if (STATE.reasoning.validations.length > 500) {
+    STATE.reasoning.validations = STATE.reasoning.validations.slice(-500);
+  }
+
+  return { ok: true, valid, issues };
+}
+
+// Complete a reasoning chain with conclusion
+function concludeChain(chainId, conclusion) {
+  ensureReasoningEngine();
+
+  const chain = STATE.reasoning.chains.get(chainId);
+  if (!chain) return { ok: false, error: "Chain not found" };
+
+  chain.conclusion = {
+    statement: String(conclusion.statement || conclusion).slice(0, 1000),
+    confidence: chain.confidence,
+    supportingSteps: chain.steps.length,
+    assumptions: [...new Set(chain.assumptions)],
+    derivedAt: nowISO()
+  };
+
+  chain.status = "concluded";
+  chain.updatedAt = nowISO();
+
+  saveStateDebounced();
+  return { ok: true, chain };
+}
+
+// Get full reasoning trace
+function getReasoningTrace(chainId) {
+  ensureReasoningEngine();
+
+  const chain = STATE.reasoning.chains.get(chainId);
+  if (!chain) return { ok: false, error: "Chain not found" };
+
+  const steps = chain.steps.map(stepId => STATE.reasoning.steps.get(stepId)).filter(Boolean);
+
+  const trace = {
+    chainId,
+    question: chain.question,
+    steps: steps.map((s, i) => ({
+      index: i,
+      type: s.type,
+      premises: s.premises,
+      conclusion: s.conclusion,
+      justification: s.justification,
+      rule: s.rule,
+      confidence: s.confidence
+    })),
+    assumptions: chain.assumptions,
+    conclusion: chain.conclusion,
+    overallConfidence: chain.confidence
+  };
+
+  return { ok: true, trace };
+}
+
+// ===== END REASONING CHAINS ENGINE =====
+
+// ===== HYPOTHESIS ENGINE (Scientific Method) =====
+// Design: Propose → Design Test → Gather Evidence → Evaluate → Accept/Reject
+
+const HYPOTHESIS_INVARIANTS = Object.freeze({
+  FALSIFIABLE_REQUIRED: true,          // Must be testable
+  EVIDENCE_BASED: true,                // Decisions based on evidence
+  PRIOR_ACKNOWLEDGED: true,            // Prior beliefs explicit
+  UNCERTAINTY_QUANTIFIED: true         // Confidence intervals
+});
+
+const HYPOTHESIS_STATES = Object.freeze({
+  PROPOSED: "proposed",
+  TESTING: "testing",
+  SUPPORTED: "supported",
+  REFUTED: "refuted",
+  INCONCLUSIVE: "inconclusive"
+});
+
+function ensureHypothesisEngine() {
+  if (!STATE.hypothesisEngine) {
+    STATE.hypothesisEngine = {
+      hypotheses: new Map(),
+      experiments: new Map(),
+      evidence: new Map(),
+      stats: {
+        proposed: 0,
+        supported: 0,
+        refuted: 0,
+        inconclusive: 0
+      },
+      config: {
+        minEvidenceToDecide: 3,
+        supportThreshold: 0.7,
+        refuteThreshold: 0.3,
+        priorWeight: 0.3
+      }
+    };
+  }
+  if (!(STATE.hypothesisEngine.hypotheses instanceof Map)) {
+    STATE.hypothesisEngine.hypotheses = new Map(Object.entries(STATE.hypothesisEngine.hypotheses || {}));
+  }
+  if (!(STATE.hypothesisEngine.experiments instanceof Map)) {
+    STATE.hypothesisEngine.experiments = new Map(Object.entries(STATE.hypothesisEngine.experiments || {}));
+  }
+  if (!(STATE.hypothesisEngine.evidence instanceof Map)) {
+    STATE.hypothesisEngine.evidence = new Map(Object.entries(STATE.hypothesisEngine.evidence || {}));
+  }
+}
+
+// Propose a hypothesis
+function proposeHypothesis(input = {}) {
+  ensureHypothesisEngine();
+
+  const id = uid("hyp");
+  const statement = String(input.statement || "").slice(0, 1000);
+
+  if (!statement) return { ok: false, error: "Hypothesis statement required" };
+
+  // Check falsifiability (simple heuristic)
+  const falsifiable = /\b(if|when|would|should|will|causes?|leads?\s+to|results?\s+in|predicts?)\b/i.test(statement);
+
+  const hypothesis = {
+    id,
+    statement,
+    domain: String(input.domain || "general").slice(0, 100),
+
+    // Falsifiability
+    falsifiable,
+    falsificationCriteria: String(input.falsificationCriteria || "").slice(0, 500),
+
+    // Prior belief
+    priorConfidence: clamp(Number(input.priorConfidence || 0.5), 0, 1),
+
+    // Current state
+    state: HYPOTHESIS_STATES.PROPOSED,
+    posteriorConfidence: clamp(Number(input.priorConfidence || 0.5), 0, 1),
+
+    // Evidence tracking
+    evidenceFor: [],
+    evidenceAgainst: [],
+
+    // Experiments
+    experiments: [],
+
+    // Metadata
+    source: input.source || "user",
+    relatedDtuIds: Array.isArray(input.relatedDtuIds) ? input.relatedDtuIds.slice(0, 20) : [],
+
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  if (!falsifiable && !input.falsificationCriteria) {
+    hypothesis.warnings = ["Hypothesis may not be falsifiable - consider adding falsification criteria"];
+  }
+
+  STATE.hypothesisEngine.hypotheses.set(id, hypothesis);
+  STATE.hypothesisEngine.stats.proposed++;
+
+  saveStateDebounced();
+  return { ok: true, hypothesis };
+}
+
+// Design an experiment to test hypothesis
+function designExperiment(hypothesisId, input = {}) {
+  ensureHypothesisEngine();
+
+  const hypothesis = STATE.hypothesisEngine.hypotheses.get(hypothesisId);
+  if (!hypothesis) return { ok: false, error: "Hypothesis not found" };
+
+  const id = uid("exp");
+
+  const experiment = {
+    id,
+    hypothesisId,
+    description: String(input.description || "").slice(0, 1000),
+
+    // What we're testing
+    testCondition: String(input.testCondition || "").slice(0, 500),
+    controlCondition: String(input.controlCondition || "").slice(0, 500),
+
+    // Predictions
+    predictedIfTrue: String(input.predictedIfTrue || "").slice(0, 500),
+    predictedIfFalse: String(input.predictedIfFalse || "").slice(0, 500),
+
+    // Methodology
+    methodology: String(input.methodology || "observation").slice(0, 200),
+    sampleSize: Number(input.sampleSize || 1),
+
+    // Status
+    status: "designed",
+    results: null,
+
+    createdAt: nowISO()
+  };
+
+  STATE.hypothesisEngine.experiments.set(id, experiment);
+  hypothesis.experiments.push(id);
+  hypothesis.state = HYPOTHESIS_STATES.TESTING;
+  hypothesis.updatedAt = nowISO();
+
+  saveStateDebounced();
+  return { ok: true, experiment };
+}
+
+// Record evidence for/against hypothesis
+function recordEvidence(hypothesisId, input = {}) {
+  ensureHypothesisEngine();
+
+  const hypothesis = STATE.hypothesisEngine.hypotheses.get(hypothesisId);
+  if (!hypothesis) return { ok: false, error: "Hypothesis not found" };
+
+  const id = uid("evid");
+  const direction = input.supports === true ? "for" : input.supports === false ? "against" : "neutral";
+
+  const evidence = {
+    id,
+    hypothesisId,
+    description: String(input.description || "").slice(0, 1000),
+    direction,
+
+    // Strength
+    strength: clamp(Number(input.strength || 0.5), 0, 1),
+    reliability: clamp(Number(input.reliability || 0.7), 0, 1),
+
+    // Source
+    source: String(input.source || "observation").slice(0, 200),
+    experimentId: input.experimentId || null,
+    dtuIds: Array.isArray(input.dtuIds) ? input.dtuIds.slice(0, 10) : [],
+
+    createdAt: nowISO()
+  };
+
+  STATE.hypothesisEngine.evidence.set(id, evidence);
+
+  if (direction === "for") {
+    hypothesis.evidenceFor.push(id);
+  } else if (direction === "against") {
+    hypothesis.evidenceAgainst.push(id);
+  }
+
+  // Update posterior using simple Bayesian-ish update
+  updateHypothesisPosterior(hypothesisId);
+
+  saveStateDebounced();
+  return { ok: true, evidence, newPosterior: hypothesis.posteriorConfidence };
+}
+
+// Update hypothesis posterior based on evidence
+function updateHypothesisPosterior(hypothesisId) {
+  ensureHypothesisEngine();
+
+  const hypothesis = STATE.hypothesisEngine.hypotheses.get(hypothesisId);
+  if (!hypothesis) return;
+
+  const cfg = STATE.hypothesisEngine.config;
+
+  // Gather evidence
+  const evidenceFor = hypothesis.evidenceFor
+    .map(id => STATE.hypothesisEngine.evidence.get(id))
+    .filter(Boolean);
+  const evidenceAgainst = hypothesis.evidenceAgainst
+    .map(id => STATE.hypothesisEngine.evidence.get(id))
+    .filter(Boolean);
+
+  // Compute weighted evidence scores
+  const forScore = evidenceFor.reduce((sum, e) => sum + e.strength * e.reliability, 0);
+  const againstScore = evidenceAgainst.reduce((sum, e) => sum + e.strength * e.reliability, 0);
+  const totalEvidence = forScore + againstScore;
+
+  if (totalEvidence > 0) {
+    // Blend prior with evidence
+    const evidenceRatio = forScore / totalEvidence;
+    hypothesis.posteriorConfidence = clamp(
+      cfg.priorWeight * hypothesis.priorConfidence + (1 - cfg.priorWeight) * evidenceRatio,
+      0, 1
+    );
+  }
+
+  hypothesis.updatedAt = nowISO();
+}
+
+// Evaluate hypothesis and make decision
+function evaluateHypothesis(hypothesisId) {
+  ensureHypothesisEngine();
+
+  const hypothesis = STATE.hypothesisEngine.hypotheses.get(hypothesisId);
+  if (!hypothesis) return { ok: false, error: "Hypothesis not found" };
+
+  const cfg = STATE.hypothesisEngine.config;
+  const totalEvidence = hypothesis.evidenceFor.length + hypothesis.evidenceAgainst.length;
+
+  let decision = HYPOTHESIS_STATES.INCONCLUSIVE;
+  let reasoning = "";
+
+  if (totalEvidence < cfg.minEvidenceToDecide) {
+    decision = HYPOTHESIS_STATES.INCONCLUSIVE;
+    reasoning = `Insufficient evidence (${totalEvidence} < ${cfg.minEvidenceToDecide} required)`;
+  } else if (hypothesis.posteriorConfidence >= cfg.supportThreshold) {
+    decision = HYPOTHESIS_STATES.SUPPORTED;
+    reasoning = `Posterior confidence ${(hypothesis.posteriorConfidence * 100).toFixed(1)}% >= ${cfg.supportThreshold * 100}% threshold`;
+    STATE.hypothesisEngine.stats.supported++;
+  } else if (hypothesis.posteriorConfidence <= cfg.refuteThreshold) {
+    decision = HYPOTHESIS_STATES.REFUTED;
+    reasoning = `Posterior confidence ${(hypothesis.posteriorConfidence * 100).toFixed(1)}% <= ${cfg.refuteThreshold * 100}% threshold`;
+    STATE.hypothesisEngine.stats.refuted++;
+  } else {
+    decision = HYPOTHESIS_STATES.INCONCLUSIVE;
+    reasoning = `Posterior confidence ${(hypothesis.posteriorConfidence * 100).toFixed(1)}% between thresholds`;
+    STATE.hypothesisEngine.stats.inconclusive++;
+  }
+
+  hypothesis.state = decision;
+  hypothesis.evaluation = {
+    decision,
+    reasoning,
+    evidenceCount: totalEvidence,
+    posteriorConfidence: hypothesis.posteriorConfidence,
+    evaluatedAt: nowISO()
+  };
+  hypothesis.updatedAt = nowISO();
+
+  saveStateDebounced();
+  return { ok: true, hypothesis, decision, reasoning };
+}
+
+// ===== END HYPOTHESIS ENGINE =====
+
+// ===== METACOGNITION SYSTEM =====
+// Design: Thinking about thinking. Self-assessment and strategy selection.
+
+const METACOGNITION_INVARIANTS = Object.freeze({
+  HONEST_SELF_ASSESSMENT: true,        // No inflated confidence
+  UNCERTAINTY_ACKNOWLEDGED: true,      // Know what we don't know
+  STRATEGY_EXPLICIT: true,             // Reasoning approach visible
+  CALIBRATION_TRACKED: true            // Track prediction accuracy
+});
+
+function ensureMetacognitionSystem() {
+  if (!STATE.metacognition) {
+    STATE.metacognition = {
+      assessments: [],                  // Self-assessments
+      predictions: new Map(),           // Predictions for calibration
+      calibration: {                    // Track accuracy
+        buckets: {},                    // confidence level -> accuracy
+        totalPredictions: 0,
+        correctPredictions: 0
+      },
+      blindSpots: [],                   // Identified knowledge gaps
+      strategies: [],                   // Used reasoning strategies
+      stats: {
+        assessmentsMade: 0,
+        blindSpotsIdentified: 0,
+        strategiesUsed: 0
+      },
+      config: {
+        calibrationBuckets: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        maxAssessments: 500,
+        maxBlindSpots: 100
+      }
+    };
+  }
+  if (!(STATE.metacognition.predictions instanceof Map)) {
+    STATE.metacognition.predictions = new Map(Object.entries(STATE.metacognition.predictions || {}));
+  }
+}
+
+// Assess current state of knowledge on a topic
+function assessKnowledge(topic) {
+  ensureMetacognitionSystem();
+  ensureSemanticEngine();
+
+  const topicLower = String(topic || "").toLowerCase();
+
+  // Find relevant DTUs
+  const relevantDtus = findSimilarDtus(topic, 20, 0.3);
+
+  // Assess coverage
+  const dtuCount = relevantDtus.length;
+  const avgSimilarity = relevantDtus.reduce((sum, d) => sum + d.similarity, 0) / Math.max(dtuCount, 1);
+  const tierDistribution = {
+    regular: relevantDtus.filter(d => d.tier === "regular").length,
+    mega: relevantDtus.filter(d => d.tier === "mega").length,
+    hyper: relevantDtus.filter(d => d.tier === "hyper").length
+  };
+
+  // Check commonsense coverage
+  ensureCommonsenseSubstrate();
+  const commonsenseMatches = queryCommonsense(topic, null);
+
+  // Compute knowledge score
+  let knowledgeScore = 0;
+  knowledgeScore += Math.min(dtuCount / 10, 0.4);  // Up to 0.4 for DTU count
+  knowledgeScore += avgSimilarity * 0.3;           // Up to 0.3 for relevance
+  knowledgeScore += (tierDistribution.mega + tierDistribution.hyper * 2) * 0.05;  // Higher tiers
+  knowledgeScore += Math.min(commonsenseMatches.length / 5, 0.1);  // Commonsense
+
+  knowledgeScore = clamp(knowledgeScore, 0, 1);
+
+  // Identify gaps
+  const gaps = [];
+  if (dtuCount < 5) gaps.push("Limited DTU coverage on this topic");
+  if (tierDistribution.mega === 0 && tierDistribution.hyper === 0) gaps.push("No synthesized knowledge (MEGA/HYPER)");
+  if (avgSimilarity < 0.5) gaps.push("Available DTUs are tangentially related at best");
+  if (commonsenseMatches.length === 0) gaps.push("No commonsense grounding for this topic");
+
+  const assessment = {
+    id: uid("assess"),
+    topic,
+    knowledgeScore,
+    confidence: knowledgeScore > 0.5 ? "adequate" : knowledgeScore > 0.2 ? "limited" : "minimal",
+    dtuCount,
+    avgRelevance: avgSimilarity,
+    tierDistribution,
+    commonsenseSupport: commonsenseMatches.length,
+    gaps,
+    recommendation: gaps.length > 0 ? `Consider creating DTUs about: ${topic}` : "Knowledge appears adequate",
+    assessedAt: nowISO()
+  };
+
+  STATE.metacognition.assessments.push(assessment);
+  STATE.metacognition.stats.assessmentsMade++;
+
+  // Record blind spots
+  if (gaps.length > 0) {
+    STATE.metacognition.blindSpots.push({
+      topic,
+      gaps,
+      severity: 1 - knowledgeScore,
+      identifiedAt: nowISO()
+    });
+    STATE.metacognition.stats.blindSpotsIdentified++;
+  }
+
+  // Cap arrays
+  if (STATE.metacognition.assessments.length > STATE.metacognition.config.maxAssessments) {
+    STATE.metacognition.assessments = STATE.metacognition.assessments.slice(-STATE.metacognition.config.maxAssessments);
+  }
+  if (STATE.metacognition.blindSpots.length > STATE.metacognition.config.maxBlindSpots) {
+    STATE.metacognition.blindSpots = STATE.metacognition.blindSpots.slice(-STATE.metacognition.config.maxBlindSpots);
+  }
+
+  saveStateDebounced();
+  return { ok: true, assessment };
+}
+
+// Record a prediction for calibration tracking
+function recordPrediction(input = {}) {
+  ensureMetacognitionSystem();
+
+  const id = uid("pred");
+  const prediction = {
+    id,
+    statement: String(input.statement || "").slice(0, 500),
+    confidence: clamp(Number(input.confidence || 0.5), 0, 1),
+    domain: String(input.domain || "general").slice(0, 100),
+    outcome: null,  // Will be set when resolved
+    createdAt: nowISO(),
+    resolvedAt: null
+  };
+
+  STATE.metacognition.predictions.set(id, prediction);
+  STATE.metacognition.calibration.totalPredictions++;
+
+  saveStateDebounced();
+  return { ok: true, prediction };
+}
+
+// Resolve a prediction (was it correct?)
+function resolvePrediction(predictionId, wasCorrect) {
+  ensureMetacognitionSystem();
+
+  const prediction = STATE.metacognition.predictions.get(predictionId);
+  if (!prediction) return { ok: false, error: "Prediction not found" };
+  if (prediction.outcome !== null) return { ok: false, error: "Prediction already resolved" };
+
+  prediction.outcome = wasCorrect ? "correct" : "incorrect";
+  prediction.resolvedAt = nowISO();
+
+  if (wasCorrect) {
+    STATE.metacognition.calibration.correctPredictions++;
+  }
+
+  // Update calibration bucket
+  const bucket = Math.ceil(prediction.confidence * 10) / 10;  // Round to nearest 0.1
+  if (!STATE.metacognition.calibration.buckets[bucket]) {
+    STATE.metacognition.calibration.buckets[bucket] = { total: 0, correct: 0 };
+  }
+  STATE.metacognition.calibration.buckets[bucket].total++;
+  if (wasCorrect) {
+    STATE.metacognition.calibration.buckets[bucket].correct++;
+  }
+
+  saveStateDebounced();
+  return { ok: true, prediction };
+}
+
+// Get calibration report
+function getCalibrationReport() {
+  ensureMetacognitionSystem();
+
+  const cal = STATE.metacognition.calibration;
+  const bucketStats = {};
+
+  for (const [bucket, data] of Object.entries(cal.buckets)) {
+    const accuracy = data.total > 0 ? data.correct / data.total : null;
+    const expected = parseFloat(bucket);
+    bucketStats[bucket] = {
+      total: data.total,
+      correct: data.correct,
+      accuracy,
+      expectedAccuracy: expected,
+      calibrationError: accuracy !== null ? Math.abs(accuracy - expected) : null
+    };
+  }
+
+  const overallAccuracy = cal.totalPredictions > 0 ?
+    cal.correctPredictions / cal.totalPredictions : null;
+
+  const avgCalibrationError = Object.values(bucketStats)
+    .filter(b => b.calibrationError !== null)
+    .reduce((sum, b) => sum + b.calibrationError, 0) /
+    Math.max(Object.values(bucketStats).filter(b => b.calibrationError !== null).length, 1);
+
+  return {
+    ok: true,
+    report: {
+      totalPredictions: cal.totalPredictions,
+      correctPredictions: cal.correctPredictions,
+      overallAccuracy,
+      buckets: bucketStats,
+      avgCalibrationError,
+      interpretation: avgCalibrationError < 0.1 ? "well-calibrated" :
+                      avgCalibrationError < 0.2 ? "moderately calibrated" : "poorly calibrated"
+    }
+  };
+}
+
+// Select reasoning strategy for a problem
+function selectStrategy(problemDescription) {
+  ensureMetacognitionSystem();
+
+  const lower = problemDescription.toLowerCase();
+
+  const strategies = [
+    { name: "deductive", trigger: /prove|must|necessarily|follows|therefore/i, description: "Apply logical rules to derive certain conclusions" },
+    { name: "inductive", trigger: /pattern|trend|usually|often|generally/i, description: "Generalize from specific observations" },
+    { name: "abductive", trigger: /explain|why|cause|reason|because/i, description: "Find the best explanation for observations" },
+    { name: "analogical", trigger: /similar|like|compare|analogy|same as/i, description: "Map from known to unknown via similarity" },
+    { name: "decomposition", trigger: /break down|parts|components|step by step/i, description: "Divide problem into smaller parts" },
+    { name: "simulation", trigger: /what if|scenario|imagine|suppose/i, description: "Run mental simulation of possibilities" },
+    { name: "empirical", trigger: /test|measure|observe|experiment|data/i, description: "Gather evidence through observation" }
+  ];
+
+  const matches = strategies.filter(s => s.trigger.test(lower));
+  const selected = matches.length > 0 ? matches[0] : { name: "mixed", description: "Combine multiple reasoning approaches" };
+
+  STATE.metacognition.strategies.push({
+    problem: problemDescription.slice(0, 200),
+    selected: selected.name,
+    alternatives: matches.slice(1).map(s => s.name),
+    selectedAt: nowISO()
+  });
+  STATE.metacognition.stats.strategiesUsed++;
+
+  // Cap strategies
+  if (STATE.metacognition.strategies.length > 200) {
+    STATE.metacognition.strategies = STATE.metacognition.strategies.slice(-200);
+  }
+
+  return { ok: true, strategy: selected, alternatives: matches.slice(1) };
+}
+
+// ===== END METACOGNITION SYSTEM =====
+
+// ===== EXPLANATION ENGINE =====
+// Design: Generate WHY explanations for decisions, changes, and outcomes.
+
+const EXPLANATION_INVARIANTS = Object.freeze({
+  HONEST_EXPLANATIONS: true,           // No confabulation
+  CAUSAL_CHAIN_SHOWN: true,            // Show reasoning path
+  UNCERTAINTY_INCLUDED: true,          // Explain confidence
+  ALTERNATIVES_MENTIONED: true         // What else was considered
+});
+
+const EXPLANATION_TYPES = Object.freeze({
+  CAUSAL: "causal",                    // Why did X cause Y
+  CONTRASTIVE: "contrastive",          // Why X instead of Y
+  COUNTERFACTUAL: "counterfactual",    // What if X had been different
+  MECHANISTIC: "mechanistic",          // How does X work
+  TELEOLOGICAL: "teleological"         // What is X's purpose/goal
+});
+
+function ensureExplanationEngine() {
+  if (!STATE.explanations) {
+    STATE.explanations = {
+      generated: [],                    // Generated explanations
+      templates: new Map(),             // Reusable explanation templates
+      stats: {
+        generated: 0,
+        byType: {}
+      },
+      config: {
+        maxExplanations: 500,
+        includeAlternatives: true,
+        maxDepth: 5
+      }
+    };
+  }
+}
+
+// Generate explanation for why something happened
+function generateExplanation(input = {}) {
+  ensureExplanationEngine();
+
+  const explainType = EXPLANATION_TYPES[input.type?.toUpperCase()] || EXPLANATION_TYPES.CAUSAL;
+  const target = String(input.target || input.what || "").slice(0, 500);
+
+  if (!target) return { ok: false, error: "Target (what to explain) required" };
+
+  let explanation = {
+    id: uid("expl"),
+    type: explainType,
+    target,
+    question: "",
+    answer: "",
+    chain: [],
+    confidence: 0.5,
+    alternatives: [],
+    caveats: [],
+    createdAt: nowISO()
+  };
+
+  switch (explainType) {
+    case EXPLANATION_TYPES.CAUSAL:
+      explanation = generateCausalExplanation(explanation, input);
+      break;
+    case EXPLANATION_TYPES.CONTRASTIVE:
+      explanation = generateContrastiveExplanation(explanation, input);
+      break;
+    case EXPLANATION_TYPES.COUNTERFACTUAL:
+      explanation = generateCounterfactualExplanation(explanation, input);
+      break;
+    case EXPLANATION_TYPES.MECHANISTIC:
+      explanation = generateMechanisticExplanation(explanation, input);
+      break;
+    case EXPLANATION_TYPES.TELEOLOGICAL:
+      explanation = generateTeleologicalExplanation(explanation, input);
+      break;
+  }
+
+  STATE.explanations.generated.push(explanation);
+  STATE.explanations.stats.generated++;
+  STATE.explanations.stats.byType[explainType] = (STATE.explanations.stats.byType[explainType] || 0) + 1;
+
+  // Cap explanations
+  if (STATE.explanations.generated.length > STATE.explanations.config.maxExplanations) {
+    STATE.explanations.generated = STATE.explanations.generated.slice(-STATE.explanations.config.maxExplanations);
+  }
+
+  saveStateDebounced();
+  return { ok: true, explanation };
+}
+
+function generateCausalExplanation(explanation, input) {
+  explanation.question = `Why did "${explanation.target}" happen?`;
+
+  // Try to find causal chain in world model
+  ensureWorldModel();
+  const targetEntity = Array.from(STATE.worldModel.entities.values())
+    .find(e => e.name.toLowerCase().includes(explanation.target.toLowerCase()));
+
+  const causes = [];
+  if (targetEntity) {
+    const relations = Array.from(STATE.worldModel.relations.values())
+      .filter(r => r.to === targetEntity.id && r.type === "causes");
+
+    for (const rel of relations.slice(0, 5)) {
+      const sourceEntity = STATE.worldModel.entities.get(rel.from);
+      if (sourceEntity) {
+        causes.push({
+          cause: sourceEntity.name,
+          strength: rel.strength,
+          mechanism: rel.causal?.mechanism || "unspecified"
+        });
+      }
+    }
+  }
+
+  if (causes.length > 0) {
+    explanation.chain = causes;
+    explanation.answer = `"${explanation.target}" occurred because: ${causes.map(c => c.cause).join(", then ")}`;
+    explanation.confidence = Math.max(...causes.map(c => c.strength));
+  } else {
+    explanation.answer = `No causal chain found for "${explanation.target}". Consider adding causal relations to the world model.`;
+    explanation.confidence = 0.2;
+    explanation.caveats.push("No causal data available");
+  }
+
+  return explanation;
+}
+
+function generateContrastiveExplanation(explanation, input) {
+  const alternative = String(input.instead || input.alternative || "the alternative").slice(0, 200);
+  explanation.question = `Why "${explanation.target}" instead of "${alternative}"?`;
+
+  // Compare factors
+  const factors = [];
+
+  // Check semantic similarity to see what makes them different
+  ensureSemanticEngine();
+  const targetEmb = computeLocalEmbedding(explanation.target);
+  const altEmb = computeLocalEmbedding(alternative);
+  const similarity = cosineSimilarity(targetEmb, altEmb);
+
+  factors.push({
+    factor: "semantic_similarity",
+    value: similarity,
+    implication: similarity > 0.7 ? "Very similar options" : similarity > 0.4 ? "Related but distinct" : "Quite different options"
+  });
+
+  explanation.chain = factors;
+  explanation.alternatives = [{ option: alternative, reason: "Not selected" }];
+  explanation.answer = `"${explanation.target}" was chosen over "${alternative}". ${factors[0].implication}.`;
+  explanation.confidence = 0.6;
+
+  return explanation;
+}
+
+function generateCounterfactualExplanation(explanation, input) {
+  const changed = String(input.changed || "conditions").slice(0, 200);
+  explanation.question = `What if "${changed}" had been different?`;
+
+  // Use world model counterfactual if available
+  explanation.answer = `If "${changed}" had been different, "${explanation.target}" might not have occurred or would have occurred differently.`;
+  explanation.caveats.push("Counterfactual reasoning is inherently uncertain");
+  explanation.confidence = 0.4;
+
+  return explanation;
+}
+
+function generateMechanisticExplanation(explanation, input) {
+  explanation.question = `How does "${explanation.target}" work?`;
+
+  // Look for related DTUs that might explain mechanism
+  const relatedDtus = findSimilarDtus(explanation.target + " mechanism how", 5, 0.3);
+
+  if (relatedDtus.length > 0) {
+    explanation.chain = relatedDtus.map(d => ({ step: d.title, relevance: d.similarity }));
+    explanation.answer = `"${explanation.target}" works through: ${relatedDtus.map(d => d.title).join(" → ")}`;
+    explanation.confidence = 0.6;
+  } else {
+    explanation.answer = `Mechanism for "${explanation.target}" not found in knowledge base.`;
+    explanation.confidence = 0.2;
+    explanation.caveats.push("No mechanistic knowledge available");
+  }
+
+  return explanation;
+}
+
+function generateTeleologicalExplanation(explanation, input) {
+  explanation.question = `What is the purpose of "${explanation.target}"?`;
+
+  // Check if it's related to any goals
+  ensureGoalSystem();
+  const relatedGoals = Array.from(STATE.goals.registry.values())
+    .filter(g => g.title.toLowerCase().includes(explanation.target.toLowerCase()) ||
+                 g.description.toLowerCase().includes(explanation.target.toLowerCase()));
+
+  if (relatedGoals.length > 0) {
+    explanation.answer = `"${explanation.target}" serves the purpose of: ${relatedGoals.map(g => g.title).join(", ")}`;
+    explanation.chain = relatedGoals.map(g => ({ goal: g.title, type: g.type }));
+    explanation.confidence = 0.7;
+  } else {
+    explanation.answer = `No explicit purpose found for "${explanation.target}" in current goals.`;
+    explanation.confidence = 0.3;
+  }
+
+  return explanation;
+}
+
+// Explain a DTU change
+function explainDtuChange(dtuId, changeType) {
+  ensureExplanationEngine();
+
+  const dtu = STATE.dtus?.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  const explanation = {
+    id: uid("expl"),
+    type: "dtu_change",
+    target: dtu.title,
+    changeType,
+    question: `Why was DTU "${dtu.title}" ${changeType}?`,
+    answer: "",
+    factors: [],
+    createdAt: nowISO()
+  };
+
+  switch (changeType) {
+    case "promoted":
+      explanation.answer = `DTU was promoted because it met tier criteria: high score, multiple uses, and sufficient contexts.`;
+      explanation.factors = [
+        { factor: "authority_score", value: dtu.authority?.score },
+        { factor: "tier", value: dtu.tier }
+      ];
+      break;
+    case "created":
+      explanation.answer = `DTU was created to capture knowledge about "${dtu.title}".`;
+      explanation.factors = [{ factor: "source", value: dtu.source || "user" }];
+      break;
+    case "merged":
+      explanation.answer = `DTU was merged due to semantic similarity with existing knowledge.`;
+      break;
+    default:
+      explanation.answer = `DTU was ${changeType}.`;
+  }
+
+  STATE.explanations.generated.push(explanation);
+  STATE.explanations.stats.generated++;
+
+  return { ok: true, explanation };
+}
+
+// ===== END EXPLANATION ENGINE =====
+
+// ===== META-LEARNING SYSTEM =====
+// Design: Learning how to learn. Adjust strategies based on performance.
+
+const META_LEARNING_INVARIANTS = Object.freeze({
+  BOUNDED_ADAPTATION: true,            // Changes within limits
+  PERFORMANCE_TRACKED: true,           // Outcomes measured
+  STRATEGY_LOGGED: true,               // All changes recorded
+  REVERSIBLE: true                     // Can revert bad changes
+});
+
+function ensureMetaLearningSystem() {
+  if (!STATE.metaLearning) {
+    STATE.metaLearning = {
+      strategies: new Map(),            // Learning strategies
+      performance: [],                  // Performance history
+      adaptations: [],                  // Strategy changes made
+      curriculum: [],                   // Generated learning sequences
+      stats: {
+        strategiesAdapted: 0,
+        performanceImprovements: 0,
+        curriculumsGenerated: 0
+      },
+      config: {
+        adaptationRate: 0.1,            // How fast to adapt
+        minSamples: 5,                  // Min samples before adapting
+        performanceWindow: 20           // Window for performance tracking
+      }
+    };
+  }
+  if (!(STATE.metaLearning.strategies instanceof Map)) {
+    STATE.metaLearning.strategies = new Map(Object.entries(STATE.metaLearning.strategies || {}));
+  }
+}
+
+// Define a learning strategy
+function defineLearningStrategy(input = {}) {
+  ensureMetaLearningSystem();
+
+  const id = uid("strat");
+  const strategy = {
+    id,
+    name: String(input.name || "").slice(0, 100) || "Unnamed Strategy",
+    domain: String(input.domain || "general").slice(0, 100),
+
+    // Parameters that can be adjusted
+    parameters: {
+      learningRate: clamp(Number(input.learningRate || 0.1), 0.01, 1),
+      explorationRate: clamp(Number(input.explorationRate || 0.2), 0, 1),
+      batchSize: clamp(Number(input.batchSize || 5), 1, 50),
+      abstractionLevel: clamp(Number(input.abstractionLevel || 1), 0, 3),
+      consolidationThreshold: clamp(Number(input.consolidationThreshold || 0.7), 0.1, 1)
+    },
+
+    // Performance tracking
+    uses: 0,
+    successes: 0,
+    failures: 0,
+    avgPerformance: 0.5,
+
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  STATE.metaLearning.strategies.set(id, strategy);
+  return { ok: true, strategy };
+}
+
+// Record outcome of using a strategy
+function recordStrategyOutcome(strategyId, outcome) {
+  ensureMetaLearningSystem();
+
+  const strategy = STATE.metaLearning.strategies.get(strategyId);
+  if (!strategy) return { ok: false, error: "Strategy not found" };
+
+  const success = outcome.success === true;
+  const performance = clamp(Number(outcome.performance || (success ? 0.8 : 0.3)), 0, 1);
+
+  strategy.uses++;
+  if (success) strategy.successes++;
+  else strategy.failures++;
+
+  // Update running average
+  strategy.avgPerformance = (strategy.avgPerformance * (strategy.uses - 1) + performance) / strategy.uses;
+  strategy.updatedAt = nowISO();
+
+  // Record in performance history
+  STATE.metaLearning.performance.push({
+    strategyId,
+    success,
+    performance,
+    domain: strategy.domain,
+    recordedAt: nowISO()
+  });
+
+  // Cap history
+  if (STATE.metaLearning.performance.length > 1000) {
+    STATE.metaLearning.performance = STATE.metaLearning.performance.slice(-1000);
+  }
+
+  // Check if adaptation is warranted
+  if (strategy.uses >= STATE.metaLearning.config.minSamples) {
+    adaptStrategy(strategyId);
+  }
+
+  saveStateDebounced();
+  return { ok: true, strategy, newAvgPerformance: strategy.avgPerformance };
+}
+
+// Adapt strategy parameters based on performance
+function adaptStrategy(strategyId) {
+  ensureMetaLearningSystem();
+
+  const strategy = STATE.metaLearning.strategies.get(strategyId);
+  if (!strategy) return { ok: false, error: "Strategy not found" };
+
+  const cfg = STATE.metaLearning.config;
+  const adaptations = [];
+
+  // Get recent performance for this strategy
+  const recent = STATE.metaLearning.performance
+    .filter(p => p.strategyId === strategyId)
+    .slice(-cfg.performanceWindow);
+
+  if (recent.length < cfg.minSamples) {
+    return { ok: true, message: "Insufficient data for adaptation" };
+  }
+
+  const recentAvg = recent.reduce((sum, p) => sum + p.performance, 0) / recent.length;
+  const successRate = recent.filter(p => p.success).length / recent.length;
+
+  // Adapt based on performance
+  if (recentAvg < 0.4) {
+    // Poor performance: increase exploration, decrease batch size
+    const oldExploration = strategy.parameters.explorationRate;
+    strategy.parameters.explorationRate = clamp(oldExploration + cfg.adaptationRate, 0, 0.5);
+    adaptations.push(`Increased exploration from ${oldExploration.toFixed(2)} to ${strategy.parameters.explorationRate.toFixed(2)}`);
+
+    const oldBatch = strategy.parameters.batchSize;
+    strategy.parameters.batchSize = Math.max(1, oldBatch - 1);
+    adaptations.push(`Decreased batch size from ${oldBatch} to ${strategy.parameters.batchSize}`);
+  } else if (recentAvg > 0.7 && successRate > 0.8) {
+    // Good performance: decrease exploration, can increase batch
+    const oldExploration = strategy.parameters.explorationRate;
+    strategy.parameters.explorationRate = clamp(oldExploration - cfg.adaptationRate, 0.05, 1);
+    adaptations.push(`Decreased exploration from ${oldExploration.toFixed(2)} to ${strategy.parameters.explorationRate.toFixed(2)}`);
+
+    STATE.metaLearning.stats.performanceImprovements++;
+  }
+
+  if (adaptations.length > 0) {
+    STATE.metaLearning.adaptations.push({
+      strategyId,
+      strategyName: strategy.name,
+      adaptations,
+      triggerPerformance: recentAvg,
+      adaptedAt: nowISO()
+    });
+    STATE.metaLearning.stats.strategiesAdapted++;
+    strategy.updatedAt = nowISO();
+
+    // Cap adaptations
+    if (STATE.metaLearning.adaptations.length > 200) {
+      STATE.metaLearning.adaptations = STATE.metaLearning.adaptations.slice(-200);
+    }
+  }
+
+  saveStateDebounced();
+  return { ok: true, adaptations, newParameters: strategy.parameters };
+}
+
+// Generate a curriculum (learning sequence) for a topic
+function generateCurriculum(topic, input = {}) {
+  ensureMetaLearningSystem();
+  ensureSemanticEngine();
+
+  const maxSteps = clamp(Number(input.maxSteps || 10), 3, 20);
+
+  // Find DTUs related to topic
+  const relatedDtus = findSimilarDtus(topic, 30, 0.2);
+
+  // Sort by complexity (approximate by tier and similarity)
+  const sorted = relatedDtus.sort((a, b) => {
+    const tierScore = { regular: 1, mega: 2, hyper: 3 };
+    const aScore = (tierScore[a.tier] || 1) + (1 - a.similarity);  // Lower similarity = more advanced
+    const bScore = (tierScore[b.tier] || 1) + (1 - b.similarity);
+    return aScore - bScore;  // Start with simpler, more relevant
+  });
+
+  // Build curriculum
+  const steps = sorted.slice(0, maxSteps).map((dtu, i) => ({
+    order: i + 1,
+    dtuId: dtu.dtuId,
+    title: dtu.title,
+    difficulty: i / maxSteps,  // Increases through curriculum
+    rationale: i === 0 ? "Start with fundamentals" :
+               i < maxSteps / 3 ? "Build foundational understanding" :
+               i < 2 * maxSteps / 3 ? "Develop intermediate knowledge" :
+               "Advanced integration"
+  }));
+
+  const curriculum = {
+    id: uid("curr"),
+    topic,
+    steps,
+    estimatedEffort: steps.length * 0.5,  // Rough estimate in hours
+    prerequisites: [],
+    createdAt: nowISO()
+  };
+
+  STATE.metaLearning.curriculum.push(curriculum);
+  STATE.metaLearning.stats.curriculumsGenerated++;
+
+  // Cap curriculum
+  if (STATE.metaLearning.curriculum.length > 50) {
+    STATE.metaLearning.curriculum = STATE.metaLearning.curriculum.slice(-50);
+  }
+
+  saveStateDebounced();
+  return { ok: true, curriculum };
+}
+
+// Get best strategy for a domain
+function getBestStrategy(domain) {
+  ensureMetaLearningSystem();
+
+  const strategies = Array.from(STATE.metaLearning.strategies.values())
+    .filter(s => s.domain === domain || s.domain === "general")
+    .filter(s => s.uses >= 3)  // Enough data
+    .sort((a, b) => b.avgPerformance - a.avgPerformance);
+
+  if (strategies.length === 0) {
+    return { ok: true, strategy: null, message: "No strategies with sufficient data for this domain" };
+  }
+
+  return { ok: true, strategy: strategies[0], alternatives: strategies.slice(1, 3) };
+}
+
+// ===== END META-LEARNING SYSTEM =====
+
 function _clamp01(x){ return clamp(Number(x||0), 0, 1); }
 
 function computeGrowthTick(signal={}) {
@@ -18279,6 +20027,11 @@ function kernelTick(event) {
   ensureTransferEngine();
   ensureCommonsenseSubstrate();
   ensureGroundingEngine();
+  ensureReasoningEngine();
+  ensureHypothesisEngine();
+  ensureMetacognitionSystem();
+  ensureExplanationEngine();
+  ensureMetaLearningSystem();
   // Simple universal tick: update wear/debt and write Learning DTU for major changes.
   const t = nowISO();
   const signal = { acuteStress: 0, chronicStress: 0, drift: 0, paramShift: 0, decline: 0, repairDelta: 0, backlogDelta: 0 };
