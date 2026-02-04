@@ -34,6 +34,7 @@ export * from './cognitive/LineageTree';
 
 // AI Components
 export * from './ai/AIAssistPanel';
+export * from './ai/InlineCompletion';
 
 // Social Components
 export * from './social/PresenceIndicator';
@@ -64,3 +65,30 @@ export * from './srs/SRSReview';
 
 // Collaboration Components
 export * from './collaboration/CommentThread';
+
+// Database Components
+export * from './database/DatabaseTable';
+
+// Daily Notes Components
+export * from './daily/DailyNotes';
+
+// Calendar Components
+export * from './calendar/CalendarView';
+
+// Kanban Components
+export * from './kanban/KanbanBoard';
+
+// Voice Components
+export * from './voice/VoiceRecorder';
+
+// Admin Components
+export * from './admin/AdminDashboard';
+
+// Feed Components
+export * from './feeds/RSSFeedManager';
+
+// Reminder Components
+export * from './reminders/ReminderList';
+
+// Theme Components
+export * from './themes/ThemeSelector';

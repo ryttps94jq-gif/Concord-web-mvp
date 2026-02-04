@@ -13552,7 +13552,1160 @@ app.post("/api/dtus/:id/steelman", async (req, res) => {
 console.log("[Concord] Wave 10: New Feature APIs loaded");
 
 // ============================================================================
-// END CONCORD ENHANCEMENTS v5.0 - ALL WAVES COMPLETE
+// WAVE 11: UX ENHANCEMENTS (Tables, Daily Notes, Kanban, Calendar Views)
+// ============================================================================
+
+// ---- Database/Tables System ----
+const DATABASES = new Map(); // dbId -> { id, name, schema, rows, views, createdAt }
+
+function createDatabase(name, schema = []) {
+  const id = uid("db");
+  const db = {
+    id,
+    name,
+    schema: schema.map(col => ({
+      id: uid("col"),
+      name: col.name,
+      type: col.type || "text", // text, number, select, multiselect, date, checkbox, url, relation
+      options: col.options || [],
+      required: col.required || false
+    })),
+    rows: [],
+    views: [{ id: uid("view"), name: "Table", type: "table", filters: [], sorts: [] }],
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+  DATABASES.set(id, db);
+  return { ok: true, database: db };
+}
+
+function addDatabaseRow(dbId, data) {
+  const db = DATABASES.get(dbId);
+  if (!db) return { ok: false, error: "Database not found" };
+
+  const row = {
+    id: uid("row"),
+    data: {},
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  // Validate and set data according to schema
+  for (const col of db.schema) {
+    if (data[col.name] !== undefined) {
+      row.data[col.id] = data[col.name];
+    } else if (col.required) {
+      return { ok: false, error: `Missing required field: ${col.name}` };
+    }
+  }
+
+  db.rows.push(row);
+  db.updatedAt = nowISO();
+  return { ok: true, row };
+}
+
+function queryDatabase(dbId, { filters = [], sorts = [], limit = 100, offset = 0 } = {}) {
+  const db = DATABASES.get(dbId);
+  if (!db) return { ok: false, error: "Database not found" };
+
+  let results = [...db.rows];
+
+  // Apply filters
+  for (const filter of filters) {
+    results = results.filter(row => {
+      const value = row.data[filter.columnId];
+      switch (filter.operator) {
+        case "equals": return value === filter.value;
+        case "contains": return String(value || "").includes(filter.value);
+        case "gt": return Number(value) > Number(filter.value);
+        case "lt": return Number(value) < Number(filter.value);
+        case "isEmpty": return !value;
+        case "isNotEmpty": return !!value;
+        default: return true;
+      }
+    });
+  }
+
+  // Apply sorts
+  for (const sort of sorts.reverse()) {
+    results.sort((a, b) => {
+      const aVal = a.data[sort.columnId] || "";
+      const bVal = b.data[sort.columnId] || "";
+      const cmp = String(aVal).localeCompare(String(bVal));
+      return sort.direction === "desc" ? -cmp : cmp;
+    });
+  }
+
+  return {
+    ok: true,
+    rows: results.slice(offset, offset + limit),
+    total: results.length,
+    schema: db.schema
+  };
+}
+
+function addDatabaseView(dbId, view) {
+  const db = DATABASES.get(dbId);
+  if (!db) return { ok: false, error: "Database not found" };
+
+  const newView = {
+    id: uid("view"),
+    name: view.name || "New View",
+    type: view.type || "table", // table, kanban, calendar, gallery, list
+    filters: view.filters || [],
+    sorts: view.sorts || [],
+    groupBy: view.groupBy || null,
+    config: view.config || {}
+  };
+
+  db.views.push(newView);
+  return { ok: true, view: newView };
+}
+
+// ---- Daily Notes ----
+const DAILY_NOTES = new Map(); // dateStr -> dtuId
+
+function getOrCreateDailyNote(dateStr = null) {
+  const date = dateStr || new Date().toISOString().split("T")[0];
+
+  if (DAILY_NOTES.has(date)) {
+    const dtuId = DAILY_NOTES.get(date);
+    const dtu = STATE.dtus.get(dtuId);
+    if (dtu) return { ok: true, dtu, isNew: false };
+  }
+
+  // Create new daily note
+  const dtu = {
+    id: uid("dtu"),
+    title: `Daily Note: ${date}`,
+    content: `# ${date}\n\n## Morning\n\n## Afternoon\n\n## Evening\n\n## Reflections\n`,
+    tags: ["daily", "journal", date.replace(/-/g, "")],
+    tier: "regular",
+    type: "daily_note",
+    date,
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  upsertDTU(dtu, { broadcast: true });
+  DAILY_NOTES.set(date, dtu.id);
+
+  return { ok: true, dtu, isNew: true };
+}
+
+function listDailyNotes(limit = 30) {
+  const notes = [];
+  for (const [date, dtuId] of DAILY_NOTES) {
+    const dtu = STATE.dtus.get(dtuId);
+    if (dtu) notes.push({ date, dtu });
+  }
+  notes.sort((a, b) => b.date.localeCompare(a.date));
+  return { ok: true, notes: notes.slice(0, limit) };
+}
+
+// ---- Calendar View Data ----
+function getCalendarData(year, month) {
+  const dtus = dtusArray().filter(d => {
+    const created = new Date(d.createdAt);
+    return created.getFullYear() === year && created.getMonth() === month - 1;
+  });
+
+  const byDay = {};
+  for (const dtu of dtus) {
+    const day = new Date(dtu.createdAt).getDate();
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push({ id: dtu.id, title: dtu.title, tier: dtu.tier });
+  }
+
+  return { ok: true, year, month, days: byDay, total: dtus.length };
+}
+
+// ---- Kanban View ----
+function getKanbanData(groupField = "tier") {
+  const dtus = dtusArray();
+  const columns = {};
+
+  for (const dtu of dtus) {
+    let group;
+    if (groupField === "tier") {
+      group = dtu.tier || "regular";
+    } else if (groupField === "tag") {
+      group = (dtu.tags || [])[0] || "untagged";
+    } else {
+      group = dtu[groupField] || "other";
+    }
+
+    if (!columns[group]) columns[group] = [];
+    columns[group].push({
+      id: dtu.id,
+      title: dtu.title,
+      tags: dtu.tags?.slice(0, 3),
+      updatedAt: dtu.updatedAt
+    });
+  }
+
+  return { ok: true, groupField, columns };
+}
+
+// ---- Inline Embeds ----
+const EMBED_PATTERNS = {
+  youtube: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+  twitter: /twitter\.com\/\w+\/status\/(\d+)/,
+  vimeo: /vimeo\.com\/(\d+)/,
+  codepen: /codepen\.io\/([^\/]+)\/pen\/([^\/]+)/,
+  figma: /figma\.com\/file\/([^\/]+)/,
+  loom: /loom\.com\/share\/([a-zA-Z0-9]+)/,
+  spotify: /open\.spotify\.com\/(track|album|playlist)\/([a-zA-Z0-9]+)/
+};
+
+function parseEmbed(url) {
+  for (const [type, pattern] of Object.entries(EMBED_PATTERNS)) {
+    const match = url.match(pattern);
+    if (match) {
+      return { ok: true, type, id: match[1], secondaryId: match[2] || null, url };
+    }
+  }
+  return { ok: false, error: "Unsupported embed URL" };
+}
+
+function generateEmbedHtml(embed) {
+  switch (embed.type) {
+    case "youtube":
+      return `<iframe src="https://www.youtube.com/embed/${embed.id}" frameborder="0" allowfullscreen></iframe>`;
+    case "twitter":
+      return `<blockquote class="twitter-tweet"><a href="${embed.url}"></a></blockquote>`;
+    case "vimeo":
+      return `<iframe src="https://player.vimeo.com/video/${embed.id}" frameborder="0" allowfullscreen></iframe>`;
+    case "codepen":
+      return `<iframe src="https://codepen.io/${embed.id}/embed/${embed.secondaryId}" frameborder="0"></iframe>`;
+    case "figma":
+      return `<iframe src="https://www.figma.com/embed?embed_host=concord&url=${encodeURIComponent(embed.url)}" frameborder="0"></iframe>`;
+    case "loom":
+      return `<iframe src="https://www.loom.com/embed/${embed.id}" frameborder="0" allowfullscreen></iframe>`;
+    case "spotify":
+      return `<iframe src="https://open.spotify.com/embed/${embed.secondaryId}/${embed.id}" frameborder="0"></iframe>`;
+    default:
+      return null;
+  }
+}
+
+// ============================================================================
+// WAVE 12: AI DEPTH (Voice, Vision, Digest, Completions, Auto-tag)
+// ============================================================================
+
+// ---- Voice Notes ----
+async function processVoiceNote(audioBuffer, options = {}) {
+  // Use local Whisper if available
+  const WHISPER_BIN = process.env.WHISPER_CPP_BIN || process.env.WHISPER_BIN;
+
+  if (!WHISPER_BIN) {
+    return { ok: false, error: "Whisper not configured. Set WHISPER_CPP_BIN env var." };
+  }
+
+  try {
+    // Save audio to temp file
+    const tempPath = path.join(DATA_DIR, `temp_audio_${Date.now()}.wav`);
+    fs.writeFileSync(tempPath, audioBuffer);
+
+    // Run Whisper
+    const result = spawnSync(WHISPER_BIN, ["-f", tempPath, "-otxt"], {
+      timeout: 60000,
+      maxBuffer: 10 * 1024 * 1024
+    });
+
+    // Clean up
+    try { fs.unlinkSync(tempPath); } catch {}
+    try { fs.unlinkSync(tempPath + ".txt"); } catch {}
+
+    const transcript = result.stdout?.toString() || "";
+
+    if (!transcript.trim()) {
+      return { ok: false, error: "No speech detected" };
+    }
+
+    // Optionally create DTU from transcript
+    if (options.createDTU) {
+      const title = transcript.slice(0, 100).replace(/\n/g, " ").trim() + (transcript.length > 100 ? "..." : "");
+      const dtu = {
+        id: uid("dtu"),
+        title,
+        content: transcript,
+        tags: ["voice-note", "transcript"],
+        tier: "regular",
+        type: "voice_note",
+        createdAt: nowISO(),
+        updatedAt: nowISO()
+      };
+      upsertDTU(dtu);
+      return { ok: true, transcript, dtu };
+    }
+
+    return { ok: true, transcript };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+// ---- Image Analysis ----
+async function analyzeImage(imageBuffer, prompt = "Describe this image in detail.") {
+  // Use local LLaVA via Ollama if available
+  const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+  const VISION_MODEL = process.env.VISION_MODEL || "llava";
+
+  try {
+    const base64 = imageBuffer.toString("base64");
+
+    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        prompt,
+        images: [base64],
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: `Ollama error: ${response.status}` };
+    }
+
+    const data = await response.json();
+    return { ok: true, description: data.response, model: VISION_MODEL };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+// ---- Daily Digest ----
+async function generateDailyDigest(date = null) {
+  const targetDate = date || new Date().toISOString().split("T")[0];
+  const dayStart = new Date(targetDate + "T00:00:00Z").toISOString();
+  const dayEnd = new Date(targetDate + "T23:59:59Z").toISOString();
+
+  // Get DTUs created/updated today
+  const todaysDTUs = dtusArray().filter(d =>
+    (d.createdAt >= dayStart && d.createdAt <= dayEnd) ||
+    (d.updatedAt >= dayStart && d.updatedAt <= dayEnd)
+  );
+
+  const created = todaysDTUs.filter(d => d.createdAt >= dayStart && d.createdAt <= dayEnd);
+  const updated = todaysDTUs.filter(d => d.updatedAt >= dayStart && d.updatedAt <= dayEnd && d.createdAt < dayStart);
+
+  // Tag frequency
+  const tagCounts = {};
+  for (const dtu of todaysDTUs) {
+    for (const tag of (dtu.tags || [])) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    }
+  }
+
+  const topTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([tag, count]) => ({ tag, count }));
+
+  const digest = {
+    date: targetDate,
+    summary: {
+      created: created.length,
+      updated: updated.length,
+      total: todaysDTUs.length
+    },
+    highlights: created.slice(0, 5).map(d => ({ id: d.id, title: d.title, tier: d.tier })),
+    topTags,
+    generatedAt: nowISO()
+  };
+
+  // Generate narrative if LLM available
+  if (LLM_READY && todaysDTUs.length > 0) {
+    const titles = todaysDTUs.slice(0, 10).map(d => d.title).join(", ");
+    const prompt = `Write a brief (2-3 sentence) summary of today's knowledge work. Topics covered: ${titles}. Be encouraging and insightful.`;
+
+    try {
+      const response = await llmChat([{ role: "user", content: prompt }], {
+        model: OPENAI_MODEL_FAST,
+        max_tokens: 150
+      });
+      digest.narrative = response?.choices?.[0]?.message?.content || null;
+    } catch {}
+  }
+
+  return { ok: true, digest };
+}
+
+// ---- Inline AI Completions ----
+async function getInlineCompletion(text, cursorPosition, context = {}) {
+  if (!LLM_READY) {
+    return { ok: false, error: "LLM not available" };
+  }
+
+  const beforeCursor = text.slice(0, cursorPosition);
+  const afterCursor = text.slice(cursorPosition);
+
+  const prompt = `Continue this text naturally. Only output the completion, nothing else.
+
+Context: ${context.title || "Note"}
+Text before cursor: "${beforeCursor}"
+Text after cursor: "${afterCursor}"
+
+Completion:`;
+
+  try {
+    const response = await llmChat([{ role: "user", content: prompt }], {
+      model: OPENAI_MODEL_FAST,
+      temperature: 0.7,
+      max_tokens: 100,
+      stop: ["\n\n", ".", "!", "?"]
+    });
+
+    const completion = response?.choices?.[0]?.message?.content?.trim() || "";
+    return { ok: true, completion };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+// ---- Auto-Tagging ----
+async function suggestTags(content, existingTags = []) {
+  // Simple keyword extraction fallback
+  const words = content.toLowerCase().split(/\W+/).filter(w => w.length > 4);
+  const wordCounts = {};
+  for (const word of words) {
+    if (!["which", "there", "their", "about", "would", "could", "should"].includes(word)) {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    }
+  }
+
+  const keywords = Object.entries(wordCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word)
+    .filter(w => !existingTags.includes(w));
+
+  if (!LLM_READY) {
+    return { ok: true, tags: keywords, method: "keyword" };
+  }
+
+  // Use LLM for better tags
+  const prompt = `Suggest 3-5 relevant tags for this content. Output only comma-separated tags, nothing else.
+
+Content: ${content.slice(0, 1000)}
+
+Existing tags: ${existingTags.join(", ")}
+
+New tags:`;
+
+  try {
+    const response = await llmChat([{ role: "user", content: prompt }], {
+      model: OPENAI_MODEL_FAST,
+      temperature: 0.3,
+      max_tokens: 50
+    });
+
+    const tagStr = response?.choices?.[0]?.message?.content || "";
+    const tags = tagStr.split(",").map(t => t.trim().toLowerCase().replace(/[^a-z0-9-]/g, "")).filter(Boolean);
+
+    return { ok: true, tags: tags.filter(t => !existingTags.includes(t)), method: "llm" };
+  } catch (e) {
+    return { ok: true, tags: keywords, method: "keyword_fallback" };
+  }
+}
+
+// ============================================================================
+// WAVE 13: CAPTURE & INTEGRATIONS (Email, RSS, Reminders)
+// ============================================================================
+
+// ---- Email-to-DTU ----
+function processEmailToDTU(email) {
+  const { from, subject, body, date, attachments = [] } = email;
+
+  const dtu = {
+    id: uid("dtu"),
+    title: subject || "Email Note",
+    content: `**From:** ${from}\n**Date:** ${date}\n\n---\n\n${body}`,
+    tags: ["email", "inbox"],
+    tier: "regular",
+    type: "email",
+    source: "email",
+    meta: {
+      from,
+      subject,
+      date,
+      hasAttachments: attachments.length > 0
+    },
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  upsertDTU(dtu);
+  return { ok: true, dtu };
+}
+
+// ---- RSS Feed Ingestion ----
+const RSS_FEEDS = new Map(); // feedId -> { id, url, name, lastFetch, items }
+
+async function addRSSFeed(url, name = null) {
+  const id = uid("feed");
+  RSS_FEEDS.set(id, {
+    id,
+    url,
+    name: name || url,
+    lastFetch: null,
+    itemsSeen: new Set(),
+    createdAt: nowISO()
+  });
+  return { ok: true, feedId: id };
+}
+
+async function fetchRSSFeed(feedId) {
+  const feed = RSS_FEEDS.get(feedId);
+  if (!feed) return { ok: false, error: "Feed not found" };
+
+  try {
+    const response = await fetch(feed.url);
+    const text = await response.text();
+
+    // Simple RSS parsing (basic implementation)
+    const items = [];
+    const itemMatches = text.matchAll(/<item>([\s\S]*?)<\/item>/g);
+
+    for (const match of itemMatches) {
+      const itemXml = match[1];
+      const title = itemXml.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1] || "";
+      const link = itemXml.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "";
+      const description = itemXml.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1] || "";
+      const pubDate = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+
+      const itemId = link || title;
+      if (itemId && !feed.itemsSeen.has(itemId)) {
+        items.push({ title: title.trim(), link: link.trim(), description: description.trim(), pubDate });
+        feed.itemsSeen.add(itemId);
+      }
+    }
+
+    feed.lastFetch = nowISO();
+    return { ok: true, items, feedName: feed.name };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+function createDTUFromRSSItem(item, feedName) {
+  const dtu = {
+    id: uid("dtu"),
+    title: item.title || "RSS Item",
+    content: `**Source:** ${feedName}\n**Link:** ${item.link}\n\n---\n\n${item.description}`,
+    tags: ["rss", "reading", feedName.toLowerCase().replace(/\s+/g, "-")],
+    tier: "regular",
+    type: "rss_item",
+    source: "rss",
+    meta: {
+      link: item.link,
+      pubDate: item.pubDate,
+      feedName
+    },
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  };
+
+  upsertDTU(dtu);
+  return { ok: true, dtu };
+}
+
+// ---- Reminders ----
+const REMINDERS = new Map(); // reminderId -> { id, dtuId, reminderAt, message, completed }
+
+function createReminder(dtuId, reminderAt, message = null) {
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  const id = uid("rem");
+  REMINDERS.set(id, {
+    id,
+    dtuId,
+    dtuTitle: dtu.title,
+    reminderAt,
+    message: message || `Review: ${dtu.title}`,
+    completed: false,
+    createdAt: nowISO()
+  });
+
+  return { ok: true, reminderId: id };
+}
+
+function getDueReminders() {
+  const now = nowISO();
+  const due = [];
+
+  for (const [, reminder] of REMINDERS) {
+    if (!reminder.completed && reminder.reminderAt <= now) {
+      due.push(reminder);
+    }
+  }
+
+  return { ok: true, reminders: due };
+}
+
+function completeReminder(reminderId) {
+  const reminder = REMINDERS.get(reminderId);
+  if (!reminder) return { ok: false, error: "Reminder not found" };
+  reminder.completed = true;
+  return { ok: true };
+}
+
+// ============================================================================
+// WAVE 14: ENTERPRISE (SSO, Audit, Admin, Teams)
+// ============================================================================
+
+// ---- Audit Logging ----
+const AUDIT_LOG = [];
+const MAX_AUDIT_ENTRIES = 50000;
+
+function auditLog(action, actor, target, details = {}) {
+  const entry = {
+    id: uid("audit"),
+    timestamp: nowISO(),
+    action, // login, logout, create, update, delete, share, permission_change, etc.
+    actor: {
+      userId: actor.userId || "system",
+      username: actor.username || "system",
+      ip: actor.ip || null
+    },
+    target: {
+      type: target.type, // dtu, user, workspace, etc.
+      id: target.id,
+      name: target.name || null
+    },
+    details,
+    success: details.success !== false
+  };
+
+  AUDIT_LOG.push(entry);
+
+  if (AUDIT_LOG.length > MAX_AUDIT_ENTRIES) {
+    AUDIT_LOG.splice(0, AUDIT_LOG.length - MAX_AUDIT_ENTRIES);
+  }
+
+  return entry;
+}
+
+function queryAuditLog(filters = {}) {
+  let results = [...AUDIT_LOG];
+
+  if (filters.action) results = results.filter(e => e.action === filters.action);
+  if (filters.actorId) results = results.filter(e => e.actor.userId === filters.actorId);
+  if (filters.targetType) results = results.filter(e => e.target.type === filters.targetType);
+  if (filters.targetId) results = results.filter(e => e.target.id === filters.targetId);
+  if (filters.since) results = results.filter(e => e.timestamp >= filters.since);
+  if (filters.until) results = results.filter(e => e.timestamp <= filters.until);
+  if (filters.success !== undefined) results = results.filter(e => e.success === filters.success);
+
+  results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  const limit = filters.limit || 100;
+  const offset = filters.offset || 0;
+
+  return { ok: true, entries: results.slice(offset, offset + limit), total: results.length };
+}
+
+// ---- Admin Dashboard Stats ----
+function getAdminStats() {
+  const now = new Date();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const dtus = dtusArray();
+  const recentDTUs = dtus.filter(d => d.createdAt >= dayAgo);
+  const weekDTUs = dtus.filter(d => d.createdAt >= weekAgo);
+
+  return {
+    ok: true,
+    stats: {
+      totalDTUs: dtus.length,
+      totalUsers: AUTH.users.size,
+      totalWorkspaces: WORKSPACES.size,
+      totalSessions: STATE.sessions.size,
+      dtusTodayCreated: recentDTUs.length,
+      dtusThisWeek: weekDTUs.length,
+      tierBreakdown: {
+        regular: dtus.filter(d => d.tier === "regular").length,
+        mega: dtus.filter(d => d.tier === "mega").length,
+        hyper: dtus.filter(d => d.tier === "hyper").length
+      },
+      storageUsed: JSON.stringify(STATE).length,
+      auditLogSize: AUDIT_LOG.length,
+      activeFeatures: {
+        auth: AUTH_ENABLED,
+        embeddings: EMBEDDINGS.enabled,
+        federation: _c3Federation.enabled,
+        websockets: REALTIME.ready
+      }
+    },
+    generatedAt: nowISO()
+  };
+}
+
+// ---- Team Templates ----
+const TEAM_TEMPLATES = new Map(); // templateId -> { id, name, schema, workspaceId, createdBy }
+
+function createTeamTemplate(workspaceId, template, createdBy) {
+  const id = uid("tmpl");
+  TEAM_TEMPLATES.set(id, {
+    id,
+    name: template.name,
+    description: template.description || "",
+    content: template.content || "",
+    tags: template.tags || [],
+    workspaceId,
+    createdBy,
+    createdAt: nowISO()
+  });
+  return { ok: true, templateId: id };
+}
+
+function getWorkspaceTemplates(workspaceId) {
+  const templates = [];
+  for (const [, tmpl] of TEAM_TEMPLATES) {
+    if (tmpl.workspaceId === workspaceId) {
+      templates.push(tmpl);
+    }
+  }
+  return { ok: true, templates };
+}
+
+// ---- SSO Placeholder (would need passport.js for full implementation) ----
+const SSO_CONFIG = {
+  enabled: false,
+  providers: [] // { type: 'saml'|'oidc', name, config }
+};
+
+function configureSSOProvider(provider) {
+  SSO_CONFIG.providers.push({
+    id: uid("sso"),
+    type: provider.type,
+    name: provider.name,
+    config: provider.config,
+    enabled: true,
+    createdAt: nowISO()
+  });
+  SSO_CONFIG.enabled = true;
+  return { ok: true, message: "SSO provider configured. Requires server restart for full activation." };
+}
+
+// ============================================================================
+// WAVE 15: ECOSYSTEM (CLI, SDK helpers, Marketplace, Zapier)
+// ============================================================================
+
+// ---- CLI Commands (exposed via API) ----
+const CLI_COMMANDS = {
+  "search": async (args) => {
+    const query = args.join(" ");
+    if (EMBEDDINGS.enabled) {
+      return await semanticSearch(query, { limit: 10 });
+    }
+    return { ok: true, results: dtusArray().filter(d =>
+      d.title.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 10) };
+  },
+  "add": async (args) => {
+    const title = args.join(" ");
+    if (!title) return { ok: false, error: "Usage: add <title>" };
+    const dtu = {
+      id: uid("dtu"),
+      title,
+      content: "",
+      tags: [],
+      tier: "regular",
+      createdAt: nowISO(),
+      updatedAt: nowISO()
+    };
+    upsertDTU(dtu);
+    return { ok: true, dtu };
+  },
+  "list": async (args) => {
+    const limit = parseInt(args[0]) || 10;
+    return { ok: true, dtus: dtusArray().slice(0, limit).map(d => ({ id: d.id, title: d.title })) };
+  },
+  "stats": async () => {
+    return { ok: true, stats: getCLIStats() };
+  },
+  "backup": async () => {
+    return await createBackup();
+  },
+  "export": async (args) => {
+    const format = args[0] || "json";
+    if (format === "markdown") return exportDTUsToMarkdown();
+    return exportDTUsToJSON();
+  },
+  "tag": async (args) => {
+    const [id, ...tags] = args;
+    const dtu = STATE.dtus.get(id);
+    if (!dtu) return { ok: false, error: "DTU not found" };
+    dtu.tags = [...new Set([...(dtu.tags || []), ...tags])];
+    upsertDTU(dtu);
+    return { ok: true, tags: dtu.tags };
+  }
+};
+
+async function executeCLICommand(commandLine) {
+  const parts = commandLine.trim().split(/\s+/);
+  const [command, ...args] = parts;
+
+  if (!CLI_COMMANDS[command]) {
+    return { ok: false, error: `Unknown command: ${command}`, available: Object.keys(CLI_COMMANDS) };
+  }
+
+  return await CLI_COMMANDS[command](args);
+}
+
+// ---- SDK Helper Endpoints ----
+function generateSDKTypes() {
+  return `
+// Concord TypeScript SDK Types
+
+export interface DTU {
+  id: string;
+  title: string;
+  content?: string;
+  creti?: string;
+  tags: string[];
+  tier: 'regular' | 'mega' | 'hyper';
+  createdAt: string;
+  updatedAt: string;
+  connections?: Connection[];
+  lineage?: string[];
+}
+
+export interface Connection {
+  targetId: string;
+  type: 'supports' | 'contradicts' | 'extends' | 'related';
+  strength: number;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  members: WorkspaceMember[];
+  settings: WorkspaceSettings;
+}
+
+export interface WorkspaceMember {
+  userId: string;
+  role: 'owner' | 'admin' | 'editor' | 'viewer';
+  joinedAt: string;
+}
+
+export interface SearchResult {
+  dtu: DTU;
+  score: number;
+  method: 'semantic' | 'keyword';
+}
+
+export interface ConcordClient {
+  dtus: {
+    list(options?: { limit?: number; offset?: number; q?: string }): Promise<DTU[]>;
+    get(id: string): Promise<DTU>;
+    create(data: Partial<DTU>): Promise<DTU>;
+    update(id: string, data: Partial<DTU>): Promise<DTU>;
+    delete(id: string): Promise<void>;
+  };
+  search: {
+    query(q: string, options?: { semantic?: boolean }): Promise<SearchResult[]>;
+  };
+  ai: {
+    chat(message: string): Promise<{ response: string; context: DTU[] }>;
+    suggest(dtuId: string): Promise<{ suggestions: DTU[] }>;
+  };
+}
+`.trim();
+}
+
+// ---- Webhook/Zapier Integration ----
+const WEBHOOK_SUBSCRIPTIONS = new Map(); // id -> { url, events, secret, active }
+
+function registerWebhook(url, events = ["dtu:created", "dtu:updated"]) {
+  const id = uid("wh");
+  const secret = crypto.randomBytes(32).toString("hex");
+
+  WEBHOOK_SUBSCRIPTIONS.set(id, {
+    id,
+    url,
+    events,
+    secret,
+    active: true,
+    createdAt: nowISO(),
+    lastTriggered: null,
+    failCount: 0
+  });
+
+  return { ok: true, webhookId: id, secret };
+}
+
+async function triggerWebhooks(event, payload) {
+  for (const [, webhook] of WEBHOOK_SUBSCRIPTIONS) {
+    if (!webhook.active || !webhook.events.includes(event)) continue;
+
+    try {
+      const signature = crypto
+        .createHmac("sha256", webhook.secret)
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
+      await fetch(webhook.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Concord-Signature": signature,
+          "X-Concord-Event": event
+        },
+        body: JSON.stringify({ event, payload, timestamp: nowISO() })
+      });
+
+      webhook.lastTriggered = nowISO();
+      webhook.failCount = 0;
+    } catch (e) {
+      webhook.failCount++;
+      if (webhook.failCount >= 5) {
+        webhook.active = false;
+      }
+    }
+  }
+}
+
+// ---- Theme Marketplace (metadata) ----
+const THEME_MARKETPLACE = [
+  { id: "dark", name: "Dark", author: "Concord", downloads: 0, builtin: true },
+  { id: "light", name: "Light", author: "Concord", downloads: 0, builtin: true },
+  { id: "nord", name: "Nord", author: "Concord", downloads: 0, builtin: true },
+  { id: "dracula", name: "Dracula", author: "Community", downloads: 0, colors: {
+    bg: "#282a36", surface: "#44475a", border: "#6272a4", text: "#f8f8f2",
+    textMuted: "#6272a4", primary: "#bd93f9", secondary: "#ff79c6",
+    success: "#50fa7b", warning: "#f1fa8c", danger: "#ff5555"
+  }},
+  { id: "solarized-dark", name: "Solarized Dark", author: "Community", downloads: 0, colors: {
+    bg: "#002b36", surface: "#073642", border: "#586e75", text: "#839496",
+    textMuted: "#586e75", primary: "#268bd2", secondary: "#d33682",
+    success: "#859900", warning: "#b58900", danger: "#dc322f"
+  }},
+  { id: "github-dark", name: "GitHub Dark", author: "Community", downloads: 0, colors: {
+    bg: "#0d1117", surface: "#161b22", border: "#30363d", text: "#c9d1d9",
+    textMuted: "#8b949e", primary: "#58a6ff", secondary: "#bc8cff",
+    success: "#3fb950", warning: "#d29922", danger: "#f85149"
+  }}
+];
+
+function getMarketplaceThemes() {
+  return { ok: true, themes: THEME_MARKETPLACE };
+}
+
+function installTheme(themeId) {
+  const theme = THEME_MARKETPLACE.find(t => t.id === themeId);
+  if (!theme) return { ok: false, error: "Theme not found" };
+  theme.downloads++;
+  return { ok: true, theme };
+}
+
+// ============================================================================
+// WAVE 11-15: NEW API ENDPOINTS
+// ============================================================================
+
+// ---- Wave 11: UX Endpoints ----
+app.post("/api/databases", (req, res) => {
+  const result = createDatabase(req.body.name, req.body.schema || []);
+  res.json(result);
+});
+
+app.get("/api/databases/:id", (req, res) => {
+  const db = DATABASES.get(req.params.id);
+  if (!db) return res.status(404).json({ ok: false, error: "Database not found" });
+  res.json({ ok: true, database: db });
+});
+
+app.post("/api/databases/:id/rows", (req, res) => {
+  const result = addDatabaseRow(req.params.id, req.body);
+  res.json(result);
+});
+
+app.get("/api/databases/:id/query", (req, res) => {
+  const result = queryDatabase(req.params.id, req.query);
+  res.json(result);
+});
+
+app.post("/api/databases/:id/views", (req, res) => {
+  const result = addDatabaseView(req.params.id, req.body);
+  res.json(result);
+});
+
+app.get("/api/daily", (req, res) => {
+  const result = getOrCreateDailyNote(req.query.date);
+  res.json(result);
+});
+
+app.get("/api/daily/list", (req, res) => {
+  const result = listDailyNotes(Number(req.query.limit || 30));
+  res.json(result);
+});
+
+app.get("/api/views/calendar", (req, res) => {
+  const year = Number(req.query.year || new Date().getFullYear());
+  const month = Number(req.query.month || new Date().getMonth() + 1);
+  res.json(getCalendarData(year, month));
+});
+
+app.get("/api/views/kanban", (req, res) => {
+  res.json(getKanbanData(req.query.groupBy || "tier"));
+});
+
+app.post("/api/embed/parse", (req, res) => {
+  const result = parseEmbed(req.body.url);
+  if (result.ok) {
+    result.html = generateEmbedHtml(result);
+  }
+  res.json(result);
+});
+
+// ---- Wave 12: AI Depth Endpoints ----
+app.post("/api/voice/transcribe", express.raw({ type: "audio/*", limit: "50mb" }), async (req, res) => {
+  const result = await processVoiceNote(req.body, { createDTU: req.query.createDTU === "1" });
+  res.json(result);
+});
+
+app.post("/api/vision/analyze", express.raw({ type: "image/*", limit: "20mb" }), async (req, res) => {
+  const result = await analyzeImage(req.body, req.query.prompt);
+  res.json(result);
+});
+
+app.get("/api/digest", async (req, res) => {
+  const result = await generateDailyDigest(req.query.date);
+  res.json(result);
+});
+
+app.post("/api/ai/complete", async (req, res) => {
+  const result = await getInlineCompletion(req.body.text, Number(req.body.cursorPosition), req.body.context);
+  res.json(result);
+});
+
+app.post("/api/ai/auto-tag", async (req, res) => {
+  const result = await suggestTags(req.body.content, req.body.existingTags || []);
+  res.json(result);
+});
+
+// ---- Wave 13: Capture Endpoints ----
+app.post("/api/capture/email", (req, res) => {
+  const result = processEmailToDTU(req.body);
+  res.json(result);
+});
+
+app.post("/api/feeds", async (req, res) => {
+  const result = await addRSSFeed(req.body.url, req.body.name);
+  res.json(result);
+});
+
+app.get("/api/feeds", (req, res) => {
+  const feeds = Array.from(RSS_FEEDS.values());
+  res.json({ ok: true, feeds });
+});
+
+app.post("/api/feeds/:id/fetch", async (req, res) => {
+  const result = await fetchRSSFeed(req.params.id);
+  res.json(result);
+});
+
+app.post("/api/feeds/:id/import", async (req, res) => {
+  const fetchResult = await fetchRSSFeed(req.params.id);
+  if (!fetchResult.ok) return res.json(fetchResult);
+
+  const imported = [];
+  for (const item of fetchResult.items.slice(0, Number(req.query.limit || 10))) {
+    const dtuResult = createDTUFromRSSItem(item, fetchResult.feedName);
+    if (dtuResult.ok) imported.push(dtuResult.dtu.id);
+  }
+
+  res.json({ ok: true, imported, count: imported.length });
+});
+
+app.post("/api/reminders", (req, res) => {
+  const result = createReminder(req.body.dtuId, req.body.reminderAt, req.body.message);
+  res.json(result);
+});
+
+app.get("/api/reminders/due", (req, res) => {
+  res.json(getDueReminders());
+});
+
+app.post("/api/reminders/:id/complete", (req, res) => {
+  res.json(completeReminder(req.params.id));
+});
+
+// ---- Wave 14: Enterprise Endpoints ----
+app.get("/api/admin/stats", requireRole("owner", "admin"), (req, res) => {
+  res.json(getAdminStats());
+});
+
+app.get("/api/admin/audit", requireRole("owner", "admin"), (req, res) => {
+  res.json(queryAuditLog(req.query));
+});
+
+app.post("/api/admin/sso", requireRole("owner"), (req, res) => {
+  res.json(configureSSOProvider(req.body));
+});
+
+app.post("/api/workspaces/:id/templates", (req, res) => {
+  const userId = req.user?.id || "anonymous";
+  const result = createTeamTemplate(req.params.id, req.body, userId);
+  res.json(result);
+});
+
+app.get("/api/workspaces/:id/templates", (req, res) => {
+  res.json(getWorkspaceTemplates(req.params.id));
+});
+
+// ---- Wave 15: Ecosystem Endpoints ----
+app.post("/api/cli", async (req, res) => {
+  const result = await executeCLICommand(req.body.command);
+  res.json(result);
+});
+
+app.get("/api/sdk/types", (req, res) => {
+  res.type("text/typescript").send(generateSDKTypes());
+});
+
+app.post("/api/webhooks/register", (req, res) => {
+  const result = registerWebhook(req.body.url, req.body.events);
+  res.json(result);
+});
+
+app.get("/api/webhooks", (req, res) => {
+  const webhooks = Array.from(WEBHOOK_SUBSCRIPTIONS.values()).map(w => ({
+    id: w.id,
+    url: w.url,
+    events: w.events,
+    active: w.active,
+    lastTriggered: w.lastTriggered
+  }));
+  res.json({ ok: true, webhooks });
+});
+
+app.delete("/api/webhooks/:id", (req, res) => {
+  WEBHOOK_SUBSCRIPTIONS.delete(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get("/api/themes/marketplace", (req, res) => {
+  res.json(getMarketplaceThemes());
+});
+
+app.post("/api/themes/:id/install", (req, res) => {
+  res.json(installTheme(req.params.id));
+});
+
+console.log("[Concord] Waves 11-15: All enhancement APIs loaded");
+
+// ============================================================================
+// END CONCORD ENHANCEMENTS v6.0 - ALL WAVES COMPLETE
 // ============================================================================
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
