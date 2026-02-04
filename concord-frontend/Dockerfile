@@ -19,9 +19,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build argument for API URL
+# Build arguments for API and Socket URLs
 ARG NEXT_PUBLIC_API_URL=http://localhost:5050
+ARG NEXT_PUBLIC_SOCKET_URL=http://localhost:5050
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 
 # Build Next.js app
 RUN npm run build
