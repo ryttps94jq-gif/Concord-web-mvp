@@ -52,7 +52,7 @@ const VERSION = "5.0.0-production";
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString("hex");
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
-const AUTH_ENABLED = String(process.env.AUTH_ENABLED || "false").toLowerCase() === "true";
+const AUTH_ENABLED = String(process.env.AUTH_ENABLED || "true").toLowerCase() === "true";
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 100);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
@@ -953,22 +953,29 @@ function saveAuthData() {
 }
 loadAuthData();
 
-// Create default admin if no users exist
+// Create default admin if no users exist (requires ADMIN_PASSWORD env var)
 if (AUTH.users.size === 0 && bcrypt) {
-  const adminId = crypto.randomUUID();
-  const defaultPassword = process.env.ADMIN_PASSWORD || "admin123";
-  AUTH.users.set(adminId, {
-    id: adminId,
-    username: "admin",
-    email: "admin@localhost",
-    passwordHash: bcrypt.hashSync(defaultPassword, BCRYPT_ROUNDS),
-    role: "owner",
-    scopes: ["*"],
-    createdAt: new Date().toISOString(),
-    lastLoginAt: null
-  });
-  saveAuthData();
-  console.log(`[Auth] Created default admin user (password: ${defaultPassword})`);
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.error("[Auth] CRITICAL: No ADMIN_PASSWORD environment variable set. Cannot create admin user.");
+    console.error("[Auth] Set ADMIN_PASSWORD in your .env file or environment before deploying.");
+  } else if (adminPassword.length < 12) {
+    console.error("[Auth] CRITICAL: ADMIN_PASSWORD must be at least 12 characters long.");
+  } else {
+    const adminId = crypto.randomUUID();
+    AUTH.users.set(adminId, {
+      id: adminId,
+      username: "admin",
+      email: "admin@localhost",
+      passwordHash: bcrypt.hashSync(adminPassword, BCRYPT_ROUNDS),
+      role: "owner",
+      scopes: ["*"],
+      createdAt: new Date().toISOString(),
+      lastLoginAt: null
+    });
+    saveAuthData();
+    console.log("[Auth] Created default admin user (username: admin)");
+  }
 }
 
 // Auth helper functions
@@ -1078,7 +1085,7 @@ if (z) {
   schemas.userRegister = z.object({
     username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_-]+$/),
     email: z.string().email(),
-    password: z.string().min(8).max(100)
+    password: z.string().min(12).max(100)
   });
 
   schemas.userLogin = z.object({
@@ -1308,6 +1315,7 @@ export { createBackup, restoreBackup, listBackups };
 
 // ---- Rate Limiting ----
 let rateLimiter = null;
+let authRateLimiter = null;
 if (rateLimit) {
   rateLimiter = rateLimit({
     windowMs: RATE_LIMIT_WINDOW_MS,
@@ -1316,6 +1324,16 @@ if (rateLimit) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => req.user?.id || req.ip
+  });
+  // Stricter rate limiting for auth endpoints (5 attempts per 15 minutes)
+  authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts
+    message: { ok: false, error: "Too many authentication attempts. Please try again later.", retryAfter: 900 },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip,
+    skipSuccessfulRequests: true // Don't count successful logins
   });
 }
 
@@ -10070,11 +10088,55 @@ register("harness", "run", async (ctx, input={}) => {
 const app = express();
 
 // ---- Production Middleware ----
-if (helmet) app.use(helmet({ contentSecurityPolicy: false })); // Security headers
+if (helmet) app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "wss:", "ws:", ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()) : [])],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedding for development
+})); // Security headers
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cors());
+
+// CORS configuration - uses ALLOWED_ORIGINS env var
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+  : [];
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    // In development, allow localhost
+    if (process.env.NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+      return callback(null, true);
+    }
+    // In production, check against allowed origins
+    if (allowedOrigins.length === 0) {
+      console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Rejecting cross-origin request from:", origin);
+      return callback(new Error("CORS not configured"), false);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn("[CORS] Rejected origin:", origin);
+    return callback(new Error("Not allowed by CORS"), false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With"],
+};
+app.use(cors(corsOptions));
+
 if (rateLimiter) app.use(rateLimiter);
 app.use(metricsMiddleware);
 app.use(authMiddleware);
@@ -10115,7 +10177,10 @@ app.get("/metrics", async (req, res) => {
 });
 
 // ---- Auth Endpoints ----
-app.post("/api/auth/register", validate("userRegister"), async (req, res) => {
+// Apply stricter rate limiting to auth endpoints
+const authRateLimitMiddleware = authRateLimiter || ((req, res, next) => next());
+
+app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister"), async (req, res) => {
   const { username, email, password } = req.validated || req.body;
 
   // Check if registration is allowed
@@ -10152,7 +10217,7 @@ app.post("/api/auth/register", validate("userRegister"), async (req, res) => {
   });
 });
 
-app.post("/api/auth/login", validate("userLogin"), async (req, res) => {
+app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), async (req, res) => {
   const { username, email, password } = req.validated || req.body;
 
   let user = null;
@@ -10444,7 +10509,7 @@ function _withAck(out, req, mutated=[], reads=[], job=null, extra={}) {
   if (out && typeof out === "object") return { ...out, ok: (typeof out.ok==="boolean"?out.ok:true), ack };
   return { ok: true, result: out, ack };
 }
-app.use(cors());
+// NOTE: CORS is configured above in Production Middleware section - do not add duplicate cors() here
 app.use(express.json({ limit: "2mb" }));
 
 // ---- v3: Auth/Org (local-first) + Macro ACL + Actor Context ----
@@ -14681,7 +14746,7 @@ const PG_CONFIG = {
   enabled: !!process.env.POSTGRES_URL || !!process.env.DATABASE_URL,
   url: process.env.POSTGRES_URL || process.env.DATABASE_URL || null,
   pool: { min: 2, max: 10, idleTimeoutMillis: 30000 },
-  ssl: process.env.POSTGRES_SSL === "true" ? { rejectUnauthorized: false } : false
+  ssl: process.env.POSTGRES_SSL === "true" ? { rejectUnauthorized: process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED !== "false" } : false
 };
 
 let pgPool = null;
