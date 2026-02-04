@@ -2,7 +2,7 @@
 
 import { useRef, useState, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Html, Stars, Float } from '@react-three/drei';
+import { OrbitControls, Text, Html, Stars, Float, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { ZoomIn, ZoomOut, RotateCcw, Eye, Layers } from 'lucide-react';
@@ -128,22 +128,17 @@ function Edge({
   isHighlighted: boolean;
 }) {
   const points = useMemo(() => {
-    return [new THREE.Vector3(...start), new THREE.Vector3(...end)];
+    return [start, end] as [[number, number, number], [number, number, number]];
   }, [start, end]);
 
-  const lineGeometry = useMemo(() => {
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    return geometry;
-  }, [points]);
-
   return (
-    <line geometry={lineGeometry}>
-      <lineBasicMaterial
-        color={isHighlighted ? '#22d3ee' : '#4b5563'}
-        transparent
-        opacity={isHighlighted ? 0.8 : 0.3}
-      />
-    </line>
+    <Line
+      points={points}
+      color={isHighlighted ? '#22d3ee' : '#4b5563'}
+      lineWidth={isHighlighted ? 2 : 1}
+      transparent
+      opacity={isHighlighted ? 0.8 : 0.3}
+    />
   );
 }
 

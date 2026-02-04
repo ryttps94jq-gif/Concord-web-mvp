@@ -115,7 +115,7 @@ export default function WhiteboardLensPage() {
             <h2 className="text-lg font-bold">Create Whiteboard</h2>
             <CreateWhiteboardForm
               onClose={() => setShowCreate(false)}
-              onCreate={(data) => createMutation.mutate(data)}
+              onCreate={(data: { title: string; linkedDtus: string[] }) => createMutation.mutate(data)}
               creating={createMutation.isPending}
             />
           </div>

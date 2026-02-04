@@ -9,7 +9,7 @@ export * from './common/OfflineIndicator';
 
 // Editor Components
 export * from './editor/BlockEditor';
-export * from './editor/SlashCommands';
+// Note: SlashCommands exports are included via BlockEditor to avoid duplicate export conflict
 export * from './editor/BacklinksPanel';
 
 // Capture Components

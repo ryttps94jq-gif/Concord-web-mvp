@@ -184,7 +184,7 @@ export default function IntegrationsLensPage() {
       {showCreate && activeTab === 'webhooks' && (
         <CreateWebhookModal
           onClose={() => setShowCreate(false)}
-          onCreate={(data) => createWebhookMutation.mutate(data)}
+          onCreate={(data: { name: string; url: string; events: string }) => createWebhookMutation.mutate(data)}
           creating={createWebhookMutation.isPending}
         />
       )}

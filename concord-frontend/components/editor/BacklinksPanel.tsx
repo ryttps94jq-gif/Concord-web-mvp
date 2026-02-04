@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ChevronRight, ChevronDown, Brain, ExternalLink, Search, Filter, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api/client';
+import { api, apiHelpers } from '@/lib/api/client';
 
 interface Backlink {
   id: string;
@@ -39,11 +39,11 @@ export function BacklinksPanel({ dtuId, className, collapsed = false, onToggle }
     setLoading(true);
     try {
       // Fetch backlinks (DTUs that link to this one)
-      const backlinkRes = await api.graph.neighbors(dtuId, 'incoming');
+      const backlinkRes = await api.get(`/api/graph/neighbors/${dtuId}`, { params: { direction: 'incoming' } });
       setBacklinks(backlinkRes.data?.neighbors || []);
 
       // Fetch forward links (DTUs this one links to)
-      const forwardRes = await api.graph.neighbors(dtuId, 'outgoing');
+      const forwardRes = await api.get(`/api/graph/neighbors/${dtuId}`, { params: { direction: 'outgoing' } });
       setForwardLinks(forwardRes.data?.neighbors || []);
     } catch (error) {
       console.error('Failed to load links:', error);

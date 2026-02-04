@@ -3151,7 +3151,7 @@ register("semantic", "classify_intent", async (ctx, input = {}) => {
   enforceEthosInvariant("semantic_classify");
   const text = String(input.text || "");
   if (!text) return { ok: false, error: "text required" };
-  return { ok: true, ...classifyIntent(text) };
+  return { ok: true, ...classifySemanticIntent(text) };
 }, { public: true });
 
 register("semantic", "extract_entities", async (ctx, input = {}) => {
@@ -13051,10 +13051,10 @@ register("import", "markdown", async (ctx, input) => {
   return { ok: true, imported, parsed: dtus.length };
 });
 
-// ---- Plugin/Extension System ----
-const PLUGINS = new Map();
+// ---- Plugin/Extension System (Macro-based) ----
+// Note: PLUGINS Map is declared above in Wave 3. This adds macro-based registration.
 
-function registerPlugin(name, config) {
+function registerPluginFromMacro(name, config) {
   const plugin = {
     name,
     version: config.version || "1.0.0",
@@ -13080,7 +13080,7 @@ function registerPlugin(name, config) {
 
 register("plugin", "register", async (ctx, input) => {
   if (!input.name) return { ok: false, error: "Plugin name required" };
-  const plugin = registerPlugin(input.name, input);
+  const plugin = registerPluginFromMacro(input.name, input);
   return { ok: true, plugin: { name: plugin.name, version: plugin.version } };
 });
 
@@ -17823,19 +17823,7 @@ function simpleHash(str) {
   return Math.abs(hash);
 }
 
-// Compute cosine similarity between two embeddings
-function cosineSimilarity(a, b) {
-  if (!a || !b || a.length !== b.length) return 0;
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
-}
+// Note: cosineSimilarity is declared above in Wave 2
 
 // Get or compute embedding for a DTU
 function getDtuEmbedding(dtuId) {
@@ -17899,8 +17887,8 @@ function findSimilarDtus(query, limit = 10, threshold = null) {
   return results.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
 }
 
-// Classify intent from text
-function classifyIntent(text) {
+// Classify semantic intent from text (advanced version for semantic engine)
+function classifySemanticIntent(text) {
   ensureSemanticEngine();
 
   const lower = text.toLowerCase();

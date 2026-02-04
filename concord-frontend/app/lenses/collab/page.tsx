@@ -111,7 +111,7 @@ export default function CollabLensPage() {
       {showCreate && (
         <CreateSessionModal
           onClose={() => setShowCreate(false)}
-          onCreate={(data) => createMutation.mutate(data)}
+          onCreate={(data: { dtuId: string; mode: string }) => createMutation.mutate(data)}
           dtus={dtus?.dtus || []}
           creating={createMutation.isPending}
         />

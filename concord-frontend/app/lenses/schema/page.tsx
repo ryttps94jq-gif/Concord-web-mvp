@@ -130,7 +130,7 @@ export default function SchemaLensPage() {
       {showCreate && (
         <CreateSchemaModal
           onClose={() => setShowCreate(false)}
-          onCreate={(data) => createMutation.mutate(data)}
+          onCreate={(data: { name: string; kind: string; fields: Array<{ name: string; type: string; required: boolean }> }) => createMutation.mutate(data)}
           creating={createMutation.isPending}
         />
       )}

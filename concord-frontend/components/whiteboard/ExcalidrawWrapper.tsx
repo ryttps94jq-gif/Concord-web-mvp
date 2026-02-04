@@ -93,9 +93,9 @@ export const ExcalidrawWrapper = forwardRef<ExcalidrawRef, ExcalidrawWrapperProp
     resetZoom: () => excalidrawAPI?.resetZoom()
   }), [excalidrawAPI]);
 
-  const handleChange = useCallback((elements: any[], appState: any) => {
+  const handleChange = useCallback((elements: readonly any[], appState: any) => {
     setHasUnsavedChanges(true);
-    onChange?.(elements, appState);
+    onChange?.([...elements], appState);
   }, [onChange]);
 
   const handleSave = useCallback(async () => {
@@ -216,7 +216,7 @@ export const ExcalidrawWrapper = forwardRef<ExcalidrawRef, ExcalidrawWrapperProp
 
       {/* Excalidraw canvas */}
       <Excalidraw
-        ref={(api: any) => setExcalidrawAPI(api)}
+        excalidrawAPI={(api: any) => setExcalidrawAPI(api)}
         initialData={initialData}
         onChange={handleChange}
         viewModeEnabled={readOnly}

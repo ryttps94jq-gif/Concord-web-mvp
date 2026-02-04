@@ -114,7 +114,7 @@ export default function MarketplaceLensPage() {
       {showSubmit && (
         <SubmitPluginModal
           onClose={() => setShowSubmit(false)}
-          onSubmit={(data) => submitMutation.mutate(data)}
+          onSubmit={(data: { name: string; githubUrl: string; description: string; category: string }) => submitMutation.mutate(data)}
           categories={browse?.categories || []}
           submitting={submitMutation.isPending}
         />
