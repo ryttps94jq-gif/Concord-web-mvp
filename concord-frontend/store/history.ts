@@ -144,7 +144,7 @@ export function createUndoableAction<T>(
       type: 'action',
       description,
       undo: () => undoFn(result),
-      redo: execute
+      redo: async () => { await execute(); }
     });
 
     return result;

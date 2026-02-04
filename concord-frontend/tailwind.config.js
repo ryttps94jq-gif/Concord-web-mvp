@@ -34,6 +34,12 @@ module.exports = {
           warning: '#f59e0b',
           danger: '#ef4444',
         },
+        status: {
+          success: '#22c55e',
+          warning: '#f59e0b',
+          error: '#ef4444',
+          info: '#3b82f6',
+        },
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],

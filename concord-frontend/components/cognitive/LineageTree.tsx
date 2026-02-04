@@ -248,7 +248,7 @@ function TreeNode({
           )}
 
           {node.metadata?.synthesizedFrom && (
-            <Sparkles className="w-3.5 h-3.5 text-neon-purple" title="Synthesized" />
+            <span title="Synthesized"><Sparkles className="w-3.5 h-3.5 text-neon-purple" /></span>
           )}
         </button>
 

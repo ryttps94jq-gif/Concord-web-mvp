@@ -18,7 +18,7 @@ import {
   Bookmark
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api/client';
+import { api, apiHelpers } from '@/lib/api/client';
 
 interface QuickCaptureProps {
   isOpen: boolean;
@@ -91,12 +91,12 @@ export function QuickCapture({ isOpen, onClose, onCapture }: QuickCaptureProps) 
 
     setIsSubmitting(true);
     try {
-      const dtu = await api.forge({
+      const response = await apiHelpers.forge.create({
         content: content.trim(),
-        type: captureType,
-        tags,
+        tags: [...tags, captureType],
         source: 'quick-capture'
       });
+      const dtu = response.data;
 
       onCapture?.(dtu);
       setContent('');

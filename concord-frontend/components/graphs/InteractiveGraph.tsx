@@ -133,7 +133,7 @@ export function InteractiveGraph({
             'text-margin-y': 5,
             'width': 'data(size)',
             'height': 'data(size)',
-            'text-max-width': 80,
+            'text-max-width': '80px',
             'text-wrap': 'ellipsis'
           }
         },
@@ -142,7 +142,8 @@ export function InteractiveGraph({
           style: {
             'border-width': 4,
             'border-color': '#22d3ee',
-            'box-shadow': '0 0 20px rgba(34, 211, 238, 0.8)'
+            'overlay-opacity': 0.2,
+            'overlay-color': '#22d3ee'
           }
         },
         {

@@ -182,10 +182,7 @@ export const apiHelpers = {
       api.post('/api/credits/spend', { walletId, amount, reason }),
   },
 
-  // Marketplace
-  marketplace: {
-    listings: () => api.get('/api/marketplace/listings'),
-  },
+  // Note: Marketplace is defined in v4.0 APIs section below
 
   // Global feed
   global: {
@@ -207,6 +204,7 @@ export const apiHelpers = {
 
   // Plugin Marketplace
   marketplace: {
+    listings: () => api.get('/api/marketplace/listings'),
     browse: (params?: { search?: string; category?: string; page?: number }) =>
       api.get('/api/marketplace/browse', { params }),
     submit: (data: { name: string; githubUrl: string; description?: string; category?: string }) =>
