@@ -1,0 +1,60 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Git
+.git
+.gitignore
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+
+# Next.js build output (will be rebuilt in container)
+.next
+out
+
+# Development files
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+test
+tests
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage
+cypress
+e2e
+
+# Documentation
+*.md
+!README.md
+
+# Storybook
+.storybook
+storybook-static
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+.tmp
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Playwright
+playwright-report
+test-results

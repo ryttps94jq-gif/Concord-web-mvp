@@ -5,14 +5,31 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050'
 
 let socket: Socket | null = null;
 
+// Get authentication credentials from localStorage
+function getAuthCredentials(): { token?: string; apiKey?: string } {
+  if (typeof window === 'undefined') return {};
+
+  const token = localStorage.getItem('concord_token');
+  const apiKey = localStorage.getItem('concord_api_key');
+
+  return {
+    ...(token && { token }),
+    ...(apiKey && { apiKey }),
+  };
+}
+
 export function getSocket(): Socket {
   if (!socket) {
+    const auth = getAuthCredentials();
+
     socket = io(SOCKET_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       transports: ['websocket', 'polling'],
+      // SECURITY: Pass authentication credentials
+      auth,
     });
 
     // Connection event handlers
@@ -26,10 +43,28 @@ export function getSocket(): Socket {
 
     socket.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message);
+      // If authentication failed, the error message will indicate this
+      if (error.message === 'Authentication required') {
+        console.warn('[Socket] Authentication required - please log in');
+      }
+    });
+
+    // Handle hello message from server
+    socket.on('hello', (data) => {
+      console.log('[Socket] Server hello:', data);
     });
   }
 
   return socket;
+}
+
+// Reconnect with fresh credentials (call after login)
+export function reconnectSocket(): void {
+  if (socket) {
+    socket.disconnect();
+    socket.auth = getAuthCredentials();
+    socket.connect();
+  }
 }
 
 export function connectSocket(): void {

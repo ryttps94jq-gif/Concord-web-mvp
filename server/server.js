@@ -49,7 +49,22 @@ await tryLoadDotenv();
 // ---- config ----
 const PORT = Number(process.env.PORT || 5050);
 const VERSION = "5.0.0-production";
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString("hex");
+const NODE_ENV = process.env.NODE_ENV || "development";
+
+// SECURITY: JWT_SECRET must be set in production
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && NODE_ENV === "production") {
+  console.error("\n[FATAL] JWT_SECRET environment variable is required in production.");
+  console.error("[FATAL] Generate one with: openssl rand -hex 64");
+  console.error("[FATAL] Add it to your .env file or environment variables.\n");
+  process.exit(1);
+}
+// In development, generate a temporary secret (will change on restart)
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || crypto.randomBytes(64).toString("hex");
+if (!JWT_SECRET) {
+  console.warn("[Auth] WARNING: No JWT_SECRET set. Using temporary secret - sessions will not persist across restarts.");
+}
+
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 const AUTH_ENABLED = String(process.env.AUTH_ENABLED || "true").toLowerCase() === "true";
@@ -957,10 +972,21 @@ loadAuthData();
 if (AUTH.users.size === 0 && bcrypt) {
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
-    console.error("[Auth] CRITICAL: No ADMIN_PASSWORD environment variable set. Cannot create admin user.");
-    console.error("[Auth] Set ADMIN_PASSWORD in your .env file or environment before deploying.");
+    if (NODE_ENV === "production") {
+      console.error("\n[FATAL] ADMIN_PASSWORD environment variable is required in production.");
+      console.error("[FATAL] Set a strong password (minimum 12 characters) in your .env file.\n");
+      process.exit(1);
+    } else {
+      console.warn("[Auth] WARNING: No ADMIN_PASSWORD set. Admin account not created.");
+      console.warn("[Auth] Set ADMIN_PASSWORD in your .env file to enable authentication.");
+    }
   } else if (adminPassword.length < 12) {
-    console.error("[Auth] CRITICAL: ADMIN_PASSWORD must be at least 12 characters long.");
+    if (NODE_ENV === "production") {
+      console.error("\n[FATAL] ADMIN_PASSWORD must be at least 12 characters long.\n");
+      process.exit(1);
+    } else {
+      console.error("[Auth] CRITICAL: ADMIN_PASSWORD must be at least 12 characters long.");
+    }
   } else {
     const adminId = crypto.randomUUID();
     AUTH.users.set(adminId, {
@@ -981,13 +1007,13 @@ if (AUTH.users.size === 0 && bcrypt) {
 // Auth helper functions
 function createToken(userId, expiresIn = JWT_EXPIRES_IN) {
   if (!jwt) return null;
-  return jwt.sign({ userId, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn });
+  return jwt.sign({ userId, iat: Math.floor(Date.now() / 1000) }, EFFECTIVE_JWT_SECRET, { expiresIn });
 }
 
 function verifyToken(token) {
   if (!jwt) return null;
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, EFFECTIVE_JWT_SECRET);
   } catch { return null; }
 }
 
@@ -1003,6 +1029,21 @@ function verifyPassword(password, hash) {
 
 function generateApiKey() {
   return `ck_${crypto.randomBytes(32).toString("hex")}`;
+}
+
+// SECURITY: Hash API keys for storage (only store hash, return raw key once on creation)
+function hashApiKey(apiKey) {
+  return crypto.createHash("sha256").update(apiKey).digest("hex");
+}
+
+function verifyApiKey(rawKey, hashedKey) {
+  const hash = hashApiKey(rawKey);
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hashedKey));
+  } catch {
+    return false;
+  }
 }
 
 // Auth middleware
@@ -1031,9 +1072,25 @@ function authMiddleware(req, res, next) {
     }
   }
 
-  // Try API key
+  // Try API key (keys are stored hashed for security)
   if (apiKey) {
-    const keyData = AUTH.apiKeys.get(apiKey);
+    // First try direct lookup (for backwards compatibility with old unhashed keys)
+    let keyData = AUTH.apiKeys.get(apiKey);
+    let matchedKey = apiKey;
+
+    // If not found, search by hash
+    if (!keyData) {
+      const hashedKey = hashApiKey(apiKey);
+      for (const [storedKey, data] of AUTH.apiKeys) {
+        // Check if stored key is a hash (64 hex chars) and matches
+        if (storedKey.length === 64 && verifyApiKey(apiKey, storedKey)) {
+          keyData = data;
+          matchedKey = storedKey;
+          break;
+        }
+      }
+    }
+
     if (keyData) {
       const user = AUTH.users.get(keyData.userId);
       if (user) {
@@ -1341,24 +1398,24 @@ if (rateLimit) {
 // END WAVE 1: PRODUCTION READINESS
 // ============================================================================
 
-// ---- realtime (optional WebSockets; local-first) ----
+// ---- realtime (Socket.IO for frontend compatibility) ----
 // Thin transport only: mirrors state changes (no new logic).
 const REALTIME = {
   ready: false,
-  wss: null,
-  clients: new Map(), // clientId -> { ws, sessionId, orgId, createdAt }
+  io: null,
+  clients: new Map(), // socketId -> { socket, sessionId, orgId, userId, createdAt }
 };
 
 function realtimeEmit(event, payload, { sessionId = "", orgId = "" } = {}) {
-  if (!REALTIME.ready || !REALTIME.wss) return { ok: false, reason: "ws_not_ready" };
-  const msg = JSON.stringify({ type: String(event || "event"), payload, ts: nowISO() });
-  for (const [cid, c] of REALTIME.clients.entries()) {
-    try {
-      if (c?.ws?.readyState !== 1) continue;
-      if (sessionId && c.sessionId && c.sessionId !== sessionId) continue;
-      if (orgId && c.orgId && c.orgId !== orgId) continue;
-      c.ws.send(msg);
-    } catch {}
+  if (!REALTIME.ready || !REALTIME.io) return { ok: false, reason: "socket_not_ready" };
+
+  // Emit to specific rooms or broadcast
+  if (sessionId) {
+    REALTIME.io.to(`session:${sessionId}`).emit(event, { ...payload, ts: nowISO() });
+  } else if (orgId) {
+    REALTIME.io.to(`org:${orgId}`).emit(event, { ...payload, ts: nowISO() });
+  } else {
+    REALTIME.io.emit(event, { ...payload, ts: nowISO() });
   }
   return { ok: true };
 }
@@ -1372,9 +1429,147 @@ function enqueueNotification(item, { sessionId = "", orgId = "" } = {}) {
 }
 
 async function tryInitWebSockets(server) {
-  // WebSockets are optional: only enabled if ws dependency exists AND CONCORD_WS_ENABLED != "false"
+  // Socket.IO: only enabled if socket.io dependency exists AND CONCORD_WS_ENABLED != "false"
   if (String(process.env.CONCORD_WS_ENABLED || "").toLowerCase() === "false") return { ok: false, reason: "disabled" };
   if (!server) return { ok: false, reason: "no_server" };
+
+  let Server = null;
+  try {
+    const mod = await import("socket.io");
+    Server = mod?.Server || mod?.default?.Server || mod?.default;
+  } catch (e) {
+    // Fallback to ws if socket.io not available
+    console.warn("[Realtime] socket.io not installed, trying native ws...");
+    return tryInitNativeWebSockets(server);
+  }
+  if (!Server) return { ok: false, reason: "socketio_import_failed" };
+
+  const io = new Server(server, {
+    cors: {
+      origin: NODE_ENV === "production"
+        ? (process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()) : [])
+        : ["http://localhost:3000", "http://127.0.0.1:3000"],
+      methods: ["GET", "POST"],
+      credentials: true
+    },
+    transports: ["websocket", "polling"],
+    pingTimeout: 60000,
+    pingInterval: 25000
+  });
+
+  REALTIME.io = io;
+  REALTIME.ready = true;
+
+  // SECURITY: Socket.IO authentication middleware
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
+    const apiKey = socket.handshake.auth?.apiKey || socket.handshake.headers?.["x-api-key"];
+
+    // In development, allow unauthenticated connections
+    if (NODE_ENV !== "production") {
+      socket.data.userId = null;
+      socket.data.authenticated = false;
+      return next();
+    }
+
+    // Try JWT token
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded?.userId) {
+        const user = AUTH.users.get(decoded.userId);
+        if (user) {
+          socket.data.userId = user.id;
+          socket.data.username = user.username;
+          socket.data.authenticated = true;
+          return next();
+        }
+      }
+    }
+
+    // Try API key
+    if (apiKey) {
+      const hashedKey = hashApiKey(apiKey);
+      for (const [storedKey, data] of AUTH.apiKeys) {
+        if (storedKey.length === 64 && verifyApiKey(apiKey, storedKey)) {
+          const user = AUTH.users.get(data.userId);
+          if (user) {
+            socket.data.userId = user.id;
+            socket.data.username = user.username;
+            socket.data.authenticated = true;
+            return next();
+          }
+        }
+      }
+    }
+
+    // In production, reject unauthenticated connections
+    return next(new Error("Authentication required"));
+  });
+
+  io.on("connection", (socket) => {
+    const clientId = socket.id;
+    REALTIME.clients.set(clientId, {
+      socket,
+      sessionId: "",
+      orgId: "",
+      userId: socket.data.userId,
+      createdAt: nowISO()
+    });
+
+    // Send hello
+    socket.emit("hello", { clientId, version: VERSION, ts: nowISO(), authenticated: socket.data.authenticated });
+
+    // Room management
+    socket.on("room:join", ({ room }) => {
+      if (room) {
+        socket.join(room);
+        socket.emit("room:joined", { room, ts: nowISO() });
+      }
+    });
+
+    socket.on("room:leave", ({ room }) => {
+      if (room) {
+        socket.leave(room);
+        socket.emit("room:left", { room, ts: nowISO() });
+      }
+    });
+
+    // Subscribe to session/org updates
+    socket.on("subscribe", ({ sessionId, orgId }) => {
+      const c = REALTIME.clients.get(clientId);
+      if (!c) return;
+
+      if (sessionId && STATE.sessions.has(sessionId)) {
+        c.sessionId = sessionId;
+        socket.join(`session:${sessionId}`);
+      }
+      if (orgId) {
+        c.orgId = orgId;
+        socket.join(`org:${orgId}`);
+      }
+      socket.emit("subscribed", { sessionId: c.sessionId, orgId: c.orgId, ts: nowISO() });
+    });
+
+    // Ping/pong for keepalive
+    socket.on("ping", () => {
+      socket.emit("pong", { ts: nowISO() });
+    });
+
+    socket.on("disconnect", () => {
+      REALTIME.clients.delete(clientId);
+    });
+
+    socket.on("error", () => {
+      REALTIME.clients.delete(clientId);
+    });
+  });
+
+  console.log(`[Realtime] Socket.IO enabled on port ${PORT}`);
+  return { ok: true };
+}
+
+// Fallback to native WebSockets if Socket.IO not available
+async function tryInitNativeWebSockets(server) {
   let WebSocketServer = null;
   try {
     const mod = await import("ws");
@@ -1385,14 +1580,30 @@ async function tryInitWebSockets(server) {
   if (!WebSocketServer) return { ok: false, reason: "ws_import_failed" };
 
   const wss = new WebSocketServer({ server, path: "/ws" });
+  // Store reference for compatibility
   REALTIME.wss = wss;
   REALTIME.ready = true;
+
+  // Override emit for native WS
+  const originalEmit = realtimeEmit;
+  globalThis.realtimeEmitNative = (event, payload, opts = {}) => {
+    if (!REALTIME.ready || !wss) return { ok: false, reason: "ws_not_ready" };
+    const msg = JSON.stringify({ type: String(event || "event"), payload, ts: nowISO() });
+    for (const [cid, c] of REALTIME.clients.entries()) {
+      try {
+        if (c?.ws?.readyState !== 1) continue;
+        if (opts.sessionId && c.sessionId && c.sessionId !== opts.sessionId) continue;
+        if (opts.orgId && c.orgId && c.orgId !== opts.orgId) continue;
+        c.ws.send(msg);
+      } catch {}
+    }
+    return { ok: true };
+  };
 
   wss.on("connection", (ws, req) => {
     const clientId = uid("ws");
     REALTIME.clients.set(clientId, { ws, sessionId: "", orgId: "", createdAt: nowISO() });
 
-    // Hello
     try { ws.send(JSON.stringify({ type: "hello", clientId, version: VERSION, ts: nowISO() })); } catch {}
 
     ws.on("message", (buf) => {
@@ -1402,11 +1613,9 @@ async function tryInitWebSockets(server) {
         const c = REALTIME.clients.get(clientId);
         if (!c) return;
 
-        // Client-driven subscription (thin; no side-effects)
         if (msg?.type === "subscribe") {
           const sid = String(msg?.sessionId || "");
           const oid = String(msg?.orgId || "");
-          // Only accept sessionId if it exists
           if (sid && STATE.sessions.has(sid)) c.sessionId = sid;
           if (oid) c.orgId = oid;
           try { ws.send(JSON.stringify({ type: "subscribed", sessionId: c.sessionId, orgId: c.orgId, ts: nowISO() })); } catch {}
@@ -1424,7 +1633,7 @@ async function tryInitWebSockets(server) {
     ws.on("error", () => { try { REALTIME.clients.delete(clientId); } catch {} });
   });
 
-  console.log(`[Realtime] WebSockets enabled at ws://localhost:${PORT}/ws`);
+  console.log(`[Realtime] Native WebSockets enabled at ws://localhost:${PORT}/ws`);
   return { ok: true };
 }
 // ---- end realtime ----
@@ -10247,17 +10456,25 @@ if (helmet) app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      // Note: Next.js requires 'unsafe-inline' for its hydration scripts in production
+      // In a future update, consider using nonces via Next.js's built-in CSP support
+      scriptSrc: NODE_ENV === "production"
+        ? ["'self'", "'unsafe-inline'"] // Remove unsafe-eval in production
+        : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow eval in dev for HMR
+      styleSrc: ["'self'", "'unsafe-inline'"], // Required for styled-components/emotion
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: ["'self'", "wss:", "ws:", ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()) : [])],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: NODE_ENV === "production" ? [] : null,
     },
   },
   crossOriginEmbedderPolicy: false, // Allow embedding for development
+  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
 })); // Security headers
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
@@ -10269,10 +10486,19 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : [];
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (server-to-server, mobile apps, etc.)
-    if (!origin) return callback(null, true);
+    // SECURITY: In production, reject requests with no origin to prevent CSRF
+    // Only allow no-origin in development for tools like Postman/curl
+    if (!origin) {
+      if (NODE_ENV === "production") {
+        // In production, only allow specific trusted no-origin scenarios
+        // (e.g., same-origin requests from the backend itself)
+        console.warn("[CORS] Rejected request with no origin in production mode");
+        return callback(new Error("Origin required in production"), false);
+      }
+      return callback(null, true);
+    }
     // In development, allow localhost
-    if (process.env.NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+    if (NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
       return callback(null, true);
     }
     // In production, check against allowed origins
@@ -10288,7 +10514,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID"],
 };
 app.use(cors(corsOptions));
 
@@ -10415,27 +10641,38 @@ app.get("/api/auth/me", (req, res) => {
 app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCreate"), async (req, res) => {
   const { name, scopes } = req.validated || req.body;
   const apiKey = generateApiKey();
+  const hashedKey = hashApiKey(apiKey);
 
-  AUTH.apiKeys.set(apiKey, {
+  // SECURITY: Store only the hash, not the raw key
+  AUTH.apiKeys.set(hashedKey, {
     userId: req.user.id,
     name,
     scopes,
+    keyPrefix: apiKey.slice(0, 8), // Store prefix for identification
     createdAt: new Date().toISOString(),
     lastUsedAt: null
   });
   saveAuthData();
 
-  res.status(201).json({ ok: true, apiKey, name, scopes });
+  // Return the raw key ONCE - user must save it, we can't recover it
+  res.status(201).json({
+    ok: true,
+    apiKey, // Raw key - only returned once
+    name,
+    scopes,
+    warning: "Save this API key now. It cannot be retrieved again."
+  });
 });
 
 app.get("/api/auth/api-keys", (req, res) => {
   if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
   const keys = [];
-  for (const [key, data] of AUTH.apiKeys) {
+  for (const [hashedKey, data] of AUTH.apiKeys) {
     if (data.userId === req.user.id || req.user.role === "owner") {
       keys.push({
-        key: key.slice(0, 8) + "..." + key.slice(-4),
+        id: hashedKey.slice(0, 12), // Use hash prefix as ID for deletion
+        keyPrefix: data.keyPrefix || hashedKey.slice(0, 8) + "...", // Show key prefix for identification
         name: data.name,
         scopes: data.scopes,
         createdAt: data.createdAt,
@@ -10446,11 +10683,13 @@ app.get("/api/auth/api-keys", (req, res) => {
   res.json({ ok: true, apiKeys: keys });
 });
 
-app.delete("/api/auth/api-keys/:key", (req, res) => {
-  const keyPrefix = req.params.key;
-  for (const [key, data] of AUTH.apiKeys) {
-    if (key.startsWith(keyPrefix) && (data.userId === req.user?.id || req.user?.role === "owner")) {
-      AUTH.apiKeys.delete(key);
+app.delete("/api/auth/api-keys/:keyId", (req, res) => {
+  const keyId = req.params.keyId;
+  // SECURITY: Delete by hash prefix only, require exact match
+  for (const [hashedKey, data] of AUTH.apiKeys) {
+    if (hashedKey.startsWith(keyId) && hashedKey.length === 64 &&
+        (data.userId === req.user?.id || req.user?.role === "owner")) {
+      AUTH.apiKeys.delete(hashedKey);
       saveAuthData();
       return res.json({ ok: true });
     }
@@ -10856,7 +11095,8 @@ app.get("/api/status", (req, res) => {
 });
 
 // Force reseed DTUs from dtus.js (useful for debugging empty state)
-app.post("/api/reseed", async (req, res) => {
+// SECURITY: Requires owner/admin role to prevent unauthorized state resets
+app.post("/api/reseed", requireRole("owner", "admin"), async (req, res) => {
   try {
     const force = req.body?.force === true;
     if (!force && STATE.dtus.size > 0) {
@@ -11455,6 +11695,126 @@ app.post("/api/ingest/text", async (req,res) => {
     return res.json({ ok:true, source: src });
   } catch (e) {
     return res.status(500).json({ ok:false, error:String(e?.message||e) });
+  }
+});
+
+// Unified ingest endpoint (handles both text and URL based on input)
+app.post("/api/ingest", async (req, res) => {
+  try {
+    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
+
+    // Determine if this is text or URL ingest
+    if (url && String(url).trim()) {
+      // URL-based ingest
+      const out = await runMacro("crawl", "fetch", {
+        url: String(url).trim(),
+        tags: tags || [],
+        makeGlobal: makeGlobal || false,
+        declaredSourceType: declaredSourceType || "url"
+      }, makeCtx(req));
+      return res.json(out);
+    } else if (text && String(text).trim()) {
+      // Text-based ingest
+      const id = uid("src");
+      const contentHash = sha256Hex(String(text).trim());
+      const src = {
+        id,
+        url: "",
+        fetchedAt: nowISO(),
+        contentHash,
+        title: title || `Text source ${id}`,
+        excerpt: String(text).slice(0, 800),
+        text: String(text).trim(),
+        tags: tags || [],
+        isGlobal: makeGlobal || false,
+        declaredSourceType: declaredSourceType || "text",
+        meta: { kind: "text", createdAt: nowISO() }
+      };
+      STATE.sources.set(id, src);
+      saveStateDebounced();
+      return res.json({ ok: true, source: src });
+    } else {
+      return res.status(400).json({ ok: false, error: "Either 'text' or 'url' is required" });
+    }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// Queue-based ingest (adds to processing queue)
+app.post("/api/ingest/queue", async (req, res) => {
+  try {
+    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
+
+    const queueItem = {
+      id: uid("ingest"),
+      type: url ? "url" : "text",
+      payload: { text, url, title, tags, makeGlobal, declaredSourceType },
+      status: "queued",
+      createdAt: nowISO(),
+      createdBy: req.user?.id || "anon"
+    };
+
+    ensureQueues();
+    STATE.queues.ingest = STATE.queues.ingest || [];
+    STATE.queues.ingest.push(queueItem);
+    saveStateDebounced();
+
+    return res.json({ ok: true, queued: true, item: queueItem });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// Jobs status endpoint
+app.get("/api/jobs/status", (req, res) => {
+  try {
+    const jobs = Array.from(STATE.jobs.values());
+    const summary = {
+      total: jobs.length,
+      queued: jobs.filter(j => j.status === "queued").length,
+      running: jobs.filter(j => j.status === "running").length,
+      completed: jobs.filter(j => j.status === "completed").length,
+      failed: jobs.filter(j => j.status === "failed").length,
+      cancelled: jobs.filter(j => j.status === "cancelled").length
+    };
+    return res.json({
+      ok: true,
+      summary,
+      jobs: jobs.slice(0, 100).map(j => ({
+        id: j.id,
+        type: j.type,
+        status: j.status,
+        progress: j.progress || 0,
+        createdAt: j.createdAt,
+        updatedAt: j.updatedAt
+      }))
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// Toggle job enabled/disabled
+app.post("/api/jobs/toggle", async (req, res) => {
+  try {
+    const { job: jobName, enabled } = req.body || {};
+    if (!jobName) return res.status(400).json({ ok: false, error: "job name required" });
+
+    // Find jobs matching the name/type
+    let toggled = 0;
+    for (const [id, job] of STATE.jobs) {
+      if (job.type === jobName || job.name === jobName) {
+        job.enabled = enabled !== false;
+        job.updatedAt = nowISO();
+        toggled++;
+      }
+    }
+
+    saveStateDebounced();
+    return res.json({ ok: true, toggled, enabled: enabled !== false });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 });
 
