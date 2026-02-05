@@ -21,12 +21,14 @@ import { spawnSync } from "child_process";
 
 // ---- Production dependencies (graceful loading) ----
 let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null, promClient = null;
+let Database = null; // better-sqlite3
 try { jwt = (await import("jsonwebtoken")).default; } catch {}
 try { bcrypt = (await import("bcryptjs")).default; } catch {}
 try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch {}
 try { rateLimit = (await import("express-rate-limit")).default; } catch {}
 try { helmet = (await import("helmet")).default; } catch {}
 try { compression = (await import("compression")).default; } catch {}
+try { Database = (await import("better-sqlite3")).default; } catch {}
 
 // ---- dotenv (safe) ----
 let DOTENV = { loaded: false, path: null, error: null };
@@ -46,9 +48,205 @@ async function tryLoadDotenv() {
 }
 await tryLoadDotenv();
 
+// ============================================================================
+// PRODUCTION INFRASTRUCTURE
+// ============================================================================
+
+// ---- Environment Validation ----
+const REQUIRED_ENV_PRODUCTION = ["JWT_SECRET", "ADMIN_PASSWORD"];
+const RECOMMENDED_ENV = ["OPENAI_API_KEY", "ALLOWED_ORIGINS"];
+
+function validateEnvironment() {
+  const errors = [];
+  const warnings = [];
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const isProduction = nodeEnv === "production";
+
+  // Check required vars in production
+  if (isProduction) {
+    for (const envVar of REQUIRED_ENV_PRODUCTION) {
+      if (!process.env[envVar]) {
+        errors.push(`Missing required environment variable: ${envVar}`);
+      }
+    }
+  }
+
+  // Check recommended vars
+  for (const envVar of RECOMMENDED_ENV) {
+    if (!process.env[envVar]) {
+      warnings.push(`Missing recommended environment variable: ${envVar}`);
+    }
+  }
+
+  // Validate specific values
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+    errors.push("JWT_SECRET should be at least 32 characters for security");
+  }
+
+  if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.length < 12) {
+    errors.push("ADMIN_PASSWORD must be at least 12 characters");
+  }
+
+  if (process.env.PORT && (isNaN(Number(process.env.PORT)) || Number(process.env.PORT) < 1)) {
+    errors.push("PORT must be a valid positive number");
+  }
+
+  // Report findings
+  if (warnings.length > 0 && !isProduction) {
+    console.warn("[Config] Warnings:");
+    warnings.forEach(w => console.warn(`  - ${w}`));
+  }
+
+  if (errors.length > 0) {
+    console.error("\n[FATAL] Environment validation failed:");
+    errors.forEach(e => console.error(`  - ${e}`));
+    if (isProduction) {
+      console.error("\nFix these issues before deploying to production.\n");
+      process.exit(1);
+    }
+  }
+
+  return { errors, warnings, valid: errors.length === 0 };
+}
+
+const ENV_VALIDATION = validateEnvironment();
+
+// ---- Request ID Tracking ----
+function generateRequestId() {
+  return `req_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function requestIdMiddleware(req, res, next) {
+  req.id = req.headers["x-request-id"] || generateRequestId();
+  res.setHeader("X-Request-ID", req.id);
+  next();
+}
+
+// ---- Input Sanitization ----
+const SANITIZE_PATTERNS = {
+  // Common XSS patterns
+  script: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+  onEvent: /\bon\w+\s*=/gi,
+  javascript: /javascript:/gi,
+  dataUri: /data:[^,]*;base64/gi,
+  // SQL injection patterns (for logging, not blocking)
+  sqlKeywords: /\b(union|select|insert|update|delete|drop|truncate|exec|execute)\b.*\b(from|into|table|database)\b/gi,
+};
+
+function sanitizeString(str, options = {}) {
+  if (typeof str !== "string") return str;
+  let result = str;
+
+  // Remove null bytes
+  result = result.replace(/\0/g, "");
+
+  // Trim excessive whitespace
+  result = result.replace(/\s{10,}/g, " ".repeat(10));
+
+  // Limit length
+  const maxLength = options.maxLength || 10000;
+  if (result.length > maxLength) {
+    result = result.slice(0, maxLength);
+  }
+
+  // HTML encode if requested
+  if (options.htmlEncode) {
+    result = result
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  }
+
+  return result;
+}
+
+function sanitizeObject(obj, options = {}) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "string") return sanitizeString(obj, options);
+  if (typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(item => sanitizeObject(item, options));
+
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Sanitize keys too (prevent prototype pollution)
+    const safeKey = sanitizeString(key, { maxLength: 100 });
+    if (safeKey === "__proto__" || safeKey === "constructor" || safeKey === "prototype") {
+      continue; // Skip dangerous keys
+    }
+    result[safeKey] = sanitizeObject(value, options);
+  }
+  return result;
+}
+
+function sanitizationMiddleware(req, res, next) {
+  // Sanitize body
+  if (req.body && typeof req.body === "object") {
+    req.body = sanitizeObject(req.body);
+  }
+
+  // Sanitize query params
+  if (req.query && typeof req.query === "object") {
+    req.query = sanitizeObject(req.query, { maxLength: 1000 });
+  }
+
+  next();
+}
+
+// ---- Graceful Shutdown ----
+let isShuttingDown = false;
+const shutdownCallbacks = [];
+
+function registerShutdownCallback(callback) {
+  shutdownCallbacks.push(callback);
+}
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  if (global.httpServer) {
+    global.httpServer.close(() => {
+      console.log("[Shutdown] HTTP server closed");
+    });
+  }
+
+  // Run registered callbacks
+  for (const callback of shutdownCallbacks) {
+    try {
+      await callback();
+    } catch (e) {
+      console.error("[Shutdown] Callback error:", e.message);
+    }
+  }
+
+  // Give pending requests time to complete
+  const timeout = Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000);
+  await new Promise(resolve => setTimeout(resolve, Math.min(timeout, 1000)));
+
+  console.log("[Shutdown] Graceful shutdown complete");
+  process.exit(0);
+}
+
+// Register shutdown handlers
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+  gracefulShutdown("uncaughtException");
+});
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[FATAL] Unhandled rejection at:", promise, "reason:", reason);
+  // Don't exit on unhandled rejection, just log it
+});
+
 // ---- config ----
 const PORT = Number(process.env.PORT || 5050);
-const VERSION = "5.0.0-production";
+const VERSION = "5.1.0-production";
 const NODE_ENV = process.env.NODE_ENV || "development";
 
 // SECURITY: JWT_SECRET must be set in production
@@ -938,16 +1136,421 @@ const STATE = {
 // WAVE 1: PRODUCTION READINESS
 // ============================================================================
 
-// ---- Authentication System (Local JWT) ----
+// ---- SQLite Database for Auth & Audit ----
+const DB_PATH = path.join(DATA_DIR, "concord.db");
+let db = null;
+
+function initDatabase() {
+  if (!Database) {
+    console.warn("[DB] better-sqlite3 not available, falling back to JSON storage");
+    return false;
+  }
+
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL"); // Better performance
+    db.pragma("foreign_keys = ON");
+
+    // Create tables
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        scopes TEXT NOT NULL DEFAULT '["read","write"]',
+        created_at TEXT NOT NULL,
+        last_login_at TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        key_hash TEXT NOT NULL,
+        key_prefix TEXT NOT NULL,
+        scopes TEXT NOT NULL DEFAULT '["read"]',
+        created_at TEXT NOT NULL,
+        last_used_at TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        ip_address TEXT,
+        user_agent TEXT,
+        is_revoked INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        category TEXT NOT NULL,
+        action TEXT NOT NULL,
+        user_id TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        request_id TEXT,
+        path TEXT,
+        method TEXT,
+        status_code INTEGER,
+        details TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_log(category);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+    `);
+
+    console.log("[DB] SQLite database initialized");
+    return true;
+  } catch (e) {
+    console.error("[DB] Failed to initialize SQLite:", e.message);
+    return false;
+  }
+}
+
+const DB_READY = initDatabase();
+
+// Register database close on shutdown
+if (db) {
+  registerShutdownCallback(() => {
+    console.log("[Shutdown] Closing database...");
+    db.close();
+  });
+}
+
+// ---- Authentication System (SQLite + fallback to JSON) ----
 const AUTH = {
-  users: new Map(), // userId -> { id, username, email, passwordHash, role, createdAt, lastLoginAt }
-  sessions: new Map(), // token -> { userId, createdAt, expiresAt }
-  apiKeys: new Map(), // apiKey -> { userId, name, scopes, createdAt, lastUsedAt }
+  users: new Map(),
+  sessions: new Map(),
+  apiKeys: new Map(),
 };
 
-// Load auth data from disk
+// Database-backed auth functions
+const AuthDB = {
+  // Users
+  createUser(user) {
+    if (db) {
+      const stmt = db.prepare(`
+        INSERT INTO users (id, username, email, password_hash, role, scopes, created_at, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(user.id, user.username, user.email, user.passwordHash, user.role, JSON.stringify(user.scopes), user.createdAt, user.lastLoginAt);
+    }
+    AUTH.users.set(user.id, user);
+    saveAuthData();
+  },
+
+  getUser(userId) {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM users WHERE id = ? AND is_active = 1");
+      const row = stmt.get(userId);
+      if (row) {
+        return {
+          id: row.id,
+          username: row.username,
+          email: row.email,
+          passwordHash: row.password_hash,
+          role: row.role,
+          scopes: JSON.parse(row.scopes),
+          createdAt: row.created_at,
+          lastLoginAt: row.last_login_at
+        };
+      }
+      return null;
+    }
+    return AUTH.users.get(userId) || null;
+  },
+
+  getUserByUsername(username) {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 1");
+      const row = stmt.get(username);
+      if (row) {
+        return {
+          id: row.id,
+          username: row.username,
+          email: row.email,
+          passwordHash: row.password_hash,
+          role: row.role,
+          scopes: JSON.parse(row.scopes),
+          createdAt: row.created_at,
+          lastLoginAt: row.last_login_at
+        };
+      }
+      return null;
+    }
+    for (const [, user] of AUTH.users) {
+      if (user.username === username) return user;
+    }
+    return null;
+  },
+
+  getUserByEmail(email) {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM users WHERE email = ? AND is_active = 1");
+      const row = stmt.get(email);
+      if (row) {
+        return {
+          id: row.id,
+          username: row.username,
+          email: row.email,
+          passwordHash: row.password_hash,
+          role: row.role,
+          scopes: JSON.parse(row.scopes),
+          createdAt: row.created_at,
+          lastLoginAt: row.last_login_at
+        };
+      }
+      return null;
+    }
+    for (const [, user] of AUTH.users) {
+      if (user.email === email) return user;
+    }
+    return null;
+  },
+
+  updateUserLogin(userId) {
+    const now = new Date().toISOString();
+    if (db) {
+      const stmt = db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?");
+      stmt.run(now, userId);
+    }
+    const user = AUTH.users.get(userId);
+    if (user) {
+      user.lastLoginAt = now;
+      saveAuthData();
+    }
+  },
+
+  getUserCount() {
+    if (db) {
+      const stmt = db.prepare("SELECT COUNT(*) as count FROM users WHERE is_active = 1");
+      return stmt.get().count;
+    }
+    return AUTH.users.size;
+  },
+
+  // API Keys
+  createApiKey(keyData) {
+    if (db) {
+      const stmt = db.prepare(`
+        INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, scopes, created_at, last_used_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(keyData.id, keyData.userId, keyData.name, keyData.keyHash, keyData.keyPrefix, JSON.stringify(keyData.scopes), keyData.createdAt, keyData.lastUsedAt);
+    }
+    AUTH.apiKeys.set(keyData.keyHash, keyData);
+    saveAuthData();
+  },
+
+  getApiKeyByHash(keyHash) {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1");
+      const row = stmt.get(keyHash);
+      if (row) {
+        return {
+          id: row.id,
+          userId: row.user_id,
+          name: row.name,
+          keyHash: row.key_hash,
+          keyPrefix: row.key_prefix,
+          scopes: JSON.parse(row.scopes),
+          createdAt: row.created_at,
+          lastUsedAt: row.last_used_at
+        };
+      }
+      return null;
+    }
+    return AUTH.apiKeys.get(keyHash) || null;
+  },
+
+  updateApiKeyUsage(keyHash) {
+    const now = new Date().toISOString();
+    if (db) {
+      const stmt = db.prepare("UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?");
+      stmt.run(now, keyHash);
+    }
+    const key = AUTH.apiKeys.get(keyHash);
+    if (key) {
+      key.lastUsedAt = now;
+    }
+  },
+
+  getApiKeysByUser(userId) {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM api_keys WHERE user_id = ? AND is_active = 1");
+      return stmt.all(userId).map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        name: row.name,
+        keyPrefix: row.key_prefix,
+        scopes: JSON.parse(row.scopes),
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at
+      }));
+    }
+    const keys = [];
+    for (const [, keyData] of AUTH.apiKeys) {
+      if (keyData.userId === userId) {
+        keys.push(keyData);
+      }
+    }
+    return keys;
+  },
+
+  deleteApiKey(keyId, userId) {
+    if (db) {
+      const stmt = db.prepare("UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?");
+      return stmt.run(keyId, userId).changes > 0;
+    }
+    for (const [hash, keyData] of AUTH.apiKeys) {
+      if (keyData.id === keyId && keyData.userId === userId) {
+        AUTH.apiKeys.delete(hash);
+        saveAuthData();
+        return true;
+      }
+    }
+    return false;
+  },
+
+  getAllApiKeys() {
+    if (db) {
+      const stmt = db.prepare("SELECT * FROM api_keys WHERE is_active = 1");
+      return stmt.all().map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        name: row.name,
+        keyHash: row.key_hash,
+        keyPrefix: row.key_prefix,
+        scopes: JSON.parse(row.scopes),
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at
+      }));
+    }
+    return Array.from(AUTH.apiKeys.values());
+  }
+};
+
+// ---- Persistent Audit Logging ----
+const AuditDB = {
+  log(entry) {
+    if (db) {
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO audit_log (id, timestamp, category, action, user_id, ip_address, user_agent, request_id, path, method, status_code, details)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        stmt.run(
+          entry.id,
+          entry.timestamp,
+          entry.category,
+          entry.action,
+          entry.userId,
+          entry.ip,
+          entry.userAgent,
+          entry.requestId,
+          entry.path,
+          entry.method,
+          entry.status,
+          JSON.stringify(entry.details || {})
+        );
+      } catch (e) {
+        console.error("[Audit] Failed to persist log:", e.message);
+      }
+    }
+    return entry;
+  },
+
+  query({ limit = 100, offset = 0, category, action, userId, startDate, endDate } = {}) {
+    if (db) {
+      let sql = "SELECT * FROM audit_log WHERE 1=1";
+      const params = [];
+
+      if (category) {
+        sql += " AND category = ?";
+        params.push(category);
+      }
+      if (action) {
+        sql += " AND action = ?";
+        params.push(action);
+      }
+      if (userId) {
+        sql += " AND user_id = ?";
+        params.push(userId);
+      }
+      if (startDate) {
+        sql += " AND timestamp >= ?";
+        params.push(startDate);
+      }
+      if (endDate) {
+        sql += " AND timestamp <= ?";
+        params.push(endDate);
+      }
+
+      sql += " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
+      params.push(limit, offset);
+
+      const stmt = db.prepare(sql);
+      const rows = stmt.all(...params);
+
+      return rows.map(row => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        category: row.category,
+        action: row.action,
+        userId: row.user_id,
+        ip: row.ip_address,
+        userAgent: row.user_agent,
+        requestId: row.request_id,
+        path: row.path,
+        method: row.method,
+        status: row.status_code,
+        details: JSON.parse(row.details || "{}")
+      }));
+    }
+    return AUDIT_LOG.slice(offset, offset + limit);
+  },
+
+  count(filters = {}) {
+    if (db) {
+      let sql = "SELECT COUNT(*) as count FROM audit_log WHERE 1=1";
+      const params = [];
+
+      if (filters.category) {
+        sql += " AND category = ?";
+        params.push(filters.category);
+      }
+      if (filters.userId) {
+        sql += " AND user_id = ?";
+        params.push(filters.userId);
+      }
+
+      const stmt = db.prepare(sql);
+      return stmt.get(...params).count;
+    }
+    return AUDIT_LOG.length;
+  }
+};
+
+// Load JSON fallback data
 const AUTH_PATH = path.join(DATA_DIR, "auth.json");
 function loadAuthData() {
+  if (db) return; // Skip if using SQLite
   try {
     if (fs.existsSync(AUTH_PATH)) {
       const data = JSON.parse(fs.readFileSync(AUTH_PATH, "utf8"));
@@ -956,7 +1559,9 @@ function loadAuthData() {
     }
   } catch (e) { console.error("[Auth] Failed to load:", e.message); }
 }
+
 function saveAuthData() {
+  if (db) return; // Skip if using SQLite
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const data = {
@@ -966,10 +1571,59 @@ function saveAuthData() {
     fs.writeFileSync(AUTH_PATH, JSON.stringify(data, null, 2));
   } catch (e) { console.error("[Auth] Failed to save:", e.message); }
 }
+
+// Migrate JSON data to SQLite if both exist
+function migrateJsonToSqlite() {
+  if (!db) return;
+
+  const jsonPath = path.join(DATA_DIR, "auth.json");
+  if (!fs.existsSync(jsonPath)) return;
+
+  try {
+    const data = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+    let migrated = 0;
+
+    // Migrate users
+    if (data.users) {
+      const insertUser = db.prepare(`
+        INSERT OR IGNORE INTO users (id, username, email, password_hash, role, scopes, created_at, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const [userId, user] of Object.entries(data.users)) {
+        insertUser.run(userId, user.username, user.email, user.passwordHash, user.role, JSON.stringify(user.scopes || ["read", "write"]), user.createdAt, user.lastLoginAt);
+        migrated++;
+      }
+    }
+
+    // Migrate API keys
+    if (data.apiKeys) {
+      const insertKey = db.prepare(`
+        INSERT OR IGNORE INTO api_keys (id, user_id, name, key_hash, key_prefix, scopes, created_at, last_used_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const [keyHash, keyData] of Object.entries(data.apiKeys)) {
+        insertKey.run(keyData.id || uid("key"), keyData.userId, keyData.name, keyHash, keyData.keyPrefix || keyHash.slice(0, 8), JSON.stringify(keyData.scopes || ["read"]), keyData.createdAt, keyData.lastUsedAt);
+        migrated++;
+      }
+    }
+
+    if (migrated > 0) {
+      console.log(`[DB] Migrated ${migrated} records from JSON to SQLite`);
+      // Rename old file as backup
+      fs.renameSync(jsonPath, jsonPath + ".migrated");
+    }
+  } catch (e) {
+    console.error("[DB] Migration failed:", e.message);
+  }
+}
+
 loadAuthData();
+migrateJsonToSqlite();
 
 // Create default admin if no users exist (requires ADMIN_PASSWORD env var)
-if (AUTH.users.size === 0 && bcrypt) {
+if (AuthDB.getUserCount() === 0 && bcrypt) {
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
     if (NODE_ENV === "production") {
@@ -989,7 +1643,7 @@ if (AUTH.users.size === 0 && bcrypt) {
     }
   } else {
     const adminId = crypto.randomUUID();
-    AUTH.users.set(adminId, {
+    AuthDB.createUser({
       id: adminId,
       username: "admin",
       email: "admin@localhost",
@@ -999,7 +1653,6 @@ if (AUTH.users.size === 0 && bcrypt) {
       createdAt: new Date().toISOString(),
       lastLoginAt: null
     });
-    saveAuthData();
     console.log("[Auth] Created default admin user (username: admin)");
   }
 }
@@ -1114,9 +1767,9 @@ function csrfMiddleware(req, res, next) {
 }
 
 // ============================================================================
-// SECURITY: Audit Logging
+// SECURITY: Audit Logging (uses SQLite when available)
 // ============================================================================
-const AUDIT_LOG = [];
+const AUDIT_LOG = []; // In-memory fallback
 const AUDIT_LOG_MAX = 10000;
 
 function auditLog(category, action, details = {}) {
@@ -1128,6 +1781,7 @@ function auditLog(category, action, details = {}) {
     userId: details.userId || null,
     ip: details.ip || null,
     userAgent: details.userAgent || null,
+    requestId: details.requestId || null,
     path: details.path || null,
     method: details.method || null,
     status: details.status || null,
@@ -1138,13 +1792,16 @@ function auditLog(category, action, details = {}) {
   delete entry.details.userId;
   delete entry.details.ip;
   delete entry.details.userAgent;
+  delete entry.details.requestId;
   delete entry.details.path;
   delete entry.details.method;
   delete entry.details.status;
 
-  AUDIT_LOG.push(entry);
+  // Persist to SQLite if available
+  AuditDB.log(entry);
 
-  // Trim if too large
+  // Also keep in memory for quick access
+  AUDIT_LOG.push(entry);
   if (AUDIT_LOG.length > AUDIT_LOG_MAX) {
     AUDIT_LOG.splice(0, AUDIT_LOG.length - AUDIT_LOG_MAX);
   }
@@ -1209,7 +1866,7 @@ function authMiddleware(req, res, next) {
   if (cookieToken) {
     const decoded = verifyToken(cookieToken);
     if (decoded?.userId) {
-      const user = AUTH.users.get(decoded.userId);
+      const user = AuthDB.getUser(decoded.userId);
       if (user) {
         req.user = user;
         req.authMethod = "cookie";
@@ -1223,7 +1880,7 @@ function authMiddleware(req, res, next) {
     const token = authHeader.slice(7);
     const decoded = verifyToken(token);
     if (decoded?.userId) {
-      const user = AUTH.users.get(decoded.userId);
+      const user = AuthDB.getUser(decoded.userId);
       if (user) {
         req.user = user;
         req.authMethod = "jwt";
@@ -1234,22 +1891,19 @@ function authMiddleware(req, res, next) {
 
   // 3. Try API key (keys are stored hashed for security)
   if (apiKey) {
-    // First try direct lookup (for backwards compatibility with old unhashed keys)
-    let keyData = AUTH.apiKeys.get(apiKey);
-
-    // If not found, search by hash
-    if (!keyData) {
-      for (const [storedKey, data] of AUTH.apiKeys) {
-        // Check if stored key is a hash (64 hex chars) and matches
-        if (storedKey.length === 64 && verifyApiKey(apiKey, storedKey)) {
-          keyData = data;
-          break;
-        }
+    // Try to find API key by hash
+    let keyData = null;
+    const allKeys = AuthDB.getAllApiKeys();
+    for (const key of allKeys) {
+      if (key.keyHash && verifyApiKey(apiKey, key.keyHash)) {
+        keyData = key;
+        AuthDB.updateApiKeyUsage(key.keyHash);
+        break;
       }
     }
 
     if (keyData) {
-      const user = AUTH.users.get(keyData.userId);
+      const user = AuthDB.getUser(keyData.userId);
       if (user) {
         keyData.lastUsedAt = new Date().toISOString();
         req.user = user;
@@ -1638,7 +2292,7 @@ async function tryInitWebSockets(server) {
     if (cookieToken) {
       const decoded = verifyToken(cookieToken);
       if (decoded?.userId) {
-        const user = AUTH.users.get(decoded.userId);
+        const user = AuthDB.getUser(decoded.userId);
         if (user) {
           socket.data.userId = user.id;
           socket.data.username = user.username;
@@ -1654,7 +2308,7 @@ async function tryInitWebSockets(server) {
     if (bearerToken) {
       const decoded = verifyToken(bearerToken);
       if (decoded?.userId) {
-        const user = AUTH.users.get(decoded.userId);
+        const user = AuthDB.getUser(decoded.userId);
         if (user) {
           socket.data.userId = user.id;
           socket.data.username = user.username;
@@ -1667,9 +2321,10 @@ async function tryInitWebSockets(server) {
 
     // 3. Try API key
     if (apiKey) {
-      for (const [storedKey, data] of AUTH.apiKeys) {
-        if (storedKey.length === 64 && verifyApiKey(apiKey, storedKey)) {
-          const user = AUTH.users.get(data.userId);
+      const allKeys = AuthDB.getAllApiKeys();
+      for (const keyData of allKeys) {
+        if (keyData.keyHash && verifyApiKey(apiKey, keyData.keyHash)) {
+          const user = AuthDB.getUser(keyData.userId);
           if (user) {
             socket.data.userId = user.id;
             socket.data.username = user.username;
@@ -10693,9 +11348,13 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID", "X-CSRF-Token", "X-XSRF-Token"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID", "X-CSRF-Token", "X-XSRF-Token", "X-Request-ID"],
 };
 app.use(cors(corsOptions));
+
+// Production middleware
+app.use(requestIdMiddleware); // Add request ID to all requests
+app.use(sanitizationMiddleware); // Sanitize input
 
 if (rateLimiter) app.use(rateLimiter);
 app.use(metricsMiddleware);
@@ -10751,25 +11410,27 @@ app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister")
   }
 
   // Check for existing user
-  for (const [, user] of AUTH.users) {
-    if (user.username === username) return res.status(409).json({ ok: false, error: "Username taken" });
-    if (user.email === email) return res.status(409).json({ ok: false, error: "Email taken" });
+  if (AuthDB.getUserByUsername(username)) {
+    return res.status(409).json({ ok: false, error: "Username taken" });
+  }
+  if (AuthDB.getUserByEmail(email)) {
+    return res.status(409).json({ ok: false, error: "Email taken" });
   }
 
   const userId = crypto.randomUUID();
+  const userCount = AuthDB.getUserCount();
   const user = {
     id: userId,
     username,
     email,
     passwordHash: hashPassword(password),
-    role: AUTH.users.size === 0 ? "owner" : "member",
-    scopes: AUTH.users.size === 0 ? ["*"] : ["read", "write"],
+    role: userCount === 0 ? "owner" : "member",
+    scopes: userCount === 0 ? ["*"] : ["read", "write"],
     createdAt: new Date().toISOString(),
     lastLoginAt: null
   };
 
-  AUTH.users.set(userId, user);
-  saveAuthData();
+  AuthDB.createUser(user);
 
   const token = createToken(userId);
 
@@ -10794,12 +11455,12 @@ app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister")
 app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), async (req, res) => {
   const { username, email, password } = req.validated || req.body;
 
+  // Find user by username or email
   let user = null;
-  for (const [, u] of AUTH.users) {
-    if ((username && u.username === username) || (email && u.email === email)) {
-      user = u;
-      break;
-    }
+  if (username) {
+    user = AuthDB.getUserByUsername(username);
+  } else if (email) {
+    user = AuthDB.getUserByEmail(email);
   }
 
   if (!user || !verifyPassword(password, user.passwordHash)) {
@@ -10807,13 +11468,13 @@ app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), asyn
     auditLog("auth", "login_failed", {
       attemptedUser: username || email,
       ip: req.ip,
-      userAgent: req.headers["user-agent"]
+      userAgent: req.headers["user-agent"],
+      requestId: req.id
     });
     return res.status(401).json({ ok: false, error: "Invalid credentials" });
   }
 
-  user.lastLoginAt = new Date().toISOString();
-  saveAuthData();
+  AuthDB.updateUserLogin(user.id);
 
   const token = createToken(user.id);
 
@@ -10883,34 +11544,30 @@ app.get("/api/auth/csrf-token", (req, res) => {
   res.json({ ok: true, csrfToken });
 });
 
-// Audit log endpoint (admin only)
+// Audit log endpoint (admin only) - uses SQLite for persistent logs
 app.get("/api/auth/audit-log", requireRole("owner", "admin"), (req, res) => {
-  const { limit = 100, offset = 0, category, action } = req.query;
+  const { limit = 100, offset = 0, category, action, userId, startDate, endDate } = req.query;
 
-  let logs = [...AUDIT_LOG];
+  // Use AuditDB for SQLite-backed queries (falls back to memory)
+  const logs = AuditDB.query({
+    limit: Number(limit),
+    offset: Number(offset),
+    category,
+    action,
+    userId,
+    startDate,
+    endDate
+  });
 
-  // Filter by category
-  if (category) {
-    logs = logs.filter(l => l.category === category);
-  }
-
-  // Filter by action
-  if (action) {
-    logs = logs.filter(l => l.action === action);
-  }
-
-  // Reverse to get newest first
-  logs.reverse();
-
-  // Paginate
-  const paginated = logs.slice(Number(offset), Number(offset) + Number(limit));
+  const total = AuditDB.count({ category, userId });
 
   res.json({
     ok: true,
-    total: logs.length,
+    total,
     offset: Number(offset),
     limit: Number(limit),
-    logs: paginated
+    persistent: db !== null, // Indicates if using SQLite
+    logs
   });
 });
 
@@ -10920,15 +11577,24 @@ app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCr
   const hashedKey = hashApiKey(apiKey);
 
   // SECURITY: Store only the hash, not the raw key
-  AUTH.apiKeys.set(hashedKey, {
+  AuthDB.createApiKey({
+    id: uid("apikey"),
     userId: req.user.id,
     name,
+    keyHash: hashedKey,
+    keyPrefix: apiKey.slice(0, 8),
     scopes,
-    keyPrefix: apiKey.slice(0, 8), // Store prefix for identification
     createdAt: new Date().toISOString(),
     lastUsedAt: null
   });
-  saveAuthData();
+
+  // Audit log API key creation
+  auditLog("api_key", "created", {
+    userId: req.user.id,
+    keyName: name,
+    ip: req.ip,
+    requestId: req.id
+  });
 
   // Return the raw key ONCE - user must save it, we can't recover it
   res.status(201).json({
@@ -10943,33 +11609,39 @@ app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCr
 app.get("/api/auth/api-keys", (req, res) => {
   if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
-  const keys = [];
-  for (const [hashedKey, data] of AUTH.apiKeys) {
-    if (data.userId === req.user.id || req.user.role === "owner") {
-      keys.push({
-        id: hashedKey.slice(0, 12), // Use hash prefix as ID for deletion
-        keyPrefix: data.keyPrefix || hashedKey.slice(0, 8) + "...", // Show key prefix for identification
-        name: data.name,
-        scopes: data.scopes,
-        createdAt: data.createdAt,
-        lastUsedAt: data.lastUsedAt
-      });
-    }
-  }
+  // Get keys for user (or all keys for owner)
+  const userKeys = req.user.role === "owner"
+    ? AuthDB.getAllApiKeys()
+    : AuthDB.getApiKeysByUser(req.user.id);
+
+  const keys = userKeys.map(data => ({
+    id: data.id,
+    keyPrefix: data.keyPrefix + "...",
+    name: data.name,
+    scopes: data.scopes,
+    createdAt: data.createdAt,
+    lastUsedAt: data.lastUsedAt
+  }));
+
   res.json({ ok: true, apiKeys: keys });
 });
 
 app.delete("/api/auth/api-keys/:keyId", (req, res) => {
+  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
+
   const keyId = req.params.keyId;
-  // SECURITY: Delete by hash prefix only, require exact match
-  for (const [hashedKey, data] of AUTH.apiKeys) {
-    if (hashedKey.startsWith(keyId) && hashedKey.length === 64 &&
-        (data.userId === req.user?.id || req.user?.role === "owner")) {
-      AUTH.apiKeys.delete(hashedKey);
-      saveAuthData();
-      return res.json({ ok: true });
-    }
+  const deleted = AuthDB.deleteApiKey(keyId, req.user.id);
+
+  if (deleted) {
+    auditLog("api_key", "deleted", {
+      userId: req.user.id,
+      keyId,
+      ip: req.ip,
+      requestId: req.id
+    });
+    return res.json({ ok: true });
   }
+
   res.status(404).json({ ok: false, error: "API key not found" });
 });
 
@@ -11349,9 +12021,11 @@ app.get("/", (req, res) => res.json({ ok:true, name:"Concord v2 Macro‑Max", ve
 // Status
 app.get("/api/status", (req, res) => {
   res.json({
-    ok:true,
+    ok: true,
     version: VERSION,
     port: PORT,
+    nodeEnv: NODE_ENV,
+    uptime: process.uptime(),
     dotenvLoaded: DOTENV.loaded,
     dotenvPath: DOTENV.path,
     llmReady: LLM_READY,
@@ -11366,7 +12040,26 @@ app.get("/api/status", (req, res) => {
     crawlQueue: STATE.crawlQueue.length,
     settings: STATE.settings,
     seed: SEED_INFO,
-    stateDisk: STATE_DISK
+    stateDisk: STATE_DISK,
+    // Production infrastructure status
+    infrastructure: {
+      database: {
+        type: db ? "sqlite" : "json",
+        ready: db ? true : false,
+        path: db ? DB_PATH : AUTH_PATH
+      },
+      auth: {
+        enabled: AUTH_ENABLED,
+        totalUsers: AuthDB.getUserCount(),
+        jwtConfigured: Boolean(JWT_SECRET)
+      },
+      security: {
+        csrfEnabled: NODE_ENV === "production",
+        rateLimitEnabled: Boolean(rateLimiter),
+        helmetEnabled: Boolean(helmet)
+      },
+      envValidation: ENV_VALIDATION
+    }
   });
 });
 
