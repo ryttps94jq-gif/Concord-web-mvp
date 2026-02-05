@@ -16923,6 +16923,150 @@ app.get("/api/lenses/templates", (req, res) => {
   ]});
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Wave 17: Final audit fixes - remaining missing endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Council debate - structured debate sessions
+app.post("/api/council/debate", async (req, res) => {
+  const { topic, participants, rounds = 3 } = req.body || {};
+  if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
+
+  // Create debate session
+  const debateId = `debate_${Date.now()}`;
+  const debate = {
+    id: debateId,
+    topic,
+    participants: participants || ["council_alpha", "council_beta", "council_gamma"],
+    rounds,
+    arguments: [],
+    status: "active",
+    createdAt: new Date().toISOString()
+  };
+
+  // Store in state
+  if (!STATE.debates) STATE.debates = new Map();
+  STATE.debates.set(debateId, debate);
+
+  res.json({ ok: true, debate });
+});
+
+app.get("/api/council/debate", (req, res) => {
+  const debates = Array.from(STATE.debates?.values() || []);
+  res.json({ ok: true, debates });
+});
+
+// Papers tags - get all unique tags from papers
+app.get("/api/papers/tags", (req, res) => {
+  const papers = Array.from(STATE.papers?.values() || []);
+  const tagSet = new Set();
+  papers.forEach(p => {
+    (p.tags || []).forEach(t => tagSet.add(t));
+  });
+  res.json({ ok: true, tags: Array.from(tagSet).sort() });
+});
+
+// Credits/wallet system
+app.post("/api/credits/wallet", (req, res) => {
+  const { walletId } = req.body || {};
+  if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
+
+  // Initialize wallets store if needed
+  if (!STATE.wallets) STATE.wallets = new Map();
+
+  // Get or create wallet
+  let wallet = STATE.wallets.get(walletId);
+  if (!wallet) {
+    wallet = {
+      id: walletId,
+      balance: 100, // Starting balance
+      transactions: [],
+      createdAt: new Date().toISOString()
+    };
+    STATE.wallets.set(walletId, wallet);
+  }
+
+  res.json({ ok: true, wallet });
+});
+
+app.post("/api/credits/earn", (req, res) => {
+  const { walletId, amount, reason = "quest" } = req.body || {};
+  if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
+  if (!amount || amount <= 0) return res.status(400).json({ ok: false, error: "positive amount required" });
+
+  if (!STATE.wallets) STATE.wallets = new Map();
+
+  let wallet = STATE.wallets.get(walletId);
+  if (!wallet) {
+    wallet = { id: walletId, balance: 0, transactions: [], createdAt: new Date().toISOString() };
+  }
+
+  wallet.balance += amount;
+  wallet.transactions.push({
+    type: "earn",
+    amount,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+
+  STATE.wallets.set(walletId, wallet);
+  res.json({ ok: true, wallet, earned: amount });
+});
+
+app.post("/api/credits/spend", (req, res) => {
+  const { walletId, amount, reason = "spend" } = req.body || {};
+  if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
+  if (!amount || amount <= 0) return res.status(400).json({ ok: false, error: "positive amount required" });
+
+  if (!STATE.wallets) STATE.wallets = new Map();
+
+  let wallet = STATE.wallets.get(walletId);
+  if (!wallet) {
+    return res.status(404).json({ ok: false, error: "wallet not found" });
+  }
+
+  if (wallet.balance < amount) {
+    return res.status(400).json({ ok: false, error: "insufficient balance", balance: wallet.balance });
+  }
+
+  wallet.balance -= amount;
+  wallet.transactions.push({
+    type: "spend",
+    amount,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+
+  STATE.wallets.set(walletId, wallet);
+  res.json({ ok: true, wallet, spent: amount });
+});
+
+// Global feed - public DTUs feed
+app.get("/api/global/feed", (req, res) => {
+  const { limit = 50, offset = 0, tier } = req.query;
+
+  // Get global DTUs (isGlobal flag or tier >= MEGA)
+  let globalDtus = Array.from(STATE.dtus?.values() || [])
+    .filter(d => d.isGlobal || d.tier === "MEGA" || d.tier === "HYPER")
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  // Filter by tier if specified
+  if (tier) {
+    globalDtus = globalDtus.filter(d => d.tier === tier);
+  }
+
+  const total = globalDtus.length;
+  const feed = globalDtus.slice(Number(offset), Number(offset) + Number(limit));
+
+  res.json({
+    ok: true,
+    feed,
+    total,
+    hasMore: Number(offset) + feed.length < total
+  });
+});
+
+console.log("[Concord] Wave 17: Final audit fixes loaded");
 console.log("[Concord] Wave 16: Missing lens endpoints loaded");
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
