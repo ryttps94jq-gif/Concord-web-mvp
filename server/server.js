@@ -15279,6 +15279,51 @@ app.post("/api/obsidian/import", async (req, res) => res.json(await runMacro("ob
 app.post("/api/notion/import", async (req, res) => res.json(await runMacro("notion", "import", req.body, makeCtx(req))));
 app.get("/api/integrations", async (req, res) => res.json(await runMacro("integration", "list", {}, makeCtx(req))));
 
+// Additional endpoints for frontend compatibility
+app.get("/api/events", (req, res) => {
+  try {
+    // Return recent system events/logs
+    const events = STATE.logs.slice(-100).map(log => ({
+      id: log.id || uid("evt"),
+      type: log.domain || "system",
+      action: log.action || "event",
+      message: log.message || "",
+      timestamp: log.ts || log.timestamp || nowISO(),
+      meta: log.meta || {}
+    }));
+    return res.json({ ok: true, events, count: events.length });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/autocrawl", async (req, res) => {
+  try {
+    const { url, makeGlobal, declaredSourceType, tags } = req.body || {};
+    if (!url) return res.status(400).json({ ok: false, error: "URL required" });
+    const out = await runMacro("crawl", "fetch", {
+      url: String(url).trim(),
+      tags: tags || [],
+      makeGlobal: makeGlobal || false,
+      declaredSourceType: declaredSourceType || "web"
+    }, makeCtx(req));
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/marketplace/listings", async (req, res) => {
+  // Alias for browse endpoint
+  return res.json(await runMacro("marketplace", "browse", {
+    category: req.query.category,
+    search: req.query.search,
+    sort: req.query.sort,
+    page: req.query.page,
+    pageSize: req.query.pageSize
+  }, makeCtx(req)));
+});
+
 console.log("[Concord] Wave 8: Integrations Ecosystem loaded");
 
 // ============================================================================

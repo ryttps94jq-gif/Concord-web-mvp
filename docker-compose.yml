@@ -81,7 +81,20 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    entrypoint: |
+      /bin/sh -c '
+      trap exit TERM
+      while :; do
+        certbot renew --quiet --non-interactive 2>&1 | tee -a /var/log/certbot.log || echo "[Certbot] Renewal check completed with warnings at $$(date)"
+        sleep 12h & wait
+      done
+      '
+    healthcheck:
+      test: ["CMD", "test", "-f", "/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh", "-o", "-d", "/etc/letsencrypt/live"]
+      interval: 86400s
+      timeout: 10s
+      retries: 1
+      start_period: 60s
 
   # Optional: Ollama for local LLM (comment out if using external)
   ollama:
@@ -92,6 +105,21 @@ services:
       - ollama-data:/root/.ollama
     networks:
       - concord-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Resource limits to prevent OOM
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '1'
     # Uncomment for GPU support:
     # deploy:
     #   resources:
