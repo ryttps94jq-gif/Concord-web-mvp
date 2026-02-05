@@ -1,10 +1,13 @@
 # Backend Dockerfile (glibc-based for onnxruntime compatibility)
 FROM node:20-bookworm-slim
 
-# Install runtime deps for native modules
+# Install build tools for native modules (better-sqlite3) and runtime deps
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
