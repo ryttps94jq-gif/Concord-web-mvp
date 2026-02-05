@@ -886,7 +886,7 @@ export default function MLLensPage() {
             models={models}
             datasets={datasets}
             onClose={() => setShowNewExperiment(false)}
-            onSubmit={(config) => startTraining.mutate(config)}
+            onSubmit={(config: Record<string, unknown>) => startTraining.mutate(config)}
             submitting={startTraining.isPending}
           />
         )}
