@@ -11777,8 +11777,8 @@ app.post("/api/auth/change-password", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Both current and new password required" });
   }
 
-  if (newPassword.length < 8) {
-    return res.status(400).json({ ok: false, error: "New password must be at least 8 characters" });
+  if (newPassword.length < 12) {
+    return res.status(400).json({ ok: false, error: "New password must be at least 12 characters" });
   }
 
   // Verify current password
