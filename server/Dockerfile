@@ -1,44 +1,36 @@
-# Backend Dockerfile
-FROM node:20-alpine AS base
+# Backend Dockerfile (glibc-based for onnxruntime compatibility)
+FROM node:20-bookworm-slim
 
-# Install dependencies for health checks
-RUN apk add --no-cache curl
+# Install runtime deps for native modules
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files first
 COPY package*.json ./
 
-# Install dependencies
-FROM base AS deps
-RUN npm ci --only=production
+# Install production deps
+RUN npm ci --omit=dev
 
-# Production image
-FROM base AS runner
-WORKDIR /app
+# Copy app code
+COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=5050
 
 # Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 concord
-
-# Copy dependencies
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy application code
-COPY . .
-
-# Create data directory
-RUN mkdir -p /data && chown -R concord:nodejs /data
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -u 1001 -g nodejs concord && \
+    mkdir -p /data && chown -R concord:nodejs /data
 
 USER concord
 
 EXPOSE 5050
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:5050/api/status || exit 1
 
 CMD ["node", "server.js"]

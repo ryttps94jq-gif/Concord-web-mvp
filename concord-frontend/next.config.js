@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'concord-os.org'],
     unoptimized: process.env.NODE_ENV === 'development',
   },
   // PWA configuration
