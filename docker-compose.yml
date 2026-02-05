@@ -31,7 +31,7 @@ services:
     networks:
       - concord-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5050/api/status"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready && curl -f http://localhost:5050/api/status | grep -q '\"database\":{\"type\":\"sqlite\"'"]
       interval: 30s
       timeout: 10s
       retries: 3

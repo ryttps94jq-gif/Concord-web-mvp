@@ -236,13 +236,82 @@ async function gracefulShutdown(signal) {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("uncaughtException", (err) => {
-  console.error("[FATAL] Uncaught exception:", err);
+  structuredLog("fatal", "uncaught_exception", { error: err.message, stack: err.stack });
   gracefulShutdown("uncaughtException");
 });
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("[FATAL] Unhandled rejection at:", promise, "reason:", reason);
+  structuredLog("error", "unhandled_rejection", { reason: String(reason) });
   // Don't exit on unhandled rejection, just log it
 });
+
+// ---- Structured JSON Logging ----
+const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug");
+const LOG_FORMAT = process.env.LOG_FORMAT || (process.env.NODE_ENV === "production" ? "json" : "pretty");
+
+const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3, fatal: 4 };
+
+function structuredLog(level, event, data = {}) {
+  if (LOG_LEVELS[level] < LOG_LEVELS[LOG_LEVEL]) return;
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level,
+    event,
+    service: "concord-api",
+    version: "5.1.0",
+    ...data
+  };
+
+  if (LOG_FORMAT === "json") {
+    console.log(JSON.stringify(entry));
+  } else {
+    const prefix = `[${entry.timestamp}] [${level.toUpperCase()}]`;
+    const details = Object.keys(data).length > 0 ? ` ${JSON.stringify(data)}` : "";
+    console.log(`${prefix} ${event}${details}`);
+  }
+
+  return entry;
+}
+
+// HTTP request logging middleware
+function requestLoggerMiddleware(req, res, next) {
+  const startTime = Date.now();
+
+  // Log request
+  const requestData = {
+    requestId: req.id,
+    method: req.method,
+    path: req.path,
+    query: Object.keys(req.query).length > 0 ? req.query : undefined,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"]?.slice(0, 100)
+  };
+
+  // Capture response
+  const originalSend = res.send;
+  res.send = function(body) {
+    res.send = originalSend;
+    const duration = Date.now() - startTime;
+
+    // Log response (skip health checks to reduce noise)
+    if (!req.path.startsWith("/health") && !req.path.startsWith("/ready")) {
+      structuredLog(
+        res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
+        "http_request",
+        {
+          ...requestData,
+          statusCode: res.statusCode,
+          durationMs: duration,
+          userId: req.user?.id
+        }
+      );
+    }
+
+    return originalSend.call(this, body);
+  };
+
+  next();
+}
 
 // ---- config ----
 const PORT = Number(process.env.PORT || 5050);
@@ -11354,6 +11423,7 @@ app.use(cors(corsOptions));
 
 // Production middleware
 app.use(requestIdMiddleware); // Add request ID to all requests
+app.use(requestLoggerMiddleware); // Structured JSON logging
 app.use(sanitizationMiddleware); // Sanitize input
 
 if (rateLimiter) app.use(rateLimiter);
@@ -11643,6 +11713,104 @@ app.delete("/api/auth/api-keys/:keyId", (req, res) => {
   }
 
   res.status(404).json({ ok: false, error: "API key not found" });
+});
+
+// API Key Rotation - creates new key and invalidates old one atomically
+app.post("/api/auth/api-keys/:keyId/rotate", requireRole("owner", "admin"), (req, res) => {
+  const keyId = req.params.keyId;
+
+  // Find the existing key
+  const allKeys = AuthDB.getAllApiKeys();
+  const existingKey = allKeys.find(k => k.id === keyId && k.userId === req.user.id);
+
+  if (!existingKey) {
+    return res.status(404).json({ ok: false, error: "API key not found" });
+  }
+
+  // Generate new key
+  const newApiKey = generateApiKey();
+  const newHashedKey = hashApiKey(newApiKey);
+
+  // Create new key with same name and scopes
+  AuthDB.createApiKey({
+    id: uid("apikey"),
+    userId: req.user.id,
+    name: existingKey.name + " (rotated)",
+    keyHash: newHashedKey,
+    keyPrefix: newApiKey.slice(0, 8),
+    scopes: existingKey.scopes,
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null
+  });
+
+  // Delete old key
+  AuthDB.deleteApiKey(keyId, req.user.id);
+
+  // Audit log rotation
+  auditLog("api_key", "rotated", {
+    userId: req.user.id,
+    oldKeyId: keyId,
+    newKeyPrefix: newApiKey.slice(0, 8),
+    ip: req.ip,
+    requestId: req.id
+  });
+
+  structuredLog("info", "api_key_rotated", {
+    userId: req.user.id,
+    keyName: existingKey.name
+  });
+
+  res.status(201).json({
+    ok: true,
+    apiKey: newApiKey,
+    warning: "Save this API key now. It cannot be retrieved again. The old key has been invalidated."
+  });
+});
+
+// Password change endpoint
+app.post("/api/auth/change-password", async (req, res) => {
+  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
+
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ ok: false, error: "Both current and new password required" });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ ok: false, error: "New password must be at least 8 characters" });
+  }
+
+  // Verify current password
+  const user = AuthDB.getUser(req.user.id);
+  if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
+    auditLog("auth", "password_change_failed", {
+      userId: req.user.id,
+      reason: "invalid_current_password",
+      ip: req.ip,
+      requestId: req.id
+    });
+    return res.status(401).json({ ok: false, error: "Current password is incorrect" });
+  }
+
+  // Update password in database
+  if (db) {
+    const stmt = db.prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+    stmt.run(hashPassword(newPassword), req.user.id);
+  } else {
+    user.passwordHash = hashPassword(newPassword);
+    saveAuthData();
+  }
+
+  auditLog("auth", "password_changed", {
+    userId: req.user.id,
+    ip: req.ip,
+    requestId: req.id
+  });
+
+  structuredLog("info", "password_changed", { userId: req.user.id });
+
+  res.json({ ok: true, message: "Password changed successfully" });
 });
 
 // ---- Backup Endpoints ----
@@ -16685,12 +16853,62 @@ app.post("/api/onboarding/complete", (req, res) => {
 });
 
 // ---- Wave 6: Developer Endpoints ----
+// Swagger UI HTML
+const swaggerUIHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Concord API Documentation</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = () => {
+      SwaggerUIBundle({
+        url: '/api/docs/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+        layout: "BaseLayout"
+      });
+    };
+  </script>
+</body>
+</html>`;
+
 app.get("/api/docs", (req, res) => {
-  res.json(generateOpenAPISpec());
+  // Serve Swagger UI
+  res.type("text/html").send(swaggerUIHtml);
 });
 
 app.get("/api/docs/openapi.json", (req, res) => {
+  // Try to load YAML spec, fall back to generated spec
+  try {
+    const yamlPath = path.join(process.cwd(), "openapi.yaml");
+    if (fs.existsSync(yamlPath)) {
+      const yaml = fs.readFileSync(yamlPath, "utf8");
+      // Simple YAML to JSON conversion for basic spec
+      res.type("application/x-yaml").send(yaml);
+      return;
+    }
+  } catch {}
   res.json(generateOpenAPISpec());
+});
+
+app.get("/api/docs/openapi.yaml", (req, res) => {
+  try {
+    const yamlPath = path.join(process.cwd(), "openapi.yaml");
+    if (fs.existsSync(yamlPath)) {
+      res.type("application/x-yaml").sendFile(yamlPath);
+      return;
+    }
+  } catch {}
+  res.status(404).json({ ok: false, error: "OpenAPI spec not found" });
 });
 
 app.get("/api/plugins", (req, res) => {

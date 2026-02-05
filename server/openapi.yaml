@@ -1,0 +1,704 @@
+openapi: 3.1.0
+info:
+  title: Concord Cognitive Engine API
+  description: |
+    A local-first cognitive operating system built around DTUs (Discrete Thought Units).
+
+    ## Authentication
+    - **Cookie Auth**: httpOnly cookies (recommended for browsers)
+    - **Bearer Token**: JWT in Authorization header
+    - **API Key**: X-API-Key header for programmatic access
+
+    ## Key Concepts
+    - **DTU**: Discrete Thought Unit - the atomic unit of knowledge
+    - **MEGA/HYPER**: Higher-order DTUs consolidating multiple DTUs
+    - **Macros**: Deterministic functions for DTU operations
+    - **Council**: Governance system for credibility and approval
+  version: 5.1.0
+  contact:
+    name: Concord Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5050
+    description: Local development
+  - url: https://api.concord.example.com
+    description: Production
+
+tags:
+  - name: Health
+    description: Health and status endpoints
+  - name: Auth
+    description: Authentication and authorization
+  - name: DTUs
+    description: Discrete Thought Unit operations
+  - name: Forge
+    description: DTU creation modes
+  - name: Chat
+    description: Conversational interface
+  - name: Search
+    description: Search and query operations
+  - name: Council
+    description: Governance and voting
+  - name: Personas
+    description: AI persona management
+  - name: Graph
+    description: Knowledge graph operations
+  - name: Marketplace
+    description: Plugin marketplace
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns server health status
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  version:
+                    type: string
+                    example: 5.1.0-production
+                  uptime:
+                    type: number
+                    example: 3600.5
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Returns whether the server is ready to accept requests
+      security: []
+      responses:
+        '200':
+          description: Server is ready
+        '503':
+          description: Server is not ready
+
+  /api/status:
+    get:
+      tags: [Health]
+      summary: Detailed system status
+      description: Returns comprehensive system status including infrastructure
+      security: []
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      description: Creates a new user account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '403':
+          description: Registration disabled
+        '409':
+          description: Username or email already exists
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticate with username/email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: httpOnly auth cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Too many attempts
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: Invalidate session and clear auth cookie
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      description: Returns the authenticated user's profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  /api/auth/csrf-token:
+    get:
+      tags: [Auth]
+      summary: Get CSRF token
+      description: Returns a CSRF token for state-changing requests
+      security: []
+      responses:
+        '200':
+          description: CSRF token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  csrfToken:
+                    type: string
+
+  /api/auth/api-keys:
+    get:
+      tags: [Auth]
+      summary: List API keys
+      description: Returns user's API keys (without secrets)
+      responses:
+        '200':
+          description: API keys list
+    post:
+      tags: [Auth]
+      summary: Create API key
+      description: Creates a new API key (owner/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  apiKey:
+                    type: string
+                    description: Raw API key (only shown once)
+                  warning:
+                    type: string
+
+  /api/auth/audit-log:
+    get:
+      tags: [Auth]
+      summary: Get audit log
+      description: Returns security audit log (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Audit log entries
+        '403':
+          description: Admin access required
+
+  /api/dtus:
+    get:
+      tags: [DTUs]
+      summary: List DTUs
+      description: Returns all DTUs with optional filtering
+      parameters:
+        - name: tier
+          in: query
+          schema:
+            type: string
+            enum: [regular, mega, hyper, global]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: DTU list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtus:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DTU'
+    post:
+      tags: [DTUs]
+      summary: Create DTU
+      description: Creates a new DTU directly
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DTUCreate'
+      responses:
+        '201':
+          description: DTU created
+
+  /api/forge/manual:
+    post:
+      tags: [Forge]
+      summary: Manual forge
+      description: Create DTU with full manual control
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgeManual'
+      responses:
+        '200':
+          description: DTU forged
+
+  /api/forge/hybrid:
+    post:
+      tags: [Forge]
+      summary: Hybrid forge
+      description: Create DTU with optional LLM enhancement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgeHybrid'
+      responses:
+        '200':
+          description: DTU forged
+
+  /api/forge/auto:
+    post:
+      tags: [Forge]
+      summary: Auto forge
+      description: Create DTU entirely from LLM (requires LLM key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: DTU forged
+
+  /api/chat:
+    post:
+      tags: [Chat]
+      summary: Chat with Concord
+      description: Send a message and get a response
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                mode:
+                  type: string
+                  enum: [overview, deep, creative]
+                  default: overview
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  reply:
+                    type: string
+                  meta:
+                    type: object
+
+  /api/search/indexed:
+    get:
+      tags: [Search]
+      summary: Search DTUs
+      description: Full-text search across DTUs
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Search results
+
+  /api/graph/query:
+    post:
+      tags: [Graph]
+      summary: Graph DSL query
+      description: Query knowledge graph with DSL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dsl]
+              properties:
+                dsl:
+                  type: string
+                  example: "MATCH tier:mega LIMIT 10"
+      responses:
+        '200':
+          description: Query results
+
+  /api/personas:
+    get:
+      tags: [Personas]
+      summary: List personas
+      description: Returns all available AI personas
+      responses:
+        '200':
+          description: Persona list
+
+  /api/council/vote:
+    post:
+      tags: [Council]
+      summary: Vote on DTU
+      description: Submit approval/rejection vote for a DTU
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId, vote]
+              properties:
+                dtuId:
+                  type: string
+                vote:
+                  type: string
+                  enum: [approve, reject]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Vote recorded
+
+  /api/marketplace/browse:
+    get:
+      tags: [Marketplace]
+      summary: Browse plugins
+      description: Browse available plugins
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Plugin list
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: concord_auth
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        scopes:
+          type: array
+          items:
+            type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: JWT token (also set as httpOnly cookie)
+
+    DTU:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        tier:
+          type: string
+          enum: [regular, mega, hyper]
+        tags:
+          type: array
+          items:
+            type: string
+        core:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DTUCreate:
+      type: object
+      required: [content]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+        isGlobal:
+          type: boolean
+          default: false
+
+    ForgeManual:
+      type: object
+      properties:
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        core:
+          type: object
+          properties:
+            definitions:
+              type: array
+              items:
+                type: string
+            invariants:
+              type: array
+              items:
+                type: string
+
+    ForgeHybrid:
+      type: object
+      required: [content]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+
+    SystemStatus:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        version:
+          type: string
+        nodeEnv:
+          type: string
+        uptime:
+          type: number
+        dtus:
+          type: integer
+        personas:
+          type: integer
+        infrastructure:
+          type: object
+          properties:
+            database:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [sqlite, json]
+                ready:
+                  type: boolean
+            auth:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                totalUsers:
+                  type: integer
+            security:
+              type: object
+              properties:
+                csrfEnabled:
+                  type: boolean
+                rateLimitEnabled:
+                  type: boolean
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+  - apiKeyAuth: []
