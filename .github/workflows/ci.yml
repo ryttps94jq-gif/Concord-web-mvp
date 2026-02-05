@@ -140,12 +140,24 @@ jobs:
           ADMIN_PASSWORD: testpassword123
           REDIS_URL: redis://localhost:6379
         run: |
-          node server.js &
-          sleep 10
+          node server.js > server.log 2>&1 &
+          echo $! > server.pid
+          echo "Server started with PID $(cat server.pid)"
 
-      - name: Health check
+      - name: Wait for server
+        working-directory: ./server
         run: |
-          curl -f http://localhost:5050/health || exit 1
+          for i in {1..30}; do
+            if curl -sf http://localhost:5050/health > /dev/null 2>&1; then
+              echo "Server is ready after $i seconds"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 1
+          done
+          echo "Server failed to start. Logs:"
+          cat server.log
+          exit 1
 
       - name: Run API tests
         working-directory: ./server
