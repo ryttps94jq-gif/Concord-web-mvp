@@ -36,6 +36,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
 
   # Frontend Next.js App
   frontend:
@@ -53,6 +61,20 @@ services:
       - backend
     networks:
       - concord-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
 
   # Nginx Reverse Proxy
   nginx:
