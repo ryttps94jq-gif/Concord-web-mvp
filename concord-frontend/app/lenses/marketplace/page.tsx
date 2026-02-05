@@ -542,9 +542,9 @@ export default function MarketplaceLensPage() {
       {tab === 'installed' && (
         <InstalledTab
           plugins={installed}
-          onUninstall={(id) => uninstallMutation.mutate(id)}
-          onUpdate={(id) => installMutation.mutate({ pluginId: id })}
-          onSettings={(plugin) => setSelectedPlugin(plugin)}
+          onUninstall={(id: string) => uninstallMutation.mutate(id)}
+          onUpdate={(id: string) => installMutation.mutate({ pluginId: id })}
+          onSettings={(plugin: Plugin) => setSelectedPlugin(plugin)}
         />
       )}
 
@@ -577,7 +577,7 @@ export default function MarketplaceLensPage() {
         {showSubmit && (
           <SubmitPluginModal
             onClose={() => setShowSubmit(false)}
-            onSubmit={(data) => submitMutation.mutate(data)}
+            onSubmit={(data: { name: string; githubUrl: string; description: string; category: string }) => submitMutation.mutate(data)}
             categories={CATEGORIES.slice(1).map(c => c.id)}
             submitting={submitMutation.isPending}
           />
@@ -590,7 +590,7 @@ export default function MarketplaceLensPage() {
           <ReviewModal
             plugin={selectedPlugin}
             onClose={() => setShowReviewModal(false)}
-            onSubmit={(data) => reviewMutation.mutate({ pluginId: selectedPlugin.id, ...data })}
+            onSubmit={(data: { rating: number; comment: string }) => reviewMutation.mutate({ pluginId: selectedPlugin.id, ...data })}
             submitting={reviewMutation.isPending}
           />
         )}
