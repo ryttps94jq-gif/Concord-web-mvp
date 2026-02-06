@@ -44,7 +44,7 @@ function addTimelineVersion(timelineId, state, description) {
 
   const version = {
     version: timeline.versions.length + 1,
-    state: JSON.parse(JSON.stringify(state)),  // deep clone for immutability
+    state: (() => { try { return JSON.parse(JSON.stringify(state)); } catch { return { ...state }; } })(),  // deep clone with circular-ref fallback
     ts: new Date().toISOString(),
     description: String(description || ""),
   };
@@ -121,13 +121,13 @@ function queryChanges(timelineId, fromVersion, toVersion) {
   // Compute diff between states
   const changes = diffStates(from.state, to.state);
 
-  // Find causal events between these versions
+  // Find causal events between these versions (guard against invalid dates)
   const fromTs = new Date(from.ts).getTime();
   const toTs = new Date(to.ts).getTime();
-  const causalEvents = Array.from(causalGraph.nodes.values())
+  const causalEvents = (isNaN(fromTs) || isNaN(toTs)) ? [] : Array.from(causalGraph.nodes.values())
     .filter(n => {
       const nTs = new Date(n.ts).getTime();
-      return nTs >= fromTs && nTs <= toTs;
+      return !isNaN(nTs) && nTs >= fromTs && nTs <= toTs;
     })
     .sort((a, b) => new Date(a.ts) - new Date(b.ts));
 

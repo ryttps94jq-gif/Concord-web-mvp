@@ -66,6 +66,13 @@ function createDispute(claims, evidence, contextMeta = {}) {
   }
 
   disputes.set(id, dispute);
+
+  // Cap disputes to prevent unbounded growth
+  if (disputes.size > 10000) {
+    const oldest = disputes.keys().next().value;
+    disputes.delete(oldest);
+  }
+
   return { ok: true, dispute };
 }
 

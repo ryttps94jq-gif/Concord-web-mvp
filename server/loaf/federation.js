@@ -27,7 +27,7 @@ function exportArtifact(artifact, evidenceBundle, disputeHistory, licenseTerms) 
       id: artifact.id,
       type: artifact.type || "dtu",
       title: artifact.title || artifact.name || "",
-      content: artifact.content || artifact.cretiHuman || "",
+      content: artifact.content || artifact.text || artifact.description || "",
       tags: artifact.tags || [],
       tier: artifact.tier || "regular",
     },
@@ -157,6 +157,12 @@ function voteReputation(artifactId, score, voter) {
   // Recalculate average
   rep.votes++;
   rep.score = rep.history.reduce((s, v) => s + v.score, 0) / rep.history.length;
+
+  // Cap total artifacts tracked to prevent unbounded growth
+  if (artifactReputation.size > 50000) {
+    const oldest = artifactReputation.keys().next().value;
+    artifactReputation.delete(oldest);
+  }
 
   return { ok: true, reputation: { ...rep, history: undefined }, vote };
 }

@@ -49,6 +49,11 @@ function trackContribution(actorId, domain, lens, value, config = DEFAULT_CONFIG
   while (log.length > 0 && log[0].ts < windowStart) {
     log.shift();
   }
+  // Clean up empty entries to prevent unbounded Map growth
+  if (log.length === 0) {
+    actorContributions.delete(actorId);
+    actorContributions.set(actorId, log); // re-add for current call
+  }
 
   // Check cap
   if (log.length >= config.maxContributionsPerActor) {

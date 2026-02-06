@@ -256,6 +256,11 @@ function init({ register, STATE, helpers }) {
     );
     bundles.set(bundle.artifactId, bundle);
     v.stats.bundlesCreated++;
+    // Cap bundles to prevent unbounded growth
+    if (bundles.size > 50000) {
+      const oldest = bundles.keys().next().value;
+      bundles.delete(oldest);
+    }
     return { ok: true, bundle };
   }, { public: false });
 

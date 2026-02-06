@@ -276,11 +276,12 @@ describe("LOAF I.1/III.5 — Meta-Governance / Constitution", () => {
 describe("LOAF I.2 — Learning Integrity", () => {
   it("should enforce per-actor contribution caps", () => {
     const config = { maxContributionsPerActor: 3, contributionWindowMs: 60000 };
-    const r1 = trackContribution("testActor1", "math", "default", 1, config);
+    const actorId = `testActor_cap_${Date.now()}`;
+    const r1 = trackContribution(actorId, "math", "default", 1, config);
     assert.equal(r1.allowed, true);
-    trackContribution("testActor1", "math", "default", 1, config);
-    trackContribution("testActor1", "math", "default", 1, config);
-    const r4 = trackContribution("testActor1", "math", "default", 1, config);
+    trackContribution(actorId, "math", "default", 1, config);
+    trackContribution(actorId, "math", "default", 1, config);
+    const r4 = trackContribution(actorId, "math", "default", 1, config);
     assert.equal(r4.allowed, false);
     assert.equal(r4.reason, "contribution_cap_exceeded");
   });
@@ -343,10 +344,12 @@ describe("LOAF I.3 — Transfer Learning Hardening", () => {
 
   it("should hard-block after too many negative transfers", () => {
     const config = { maxNegativeTransfers: 3, negativeTransferDecayMs: 3600000 };
-    recordNegativeTransfer("physics", "poetry", "r1", 1);
-    recordNegativeTransfer("physics", "poetry", "r2", 1);
-    recordNegativeTransfer("physics", "poetry", "r3", 1);
-    const block = isHardBlocked("physics", "poetry", config);
+    const src = `physics_${Date.now()}`;
+    const tgt = `poetry_${Date.now()}`;
+    recordNegativeTransfer(src, tgt, "r1", 1);
+    recordNegativeTransfer(src, tgt, "r2", 1);
+    recordNegativeTransfer(src, tgt, "r3", 1);
+    const block = isHardBlocked(src, tgt, config);
     assert.equal(block.blocked, true);
   });
 
@@ -429,13 +432,14 @@ describe("LOAF I.4 — World Model Disputes + Provenance", () => {
 describe("LOAF I.5/I.6 — Scheduler + Rate Budget", () => {
   it("should consume budget and enforce limits", () => {
     const config = { defaultBudgetPerWindow: 10, windowMs: 60000, domainCosts: { http: 1 } };
-    const r1 = consumeBudget("actor_sched_1", "http", 1, config);
+    const actorId = `actor_sched_${Date.now()}`;
+    const r1 = consumeBudget(actorId, "http", 1, config);
     assert.equal(r1.allowed, true);
     assert.equal(r1.remaining, 9);
 
     // Exhaust budget
-    for (let i = 0; i < 9; i++) consumeBudget("actor_sched_1", "http", 1, config);
-    const denied = consumeBudget("actor_sched_1", "http", 1, config);
+    for (let i = 0; i < 9; i++) consumeBudget(actorId, "http", 1, config);
+    const denied = consumeBudget(actorId, "http", 1, config);
     assert.equal(denied.allowed, false);
     assert.equal(denied.reason, "budget_exceeded");
   });
@@ -740,9 +744,10 @@ describe("LOAF II.7 — Federation", () => {
   });
 
   it("should attach reputation to artifacts, not identities", () => {
-    voteReputation("art1", 0.8, { id: "voter1" });
-    voteReputation("art1", 0.6, { id: "voter2" });
-    const rep = getArtifactReputation("art1");
+    const artId = `art_rep_${Date.now()}`;
+    voteReputation(artId, 0.8, { id: "voter1" });
+    voteReputation(artId, 0.6, { id: "voter2" });
+    const rep = getArtifactReputation(artId);
     assert.ok(rep.score > 0);
     assert.equal(rep.votes, 2);
   });
@@ -765,8 +770,10 @@ describe("LOAF III.1 — Epistemic Layer Split", () => {
   });
 
   it("should enforce near-zero decay for hard kernel", () => {
-    addEpistemicItem({ id: "hk1", text: "E = mc^2", confidence: 1.0, tags: ["physics"], layer: "hard_kernel" });
-    addEpistemicItem({ id: "sb1", text: "Market will rise", confidence: 0.7, layer: "soft_belief" });
+    const hkId = `hk_decay_${Date.now()}`;
+    const sbId = `sb_decay_${Date.now()}`;
+    addEpistemicItem({ id: hkId, text: "E = mc^2", confidence: 1.0, tags: ["physics"], layer: "hard_kernel" });
+    addEpistemicItem({ id: sbId, text: "Market will rise", confidence: 0.7, layer: "soft_belief" });
     const result = applyDecay(600000); // 10 minutes
     assert.ok(result.total >= 2);
   });

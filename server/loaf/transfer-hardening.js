@@ -42,6 +42,12 @@ function recordNegativeTransfer(sourceDomain, targetDomain, reason, severity = 1
     events.shift();
   }
 
+  // Cap total domain pairs tracked to prevent unbounded growth
+  if (negativeTransfers.size > 10000) {
+    const oldest = negativeTransfers.keys().next().value;
+    negativeTransfers.delete(oldest);
+  }
+
   return { recorded: true, key, totalEvents: events.length };
 }
 

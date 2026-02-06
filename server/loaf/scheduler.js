@@ -148,6 +148,11 @@ function scheduleTask(task, config = SCHEDULER_CONFIG) {
   // Sort by priority (descending)
   schedulerQueue.sort((a, b) => b.priority - a.priority);
 
+  // Cap queue size to prevent unbounded growth
+  if (schedulerQueue.length > 10000) {
+    schedulerQueue.splice(10000);
+  }
+
   return { ok: true, task: entry, queuePosition: schedulerQueue.indexOf(entry) };
 }
 

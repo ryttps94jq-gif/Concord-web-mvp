@@ -98,6 +98,13 @@ function addEpistemicItem(item) {
   };
 
   epistemicItems.set(id, entry);
+
+  // Cap items to prevent unbounded growth
+  if (epistemicItems.size > 50000) {
+    const oldest = epistemicItems.keys().next().value;
+    epistemicItems.delete(oldest);
+  }
+
   return { ok: true, item: entry };
 }
 
@@ -106,11 +113,13 @@ function addEpistemicItem(item) {
  */
 function applyDecay(dtMs = 60000) {
   let decayed = 0;
+  // Guard against negative or non-numeric time deltas
+  const safeDtMs = Math.max(0, Number(dtMs) || 0);
   for (const [id, item] of epistemicItems) {
     const config = LAYER_CONFIG[item.layer];
     if (!config) continue;
 
-    const decayFactor = Math.exp(-config.decayRate * (dtMs / 60000));
+    const decayFactor = Math.exp(-config.decayRate * (safeDtMs / 60000));
     const newConfidence = item.confidence * decayFactor;
 
     if (Math.abs(newConfidence - item.decayedConfidence) > 0.001) {
