@@ -37,7 +37,7 @@ before(async () => {
       NODE_ENV: 'development',
       CONCORD_NO_LISTEN: ''
     },
-    stdio: 'ignore'
+    stdio: ['ignore', 'ignore', 'inherit']
   });
 
   serverProcess.on('error', (err) => {
@@ -82,7 +82,8 @@ async function api(method, path, body = null, options = {}) {
   const fetchOptions = {
     method,
     headers,
-    credentials: 'include'
+    credentials: 'include',
+    signal: AbortSignal.timeout(10_000)
   };
   if (body) fetchOptions.body = JSON.stringify(body);
 
@@ -194,7 +195,7 @@ describe('CSRF Protection', () => {
 
   // Note: CSRF is only enforced in production mode
   it('State-changing requests include X-Request-ID in response', async () => {
-    const res = await fetch(`${API_BASE}/api/status`);
+    const res = await fetch(`${API_BASE}/api/status`, { signal: AbortSignal.timeout(10_000) });
     const requestId = res.headers.get('X-Request-ID');
     assert(requestId, 'Should include X-Request-ID header');
     assert(requestId.startsWith('req_'), 'Request ID should have correct format');
@@ -205,16 +206,16 @@ describe('CSRF Protection', () => {
 
 describe('Rate Limiting', () => {
   it('Respects rate limits on auth endpoints', async () => {
-    // Make multiple rapid requests
-    const requests = [];
+    // Make multiple sequential requests to test rate limiting
+    // Sequential to avoid overwhelming the server with concurrent bcrypt operations
+    const results = [];
     for (let i = 0; i < 5; i++) {
-      requests.push(api('POST', '/api/auth/login', {
+      results.push(await api('POST', '/api/auth/login', {
         username: 'nonexistent',
         password: 'password'
       }, { noAuth: true }));
     }
 
-    const results = await Promise.all(requests);
     // All should either be 401 (invalid) or 429 (rate limited)
     results.forEach(res => {
       assert([401, 429].includes(res.status), `Expected 401 or 429, got ${res.status}`);
@@ -291,7 +292,7 @@ describe('Authorization', () => {
 
 describe('Security Headers', () => {
   it('Responses include security headers', async () => {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(10_000) });
 
     // Check for common security headers (when helmet is enabled)
     const headers = res.headers;
@@ -307,7 +308,8 @@ describe('Security Headers', () => {
       headers: {
         'Origin': 'https://example.com',
         'Access-Control-Request-Method': 'GET'
-      }
+      },
+      signal: AbortSignal.timeout(10_000)
     });
 
     // Should either allow or deny based on configuration
@@ -361,7 +363,8 @@ describe('Error Handling', () => {
         'Content-Type': 'application/json',
         'Authorization': authToken ? `Bearer ${authToken}` : ''
       },
-      body: 'not valid json {'
+      body: 'not valid json {',
+      signal: AbortSignal.timeout(10_000)
     });
     // Express JSON parser may return 400 or 500 for parse errors depending on error handler
     assert([400, 401, 500].includes(res.status), 'Should return error for invalid JSON');

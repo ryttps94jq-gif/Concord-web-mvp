@@ -19706,6 +19706,137 @@ app.get("/api/global/feed", (req, res) => {
 console.log("[Concord] Wave 17: Final audit fixes loaded");
 console.log("[Concord] Wave 16: Missing lens endpoints loaded");
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AFFECTIVE TRANSLATION SPINE (ATS)
+// First-class subsystem: bounded affective state → OS control signals
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let ATS = null;
+try {
+  ATS = await import("./affect/index.js");
+  console.log("[Concord] ATS: Affective Translation Spine loaded");
+} catch (e) {
+  console.warn("[Concord] ATS: Failed to load affect module:", e.message);
+}
+
+// ---- ATS Middleware: emit affect events for requests ----
+if (ATS) {
+  app.use((req, res, next) => {
+    const sessionId = req.user?.sessionId || req.headers["x-session-id"] || req.cookies?.concord_session || "default";
+    req._atsSessionId = sessionId;
+
+    // Emit USER_MESSAGE event on incoming requests
+    if (req.method !== "GET" && req.method !== "OPTIONS") {
+      ATS.emitAffectEvent(sessionId, {
+        type: "USER_MESSAGE",
+        intensity: 0.3,
+        polarity: 0,
+        source: { userId: req.user?.id, sessionId, route: req.path },
+      });
+    }
+
+    // Hook into response to emit outcome events
+    const originalJson = res.json.bind(res);
+    res.json = function(body) {
+      if (body && typeof body === "object") {
+        const isError = res.statusCode >= 400;
+        const isServerError = res.statusCode >= 500;
+
+        if (isServerError) {
+          ATS.emitAffectEvent(sessionId, {
+            type: "ERROR",
+            intensity: 0.7,
+            polarity: -0.6,
+            source: { sessionId, route: req.path },
+            payload: { statusCode: res.statusCode },
+          });
+        } else if (isError) {
+          ATS.emitAffectEvent(sessionId, {
+            type: "SYSTEM_RESULT",
+            intensity: 0.4,
+            polarity: -0.3,
+            source: { sessionId, route: req.path },
+            payload: { statusCode: res.statusCode },
+          });
+        } else if (body.ok === true) {
+          ATS.emitAffectEvent(sessionId, {
+            type: "SUCCESS",
+            intensity: 0.3,
+            polarity: 0.4,
+            source: { sessionId, route: req.path },
+          });
+        }
+      }
+      return originalJson(body);
+    };
+
+    next();
+  });
+}
+
+// ---- ATS API Endpoints ----
+
+// GET /api/affect/state — current affective state for a session
+app.get("/api/affect/state", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  const sessionId = req.query.sessionId || req._atsSessionId || "default";
+  const state = ATS.getAffectState(sessionId);
+  if (!state) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json({ ok: true, state });
+});
+
+// POST /api/affect/event — apply an affect event
+app.post("/api/affect/event", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  const sessionId = req.body?.source?.sessionId || req._atsSessionId || "default";
+  const result = ATS.emitAffectEvent(sessionId, req.body);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+// GET /api/affect/policy — current policy for a session
+app.get("/api/affect/policy", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  const sessionId = req.query.sessionId || req._atsSessionId || "default";
+  const policy = ATS.getSessionPolicy(sessionId);
+  if (!policy) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json({ ok: true, policy });
+});
+
+// POST /api/affect/reset — reset to baseline or cooldown
+app.post("/api/affect/reset", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  const sessionId = req.body?.sessionId || req._atsSessionId || "default";
+  const mode = req.body?.mode || "baseline";
+  const result = ATS.resetAffect(sessionId, mode);
+  res.json(result);
+});
+
+// GET /api/affect/events — recent events for a session
+app.get("/api/affect/events", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  const sessionId = req.query.sessionId || req._atsSessionId || "default";
+  const limit = Math.min(Number(req.query.limit) || 50, 500);
+  const events = ATS.getAffectEvents(sessionId, limit);
+  res.json({ ok: true, events, count: events.length });
+});
+
+// GET /api/affect/health — ATS subsystem health
+app.get("/api/affect/health", (req, res) => {
+  if (!ATS) return res.status(501).json({ ok: false, error: "ATS not loaded" });
+  res.json({
+    ok: true,
+    loaded: true,
+    sessions: ATS.sessionCount(),
+    baseline: ATS.BASELINE,
+    dimensions: ATS.DIMS,
+  });
+});
+
+console.log("[Concord] ATS: Affect API endpoints registered");
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
