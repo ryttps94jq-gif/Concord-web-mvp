@@ -173,9 +173,12 @@ describe('EmptyInbox', () => {
 
 describe('ErrorState', () => {
   it('renders error message', () => {
-    render(<ErrorState error="Something went wrong" />);
+    render(<ErrorState error="Test error occurred" />);
 
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    // Title should always be "Something went wrong"
+    expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
+    // Description should contain the custom error message
+    expect(screen.getByText('Test error occurred')).toBeInTheDocument();
   });
 
   it('renders default error message when no error provided', () => {

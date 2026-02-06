@@ -239,7 +239,7 @@ export default function WhiteboardLensPage() {
       (currentElement.points && currentElement.points.length > 2)
     )) {
       // Normalize negative dimensions
-      let normalized = { ...currentElement };
+      const normalized = { ...currentElement };
       if (normalized.width && normalized.width < 0) {
         normalized.x += normalized.width;
         normalized.width = Math.abs(normalized.width);

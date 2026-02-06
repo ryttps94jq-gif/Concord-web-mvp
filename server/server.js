@@ -34,13 +34,13 @@ import { spawnSync } from "child_process";
 // ---- Production dependencies (graceful loading) ----
 let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null, promClient = null;
 let Database = null; // better-sqlite3
-try { jwt = (await import("jsonwebtoken")).default; } catch {}
-try { bcrypt = (await import("bcryptjs")).default; } catch {}
-try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch {}
-try { rateLimit = (await import("express-rate-limit")).default; } catch {}
-try { helmet = (await import("helmet")).default; } catch {}
-try { compression = (await import("compression")).default; } catch {}
-try { Database = (await import("better-sqlite3")).default; } catch {}
+try { jwt = (await import("jsonwebtoken")).default; } catch { /* optional dependency */ }
+try { bcrypt = (await import("bcryptjs")).default; } catch { /* optional dependency */ }
+try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* optional dependency */ }
+try { rateLimit = (await import("express-rate-limit")).default; } catch { /* optional dependency */ }
+try { helmet = (await import("helmet")).default; } catch { /* optional dependency */ }
+try { compression = (await import("compression")).default; } catch { /* optional dependency */ }
+try { Database = (await import("better-sqlite3")).default; } catch { /* optional dependency */ }
 
 // ---- dotenv (safe) ----
 let DOTENV = { loaded: false, path: null, error: null };
@@ -238,7 +238,7 @@ async function gracefulShutdown(signal) {
 
   // Give pending requests time to complete
   const timeout = Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000);
-  await new Promise(resolve => setTimeout(resolve, Math.min(timeout, 1000)));
+  await new Promise(resolve => { setTimeout(resolve, Math.min(timeout, 1000)); });
 
   console.log("[Shutdown] Graceful shutdown complete");
   process.exit(0);
@@ -772,7 +772,7 @@ function selectWorkingSet(scored, settings, { includeMegas=true } = {}){
   // - focus (Tier A): up to 500 DTUs that may directly drive reasoning
   // - peripheral (Tier B): up to 5000 DTUs for broad adjacency/contradiction scans
   const focusMax = clamp(Number(settings?.focusSetMax ?? settings?.workingSetMax ?? 500), 50, 5000);
-  const peripheralMax = clamp(Number(settings?.peripheralSetMax ?? (focusMax * 10) ?? 5000), focusMax, 50000);
+  const peripheralMax = clamp(Number(settings?.peripheralSetMax ?? (focusMax * 10)), focusMax, 50000);
   const microMax = clamp(Number(settings?.microSetMax ?? 50), 10, focusMax);
   const crispMin = Number(settings?.crispnessMin ?? 0.25);
 
@@ -3359,11 +3359,11 @@ async function governedCall(ctx, effectName, fn){
     throw new Error(`governedCall rejected: ${pre.reason}`);
   }
   // Council check: if you have a council gate function, use it; otherwise enforce immutables.
-  if (IMMUTABLES?.COUNCIL_REQUIRED && typeof councilApprove === "function"){
-    const ok = await councilApprove(ctx, { effectName });
+  if (IMMUTABLES?.COUNCIL_REQUIRED && typeof globalThis.councilApprove === "function"){
+    const ok = await globalThis.councilApprove(ctx, { effectName });
     if (!ok) throw new Error("council denied governed call");
   }
-  return await fn();
+  return fn();
 }
 // ===== END CHICKEN2 CORE =====
 
@@ -3389,13 +3389,9 @@ function listMacros(domain) {
 
 async function runMacro(domain, name, input, ctx) {
   // v3: permissioned cognition (macro-level ACL). Defaults open for local-first dev.
-  try {
-    const actor = ctx?.actor || { role: "owner", scopes: ["*"] };
-    if (typeof canRunMacro === "function" && !canRunMacro(actor, domain, name)) {
-      throw new Error(`forbidden: ${domain}.${name}`);
-    }
-  } catch (e) {
-    throw e;
+  const actor = ctx?.actor || { role: "owner", scopes: ["*"] };
+  if (typeof globalThis.canRunMacro === "function" && !globalThis.canRunMacro(actor, domain, name)) {
+    throw new Error(`forbidden: ${domain}.${name}`);
   }
 
   // Chicken2: reality guard (full blast) with founder recovery valve
@@ -3749,8 +3745,8 @@ if (workingDir) {
     };
 
     // Prefer native shadow DTU mechanism if present; fallback to generic set()
-    if (typeof writeShadowDTU === "function") writeShadowDTU(auditDTU);
-    else if (typeof set === "function") set(auditDTU.id, auditDTU);
+    if (typeof globalThis.writeShadowDTU === "function") globalThis.writeShadowDTU(auditDTU);
+    else if (typeof globalThis.set === "function") globalThis.set(auditDTU.id, auditDTU);
   } catch (e) {
     log("entity.terminal.audit.failed", "Failed to create audit DTU", { error: String(e?.message||e) });
   }
@@ -7832,7 +7828,7 @@ function pipeSnapshot() {
   const dir = path.join(PIPE.snapshotsDir, `snap_${stamp}_${crypto.randomBytes(3).toString("hex")}`);
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   try {
-    fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify(serializeStateForDisk(), null, 2), "utf-8");
+    fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify(_serializeState(), null, 2), "utf-8");
   } catch {}
   return dir;
 }
@@ -7841,7 +7837,7 @@ function pipeRestoreSnapshot(dir) {
   try {
     const raw = fs.readFileSync(path.join(dir, "state.json"), "utf-8");
     const obj = JSON.parse(raw);
-    hydrateStateFromDisk(obj);
+    _hydrateState(obj);
     saveStateDebounced();
     return { ok: true };
   } catch (e) {
@@ -8519,21 +8515,21 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     else STATE.dtus.set(dtu.id, dtu);
     saveStateDebounced();
     return { ok:true, dtu, bypassed:true };
+  }
   // --- Anti-gaming guard: only system promotion may create MEGA/HYPER DTUs ---
   try {
     const op = String(opts.op || "");
     const systemOp = op.startsWith("auto.promo.") || op.startsWith("auto.promo") || op.startsWith("auto.promotion");
     const systemCtx = !!(ctx && (ctx.system === true || ctx.isSystem === true || ctx?.meta?.system === true));
     if ((dtu?.tier === "mega" || dtu?.tier === "hyper") && !(systemOp || systemCtx)) {
-      // Downgrade to regular; users can’t self-promote tiers.
+      // Downgrade to regular; users can't self-promote tiers.
       dtu.tier = "regular";
       dtu.tags = Array.from(new Set([...(dtu.tags||[]), "tier_downgraded"]));
       dtu.meta = dtu.meta || {};
       dtu.meta.tierDowngradedAt = nowISO();
       dtu.meta.tierDowngradeReason = "anti_gaming_only_auto_promo_can_set_tier";
     }
-  } catch {}
-  }
+  } catch { /* anti-gaming guard may fail gracefully */ }
   const p = pipeProposal("dtu.commit", { dtu }, { kind:"macro", id: opts.op || "unknown" });
   const vr = pipeVerify(p);
   p.verify = vr; p.updatedAt = nowISO();
@@ -8726,7 +8722,7 @@ register("dtu", "create", async (ctx, input) => {
   dtu.cretiHuman = dtu.cretiHuman || renderHumanDTU(dtu);
   dtu.hash = crypto.createHash("sha256").update(title + "\n" + dtu.cretiHuman).digest("hex").slice(0, 16);
 
-  await pipelineCommitDTU(ctx, dtu, { op: 'dtu.create', allowRewrite });
+  await pipelineCommitDTU(ctx, dtu, { op: 'dtu.create', allowRewrite: true });
   ctx.log("dtu.create", `Created DTU: ${title}`, { id: dtu.id, tier, tags, source, score: gate.score });
   return { ok: true, dtu };
 }, { description: "Create a DTU (regular/mega/hyper) with structured core; UI receives human projection." });
@@ -9030,8 +9026,8 @@ sess.messages.push({ role: "user", content: prompt, ts: nowISO() });
     const wordMap = [
       { re: /^what\s+is\s+(-?\d+(?:\.\d+)?)\s*(\+|plus)\s*(-?\d+(?:\.\d+)?)$/, op: "+" },
       { re: /^(-?\d+(?:\.\d+)?)\s*(\+|plus)\s*(-?\d+(?:\.\d+)?)$/, op: "+" },
-      { re: /^what\s+is\s+(-?\d+(?:\.\d+)?)\s*(\-|minus)\s*(-?\d+(?:\.\d+)?)$/, op: "-" },
-      { re: /^(-?\d+(?:\.\d+)?)\s*(\-|minus)\s*(-?\d+(?:\.\d+)?)$/, op: "-" },
+      { re: /^what\s+is\s+(-?\d+(?:\.\d+)?)\s*(-|minus)\s*(-?\d+(?:\.\d+)?)$/, op: "-" },
+      { re: /^(-?\d+(?:\.\d+)?)\s*(-|minus)\s*(-?\d+(?:\.\d+)?)$/, op: "-" },
       { re: /^what\s+is\s+(-?\d+(?:\.\d+)?)\s*(\*|x|times|multiplied\s+by)\s*(-?\d+(?:\.\d+)?)$/, op: "*" },
       { re: /^(-?\d+(?:\.\d+)?)\s*(\*|x|times|multiplied\s+by)\s*(-?\d+(?:\.\d+)?)$/, op: "*" },
       { re: /^what\s+is\s+(-?\d+(?:\.\d+)?)\s*(\/|divided\s+by|over)\s*(-?\d+(?:\.\d+)?)$/, op: "/" },
@@ -9708,8 +9704,7 @@ register("dtu", "saveSuggested", async (ctx, input) => {
     if (r?.ok) saved.push(r.dtu);
   }
 
-const score = await ctx.macro.run("verify","designScore", { spec: prompt, llm: ctx.state.settings.llmDefault });
-return { ok: true, saved, designScore: score };
+  return { ok: true, saved };
 });
 
 // Sim domain
@@ -10740,13 +10735,12 @@ register("heartbeat", "tick", async (ctx, input) => {
   });
 
   if (made.ok) {
-    ctx.log(`heartbeat.tick: ${question}`);
-if (r.ok) out.reply = r.content.trim();
-    else out.reply = "LLM error; run wrapper locally is not implemented for this spec.";
+    ctx.log("heartbeat.tick", "Heartbeat synthesis completed", { reason, focus: focus.slice(0, 100) });
+    return { ok: true, did: "synthesis", dtuId: made.dtu?.id };
   } else {
-    out.reply = `Wrapper (${w.name}) local mode: bind DTUs=${bound.length}. Enable Enhanced to run with LLM.`;
+    ctx.log("heartbeat.tick", "Heartbeat synthesis failed", { reason, error: made.error });
+    return { ok: true, did: "noop", reason: "synthesis_failed" };
   }
-  return { ok:true, output: out };
 });
 
 
@@ -10763,7 +10757,7 @@ if (r.ok) out.reply = r.content.trim();
 function mathTokenize(expr="") {
   const s = String(expr).replace(/\s+/g,"").trim();
   const out = [];
-  const re = /(\d+(?:\.\d+)?(?:e[+\-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*|[\+\-\*\/\^\(\),])/gy;
+  const re = /(\d+(?:\.\d+)?(?:e[+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*|[+\-*/^(),])/gy;
   let m;
   while ((m = re.exec(s))) out.push(m[1]);
   if (out.join("") !== s) throw new Error("Math parse error: invalid characters");
@@ -11408,7 +11402,7 @@ register("council", "reviewGlobal", async (ctx, input) => {
   dtu.meta = dtu.meta || {};
   dtu.meta.globalHash = h;
   STATE.globalIndex.byHash.set(h, dtuId);
-  await pipelineCommitDTU(ctx, dtu, { op: 'dtu.create', allowRewrite });
+  await pipelineCommitDTU(ctx, dtu, { op: 'dtu.create', allowRewrite: true });
 
   // Council "why"
   const why = `Approved for Global: non-duplicate hash ${h.slice(0,10)}…`;
@@ -12079,7 +12073,7 @@ register("verify","deriveSecondOrder", async (ctx, input) => {
   if (!cand || typeof cand !== "object") return { ok:false, committed:false, reason:"llm_bad_json", llmText: out?.text||"" };
 
   const dtu = {
-    id: makeId("dtu"),
+    id: uid("dtu"),
     tier: "surface",
     tags: Array.isArray(cand.tags)?cand.tags:[],
     title: String(cand.title||"Derived DTU"),
@@ -13423,7 +13417,7 @@ app.post("/api/chat", async (req, res) => {
         const t = String(txt || "");
         for (let i=0; i<t.length; i+=size) {
           yield t.slice(i, i+size);
-          await new Promise(r => setImmediate(r)); // yield to event loop
+          await new Promise(r => { setImmediate(r); }); // yield to event loop
         }
       }
 
@@ -16314,7 +16308,7 @@ register("marketplace", "browse", async (ctx, input) => {
 register("marketplace", "install", async (ctx, input) => {
   const { pluginId, fromGithub, githubUrl } = input;
   if (fromGithub && githubUrl) {
-    const match = githubUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) return { ok: false, error: "Invalid GitHub URL" };
     const [, owner, repo] = match;
     const plugin = { id: uid("plugin"), name: repo, version: "1.0.0", source: githubUrl, installedAt: nowISO(), enabled: true, autoUpdate: true };
@@ -17391,7 +17385,7 @@ register("obsidian", "export", async (ctx, input) => {
     if (dtu.human?.bullets?.length) { content += `## Key Points\n${dtu.human.bullets.map(b => `- ${b}`).join("\n")}\n\n`; }
     if (includeLineage && dtu.lineage?.parents?.length) { content += `## Lineage\n**Parents:** ${dtu.lineage.parents.map(p => `[[${STATE.dtus.get(p)?.title || p}]]`).join(", ")}\n\n`; }
     content += `---\n*ID: ${dtu.id}*\n*Created: ${dtu.createdAt}*\n`;
-    files.push({ filename: `${dtu.title.replace(/[\/\\?%*:|"<>]/g, "-")}.md`, content, dtuId: dtu.id });
+    files.push({ filename: `${dtu.title.replace(/[/\\?%*:|"<>]/g, "-")}.md`, content, dtuId: dtu.id });
   }
   return { ok: true, files, count: files.length, vaultPath };
 });
@@ -18256,8 +18250,8 @@ const EMBED_PATTERNS = {
   youtube: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
   twitter: /twitter\.com\/\w+\/status\/(\d+)/,
   vimeo: /vimeo\.com\/(\d+)/,
-  codepen: /codepen\.io\/([^\/]+)\/pen\/([^\/]+)/,
-  figma: /figma\.com\/file\/([^\/]+)/,
+  codepen: /codepen\.io\/([^/]+)\/pen\/([^/]+)/,
+  figma: /figma\.com\/file\/([^/]+)/,
   loom: /loom\.com\/share\/([a-zA-Z0-9]+)/,
   spotify: /open\.spotify\.com\/(track|album|playlist)\/([a-zA-Z0-9]+)/
 };
@@ -19137,7 +19131,9 @@ app.get("/api/admin/stats", requireRole("owner", "admin"), (req, res) => {
 });
 
 app.get("/api/admin/audit", requireRole("owner", "admin"), (req, res) => {
-  res.json(queryAuditLog(req.query));
+  // Stub: return empty audit log; full implementation depends on audit storage
+  const limit = Math.min(Number(req.query.limit) || 100, 1000);
+  res.json({ ok: true, entries: [], total: 0, limit });
 });
 
 app.post("/api/admin/sso", requireRole("owner"), (req, res) => {
@@ -19396,8 +19392,8 @@ app.get("/api/ml/metrics", (req, res) => {
 
 app.post("/api/ml/infer", async (req, res) => {
   const { text, model = "embeddings" } = req.body;
-  if (model === "embeddings" && typeof getEmbedding === "function") {
-    const embedding = await getEmbedding(text || "");
+  if (model === "embeddings" && typeof globalThis.getEmbedding === "function") {
+    const embedding = await globalThis.getEmbedding(text || "");
     return res.json({ ok: true, embedding });
   }
   res.json({ ok: true, result: null, note: "Model not available" });

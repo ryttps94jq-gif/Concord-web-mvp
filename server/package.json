@@ -6,10 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test tests/",
-    "test:e2e": "node --test tests/e2e/",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
+    "test": "node --test 'tests/**/*.test.js' 'tests/**/*-tests.js'",
+    "test:e2e": "node --test 'tests/e2e/**/*.test.js'",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "backup": "node -e \"import('./server.js').then(m => m.createBackup?.())\"",
     "restore": "node -e \"import('./server.js').then(m => m.restoreBackup?.(process.argv[2]))\""
   },
@@ -29,7 +29,9 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "eslint": "^8.56.0"
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "globals": "^15.0.0"
   },
   "optionalDependencies": {
     "pg": "^8.11.3",

@@ -301,7 +301,7 @@ export default function MarketplaceLensPage() {
   const installed = installedData?.plugins || [];
 
   const filteredPlugins = useMemo(() => {
-    let filtered = plugins.filter((p: Plugin) => {
+    const filtered = plugins.filter((p: Plugin) => {
       if (category !== 'all' && p.category !== category) return false;
       if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
           !p.description.toLowerCase().includes(search.toLowerCase())) return false;
