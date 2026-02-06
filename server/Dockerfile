@@ -12,11 +12,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy package files first
+# Copy package files and npm configuration
 COPY package*.json ./
+COPY .npmrc ./
 
-# Install production deps
-RUN npm ci --omit=dev
+# Install production deps with retry logic
+# The .npmrc contains retry settings for network resilience
+RUN npm ci --omit=dev || (sleep 5 && npm ci --omit=dev) || (sleep 10 && npm ci --omit=dev)
 
 # Copy app code
 COPY . .

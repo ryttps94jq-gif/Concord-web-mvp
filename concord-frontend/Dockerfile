@@ -6,11 +6,13 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
+# Copy package files and npm configuration
 COPY package*.json ./
+COPY .npmrc ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with retry logic
+# The .npmrc contains retry settings for network resilience
+RUN npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
 
 # Rebuild the source code only when needed
 FROM base AS builder
