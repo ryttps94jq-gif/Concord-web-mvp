@@ -8,6 +8,8 @@
     "dev": "node --watch server.js",
     "test": "node --test tests/",
     "test:e2e": "node --test tests/e2e/",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
     "backup": "node -e \"import('./server.js').then(m => m.createBackup?.())\"",
     "restore": "node -e \"import('./server.js').then(m => m.restoreBackup?.(process.argv[2]))\""
   },
@@ -25,6 +27,9 @@
     "compression": "^1.7.4",
     "prom-client": "^15.1.0",
     "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0"
   },
   "optionalDependencies": {
     "pg": "^8.11.3",

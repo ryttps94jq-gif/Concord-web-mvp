@@ -35,13 +35,25 @@ jobs:
         working-directory: ./concord-frontend
         run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
 
+      - name: Lint server
+        working-directory: ./server
+        run: npm run lint
+
       - name: Lint frontend
         working-directory: ./concord-frontend
-        run: npm run lint || true  # Don't fail on lint warnings
+        run: npm run lint
 
       - name: Type check frontend
         working-directory: ./concord-frontend
+        run: npm run type-check
+
+      - name: Build frontend
+        working-directory: ./concord-frontend
         run: npm run build
+
+      - name: Run frontend unit tests
+        working-directory: ./concord-frontend
+        run: npm test -- --run
 
       - name: Run server tests
         working-directory: ./server
@@ -49,8 +61,7 @@ jobs:
           NODE_ENV: test
           JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
           ADMIN_PASSWORD: testpassword123
-        run: |
-          node --test tests/*.test.js || true
+        run: node --test tests/*.test.js
 
   security-scan:
     name: Security Scan
@@ -65,21 +76,25 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install dependencies for audit
+        run: |
+          cd server && npm ci --ignore-scripts || (sleep 5 && npm ci --ignore-scripts)
+          cd ../concord-frontend && npm ci --ignore-scripts || (sleep 5 && npm ci --ignore-scripts)
+
       - name: Audit server dependencies
         working-directory: ./server
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
       - name: Audit frontend dependencies
         working-directory: ./concord-frontend
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    # Retry strategy for transient network failures
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
 
     steps:
       - name: Checkout code
@@ -96,13 +111,10 @@ jobs:
           tags: concord-backend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Build args for network resilience
           build-args: |
             NPM_CONFIG_FETCH_RETRIES=5
             NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
             NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
-        # Retry on failure
-        continue-on-error: false
 
       - name: Build frontend image
         uses: docker/build-push-action@v5
@@ -112,12 +124,10 @@ jobs:
           tags: concord-frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Build args for network resilience
           build-args: |
             NPM_CONFIG_FETCH_RETRIES=5
             NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
             NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
-        continue-on-error: false
 
   integration-test:
     name: Integration Test
@@ -176,9 +186,83 @@ jobs:
           cat server.log
           exit 1
 
-      - name: Run API tests
+      - name: Run API integration tests
         working-directory: ./server
         env:
           API_BASE: http://localhost:5050
+        run: node --test tests/auth-security.test.js
+
+      - name: Stop server
+        if: always()
+        working-directory: ./server
         run: |
-          node --test tests/auth-security.test.js || true
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) 2>/dev/null || true
+          fi
+
+  e2e-test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [lint-and-test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci || (sleep 5 && npm ci)
+          cd ../concord-frontend && npm ci || (sleep 5 && npm ci)
+
+      - name: Install Playwright browsers
+        working-directory: ./concord-frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start server
+        working-directory: ./server
+        env:
+          NODE_ENV: test
+          PORT: 5050
+          JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
+          ADMIN_PASSWORD: testpassword123
+        run: |
+          node server.js > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:5050/health > /dev/null 2>&1; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Run E2E tests
+        working-directory: ./concord-frontend
+        env:
+          BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_API_URL: http://localhost:5050
+        run: npx playwright test --project=chromium
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: concord-frontend/playwright-report/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f server/server.pid ]; then
+            kill $(cat server/server.pid) 2>/dev/null || true
+          fi

@@ -1,6 +1,18 @@
-
+/**
+ * @fileoverview Concord Cognitive Engine - Macro-Max Monolith Server
+ * @version 5.1.0
+ * @license MIT
+ *
+ * This is an intentionally monolithic server for IP protection and atomic deployment.
+ * All business logic is expressed as macros registered in the macro registry.
+ *
+ * @see ./types.d.ts for TypeScript type definitions
+ * @see ../SECURITY.md for security documentation
+ * @see ../README.md for architecture overview
+ */
 
 // === DATA DIRECTORY (canonical) ===
+/** @type {string} Data directory for persistent storage */
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 /**
  * Concord v2 — Macro‑Max Monolith (Single File)
