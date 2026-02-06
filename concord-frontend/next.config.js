@@ -28,6 +28,9 @@ const nextConfig = {
       },
     ];
   },
+  turbopack: {
+    root: __dirname,
+  },
   // WebXR opts for AR lens
   webpack: (config, { isServer }) => {
     if (!isServer) {

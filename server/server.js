@@ -31,6 +31,9 @@ import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 
+// ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
+try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
+
 // ---- Production dependencies (graceful loading) ----
 let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null, promClient = null;
 let Database = null; // better-sqlite3
@@ -5383,6 +5386,12 @@ register("metalearning", "adaptations", async (ctx, input = {}) => {
 
 // ---- ctx ----
 function makeCtx(req=null) {
+  // Inject ATS affect policy into context so macros can consume depthBudget, riskBudget, etc.
+  let affectPolicy = null;
+  if (ATS && req?._atsSessionId) {
+    try { affectPolicy = ATS.getSessionPolicy(req._atsSessionId); } catch {}
+  }
+
   return {
     state: STATE,
     actor: (req && req.actor) ? req.actor : { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] },
@@ -5391,6 +5400,16 @@ function makeCtx(req=null) {
       llmReady: LLM_READY,
       openaiModel: { fast: OPENAI_MODEL_FAST, smart: OPENAI_MODEL_SMART }
     },
+    affect: affectPolicy ? {
+      policy: affectPolicy,
+      sessionId: req._atsSessionId,
+      // Convenience accessors for the most-used signals
+      depthBudget: affectPolicy.cognition?.depthBudget ?? 5,
+      riskBudget: affectPolicy.cognition?.riskBudget ?? 0.5,
+      toolUseBias: affectPolicy.cognition?.toolUseBias ?? 0,
+      writeStrength: affectPolicy.memory?.writeStrength ?? 0.5,
+      latencyBudgetMs: affectPolicy.cognition?.latencyBudgetMs ?? 8000,
+    } : null,
     reqMeta: req ? {
       ip: req.ip,
       ua: req.get("user-agent"),
@@ -19722,7 +19741,17 @@ try {
 // ---- ATS Middleware: emit affect events for requests ----
 if (ATS) {
   app.use((req, res, next) => {
-    const sessionId = req.user?.sessionId || req.headers["x-session-id"] || req.cookies?.concord_session || "default";
+    // Deterministic session identity: per-user when authenticated, per-IP+UA otherwise.
+    // Prevents "shared mood" across users on the same node.
+    let sessionId;
+    if (req.user?.id) {
+      sessionId = `user_${req.user.id}`;
+    } else if (req.headers["x-session-id"]) {
+      sessionId = String(req.headers["x-session-id"]);
+    } else {
+      const fingerprint = `${req.ip || "unknown"}:${req.get("user-agent") || "none"}`;
+      sessionId = `anon_${crypto.createHash("sha256").update(fingerprint).digest("hex").slice(0, 16)}`;
+    }
     req._atsSessionId = sessionId;
 
     // Emit USER_MESSAGE event on incoming requests
