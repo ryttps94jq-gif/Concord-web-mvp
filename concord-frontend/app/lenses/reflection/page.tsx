@@ -4,12 +4,12 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import {
-  Mirror, TrendingUp, AlertTriangle, CheckCircle2,
+  TrendingUp, AlertTriangle, CheckCircle2,
   Brain, Eye, Shield, BarChart3
 } from 'lucide-react';
 
-// Mirror icon doesn't exist in lucide, use a substitute
-const MirrorIcon = Eye;
+// Mirror icon alias
+const Mirror = Eye;
 
 interface Reflection {
   id: string;
@@ -69,7 +69,7 @@ export default function ReflectionLensPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
-          <MirrorIcon className="w-5 h-5 text-neon-purple mb-2" />
+          <Mirror className="w-5 h-5 text-neon-purple mb-2" />
           <p className="text-2xl font-bold">{status?.reflections || 0}</p>
           <p className="text-sm text-gray-400">Reflections</p>
         </div>
@@ -188,7 +188,7 @@ export default function ReflectionLensPage() {
         {/* Recent Reflections */}
         <div className="panel p-4">
           <h2 className="font-semibold mb-3 flex items-center gap-2">
-            <MirrorIcon className="w-4 h-4 text-neon-green" /> Recent Reflections
+            <Mirror className="w-4 h-4 text-neon-green" /> Recent Reflections
           </h2>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {reflections.map((r) => (

@@ -44,12 +44,23 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-lattice-void">
+      {/* FE-013: Skip-to-content link for keyboard navigation */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-neon-blue focus:text-white focus:rounded-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
 
         <main
+          id="main-content"
+          role="main"
+          tabIndex={-1}
           className={`flex-1 overflow-auto transition-all duration-300 ${
             sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           }`}

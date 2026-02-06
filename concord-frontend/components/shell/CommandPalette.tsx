@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, MessageSquare, Code, Store, Activity, FileText, Book, ArrowRight } from 'lucide-react';
+import { Search, ArrowRight } from 'lucide-react';
+import { getCommandPaletteLenses, LENS_CATEGORIES, type LensCategory } from '@/lib/lens-registry';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -15,89 +16,97 @@ interface Command {
   description: string;
   icon: React.ReactNode;
   action: () => void;
-  category: 'navigation' | 'action' | 'search';
+  category: string;
 }
+
+const paletteLenses = getCommandPaletteLenses();
 
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const commands: Command[] = [
-    {
-      id: 'nav-chat',
-      name: 'Go to Chat',
-      description: 'Open the Chat lens',
-      icon: <MessageSquare className="w-4 h-4" />,
-      action: () => router.push('/lenses/chat'),
-      category: 'navigation',
-    },
-    {
-      id: 'nav-code',
-      name: 'Go to Code',
-      description: 'Open the Code lens',
-      icon: <Code className="w-4 h-4" />,
-      action: () => router.push('/lenses/code'),
-      category: 'navigation',
-    },
-    {
-      id: 'nav-market',
-      name: 'Go to Market',
-      description: 'Open the Market lens',
-      icon: <Store className="w-4 h-4" />,
-      action: () => router.push('/lenses/market'),
-      category: 'navigation',
-    },
-    {
-      id: 'nav-resonance',
-      name: 'Go to Resonance',
-      description: 'View system health',
-      icon: <Activity className="w-4 h-4" />,
-      action: () => router.push('/lenses/resonance'),
-      category: 'navigation',
-    },
-    {
-      id: 'nav-paper',
-      name: 'Go to Paper',
-      description: 'Open research papers',
-      icon: <FileText className="w-4 h-4" />,
-      action: () => router.push('/lenses/paper'),
-      category: 'navigation',
-    },
-    {
-      id: 'nav-docs',
-      name: 'Go to Docs',
-      description: 'Open documentation',
-      icon: <Book className="w-4 h-4" />,
-      action: () => router.push('/lenses/docs'),
-      category: 'navigation',
-    },
-    {
-      id: 'action-new-dtu',
-      name: 'Create New DTU',
-      description: 'Start a new thought unit',
-      icon: <ArrowRight className="w-4 h-4" />,
-      action: () => router.push('/lenses/chat?new=true'),
-      category: 'action',
-    },
-  ];
+  const commands: Command[] = useMemo(() => {
+    // Navigation commands from the lens registry
+    const navCommands: Command[] = paletteLenses.map((lens) => {
+      const Icon = lens.icon;
+      return {
+        id: `nav-${lens.id}`,
+        name: `Go to ${lens.name}`,
+        description: lens.description,
+        icon: <Icon className="w-4 h-4" />,
+        action: () => router.push(lens.path),
+        category: LENS_CATEGORIES[lens.category as LensCategory]?.label || lens.category,
+      };
+    });
 
-  const filteredCommands = commands.filter(
-    (cmd) =>
-      cmd.name.toLowerCase().includes(query.toLowerCase()) ||
-      cmd.description.toLowerCase().includes(query.toLowerCase())
-  );
+    // Action commands
+    const actionCommands: Command[] = [
+      {
+        id: 'nav-dashboard',
+        name: 'Go to Dashboard',
+        description: 'Return to the main dashboard',
+        icon: <ArrowRight className="w-4 h-4" />,
+        action: () => router.push('/'),
+        category: 'Action',
+      },
+      {
+        id: 'action-new-dtu',
+        name: 'Create New DTU',
+        description: 'Start a new thought unit',
+        icon: <ArrowRight className="w-4 h-4" />,
+        action: () => router.push('/lenses/chat?new=true'),
+        category: 'Action',
+      },
+    ];
+
+    return [...actionCommands, ...navCommands];
+  }, [router]);
+
+  const filteredCommands = useMemo(() => {
+    if (!query) return commands;
+    const q = query.toLowerCase();
+    return commands.filter(
+      (cmd) =>
+        cmd.name.toLowerCase().includes(q) ||
+        cmd.description.toLowerCase().includes(q) ||
+        cmd.category.toLowerCase().includes(q)
+    );
+  }, [commands, query]);
+
+  // Group filtered commands by category
+  const groupedCommands = useMemo(() => {
+    const groups: Record<string, Command[]> = {};
+    for (const cmd of filteredCommands) {
+      if (!groups[cmd.category]) groups[cmd.category] = [];
+      groups[cmd.category].push(cmd);
+    }
+    return groups;
+  }, [filteredCommands]);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
+    }
+    if (!isOpen) {
+      setQuery('');
+      setSelectedIndex(0);
     }
   }, [isOpen]);
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (listRef.current) {
+      const selected = listRef.current.querySelector('[data-selected="true"]');
+      selected?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
@@ -126,27 +135,39 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   if (!isOpen) return null;
 
+  let runningIndex = 0;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Palette */}
       <div className="relative w-full max-w-xl bg-lattice-surface border border-lattice-border rounded-xl shadow-2xl overflow-hidden">
         {/* Search Input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-lattice-border">
-          <Search className="w-5 h-5 text-gray-400" />
+          <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search commands, lenses, DTUs..."
+            placeholder="Search lenses, commands..."
             className="flex-1 bg-transparent text-white placeholder:text-gray-500 outline-none"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-list"
+            aria-activedescendant={filteredCommands[selectedIndex]?.id}
           />
           <kbd className="px-2 py-1 text-xs bg-lattice-elevated rounded text-gray-500">
             ESC
@@ -154,36 +175,36 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         </div>
 
         {/* Results */}
-        <div className="max-h-80 overflow-auto">
+        <div ref={listRef} id="command-list" role="listbox" className="max-h-80 overflow-auto">
           {filteredCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">
-              No results found for "{query}"
+              No results found for &ldquo;{query}&rdquo;
             </div>
           ) : (
             <div className="p-2">
-              {['navigation', 'action', 'search'].map((category) => {
-                const categoryCommands = filteredCommands.filter(
-                  (c) => c.category === category
-                );
-                if (categoryCommands.length === 0) return null;
-
-                return (
+              {Object.entries(groupedCommands).map(([category, cmds]) => {
+                const section = (
                   <div key={category} className="mb-2">
                     <p className="px-2 py-1 text-xs text-gray-500 uppercase">
                       {category}
                     </p>
-                    {categoryCommands.map((cmd) => {
-                      const index = filteredCommands.indexOf(cmd);
+                    {cmds.map((cmd) => {
+                      const index = runningIndex++;
+                      const isSelected = index === selectedIndex;
                       return (
                         <button
                           key={cmd.id}
+                          id={cmd.id}
+                          role="option"
+                          aria-selected={isSelected}
+                          data-selected={isSelected}
                           onClick={() => {
                             cmd.action();
                             onClose();
                             setQuery('');
                           }}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                            index === selectedIndex
+                            isSelected
                               ? 'bg-neon-blue/20 text-neon-blue'
                               : 'text-gray-300 hover:bg-lattice-elevated'
                           }`}
@@ -193,7 +214,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                             <p className="font-medium">{cmd.name}</p>
                             <p className="text-xs text-gray-500">{cmd.description}</p>
                           </div>
-                          {index === selectedIndex && (
+                          {isSelected && (
                             <kbd className="px-2 py-1 text-xs bg-neon-blue/20 rounded">
                               Enter
                             </kbd>
@@ -203,6 +224,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                     })}
                   </div>
                 );
+                return section;
               })}
             </div>
           )}
@@ -211,11 +233,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         {/* Footer */}
         <div className="px-4 py-2 border-t border-lattice-border flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center gap-4">
-            <span>↑↓ Navigate</span>
-            <span>↵ Select</span>
+            <span>&uarr;&darr; Navigate</span>
+            <span>&crarr; Select</span>
             <span>ESC Close</span>
           </div>
-          <span>Powered by Concord</span>
+          <span>{filteredCommands.length} results</span>
         </div>
       </div>
     </div>

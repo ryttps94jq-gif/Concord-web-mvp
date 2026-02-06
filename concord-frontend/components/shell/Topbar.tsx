@@ -4,9 +4,12 @@ import { useUIStore } from '@/store/ui';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { Search, Bell, User, Command, Activity, Zap, Menu } from 'lucide-react';
+import { SyncStatusDot } from '@/components/common/OfflineIndicator';
+import { useOnlineStatus } from '@/components/common/OfflineIndicator';
 
 export function Topbar() {
   const { sidebarCollapsed, setCommandPaletteOpen, activeLens, setSidebarOpen } = useUIStore();
+  const { isOnline } = useOnlineStatus();
 
   const { data: resonance } = useQuery({
     queryKey: ['resonance-quick'],
@@ -21,6 +24,7 @@ export function Topbar() {
 
   return (
     <header
+      role="banner"
       className={`h-14 lg:h-16 bg-lattice-surface border-b border-lattice-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 transition-all duration-300 ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       }`}
@@ -31,6 +35,7 @@ export function Topbar() {
         <button
           onClick={() => setSidebarOpen(true)}
           className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
+          aria-label="Open navigation menu"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -44,6 +49,7 @@ export function Topbar() {
       <button
         onClick={() => setCommandPaletteOpen(true)}
         className="hidden sm:flex items-center gap-2 px-3 lg:px-4 py-2 bg-lattice-deep rounded-lg border border-lattice-border hover:border-neon-blue/50 transition-colors group"
+        aria-label="Open command palette"
       >
         <Search className="w-4 h-4 text-gray-400 group-hover:text-neon-blue" />
         <span className="text-sm text-gray-400 hidden md:inline">Search...</span>
@@ -63,9 +69,16 @@ export function Topbar() {
         <button
           onClick={() => setCommandPaletteOpen(true)}
           className="sm:hidden p-2 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
+          aria-label="Search"
         >
           <Search className="w-5 h-5" />
         </button>
+
+        {/* FE-010: Online/offline status indicator */}
+        <div className="flex items-center gap-2 px-2 py-1.5" title={isOnline ? 'Online' : 'Offline — changes saved locally'}>
+          <SyncStatusDot status={isOnline ? 'synced' : 'offline'} />
+          <span className="hidden md:inline text-xs text-gray-400">{isOnline ? 'Online' : 'Offline'}</span>
+        </div>
 
         {/* Resonance Indicator (hidden on small mobile) */}
         <div className="hidden md:flex items-center gap-2 px-2 lg:px-3 py-1.5 bg-lattice-deep rounded-lg">
@@ -82,7 +95,10 @@ export function Topbar() {
         </div>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg hover:bg-lattice-elevated transition-colors">
+        <button
+          className="relative p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
+          aria-label={`Notifications${(notifications?.count || 0) > 0 ? ` (${notifications?.count} unread)` : ''}`}
+        >
           <Bell className="w-5 h-5 text-gray-400" />
           {(notifications?.count || 0) > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-neon-pink text-white text-[10px] lg:text-xs rounded-full flex items-center justify-center">
@@ -92,7 +108,10 @@ export function Topbar() {
         </button>
 
         {/* User Menu */}
-        <button className="flex items-center gap-2 p-1.5 lg:p-2 rounded-lg hover:bg-lattice-elevated transition-colors">
+        <button
+          className="flex items-center gap-2 p-1.5 lg:p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
+          aria-label="User menu"
+        >
           <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-neon-purple to-neon-blue flex items-center justify-center">
             <User className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
           </div>

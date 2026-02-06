@@ -11,7 +11,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "validate-routes": "npx tsx scripts/validate-routes.ts"
   },
   "dependencies": {
     "next": "^15.1.0",

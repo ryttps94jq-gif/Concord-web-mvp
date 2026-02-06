@@ -1,3 +1,10 @@
+/**
+ * FE-019: Canonical entry point.
+ *
+ * `/` is the single entry for all users:
+ *   - New users see the LandingPage (onboarding).
+ *   - Returning users see the DashboardPage (the "home lens").
+ */
 'use client';
 
 import { useState, useEffect } from 'react';

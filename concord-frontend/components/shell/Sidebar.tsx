@@ -4,46 +4,18 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUIStore } from '@/store/ui';
-import {
-  MessageSquare, MessageCircle, Code, FlaskConical, Store, FileText,
-  Book, Layout, Calendar, Share2, Sparkles, Target, Activity, Users,
-  User, Dna, Atom, Orbit, DollarSign, Gamepad2, Glasses, Newspaper,
-  Music, Brain, Wand2, Home, ChevronLeft, ChevronRight, Hash, Rss,
-  FolderGit2, Heart, X
-} from 'lucide-react';
+import { getSidebarLenses, LENS_CATEGORIES, type LensCategory } from '@/lib/lens-registry';
+import { Home, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-const lenses = [
-  { id: 'dashboard', name: 'Dashboard', icon: Home, path: '/' },
-  { id: 'chat', name: 'Chat', icon: MessageSquare, path: '/lenses/chat' },
-  { id: 'thread', name: 'Thread', icon: MessageCircle, path: '/lenses/thread' },
-  { id: 'code', name: 'Code', icon: Code, path: '/lenses/code' },
-  { id: 'forum', name: 'Forum', icon: Hash, path: '/lenses/forum' },
-  { id: 'feed', name: 'Feed', icon: Rss, path: '/lenses/feed' },
-  { id: 'repos', name: 'Repos', icon: FolderGit2, path: '/lenses/repos' },
-  { id: 'timeline', name: 'Timeline', icon: Heart, path: '/lenses/timeline' },
-  { id: 'lab', name: 'Lab', icon: FlaskConical, path: '/lenses/lab' },
-  { id: 'market', name: 'Market', icon: Store, path: '/lenses/market' },
-  { id: 'paper', name: 'Paper', icon: FileText, path: '/lenses/paper' },
-  { id: 'docs', name: 'Docs', icon: Book, path: '/lenses/docs' },
-  { id: 'board', name: 'Board', icon: Layout, path: '/lenses/board' },
-  { id: 'calendar', name: 'Calendar', icon: Calendar, path: '/lenses/calendar' },
-  { id: 'graph', name: 'Graph', icon: Share2, path: '/lenses/graph' },
-  { id: 'fractal', name: 'Fractal', icon: Sparkles, path: '/lenses/fractal' },
-  { id: 'questmarket', name: 'Questmarket', icon: Target, path: '/lenses/questmarket' },
-  { id: 'resonance', name: 'Resonance', icon: Activity, path: '/lenses/resonance' },
-  { id: 'council', name: 'Council', icon: Users, path: '/lenses/council' },
-  { id: 'anon', name: 'Anon', icon: User, path: '/lenses/anon' },
-  { id: 'bio', name: 'Bio', icon: Dna, path: '/lenses/bio' },
-  { id: 'chem', name: 'Chem', icon: Atom, path: '/lenses/chem' },
-  { id: 'physics', name: 'Physics', icon: Orbit, path: '/lenses/physics' },
-  { id: 'finance', name: 'Finance', icon: DollarSign, path: '/lenses/finance' },
-  { id: 'game', name: 'Game', icon: Gamepad2, path: '/lenses/game' },
-  { id: 'ar', name: 'AR', icon: Glasses, path: '/lenses/ar' },
-  { id: 'news', name: 'News', icon: Newspaper, path: '/lenses/news' },
-  { id: 'music', name: 'Music', icon: Music, path: '/lenses/music' },
-  { id: 'ml', name: 'ML', icon: Brain, path: '/lenses/ml' },
-  { id: 'custom', name: 'Custom', icon: Wand2, path: '/lenses/custom' },
-];
+const sidebarLenses = getSidebarLenses();
+
+/** Group lenses by category for visual sections */
+const groupedLenses = sidebarLenses.reduce<Record<string, typeof sidebarLenses>>((acc, lens) => {
+  const cat = lens.category;
+  if (!acc[cat]) acc[cat] = [];
+  acc[cat].push(lens);
+  return acc;
+}, {});
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -65,6 +37,8 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [sidebarOpen, setSidebarOpen]);
 
+  const showLabel = !sidebarCollapsed || sidebarOpen;
+
   return (
     <>
       {/* Mobile overlay */}
@@ -72,11 +46,14 @@ export function Sidebar() {
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        role="navigation"
+        aria-label="Main navigation"
         className={`
           fixed left-0 top-0 h-screen bg-lattice-surface border-r border-lattice-border z-50
           transition-all duration-300 flex flex-col
@@ -86,17 +63,18 @@ export function Sidebar() {
       >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-lattice-border">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🧠</span>
-            {(!sidebarCollapsed || sidebarOpen) && (
+          <Link href="/" className="flex items-center gap-2" aria-label="Go to dashboard">
+            <span className="text-2xl" aria-hidden="true">&#x1f9e0;</span>
+            {showLabel && (
               <span className="font-bold text-gradient-neon">Concord</span>
             )}
-          </div>
+          </Link>
 
           {/* Desktop collapse button */}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden lg:block p-1.5 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
               <ChevronRight className="w-4 h-4" />
@@ -109,43 +87,72 @@ export function Sidebar() {
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1.5 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
+            aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 no-scrollbar">
-          <div className="space-y-1">
-            {lenses.map((lens) => {
-              const Icon = lens.icon;
-              const isActive = pathname === lens.path;
-              const showLabel = !sidebarCollapsed || sidebarOpen;
-
-              return (
-                <Link
-                  key={lens.id}
-                  href={lens.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-neon-blue/20 text-neon-blue'
-                      : 'text-gray-400 hover:bg-lattice-elevated hover:text-white'
-                  } ${!showLabel ? 'justify-center' : ''}`}
-                  title={!showLabel ? lens.name : undefined}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {showLabel && (
-                    <span className="text-sm font-medium truncate">{lens.name}</span>
-                  )}
-                </Link>
-              );
-            })}
+        <nav className="flex-1 overflow-y-auto py-4 px-2 no-scrollbar" aria-label="Lens navigation">
+          {/* Dashboard link */}
+          <div className="mb-2">
+            <Link
+              href="/"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                pathname === '/'
+                  ? 'bg-neon-blue/20 text-neon-blue'
+                  : 'text-gray-400 hover:bg-lattice-elevated hover:text-white'
+              } ${!showLabel ? 'justify-center' : ''}`}
+              title={!showLabel ? 'Dashboard' : undefined}
+            >
+              <Home className="w-5 h-5 flex-shrink-0" />
+              {showLabel && (
+                <span className="text-sm font-medium truncate">Dashboard</span>
+              )}
+            </Link>
           </div>
+
+          {/* Categorized lenses */}
+          {Object.entries(groupedLenses).map(([category, lenses]) => (
+            <div key={category} className="mb-3">
+              {showLabel && (
+                <p className={`px-3 py-1 text-xs uppercase tracking-wider ${LENS_CATEGORIES[category as LensCategory]?.color || 'text-gray-500'}`}>
+                  {LENS_CATEGORIES[category as LensCategory]?.label || category}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {lenses.map((lens) => {
+                  const Icon = lens.icon;
+                  const isActive = pathname === lens.path;
+
+                  return (
+                    <Link
+                      key={lens.id}
+                      href={lens.path}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-neon-blue/20 text-neon-blue'
+                          : 'text-gray-400 hover:bg-lattice-elevated hover:text-white'
+                      } ${!showLabel ? 'justify-center' : ''}`}
+                      title={!showLabel ? lens.name : undefined}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {showLabel && (
+                        <span className="text-sm font-medium truncate">{lens.name}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Footer */}
         <div className="p-4 border-t border-lattice-border">
-          {(!sidebarCollapsed || sidebarOpen) ? (
+          {showLabel ? (
             <div className="text-xs text-gray-500">
               <p>Concord OS v5.0</p>
               <p className="text-neon-green">70% Sovereign</p>

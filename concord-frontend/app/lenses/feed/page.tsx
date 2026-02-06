@@ -132,7 +132,7 @@ export default function FeedLensPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex">
+    <div className="min-h-full bg-black flex">
       {/* Left Sidebar */}
       <aside className="w-20 xl:w-64 border-r border-gray-800 p-2 xl:p-4 flex flex-col items-center xl:items-start">
         <div className="text-3xl mb-6 p-3">📡</div>

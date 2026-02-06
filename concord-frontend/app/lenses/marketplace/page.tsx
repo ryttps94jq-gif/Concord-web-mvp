@@ -10,8 +10,9 @@ import {
   List, ChevronRight, ExternalLink, Settings, Trash2, RefreshCw, Check, X, Clock,
   BarChart2, Users, DollarSign, Code, Shield, Package, Heart, Tag, Award, Eye,
   MessageSquare, ThumbsUp, ThumbsDown, AlertCircle, Zap, Layers, ChevronDown,
-  Upload, Edit, Copy, Share2
+  Upload, Edit, Copy, Share2, Info
 } from 'lucide-react';
+import { DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS, type DemoPlugin } from '@/lib/marketplace-demo';
 
 interface Plugin {
   id: string;
@@ -71,167 +72,8 @@ const CATEGORIES = [
   { id: 'data', name: 'Data Tools', icon: Package },
 ];
 
-const MOCK_FEATURED: Plugin[] = [
-  {
-    id: 'feat-1',
-    name: 'Notion Sync Pro',
-    description: 'Seamlessly sync your DTUs with Notion databases. Bi-directional sync with conflict resolution.',
-    category: 'integration',
-    author: { name: 'Concord Labs', verified: true },
-    version: '2.1.0',
-    downloads: 12540,
-    rating: 4.9,
-    ratingCount: 342,
-    status: 'approved',
-    featured: true,
-    tags: ['notion', 'sync', 'integration'],
-    createdAt: '2025-01-15',
-    updatedAt: '2026-01-20',
-    weeklyDownloads: 1250
-  },
-  {
-    id: 'feat-2',
-    name: 'AI Knowledge Graph',
-    description: 'Automatically generate knowledge graphs from your DTUs using advanced NLP models.',
-    category: 'ai',
-    author: { name: 'Neural Tools', verified: true },
-    version: '1.5.2',
-    downloads: 8920,
-    rating: 4.8,
-    ratingCount: 215,
-    status: 'approved',
-    featured: true,
-    tags: ['ai', 'graph', 'nlp'],
-    createdAt: '2025-03-10',
-    updatedAt: '2026-01-18',
-    weeklyDownloads: 890
-  },
-  {
-    id: 'feat-3',
-    name: 'Advanced Analytics',
-    description: 'Deep analytics and insights for your knowledge base with customizable dashboards.',
-    category: 'visualization',
-    author: { name: 'DataViz Co', verified: true },
-    version: '3.0.0',
-    downloads: 15200,
-    rating: 4.7,
-    ratingCount: 428,
-    status: 'approved',
-    featured: true,
-    tags: ['analytics', 'dashboard', 'charts'],
-    createdAt: '2024-11-20',
-    updatedAt: '2026-01-22',
-    weeklyDownloads: 1520
-  }
-];
-
-const MOCK_PLUGINS: Plugin[] = [
-  ...MOCK_FEATURED,
-  {
-    id: 'plug-1',
-    name: 'Slack Notifier',
-    description: 'Get Slack notifications for DTU changes and council decisions.',
-    category: 'communication',
-    author: { name: 'SlackTools' },
-    version: '1.2.0',
-    downloads: 5420,
-    rating: 4.5,
-    ratingCount: 89,
-    status: 'approved',
-    tags: ['slack', 'notifications'],
-    createdAt: '2025-06-15',
-    updatedAt: '2025-12-10',
-    weeklyDownloads: 320
-  },
-  {
-    id: 'plug-2',
-    name: 'PDF Exporter',
-    description: 'Export DTUs to beautifully formatted PDF documents with templates.',
-    category: 'productivity',
-    author: { name: 'ExportPro' },
-    version: '2.0.1',
-    downloads: 7850,
-    rating: 4.6,
-    ratingCount: 156,
-    status: 'approved',
-    tags: ['pdf', 'export', 'documents'],
-    createdAt: '2025-04-20',
-    updatedAt: '2026-01-05',
-    weeklyDownloads: 580
-  },
-  {
-    id: 'plug-3',
-    name: 'Code Highlighter',
-    description: 'Syntax highlighting for code blocks in DTUs with 100+ languages.',
-    category: 'productivity',
-    author: { name: 'DevTools Inc', verified: true },
-    version: '1.8.0',
-    downloads: 9200,
-    rating: 4.8,
-    ratingCount: 234,
-    status: 'approved',
-    trending: true,
-    tags: ['code', 'syntax', 'highlighting'],
-    createdAt: '2025-02-28',
-    updatedAt: '2026-01-15',
-    weeklyDownloads: 920
-  },
-  {
-    id: 'plug-4',
-    name: 'Security Scanner',
-    description: 'Scan DTUs for sensitive information and PII with customizable rules.',
-    category: 'security',
-    author: { name: 'SecureData' },
-    version: '1.1.0',
-    downloads: 3200,
-    rating: 4.4,
-    ratingCount: 67,
-    status: 'approved',
-    tags: ['security', 'pii', 'scanner'],
-    createdAt: '2025-08-10',
-    updatedAt: '2025-12-20',
-    weeklyDownloads: 180
-  },
-  {
-    id: 'plug-5',
-    name: 'Calendar Integration',
-    description: 'Link DTUs to calendar events and set reminders for reviews.',
-    category: 'integration',
-    author: { name: 'CalTools' },
-    version: '1.3.2',
-    downloads: 4100,
-    rating: 4.3,
-    ratingCount: 92,
-    status: 'approved',
-    tags: ['calendar', 'reminders', 'events'],
-    createdAt: '2025-05-05',
-    updatedAt: '2025-11-30',
-    weeklyDownloads: 290
-  }
-];
-
-const MOCK_REVIEWS: Review[] = [
-  {
-    id: 'rev-1',
-    pluginId: 'feat-1',
-    userId: 'user-1',
-    userName: 'Alice Johnson',
-    rating: 5,
-    comment: 'Absolutely fantastic! The sync is seamless and conflict resolution works perfectly.',
-    helpful: 24,
-    createdAt: '2026-01-18'
-  },
-  {
-    id: 'rev-2',
-    pluginId: 'feat-1',
-    userId: 'user-2',
-    userName: 'Bob Smith',
-    rating: 4,
-    comment: 'Great plugin, but wish it had more customization options for field mapping.',
-    helpful: 12,
-    createdAt: '2026-01-15'
-  }
-];
+// FE-006: Mock data moved to lib/marketplace-demo.ts
+// DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS imported at top
 
 export default function MarketplaceLensPage() {
   useLensNav('marketplace');
@@ -252,16 +94,16 @@ export default function MarketplaceLensPage() {
   const { data: browseData, isLoading } = useQuery({
     queryKey: ['marketplace-browse', search, category],
     queryFn: () => api.get(`/api/marketplace/browse?search=${search}&category=${category}`).then(r => r.data).catch(() => ({
-      items: MOCK_PLUGINS,
+      items: DEMO_PLUGINS,
       categories: CATEGORIES.map(c => c.id),
-      pagination: { total: MOCK_PLUGINS.length }
+      pagination: { total: DEMO_PLUGINS.length }
     })),
   });
 
   const { data: installedData } = useQuery({
     queryKey: ['marketplace-installed'],
     queryFn: () => api.get('/api/marketplace/installed').then(r => r.data).catch(() => ({
-      plugins: MOCK_PLUGINS.slice(0, 3).map(p => ({ ...p, installedAt: '2026-01-10', hasUpdate: Math.random() > 0.7 })),
+      plugins: DEMO_PLUGINS.slice(0, 3).map(p => ({ ...p, installedAt: '2026-01-10', hasUpdate: Math.random() > 0.7 })),
       count: 3
     })),
   });
@@ -294,8 +136,11 @@ export default function MarketplaceLensPage() {
     onSuccess: () => setShowReviewModal(false),
   });
 
+  // FE-006: detect demo mode vs real API data
+  const isDemo = !browseData?.items;
+
   // Computed
-  const plugins = browseData?.items || MOCK_PLUGINS;
+  const plugins = browseData?.items || DEMO_PLUGINS;
   const featuredPlugins = plugins.filter((p: Plugin) => p.featured);
   const trendingPlugins = plugins.filter((p: Plugin) => p.trending || (p.weeklyDownloads || 0) > 500);
   const installed = installedData?.plugins || [];
@@ -334,6 +179,14 @@ export default function MarketplaceLensPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* FE-006: Demo mode indicator */}
+      {isDemo && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 text-sm">
+          <Info className="w-4 h-4 flex-shrink-0" />
+          <span>Demo Mode — showing sample plugins. Connect to the backend for real marketplace data.</span>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -398,7 +251,7 @@ export default function MarketplaceLensPage() {
                   animate={{ opacity: 1, x: 0 }}
                   className="grid grid-cols-1 md:grid-cols-3 gap-4"
                 >
-                  {MOCK_FEATURED.map((plugin, i) => (
+                  {DEMO_FEATURED.map((plugin, i) => (
                     <FeaturedCard
                       key={plugin.id}
                       plugin={plugin}
@@ -563,7 +416,7 @@ export default function MarketplaceLensPage() {
         {selectedPlugin && (
           <PluginDetailModal
             plugin={selectedPlugin}
-            reviews={MOCK_REVIEWS.filter(r => r.pluginId === selectedPlugin.id)}
+            reviews={DEMO_REVIEWS.filter(r => r.pluginId === selectedPlugin.id)}
             isInstalled={isInstalled(selectedPlugin.id)}
             onClose={() => setSelectedPlugin(null)}
             onInstall={() => installMutation.mutate({ pluginId: selectedPlugin.id })}

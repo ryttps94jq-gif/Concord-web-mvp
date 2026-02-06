@@ -500,7 +500,7 @@ export default function WhiteboardLensPage() {
   ];
 
   return (
-    <div className="h-screen flex bg-lattice-bg">
+    <div className="h-full flex bg-lattice-bg">
       {/* Sidebar */}
       <aside className="w-64 border-r border-lattice-border bg-lattice-surface p-4 flex flex-col">
         <div className="flex items-center gap-3 mb-6">

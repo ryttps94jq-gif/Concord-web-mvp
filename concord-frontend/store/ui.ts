@@ -1,3 +1,30 @@
+/**
+ * FE-009: UI State Store — Zustand (client-only, ephemeral + persisted subset).
+ *
+ * STATE OWNERSHIP BOUNDARIES:
+ * ┌──────────────────────────────────────────────────────┐
+ * │ Zustand (this store)                                 │
+ * │  - UI chrome state (sidebar, palette, theme)         │
+ * │  - Ephemeral: toasts, fullPageMode                   │
+ * │  - Persisted to localStorage: sidebarCollapsed,      │
+ * │    theme, activeLens                                 │
+ * ├──────────────────────────────────────────────────────┤
+ * │ React Query (TanStack Query)                         │
+ * │  - Server data (DTUs, status, resonance, etc.)       │
+ * │  - Cached with staleTime / refetchInterval           │
+ * │  - Source of truth = backend API                     │
+ * ├──────────────────────────────────────────────────────┤
+ * │ Dexie / IndexedDB (lib/offline/db.ts)                │
+ * │  - Offline persistence of DTUs and chat              │
+ * │  - Pending sync queue                                │
+ * │  - Source of truth = local when offline, server when  │
+ * │    online (sync on reconnect)                        │
+ * └──────────────────────────────────────────────────────┘
+ *
+ * RULE: Never duplicate server data in Zustand.
+ * Use React Query for anything that comes from the API.
+ */
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 

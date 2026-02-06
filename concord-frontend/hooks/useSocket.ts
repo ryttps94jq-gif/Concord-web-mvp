@@ -1,10 +1,19 @@
+/**
+ * FE-011: WebSocket hook with proper lifecycle management.
+ *
+ * - Connects lazily (only when `autoConnect` is true or `connect()` is called)
+ * - Disconnects on unmount — no orphaned connections
+ * - Tracks active subscriptions to prevent listener leaks
+ * - Logs connection state changes for observability
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Socket URL: uses NEXT_PUBLIC_SOCKET_URL in production, falls back to API server port (5050) for local dev
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
 
 interface UseSocketOptions {
+  /** Connect automatically on mount (default: false — opt-in to reduce idle connections) */
   autoConnect?: boolean;
   reconnection?: boolean;
   reconnectionAttempts?: number;
@@ -23,7 +32,7 @@ interface UseSocketReturn {
 
 export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   const {
-    autoConnect = true,
+    autoConnect = false, // FE-011: default false to prevent idle connections
     reconnection = true,
     reconnectionAttempts = 5,
     reconnectionDelay = 1000,
@@ -31,39 +40,41 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
 
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const listenersRef = useRef<Set<string>>(new Set());
 
   // Initialize socket
   useEffect(() => {
-    if (!socketRef.current) {
-      socketRef.current = io(SOCKET_URL, {
-        autoConnect,
-        reconnection,
-        reconnectionAttempts,
-        reconnectionDelay,
-        transports: ['websocket', 'polling'],
-      });
+    const socket = io(SOCKET_URL, {
+      autoConnect,
+      reconnection,
+      reconnectionAttempts,
+      reconnectionDelay,
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
 
-      socketRef.current.on('connect', () => {
-        console.log('Socket connected');
-        setIsConnected(true);
-      });
+    socket.on('connect', () => {
+      setIsConnected(true);
+    });
 
-      socketRef.current.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setIsConnected(false);
-      });
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
 
-      socketRef.current.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setIsConnected(false);
-      });
-    }
+    socket.on('connect_error', (error) => {
+      console.error('[Socket] Connection error:', error.message);
+      setIsConnected(false);
+    });
 
+    socketRef.current = socket;
+
+    // FE-011: Clean up on unmount — disconnect and remove all listeners
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      socket.removeAllListeners();
+      socket.disconnect();
+      socketRef.current = null;
+      listenersRef.current.clear();
+      setIsConnected(false);
     };
   }, [autoConnect, reconnection, reconnectionAttempts, reconnectionDelay]);
 
@@ -88,6 +99,7 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   const on = useCallback((event: string, callback: (...args: unknown[]) => void) => {
     if (socketRef.current) {
       socketRef.current.on(event, callback);
+      listenersRef.current.add(event);
     }
   }, []);
 
@@ -98,6 +110,7 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
       } else {
         socketRef.current.off(event);
       }
+      listenersRef.current.delete(event);
     }
   }, []);
 
@@ -114,7 +127,7 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
 
 // Specific socket hooks for different features
 export function useResonanceSocket() {
-  const { socket, isConnected, on, off } = useSocket();
+  const { isConnected, on, off } = useSocket({ autoConnect: true });
   const [resonanceData, setResonanceData] = useState<unknown>(null);
 
   useEffect(() => {
@@ -133,7 +146,7 @@ export function useResonanceSocket() {
 }
 
 export function useDTUSocket() {
-  const { socket, isConnected, on, off, emit } = useSocket();
+  const { isConnected, on, off, emit } = useSocket({ autoConnect: true });
 
   const subscribeToDTU = useCallback(
     (dtuId: string) => {

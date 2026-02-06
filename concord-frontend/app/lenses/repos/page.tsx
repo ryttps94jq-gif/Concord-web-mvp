@@ -156,7 +156,7 @@ export default function ReposLensPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d1117]">
+    <div className="min-h-full bg-[#0d1117]">
       {/* Header */}
       <header className="bg-[#161b22] border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4">

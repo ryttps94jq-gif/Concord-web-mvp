@@ -2,6 +2,25 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
 
+/**
+ * FE-004: Runtime validation of API base URL.
+ * Warns visibly when the app is running against localhost in a non-localhost context,
+ * which usually indicates a missing NEXT_PUBLIC_API_URL in production.
+ */
+if (typeof window !== 'undefined') {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const apiPointsToLocalhost = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
+
+  if (!isLocalhost && apiPointsToLocalhost) {
+    console.warn(
+      '[Concord] API base URL points to localhost but app is running on %s. ' +
+      'Set NEXT_PUBLIC_API_URL to your production backend. Current value: %s',
+      window.location.hostname,
+      BASE_URL
+    );
+  }
+}
+
 // Create axios instance with defaults
 // SECURITY: withCredentials ensures httpOnly cookies are sent with requests
 export const api: AxiosInstance = axios.create({

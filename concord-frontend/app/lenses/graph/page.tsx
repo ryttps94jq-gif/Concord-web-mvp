@@ -612,7 +612,7 @@ export default function GraphLensPage() {
   }, [graphData]);
 
   return (
-    <div className="h-screen flex bg-lattice-bg">
+    <div className="h-full flex bg-lattice-bg">
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         <canvas ref={canvasRef} className="w-full h-full cursor-grab active:cursor-grabbing" style={{ width: dimensions.width, height: dimensions.height }}
           onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} onContextMenu={handleContextMenu} />

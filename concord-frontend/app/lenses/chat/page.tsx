@@ -184,7 +184,7 @@ export default function ChatLensPage() {
   };
 
   return (
-    <div className="h-screen flex bg-lattice-bg">
+    <div className="h-full flex bg-lattice-bg">
       {/* Sidebar */}
       <aside className="w-80 border-r border-lattice-border flex flex-col bg-lattice-surface">
         <div className="p-4 border-b border-lattice-border">

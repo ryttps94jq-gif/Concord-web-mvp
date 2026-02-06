@@ -174,7 +174,7 @@ export default function TimelineLensPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#18191a]">
+    <div className="min-h-full bg-[#18191a]">
       {/* Header */}
       <header className="sticky top-0 z-20 bg-[#242526] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
