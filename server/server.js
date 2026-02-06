@@ -862,6 +862,177 @@ function chooseAbstractionFrame({ mode="explore", intent="statement", hasStrongE
   return { level, requireHypLabels, requireTests };
 }
 
+// ===== SEMANTIC UNDERSTANDING FALLBACK =====
+// Enhanced response generation when LLM is not available.
+// Uses semantic word vectors, DTU embeddings, and inference engine.
+
+function semanticUnderstandFallback(prompt, relevantDtus = [], options = {}) {
+  const result = {
+    semanticIntent: null,
+    inferredAnswer: null,
+    relatedConcepts: [],
+    semanticallySimilar: [],
+    confidence: 0
+  };
+
+  // 1. Analyze semantic intent
+  if (typeof classifySemanticIntent === "function") {
+    result.semanticIntent = classifySemanticIntent(prompt);
+  }
+
+  // 2. Find semantically similar words in the query
+  const tokens = (typeof tokenizeText === "function") ? tokenizeText(prompt) : [];
+  const similarWordFindings = [];
+
+  for (const token of tokens.slice(0, 5)) {
+    if (typeof findSimilarWords === "function") {
+      const similar = findSimilarWords(token, 3, 0.65);
+      if (similar.length > 0) {
+        similarWordFindings.push({ word: token, similar: similar.map(s => s.word) });
+      }
+    }
+  }
+  result.relatedConcepts = similarWordFindings;
+
+  // 3. Enhanced DTU matching using semantic embeddings
+  if (typeof computeLocalEmbedding === "function" && typeof cosineSimilarity === "function") {
+    try {
+      const queryEmbedding = computeLocalEmbedding(prompt);
+
+      for (const dtu of relevantDtus.slice(0, 10)) {
+        const dtuText = [
+          dtu.title || "",
+          dtu.human?.summary || "",
+          (dtu.tags || []).join(" ")
+        ].join(" ");
+
+        const dtuEmbedding = computeLocalEmbedding(dtuText);
+        const similarity = cosineSimilarity(queryEmbedding, dtuEmbedding);
+
+        if (similarity > 0.6) {
+          result.semanticallySimilar.push({
+            dtuId: dtu.id,
+            title: dtu.title,
+            similarity
+          });
+        }
+      }
+
+      result.semanticallySimilar.sort((a, b) => b.similarity - a.similarity);
+    } catch (e) {
+      // Silently fail, fall back to regular matching
+    }
+  }
+
+  // 4. Try to answer using the inference engine
+  if (typeof queryWithInference === "function") {
+    // Parse simple questions
+    const whoIsMatch = prompt.match(/who\s+is\s+(?:a\s+)?(\w+)/i);
+    const whatIsMatch = prompt.match(/what\s+is\s+(?:a\s+)?(\w+)/i);
+    const isAMatch = prompt.match(/is\s+(?:a\s+)?(\w+)\s+(?:a\s+)?(\w+)/i);
+
+    if (isAMatch) {
+      // "Is X a Y?" -> query for subject=X, object=Y
+      const queryResult = queryWithInference({
+        subject: isAMatch[1].toLowerCase(),
+        predicate: "is",
+        object: isAMatch[2].toLowerCase()
+      });
+
+      if (queryResult.ok && queryResult.found) {
+        result.inferredAnswer = {
+          type: "inference",
+          answer: queryResult.explanation.join("; "),
+          confidence: queryResult.facts[0]?.confidence || 0.5
+        };
+      }
+    } else if (whatIsMatch || whoIsMatch) {
+      const subject = (whatIsMatch || whoIsMatch)[1].toLowerCase();
+      const queryResult = queryWithInference({
+        subject: subject,
+        predicate: "is"
+      });
+
+      if (queryResult.ok && queryResult.found && queryResult.facts.length > 0) {
+        const answers = queryResult.facts.map(f => `${f.subject} is ${f.object}`);
+        result.inferredAnswer = {
+          type: "knowledge_base",
+          answer: answers.join("; "),
+          confidence: queryResult.facts[0]?.confidence || 0.5
+        };
+      }
+    }
+  }
+
+  // 5. Calculate overall confidence
+  let confidence = 0.2;  // Base confidence for any response
+  if (result.semanticallySimilar.length > 0) {
+    confidence += result.semanticallySimilar[0].similarity * 0.4;
+  }
+  if (result.inferredAnswer) {
+    confidence += result.inferredAnswer.confidence * 0.3;
+  }
+  if (result.relatedConcepts.length > 0) {
+    confidence += 0.1;
+  }
+
+  result.confidence = Math.min(confidence, 0.95);
+
+  return result;
+}
+
+// Generate an enhanced response using semantic understanding
+function generateSemanticResponse(prompt, microDTUs, macroDTUs, semanticResult) {
+  const lines = [];
+
+  // If we have an inferred answer, lead with it
+  if (semanticResult.inferredAnswer) {
+    lines.push("Based on reasoning:");
+    lines.push(`- ${semanticResult.inferredAnswer.answer}`);
+    lines.push(`- (Source: ${semanticResult.inferredAnswer.type}, confidence: ${(semanticResult.inferredAnswer.confidence * 100).toFixed(0)}%)`);
+    lines.push("");
+  }
+
+  // Add semantic context
+  if (semanticResult.semanticIntent) {
+    const intent = semanticResult.semanticIntent.intent;
+    const intentDescriptions = {
+      "query": "You're asking a question",
+      "create": "You want to create something",
+      "update": "You want to modify something",
+      "analyze": "You want deep analysis",
+      "explain": "You want an explanation",
+      "compare": "You want to compare options"
+    };
+    if (intentDescriptions[intent]) {
+      lines.push(`Understanding: ${intentDescriptions[intent]}.`);
+    }
+  }
+
+  // Add semantically related concepts
+  if (semanticResult.relatedConcepts.length > 0) {
+    const concepts = semanticResult.relatedConcepts
+      .flatMap(c => c.similar)
+      .slice(0, 5);
+    if (concepts.length > 0) {
+      lines.push(`Related concepts: ${concepts.join(", ")}.`);
+    }
+  }
+
+  // Add semantically similar DTUs
+  if (semanticResult.semanticallySimilar.length > 0) {
+    lines.push("");
+    lines.push("Semantically related knowledge:");
+    for (const dtu of semanticResult.semanticallySimilar.slice(0, 3)) {
+      lines.push(`- ${dtu.title} (${(dtu.similarity * 100).toFixed(0)}% match)`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+// ===== END SEMANTIC UNDERSTANDING FALLBACK =====
+
 function formatCrispResponse({ prompt, mode, microDTUs, macroDTUs, level, answerLines, hypotheses=[], tests=[] }){
   const lines = [];
   // Facts/Evidence anchors (always)
@@ -4902,6 +5073,51 @@ register("reasoning", "list_chains", async (ctx, input = {}) => {
 
 // ===== END REASONING CHAINS MACROS =====
 
+// ===== INFERENCE ENGINE MACROS =====
+
+register("inference", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_status");
+  return getInferenceStatus();
+}, { public: true });
+
+register("inference", "add_fact", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_add_fact");
+  return addInferenceFact(input);
+}, { public: true });
+
+register("inference", "add_rule", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_add_rule");
+  return addInferenceRule(input);
+}, { public: true });
+
+register("inference", "query", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_query");
+  return queryWithInference(input);
+}, { public: true });
+
+register("inference", "syllogism", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_syllogism");
+  return syllogisticReason(input);
+}, { public: true });
+
+register("inference", "forward_chain", async (ctx, input = {}) => {
+  enforceEthosInvariant("inference_forward_chain");
+  const derivations = forwardChain(input.maxIterations);
+  return {
+    ok: true,
+    derivations: derivations.map(d => ({
+      subject: d.subject,
+      predicate: d.predicate,
+      object: d.object,
+      negated: d.negated,
+      confidence: d.confidence,
+      derivedFrom: d.derivedFrom
+    }))
+  };
+}, { public: true });
+
+// ===== END INFERENCE ENGINE MACROS =====
+
 // ===== HYPOTHESIS ENGINE MACROS =====
 
 register("hypothesis", "status", async (ctx, input = {}) => {
@@ -5021,6 +5237,37 @@ register("metacognition", "blind_spots", async (ctx, input = {}) => {
   ensureMetacognitionSystem();
   const spots = ctx.state.metacognition.blindSpots.slice(-20);
   return { ok: true, blindSpots: spots };
+}, { public: true });
+
+// Introspection macros
+register("metacognition", "introspect", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_introspect");
+  return introspectOnFailures();
+}, { public: true });
+
+register("metacognition", "analyze_failure", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_analyze_failure");
+  const predictionId = String(input.predictionId || input.id || "");
+  if (!predictionId) return { ok: false, error: "predictionId required" };
+  return analyzeFailure(predictionId);
+}, { public: true });
+
+register("metacognition", "adapt_strategy", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_adapt");
+  const domain = String(input.domain || "general");
+  return adaptReasoningStrategy(domain, input.feedback || {});
+}, { public: true });
+
+register("metacognition", "introspection_status", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_introspection_status");
+  return getIntrospectionStatus();
+}, { public: true });
+
+register("metacognition", "adjust_confidence", async (ctx, input = {}) => {
+  enforceEthosInvariant("metacognition_adjust_confidence");
+  const domain = String(input.domain || "general");
+  const confidence = clamp(Number(input.confidence || 0.5), 0, 1);
+  return adjustConfidenceFromLearning(domain, confidence);
 }, { public: true });
 
 // ===== END METACOGNITION MACROS =====
@@ -9141,10 +9388,33 @@ let localReply = formatCrispResponse({
   tests
 });
 
+  // ===== SEMANTIC UNDERSTANDING ENHANCEMENT =====
+  // When LLM is not available, enhance the response using semantic understanding
+  let semanticEnhancement = null;
+  if (!LLM_READY || !llm) {
+    try {
+      // Get semantic understanding of the query
+      semanticEnhancement = semanticUnderstandFallback(prompt, relevant, { mode });
+
+      // If we have good semantic understanding, enhance the response
+      if (semanticEnhancement.confidence > 0.4) {
+        const semanticSection = generateSemanticResponse(prompt, micro, macro, semanticEnhancement);
+        if (semanticSection) {
+          localReply = `${semanticSection}\n\n---\n\n${localReply}`;
+        }
+      }
+    } catch (e) {
+      // Semantic enhancement is optional; silently continue
+      ctx.log("semantic", "Semantic enhancement failed", { error: String(e?.message || e) });
+    }
+  }
+  // ===== END SEMANTIC UNDERSTANDING ENHANCEMENT =====
+
   // NOTE: Do NOT print internal context tracking to the user.
 
   let finalReply = localReply;
   let llmUsed = false;
+  const semanticUsed = Boolean(semanticEnhancement && semanticEnhancement.confidence > 0.4);
 
   if (llm && ctx.llm.enabled) {
     const system =
@@ -9169,12 +9439,12 @@ ${buildCretiText(d)}
     }
   }
 
-  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, mode, relevant: relevant.map(d=>d.id) } });
-  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, relevant: relevant.map(d=>d.id) });
+  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id) } });
+  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id) });
   // persist session + any state mutations from this turn
   saveStateDebounced();
 
-  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })) };
+  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })) };
 }, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement." });
 
 // Ask domain
@@ -14497,6 +14767,40 @@ app.post("/api/reasoning/steps/:stepId/validate", async (req, res) => {
 
 // ===== END REASONING CHAINS API ENDPOINTS =====
 
+// ===== INFERENCE ENGINE API ENDPOINTS =====
+
+app.get("/api/inference/status", async (req, res) => {
+  const out = await runMacro("inference", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/inference/facts", async (req, res) => {
+  const out = await runMacro("inference", "add_fact", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/inference/rules", async (req, res) => {
+  const out = await runMacro("inference", "add_rule", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/inference/query", async (req, res) => {
+  const out = await runMacro("inference", "query", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/inference/syllogism", async (req, res) => {
+  const out = await runMacro("inference", "syllogism", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/inference/forward-chain", async (req, res) => {
+  const out = await runMacro("inference", "forward_chain", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END INFERENCE ENGINE API ENDPOINTS =====
+
 // ===== HYPOTHESIS ENGINE API ENDPOINTS =====
 
 app.get("/api/hypothesis/status", async (req, res) => {
@@ -14570,6 +14874,32 @@ app.post("/api/metacognition/strategy", async (req, res) => {
 
 app.get("/api/metacognition/blindspots", async (req, res) => {
   const out = await runMacro("metacognition", "blind_spots", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// Introspection endpoints
+app.post("/api/metacognition/introspect", async (req, res) => {
+  const out = await runMacro("metacognition", "introspect", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/analyze-failure/:predictionId", async (req, res) => {
+  const out = await runMacro("metacognition", "analyze_failure", { predictionId: req.params.predictionId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/adapt-strategy", async (req, res) => {
+  const out = await runMacro("metacognition", "adapt_strategy", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/metacognition/introspection-status", async (req, res) => {
+  const out = await runMacro("metacognition", "introspection_status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/metacognition/adjust-confidence", async (req, res) => {
+  const out = await runMacro("metacognition", "adjust_confidence", req.body, makeCtx(req));
   return res.json(out);
 });
 
@@ -20400,7 +20730,7 @@ function getEntityWithRelations(entityId) {
   return { ok: true, entity, relations };
 }
 
-// Run a bounded simulation
+// Run a bounded simulation with full causal propagation
 function runWorldSimulation(input = {}) {
   ensureWorldModel();
 
@@ -20424,21 +20754,28 @@ function runWorldSimulation(input = {}) {
     config: {
       maxSteps,
       interventions: input.interventions || [],  // { entityId, property, value }
-      hypothesis: String(input.hypothesis || "").slice(0, 500)
+      hypothesis: String(input.hypothesis || "").slice(0, 500),
+      temporalMode: input.temporalMode || "discrete"  // discrete or continuous
     },
     startState: {},
     steps: [],
     endState: {},
+    causalChain: [],  // Track the causal propagation path
+    temporalEvents: [],  // Track temporal evolution
     insights: [],
     createdAt: now,
     completedAt: null
   };
 
-  // Capture start state
+  // Capture start state with full properties
   for (const eid of startEntityIds) {
     const e = STATE.worldModel.entities.get(eid);
     if (e) {
-      simulation.startState[eid] = JSON.parse(JSON.stringify(e.state));
+      simulation.startState[eid] = {
+        ...JSON.parse(JSON.stringify(e.state)),
+        _entityName: e.name,
+        _entityType: e.type
+      };
     }
   }
 
@@ -20446,55 +20783,235 @@ function runWorldSimulation(input = {}) {
   const workingState = JSON.parse(JSON.stringify(simulation.startState));
   for (const intervention of (input.interventions || [])) {
     if (workingState[intervention.entityId]) {
-      workingState[intervention.entityId].properties[intervention.property] = intervention.value;
+      const oldValue = workingState[intervention.entityId].properties?.[intervention.property];
+      if (intervention.property === "salience") {
+        workingState[intervention.entityId].salience = intervention.value;
+      } else if (intervention.property === "confidence") {
+        workingState[intervention.entityId].confidence = intervention.value;
+      } else {
+        workingState[intervention.entityId].properties = workingState[intervention.entityId].properties || {};
+        workingState[intervention.entityId].properties[intervention.property] = intervention.value;
+      }
+
+      simulation.causalChain.push({
+        step: 0,
+        type: "intervention",
+        entityId: intervention.entityId,
+        property: intervention.property,
+        oldValue,
+        newValue: intervention.value,
+        reason: "external_intervention"
+      });
     }
   }
 
-  // Run bounded simulation steps
+  // Track which entities have been modified in this step
+  const modifiedThisStep = new Set();
+
+  // Run bounded simulation steps with full causal propagation
   for (let step = 0; step < maxSteps; step++) {
     const stepResult = {
       step,
+      timestamp: new Date(Date.now() + step * 1000).toISOString(), // Simulated time
       changes: [],
-      propagations: []
+      propagations: [],
+      contradictions: [],
+      enablements: [],
+      inhibitions: []
     };
 
-    // For each entity, propagate changes through causal relations
-    for (const [entityId, entityState] of Object.entries(workingState)) {
-      const relations = Array.from(STATE.worldModel.relations.values())
-        .filter(r => r.from === entityId && r.type === RELATION_TYPES.CAUSES);
+    modifiedThisStep.clear();
 
-      for (const rel of relations) {
+    // Process all relation types
+    for (const [entityId, entityState] of Object.entries(workingState)) {
+      const outgoingRelations = Array.from(STATE.worldModel.relations.values())
+        .filter(r => r.from === entityId);
+
+      for (const rel of outgoingRelations) {
         const targetState = workingState[rel.to];
         if (!targetState) continue;
 
-        // Propagate influence based on relation strength
-        const influence = rel.strength * entityState.salience * (1 - targetState.volatility);
-        if (influence > 0.1) {
-          // Increase target salience proportionally
-          const oldSalience = targetState.salience;
-          targetState.salience = clamp(targetState.salience + influence * 0.1, 0, 1);
+        const sourceStrength = entityState.salience * (entityState.confidence || 0.5);
 
-          if (Math.abs(targetState.salience - oldSalience) > 0.01) {
-            stepResult.propagations.push({
-              from: entityId,
-              to: rel.to,
-              relation: rel.type,
-              delta: targetState.salience - oldSalience
-            });
+        // Process based on relation type
+        switch (rel.type) {
+          case RELATION_TYPES.CAUSES: {
+            // Causal propagation: source salience affects target
+            const influence = rel.strength * sourceStrength * (1 - (targetState.volatility || 0.5));
+            if (influence > 0.05) {
+              const oldSalience = targetState.salience;
+              targetState.salience = clamp(targetState.salience + influence * 0.15, 0, 1);
+
+              // Also propagate property changes
+              if (entityState.properties && rel.propertyMapping) {
+                for (const [srcProp, tgtProp] of Object.entries(rel.propertyMapping)) {
+                  if (entityState.properties[srcProp] !== undefined) {
+                    const oldPropVal = targetState.properties?.[tgtProp];
+                    targetState.properties = targetState.properties || {};
+                    targetState.properties[tgtProp] = entityState.properties[srcProp] * rel.strength;
+
+                    if (oldPropVal !== targetState.properties[tgtProp]) {
+                      simulation.causalChain.push({
+                        step,
+                        type: "property_propagation",
+                        from: entityId,
+                        to: rel.to,
+                        property: tgtProp,
+                        oldValue: oldPropVal,
+                        newValue: targetState.properties[tgtProp],
+                        reason: `causal_effect_from_${srcProp}`
+                      });
+                    }
+                  }
+                }
+              }
+
+              if (Math.abs(targetState.salience - oldSalience) > 0.01) {
+                stepResult.propagations.push({
+                  from: entityId,
+                  to: rel.to,
+                  relation: rel.type,
+                  delta: targetState.salience - oldSalience,
+                  mechanism: "causal_influence"
+                });
+                modifiedThisStep.add(rel.to);
+              }
+            }
+            break;
+          }
+
+          case RELATION_TYPES.ENABLES: {
+            // Enablement: high source salience unlocks target's potential
+            if (sourceStrength > 0.5) {
+              const boost = rel.strength * (sourceStrength - 0.5) * 0.3;
+              const oldConfidence = targetState.confidence || 0.5;
+              targetState.confidence = clamp((targetState.confidence || 0.5) + boost, 0, 1);
+
+              if (Math.abs(targetState.confidence - oldConfidence) > 0.01) {
+                stepResult.enablements.push({
+                  from: entityId,
+                  to: rel.to,
+                  boost,
+                  reason: `${entityState._entityName || entityId} enables ${targetState._entityName || rel.to}`
+                });
+                modifiedThisStep.add(rel.to);
+              }
+            }
+            break;
+          }
+
+          case RELATION_TYPES.INHIBITS: {
+            // Inhibition: high source salience suppresses target
+            if (sourceStrength > 0.3) {
+              const suppression = rel.strength * sourceStrength * 0.2;
+              const oldSalience = targetState.salience;
+              targetState.salience = clamp(targetState.salience - suppression, 0.05, 1);
+
+              if (Math.abs(targetState.salience - oldSalience) > 0.01) {
+                stepResult.inhibitions.push({
+                  from: entityId,
+                  to: rel.to,
+                  suppression,
+                  reason: `${entityState._entityName || entityId} inhibits ${targetState._entityName || rel.to}`
+                });
+                modifiedThisStep.add(rel.to);
+              }
+            }
+            break;
+          }
+
+          case RELATION_TYPES.CONTRADICTS: {
+            // Contradiction: if both are salient, one must decrease
+            if (sourceStrength > 0.5 && targetState.salience > 0.5) {
+              // The stronger one "wins"
+              const winner = sourceStrength > targetState.salience ? entityId : rel.to;
+              const loser = winner === entityId ? rel.to : entityId;
+              const loserState = winner === entityId ? targetState : entityState;
+
+              const reduction = rel.strength * 0.25;
+              const oldSalience = loserState.salience;
+              loserState.salience = clamp(loserState.salience - reduction, 0.05, 1);
+
+              stepResult.contradictions.push({
+                entities: [entityId, rel.to],
+                winner,
+                loser,
+                reduction,
+                reason: `Contradiction resolved: ${winner} prevails over ${loser}`
+              });
+              modifiedThisStep.add(loser);
+            }
+            break;
+          }
+
+          case RELATION_TYPES.PRECEDES: {
+            // Temporal ordering: if source is "active", prepare target
+            if (sourceStrength > 0.6) {
+              simulation.temporalEvents.push({
+                step,
+                type: "sequence_trigger",
+                predecessor: entityId,
+                successor: rel.to,
+                message: `${entityState._entityName || entityId} triggers preparation for ${targetState._entityName || rel.to}`
+              });
+
+              // Slightly increase target's readiness
+              targetState.volatility = clamp((targetState.volatility || 0.5) + 0.1, 0, 1);
+              modifiedThisStep.add(rel.to);
+            }
+            break;
+          }
+
+          case RELATION_TYPES.SUPPORTS: {
+            // Evidential support: increase target confidence
+            if (sourceStrength > 0.4) {
+              const support = rel.strength * sourceStrength * 0.1;
+              const oldConfidence = targetState.confidence || 0.5;
+              targetState.confidence = clamp((targetState.confidence || 0.5) + support, 0, 1);
+
+              if (Math.abs(targetState.confidence - oldConfidence) > 0.01) {
+                stepResult.propagations.push({
+                  from: entityId,
+                  to: rel.to,
+                  relation: rel.type,
+                  delta: support,
+                  mechanism: "evidential_support"
+                });
+                modifiedThisStep.add(rel.to);
+              }
+            }
+            break;
           }
         }
       }
     }
 
-    // Natural decay of volatility
-    for (const entityState of Object.values(workingState)) {
-      entityState.volatility = clamp(entityState.volatility * 0.95, 0.05, 1);
+    // Temporal evolution: natural decay and momentum
+    for (const [entityId, entityState] of Object.entries(workingState)) {
+      // Volatility decays toward baseline
+      entityState.volatility = clamp(entityState.volatility * 0.92 + 0.04, 0.05, 1);
+
+      // Salience has momentum (entities in motion stay in motion)
+      if (modifiedThisStep.has(entityId)) {
+        entityState._momentum = (entityState._momentum || 0) + 0.1;
+      } else {
+        entityState._momentum = (entityState._momentum || 0) * 0.8;
+      }
+
+      // Apply momentum to salience (entities being actively changed resist decay)
+      if (entityState._momentum < 0.1 && entityState.salience > 0.3) {
+        entityState.salience = clamp(entityState.salience * 0.98, 0.1, 1);
+      }
     }
 
     simulation.steps.push(stepResult);
 
-    // Early termination if no propagations
-    if (stepResult.propagations.length === 0 && step > 2) {
+    // Early termination if no changes
+    const totalChanges = stepResult.propagations.length +
+                         stepResult.enablements.length +
+                         stepResult.inhibitions.length +
+                         stepResult.contradictions.length;
+    if (totalChanges === 0 && step > 2) {
       break;
     }
   }
@@ -20504,22 +21021,58 @@ function runWorldSimulation(input = {}) {
   simulation.status = "completed";
   simulation.completedAt = nowISO();
 
-  // Generate insights
+  // Generate comprehensive insights
   for (const [entityId, startState] of Object.entries(simulation.startState)) {
     const endState = simulation.endState[entityId];
     if (!endState) continue;
 
     const salienceDelta = endState.salience - startState.salience;
+    const confidenceDelta = (endState.confidence || 0.5) - (startState.confidence || 0.5);
+
     if (Math.abs(salienceDelta) > 0.1) {
-      const entity = STATE.worldModel.entities.get(entityId);
       simulation.insights.push({
         entityId,
-        entityName: entity?.name || entityId,
+        entityName: startState._entityName || entityId,
         type: salienceDelta > 0 ? "increased_salience" : "decreased_salience",
         delta: salienceDelta,
-        description: `${entity?.name || entityId} ${salienceDelta > 0 ? "gained" : "lost"} significance (${(Math.abs(salienceDelta) * 100).toFixed(1)}%)`
+        description: `${startState._entityName || entityId} ${salienceDelta > 0 ? "gained" : "lost"} significance (${(Math.abs(salienceDelta) * 100).toFixed(1)}%)`
       });
     }
+
+    if (Math.abs(confidenceDelta) > 0.1) {
+      simulation.insights.push({
+        entityId,
+        entityName: startState._entityName || entityId,
+        type: confidenceDelta > 0 ? "increased_confidence" : "decreased_confidence",
+        delta: confidenceDelta,
+        description: `${startState._entityName || entityId} ${confidenceDelta > 0 ? "gained" : "lost"} certainty (${(Math.abs(confidenceDelta) * 100).toFixed(1)}%)`
+      });
+    }
+
+    // Property change insights
+    if (startState.properties && endState.properties) {
+      for (const prop of Object.keys(endState.properties)) {
+        const startVal = startState.properties[prop];
+        const endVal = endState.properties[prop];
+        if (startVal !== undefined && endVal !== undefined && Math.abs(endVal - startVal) > 0.1) {
+          simulation.insights.push({
+            entityId,
+            entityName: startState._entityName || entityId,
+            type: "property_changed",
+            property: prop,
+            startValue: startVal,
+            endValue: endVal,
+            description: `${startState._entityName || entityId}'s ${prop} changed from ${startVal.toFixed(2)} to ${endVal.toFixed(2)}`
+          });
+        }
+      }
+    }
+  }
+
+  // Analyze causal chain for key pathways
+  if (simulation.causalChain.length > 0) {
+    const chainSummary = analyzeCausalChain(simulation.causalChain);
+    simulation.causalSummary = chainSummary;
   }
 
   STATE.worldModel.simulations.set(simId, simulation);
@@ -20537,6 +21090,56 @@ function runWorldSimulation(input = {}) {
 
   saveStateDebounced();
   return { ok: true, simulation };
+}
+
+// Analyze causal chain to identify key pathways
+function analyzeCausalChain(chain) {
+  const entityTouchCount = {};
+  const causalPaths = [];
+  let currentPath = [];
+
+  for (const event of chain) {
+    if (event.from) {
+      entityTouchCount[event.from] = (entityTouchCount[event.from] || 0) + 1;
+    }
+    if (event.to || event.entityId) {
+      const target = event.to || event.entityId;
+      entityTouchCount[target] = (entityTouchCount[target] || 0) + 1;
+    }
+
+    // Build causal paths
+    if (event.type === "intervention") {
+      if (currentPath.length > 0) {
+        causalPaths.push([...currentPath]);
+      }
+      currentPath = [event.entityId];
+    } else if (event.from && event.to) {
+      if (currentPath.length > 0 && currentPath[currentPath.length - 1] === event.from) {
+        currentPath.push(event.to);
+      } else {
+        if (currentPath.length > 1) {
+          causalPaths.push([...currentPath]);
+        }
+        currentPath = [event.from, event.to];
+      }
+    }
+  }
+
+  if (currentPath.length > 1) {
+    causalPaths.push(currentPath);
+  }
+
+  // Find most affected entities
+  const sortedEntities = Object.entries(entityTouchCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  return {
+    mostAffectedEntities: sortedEntities.map(([id, count]) => ({ entityId: id, touchCount: count })),
+    causalPathCount: causalPaths.length,
+    longestPath: causalPaths.reduce((max, p) => p.length > max.length ? p : max, []),
+    totalEvents: chain.length
+  };
 }
 
 // Generate counterfactual: "What if X had been different?"
@@ -20763,27 +21366,70 @@ function computeLocalEmbedding(text) {
   ensureSemanticEngine();
   const tokens = tokenizeText(text);
   const dim = STATE.semantic.config.embeddingDim;
-  const embedding = new Array(dim).fill(0);
 
   // Update vocabulary
   for (const token of tokens) {
     STATE.semantic.vocabulary.set(token, (STATE.semantic.vocabulary.get(token) || 0) + 1);
   }
 
-  // Compute embedding using semantic hashing
+  if (tokens.length === 0) {
+    return new Array(dim).fill(0);
+  }
+
+  // Use semantic word vectors for known words
+  // This enables understanding that "dog" and "canine" are semantically similar
+  const semanticEmbedding = new Array(WORD_VECTOR_DIM).fill(0);
+  let knownCount = 0;
+
   for (const token of tokens) {
-    const hash = simpleHash(token);
-    for (let i = 0; i < dim; i++) {
-      // Deterministic projection based on token hash
-      const sign = ((hash >> (i % 32)) & 1) ? 1 : -1;
-      const weight = 1 / Math.sqrt(tokens.length); // Normalize by length
-      embedding[i] += sign * weight;
+    const wordVec = getWordVector(token);
+    const weight = 1 / Math.sqrt(tokens.length); // TF-IDF style weighting
+
+    for (let i = 0; i < WORD_VECTOR_DIM; i++) {
+      semanticEmbedding[i] += wordVec[i] * weight;
+    }
+
+    // Track if word is in our semantic vocabulary
+    if (WORD_VECTORS.has(token.toLowerCase())) {
+      knownCount++;
     }
   }
 
-  // Normalize to unit vector
-  const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
-  return embedding.map(v => v / magnitude);
+  // Normalize the semantic embedding
+  const semMag = Math.sqrt(semanticEmbedding.reduce((s, v) => s + v * v, 0)) || 1;
+  const normalizedSemantic = semanticEmbedding.map(v => v / semMag);
+
+  // If output dim matches WORD_VECTOR_DIM, use semantic embedding directly
+  if (dim === WORD_VECTOR_DIM) {
+    return normalizedSemantic;
+  }
+
+  // Otherwise, project or pad to match expected dimension
+  const embedding = new Array(dim).fill(0);
+
+  // Copy semantic dimensions
+  for (let i = 0; i < Math.min(dim, WORD_VECTOR_DIM); i++) {
+    embedding[i] = normalizedSemantic[i];
+  }
+
+  // If dim > WORD_VECTOR_DIM, fill remaining with hash-based features
+  // (for backward compatibility with higher-dim configs)
+  if (dim > WORD_VECTOR_DIM) {
+    for (const token of tokens) {
+      const hash = simpleHash(token);
+      for (let i = WORD_VECTOR_DIM; i < dim; i++) {
+        const sign = ((hash >> ((i - WORD_VECTOR_DIM) % 32)) & 1) ? 1 : -1;
+        const weight = 1 / Math.sqrt(tokens.length);
+        embedding[i] += sign * weight;
+      }
+    }
+
+    // Re-normalize the full embedding
+    const fullMag = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0)) || 1;
+    return embedding.map(v => v / fullMag);
+  }
+
+  return embedding;
 }
 
 function tokenizeText(text) {
@@ -20805,6 +21451,221 @@ const STOP_WORDS = new Set([
   "both", "few", "more", "most", "other", "some", "such", "no", "not",
   "only", "own", "same", "so", "than", "too", "very", "just", "also"
 ]);
+
+// ===== SEMANTIC WORD VECTORS (Mini-GloVe style embeddings) =====
+// Pre-computed 50-dimensional word vectors for semantic similarity.
+// Words are grouped by semantic clusters with similar vectors.
+
+const WORD_VECTOR_DIM = 50;
+
+// Semantic clusters: words that share meaning get similar base vectors
+const SEMANTIC_CLUSTERS = {
+  // Animals
+  animals: ["dog", "cat", "animal", "pet", "mammal", "canine", "feline", "puppy", "kitten", "hound",
+            "beast", "creature", "wolf", "lion", "tiger", "bear", "elephant", "horse", "bird", "fish",
+            "whale", "dolphin", "shark", "snake", "rabbit", "mouse", "rat", "deer", "fox", "monkey"],
+  // Humans/People
+  humans: ["human", "person", "people", "man", "woman", "child", "adult", "individual", "being",
+           "citizen", "worker", "employee", "student", "teacher", "doctor", "engineer", "artist"],
+  // Emotions
+  emotions: ["happy", "sad", "angry", "fear", "joy", "love", "hate", "emotion", "feeling", "mood",
+             "excited", "anxious", "calm", "peaceful", "worried", "content", "depressed", "elated",
+             "furious", "terrified", "delighted", "miserable", "cheerful", "gloomy", "hopeful"],
+  // Cognition
+  cognition: ["think", "thought", "idea", "concept", "understand", "know", "learn", "reason",
+              "logic", "mind", "brain", "intelligence", "smart", "clever", "wise", "memory",
+              "cognition", "mental", "cognitive", "rational", "analyze", "comprehend", "perceive",
+              "believe", "consider", "reflect", "contemplate", "ponder", "realize", "recognize"],
+  // Actions
+  actions: ["run", "walk", "move", "go", "come", "take", "give", "make", "create", "build",
+            "destroy", "break", "fix", "repair", "start", "stop", "begin", "end", "continue",
+            "work", "play", "eat", "drink", "sleep", "wake", "speak", "talk", "listen", "watch"],
+  // Properties
+  properties: ["big", "small", "large", "tiny", "huge", "massive", "little", "great", "size",
+               "fast", "slow", "quick", "rapid", "speed", "hot", "cold", "warm", "cool", "temperature",
+               "old", "new", "young", "ancient", "modern", "fresh", "stale", "recent"],
+  // Time
+  time: ["time", "moment", "second", "minute", "hour", "day", "week", "month", "year", "century",
+         "past", "present", "future", "now", "then", "before", "after", "during", "while", "when",
+         "always", "never", "sometimes", "often", "rarely", "temporary", "permanent", "eternal"],
+  // Space
+  space: ["space", "place", "location", "position", "area", "region", "zone", "here", "there",
+          "where", "near", "far", "close", "distant", "above", "below", "up", "down", "left", "right",
+          "inside", "outside", "between", "around", "through", "across"],
+  // Quantities
+  quantities: ["one", "two", "three", "many", "few", "several", "number", "count", "amount",
+               "quantity", "total", "sum", "average", "percent", "half", "double", "triple",
+               "increase", "decrease", "grow", "shrink", "expand", "reduce", "multiply", "divide"],
+  // Communication
+  communication: ["say", "tell", "speak", "talk", "write", "read", "communicate", "message",
+                  "word", "sentence", "language", "speech", "conversation", "discuss", "explain",
+                  "describe", "express", "convey", "inform", "announce", "declare", "state"],
+  // Science
+  science: ["science", "scientific", "research", "study", "experiment", "hypothesis", "theory",
+            "evidence", "data", "analysis", "result", "conclusion", "method", "observe", "measure",
+            "physics", "chemistry", "biology", "mathematics", "technology", "engineering"],
+  // Positive
+  positive: ["good", "great", "excellent", "wonderful", "amazing", "fantastic", "positive", "success",
+             "benefit", "advantage", "helpful", "useful", "valuable", "important", "significant",
+             "improve", "enhance", "progress", "achieve", "accomplish", "win", "gain", "profit"],
+  // Negative
+  negative: ["bad", "terrible", "awful", "horrible", "negative", "failure", "problem", "issue",
+             "disadvantage", "harmful", "useless", "worthless", "unimportant", "insignificant",
+             "worsen", "decline", "regress", "fail", "lose", "damage", "hurt", "harm"],
+  // Causation
+  causation: ["cause", "effect", "result", "consequence", "because", "therefore", "thus", "hence",
+              "reason", "why", "lead", "produce", "create", "generate", "trigger", "induce",
+              "influence", "impact", "affect", "determine", "enable", "prevent", "allow", "force"],
+  // Similarity
+  similarity: ["same", "similar", "like", "alike", "equal", "equivalent", "identical", "match",
+               "resemble", "compare", "comparison", "different", "distinct", "unique", "contrast",
+               "opposite", "contrary", "differ", "vary", "change", "alternative", "substitute"]
+};
+
+// Generate deterministic base vectors for each cluster
+function generateClusterVector(clusterName, seed) {
+  const vector = new Array(WORD_VECTOR_DIM).fill(0);
+  let hash = 0;
+  for (let i = 0; i < clusterName.length; i++) {
+    hash = ((hash << 5) - hash) + clusterName.charCodeAt(i) + seed;
+    hash = hash & hash;
+  }
+  for (let i = 0; i < WORD_VECTOR_DIM; i++) {
+    // Deterministic pseudo-random based on cluster name
+    hash = ((hash * 1103515245) + 12345) & 0x7fffffff;
+    vector[i] = ((hash % 1000) - 500) / 500; // Range -1 to 1
+  }
+  // Normalize
+  const mag = Math.sqrt(vector.reduce((s, v) => s + v * v, 0)) || 1;
+  return vector.map(v => v / mag);
+}
+
+// Pre-compute cluster base vectors
+const CLUSTER_VECTORS = {};
+Object.keys(SEMANTIC_CLUSTERS).forEach((cluster, idx) => {
+  CLUSTER_VECTORS[cluster] = generateClusterVector(cluster, idx * 7919);
+});
+
+// Build word-to-cluster mapping and word vectors
+const WORD_TO_CLUSTERS = new Map();
+const WORD_VECTORS = new Map();
+
+// Each word gets a vector that's a blend of its cluster's base + word-specific noise
+function initializeWordVectors() {
+  for (const [cluster, words] of Object.entries(SEMANTIC_CLUSTERS)) {
+    const baseVector = CLUSTER_VECTORS[cluster];
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i].toLowerCase();
+
+      // Track which clusters this word belongs to
+      if (!WORD_TO_CLUSTERS.has(word)) {
+        WORD_TO_CLUSTERS.set(word, []);
+      }
+      WORD_TO_CLUSTERS.get(word).push(cluster);
+
+      // Generate word-specific variation (keeps semantic similarity within cluster)
+      const variation = new Array(WORD_VECTOR_DIM).fill(0);
+      let hash = 0;
+      for (let j = 0; j < word.length; j++) {
+        hash = ((hash << 5) - hash) + word.charCodeAt(j);
+        hash = hash & hash;
+      }
+
+      for (let j = 0; j < WORD_VECTOR_DIM; j++) {
+        hash = ((hash * 1103515245) + 12345) & 0x7fffffff;
+        // Small variation (0.2 max) so cluster similarity is preserved
+        variation[j] = ((hash % 400) - 200) / 1000;
+      }
+
+      // Blend: 85% cluster base + 15% word variation
+      const wordVector = baseVector.map((v, j) => v * 0.85 + variation[j]);
+
+      // Normalize
+      const mag = Math.sqrt(wordVector.reduce((s, v) => s + v * v, 0)) || 1;
+      const normalized = wordVector.map(v => v / mag);
+
+      // If word already has a vector (from another cluster), average them
+      if (WORD_VECTORS.has(word)) {
+        const existing = WORD_VECTORS.get(word);
+        const blended = existing.map((v, j) => (v + normalized[j]) / 2);
+        const bMag = Math.sqrt(blended.reduce((s, v) => s + v * v, 0)) || 1;
+        WORD_VECTORS.set(word, blended.map(v => v / bMag));
+      } else {
+        WORD_VECTORS.set(word, normalized);
+      }
+    }
+  }
+}
+
+// Initialize word vectors on load
+initializeWordVectors();
+
+// Get vector for a word (with fallback to hash-based for unknown words)
+function getWordVector(word) {
+  const w = String(word).toLowerCase().trim();
+  if (WORD_VECTORS.has(w)) {
+    return WORD_VECTORS.get(w);
+  }
+
+  // Check for common morphological variants
+  const stems = [
+    w.replace(/ing$/, ''),
+    w.replace(/ed$/, ''),
+    w.replace(/s$/, ''),
+    w.replace(/ly$/, ''),
+    w.replace(/ness$/, ''),
+    w.replace(/tion$/, 't'),
+    w.replace(/ment$/, ''),
+  ];
+
+  for (const stem of stems) {
+    if (stem !== w && WORD_VECTORS.has(stem)) {
+      // Return the stem's vector with slight modification
+      const stemVec = WORD_VECTORS.get(stem);
+      return stemVec.map((v, i) => v * 0.95 + (i % 2 === 0 ? 0.05 : -0.05));
+    }
+  }
+
+  // Fallback: generate hash-based vector (original behavior for unknown words)
+  const hash = simpleHash(w);
+  const vector = new Array(WORD_VECTOR_DIM).fill(0);
+  for (let i = 0; i < WORD_VECTOR_DIM; i++) {
+    const sign = ((hash >> (i % 32)) & 1) ? 1 : -1;
+    vector[i] = sign * 0.5;
+  }
+  const mag = Math.sqrt(vector.reduce((s, v) => s + v * v, 0)) || 1;
+  return vector.map(v => v / mag);
+}
+
+// Compute semantic similarity between two words
+function wordSemanticSimilarity(word1, word2) {
+  const v1 = getWordVector(word1);
+  const v2 = getWordVector(word2);
+  // Cosine similarity
+  let dot = 0, m1 = 0, m2 = 0;
+  for (let i = 0; i < WORD_VECTOR_DIM; i++) {
+    dot += v1[i] * v2[i];
+    m1 += v1[i] * v1[i];
+    m2 += v2[i] * v2[i];
+  }
+  return dot / (Math.sqrt(m1) * Math.sqrt(m2) || 1);
+}
+
+// Find semantically similar words
+function findSimilarWords(word, limit = 5, threshold = 0.7) {
+  const results = [];
+  for (const [candidate] of WORD_VECTORS) {
+    if (candidate === word.toLowerCase()) continue;
+    const sim = wordSemanticSimilarity(word, candidate);
+    if (sim >= threshold) {
+      results.push({ word: candidate, similarity: sim });
+    }
+  }
+  return results.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+}
+
+// ===== END SEMANTIC WORD VECTORS =====
 
 function simpleHash(str) {
   let hash = 0;
@@ -22008,6 +22869,451 @@ function getReasoningTrace(chainId) {
   return { ok: true, trace };
 }
 
+// ===== INFERENCE ENGINE (Actual Reasoning) =====
+// Performs logical inference using syllogistic rules and knowledge base.
+
+// Knowledge base for inference (facts and rules)
+function ensureInferenceKnowledgeBase() {
+  if (!STATE.reasoning.knowledgeBase) {
+    STATE.reasoning.knowledgeBase = {
+      facts: new Map(),      // fact_id -> { subject, predicate, object, confidence }
+      rules: new Map(),      // rule_id -> { antecedent, consequent, type }
+      derived: new Map(),    // Derived conclusions
+      stats: {
+        inferencesPerformed: 0,
+        factsDeduced: 0,
+        rulesApplied: 0
+      }
+    };
+  }
+}
+
+// Inference rule types
+const INFERENCE_RULES = Object.freeze({
+  MODUS_PONENS: "modus_ponens",           // P→Q, P ⊢ Q
+  MODUS_TOLLENS: "modus_tollens",         // P→Q, ¬Q ⊢ ¬P
+  HYPOTHETICAL_SYLLOGISM: "hypothetical_syllogism",  // P→Q, Q→R ⊢ P→R
+  DISJUNCTIVE_SYLLOGISM: "disjunctive_syllogism",    // P∨Q, ¬P ⊢ Q
+  UNIVERSAL_INSTANTIATION: "universal_instantiation", // ∀x.P(x) ⊢ P(a)
+  EXISTENTIAL_GENERALIZATION: "existential_generalization", // P(a) ⊢ ∃x.P(x)
+  CONJUNCTION: "conjunction",              // P, Q ⊢ P∧Q
+  SIMPLIFICATION: "simplification",        // P∧Q ⊢ P
+  TRANSITIVITY: "transitivity"             // A⊆B, B⊆C ⊢ A⊆C
+});
+
+// Add a fact to the knowledge base
+function addInferenceFact(input = {}) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  const id = uid("fact");
+  const fact = {
+    id,
+    subject: String(input.subject || "").slice(0, 200),
+    predicate: String(input.predicate || "").slice(0, 100),
+    object: String(input.object || "").slice(0, 200),
+    negated: Boolean(input.negated),
+    universal: Boolean(input.universal),  // "all X" vs specific X
+    confidence: clamp(Number(input.confidence || 1.0), 0, 1),
+    source: String(input.source || "user").slice(0, 100),
+    createdAt: nowISO()
+  };
+
+  STATE.reasoning.knowledgeBase.facts.set(id, fact);
+  saveStateDebounced();
+
+  // Trigger forward chaining to derive new conclusions
+  const derived = forwardChain();
+
+  return { ok: true, fact, newDerivations: derived.length };
+}
+
+// Add an inference rule
+function addInferenceRule(input = {}) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  const id = uid("rule");
+  const rule = {
+    id,
+    name: String(input.name || "").slice(0, 100),
+    type: INFERENCE_RULES[input.type?.toUpperCase()] || input.type || "implication",
+    antecedent: {
+      subject: String(input.antecedent?.subject || input.ifSubject || "").slice(0, 200),
+      predicate: String(input.antecedent?.predicate || input.ifPredicate || "").slice(0, 100),
+      object: String(input.antecedent?.object || input.ifObject || "").slice(0, 200)
+    },
+    consequent: {
+      subject: String(input.consequent?.subject || input.thenSubject || "").slice(0, 200),
+      predicate: String(input.consequent?.predicate || input.thenPredicate || "").slice(0, 100),
+      object: String(input.consequent?.object || input.thenObject || "").slice(0, 200)
+    },
+    confidence: clamp(Number(input.confidence || 1.0), 0, 1),
+    createdAt: nowISO()
+  };
+
+  STATE.reasoning.knowledgeBase.rules.set(id, rule);
+  saveStateDebounced();
+
+  return { ok: true, rule };
+}
+
+// Pattern matching for facts
+function matchFact(pattern, fact) {
+  // Pattern can have wildcards (empty string matches anything)
+  if (pattern.subject && pattern.subject !== fact.subject) return false;
+  if (pattern.predicate && pattern.predicate !== fact.predicate) return false;
+  if (pattern.object && pattern.object !== fact.object) return false;
+  if (pattern.negated !== undefined && pattern.negated !== fact.negated) return false;
+  return true;
+}
+
+// Find facts matching a pattern
+function findMatchingFacts(pattern) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  const matches = [];
+  for (const [id, fact] of STATE.reasoning.knowledgeBase.facts) {
+    if (matchFact(pattern, fact)) {
+      matches.push(fact);
+    }
+  }
+  // Also check derived facts
+  for (const [id, fact] of STATE.reasoning.knowledgeBase.derived) {
+    if (matchFact(pattern, fact)) {
+      matches.push(fact);
+    }
+  }
+  return matches;
+}
+
+// Apply modus ponens: P→Q, P ⊢ Q
+function applyModusPonens(rule, fact) {
+  // Check if fact matches the antecedent of the rule
+  if (!matchFact(rule.antecedent, fact)) return null;
+
+  // Derive the consequent with variable substitution
+  const derived = {
+    subject: rule.consequent.subject || fact.subject,
+    predicate: rule.consequent.predicate,
+    object: rule.consequent.object || fact.object,
+    negated: false,
+    confidence: fact.confidence * rule.confidence,
+    derivedFrom: {
+      rule: INFERENCE_RULES.MODUS_PONENS,
+      ruleId: rule.id,
+      factId: fact.id
+    }
+  };
+
+  return derived;
+}
+
+// Apply modus tollens: P→Q, ¬Q ⊢ ¬P
+function applyModusTollens(rule, negatedConsequent) {
+  // Check if we have a negated version of the rule's consequent
+  if (!matchFact({ ...rule.consequent, negated: true }, negatedConsequent)) return null;
+
+  // Derive negated antecedent
+  const derived = {
+    subject: rule.antecedent.subject,
+    predicate: rule.antecedent.predicate,
+    object: rule.antecedent.object,
+    negated: true,
+    confidence: negatedConsequent.confidence * rule.confidence,
+    derivedFrom: {
+      rule: INFERENCE_RULES.MODUS_TOLLENS,
+      ruleId: rule.id,
+      factId: negatedConsequent.id
+    }
+  };
+
+  return derived;
+}
+
+// Apply hypothetical syllogism: P→Q, Q→R ⊢ P→R
+function applyHypotheticalSyllogism(rule1, rule2) {
+  // Check if rule1's consequent matches rule2's antecedent
+  if (rule1.consequent.subject !== rule2.antecedent.subject) return null;
+  if (rule1.consequent.predicate !== rule2.antecedent.predicate) return null;
+
+  // Create new rule P→R
+  const newRule = {
+    id: uid("rule"),
+    name: `Derived: ${rule1.name} + ${rule2.name}`,
+    type: "implication",
+    antecedent: { ...rule1.antecedent },
+    consequent: { ...rule2.consequent },
+    confidence: rule1.confidence * rule2.confidence,
+    derivedFrom: {
+      rule: INFERENCE_RULES.HYPOTHETICAL_SYLLOGISM,
+      rule1Id: rule1.id,
+      rule2Id: rule2.id
+    },
+    createdAt: nowISO()
+  };
+
+  return newRule;
+}
+
+// Apply universal instantiation: ∀x.P(x) ⊢ P(a)
+function applyUniversalInstantiation(universalFact, instance) {
+  if (!universalFact.universal) return null;
+
+  // Instantiate the universal with a specific instance
+  const derived = {
+    subject: instance,
+    predicate: universalFact.predicate,
+    object: universalFact.object,
+    negated: universalFact.negated,
+    confidence: universalFact.confidence * 0.95, // Slight confidence decay
+    derivedFrom: {
+      rule: INFERENCE_RULES.UNIVERSAL_INSTANTIATION,
+      universalFactId: universalFact.id,
+      instance
+    }
+  };
+
+  return derived;
+}
+
+// Forward chaining: derive all possible conclusions from current facts
+function forwardChain(maxIterations = 10) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  const newDerivations = [];
+  const seenSignatures = new Set();
+
+  // Create signatures for existing facts
+  for (const [id, fact] of STATE.reasoning.knowledgeBase.facts) {
+    seenSignatures.add(`${fact.subject}|${fact.predicate}|${fact.object}|${fact.negated}`);
+  }
+  for (const [id, fact] of STATE.reasoning.knowledgeBase.derived) {
+    seenSignatures.add(`${fact.subject}|${fact.predicate}|${fact.object}|${fact.negated}`);
+  }
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let derivedThisRound = 0;
+
+    // Get all facts (original + derived)
+    const allFacts = [
+      ...STATE.reasoning.knowledgeBase.facts.values(),
+      ...STATE.reasoning.knowledgeBase.derived.values()
+    ];
+
+    // Apply rules to facts
+    for (const [ruleId, rule] of STATE.reasoning.knowledgeBase.rules) {
+      for (const fact of allFacts) {
+        // Try modus ponens
+        const mp = applyModusPonens(rule, fact);
+        if (mp) {
+          const sig = `${mp.subject}|${mp.predicate}|${mp.object}|${mp.negated}`;
+          if (!seenSignatures.has(sig)) {
+            seenSignatures.add(sig);
+            mp.id = uid("derived");
+            mp.createdAt = nowISO();
+            STATE.reasoning.knowledgeBase.derived.set(mp.id, mp);
+            newDerivations.push(mp);
+            derivedThisRound++;
+            STATE.reasoning.knowledgeBase.stats.factsDeduced++;
+          }
+        }
+
+        // Try modus tollens (for negated facts)
+        if (fact.negated) {
+          const mt = applyModusTollens(rule, fact);
+          if (mt) {
+            const sig = `${mt.subject}|${mt.predicate}|${mt.object}|${mt.negated}`;
+            if (!seenSignatures.has(sig)) {
+              seenSignatures.add(sig);
+              mt.id = uid("derived");
+              mt.createdAt = nowISO();
+              STATE.reasoning.knowledgeBase.derived.set(mt.id, mt);
+              newDerivations.push(mt);
+              derivedThisRound++;
+              STATE.reasoning.knowledgeBase.stats.factsDeduced++;
+            }
+          }
+        }
+
+        // Universal instantiation
+        if (fact.universal) {
+          // Find potential instances from other facts
+          const potentialInstances = new Set();
+          for (const f of allFacts) {
+            if (f.subject && !f.universal) potentialInstances.add(f.subject);
+          }
+
+          for (const instance of potentialInstances) {
+            const ui = applyUniversalInstantiation(fact, instance);
+            if (ui) {
+              const sig = `${ui.subject}|${ui.predicate}|${ui.object}|${ui.negated}`;
+              if (!seenSignatures.has(sig)) {
+                seenSignatures.add(sig);
+                ui.id = uid("derived");
+                ui.createdAt = nowISO();
+                STATE.reasoning.knowledgeBase.derived.set(ui.id, ui);
+                newDerivations.push(ui);
+                derivedThisRound++;
+                STATE.reasoning.knowledgeBase.stats.factsDeduced++;
+              }
+            }
+          }
+        }
+      }
+
+      STATE.reasoning.knowledgeBase.stats.rulesApplied++;
+    }
+
+    // Stop if no new derivations
+    if (derivedThisRound === 0) break;
+  }
+
+  STATE.reasoning.knowledgeBase.stats.inferencesPerformed++;
+  saveStateDebounced();
+
+  return newDerivations;
+}
+
+// Query the knowledge base with inference
+function queryWithInference(query) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  // First, try forward chaining to derive any new facts
+  forwardChain();
+
+  // Search for matching facts
+  const matches = findMatchingFacts({
+    subject: query.subject,
+    predicate: query.predicate,
+    object: query.object
+  });
+
+  if (matches.length > 0) {
+    return {
+      ok: true,
+      found: true,
+      facts: matches,
+      explanation: matches.map(f =>
+        f.derivedFrom
+          ? `"${f.subject} ${f.predicate} ${f.object}" was derived using ${f.derivedFrom.rule}`
+          : `"${f.subject} ${f.predicate} ${f.object}" is a known fact`
+      )
+    };
+  }
+
+  return {
+    ok: true,
+    found: false,
+    facts: [],
+    explanation: ["No matching facts found in knowledge base"]
+  };
+}
+
+// Perform syllogistic reasoning: Given "All A are B" and "X is A", derive "X is B"
+function syllogisticReason(input = {}) {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  const majorPremise = input.majorPremise; // "All mammals are warm-blooded"
+  const minorPremise = input.minorPremise; // "A whale is a mammal"
+
+  // Parse major premise (All X are Y)
+  const majorMatch = String(majorPremise || "").match(/^all\s+(\w+)\s+are\s+(.+)$/i);
+  if (!majorMatch) {
+    return { ok: false, error: "Major premise must be in form 'All X are Y'" };
+  }
+  const category = majorMatch[1].toLowerCase();
+  const property = majorMatch[2].toLowerCase();
+
+  // Parse minor premise (Z is X)
+  const minorMatch = String(minorPremise || "").match(/^(?:a\s+)?(\w+)\s+is\s+(?:a\s+)?(\w+)$/i);
+  if (!minorMatch) {
+    return { ok: false, error: "Minor premise must be in form 'X is Y'" };
+  }
+  const subject = minorMatch[1].toLowerCase();
+  const subjectCategory = minorMatch[2].toLowerCase();
+
+  // Check if minor premise's category matches major premise's subject
+  if (subjectCategory !== category) {
+    return {
+      ok: false,
+      error: `Category mismatch: "${subjectCategory}" does not match "${category}"`
+    };
+  }
+
+  // Add facts and rule to knowledge base
+  addInferenceFact({
+    subject: category,
+    predicate: "is",
+    object: property,
+    universal: true,
+    source: "major_premise"
+  });
+
+  addInferenceFact({
+    subject,
+    predicate: "is",
+    object: category,
+    source: "minor_premise"
+  });
+
+  addInferenceRule({
+    name: `All ${category} are ${property}`,
+    type: "implication",
+    antecedent: { predicate: "is", object: category },
+    consequent: { predicate: "is", object: property },
+    confidence: 1.0
+  });
+
+  // Perform inference
+  const derivations = forwardChain();
+
+  // Look for the conclusion
+  const conclusion = derivations.find(d =>
+    d.subject === subject && d.predicate === "is" && d.object === property
+  );
+
+  if (conclusion) {
+    return {
+      ok: true,
+      conclusion: `${subject.charAt(0).toUpperCase() + subject.slice(1)} is ${property}`,
+      derivation: {
+        majorPremise,
+        minorPremise,
+        conclusion: `${subject} is ${property}`,
+        rule: "Syllogistic reasoning via universal instantiation and modus ponens",
+        confidence: conclusion.confidence
+      }
+    };
+  }
+
+  return {
+    ok: false,
+    error: "Could not derive conclusion",
+    derivations: derivations.map(d => `${d.subject} ${d.predicate} ${d.object}`)
+  };
+}
+
+// Get knowledge base status
+function getInferenceStatus() {
+  ensureReasoningEngine();
+  ensureInferenceKnowledgeBase();
+
+  return {
+    ok: true,
+    facts: STATE.reasoning.knowledgeBase.facts.size,
+    rules: STATE.reasoning.knowledgeBase.rules.size,
+    derived: STATE.reasoning.knowledgeBase.derived.size,
+    stats: STATE.reasoning.knowledgeBase.stats
+  };
+}
+
+// ===== END INFERENCE ENGINE =====
+
 // ===== END REASONING CHAINS ENGINE =====
 
 // ===== HYPOTHESIS ENGINE (Scientific Method) =====
@@ -22522,6 +23828,437 @@ function selectStrategy(problemDescription) {
 
   return { ok: true, strategy: selected, alternatives: matches.slice(1) };
 }
+
+// ===== METACOGNITION INTROSPECTION =====
+// Analyze past failures, identify patterns, and modify reasoning strategies.
+
+function ensureIntrospectionState() {
+  ensureMetacognitionSystem();
+  if (!STATE.metacognition.introspection) {
+    STATE.metacognition.introspection = {
+      failurePatterns: [],         // Detected patterns in failures
+      strategyModifications: [],    // History of strategy changes
+      learningEvents: [],           // What was learned from mistakes
+      confidenceAdjustments: {},    // Domain -> adjustment factor
+      lastIntrospection: null
+    };
+  }
+}
+
+// Introspect on past predictions to understand failure patterns
+function introspectOnFailures() {
+  ensureMetacognitionSystem();
+  ensureIntrospectionState();
+
+  const predictions = Array.from(STATE.metacognition.predictions.values())
+    .filter(p => p.outcome !== null);
+
+  if (predictions.length < 3) {
+    return {
+      ok: true,
+      message: "Insufficient data for introspection (need at least 3 resolved predictions)",
+      failurePatterns: [],
+      recommendations: []
+    };
+  }
+
+  const failures = predictions.filter(p => p.outcome === "incorrect");
+  const successes = predictions.filter(p => p.outcome === "correct");
+
+  // Analyze failure patterns
+  const failurePatterns = [];
+
+  // Pattern 1: Overconfidence in specific domains
+  const domainFailures = {};
+  const domainTotals = {};
+  for (const p of predictions) {
+    const domain = p.domain || "general";
+    domainTotals[domain] = (domainTotals[domain] || 0) + 1;
+    if (p.outcome === "incorrect") {
+      domainFailures[domain] = (domainFailures[domain] || 0) + 1;
+    }
+  }
+
+  for (const [domain, failCount] of Object.entries(domainFailures)) {
+    const total = domainTotals[domain];
+    const failRate = failCount / total;
+    if (failRate > 0.5 && total >= 2) {
+      failurePatterns.push({
+        type: "domain_weakness",
+        domain,
+        failRate,
+        description: `High failure rate (${(failRate * 100).toFixed(0)}%) in domain "${domain}"`,
+        recommendation: `Reduce confidence by ${Math.round(failRate * 30)}% for predictions in "${domain}"`
+      });
+
+      // Automatically adjust confidence for this domain
+      STATE.metacognition.introspection.confidenceAdjustments[domain] =
+        1 - (failRate * 0.3); // Reduce confidence proportional to failure rate
+    }
+  }
+
+  // Pattern 2: Overconfidence (predictions with high confidence that failed)
+  const overconfidentFailures = failures.filter(p => p.confidence > 0.7);
+  if (overconfidentFailures.length > 2) {
+    const avgConfidence = overconfidentFailures.reduce((s, p) => s + p.confidence, 0) / overconfidentFailures.length;
+    failurePatterns.push({
+      type: "overconfidence",
+      count: overconfidentFailures.length,
+      avgConfidence,
+      description: `${overconfidentFailures.length} failures had confidence > 70% (avg: ${(avgConfidence * 100).toFixed(0)}%)`,
+      recommendation: "Consider reducing high-confidence predictions by 10-15%"
+    });
+  }
+
+  // Pattern 3: Underconfidence (predictions with low confidence that succeeded)
+  const underconfidentSuccesses = successes.filter(p => p.confidence < 0.4);
+  if (underconfidentSuccesses.length > 2) {
+    const avgConfidence = underconfidentSuccesses.reduce((s, p) => s + p.confidence, 0) / underconfidentSuccesses.length;
+    failurePatterns.push({
+      type: "underconfidence",
+      count: underconfidentSuccesses.length,
+      avgConfidence,
+      description: `${underconfidentSuccesses.length} successes had confidence < 40% (avg: ${(avgConfidence * 100).toFixed(0)}%)`,
+      recommendation: "Consider increasing low-confidence predictions by 10-15%"
+    });
+  }
+
+  // Pattern 4: Consistent failure on certain question types
+  const failureKeywords = {};
+  for (const f of failures) {
+    const words = String(f.statement || "").toLowerCase().split(/\s+/);
+    for (const word of words) {
+      if (word.length > 4) {
+        failureKeywords[word] = (failureKeywords[word] || 0) + 1;
+      }
+    }
+  }
+
+  const commonFailureWords = Object.entries(failureKeywords)
+    .filter(([word, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  if (commonFailureWords.length > 0) {
+    failurePatterns.push({
+      type: "topic_weakness",
+      keywords: commonFailureWords.map(([w, c]) => ({ word: w, count: c })),
+      description: `Failures often involve: ${commonFailureWords.map(([w]) => w).join(", ")}`,
+      recommendation: "Consider extra validation for predictions involving these topics"
+    });
+  }
+
+  // Generate overall recommendations
+  const recommendations = [];
+
+  if (failurePatterns.some(p => p.type === "overconfidence")) {
+    recommendations.push({
+      action: "reduce_high_confidence",
+      description: "Apply 0.9 multiplier to predictions with confidence > 0.8",
+      automatic: true
+    });
+  }
+
+  if (failurePatterns.some(p => p.type === "domain_weakness")) {
+    const weakDomains = failurePatterns
+      .filter(p => p.type === "domain_weakness")
+      .map(p => p.domain);
+    recommendations.push({
+      action: "domain_caution",
+      domains: weakDomains,
+      description: `Apply domain-specific confidence reductions for: ${weakDomains.join(", ")}`,
+      automatic: true
+    });
+  }
+
+  // Store the introspection results
+  const introspectionResult = {
+    id: uid("intro"),
+    timestamp: nowISO(),
+    totalPredictions: predictions.length,
+    failures: failures.length,
+    successes: successes.length,
+    failureRate: failures.length / predictions.length,
+    patterns: failurePatterns,
+    recommendations,
+    confidenceAdjustments: { ...STATE.metacognition.introspection.confidenceAdjustments }
+  };
+
+  STATE.metacognition.introspection.failurePatterns.push({
+    ...introspectionResult,
+    patterns: failurePatterns.map(p => p.type)
+  });
+
+  // Cap history
+  if (STATE.metacognition.introspection.failurePatterns.length > 50) {
+    STATE.metacognition.introspection.failurePatterns =
+      STATE.metacognition.introspection.failurePatterns.slice(-50);
+  }
+
+  STATE.metacognition.introspection.lastIntrospection = nowISO();
+  saveStateDebounced();
+
+  return {
+    ok: true,
+    introspection: introspectionResult
+  };
+}
+
+// Analyze why a specific prediction failed
+function analyzeFailure(predictionId) {
+  ensureMetacognitionSystem();
+  ensureIntrospectionState();
+
+  const prediction = STATE.metacognition.predictions.get(predictionId);
+  if (!prediction) return { ok: false, error: "Prediction not found" };
+  if (prediction.outcome !== "incorrect") {
+    return { ok: false, error: "Prediction was not incorrect, no failure to analyze" };
+  }
+
+  // Find similar predictions to compare
+  const allPredictions = Array.from(STATE.metacognition.predictions.values())
+    .filter(p => p.id !== predictionId && p.outcome !== null);
+
+  const similarPredictions = allPredictions.filter(p => {
+    // Same domain
+    if (p.domain !== prediction.domain) return false;
+    // Similar confidence
+    if (Math.abs(p.confidence - prediction.confidence) > 0.2) return false;
+    return true;
+  });
+
+  const similarSuccesses = similarPredictions.filter(p => p.outcome === "correct");
+  const similarFailures = similarPredictions.filter(p => p.outcome === "incorrect");
+
+  // Generate analysis
+  const analysis = {
+    prediction: {
+      id: prediction.id,
+      statement: prediction.statement,
+      confidence: prediction.confidence,
+      domain: prediction.domain
+    },
+    possibleCauses: [],
+    learningOpportunities: []
+  };
+
+  // Check for overconfidence
+  if (prediction.confidence > 0.7) {
+    analysis.possibleCauses.push({
+      cause: "overconfidence",
+      explanation: `High confidence (${(prediction.confidence * 100).toFixed(0)}%) may not have been warranted`,
+      evidenceStrength: prediction.confidence > 0.8 ? "strong" : "moderate"
+    });
+  }
+
+  // Check domain weakness
+  const domainAdjustment = STATE.metacognition.introspection.confidenceAdjustments[prediction.domain];
+  if (domainAdjustment && domainAdjustment < 0.9) {
+    analysis.possibleCauses.push({
+      cause: "domain_difficulty",
+      explanation: `This domain (${prediction.domain}) has a historical weakness pattern`,
+      evidenceStrength: "strong"
+    });
+  }
+
+  // Compare with similar predictions
+  if (similarSuccesses.length > 0 && similarFailures.length === 0) {
+    analysis.possibleCauses.push({
+      cause: "anomaly",
+      explanation: "Similar predictions in this domain succeeded; this may be an edge case",
+      evidenceStrength: "moderate"
+    });
+  } else if (similarFailures.length > similarSuccesses.length) {
+    analysis.possibleCauses.push({
+      cause: "systematic_issue",
+      explanation: "Multiple failures in similar predictions suggest a systematic knowledge gap",
+      evidenceStrength: "strong"
+    });
+  }
+
+  // Generate learning opportunities
+  analysis.learningOpportunities.push({
+    type: "knowledge_gap",
+    description: `Create DTUs to fill knowledge gaps about: ${prediction.domain}`,
+    priority: similarFailures.length > 1 ? "high" : "medium"
+  });
+
+  if (prediction.confidence > 0.6) {
+    analysis.learningOpportunities.push({
+      type: "calibration",
+      description: `Recalibrate confidence for similar predictions (reduce by ${Math.round((prediction.confidence - 0.5) * 20)}%)`,
+      priority: "medium"
+    });
+  }
+
+  // Store this learning event
+  STATE.metacognition.introspection.learningEvents.push({
+    predictionId,
+    analyzedAt: nowISO(),
+    causes: analysis.possibleCauses.map(c => c.cause),
+    domain: prediction.domain
+  });
+
+  // Cap learning events
+  if (STATE.metacognition.introspection.learningEvents.length > 100) {
+    STATE.metacognition.introspection.learningEvents =
+      STATE.metacognition.introspection.learningEvents.slice(-100);
+  }
+
+  saveStateDebounced();
+
+  return { ok: true, analysis };
+}
+
+// Modify strategy based on past performance
+function adaptReasoningStrategy(domain, feedback = {}) {
+  ensureMetacognitionSystem();
+  ensureIntrospectionState();
+
+  // Get performance in this domain
+  const predictions = Array.from(STATE.metacognition.predictions.values())
+    .filter(p => p.domain === domain && p.outcome !== null);
+
+  const successRate = predictions.length > 0
+    ? predictions.filter(p => p.outcome === "correct").length / predictions.length
+    : 0.5;
+
+  // Get strategy history for this domain
+  const strategyHistory = STATE.metacognition.strategies
+    .filter(s => s.problem && s.problem.toLowerCase().includes(domain.toLowerCase()));
+
+  const usedStrategies = {};
+  for (const s of strategyHistory) {
+    usedStrategies[s.selected] = (usedStrategies[s.selected] || 0) + 1;
+  }
+
+  // Determine current dominant strategy
+  const dominantStrategy = Object.entries(usedStrategies)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || "mixed";
+
+  // Generate adaptation recommendation
+  const adaptation = {
+    domain,
+    currentPerformance: {
+      successRate,
+      totalPredictions: predictions.length
+    },
+    currentStrategy: {
+      dominant: dominantStrategy,
+      distribution: usedStrategies
+    },
+    recommendation: null,
+    confidenceAdjustment: 1.0
+  };
+
+  // If performance is poor, recommend strategy change
+  if (successRate < 0.5 && predictions.length >= 3) {
+    // Suggest trying a different approach
+    const alternativeStrategies = ["empirical", "analogical", "decomposition"]
+      .filter(s => s !== dominantStrategy);
+
+    adaptation.recommendation = {
+      action: "change_strategy",
+      from: dominantStrategy,
+      to: alternativeStrategies[0],
+      reason: `Current strategy "${dominantStrategy}" has low success rate (${(successRate * 100).toFixed(0)}%)`,
+      alternatives: alternativeStrategies
+    };
+
+    // Reduce confidence for this domain
+    adaptation.confidenceAdjustment = 0.8;
+    STATE.metacognition.introspection.confidenceAdjustments[domain] =
+      (STATE.metacognition.introspection.confidenceAdjustments[domain] || 1.0) * 0.9;
+
+  } else if (successRate > 0.7 && predictions.length >= 3) {
+    // Reinforce current strategy
+    adaptation.recommendation = {
+      action: "reinforce_strategy",
+      strategy: dominantStrategy,
+      reason: `Current strategy "${dominantStrategy}" is working well (${(successRate * 100).toFixed(0)}% success)`,
+    };
+
+    // Slightly increase confidence for this domain
+    adaptation.confidenceAdjustment = 1.1;
+    STATE.metacognition.introspection.confidenceAdjustments[domain] = Math.min(
+      (STATE.metacognition.introspection.confidenceAdjustments[domain] || 1.0) * 1.05,
+      1.2  // Cap at 20% boost
+    );
+  }
+
+  // Apply explicit feedback if provided
+  if (feedback.increaseConfidence) {
+    adaptation.confidenceAdjustment *= 1.1;
+  } else if (feedback.decreaseConfidence) {
+    adaptation.confidenceAdjustment *= 0.9;
+  }
+
+  if (feedback.preferStrategy) {
+    adaptation.recommendation = {
+      action: "user_preference",
+      strategy: feedback.preferStrategy,
+      reason: "User explicitly preferred this strategy"
+    };
+  }
+
+  // Store the modification
+  STATE.metacognition.introspection.strategyModifications.push({
+    id: uid("mod"),
+    domain,
+    timestamp: nowISO(),
+    recommendation: adaptation.recommendation?.action || "none",
+    confidenceAdjustment: adaptation.confidenceAdjustment
+  });
+
+  // Cap modifications history
+  if (STATE.metacognition.introspection.strategyModifications.length > 100) {
+    STATE.metacognition.introspection.strategyModifications =
+      STATE.metacognition.introspection.strategyModifications.slice(-100);
+  }
+
+  saveStateDebounced();
+
+  return { ok: true, adaptation };
+}
+
+// Get current introspection status
+function getIntrospectionStatus() {
+  ensureMetacognitionSystem();
+  ensureIntrospectionState();
+
+  return {
+    ok: true,
+    lastIntrospection: STATE.metacognition.introspection.lastIntrospection,
+    failurePatternCount: STATE.metacognition.introspection.failurePatterns.length,
+    strategyModificationCount: STATE.metacognition.introspection.strategyModifications.length,
+    learningEventCount: STATE.metacognition.introspection.learningEvents.length,
+    confidenceAdjustments: STATE.metacognition.introspection.confidenceAdjustments,
+    recentPatterns: STATE.metacognition.introspection.failurePatterns.slice(-5)
+  };
+}
+
+// Apply learned confidence adjustments to a new prediction
+function adjustConfidenceFromLearning(domain, baseConfidence) {
+  ensureMetacognitionSystem();
+  ensureIntrospectionState();
+
+  const adjustment = STATE.metacognition.introspection.confidenceAdjustments[domain] || 1.0;
+  const adjustedConfidence = clamp(baseConfidence * adjustment, 0.1, 0.95);
+
+  return {
+    original: baseConfidence,
+    adjusted: adjustedConfidence,
+    factor: adjustment,
+    domain,
+    explanation: adjustment < 1.0
+      ? `Confidence reduced due to historical weakness in "${domain}"`
+      : adjustment > 1.0
+        ? `Confidence boosted due to historical strength in "${domain}"`
+        : "No adjustment applied"
+  };
+}
+
+// ===== END METACOGNITION INTROSPECTION =====
 
 // ===== END METACOGNITION SYSTEM =====
 
