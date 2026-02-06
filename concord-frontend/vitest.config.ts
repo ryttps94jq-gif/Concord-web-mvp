@@ -11,9 +11,9 @@ export default defineConfig({
     include: ['tests/**/*.test.{ts,tsx}', 'components/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['components/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}'],
-      exclude: ['**/*.d.ts', '**/node_modules/**'],
+      exclude: ['**/*.d.ts', '**/node_modules/**', '**/*.test.{ts,tsx}'],
     },
   },
   resolve: {

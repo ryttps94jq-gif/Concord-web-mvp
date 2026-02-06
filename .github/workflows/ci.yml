@@ -51,9 +51,16 @@ jobs:
         working-directory: ./concord-frontend
         run: npm run build
 
-      - name: Run frontend unit tests
+      - name: Run frontend unit tests with coverage
         working-directory: ./concord-frontend
-        run: npm test -- --run
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: concord-frontend/coverage/
+          retention-days: 7
 
       - name: Run server tests
         working-directory: ./server
