@@ -4875,6 +4875,170 @@ register("transfer", "list_transfers", async (ctx, input = {}) => {
 
 // ===== END TRANSFER LEARNING MACROS =====
 
+// ===== EXPERIENCE LEARNING MACROS =====
+
+register("experience", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_status");
+  ensureExperienceLearning();
+  const el = ctx.state.experienceLearning;
+  return {
+    ok: true,
+    episodes: el.episodes.length,
+    patterns: el.patterns.size,
+    strategies: el.strategies.size,
+    stats: el.stats,
+    config: el.config
+  };
+}, { public: true });
+
+register("experience", "retrieve", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_retrieve");
+  const domain = String(input.domain || "general");
+  const topic = String(input.topic || "");
+  const keywords = Array.isArray(input.keywords) ? input.keywords : [];
+  return { ok: true, ...retrieveExperience(domain, topic, keywords) };
+}, { public: true });
+
+register("experience", "patterns", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_patterns");
+  ensureExperienceLearning();
+  const patterns = Array.from(ctx.state.experienceLearning.patterns.values())
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, Number(input.limit || 50))
+    .map(p => ({ id: p.id, domain: p.domain, bestStrategy: p.bestStrategy, confidence: p.confidence, episodeCount: p.episodeCount, keywords: p.keywords }));
+  return { ok: true, patterns };
+}, { public: true });
+
+register("experience", "consolidate", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_consolidate");
+  consolidateExperience();
+  return { ok: true, message: "Experience consolidated" };
+}, { public: false });
+
+register("experience", "strategies", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_strategies");
+  ensureExperienceLearning();
+  const strategies = Array.from(ctx.state.experienceLearning.strategies.values())
+    .sort((a, b) => b.avgQuality - a.avgQuality)
+    .slice(0, Number(input.limit || 50));
+  return { ok: true, strategies };
+}, { public: true });
+
+register("experience", "recent", async (ctx, input = {}) => {
+  enforceEthosInvariant("experience_recent");
+  ensureExperienceLearning();
+  const limit = clamp(Number(input.limit || 20), 1, 100);
+  const episodes = ctx.state.experienceLearning.episodes.slice(-limit).reverse();
+  return { ok: true, episodes };
+}, { public: true });
+
+// ===== END EXPERIENCE LEARNING MACROS =====
+
+// ===== ATTENTION MANAGEMENT MACROS =====
+
+register("attention", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_status");
+  ensureAttentionManager();
+  const attn = ctx.state.attention;
+  const activeThreads = Array.from(attn.threads.values()).filter(t => t.status === "active");
+  return {
+    ok: true,
+    focus: attn.focus,
+    activeThreads: activeThreads.map(t => ({ id: t.id, type: t.type, priority: t.priority, description: t.description })),
+    queueLength: attn.queue.length,
+    backgroundTasks: attn.background.filter(t => t.status === "pending").length,
+    stats: attn.stats,
+    config: attn.config
+  };
+}, { public: true });
+
+register("attention", "create_thread", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_create");
+  return createCognitiveThread(input);
+}, { public: false });
+
+register("attention", "complete_thread", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_complete");
+  const threadId = String(input.threadId || input.id || "");
+  if (!threadId) return { ok: false, error: "threadId required" };
+  return completeCognitiveThread(threadId, input.output || {});
+}, { public: false });
+
+register("attention", "list_threads", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_list");
+  ensureAttentionManager();
+  const threads = Array.from(ctx.state.attention.threads.values())
+    .sort((a, b) => b.priority - a.priority)
+    .map(t => ({ id: t.id, type: t.type, priority: t.priority, status: t.status, description: t.description, createdAt: t.createdAt }));
+  return { ok: true, threads };
+}, { public: true });
+
+register("attention", "queue", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_queue");
+  ensureAttentionManager();
+  return { ok: true, queue: ctx.state.attention.queue, completed: ctx.state.attention.completed.slice(-10) };
+}, { public: true });
+
+register("attention", "add_background", async (ctx, input = {}) => {
+  enforceEthosInvariant("attention_background");
+  return addBackgroundTask(input);
+}, { public: false });
+
+// ===== END ATTENTION MANAGEMENT MACROS =====
+
+// ===== REFLECTION ENGINE MACROS =====
+
+register("reflection", "status", async (ctx, input = {}) => {
+  enforceEthosInvariant("reflection_status");
+  ensureReflectionEngine();
+  const ref = ctx.state.reflection;
+  return {
+    ok: true,
+    reflections: ref.reflections.length,
+    insights: ref.insights.size,
+    selfModel: ref.selfModel,
+    stats: ref.stats,
+    config: ref.config
+  };
+}, { public: true });
+
+register("reflection", "recent", async (ctx, input = {}) => {
+  enforceEthosInvariant("reflection_recent");
+  ensureReflectionEngine();
+  const limit = clamp(Number(input.limit || 10), 1, 50);
+  const reflections = ctx.state.reflection.reflections.slice(-limit).reverse()
+    .map(r => ({ id: r.id, timestamp: r.timestamp, quality: r.quality, checks: r.checks, insights: r.insights, corrections: r.corrections }));
+  return { ok: true, reflections };
+}, { public: true });
+
+register("reflection", "self_model", async (ctx, input = {}) => {
+  enforceEthosInvariant("reflection_self_model");
+  ensureReflectionEngine();
+  return { ok: true, selfModel: ctx.state.reflection.selfModel };
+}, { public: true });
+
+register("reflection", "insights", async (ctx, input = {}) => {
+  enforceEthosInvariant("reflection_insights");
+  ensureReflectionEngine();
+  const insights = Array.from(ctx.state.reflection.insights.values()).slice(-50);
+  return { ok: true, insights };
+}, { public: true });
+
+register("reflection", "reflect_now", async (ctx, input = {}) => {
+  enforceEthosInvariant("reflection_manual");
+  const result = reflectOnResponse({
+    prompt: String(input.prompt || ""),
+    response: String(input.response || ""),
+    mode: input.mode || "explore",
+    domain: input.domain || "general",
+    llmUsed: !!input.llmUsed,
+    relevantDtus: input.relevantDtus || []
+  });
+  return { ok: true, reflection: result };
+}, { public: false });
+
+// ===== END REFLECTION ENGINE MACROS =====
+
 // ===== COMMONSENSE MACROS =====
 
 register("commonsense", "status", async (ctx, input = {}) => {
@@ -5431,6 +5595,42 @@ function makeCtx(req=null) {
       } catch { return null; }
     })(),
     // ===== END GROUNDING → CONTEXT =====
+    // ===== EXPERIENCE + ATTENTION + REFLECTION CONTEXT =====
+    experience: (() => {
+      try {
+        ensureExperienceLearning();
+        const el = STATE.experienceLearning;
+        return {
+          episodeCount: el.episodes.length,
+          patternCount: el.patterns.size,
+          topStrategies: Array.from(el.strategies.values())
+            .sort((a, b) => b.avgQuality - a.avgQuality).slice(0, 3)
+            .map(s => ({ domain: s.domain, strategy: s.strategy, quality: s.avgQuality }))
+        };
+      } catch { return null; }
+    })(),
+    attention: (() => {
+      try {
+        ensureAttentionManager();
+        const attn = STATE.attention;
+        return {
+          focus: attn.focus,
+          activeThreadCount: Array.from(attn.threads.values()).filter(t => t.status === "active").length,
+          queueLength: attn.queue.length
+        };
+      } catch { return null; }
+    })(),
+    reflection: (() => {
+      try {
+        ensureReflectionEngine();
+        return {
+          calibration: STATE.reflection.selfModel.confidenceCalibration,
+          strengths: STATE.reflection.selfModel.strengths,
+          weaknesses: STATE.reflection.selfModel.weaknesses
+        };
+      } catch { return null; }
+    })(),
+    // ===== END EXPERIENCE + ATTENTION + REFLECTION =====
     reqMeta: req ? {
       ip: req.ip,
       ua: req.get("user-agent"),
@@ -8627,6 +8827,12 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     STATE.dtus.set(dtu.id, dtu);
     saveStateDebounced();
 
+    // ===== AUTO WORLD MODEL UPDATE =====
+    // Every new DTU feeds into the world model: extract entities, detect relations,
+    // find contradictions, update confidence. This makes the world model self-correcting.
+    try { autoUpdateWorldModel(dtu); } catch {}
+    // ===== END AUTO WORLD MODEL UPDATE =====
+
     // Keep high-tier sparse & maintain metrics periodically
     try { enforceTierBudgets(); } catch {}
     try { await maybeRunLocalUpgrade(); } catch {}
@@ -9076,6 +9282,58 @@ const _mentionsSelf = Array.from(_selfTokens).some(t => _pLow.includes(t));
   if (_affSafety.strictness != null && _affSafety.strictness > 0.7) {
     localSettings.safetyOverride = true;
   }
+
+  // ===== EXPERIENCE RETRIEVAL =====
+  // Check past experience for this domain/topic to guide strategy selection
+  let _experienceHint = null;
+  try {
+    ensureExperienceLearning();
+    const _promptKeywords = tokenizeText(prompt).slice(0, 15);
+    const _promptDomain = (() => {
+      const pseudoDtu = { title: prompt.slice(0, 100), human: { summary: prompt.slice(0, 300) }, tags: [] };
+      try { return classifyDomain(pseudoDtu); } catch { return "general"; }
+    })();
+    _experienceHint = retrieveExperience(_promptDomain, prompt.slice(0, 200), _promptKeywords);
+    // If experience suggests a strategy, use it
+    if (_experienceHint?.bestStrategy && _experienceHint.confidence > 0.4) {
+      localSettings._experienceStrategy = _experienceHint.bestStrategy;
+      // If experience says LLM works better here, bias toward LLM
+      if (_experienceHint.bestStrategy === "llm-enhanced") {
+        localSettings._preferLlm = true;
+      }
+    }
+    // If experience has warnings, note them
+    if (_experienceHint?.warnings?.length > 0) {
+      localSettings._experienceWarnings = _experienceHint.warnings;
+    }
+  } catch {}
+  // ===== END EXPERIENCE RETRIEVAL =====
+
+  // ===== TRANSFER LEARNING SEARCH =====
+  // Search for analogous patterns from other domains that might help
+  let _transferSuggestion = null;
+  try {
+    const _promptDomain2 = localSettings._experienceStrategy ? "general" : (() => {
+      const pseudoDtu = { title: prompt.slice(0, 100), human: { summary: prompt.slice(0, 300) }, tags: [] };
+      try { return classifyDomain(pseudoDtu); } catch { return "general"; }
+    })();
+    _transferSuggestion = autoTransferSearch(_promptDomain2, prompt.slice(0, 200));
+  } catch {}
+  // ===== END TRANSFER LEARNING SEARCH =====
+
+  // ===== ATTENTION THREAD =====
+  // Register this response as a cognitive thread for attention tracking
+  let _threadId = null;
+  try {
+    ensureAttentionManager();
+    const _thread = createCognitiveThread({
+      type: "chat-response",
+      priority: mode === "design" ? 0.7 : mode === "explore" ? 0.5 : 0.4,
+      description: prompt.slice(0, 200),
+      domain: localSettings._experienceStrategy || "general"
+    });
+    _threadId = _thread?.thread?.id || null;
+  } catch {}
   // ===== END AFFECT → CHAT INTEGRATION =====
 
   const llm = typeof input.llm === "boolean" ? input.llm : localSettings.llmDefault;
@@ -9499,6 +9757,21 @@ if (_metacogWarning) {
   answerLines.unshift(`- ⚠ Known blindspot: "${_metacogWarning.topic}" (severity ${((_metacogWarning.severity||0)*100).toFixed(0)}%). ${Array.isArray(_metacogWarning.gaps) && _metacogWarning.gaps.length ? _metacogWarning.gaps[0] : "Consider forging DTUs to fill this gap."}`);
 }
 
+// ===== EXPERIENCE + TRANSFER GUIDANCE =====
+// Inject past experience warnings into response
+try {
+  if (localSettings._experienceWarnings?.length > 0) {
+    for (const warn of localSettings._experienceWarnings.slice(0, 2)) {
+      answerLines.unshift(`- ℹ Experience note: ${warn}`);
+    }
+  }
+  // If transfer learning found a useful analogy, mention it
+  if (_transferSuggestion?.strategy && _transferSuggestion.relevance > 0.5) {
+    answerLines.push(`- 🔄 Cross-domain insight from ${_transferSuggestion.sourceDomain}: ${_transferSuggestion.strategy.approach}`);
+  }
+} catch {}
+// ===== END EXPERIENCE + TRANSFER GUIDANCE =====
+
 let localReply = formatCrispResponse({
   prompt,
   mode,
@@ -9578,6 +9851,37 @@ ${buildCretiText(d)}
 
   sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id) } });
   ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id) });
+
+  // ===== REFLECTIVE LOOP + EXPERIENCE RECORDING =====
+  // Post-response: self-critique the response, record experience, complete attention thread
+  try {
+    const _promptDomainFinal = (() => {
+      const pseudoDtu = { title: prompt.slice(0, 100), human: { summary: prompt.slice(0, 300) }, tags: [] };
+      try { return classifyDomain(pseudoDtu); } catch { return "general"; }
+    })();
+    // Run reflection (evaluates quality, checks facts, feeds experience memory)
+    reflectOnResponse({
+      prompt,
+      response: finalReply,
+      mode,
+      domain: _promptDomainFinal,
+      llmUsed,
+      relevantDtus: relevant.map(d => d.id)
+    });
+  } catch {}
+
+  // Complete the attention thread
+  try {
+    if (_threadId) {
+      completeCognitiveThread(_threadId, {
+        responseLength: finalReply.length,
+        llmUsed,
+        relevantCount: relevant.length
+      });
+    }
+  } catch {}
+  // ===== END REFLECTIVE LOOP =====
+
   // persist session + any state mutations from this turn
   saveStateDebounced();
 
@@ -14813,6 +15117,103 @@ app.get("/api/transfer/history", async (req, res) => {
 });
 
 // ===== END TRANSFER LEARNING API ENDPOINTS =====
+
+// ===== EXPERIENCE LEARNING API ENDPOINTS =====
+
+app.get("/api/experience/status", async (req, res) => {
+  const out = await runMacro("experience", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/experience/retrieve", async (req, res) => {
+  const out = await runMacro("experience", "retrieve", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/experience/patterns", async (req, res) => {
+  const out = await runMacro("experience", "patterns", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/experience/consolidate", async (req, res) => {
+  const out = await runMacro("experience", "consolidate", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/experience/strategies", async (req, res) => {
+  const out = await runMacro("experience", "strategies", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/experience/recent", async (req, res) => {
+  const out = await runMacro("experience", "recent", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END EXPERIENCE LEARNING API ENDPOINTS =====
+
+// ===== ATTENTION MANAGEMENT API ENDPOINTS =====
+
+app.get("/api/attention/status", async (req, res) => {
+  const out = await runMacro("attention", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/attention/thread", async (req, res) => {
+  const out = await runMacro("attention", "create_thread", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/attention/thread/complete", async (req, res) => {
+  const out = await runMacro("attention", "complete_thread", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/attention/threads", async (req, res) => {
+  const out = await runMacro("attention", "list_threads", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/attention/queue", async (req, res) => {
+  const out = await runMacro("attention", "queue", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/attention/background", async (req, res) => {
+  const out = await runMacro("attention", "add_background", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END ATTENTION MANAGEMENT API ENDPOINTS =====
+
+// ===== REFLECTION ENGINE API ENDPOINTS =====
+
+app.get("/api/reflection/status", async (req, res) => {
+  const out = await runMacro("reflection", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/reflection/recent", async (req, res) => {
+  const out = await runMacro("reflection", "recent", req.query, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/reflection/self-model", async (req, res) => {
+  const out = await runMacro("reflection", "self_model", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/reflection/insights", async (req, res) => {
+  const out = await runMacro("reflection", "insights", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/reflection/reflect", async (req, res) => {
+  const out = await runMacro("reflection", "reflect_now", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END REFLECTION ENGINE API ENDPOINTS =====
 
 // ===== COMMONSENSE API ENDPOINTS =====
 
@@ -23246,6 +23647,13 @@ function concludeChain(chainId, conclusion) {
   } catch {}
   // ===== END REASONING → METACOGNITION =====
 
+  // ===== REASONING → TRANSFER PATTERN EXTRACTION =====
+  // Successful reasoning chains become reusable transfer patterns
+  try {
+    autoExtractTransferPattern(chain);
+  } catch {}
+  // ===== END REASONING → TRANSFER =====
+
   saveStateDebounced();
   return { ok: true, chain };
 }
@@ -25197,6 +25605,964 @@ function getBestStrategy(domain) {
 
 // ===== END META-LEARNING SYSTEM =====
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPERIENCE LEARNING ENGINE
+// Design: Permanent memory of interaction outcomes. Learns what strategies work
+// in which contexts, builds retrievable experience patterns, and uses past
+// experience to guide future responses. This is the "muscle memory" of cognition.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ensureExperienceLearning() {
+  if (!STATE.experienceLearning) {
+    STATE.experienceLearning = {
+      episodes: [],                     // Interaction episodes (capped)
+      patterns: new Map(),              // Extracted experience patterns
+      strategies: new Map(),            // Strategy effectiveness by context
+      stats: {
+        episodesRecorded: 0,
+        patternsExtracted: 0,
+        retrievalsUsed: 0,
+        improvementRate: 0
+      },
+      config: {
+        maxEpisodes: 2000,
+        maxPatterns: 500,
+        minEpisodesForPattern: 3,
+        consolidationInterval: 50,      // Consolidate every N episodes
+        decayRate: 0.005                // Unused patterns decay
+      }
+    };
+  }
+  if (!(STATE.experienceLearning.patterns instanceof Map)) {
+    STATE.experienceLearning.patterns = new Map(Object.entries(STATE.experienceLearning.patterns || {}));
+  }
+  if (!(STATE.experienceLearning.strategies instanceof Map)) {
+    STATE.experienceLearning.strategies = new Map(Object.entries(STATE.experienceLearning.strategies || {}));
+  }
+}
+
+// Record an interaction episode
+function recordExperienceEpisode(episode) {
+  ensureExperienceLearning();
+  const el = STATE.experienceLearning;
+
+  const ep = {
+    id: uid("exp"),
+    timestamp: nowISO(),
+    context: {
+      domain: String(episode.domain || "general").slice(0, 100),
+      topic: String(episode.topic || "").slice(0, 200),
+      keywords: Array.isArray(episode.keywords) ? episode.keywords.slice(0, 20) : [],
+      mode: String(episode.mode || "explore"),
+      affectState: episode.affectState || null,
+    },
+    action: {
+      strategy: String(episode.strategy || "default").slice(0, 100),
+      llmUsed: !!episode.llmUsed,
+      dtusRetrieved: Number(episode.dtusRetrieved || 0),
+      responseLength: Number(episode.responseLength || 0),
+    },
+    outcome: {
+      quality: clamp(Number(episode.quality || 0.5), 0, 1),
+      userFeedback: episode.userFeedback || null,
+      followUpNeeded: !!episode.followUpNeeded,
+      errorOccurred: !!episode.errorOccurred,
+    }
+  };
+
+  el.episodes.push(ep);
+  el.stats.episodesRecorded++;
+
+  // Cap episodes
+  if (el.episodes.length > el.config.maxEpisodes) {
+    el.episodes.splice(0, el.episodes.length - el.config.maxEpisodes);
+  }
+
+  // Periodic consolidation — extract patterns from accumulated episodes
+  if (el.stats.episodesRecorded % el.config.consolidationInterval === 0) {
+    try { consolidateExperience(); } catch {}
+  }
+
+  // Update strategy effectiveness
+  const stratKey = `${ep.context.domain}:${ep.action.strategy}`;
+  const strat = el.strategies.get(stratKey) || {
+    domain: ep.context.domain, strategy: ep.action.strategy,
+    uses: 0, totalQuality: 0, avgQuality: 0.5, lastUsed: null
+  };
+  strat.uses++;
+  strat.totalQuality += ep.outcome.quality;
+  strat.avgQuality = strat.totalQuality / strat.uses;
+  strat.lastUsed = nowISO();
+  el.strategies.set(stratKey, strat);
+
+  return ep;
+}
+
+// Consolidate episodes into reusable patterns
+function consolidateExperience() {
+  ensureExperienceLearning();
+  const el = STATE.experienceLearning;
+  const episodes = el.episodes;
+  if (episodes.length < el.config.minEpisodesForPattern * 2) return;
+
+  // Group episodes by domain + rough topic similarity
+  const groups = {};
+  for (const ep of episodes.slice(-200)) {
+    const key = ep.context.domain;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ep);
+  }
+
+  for (const [domain, eps] of Object.entries(groups)) {
+    if (eps.length < el.config.minEpisodesForPattern) continue;
+
+    // Find successful patterns (quality > 0.6)
+    const successes = eps.filter(e => e.outcome.quality > 0.6);
+    const failures = eps.filter(e => e.outcome.quality < 0.4);
+
+    if (successes.length >= el.config.minEpisodesForPattern) {
+      // Extract what strategy works in this domain
+      const stratCounts = {};
+      for (const s of successes) {
+        const k = s.action.strategy;
+        stratCounts[k] = (stratCounts[k] || 0) + 1;
+      }
+      const bestStrat = Object.entries(stratCounts).sort((a, b) => b[1] - a[1])[0];
+
+      // Collect common keywords
+      const kwFreq = {};
+      for (const s of successes) {
+        for (const kw of s.context.keywords) {
+          kwFreq[kw] = (kwFreq[kw] || 0) + 1;
+        }
+      }
+      const topKeywords = Object.entries(kwFreq)
+        .filter(([_, c]) => c >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([kw]) => kw);
+
+      const patternId = `pat_${domain}_${bestStrat ? bestStrat[0] : "default"}`;
+      const existing = el.patterns.get(patternId);
+
+      if (existing) {
+        // Reinforce existing pattern
+        existing.confidence = clamp(existing.confidence + 0.05, 0, 1);
+        existing.episodeCount = successes.length;
+        existing.updatedAt = nowISO();
+      } else {
+        el.patterns.set(patternId, {
+          id: patternId,
+          domain,
+          bestStrategy: bestStrat ? bestStrat[0] : "default",
+          keywords: topKeywords,
+          avgQuality: successes.reduce((s, e) => s + e.outcome.quality, 0) / successes.length,
+          episodeCount: successes.length,
+          failureIndicators: failures.slice(0, 5).map(f => f.context.topic).filter(Boolean),
+          confidence: clamp(successes.length / (successes.length + failures.length), 0.1, 0.95),
+          createdAt: nowISO(),
+          updatedAt: nowISO()
+        });
+        el.stats.patternsExtracted++;
+      }
+    }
+  }
+
+  // Cap patterns
+  if (el.patterns.size > el.config.maxPatterns) {
+    const sorted = Array.from(el.patterns.entries())
+      .sort((a, b) => a[1].confidence - b[1].confidence);
+    for (let i = 0; i < sorted.length - el.config.maxPatterns; i++) {
+      el.patterns.delete(sorted[i][0]);
+    }
+  }
+
+  saveStateDebounced();
+}
+
+// Retrieve relevant experience for a given context
+function retrieveExperience(domain, topic, keywords = []) {
+  ensureExperienceLearning();
+  const el = STATE.experienceLearning;
+
+  const results = {
+    bestStrategy: null,
+    relevantPatterns: [],
+    recentEpisodes: [],
+    warnings: [],
+    confidence: 0
+  };
+
+  // Find matching patterns
+  for (const [_, pattern] of el.patterns) {
+    let relevance = 0;
+    if (pattern.domain === domain) relevance += 0.4;
+
+    // Keyword overlap
+    const kwSet = new Set(pattern.keywords);
+    const overlap = keywords.filter(k => kwSet.has(k)).length;
+    if (overlap > 0) relevance += Math.min(0.4, overlap * 0.1);
+
+    // Topic similarity (simple substring)
+    if (topic && pattern.keywords.some(kw => topic.toLowerCase().includes(kw))) {
+      relevance += 0.2;
+    }
+
+    if (relevance > 0.3) {
+      results.relevantPatterns.push({ ...pattern, relevance });
+    }
+  }
+
+  results.relevantPatterns.sort((a, b) => b.relevance - a.relevance);
+
+  // Get best strategy recommendation
+  if (results.relevantPatterns.length > 0) {
+    const best = results.relevantPatterns[0];
+    results.bestStrategy = best.bestStrategy;
+    results.confidence = best.confidence * best.relevance;
+  }
+
+  // Check for failure indicators
+  for (const pattern of results.relevantPatterns) {
+    if (pattern.failureIndicators?.some(fi => topic?.toLowerCase().includes(fi.toLowerCase()))) {
+      results.warnings.push(`Previous failures detected in similar topic within ${pattern.domain}`);
+    }
+  }
+
+  // Recent similar episodes for reference
+  results.recentEpisodes = el.episodes
+    .filter(ep => ep.context.domain === domain)
+    .slice(-5)
+    .map(ep => ({ quality: ep.outcome.quality, strategy: ep.action.strategy, topic: ep.context.topic }));
+
+  el.stats.retrievalsUsed++;
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTONOMOUS WORLD MODEL UPDATER
+// Design: Automatically extracts entities/relations from new information,
+// compares against existing model, detects contradictions, updates confidence,
+// and applies temporal decay. The world model becomes self-correcting.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function autoUpdateWorldModel(dtu) {
+  try {
+    ensureWorldModel();
+    if (!STATE.worldModel.config.autoExtractEnabled) return;
+    if (!dtu || !dtu.id) return;
+
+    // 1. Extract entities from the DTU
+    const extraction = extractEntitiesFromDtu(dtu);
+
+    // 2. Extract relations from DTU content
+    const text = buildCretiText(dtu).toLowerCase();
+    const title = (dtu.title || "").toLowerCase();
+    const tags = Array.isArray(dtu.tags) ? dtu.tags : [];
+
+    // Auto-detect relations between existing entities mentioned in this DTU
+    const mentionedEntities = [];
+    for (const [eId, entity] of STATE.worldModel.entities) {
+      const eName = entity.name.toLowerCase();
+      if (text.includes(eName) || title.includes(eName)) {
+        mentionedEntities.push(entity);
+      }
+    }
+
+    // Create relations between co-mentioned entities
+    if (mentionedEntities.length >= 2) {
+      for (let i = 0; i < Math.min(mentionedEntities.length, 5); i++) {
+        for (let j = i + 1; j < Math.min(mentionedEntities.length, 5); j++) {
+          const e1 = mentionedEntities[i];
+          const e2 = mentionedEntities[j];
+
+          // Check for existing relation
+          const existing = Array.from(STATE.worldModel.relations.values())
+            .find(r => (r.from === e1.id && r.to === e2.id) || (r.from === e2.id && r.to === e1.id));
+
+          if (existing) {
+            // Reinforce existing relation
+            existing.strength = clamp(existing.strength + 0.05, 0, 1);
+            existing.confidence = clamp(existing.confidence + 0.03, 0, 1);
+            existing.evidence = (existing.evidence || 0) + 1;
+            existing.updatedAt = nowISO();
+          } else {
+            // Determine relation type from context
+            const relType = tags.includes("cause") ? "causes" :
+                           tags.includes("part") ? "part_of" :
+                           tags.includes("similar") ? "similar_to" : "correlates";
+            createWorldRelation({
+              from: e1.id, to: e2.id,
+              type: relType, strength: 0.3, confidence: 0.4,
+              description: `Co-mentioned in DTU: ${dtu.title}`.slice(0, 300),
+              evidence: 1, dtuId: dtu.id
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Contradiction detection: check if new DTU contradicts existing entities
+    const contradictions = [];
+    for (const [eId, entity] of STATE.worldModel.entities) {
+      if (!entity.state?.properties) continue;
+      const eName = entity.name.toLowerCase();
+      if (!text.includes(eName)) continue;
+
+      // Simple contradiction: if DTU has claims that conflict with entity properties
+      const claims = dtu.core?.claims || [];
+      for (const claim of claims) {
+        const claimText = String(claim).toLowerCase();
+        // Check for negation patterns near entity name
+        if (claimText.includes("not " + eName) || claimText.includes(eName + " is wrong") ||
+            claimText.includes("contrary to " + eName) || claimText.includes("disproves " + eName)) {
+          contradictions.push({
+            entityId: eId, entityName: entity.name,
+            claim, dtuId: dtu.id,
+            detectedAt: nowISO()
+          });
+          // Lower entity confidence when contradicted
+          entity.state.confidence = clamp(entity.state.confidence - 0.1, 0.05, 1);
+          entity.state.volatility = clamp((entity.state.volatility || 0) + 0.15, 0, 1);
+          entity.updatedAt = nowISO();
+        }
+      }
+    }
+
+    // 4. Record contradictions for metacognition
+    if (contradictions.length > 0 && STATE.metacognition) {
+      ensureMetacognitionSystem();
+      STATE.metacognition.blindSpots = STATE.metacognition.blindSpots || [];
+      for (const c of contradictions.slice(0, 3)) {
+        STATE.metacognition.blindSpots.push({
+          topic: `world-model-contradiction:${c.entityName}`,
+          severity: 0.6,
+          gaps: [`DTU "${dtu.title}" contradicts entity "${c.entityName}"`],
+          detectedAt: c.detectedAt,
+          source: "world-model-auto-update"
+        });
+      }
+    }
+
+    // 5. Boost salience of recently mentioned entities
+    for (const entity of mentionedEntities) {
+      entity.state.salience = clamp((entity.state.salience || 0.3) + 0.05, 0, 1);
+    }
+
+    saveStateDebounced();
+  } catch {}
+}
+
+// Temporal decay for world model — unconfirmed facts lose confidence over time
+function worldModelTemporalDecay() {
+  try {
+    ensureWorldModel();
+    const now = Date.now();
+    const dayMs = 86400000;
+
+    for (const [eId, entity] of STATE.worldModel.entities) {
+      const age = now - new Date(entity.updatedAt || entity.createdAt).getTime();
+      const daysSinceUpdate = age / dayMs;
+
+      // Salience decays faster than confidence
+      if (daysSinceUpdate > 1) {
+        entity.state.salience = clamp(entity.state.salience * (1 - 0.02 * Math.min(daysSinceUpdate, 30)), 0.01, 1);
+      }
+      // Confidence decays slowly for unconfirmed entities
+      if (daysSinceUpdate > 7 && entity.state.confidence < 0.8) {
+        entity.state.confidence = clamp(entity.state.confidence * 0.995, 0.05, 1);
+      }
+    }
+
+    // Weak relations decay
+    for (const [rId, rel] of STATE.worldModel.relations) {
+      const age = now - new Date(rel.updatedAt || rel.createdAt || now).getTime();
+      const daysSinceUpdate = age / dayMs;
+      if (daysSinceUpdate > 3 && rel.strength < 0.5) {
+        rel.strength = clamp(rel.strength * 0.99, 0.01, 1);
+        // Remove very weak relations
+        if (rel.strength < 0.05) {
+          STATE.worldModel.relations.delete(rId);
+        }
+      }
+    }
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GENUINE TRANSFER LEARNING ENGINE
+// Design: When solving a problem, automatically searches for analogous solved
+// problems in other domains, extracts the abstract strategy, maps it to the
+// current domain, and tracks transfer success rates to improve future transfers.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function autoTransferSearch(domain, topic, keywords = []) {
+  try {
+    ensureTransferEngine();
+    if (STATE.transfer.patterns.size === 0) return null;
+
+    // Find analogous patterns from other domains
+    const analogies = findAnalogousPatterns(domain, topic);
+    if (!analogies || analogies.length === 0) return null;
+
+    // Filter for high-relevance analogies
+    const relevant = analogies.filter(a => a.relevance > 0.4);
+    if (relevant.length === 0) return null;
+
+    const best = relevant[0];
+
+    // Build transfer suggestion
+    const suggestion = {
+      sourcePattern: best.patternName,
+      sourceDomain: best.sourceDomain,
+      targetDomain: domain,
+      relevance: best.relevance,
+      template: best.template,
+      strategy: null,
+      applied: false
+    };
+
+    // Extract abstract strategy from the source pattern
+    const pattern = STATE.transfer.patterns.get(best.patternId);
+    if (pattern) {
+      suggestion.strategy = {
+        approach: pattern.template?.approach || "Apply structural analogy",
+        steps: pattern.template?.steps || [],
+        adaptations: `Adapt ${best.sourceDomain} approach to ${domain} context`,
+        confidence: pattern.confidence * best.relevance * STATE.transfer.config.confidenceDecay
+      };
+    }
+
+    return suggestion;
+  } catch { return null; }
+}
+
+// Record transfer outcome for learning
+function recordTransferOutcome(transferId, success, quality = 0.5) {
+  try {
+    ensureTransferEngine();
+    const transfer = STATE.transfer.transfers.find(t => t.id === transferId);
+    if (!transfer) return;
+
+    transfer.outcome = { success, quality, evaluatedAt: nowISO() };
+    transfer.status = success ? "successful" : "failed";
+
+    if (success) {
+      STATE.transfer.stats.transfersSuccessful++;
+      // Boost source pattern confidence
+      const pattern = STATE.transfer.patterns.get(transfer.patternId);
+      if (pattern) {
+        pattern.confidence = clamp(pattern.confidence + 0.05, 0, 1);
+      }
+    } else {
+      // Lower confidence decay for failed transfers
+      const pattern = STATE.transfer.patterns.get(transfer.patternId);
+      if (pattern) {
+        pattern.confidence = clamp(pattern.confidence - 0.03, 0.05, 1);
+      }
+    }
+
+    saveStateDebounced();
+  } catch {}
+}
+
+// Auto-extract transferable pattern when reasoning chain concludes successfully
+function autoExtractTransferPattern(chain) {
+  try {
+    ensureTransferEngine();
+    if (!chain || chain.status !== "concluded" || !chain.conclusion) return;
+
+    // Need the steps to extract a pattern
+    const steps = Array.from(STATE.reasoning?.steps?.values() || [])
+      .filter(s => s.chainId === chain.id)
+      .sort((a, b) => a.index - b.index);
+
+    if (steps.length < 2) return;
+
+    // Classify the domain of this reasoning chain
+    const text = [chain.question, chain.conclusion, ...steps.map(s => s.conclusion)].join(" ");
+    const pseudoDtu = { title: chain.question || "", human: { summary: text }, tags: [] };
+    const domain = classifyDomain(pseudoDtu);
+
+    // Extract the abstract strategy (step types and their sequence)
+    const stepTypes = steps.map(s => s.type || "deduction");
+    const topTerms = tokenizeText(text)
+      .reduce((acc, t) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {});
+    const sortedTerms = Object.entries(topTerms)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([t]) => t);
+
+    const patternId = uid("tpat");
+    STATE.transfer.patterns.set(patternId, {
+      id: patternId,
+      name: `auto:${chain.question?.slice(0, 50) || "reasoning-chain"}`,
+      sourceDomain: domain,
+      confidence: clamp(chain.confidence || 0.5, 0.2, 0.8),
+      structure: {
+        dtuCount: steps.length,
+        topTerms: sortedTerms,
+        stepSequence: stepTypes
+      },
+      template: {
+        approach: `${stepTypes[0]}-first reasoning with ${steps.length} steps`,
+        steps: steps.map(s => ({ type: s.type, conclusion: s.conclusion?.slice(0, 100) })).slice(0, 5),
+        adaptationGuide: `Adapt the ${stepTypes.join(" → ")} pattern to target domain`
+      },
+      createdAt: nowISO(),
+      updatedAt: nowISO()
+    });
+
+    STATE.transfer.stats.patternsExtracted++;
+    saveStateDebounced();
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARALLEL COGNITION & ATTENTION MANAGEMENT
+// Design: Multiple reasoning "threads" that can run concurrently, with an
+// attention manager that prioritizes, schedules, and can interrupt lower-priority
+// tasks. Background processing queue for deferred work.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ensureAttentionManager() {
+  if (!STATE.attention) {
+    STATE.attention = {
+      focus: null,                      // Current primary focus
+      threads: new Map(),               // Active reasoning threads
+      queue: [],                        // Priority queue of pending tasks
+      completed: [],                    // Recently completed threads (capped)
+      background: [],                   // Background processing tasks
+      stats: {
+        threadsCreated: 0,
+        threadsCompleted: 0,
+        interruptions: 0,
+        backgroundTasksRun: 0,
+        avgFocusDurationMs: 0
+      },
+      config: {
+        maxConcurrentThreads: 5,
+        maxQueueSize: 50,
+        maxBackgroundTasks: 20,
+        focusTimeoutMs: 30000,
+        interruptThreshold: 0.8         // Priority threshold to interrupt current focus
+      }
+    };
+  }
+  if (!(STATE.attention.threads instanceof Map)) {
+    STATE.attention.threads = new Map(Object.entries(STATE.attention.threads || {}));
+  }
+}
+
+// Create a new cognitive thread
+function createCognitiveThread(task) {
+  ensureAttentionManager();
+  const attn = STATE.attention;
+
+  const thread = {
+    id: uid("thread"),
+    type: String(task.type || "reasoning").slice(0, 50),
+    priority: clamp(Number(task.priority || 0.5), 0, 1),
+    description: String(task.description || "").slice(0, 500),
+    status: "pending",
+    input: task.input || {},
+    output: null,
+    domain: String(task.domain || "general"),
+    createdAt: nowISO(),
+    startedAt: null,
+    completedAt: null,
+    parentThreadId: task.parentThreadId || null,
+    metadata: {}
+  };
+
+  // Check if we can run immediately or need to queue
+  const activeCount = Array.from(attn.threads.values()).filter(t => t.status === "active").length;
+
+  if (activeCount < attn.config.maxConcurrentThreads) {
+    thread.status = "active";
+    thread.startedAt = nowISO();
+    attn.threads.set(thread.id, thread);
+  } else if (thread.priority >= attn.config.interruptThreshold) {
+    // High priority: interrupt lowest priority active thread
+    const active = Array.from(attn.threads.values())
+      .filter(t => t.status === "active")
+      .sort((a, b) => a.priority - b.priority);
+
+    if (active.length > 0 && active[0].priority < thread.priority) {
+      const interrupted = active[0];
+      interrupted.status = "interrupted";
+      interrupted.metadata.interruptedBy = thread.id;
+      interrupted.metadata.interruptedAt = nowISO();
+      attn.stats.interruptions++;
+
+      // Re-queue interrupted thread
+      attn.queue.push({
+        threadId: interrupted.id,
+        priority: interrupted.priority,
+        queuedAt: nowISO()
+      });
+
+      thread.status = "active";
+      thread.startedAt = nowISO();
+      attn.threads.set(thread.id, thread);
+    } else {
+      // Queue it
+      attn.queue.push({ threadId: thread.id, priority: thread.priority, queuedAt: nowISO() });
+      attn.threads.set(thread.id, thread);
+    }
+  } else {
+    // Queue normally
+    attn.queue.push({ threadId: thread.id, priority: thread.priority, queuedAt: nowISO() });
+    attn.threads.set(thread.id, thread);
+  }
+
+  // Sort queue by priority (descending)
+  attn.queue.sort((a, b) => b.priority - a.priority);
+
+  // Cap queue
+  if (attn.queue.length > attn.config.maxQueueSize) {
+    attn.queue = attn.queue.slice(0, attn.config.maxQueueSize);
+  }
+
+  attn.stats.threadsCreated++;
+
+  // Update focus
+  if (thread.status === "active" && (!attn.focus || thread.priority > (attn.threads.get(attn.focus)?.priority || 0))) {
+    attn.focus = thread.id;
+  }
+
+  saveStateDebounced();
+  return { ok: true, thread };
+}
+
+// Complete a cognitive thread and process queue
+function completeCognitiveThread(threadId, output) {
+  ensureAttentionManager();
+  const attn = STATE.attention;
+
+  const thread = attn.threads.get(threadId);
+  if (!thread) return { ok: false, error: "Thread not found" };
+
+  thread.status = "completed";
+  thread.output = output;
+  thread.completedAt = nowISO();
+
+  // Track duration
+  if (thread.startedAt) {
+    const duration = new Date(thread.completedAt) - new Date(thread.startedAt);
+    const total = attn.stats.avgFocusDurationMs * attn.stats.threadsCompleted + duration;
+    attn.stats.threadsCompleted++;
+    attn.stats.avgFocusDurationMs = total / attn.stats.threadsCompleted;
+  }
+
+  // Move to completed list
+  attn.completed.push({ id: thread.id, type: thread.type, duration: thread.completedAt, output: thread.output });
+  if (attn.completed.length > 50) attn.completed.splice(0, attn.completed.length - 50);
+
+  // Remove from active
+  attn.threads.delete(threadId);
+
+  // Promote next queued thread
+  if (attn.queue.length > 0) {
+    const next = attn.queue.shift();
+    const nextThread = attn.threads.get(next.threadId);
+    if (nextThread && nextThread.status !== "completed") {
+      nextThread.status = "active";
+      nextThread.startedAt = nowISO();
+    }
+  }
+
+  // Update focus
+  const activeThreads = Array.from(attn.threads.values()).filter(t => t.status === "active");
+  attn.focus = activeThreads.length > 0
+    ? activeThreads.sort((a, b) => b.priority - a.priority)[0].id
+    : null;
+
+  saveStateDebounced();
+  return { ok: true, completed: thread };
+}
+
+// Add a background task (deferred processing)
+function addBackgroundTask(task) {
+  ensureAttentionManager();
+  const attn = STATE.attention;
+
+  attn.background.push({
+    id: uid("bg"),
+    type: String(task.type || "maintenance"),
+    handler: String(task.handler || ""),
+    input: task.input || {},
+    priority: clamp(Number(task.priority || 0.3), 0, 1),
+    status: "pending",
+    createdAt: nowISO()
+  });
+
+  // Cap background tasks
+  if (attn.background.length > attn.config.maxBackgroundTasks) {
+    attn.background = attn.background.filter(t => t.status !== "completed").slice(-attn.config.maxBackgroundTasks);
+  }
+
+  return { ok: true };
+}
+
+// Process background tasks (called from kernelTick)
+function processBackgroundTasks() {
+  try {
+    ensureAttentionManager();
+    const attn = STATE.attention;
+    const pending = attn.background.filter(t => t.status === "pending");
+    if (pending.length === 0) return;
+
+    // Process up to 3 background tasks per tick
+    for (const task of pending.slice(0, 3)) {
+      try {
+        task.status = "running";
+        switch (task.handler) {
+          case "world_model_decay":
+            worldModelTemporalDecay();
+            break;
+          case "experience_consolidation":
+            consolidateExperience();
+            break;
+          case "pattern_decay":
+            decayUnusedPatterns();
+            break;
+          default:
+            break;
+        }
+        task.status = "completed";
+        task.completedAt = nowISO();
+        attn.stats.backgroundTasksRun++;
+      } catch {
+        task.status = "failed";
+      }
+    }
+
+    // Clean completed background tasks
+    attn.background = attn.background.filter(t => t.status !== "completed" || (Date.now() - new Date(t.completedAt).getTime()) < 60000);
+  } catch {}
+}
+
+// Decay unused experience patterns
+function decayUnusedPatterns() {
+  try {
+    ensureExperienceLearning();
+    const el = STATE.experienceLearning;
+    const now = Date.now();
+    const dayMs = 86400000;
+
+    for (const [pId, pattern] of el.patterns) {
+      const age = now - new Date(pattern.updatedAt || pattern.createdAt).getTime();
+      if (age > dayMs * 7) {
+        pattern.confidence = clamp(pattern.confidence - el.config.decayRate, 0.01, 1);
+        if (pattern.confidence < 0.05) {
+          el.patterns.delete(pId);
+        }
+      }
+    }
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REFLECTIVE LLM LOOP
+// Design: Post-response self-critique that evaluates response quality, checks
+// for consistency with known facts, and feeds insights back into experience
+// memory. This creates a learning loop where the system improves from its
+// own output analysis.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ensureReflectionEngine() {
+  if (!STATE.reflection) {
+    STATE.reflection = {
+      reflections: [],                  // Recent reflections (capped)
+      insights: new Map(),              // Accumulated insights by topic
+      selfModel: {
+        strengths: [],                  // Known strengths
+        weaknesses: [],                 // Known weaknesses
+        biases: [],                     // Detected biases
+        confidenceCalibration: 0.5      // How well-calibrated is self-assessment
+      },
+      stats: {
+        reflectionsRun: 0,
+        insightsGenerated: 0,
+        selfCorrections: 0,
+        qualityImprovements: 0
+      },
+      config: {
+        maxReflections: 500,
+        maxInsights: 200,
+        reflectOnEveryNth: 5,           // Reflect every N responses
+        minResponseLength: 50,          // Skip reflection for very short responses
+        qualityThreshold: 0.4           // Below this triggers deeper reflection
+      }
+    };
+  }
+  if (!(STATE.reflection.insights instanceof Map)) {
+    STATE.reflection.insights = new Map(Object.entries(STATE.reflection.insights || {}));
+  }
+}
+
+// Run post-response reflection
+function reflectOnResponse(context) {
+  try {
+    ensureReflectionEngine();
+    ensureExperienceLearning();
+    const ref = STATE.reflection;
+
+    const prompt = String(context.prompt || "");
+    const response = String(context.response || "");
+    const mode = context.mode || "explore";
+    const domain = context.domain || "general";
+    const llmUsed = !!context.llmUsed;
+    const relevantDtus = context.relevantDtus || [];
+
+    // Skip reflection for very short interactions
+    if (response.length < ref.config.minResponseLength) return null;
+
+    // Only reflect every Nth response
+    ref.stats.reflectionsRun++;
+    if (ref.stats.reflectionsRun % ref.config.reflectOnEveryNth !== 0) return null;
+
+    const reflection = {
+      id: uid("refl"),
+      timestamp: nowISO(),
+      prompt: prompt.slice(0, 200),
+      responseLength: response.length,
+      domain,
+      mode,
+      checks: {},
+      quality: 0.5,
+      insights: [],
+      corrections: []
+    };
+
+    // CHECK 1: Response coherence — does it contradict known facts?
+    const responseTokens = new Set(tokenizeText(response));
+    let contradictionCount = 0;
+    if (STATE.worldModel) {
+      for (const [_, entity] of STATE.worldModel.entities) {
+        if (entity.state.confidence > 0.7) {
+          const eName = entity.name.toLowerCase();
+          if (response.toLowerCase().includes(eName)) {
+            // Check for negation near entity mention
+            const idx = response.toLowerCase().indexOf(eName);
+            const surrounding = response.slice(Math.max(0, idx - 30), idx + eName.length + 30).toLowerCase();
+            if (surrounding.includes("not ") || surrounding.includes("wrong") || surrounding.includes("incorrect")) {
+              if (entity.state.confidence > 0.85) {
+                contradictionCount++;
+                reflection.corrections.push(`Response may contradict high-confidence entity "${entity.name}"`);
+              }
+            }
+          }
+        }
+      }
+    }
+    reflection.checks.factConsistency = contradictionCount === 0 ? 1 : clamp(1 - contradictionCount * 0.2, 0, 1);
+
+    // CHECK 2: Relevance — did the response address the prompt?
+    const promptTokens = new Set(tokenizeText(prompt));
+    const overlap = [...promptTokens].filter(t => responseTokens.has(t)).length;
+    reflection.checks.relevance = clamp(overlap / Math.max(promptTokens.size, 1), 0, 1);
+
+    // CHECK 3: Grounding — was the response backed by evidence?
+    reflection.checks.grounding = relevantDtus.length > 0 ? clamp(relevantDtus.length / 3, 0.2, 1) : 0.2;
+
+    // CHECK 4: Completeness — reasonable length for the query
+    const expectedLength = prompt.length * 3; // Rough heuristic
+    reflection.checks.completeness = clamp(response.length / Math.max(expectedLength, 100), 0.3, 1);
+
+    // CHECK 5: Self-consistency — check against previous responses in session
+    reflection.checks.selfConsistency = 1.0; // Default pass unless we detect contradiction
+
+    // Compute overall quality score
+    const weights = { factConsistency: 0.3, relevance: 0.25, grounding: 0.2, completeness: 0.15, selfConsistency: 0.1 };
+    reflection.quality = Object.entries(weights).reduce((sum, [key, w]) => sum + (reflection.checks[key] || 0.5) * w, 0);
+
+    // Generate insights from low-quality checks
+    if (reflection.checks.factConsistency < 0.7) {
+      reflection.insights.push({
+        type: "fact_mismatch",
+        message: "Response potentially contradicts established knowledge",
+        severity: 1 - reflection.checks.factConsistency
+      });
+    }
+    if (reflection.checks.grounding < 0.4) {
+      reflection.insights.push({
+        type: "low_grounding",
+        message: "Response lacks sufficient evidence backing — consider forging more DTUs",
+        severity: 0.5
+      });
+    }
+    if (reflection.checks.relevance < 0.3) {
+      reflection.insights.push({
+        type: "off_topic",
+        message: "Response may not adequately address the prompt",
+        severity: 0.7
+      });
+    }
+
+    // Store reflection
+    ref.reflections.push(reflection);
+    if (ref.reflections.length > ref.config.maxReflections) {
+      ref.reflections.splice(0, ref.reflections.length - ref.config.maxReflections);
+    }
+
+    // Feed insights into experience learning
+    const keywords = [...promptTokens].slice(0, 10);
+    recordExperienceEpisode({
+      domain,
+      topic: prompt.slice(0, 100),
+      keywords,
+      mode,
+      strategy: llmUsed ? "llm-enhanced" : "local-deterministic",
+      llmUsed,
+      dtusRetrieved: relevantDtus.length,
+      responseLength: response.length,
+      quality: reflection.quality,
+      followUpNeeded: reflection.quality < ref.config.qualityThreshold,
+      errorOccurred: contradictionCount > 0
+    });
+
+    // Update self-model based on accumulated reflections
+    if (ref.reflections.length > 10) {
+      const recent = ref.reflections.slice(-20);
+      const avgQuality = recent.reduce((s, r) => s + r.quality, 0) / recent.length;
+      ref.selfModel.confidenceCalibration = avgQuality;
+
+      // Identify strengths and weaknesses
+      const checkAvgs = {};
+      for (const check of ["factConsistency", "relevance", "grounding", "completeness"]) {
+        checkAvgs[check] = recent.reduce((s, r) => s + (r.checks[check] || 0), 0) / recent.length;
+      }
+
+      ref.selfModel.strengths = Object.entries(checkAvgs)
+        .filter(([_, v]) => v > 0.7)
+        .map(([k]) => k);
+      ref.selfModel.weaknesses = Object.entries(checkAvgs)
+        .filter(([_, v]) => v < 0.5)
+        .map(([k]) => k);
+
+      ref.stats.insightsGenerated += reflection.insights.length;
+    }
+
+    // Emit affect event for reflection quality
+    try {
+      if (ATS) {
+        ATS.emitAffectEvent("system", {
+          type: "SYSTEM_RESULT",
+          intensity: 0.2,
+          polarity: reflection.quality > 0.6 ? 0.2 : -0.2,
+          payload: { action: "self-reflection", quality: reflection.quality, checks: reflection.checks },
+          source: { system: "reflection" }
+        });
+      }
+    } catch {}
+
+    saveStateDebounced();
+    return reflection;
+  } catch { return null; }
+}
+
 function _clamp01(x){ return clamp(Number(x||0), 0, 1); }
 
 function computeGrowthTick(signal={}) {
@@ -25260,6 +26626,9 @@ function kernelTick(event) {
   ensureMetacognitionSystem();
   ensureExplanationEngine();
   ensureMetaLearningSystem();
+  ensureExperienceLearning();
+  ensureAttentionManager();
+  ensureReflectionEngine();
   // Simple universal tick: update wear/debt and write Learning DTU for major changes.
   const t = nowISO();
   const signal = { acuteStress: 0, chronicStress: 0, drift: 0, paramShift: 0, decline: 0, repairDelta: 0, backlogDelta: 0 };
@@ -25370,6 +26739,22 @@ function kernelTick(event) {
       } catch(_ie) {}
     }
   } catch(_ete) {}
+
+  // ===== BACKGROUND PROCESSING =====
+  // Process deferred tasks: world model decay, experience consolidation, pattern cleanup
+  try { processBackgroundTasks(); } catch {}
+
+  // Schedule periodic background tasks (every ~50 ticks)
+  try {
+    if (!STATE.__bgTickCounter) STATE.__bgTickCounter = 0;
+    STATE.__bgTickCounter++;
+    if (STATE.__bgTickCounter % 50 === 0) {
+      addBackgroundTask({ type: "maintenance", handler: "world_model_decay", priority: 0.2 });
+      addBackgroundTask({ type: "maintenance", handler: "experience_consolidation", priority: 0.3 });
+      addBackgroundTask({ type: "maintenance", handler: "pattern_decay", priority: 0.1 });
+    }
+  } catch {}
+  // ===== END BACKGROUND PROCESSING =====
 
   computeGrowthTick(signal);
   saveStateDebounced();

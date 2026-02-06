@@ -624,6 +624,40 @@ export const apiHelpers = {
     audit: () => api.post('/api/sovereignty/audit', {}),
   },
 
+  // Experience Learning
+  experience: {
+    status: () => api.get('/api/experience/status'),
+    retrieve: (data: { domain?: string; topic?: string; keywords?: string[] }) =>
+      api.post('/api/experience/retrieve', data),
+    patterns: () => api.get('/api/experience/patterns'),
+    consolidate: () => api.post('/api/experience/consolidate', {}),
+    strategies: () => api.get('/api/experience/strategies'),
+    recent: (limit?: number) => api.get('/api/experience/recent', { params: { limit } }),
+  },
+
+  // Attention Management
+  attention: {
+    status: () => api.get('/api/attention/status'),
+    createThread: (data: { type?: string; priority?: number; description?: string; domain?: string }) =>
+      api.post('/api/attention/thread', data),
+    completeThread: (data: { threadId: string; output?: any }) =>
+      api.post('/api/attention/thread/complete', data),
+    threads: () => api.get('/api/attention/threads'),
+    queue: () => api.get('/api/attention/queue'),
+    addBackground: (data: { type?: string; handler?: string; priority?: number }) =>
+      api.post('/api/attention/background', data),
+  },
+
+  // Reflection Engine
+  reflection: {
+    status: () => api.get('/api/reflection/status'),
+    recent: (limit?: number) => api.get('/api/reflection/recent', { params: { limit } }),
+    selfModel: () => api.get('/api/reflection/self-model'),
+    insights: () => api.get('/api/reflection/insights'),
+    reflect: (data: { prompt: string; response: string; mode?: string; domain?: string }) =>
+      api.post('/api/reflection/reflect', data),
+  },
+
   // Auth - uses httpOnly cookies (token also returned for non-browser clients)
   auth: {
     login: (data: { username?: string; email?: string; password: string }) =>
