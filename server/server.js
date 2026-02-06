@@ -8186,7 +8186,8 @@ function dtuText(d){
   return (b + " " + a).slice(0, 4000);
 }
 function retrieveDTUs(query, { topK=6, minScore=0.08, randomK=2, oppositeK=2 } = {}) {
-  const all = dtusArray();
+  // Filter out shadow DTUs - they are internal and should not appear in retrieval results
+  const all = dtusArray().filter(d => !isShadowDTU(d));
   const raw = String(query || "");
   const qNorm = normalizeQueryText(raw);
   const qBase = tokensNoStop(qNorm);          // stemmed, no stopwords
@@ -8369,7 +8370,8 @@ register("dtu", "list", async (ctx, input) => {
   const offset = clamp(Number(input.offset || 0), 0, 1e9);
   const tier = input.tier && ["regular","mega","hyper","any"].includes(input.tier) ? input.tier : "any";
   const q = tokenish(input.q || "");
-  let items = dtusArray().sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
+  // Filter out shadow DTUs - they are internal and should not appear in user-facing lists
+  let items = dtusArray().filter(d => !isShadowDTU(d)).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
   if (tier !== "any") items = items.filter(d => d.tier === tier);
   if (q) items = items.filter(d => tokenish(d.title).includes(q) || tokenish((d.tags||[]).join(" ")).includes(q) || tokenish((d.cretiHuman || d.creti || "")).includes(q));
   items = items.slice(offset, offset + limit);
@@ -14885,7 +14887,8 @@ function searchIndexed(query, { limit = 20, minScore = 0.01 } = {}) {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
-  return results.map(r => ({ ...STATE.dtus.get(r.id), _searchScore: r.score })).filter(Boolean);
+  // Filter out shadow DTUs - they are internal and should not appear in search results
+  return results.map(r => ({ ...STATE.dtus.get(r.id), _searchScore: r.score })).filter(d => d && !isShadowDTU(d));
 }
 
 // Mark index dirty on DTU changes
