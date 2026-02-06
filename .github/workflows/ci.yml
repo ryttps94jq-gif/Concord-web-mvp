@@ -134,7 +134,7 @@ jobs:
       - name: Start server
         working-directory: ./server
         env:
-          NODE_ENV: test
+          NODE_ENV: ci
           PORT: 5050
           JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
           ADMIN_PASSWORD: testpassword123

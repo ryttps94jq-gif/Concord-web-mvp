@@ -17600,56 +17600,7 @@ function completeReminder(reminderId) {
 // WAVE 14: ENTERPRISE (SSO, Audit, Admin, Teams)
 // ============================================================================
 
-// ---- Audit Logging ----
-const AUDIT_LOG = [];
-const MAX_AUDIT_ENTRIES = 50000;
-
-function auditLog(action, actor, target, details = {}) {
-  const entry = {
-    id: uid("audit"),
-    timestamp: nowISO(),
-    action, // login, logout, create, update, delete, share, permission_change, etc.
-    actor: {
-      userId: actor.userId || "system",
-      username: actor.username || "system",
-      ip: actor.ip || null
-    },
-    target: {
-      type: target.type, // dtu, user, workspace, etc.
-      id: target.id,
-      name: target.name || null
-    },
-    details,
-    success: details.success !== false
-  };
-
-  AUDIT_LOG.push(entry);
-
-  if (AUDIT_LOG.length > MAX_AUDIT_ENTRIES) {
-    AUDIT_LOG.splice(0, AUDIT_LOG.length - MAX_AUDIT_ENTRIES);
-  }
-
-  return entry;
-}
-
-function queryAuditLog(filters = {}) {
-  let results = [...AUDIT_LOG];
-
-  if (filters.action) results = results.filter(e => e.action === filters.action);
-  if (filters.actorId) results = results.filter(e => e.actor.userId === filters.actorId);
-  if (filters.targetType) results = results.filter(e => e.target.type === filters.targetType);
-  if (filters.targetId) results = results.filter(e => e.target.id === filters.targetId);
-  if (filters.since) results = results.filter(e => e.timestamp >= filters.since);
-  if (filters.until) results = results.filter(e => e.timestamp <= filters.until);
-  if (filters.success !== undefined) results = results.filter(e => e.success === filters.success);
-
-  results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-
-  const limit = filters.limit || 100;
-  const offset = filters.offset || 0;
-
-  return { ok: true, entries: results.slice(offset, offset + limit), total: results.length };
-}
+// Note: Audit logging is defined earlier in this file via AuditDB
 
 // ---- Admin Dashboard Stats ----
 function getAdminStats() {
