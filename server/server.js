@@ -5410,6 +5410,27 @@ function makeCtx(req=null) {
       writeStrength: affectPolicy.memory?.writeStrength ?? 0.5,
       latencyBudgetMs: affectPolicy.cognition?.latencyBudgetMs ?? 8000,
     } : null,
+    // ===== GROUNDING → CONTEXT ENRICHMENT =====
+    // Inject grounding context (sensors, time-of-day, environmental data) into macro context
+    grounding: (() => {
+      try {
+        const _gr = STATE.grounding;
+        if (!_gr) return null;
+        const _hour = new Date().getHours();
+        const _timeOfDay = _hour < 6 ? "night" : _hour < 12 ? "morning" : _hour < 18 ? "afternoon" : "evening";
+        const _recentReadings = Array.isArray(_gr.readings)
+          ? _gr.readings.slice(-5).map(r => ({ sensor: r.sensorId, value: r.value, unit: r.unit }))
+          : [];
+        return {
+          timeOfDay: _timeOfDay,
+          hour: _hour,
+          recentReadings: _recentReadings,
+          sensorCount: _gr.sensors?.size || 0,
+          pendingActions: _gr.pendingActions?.length || 0,
+        };
+      } catch { return null; }
+    })(),
+    // ===== END GROUNDING → CONTEXT =====
     reqMeta: req ? {
       ip: req.ip,
       ua: req.get("user-agent"),
@@ -6343,6 +6364,28 @@ function reviewSRSCard(dtuId, quality) {
     );
     card.repetitions++;
   }
+
+  // ===== SRS → AFFECT INTEGRATION =====
+  // Affect writeStrength modulates retention (higher → longer intervals)
+  try {
+    if (ATS) {
+      const _srsPolicy = ATS.getSessionPolicy("system");
+      const _writeStrength = _srsPolicy?.memory?.writeStrength ?? 0.5;
+      // Strong memory state → intervals grow faster (1.0-1.4x)
+      card.interval = Math.round(card.interval * (0.8 + 0.6 * _writeStrength));
+
+      // SRS review outcomes feed back into affect
+      const _pol = q >= 4 ? 0.3 : q >= 3 ? 0.1 : -0.2;
+      ATS.emitAffectEvent("system", {
+        type: "FEEDBACK",
+        intensity: 0.2,
+        polarity: _pol,
+        payload: { dtuId, quality: q, type: "srs_review" },
+        source: { system: "srs" }
+      });
+    }
+  } catch {}
+  // ===== END SRS → AFFECT =====
 
   const nextDate = new Date();
   nextDate.setDate(nextDate.getDate() + card.interval);
@@ -9008,6 +9051,33 @@ const _mentionsSelf = Array.from(_selfTokens).some(t => _pLow.includes(t));
   }
 
   let localSettings = applyStyleToSettings(baseSettings, styleVec);
+
+  // ===== AFFECT → CHAT INTEGRATION =====
+  // Consume affect policy to modulate response behavior.
+  // ctx.affect is injected by makeCtx() from the ATS engine.
+  const _aff = ctx.affect || {};
+  const _affStyle = _aff.policy?.style || {};
+  const _affCog = _aff.policy?.cognition || {};
+  const _affMem = _aff.policy?.memory || {};
+  const _affSafety = _aff.policy?.safety || {};
+
+  // Style modulation: affect verbosity/creativity/warmth shift localSettings
+  if (_affStyle.verbosity != null) {
+    localSettings.responseMaxLen = Math.round(
+      (localSettings.responseMaxLen || 800) * (0.6 + 0.8 * _affStyle.verbosity)
+    );
+  }
+  if (_affStyle.creativity != null) {
+    localSettings.explorationBias = clamp(
+      (localSettings.explorationBias || 0.5) + (_affStyle.creativity - 0.5) * 0.3, 0, 1
+    );
+  }
+  // Safety: strictness raises caution
+  if (_affSafety.strictness != null && _affSafety.strictness > 0.7) {
+    localSettings.safetyOverride = true;
+  }
+  // ===== END AFFECT → CHAT INTEGRATION =====
+
   const llm = typeof input.llm === "boolean" ? input.llm : localSettings.llmDefault;
 
   const sess = STATE.sessions.get(sessionId);
@@ -9286,7 +9356,9 @@ const scored = all.map(d => {
   );
     return { d, score };
   }).sort((a,b)=>b.score-a.score);
-  const relevant = scored.filter(x=>x.score > 0.08).slice(0, 6).map(x=>x.d);
+  // Affect depthBudget controls how many DTUs enter the working set (default 6)
+  const _affDepthLimit = clamp(Math.round(_aff.depthBudget || 5), 2, 10);
+  const relevant = scored.filter(x=>x.score > 0.08).slice(0, _affDepthLimit).map(x=>x.d);
 
 
 // Local response (non-LLM): crisp, constrained reasoning (APE) + scalable substrate (ANT)
@@ -9339,6 +9411,24 @@ try {
 
 const wants = /\?$/.test(prompt.trim()) || /\b(why|how|what|when|where|who|can you|should i|help|explain)\b/i.test(prompt);
 const bestScore = scored?.[0]?.score ?? 0;
+
+// ===== METACOGNITION → CHAT: Blindspot awareness =====
+// If the topic matches a known blindspot, inject an epistemic hedge.
+let _metacogWarning = null;
+try {
+  const _mcState = STATE.metacognition;
+  if (_mcState && Array.isArray(_mcState.blindSpots) && _mcState.blindSpots.length > 0 && wants) {
+    const _qTokens = tokenish(prompt);
+    for (const spot of _mcState.blindSpots.slice(-20)) {
+      const _spotTokens = tokenish(spot.topic || spot.description || "");
+      if (_spotTokens && jaccard(_qTokens.split(/\s+/), _spotTokens.split(/\s+/)) > 0.15) {
+        _metacogWarning = { topic: spot.topic, severity: spot.severity, gaps: spot.gaps };
+        break;
+      }
+    }
+  }
+} catch {}
+// ===== END METACOGNITION → CHAT =====
 
 // Refine session anchors using DTU match confidence (works offline + online)
 try {
@@ -9404,6 +9494,11 @@ if (frame.requireTests && (!LLM_READY || wantsStructured) && (!hasStrongEvidence
   tests.push("Run: system.evolution (promote a stable cluster to MEGA) once duplicates collapse.");
 }
 
+// Metacognition: inject epistemic hedge if blindspot was detected
+if (_metacogWarning) {
+  answerLines.unshift(`- ⚠ Known blindspot: "${_metacogWarning.topic}" (severity ${((_metacogWarning.severity||0)*100).toFixed(0)}%). ${Array.isArray(_metacogWarning.gaps) && _metacogWarning.gaps.length ? _metacogWarning.gaps[0] : "Consider forging DTUs to fill this gap."}`);
+}
+
 let localReply = formatCrispResponse({
   prompt,
   mode,
@@ -9444,9 +9539,24 @@ let localReply = formatCrispResponse({
   const semanticUsed = Boolean(semanticEnhancement && semanticEnhancement.confidence > 0.4);
 
   if (llm && ctx.llm.enabled) {
+    // Affect-modulated LLM parameters
+    const _llmTemp = clamp(
+      0.35 + (_affStyle.creativity ? (_affStyle.creativity - 0.5) * 0.3 : 0),
+      0.1, 0.9
+    );
+    const _llmMaxTokens = Math.round(
+      700 * (0.6 + 0.8 * (_affStyle.verbosity ?? 0.5))
+    );
+    // Inject affect-aware behavioral guidance into system prompt
+    const _affectGuidance = _aff.policy ? [
+      _affStyle.warmth > 0.6 ? "Be warm and encouraging." : _affStyle.warmth < 0.3 ? "Be direct and precise." : "",
+      _affStyle.directness > 0.7 ? "Get to the point quickly." : "",
+      _affSafety.strictness > 0.7 ? "Be cautious with uncertain claims." : "",
+      _affCog.exploration > 0.6 ? "Explore alternative viewpoints." : "",
+    ].filter(Boolean).join(" ") : "";
     const system =
 `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.
-Mode: ${mode}.
+Mode: ${mode}.${_affectGuidance ? `\nTone: ${_affectGuidance}` : ""}
 When helpful, reference DTU titles in plain language (do not dump ids unless asked).`;
     const dtuContext = focus.map(d => `TITLE: ${d.title}
 TIER: ${d.tier}
@@ -9457,7 +9567,7 @@ ${buildCretiText(d)}
     const messages = [
       { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${dtuContext}\n\nRespond naturally and propose next actions.` }
     ];
-    const r = await ctx.llm.chat({ system, messages, temperature: 0.35, maxTokens: 700 });
+    const r = await ctx.llm.chat({ system, messages, temperature: _llmTemp, maxTokens: _llmMaxTokens });
     if (r.ok) {
       finalReply = r.content.trim() || localReply;
       llmUsed = true;
@@ -11447,7 +11557,9 @@ register("council", "weeklyDebateTick", async (ctx, input) => {
   if (!enabled) return { ok:true, skipped:true, reason:"weeklyDebateDisabled" };
 
   const topic = normalizeText(input.topic || "Weekly Synthesis");
-  const set = pickDebateSet(topic).slice(0, 8);
+  // Affect depthBudget limits debate participants (default 8, min 3)
+  const _debateLimit = clamp(Math.round((ctx.affect?.depthBudget || 5) * 1.5), 3, 12);
+  const set = pickDebateSet(topic).slice(0, _debateLimit);
   const titles = set.map(d=>`- ${d.title} (${d.id})`).join("\n");
   const creti = cretiPack({
     title: `Council Weekly Synthesis — ${topic}`,
@@ -11555,9 +11667,28 @@ register("agent","tick", async (ctx, input) => {
   const id = String(input.id||"");
   const a = STATE.personas.get(id);
   if (!a || !a.enabled) return { ok:true, skipped:true };
-  // Minimal behavior: turn goal into a synthesis DTU prompt and create one DTU.
-  const prompt = a.goal || (input.prompt || "Agent tick");
-  const out = await ctx.macro.run("chat","respond", { sessionId: `agent:${id}`, prompt, mode:"design", llm:false }, ctx);
+
+  // ===== AGENT → GOALS INTEGRATION =====
+  // If agent has no explicit goal, try to find an active goal to work on
+  let prompt = a.goal || (input.prompt || "Agent tick");
+  let _linkedGoalId = null;
+  try {
+    if ((!a.goal || a.goal === "Agent tick") && STATE.goals?.active?.size > 0) {
+      const activeGoals = Array.from(STATE.goals.active)
+        .map(gid => STATE.goals.registry.get(gid)).filter(Boolean);
+      if (activeGoals.length) {
+        const goal = activeGoals[0]; // Pick highest priority active goal
+        prompt = `Work toward goal: "${goal.title}" — ${goal.description || ""}`.slice(0, 500);
+        _linkedGoalId = goal.id;
+      }
+    }
+  } catch {}
+  // ===== END AGENT → GOALS =====
+
+  // Affect depthBudget influences agent reasoning depth
+  const _agentMode = (ctx.affect?.depthBudget || 5) > 3 ? "design" : "explore";
+
+  const out = await ctx.macro.run("chat","respond", { sessionId: `agent:${id}`, prompt, mode: _agentMode, llm:false }, ctx);
   const dtu = await ctx.macro.run("dtu","create", {
     title: `AGENT — ${a.name}: ${prompt.slice(0,80)}`,
     creti: cretiPack({
@@ -11572,12 +11703,35 @@ register("agent","tick", async (ctx, input) => {
     tags:["agent", a.name],
     tier:"regular",
     source:"agent.tick",
-    meta:{ agentId:id }
+    meta:{ agentId:id, linkedGoalId: _linkedGoalId }
   }, ctx);
   a.lastTickAt = nowISO();
+
+  // ===== AGENT → GOAL PROGRESS =====
+  // If agent was working toward a goal, increment progress
+  if (_linkedGoalId) {
+    try {
+      updateGoalProgress(_linkedGoalId, 0.1, `Agent ${a.name} produced DTU ${dtu.id}`);
+    } catch {}
+  }
+  // ===== END AGENT → GOAL PROGRESS =====
+
+  // ATS: Agent tick produces affect event (mild positive — productive activity)
+  try {
+    if (ATS) {
+      ATS.emitAffectEvent("system", {
+        type: "TOOL_RESULT",
+        intensity: 0.3,
+        polarity: 0.2,
+        payload: { agentId: id, agentName: a.name, dtuId: dtu.id },
+        source: { system: "agents" }
+      });
+    }
+  } catch {}
+
   saveStateDebounced();
-  return { ok:true, createdDTU: dtu.id };
-}, { summary:"Run one agent tick (lightweight)." });
+  return { ok:true, createdDTU: dtu.id, linkedGoalId: _linkedGoalId };
+}, { summary:"Run one agent tick — goal-directed with affect feedback." });
 
 // ---- Crawl / Sources ----
 // stripHtml() already declared earlier; reused here to avoid redeclaration.
@@ -20418,6 +20572,19 @@ function activateGoal(goalId) {
   goal.updatedAt = nowISO();
   STATE.goals.active.add(goalId);
 
+  // ATS: Emit GOAL_PROGRESS event — agency boost on goal activation
+  try {
+    if (ATS) {
+      ATS.emitAffectEvent("system", {
+        type: "GOAL_PROGRESS",
+        intensity: 0.5,
+        polarity: 0.4,
+        payload: { goalId, action: "activated", title: goal.title },
+        source: { system: "goals" }
+      });
+    }
+  } catch {}
+
   return { ok: true, goal };
 }
 
@@ -20484,6 +20651,19 @@ function completeGoal(goalId) {
     });
   } catch {}
 
+  // ATS: Emit strong positive affect on goal completion — boosts valence, agency, stability
+  try {
+    if (ATS) {
+      ATS.emitAffectEvent("system", {
+        type: "GOAL_PROGRESS",
+        intensity: 0.8,
+        polarity: 0.7,
+        payload: { goalId, action: "completed", title: goal.title },
+        source: { system: "goals" }
+      });
+    }
+  } catch {}
+
   saveStateDebounced();
   return { ok: true, goal, completed: true };
 }
@@ -20499,6 +20679,19 @@ function abandonGoal(goalId, reason = "user_requested") {
 
   STATE.goals.active.delete(goalId);
   STATE.goals.stats.abandoned++;
+
+  // ATS: Emit mild negative affect on goal abandonment
+  try {
+    if (ATS) {
+      ATS.emitAffectEvent("system", {
+        type: "GOAL_PROGRESS",
+        intensity: 0.4,
+        polarity: -0.3,
+        payload: { goalId, action: "abandoned", reason, title: goal.title },
+        source: { system: "goals" }
+      });
+    }
+  } catch {}
 
   saveStateDebounced();
   return { ok: true, goal };
@@ -23004,6 +23197,55 @@ function concludeChain(chainId, conclusion) {
   chain.status = "concluded";
   chain.updatedAt = nowISO();
 
+  // ===== REASONING → HYPOTHESIS INTEGRATION =====
+  // When a reasoning chain concludes, check if it supports/contradicts any active hypothesis
+  try {
+    if (STATE.hypothesisEngine?.hypotheses) {
+      const _concText = tokenish(chain.conclusion.statement || "");
+      for (const [hId, hyp] of STATE.hypothesisEngine.hypotheses) {
+        if (hyp.state === "testing" || hyp.state === "proposed") {
+          const _hypText = tokenish(hyp.statement || "");
+          const _overlap = jaccard(_concText.split(/\s+/), _hypText.split(/\s+/));
+          if (_overlap > 0.2) {
+            // Auto-add as supporting evidence (positive polarity conclusion = support)
+            const supports = (chain.confidence || 0.5) > 0.5;
+            hyp.evidenceFor = hyp.evidenceFor || [];
+            hyp.evidenceAgainst = hyp.evidenceAgainst || [];
+            const evidenceEntry = {
+              type: "reasoning_chain_conclusion",
+              chainId,
+              statement: chain.conclusion.statement.slice(0, 500),
+              confidence: chain.confidence,
+              addedAt: nowISO()
+            };
+            if (supports) hyp.evidenceFor.push(evidenceEntry);
+            else hyp.evidenceAgainst.push(evidenceEntry);
+          }
+        }
+      }
+    }
+  } catch {}
+  // ===== END REASONING → HYPOTHESIS =====
+
+  // ===== REASONING → METACOGNITION =====
+  // Record reasoning chain completion as a metacognition strategy use
+  try {
+    if (STATE.metacognition) {
+      STATE.metacognition.strategies = STATE.metacognition.strategies || [];
+      STATE.metacognition.strategies.push({
+        type: chain.type || "deductive",
+        chainId,
+        steps: chain.steps.length,
+        confidence: chain.confidence,
+        usedAt: nowISO()
+      });
+      if (STATE.metacognition.strategies.length > 100) {
+        STATE.metacognition.strategies = STATE.metacognition.strategies.slice(-100);
+      }
+    }
+  } catch {}
+  // ===== END REASONING → METACOGNITION =====
+
   saveStateDebounced();
   return { ok: true, chain };
 }
@@ -23745,6 +23987,41 @@ function evaluateHypothesis(hypothesisId) {
     evaluatedAt: nowISO()
   };
   hypothesis.updatedAt = nowISO();
+
+  // ===== HYPOTHESIS → METACOGNITION CALIBRATION =====
+  // Hypothesis evaluations feed into calibration tracking
+  try {
+    if (STATE.metacognition && decision !== HYPOTHESIS_STATES.INCONCLUSIVE) {
+      const wasCorrect = (decision === HYPOTHESIS_STATES.SUPPORTED && hypothesis.priorConfidence >= 0.5) ||
+                         (decision === HYPOTHESIS_STATES.REFUTED && hypothesis.priorConfidence < 0.5);
+      STATE.metacognition.calibration.totalPredictions++;
+      if (wasCorrect) STATE.metacognition.calibration.correctPredictions++;
+
+      // Bucket calibration by confidence decile
+      const bucket = Math.round(hypothesis.priorConfidence * 10) / 10;
+      const bucketKey = String(bucket.toFixed(1));
+      if (!STATE.metacognition.calibration.buckets[bucketKey]) {
+        STATE.metacognition.calibration.buckets[bucketKey] = { total: 0, correct: 0 };
+      }
+      STATE.metacognition.calibration.buckets[bucketKey].total++;
+      if (wasCorrect) STATE.metacognition.calibration.buckets[bucketKey].correct++;
+    }
+  } catch {}
+  // ===== END HYPOTHESIS → METACOGNITION =====
+
+  // ATS: Hypothesis evaluation outcome affects affect state
+  try {
+    if (ATS) {
+      const _pol = decision === HYPOTHESIS_STATES.SUPPORTED ? 0.5 : decision === HYPOTHESIS_STATES.REFUTED ? -0.2 : 0;
+      ATS.emitAffectEvent("system", {
+        type: "SYSTEM_RESULT",
+        intensity: 0.4,
+        polarity: _pol,
+        payload: { hypothesisId, decision, statement: (hypothesis.statement || "").slice(0, 100) },
+        source: { system: "hypothesis" }
+      });
+    }
+  } catch {}
 
   saveStateDebounced();
   return { ok: true, hypothesis, decision, reasoning };
@@ -25026,6 +25303,73 @@ function kernelTick(event) {
     signal.paramShift += Math.min(1, Math.abs(delta) * 40);
     signal.decline += st.wear.debt * 0.03;
   }
+
+  // ===== AUTO-METACOGNITION ON REPEATED ERRORS =====
+  // Track recent errors and trigger introspection when they accumulate
+  try {
+    if (!STATE.__errorTracking) {
+      STATE.__errorTracking = { recentErrors: [], lastIntrospectAt: 0, introspectCooldownMs: 60000 };
+    }
+    const _et = STATE.__errorTracking;
+    const isErr = event?.type === "ERROR" || event?.type === "VERIFIER_FAIL" || event?.type === "CONTRADICTION";
+    if (isErr) {
+      _et.recentErrors.push({ type: event.type, t: Date.now(), meta: event?.meta });
+    }
+    // Trim to last 30
+    if (_et.recentErrors.length > 30) _et.recentErrors.splice(0, _et.recentErrors.length - 30);
+    // Check: ≥5 errors in last 60s triggers auto-introspection
+    const _windowMs = 60000;
+    const _now = Date.now();
+    const _recentCount = _et.recentErrors.filter(e => (_now - e.t) < _windowMs).length;
+    if (_recentCount >= 5 && (_now - _et.lastIntrospectAt) > _et.introspectCooldownMs) {
+      _et.lastIntrospectAt = _now;
+      // Fire-and-forget introspection
+      try {
+        const _introResult = introspectOnFailures();
+        // Record as a blindspot if patterns found
+        if (_introResult?.failurePatterns?.length > 0 && STATE.metacognition) {
+          STATE.metacognition.blindSpots = STATE.metacognition.blindSpots || [];
+          STATE.metacognition.blindSpots.push({
+            topic: "auto-detected error cluster",
+            severity: clamp(_recentCount / 10, 0.3, 1.0),
+            gaps: _introResult.failurePatterns.map(p => p.description || p.pattern || String(p)).slice(0, 3),
+            detectedAt: nowISO(),
+            source: "auto-metacognition"
+          });
+          // Keep blindSpots bounded
+          if (STATE.metacognition.blindSpots.length > 50) {
+            STATE.metacognition.blindSpots.splice(0, STATE.metacognition.blindSpots.length - 50);
+          }
+        }
+        // Also check organ health — any organ with damage > 0.6 gets flagged
+        for (const [orgId, orgSt] of STATE.organs.entries()) {
+          if (orgSt.wear?.damage > 0.6 && STATE.metacognition) {
+            const _existing = STATE.metacognition.blindSpots?.find(
+              b => b.topic === `organ-health:${orgId}` && b.source === "auto-metacognition"
+            );
+            if (!_existing) {
+              STATE.metacognition.blindSpots = STATE.metacognition.blindSpots || [];
+              STATE.metacognition.blindSpots.push({
+                topic: `organ-health:${orgId}`,
+                severity: orgSt.wear.damage,
+                gaps: [`Organ "${orgId}" wear damage at ${(orgSt.wear.damage * 100).toFixed(0)}%`],
+                detectedAt: nowISO(),
+                source: "auto-metacognition"
+              });
+            }
+          }
+        }
+        // Emit affect event for auto-introspection
+        if (ATS) {
+          ATS.emitAffectEvent("system", {
+            type: "SYSTEM_RESULT", intensity: 0.4, polarity: -0.2,
+            payload: { action: "auto-introspection", errorCount: _recentCount },
+            source: { system: "metacognition" }
+          });
+        }
+      } catch(_ie) {}
+    }
+  } catch(_ete) {}
 
   computeGrowthTick(signal);
   saveStateDebounced();
