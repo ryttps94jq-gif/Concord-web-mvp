@@ -8,7 +8,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay, tick, enforceInvariants, resetState } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay, enforceInvariants, resetState } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
 import { projectLabel, projectToneTags } from '../affect/projection.js';
 import { validateEvent } from '../affect/schema.js';
@@ -78,7 +78,7 @@ describe('Decay Dynamics', () => {
     E.f = 0.8;   // high fatigue
     E.ts = Date.now() - 60000; // 60 seconds ago
 
-    const M = createMomentum();
+    const _M = createMomentum();
 
     // Simulate 60s of decay
     applyDecay(E, 60000);

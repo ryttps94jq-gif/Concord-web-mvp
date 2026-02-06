@@ -59,7 +59,7 @@ before(async () => {
     } catch {
       // Server not ready yet
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => { setTimeout(r, 500); });
   }
   throw new Error('Server failed to start within 30 seconds');
 });
@@ -295,9 +295,6 @@ describe('Authorization', () => {
 describe('Security Headers', () => {
   it('Responses include security headers', async () => {
     const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(10_000) });
-
-    // Check for common security headers (when helmet is enabled)
-    const headers = res.headers;
 
     // These may or may not be present depending on configuration
     // Just verify the response succeeds

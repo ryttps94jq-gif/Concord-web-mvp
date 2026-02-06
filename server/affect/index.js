@@ -12,11 +12,11 @@
  *   const { E, policy } = emitAffectEvent(sessionId, event);
  */
 
-import { applyEvent, tick, createState, createMomentum } from "./engine.js";
+import { applyEvent, tick } from "./engine.js";
 import { getAffectPolicy } from "./policy.js";
 import { projectLabel, projectToneTags, projectSummary } from "./projection.js";
 import { validateEvent, validateSessionId } from "./schema.js";
-import { getSession, getState, logEvent, getEvents, resetSession, deleteSession, listSessions, sessionCount, serializeAll, restoreAll } from "./store.js";
+import { getSession, logEvent, getEvents, resetSession, deleteSession, listSessions, sessionCount, serializeAll, restoreAll } from "./store.js";
 import { BASELINE, DIMS, BOUNDS } from "./defaults.js";
 
 /**
@@ -40,7 +40,7 @@ export function emitAffectEvent(sessionId, rawEvent) {
   const session = getSession(sessionId);
 
   // Apply event to state
-  const { E, M, delta } = applyEvent(session.E, session.M, event);
+  const { E, delta } = applyEvent(session.E, session.M, event);
 
   // Log event
   logEvent(sessionId, { ...event, delta });
