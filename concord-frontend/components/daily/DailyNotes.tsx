@@ -231,15 +231,19 @@ export function DailyNotes({
                 exit={{ opacity: 0, y: -10 }}
               >
                 <div className="prose prose-invert max-w-none">
-                  <div
-                    className="text-gray-300 whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{
-                      __html: currentNote.dtu.content
-                        .replace(/^# .+\n/, '')
-                        .replace(/## (.+)/g, '<h2 class="text-lg font-semibold text-white mt-6 mb-2">$1</h2>')
-                        .replace(/\n/g, '<br>')
-                    }}
-                  />
+                  {/* Safe rendering without dangerouslySetInnerHTML to prevent XSS */}
+                  <div className="text-gray-300 whitespace-pre-wrap">
+                    {currentNote.dtu.content
+                      .replace(/^# .+\n/, '')
+                      .split('\n')
+                      .map((line, i) => {
+                        const headerMatch = line.match(/^## (.+)$/);
+                        if (headerMatch) {
+                          return <h2 key={i} className="text-lg font-semibold text-white mt-6 mb-2">{headerMatch[1]}</h2>;
+                        }
+                        return <p key={i} className="mb-1">{line || '\u00A0'}</p>;
+                      })}
+                  </div>
                 </div>
               </motion.div>
             ) : (
