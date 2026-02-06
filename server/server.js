@@ -448,6 +448,69 @@ const uid = (prefix="id") => `${prefix}_${crypto.randomBytes(10).toString("hex")
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const safeJson = (x, fallback=null) => { try { return JSON.parse(x); } catch { return fallback; } };
 
+// ---- Input Validation Helpers ----
+const VALIDATION = {
+  // String validation with max length
+  string: (val, maxLen = 10000, defaultVal = "") => {
+    if (val === null || val === undefined) return defaultVal;
+    return String(val).slice(0, maxLen);
+  },
+  // Integer with bounds
+  int: (val, min = 0, max = Number.MAX_SAFE_INTEGER, defaultVal = 0) => {
+    const n = parseInt(val, 10);
+    return isNaN(n) ? defaultVal : clamp(n, min, max);
+  },
+  // Float with bounds
+  float: (val, min = 0, max = Number.MAX_VALUE, defaultVal = 0) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? defaultVal : clamp(n, min, max);
+  },
+  // Boolean
+  bool: (val, defaultVal = false) => {
+    if (typeof val === "boolean") return val;
+    if (val === "true" || val === "1" || val === 1) return true;
+    if (val === "false" || val === "0" || val === 0) return false;
+    return defaultVal;
+  },
+  // Array with item limit
+  array: (val, maxItems = 100) => {
+    if (!Array.isArray(val)) return [];
+    return val.slice(0, maxItems);
+  },
+  // ID format validation (alphanumeric + underscore)
+  id: (val, maxLen = 100) => {
+    const s = String(val || "").slice(0, maxLen);
+    return /^[a-zA-Z0-9_-]+$/.test(s) ? s : "";
+  },
+  // Email format
+  email: (val) => {
+    const s = String(val || "").toLowerCase().trim().slice(0, 254);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : "";
+  },
+  // URL format
+  url: (val, maxLen = 2000) => {
+    const s = String(val || "").slice(0, maxLen);
+    try { new URL(s); return s; } catch { return ""; }
+  },
+  // Tags array (alphanumeric, lowercase)
+  tags: (val, maxTags = 40, maxTagLen = 50) => {
+    if (!Array.isArray(val)) return [];
+    return val
+      .slice(0, maxTags)
+      .map(t => String(t).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, maxTagLen))
+      .filter(Boolean);
+  },
+  // Sanitize for XSS prevention (basic HTML escape)
+  html: (val, maxLen = 50000) => {
+    return String(val || "").slice(0, maxLen)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  }
+};
+
 function normalizeText(s="") {
   return String(s).replace(/\s+/g, " ").trim();
 }
@@ -2034,6 +2097,15 @@ function authMiddleware(req, res, next) {
   return res.status(401).json({ ok: false, error: "Unauthorized", code: "AUTH_REQUIRED" });
 }
 
+// Require authentication helper (returns middleware)
+function requireAuth() {
+  return (req, res, next) => {
+    if (!AUTH_ENABLED) return next();
+    if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    return next();
+  };
+}
+
 // Permission check helper
 function requireRole(...roles) {
   return (req, res, next) => {
@@ -2235,14 +2307,27 @@ async function createBackup(name = null) {
 
 async function restoreBackup(backupPath) {
   try {
-    if (!fs.existsSync(backupPath)) {
-      // Try in backup dir
-      const tryPath = path.join(BACKUP_DIR, backupPath.endsWith(".json") ? backupPath : `${backupPath}.json`);
-      if (fs.existsSync(tryPath)) backupPath = tryPath;
-      else return { ok: false, error: "Backup file not found" };
+    // Path traversal protection - only allow files within BACKUP_DIR
+    const sanitizedName = path.basename(String(backupPath || ""));
+    if (!sanitizedName || sanitizedName.includes("..")) {
+      return { ok: false, error: "Invalid backup path" };
     }
 
-    const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+    // Only look in BACKUP_DIR - never allow absolute paths
+    const safePath = path.join(BACKUP_DIR, sanitizedName.endsWith(".json") ? sanitizedName : `${sanitizedName}.json`);
+    const resolvedPath = path.resolve(safePath);
+
+    // Verify the resolved path is still within BACKUP_DIR
+    const backupDirResolved = path.resolve(BACKUP_DIR);
+    if (!resolvedPath.startsWith(backupDirResolved + path.sep) && resolvedPath !== backupDirResolved) {
+      return { ok: false, error: "Invalid backup path - access denied" };
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      return { ok: false, error: "Backup file not found" };
+    }
+
+    const backup = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
 
     // Restore state
     if (backup.data?.dtus) STATE.dtus = new Map(Object.entries(backup.data.dtus));
@@ -2778,7 +2863,7 @@ const STATE_DISK = loadStateFromDisk();
 // Final boot normalization (ensures env-driven defaults win)
 try {
   if (STATE && STATE.settings) {
-    if (__llmDefaultForced !== null) STATE.settings.llmDefault = __llmDefaultForced;
+    if (__llmDefaultForcedRaw !== null) STATE.settings.llmDefault = DEFAULT_LLM_ON;
     else if ((process.env.OPENAI_API_KEY || "").trim()) STATE.settings.llmDefault = true;
   }
 } catch {}
@@ -3312,6 +3397,42 @@ register("entity", "terminal", async (ctx, input={}) => {
   if (!entityId) return { ok:false, error:"Entity identity required" };
   if (!command) return { ok:false, error:"Command required" };
   if (entityId === "anon") return { ok:false, error:"Anonymous entities cannot execute commands" };
+  if (command.length > 2000) return { ok:false, error:"Command too long (max 2000 chars)" };
+
+  // Command injection protection - block dangerous patterns
+  const dangerousPatterns = [
+    /[`]/, // backtick command substitution
+    /\$\(/, // $() command substitution
+    /\$\{/, // ${} variable expansion with commands
+    /;\s*[a-z]/i, // command chaining with semicolon
+    /\|\s*[a-z]/i, // piping to commands (except simple pipes)
+    /&&/, // AND chaining
+    /\|\|/, // OR chaining
+    />\s*\//, // redirect to absolute path
+    />\s*\.\.\// , // redirect to parent path
+    /\bsudo\b/i, // sudo
+    /\bsu\b\s/, // su command
+    /\bchmod\b.*777/, // dangerous chmod
+    /\brm\b.*-rf?\s+\//, // rm -rf /
+    /\bdd\b.*of=\//, // dd to device
+    /\bmkfs\b/, // filesystem creation
+    /\bshutdown\b/, // shutdown
+    /\breboot\b/, // reboot
+    /\bkill\b.*-9.*1\b/, // kill init
+    /\/etc\/passwd/, // passwd file
+    /\/etc\/shadow/, // shadow file
+    /\.ssh\//, // ssh directory
+    /\beval\b/, // eval command
+    /\bexec\b/, // exec command
+    /\bsource\b\s/, // source command
+    /\b\.\s+\//, // . /path sourcing
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(command)) {
+      return { ok:false, error:"Command contains blocked pattern", blocked: true };
+    }
+  }
 
   // Entity workspace setup
   const ENTITY_HOME = path.join(DATA_DIR, "entity_workspaces", entityId);
@@ -3848,8 +3969,13 @@ register("voice","tts", async (ctx, input={}) => {
     if (p.error) return { ok:false, error:String(p.error) };
     const outPath = String(input.outPath || "");
     if (outPath) {
-      try { fs.writeFileSync(outPath, p.stdout); } catch {}
-      return { ok:true, outPath, source: "piper", note:"TTS wrote audio to outPath." };
+      // Path traversal protection - only allow writes to entity workspace or tmp
+      const TTS_OUTPUT_DIR = path.join(DATA_DIR, "tts_output");
+      try { fs.mkdirSync(TTS_OUTPUT_DIR, { recursive: true }); } catch {}
+      const safeName = path.basename(outPath).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const safePath = path.join(TTS_OUTPUT_DIR, safeName);
+      try { fs.writeFileSync(safePath, p.stdout); } catch {}
+      return { ok:true, outPath: safePath, source: "piper", note:"TTS wrote audio to safe path." };
     }
     return { ok:true, source: "piper", audioBase64: Buffer.from(p.stdout).toString("base64") };
   }
@@ -5498,10 +5624,44 @@ function queryDTUsAdvanced(query) {
 // ---- File Attachments ----
 const ATTACHMENTS_DIR = path.join(DATA_DIR, "attachments");
 const ATTACHMENTS = new Map(); // attachmentId -> { id, dtuId, filename, mimeType, size, path, createdAt }
+const ATTACHMENTS_MAX = 5000;
+const ATTACHMENTS_MAX_SIZE_MB = 500;
 
 function ensureAttachmentsDir() {
   try { fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true }); } catch {}
 }
+
+// Cleanup orphaned attachments (DTU deleted) and enforce size limits
+function cleanupAttachments() {
+  let cleaned = 0, freedBytes = 0;
+
+  // Remove attachments for deleted DTUs
+  for (const [id, att] of ATTACHMENTS) {
+    if (att.dtuId && !STATE.dtus.has(att.dtuId)) {
+      try { fs.unlinkSync(att.path); } catch {}
+      ATTACHMENTS.delete(id);
+      freedBytes += att.size || 0;
+      cleaned++;
+    }
+  }
+
+  // If too many attachments, remove oldest
+  if (ATTACHMENTS.size > ATTACHMENTS_MAX) {
+    const sorted = Array.from(ATTACHMENTS.entries())
+      .sort((a, b) => (a[1].createdAt || "").localeCompare(b[1].createdAt || ""));
+    for (const [id, att] of sorted.slice(0, ATTACHMENTS.size - ATTACHMENTS_MAX)) {
+      try { fs.unlinkSync(att.path); } catch {}
+      ATTACHMENTS.delete(id);
+      freedBytes += att.size || 0;
+      cleaned++;
+    }
+  }
+
+  if (cleaned > 0) console.log(`[Attachments] Cleaned ${cleaned} attachments, freed ${(freedBytes / 1024 / 1024).toFixed(1)} MB`);
+}
+
+// Run attachment cleanup every 12 hours
+setInterval(cleanupAttachments, 12 * 60 * 60 * 1000);
 
 function saveAttachment(dtuId, filename, buffer, mimeType) {
   ensureAttachmentsDir();
@@ -8314,9 +8474,12 @@ register("dtu", "create", async (ctx, input) => {
 
 register("dtu", "get", async (ctx, input) => {
   const id = String(input.id || "");
-  const dtu = STATE.dtus.get(id) || STATE.shadowDtus.get(id);
+  // Only return from main DTU store - shadow DTUs are internal
+  const dtu = STATE.dtus.get(id);
   if (!dtu) return { ok: false, error: "DTU not found" };
-  return { ok: true, dtu, shadow: isShadowDTU(dtu) };
+  // Don't expose shadow DTUs via this endpoint
+  if (isShadowDTU(dtu)) return { ok: false, error: "DTU not found" };
+  return { ok: true, dtu };
 });
 
 register("dtu", "update", async (ctx, input) => {
@@ -8331,7 +8494,14 @@ register("dtu", "update", async (ctx, input) => {
   if (input.content !== undefined) updated.content = String(input.content);
   if (input.creti !== undefined) updated.creti = String(input.creti);
   if (input.tags !== undefined) updated.tags = Array.isArray(input.tags) ? input.tags.slice(0, 40) : existing.tags;
-  if (input.tier !== undefined && ["regular", "mega", "hyper"].includes(input.tier)) updated.tier = input.tier;
+  // Tier changes require admin role - prevent gaming via direct update
+  if (input.tier !== undefined && ["regular", "mega", "hyper"].includes(input.tier)) {
+    const role = ctx?.actor?.role || "guest";
+    if (!["owner", "admin", "founder"].includes(role)) {
+      return { ok: false, error: "Tier changes require admin privileges" };
+    }
+    updated.tier = input.tier;
+  }
   updated.updatedAt = nowISO();
 
   upsertDTU(updated, { broadcast: true });
@@ -8345,6 +8515,15 @@ register("dtu", "delete", async (ctx, input) => {
 
   const dtu = STATE.dtus.get(id);
   if (!dtu) return { ok: false, error: "DTU not found" };
+
+  // Authorization check - only owner/admin or DTU author can delete
+  const role = ctx?.actor?.role || "guest";
+  const userId = ctx?.actor?.id || ctx?.actor?.odId;
+  const isAuthor = dtu.authorId === userId || dtu.source === userId;
+  const isAdmin = ["owner", "admin", "founder"].includes(role);
+  if (!isAuthor && !isAdmin) {
+    return { ok: false, error: "Not authorized to delete this DTU" };
+  }
 
   // Delete the DTU
   STATE.dtus.delete(id);
@@ -8378,6 +8557,11 @@ register("dtu", "list", async (ctx, input) => {
   return { ok: true, dtus: items, limit, offset, total: STATE.dtus.size };
 });
 register("dtu", "listShadow", async (ctx, input) => {
+  // Shadow DTUs are internal - only admins can view them
+  const role = ctx?.actor?.role || "guest";
+  if (!["owner", "admin", "founder"].includes(role)) {
+    return { ok: false, error: "Shadow DTU access requires admin privileges" };
+  }
   const limit = clamp(Number(input.limit || 5000), 1, 5000);
   const offset = clamp(Number(input.offset || 0), 0, 1e9);
   const q = tokenish(input.q || "");
@@ -8385,7 +8569,7 @@ register("dtu", "listShadow", async (ctx, input) => {
   if (q) items = items.filter(d => tokenish(d.title).includes(q) || tokenish((d.tags||[]).join(" ")).includes(q) || tokenish((d.cretiHuman || d.creti || "")).includes(q));
   items = items.slice(offset, offset + limit);
   return { ok: true, dtus: items, limit, offset, total: STATE.shadowDtus.size };
-}, { description: "List shadow DTUs (internal/hidden by default)." });
+}, { description: "List shadow DTUs (internal/hidden by default, admin only)." });
 
 
 
@@ -9396,12 +9580,57 @@ function stripHtml(html="") {
     .trim();
 }
 
+// SSRF protection helper
+function isUrlSafe(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    // Block non-HTTP(S) protocols
+    if (!["http:", "https:"].includes(u.protocol)) return { safe: false, reason: "Invalid protocol" };
+    // Block internal IPs and localhost
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1") {
+      return { safe: false, reason: "Internal host blocked" };
+    }
+    // Block private IP ranges
+    const ipMatch = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipMatch) {
+      const [, a, b] = ipMatch.map(Number);
+      if (a === 10) return { safe: false, reason: "Private IP blocked" };
+      if (a === 172 && b >= 16 && b <= 31) return { safe: false, reason: "Private IP blocked" };
+      if (a === 192 && b === 168) return { safe: false, reason: "Private IP blocked" };
+      if (a === 169 && b === 254) return { safe: false, reason: "Link-local IP blocked" };
+    }
+    // Block cloud metadata endpoints
+    if (host === "169.254.169.254" || host.endsWith(".internal") || host.endsWith(".local")) {
+      return { safe: false, reason: "Metadata endpoint blocked" };
+    }
+    return { safe: true };
+  } catch { return { safe: false, reason: "Invalid URL" }; }
+}
+
 register("ingest", "url", async (ctx, input) => {
   const url = String(input.url || "");
   if (!url) return { ok:false, error:"url required" };
+
+  // SSRF protection
+  const urlCheck = isUrlSafe(url);
+  if (!urlCheck.safe) return { ok:false, error: urlCheck.reason };
+
   const prompt = String(input.prompt || "");
   const tags = Array.isArray(input.tags) ? input.tags : ["ingest"];
-  const res = await fetch(url, { method:"GET" });
+
+  // Add timeout and size limit
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(url, { method:"GET", signal: controller.signal });
+  } catch (e) {
+    clearTimeout(timeout);
+    return { ok:false, error: e.name === "AbortError" ? "Request timeout" : String(e.message) };
+  }
+  clearTimeout(timeout);
+
   const raw = await res.text();
   const text = stripHtml(raw).slice(0, 12000);
 
@@ -11068,8 +11297,23 @@ register("crawl","enqueue", async (ctx, input) => {
 register("crawl","fetch", async (ctx, input) => {
   const url = String(input.url||"").trim();
   if (!url) return { ok:false, error:"url required" };
-  // Basic fetch (no advanced robots/rate-limit yet; local-first prototype)
-  const resp = await fetch(url, { redirect: "follow" });
+
+  // SSRF protection
+  const urlCheck = isUrlSafe(url);
+  if (!urlCheck.safe) return { ok:false, error: urlCheck.reason };
+
+  // Add timeout for fetch
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let resp;
+  try {
+    resp = await fetch(url, { redirect: "follow", signal: controller.signal });
+  } catch (e) {
+    clearTimeout(timeout);
+    return { ok:false, error: e.name === "AbortError" ? "Request timeout" : String(e.message) };
+  }
+  clearTimeout(timeout);
+
   const ct = String(resp.headers.get("content-type")||"");
   const raw = await resp.text();
   const text = ct.includes("text/html") ? stripHtml(raw) : raw;
@@ -11532,8 +11776,9 @@ register("verify","deriveSecondOrder", async (ctx, input) => {
   const query = String(input?.query||"");
   const llm = (typeof input?.llm === "boolean") ? input.llm : ctx.state.settings.llmDefault;
 
+  // Only use regular DTUs - shadow DTUs are internal and should not be exposed
   const seeds = seedIds.length
-    ? seedIds.map(id => STATE.dtus.get(id) || STATE.shadowDtus.get(id)).filter(Boolean)
+    ? seedIds.map(id => STATE.dtus.get(id)).filter(d => d && !isShadowDTU(d))
     : _retrieveRelevantDTUs(query, 10, 0.06);
 
   // Full activation: deriveSecondOrder ALWAYS attempts to commit through pipeline.
@@ -11590,15 +11835,16 @@ register("verify","lineageLink", async (ctx, input) => {
   const childId = String(input?.childId||"");
   const parents = Array.isArray(input?.parents) ? input.parents.map(String) : [];
   if (!childId || !parents.length) return { ok:false, reason:"missing_child_or_parents" };
-  const child = STATE.dtus.get(childId) || STATE.shadowDtus.get(childId);
-  if (!child) return { ok:false, reason:"child_not_found" };
+  // Only link regular DTUs - shadow DTUs are internal
+  const child = STATE.dtus.get(childId);
+  if (!child || isShadowDTU(child)) return { ok:false, reason:"child_not_found" };
   child.lineage = child.lineage || { parents:[], children:[] };
   child.lineage.parents = Array.from(new Set([...(child.lineage.parents||[]), ...parents]));
   child.updatedAt = nowISO();
   // parent -> child back-links (best-effort; do not create if absent)
   for (const pid of parents) {
-    const p = STATE.dtus.get(pid) || STATE.shadowDtus.get(pid);
-    if (!p) continue;
+    const p = STATE.dtus.get(pid);
+    if (!p || isShadowDTU(p)) continue;
     p.lineage = p.lineage || { parents:[], children:[] };
     p.lineage.children = Array.from(new Set([...(p.lineage.children||[]), childId]));
     p.updatedAt = nowISO();
@@ -12895,7 +13141,7 @@ app.post("/api/chat", async (req, res) => {
         const t = String(txt || "");
         for (let i=0; i<t.length; i+=size) {
           yield t.slice(i, i+size);
-          await sleep(0);
+          await new Promise(r => setImmediate(r)); // yield to event loop
         }
       }
 
@@ -15969,7 +16215,21 @@ register("schema", "validate", async (ctx, input) => {
       if (field.type === "boolean" && typeof value !== "boolean") errors.push({ field: field.name, error: "Must be a boolean" });
       if (field.type === "array" && !Array.isArray(value)) errors.push({ field: field.name, error: "Must be an array" });
       if (field.validation) {
-        if (field.validation.regex && typeof value === "string" && !new RegExp(field.validation.regex).test(value)) errors.push({ field: field.name, error: `Must match: ${field.validation.regex}` });
+        if (field.validation.regex && typeof value === "string") {
+          // ReDoS protection - limit regex complexity
+          const regexStr = String(field.validation.regex);
+          if (regexStr.length > 200) {
+            errors.push({ field: field.name, error: "Regex pattern too long" });
+          } else if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/g.test(regexStr)) {
+            errors.push({ field: field.name, error: "Regex pattern too complex" });
+          } else {
+            try {
+              if (!new RegExp(regexStr).test(value)) {
+                errors.push({ field: field.name, error: `Must match: ${regexStr}` });
+              }
+            } catch { errors.push({ field: field.name, error: "Invalid regex pattern" }); }
+          }
+        }
         if (field.validation.min !== undefined && value < field.validation.min) errors.push({ field: field.name, error: `Must be >= ${field.validation.min}` });
         if (field.validation.max !== undefined && value > field.validation.max) errors.push({ field: field.name, error: `Must be <= ${field.validation.max}` });
         if (field.validation.enum && !field.validation.enum.includes(value)) errors.push({ field: field.name, error: `Must be one of: ${field.validation.enum.join(", ")}` });
@@ -16465,7 +16725,21 @@ register("cache", "set", async (ctx, input) => {
 register("cache", "invalidate", async (ctx, input) => {
   const { key, pattern } = input;
   if (key) { CACHE.hot.delete(key); return { ok: true, invalidated: 1 }; }
-  if (pattern) { const re = new RegExp(pattern); let count = 0; for (const k of CACHE.hot.keys()) { if (re.test(k)) { CACHE.hot.delete(k); count++; } } return { ok: true, invalidated: count }; }
+  if (pattern) {
+    // ReDoS protection - validate pattern before use
+    const patternStr = String(pattern);
+    if (patternStr.length > 100) return { ok: false, error: "Pattern too long (max 100 chars)" };
+    if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/g.test(patternStr)) return { ok: false, error: "Pattern too complex" };
+    try {
+      const re = new RegExp(patternStr);
+      let count = 0;
+      for (const k of CACHE.hot.keys()) {
+        if (re.test(k)) { CACHE.hot.delete(k); count++; }
+        if (count > 1000) break; // Safety limit
+      }
+      return { ok: true, invalidated: count };
+    } catch { return { ok: false, error: "Invalid regex pattern" }; }
+  }
   return { ok: false, error: "Key or pattern required" };
 });
 
@@ -18003,6 +18277,41 @@ function createDTUFromRSSItem(item, feedName) {
 
 // ---- Reminders ----
 const REMINDERS = new Map(); // reminderId -> { id, dtuId, reminderAt, message, completed }
+const REMINDERS_MAX = 1000;
+const REMINDERS_TTL_DAYS = 30;
+
+// Cleanup old completed reminders
+function cleanupReminders() {
+  const now = Date.now();
+  const ttlMs = REMINDERS_TTL_DAYS * 24 * 60 * 60 * 1000;
+  let cleaned = 0;
+
+  for (const [id, rem] of REMINDERS) {
+    if (rem.completed) {
+      const createdAt = new Date(rem.createdAt || 0).getTime();
+      if (now - createdAt > ttlMs) {
+        REMINDERS.delete(id);
+        cleaned++;
+      }
+    }
+  }
+
+  // If still too many, remove oldest completed
+  if (REMINDERS.size > REMINDERS_MAX) {
+    const sorted = Array.from(REMINDERS.entries())
+      .filter(([, r]) => r.completed)
+      .sort((a, b) => (a[1].createdAt || "").localeCompare(b[1].createdAt || ""));
+    for (const [id] of sorted.slice(0, REMINDERS.size - REMINDERS_MAX)) {
+      REMINDERS.delete(id);
+      cleaned++;
+    }
+  }
+
+  if (cleaned > 0) console.log(`[Reminders] Cleaned ${cleaned} old reminders`);
+}
+
+// Run cleanup every 6 hours
+setInterval(cleanupReminders, 6 * 60 * 60 * 1000);
 
 function createReminder(dtuId, reminderAt, message = null) {
   const dtu = STATE.dtus.get(dtuId);
@@ -18352,28 +18661,29 @@ function installTheme(themeId) {
 // ============================================================================
 
 // ---- Wave 11: UX Endpoints ----
-app.post("/api/databases", (req, res) => {
+// Database endpoints require authentication
+app.post("/api/databases", requireAuth(), (req, res) => {
   const result = createDatabase(req.body.name, req.body.schema || []);
   res.json(result);
 });
 
-app.get("/api/databases/:id", (req, res) => {
+app.get("/api/databases/:id", requireAuth(), (req, res) => {
   const db = DATABASES.get(req.params.id);
   if (!db) return res.status(404).json({ ok: false, error: "Database not found" });
   res.json({ ok: true, database: db });
 });
 
-app.post("/api/databases/:id/rows", (req, res) => {
+app.post("/api/databases/:id/rows", requireAuth(), (req, res) => {
   const result = addDatabaseRow(req.params.id, req.body);
   res.json(result);
 });
 
-app.get("/api/databases/:id/query", (req, res) => {
+app.get("/api/databases/:id/query", requireAuth(), (req, res) => {
   const result = queryDatabase(req.params.id, req.query);
   res.json(result);
 });
 
-app.post("/api/databases/:id/views", (req, res) => {
+app.post("/api/databases/:id/views", requireAuth(), (req, res) => {
   const result = addDatabaseView(req.params.id, req.body);
   res.json(result);
 });
@@ -18955,8 +19265,8 @@ app.get("/api/papers/tags", (req, res) => {
   res.json({ ok: true, tags: Array.from(tagSet).sort() });
 });
 
-// Credits/wallet system
-app.post("/api/credits/wallet", (req, res) => {
+// Credits/wallet system - requires authentication
+app.post("/api/credits/wallet", requireAuth(), (req, res) => {
   const { walletId } = req.body || {};
   if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
 
@@ -18978,7 +19288,7 @@ app.post("/api/credits/wallet", (req, res) => {
   res.json({ ok: true, wallet });
 });
 
-app.post("/api/credits/earn", (req, res) => {
+app.post("/api/credits/earn", requireAuth(), (req, res) => {
   const { walletId, amount, reason = "quest" } = req.body || {};
   if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
   if (!amount || amount <= 0) return res.status(400).json({ ok: false, error: "positive amount required" });
@@ -19002,7 +19312,7 @@ app.post("/api/credits/earn", (req, res) => {
   res.json({ ok: true, wallet, earned: amount });
 });
 
-app.post("/api/credits/spend", (req, res) => {
+app.post("/api/credits/spend", requireAuth(), (req, res) => {
   const { walletId, amount, reason = "spend" } = req.body || {};
   if (!walletId) return res.status(400).json({ ok: false, error: "walletId required" });
   if (!amount || amount <= 0) return res.status(400).json({ ok: false, error: "positive amount required" });
@@ -19034,9 +19344,9 @@ app.post("/api/credits/spend", (req, res) => {
 app.get("/api/global/feed", (req, res) => {
   const { limit = 50, offset = 0, tier } = req.query;
 
-  // Get global DTUs (isGlobal flag or tier >= MEGA)
+  // Get global DTUs (isGlobal flag or tier >= mega)
   let globalDtus = Array.from(STATE.dtus?.values() || [])
-    .filter(d => d.isGlobal || d.tier === "MEGA" || d.tier === "HYPER")
+    .filter(d => d.isGlobal || d.tier === "mega" || d.tier === "hyper")
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   // Filter by tier if specified
@@ -23759,11 +24069,19 @@ app.post('/api/realm/publish-to-global', async (req, res) => {
 });
 
 // ---- Council Vote on Global Publish ----
-app.post('/api/realm/vote-publish', async (req, res) => {
+app.post('/api/realm/vote-publish', requireAuth(), async (req, res) => {
   try {
     const { odId, dtuId, vote, reason } = req.body;
     if (!odId || !dtuId || vote === undefined) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Verify voter is the authenticated user or an admin
+    const userId = req.user?.id || req.user?.userId;
+    const role = req.user?.role || "guest";
+    const isAdmin = ["owner", "admin", "founder"].includes(role);
+    if (!isAdmin && userId !== odId) {
+      return res.status(403).json({ error: 'Can only vote as yourself' });
     }
 
     ensureGlobalState();

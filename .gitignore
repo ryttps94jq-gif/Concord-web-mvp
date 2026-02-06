@@ -2,3 +2,5 @@
 # Server generated files
 server/node_modules/
 server/concord_state.json
+concord_state.json
+data/

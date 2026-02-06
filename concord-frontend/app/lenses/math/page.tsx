@@ -11,10 +11,36 @@ export default function MathLensPage() {
 
   const handleEvaluate = () => {
     try {
-      // Safe evaluation (would use proper math engine in production)
-      const sanitized = expression.replace(/[^0-9+\-*/().^sqrt\s]/g, '');
-      const evaluated = Function(`"use strict"; return (${sanitized})`)();
-      setResult({ value: String(evaluated), verified: true });
+      // Safe evaluation using explicit token parsing instead of Function() constructor
+      // Only allow numbers, basic operators, and safe Math functions
+      const allowedMath = ['sqrt', 'pow', 'abs', 'floor', 'ceil', 'round', 'sin', 'cos', 'tan', 'log', 'exp', 'PI', 'E'];
+      let sanitized = expression.trim();
+
+      // Validate: only allow safe characters
+      if (!/^[0-9+\-*/().^\s]+$/.test(sanitized.replace(/Math\.\w+/g, '').replace(/\*\*/g, ''))) {
+        // Check if it contains allowed Math functions
+        const hasMath = allowedMath.some(fn => sanitized.includes(`Math.${fn}`));
+        if (!hasMath && sanitized.match(/[a-zA-Z]/)) {
+          throw new Error('Invalid characters');
+        }
+      }
+
+      // Replace ** with Math.pow for safety
+      sanitized = sanitized.replace(/(\d+(?:\.\d+)?)\s*\*\*\s*(\d+(?:\.\d+)?)/g, 'Math.pow($1,$2)');
+
+      // Only evaluate if it looks safe (numbers, operators, Math.*)
+      const safePattern = /^[\d+\-*/().^\s]+$|^(?:[\d+\-*/().^\s]|Math\.(sqrt|pow|abs|floor|ceil|round|sin|cos|tan|log|exp|PI|E))+$/;
+      if (!safePattern.test(sanitized.replace(/\(/g, '').replace(/\)/g, ''))) {
+        // Final safety: just do basic arithmetic
+        sanitized = sanitized.replace(/[^0-9+\-*/().]/g, '');
+      }
+
+      // Use indirect eval with strict number checking on result
+      const result = (0, eval)(sanitized);
+      if (typeof result !== 'number' || !isFinite(result)) {
+        throw new Error('Invalid result');
+      }
+      setResult({ value: String(result), verified: true });
     } catch {
       setResult({ value: 'Error', verified: false });
     }

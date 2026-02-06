@@ -43,7 +43,7 @@ export * from './social/PresenceIndicator';
 export * from './gamification/Achievements';
 
 // Whiteboard Components
-export * from './whiteboard/ExcalidrawWrapper';
+// ExcalidrawWrapper removed - whiteboard page uses custom canvas implementation
 
 // List Components
 export * from './lists/VirtualDTUList';
