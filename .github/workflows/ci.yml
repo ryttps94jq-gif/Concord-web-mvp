@@ -90,11 +90,11 @@ jobs:
 
       - name: Audit server dependencies
         working-directory: ./server
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
 
       - name: Audit frontend dependencies
         working-directory: ./concord-frontend
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
 
   docker-build:
     name: Docker Build

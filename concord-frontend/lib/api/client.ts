@@ -20,21 +20,14 @@ function getCsrfToken(): string | null {
   return match ? match[1] : null;
 }
 
-// Request interceptor for API key and CSRF
+// Request interceptor for CSRF protection
+// SECURITY: API keys and session IDs are now handled via httpOnly cookies only
+// This prevents XSS attacks from stealing credentials
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
-      // API key for programmatic access (optional, cookies preferred)
-      const apiKey = localStorage.getItem('concord_api_key');
-      if (apiKey) {
-        config.headers['X-API-Key'] = apiKey;
-      }
-      const sessionId = localStorage.getItem('concord_session_id');
-      if (sessionId) {
-        config.headers['X-Session-ID'] = sessionId;
-      }
-
       // SECURITY: Add CSRF token for state-changing requests
+      // Credentials are handled by httpOnly cookies (withCredentials: true)
       const stateChangingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
       if (stateChangingMethods.includes(config.method?.toUpperCase() || '')) {
         const csrfToken = getCsrfToken();
@@ -71,8 +64,8 @@ api.interceptors.response.use(
       }
 
       if (status === 401 && typeof window !== 'undefined') {
-        // Don't clear localStorage immediately - let logout handle it
-        // Redirect only if not already on login page
+        // Redirect to login if not already on login page
+        // Session is managed via httpOnly cookies, cleared by server
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login';
         }
