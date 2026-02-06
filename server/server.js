@@ -8314,9 +8314,12 @@ register("dtu", "create", async (ctx, input) => {
 
 register("dtu", "get", async (ctx, input) => {
   const id = String(input.id || "");
-  const dtu = STATE.dtus.get(id) || STATE.shadowDtus.get(id);
+  // Only return from main DTU store - shadow DTUs are internal
+  const dtu = STATE.dtus.get(id);
   if (!dtu) return { ok: false, error: "DTU not found" };
-  return { ok: true, dtu, shadow: isShadowDTU(dtu) };
+  // Don't expose shadow DTUs via this endpoint
+  if (isShadowDTU(dtu)) return { ok: false, error: "DTU not found" };
+  return { ok: true, dtu };
 });
 
 register("dtu", "update", async (ctx, input) => {
@@ -8331,7 +8334,14 @@ register("dtu", "update", async (ctx, input) => {
   if (input.content !== undefined) updated.content = String(input.content);
   if (input.creti !== undefined) updated.creti = String(input.creti);
   if (input.tags !== undefined) updated.tags = Array.isArray(input.tags) ? input.tags.slice(0, 40) : existing.tags;
-  if (input.tier !== undefined && ["regular", "mega", "hyper"].includes(input.tier)) updated.tier = input.tier;
+  // Tier changes require admin role - prevent gaming via direct update
+  if (input.tier !== undefined && ["regular", "mega", "hyper"].includes(input.tier)) {
+    const role = ctx?.actor?.role || "guest";
+    if (!["owner", "admin", "founder"].includes(role)) {
+      return { ok: false, error: "Tier changes require admin privileges" };
+    }
+    updated.tier = input.tier;
+  }
   updated.updatedAt = nowISO();
 
   upsertDTU(updated, { broadcast: true });
@@ -8345,6 +8355,15 @@ register("dtu", "delete", async (ctx, input) => {
 
   const dtu = STATE.dtus.get(id);
   if (!dtu) return { ok: false, error: "DTU not found" };
+
+  // Authorization check - only owner/admin or DTU author can delete
+  const role = ctx?.actor?.role || "guest";
+  const userId = ctx?.actor?.id || ctx?.actor?.odId;
+  const isAuthor = dtu.authorId === userId || dtu.source === userId;
+  const isAdmin = ["owner", "admin", "founder"].includes(role);
+  if (!isAuthor && !isAdmin) {
+    return { ok: false, error: "Not authorized to delete this DTU" };
+  }
 
   // Delete the DTU
   STATE.dtus.delete(id);
@@ -8378,6 +8397,11 @@ register("dtu", "list", async (ctx, input) => {
   return { ok: true, dtus: items, limit, offset, total: STATE.dtus.size };
 });
 register("dtu", "listShadow", async (ctx, input) => {
+  // Shadow DTUs are internal - only admins can view them
+  const role = ctx?.actor?.role || "guest";
+  if (!["owner", "admin", "founder"].includes(role)) {
+    return { ok: false, error: "Shadow DTU access requires admin privileges" };
+  }
   const limit = clamp(Number(input.limit || 5000), 1, 5000);
   const offset = clamp(Number(input.offset || 0), 0, 1e9);
   const q = tokenish(input.q || "");
@@ -8385,7 +8409,7 @@ register("dtu", "listShadow", async (ctx, input) => {
   if (q) items = items.filter(d => tokenish(d.title).includes(q) || tokenish((d.tags||[]).join(" ")).includes(q) || tokenish((d.cretiHuman || d.creti || "")).includes(q));
   items = items.slice(offset, offset + limit);
   return { ok: true, dtus: items, limit, offset, total: STATE.shadowDtus.size };
-}, { description: "List shadow DTUs (internal/hidden by default)." });
+}, { description: "List shadow DTUs (internal/hidden by default, admin only)." });
 
 
 
@@ -11532,8 +11556,9 @@ register("verify","deriveSecondOrder", async (ctx, input) => {
   const query = String(input?.query||"");
   const llm = (typeof input?.llm === "boolean") ? input.llm : ctx.state.settings.llmDefault;
 
+  // Only use regular DTUs - shadow DTUs are internal and should not be exposed
   const seeds = seedIds.length
-    ? seedIds.map(id => STATE.dtus.get(id) || STATE.shadowDtus.get(id)).filter(Boolean)
+    ? seedIds.map(id => STATE.dtus.get(id)).filter(d => d && !isShadowDTU(d))
     : _retrieveRelevantDTUs(query, 10, 0.06);
 
   // Full activation: deriveSecondOrder ALWAYS attempts to commit through pipeline.
@@ -11590,15 +11615,16 @@ register("verify","lineageLink", async (ctx, input) => {
   const childId = String(input?.childId||"");
   const parents = Array.isArray(input?.parents) ? input.parents.map(String) : [];
   if (!childId || !parents.length) return { ok:false, reason:"missing_child_or_parents" };
-  const child = STATE.dtus.get(childId) || STATE.shadowDtus.get(childId);
-  if (!child) return { ok:false, reason:"child_not_found" };
+  // Only link regular DTUs - shadow DTUs are internal
+  const child = STATE.dtus.get(childId);
+  if (!child || isShadowDTU(child)) return { ok:false, reason:"child_not_found" };
   child.lineage = child.lineage || { parents:[], children:[] };
   child.lineage.parents = Array.from(new Set([...(child.lineage.parents||[]), ...parents]));
   child.updatedAt = nowISO();
   // parent -> child back-links (best-effort; do not create if absent)
   for (const pid of parents) {
-    const p = STATE.dtus.get(pid) || STATE.shadowDtus.get(pid);
-    if (!p) continue;
+    const p = STATE.dtus.get(pid);
+    if (!p || isShadowDTU(p)) continue;
     p.lineage = p.lineage || { parents:[], children:[] };
     p.lineage.children = Array.from(new Set([...(p.lineage.children||[]), childId]));
     p.updatedAt = nowISO();
@@ -12895,7 +12921,7 @@ app.post("/api/chat", async (req, res) => {
         const t = String(txt || "");
         for (let i=0; i<t.length; i+=size) {
           yield t.slice(i, i+size);
-          await sleep(0);
+          await new Promise(r => setImmediate(r)); // yield to event loop
         }
       }
 
@@ -19034,9 +19060,9 @@ app.post("/api/credits/spend", (req, res) => {
 app.get("/api/global/feed", (req, res) => {
   const { limit = 50, offset = 0, tier } = req.query;
 
-  // Get global DTUs (isGlobal flag or tier >= MEGA)
+  // Get global DTUs (isGlobal flag or tier >= mega)
   let globalDtus = Array.from(STATE.dtus?.values() || [])
-    .filter(d => d.isGlobal || d.tier === "MEGA" || d.tier === "HYPER")
+    .filter(d => d.isGlobal || d.tier === "mega" || d.tier === "hyper")
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   // Filter by tier if specified
