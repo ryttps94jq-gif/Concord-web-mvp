@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api, apiHelpers } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
@@ -28,7 +28,10 @@ import {
   X,
   MessageSquare,
   Zap,
-  BookOpen
+  BookOpen,
+  Eye,
+  Activity,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,6 +44,7 @@ interface Message {
   tokens?: number;
   refs?: Array<{ id: string; title: string; lineageHash?: string }>;
   dtuId?: string;
+  feedbackGiven?: 'up' | 'down' | null;
 }
 
 interface Conversation {
@@ -76,9 +80,17 @@ export default function ChatLensPage() {
   const [aiMode, setAiMode] = useState<AIMode>(AI_MODES[0]);
   const [showModeSelect, setShowModeSelect] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [feedbackState, setFeedbackState] = useState<Record<string, 'up' | 'down'>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Cognitive status — shows experience/attention/reflection state
+  const { data: cogStatus } = useQuery({
+    queryKey: ['cognitive-status'],
+    queryFn: () => apiHelpers.cognitive.status().then(r => r.data),
+    refetchInterval: 10000,
+  });
 
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
@@ -149,7 +161,20 @@ export default function ChatLensPage() {
 
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['cognitive-status'] });
       setInput('');
+    },
+  });
+
+  // Feedback mutation — sends thumbs up/down to backend
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ messageId, rating, index }: { messageId: string; rating: 'up' | 'down'; index: number }) => {
+      const sessionId = selectedConversation || 'default';
+      await apiHelpers.chat.feedback({ sessionId, rating, messageIndex: index });
+      return { messageId, rating };
+    },
+    onSuccess: ({ messageId, rating }) => {
+      setFeedbackState(prev => ({ ...prev, [messageId]: rating }));
     },
   });
 
@@ -181,7 +206,12 @@ export default function ChatLensPage() {
   const startNewChat = () => {
     setSelectedConversation(null);
     setLocalMessages([]);
+    setFeedbackState({});
   };
+
+  const exp = cogStatus?.experience;
+  const attn = cogStatus?.attention;
+  const refl = cogStatus?.reflection;
 
   return (
     <div className="h-screen flex bg-lattice-bg">
@@ -291,6 +321,37 @@ export default function ChatLensPage() {
             </div>
           </div>
 
+          {/* Cognitive Status Bar */}
+          {cogStatus && (
+            <div className="flex items-center gap-4 text-xs">
+              {exp && (
+                <div className="flex items-center gap-1.5 text-gray-400" title={`${exp.episodes} episodes, ${exp.patterns} patterns learned`}>
+                  <Brain className="w-3.5 h-3.5 text-neon-purple" />
+                  <span>{exp.patterns} patterns</span>
+                </div>
+              )}
+              {attn && (
+                <div className="flex items-center gap-1.5 text-gray-400" title={`${attn.activeThreads} active threads`}>
+                  <Eye className="w-3.5 h-3.5 text-neon-cyan" />
+                  <span>{attn.activeThreads} threads</span>
+                </div>
+              )}
+              {refl && (
+                <div className="flex items-center gap-1.5" title={`Self-calibration: ${((refl.calibration || 0) * 100).toFixed(0)}%`}>
+                  <Activity className={`w-3.5 h-3.5 ${(refl.calibration || 0) > 0.6 ? 'text-neon-green' : 'text-yellow-400'}`} />
+                  <span className={`${(refl.calibration || 0) > 0.6 ? 'text-neon-green' : 'text-yellow-400'}`}>
+                    {((refl.calibration || 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              )}
+              {refl?.strengths?.length > 0 && (
+                <div className="flex items-center gap-1 text-neon-green" title={`Strengths: ${refl.strengths.join(', ')}`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <button className="p-2 hover:bg-lattice-bg rounded-lg transition-colors">
               <MoreVertical className="w-5 h-5 text-gray-400" />
@@ -329,7 +390,7 @@ export default function ChatLensPage() {
             </div>
           )}
 
-          {messages.map((message: Message) => (
+          {messages.map((message: Message, msgIdx: number) => (
             <div
               key={message.id}
               className={cn(
@@ -382,7 +443,7 @@ export default function ChatLensPage() {
                   <span>{formatTime(message.timestamp)}</span>
                   {message.role === 'assistant' && (
                     <>
-                      <span>•</span>
+                      <span>·</span>
                       <button
                         onClick={() => copyToClipboard(message.content)}
                         className="hover:text-white transition-colors"
@@ -390,11 +451,25 @@ export default function ChatLensPage() {
                       >
                         <Copy className="w-3 h-3" />
                       </button>
-                      <button className="hover:text-green-400 transition-colors" title="Good">
-                        <ThumbsUp className="w-3 h-3" />
+                      <button
+                        onClick={() => feedbackMutation.mutate({ messageId: message.id, rating: 'up', index: msgIdx })}
+                        className={cn(
+                          'transition-colors',
+                          feedbackState[message.id] === 'up' ? 'text-green-400' : 'hover:text-green-400'
+                        )}
+                        title="Good response"
+                      >
+                        <ThumbsUp className={cn('w-3 h-3', feedbackState[message.id] === 'up' && 'fill-current')} />
                       </button>
-                      <button className="hover:text-red-400 transition-colors" title="Bad">
-                        <ThumbsDown className="w-3 h-3" />
+                      <button
+                        onClick={() => feedbackMutation.mutate({ messageId: message.id, rating: 'down', index: msgIdx })}
+                        className={cn(
+                          'transition-colors',
+                          feedbackState[message.id] === 'down' ? 'text-red-400' : 'hover:text-red-400'
+                        )}
+                        title="Bad response"
+                      >
+                        <ThumbsDown className={cn('w-3 h-3', feedbackState[message.id] === 'down' && 'fill-current')} />
                       </button>
                       <button className="hover:text-white transition-colors" title="Regenerate">
                         <RefreshCw className="w-3 h-3" />

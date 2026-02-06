@@ -9888,7 +9888,78 @@ ${buildCretiText(d)}
   return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })) };
 }, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement." });
 
-// Ask domain
+// ===== USER FEEDBACK → EXPERIENCE LEARNING =====
+// Records thumbs up/down and ratings, feeds into experience memory + affect
+register("chat", "feedback", async (ctx, input) => {
+  const sessionId = normalizeText(input.sessionId || "default");
+  const messageIndex = Number(input.messageIndex ?? -1);
+  const rating = input.rating; // "up", "down", or number 1-5
+  const comment = String(input.comment || "").slice(0, 500);
+
+  // Resolve rating to quality score
+  let quality;
+  if (rating === "up" || rating === "thumbs_up") quality = 0.85;
+  else if (rating === "down" || rating === "thumbs_down") quality = 0.15;
+  else if (typeof rating === "number") quality = clamp(rating / 5, 0, 1);
+  else return { ok: false, error: "rating required: 'up', 'down', or 1-5" };
+
+  // Find the message in session history
+  const sess = STATE.sessions.get(sessionId);
+  const messages = sess?.messages || [];
+  const targetMsg = messageIndex >= 0 ? messages[messageIndex] : messages[messages.length - 1];
+
+  // Record as experience episode with user feedback
+  try {
+    ensureExperienceLearning();
+    const prompt = targetMsg?.role === "assistant"
+      ? (messages[Math.max(0, messages.indexOf(targetMsg) - 1)]?.content || "").slice(0, 200)
+      : "";
+    const domain = (() => {
+      try { return classifyDomain({ title: prompt, human: { summary: prompt }, tags: [] }); } catch { return "general"; }
+    })();
+
+    recordExperienceEpisode({
+      domain,
+      topic: prompt.slice(0, 100),
+      keywords: tokenizeText(prompt).slice(0, 10),
+      mode: targetMsg?.meta?.mode || "explore",
+      strategy: targetMsg?.meta?.llmUsed ? "llm-enhanced" : "local-deterministic",
+      llmUsed: targetMsg?.meta?.llmUsed || false,
+      dtusRetrieved: targetMsg?.meta?.relevant?.length || 0,
+      responseLength: (targetMsg?.content || "").length,
+      quality,
+      userFeedback: { rating, comment, sessionId, messageIndex },
+      followUpNeeded: quality < 0.3,
+      errorOccurred: false
+    });
+  } catch {}
+
+  // Emit affect event for user feedback
+  try {
+    if (ATS) {
+      ATS.emitAffectEvent(ctx.affect?.sessionId || "system", {
+        type: "FEEDBACK",
+        intensity: 0.5,
+        polarity: quality > 0.5 ? 0.4 : -0.4,
+        payload: { sessionId, rating, quality },
+        source: { system: "chat_feedback" }
+      });
+    }
+  } catch {}
+
+  // Mutate style vector based on feedback
+  try {
+    const curStyle = getSessionStyleVector(sessionId);
+    const signal = quality > 0.5
+      ? { kind: "like" }
+      : { kind: "dislike" };
+    const next = mutateStyleVector(curStyle, signal);
+    STATE.styleVectors.set(sessionId, next);
+  } catch {}
+
+  saveStateDebounced();
+  return { ok: true, quality, recorded: true };
+}, { description: "Record user feedback (thumbs up/down) for experience learning." });
 
 register("style", "get", async (ctx, input) => {
   const sessionId = normalizeText(input.sessionId || "default");
@@ -12037,6 +12108,27 @@ register("agent","tick", async (ctx, input) => {
   return { ok:true, createdDTU: dtu.id, linkedGoalId: _linkedGoalId };
 }, { summary:"Run one agent tick — goal-directed with affect feedback." });
 
+register("agent","list", async (ctx, input) => {
+  const agents = Array.from(STATE.personas.values())
+    .map(a => ({ id: a.id, name: a.name, goal: a.goal, cadenceMs: a.cadenceMs, enabled: a.enabled, lastTickAt: a.lastTickAt }));
+  return { ok:true, agents };
+}, { summary:"List all agents." });
+
+// Autonomous agent scheduler — ticks enabled agents at their cadence
+async function tickEnabledAgents(ctx) {
+  const now = Date.now();
+  for (const [id, agent] of STATE.personas) {
+    if (!agent.enabled) continue;
+    const cadence = agent.cadenceMs || 60000;
+    const lastTick = agent.lastTickAt ? new Date(agent.lastTickAt).getTime() : 0;
+    if (now - lastTick >= cadence) {
+      try {
+        await runMacro("agent", "tick", { id }, ctx);
+      } catch {}
+    }
+  }
+}
+
 // ---- Crawl / Sources ----
 // stripHtml() already declared earlier; reused here to avoid redeclaration.
 
@@ -13934,6 +14026,46 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // Chicken3: SSE streaming chat (additive; does not replace /api/chat)
+// POST /api/chat/feedback — record user thumbs up/down
+app.post("/api/chat/feedback", async (req, res) => {
+  try {
+    const out = await runMacro("chat", "feedback", req.body, makeCtx(req));
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// GET /api/cognitive/status — combined status for all cognitive systems
+app.get("/api/cognitive/status", async (req, res) => {
+  try {
+    ensureExperienceLearning();
+    ensureAttentionManager();
+    ensureReflectionEngine();
+    return res.json({
+      ok: true,
+      experience: {
+        episodes: STATE.experienceLearning.episodes.length,
+        patterns: STATE.experienceLearning.patterns.size,
+        strategies: STATE.experienceLearning.strategies.size,
+      },
+      attention: {
+        focus: STATE.attention.focus,
+        activeThreads: Array.from(STATE.attention.threads.values()).filter(t => t.status === "active").length,
+        queueLength: STATE.attention.queue.length,
+      },
+      reflection: {
+        calibration: STATE.reflection.selfModel.confidenceCalibration,
+        strengths: STATE.reflection.selfModel.strengths,
+        weaknesses: STATE.reflection.selfModel.weaknesses,
+        reflections: STATE.reflection.reflections.length,
+      }
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.post("/api/chat/stream", async (req, res) => {
   const errorId = uid("err");
   try {
@@ -15925,6 +16057,9 @@ async function governorTick(reason="heartbeat") {
 
     // 2.5) Goal System: process goal proposals and track active goals
     try { await processGoalHeartbeat(ctx); } catch {}
+
+    // 2.6) Autonomous Agent Scheduler: tick enabled agents at their cadenceMs
+    try { await tickEnabledAgents(ctx); } catch {}
 
     // 3) Kernel metrics tick (homeostasis, organ wear) so the system stays honest
     try { kernelTick({ type: "HEARTBEAT", meta: { source: "governor", reason } }); } catch {}

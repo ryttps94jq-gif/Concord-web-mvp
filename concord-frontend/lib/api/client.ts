@@ -159,6 +159,14 @@ export const apiHelpers = {
 
     ask: (message: string, mode: string = 'overview') =>
       api.post('/api/ask', { message, mode }),
+
+    feedback: (data: { sessionId: string; rating: 'up' | 'down' | number; messageIndex?: number; comment?: string }) =>
+      api.post('/api/chat/feedback', data),
+  },
+
+  // Cognitive status (combined)
+  cognitive: {
+    status: () => api.get('/api/cognitive/status'),
   },
 
   // Dream mode (synthesis)
