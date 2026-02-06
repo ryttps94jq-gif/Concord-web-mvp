@@ -2097,6 +2097,15 @@ function authMiddleware(req, res, next) {
   return res.status(401).json({ ok: false, error: "Unauthorized", code: "AUTH_REQUIRED" });
 }
 
+// Require authentication helper (returns middleware)
+function requireAuth() {
+  return (req, res, next) => {
+    if (!AUTH_ENABLED) return next();
+    if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    return next();
+  };
+}
+
 // Permission check helper
 function requireRole(...roles) {
   return (req, res, next) => {
