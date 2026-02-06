@@ -7775,12 +7775,12 @@ function _tokenJaccard(a, b) {
   return uni ? inter/uni : 0;
 }
 
-function _makeMegaFromCluster(cluster, reason="auto_cluster") {
+// LLM-enhanced MEGA synthesis - creates coherent summaries
+async function _makeMegaFromCluster(cluster, reason="auto_cluster") {
   const members = cluster.map(x=>x.d);
   const ids = members.map(d=>d.id);
   const titles = members.map(d=>d.title).filter(Boolean).slice(0,8);
   const seedTitle = titles[0] || "Cluster";
-  const title = `MEGA: ${seedTitle} (+${Math.max(0, ids.length-1)})`;
 
   // Conservative synthesis: only aggregate what's already explicit.
   const inv = [];
@@ -7795,6 +7795,42 @@ function _makeMegaFromCluster(cluster, reason="auto_cluster") {
     for (const x of (c.examples||[])) if (examples.length < 10) examples.push(String(x));
   }
 
+  // Try LLM-enhanced title and summary
+  let title = `MEGA: ${seedTitle} (+${Math.max(0, ids.length-1)})`;
+  let summary = `Canonical mega DTU synthesized from ${ids.length} DTUs to reduce working-set load. Reason: ${reason}.`;
+
+  try {
+    const titlesStr = titles.join(", ");
+    const claimsStr = claims.slice(0, 5).join("; ");
+
+    const prompt = `Create a concise, coherent title and summary for a MEGA DTU that consolidates these related concepts:
+
+Titles: ${titlesStr}
+Key claims: ${claimsStr}
+
+Output format (2 lines only):
+TITLE: [A clear 5-10 word title starting with "MEGA:"]
+SUMMARY: [A 1-2 sentence summary of what this mega represents]`;
+
+    const llmResult = await llmPipeline(prompt, { mode: "balanced", maxTokens: 150, temperature: 0.3 });
+    if (llmResult.ok && llmResult.content) {
+      const lines = llmResult.content.split("\n").filter(Boolean);
+      for (const line of lines) {
+        if (line.toUpperCase().startsWith("TITLE:")) {
+          const newTitle = line.replace(/^TITLE:\s*/i, "").trim();
+          if (newTitle && newTitle.length > 5) title = newTitle.startsWith("MEGA:") ? newTitle : `MEGA: ${newTitle}`;
+        }
+        if (line.toUpperCase().startsWith("SUMMARY:")) {
+          const newSummary = line.replace(/^SUMMARY:\s*/i, "").trim();
+          if (newSummary && newSummary.length > 10) summary = newSummary;
+        }
+      }
+    }
+  } catch (e) {
+    // Fallback to template if LLM fails
+    console.log("[MEGA] LLM synthesis failed, using template:", e.message);
+  }
+
   const tags = Array.from(new Set([
     "mega","auto","canonical","cluster",
     ...members.flatMap(d=>_tagsOf(d)).filter(t=>typeof t==="string").slice(0,30)
@@ -7807,10 +7843,10 @@ function _makeMegaFromCluster(cluster, reason="auto_cluster") {
     tier: "mega",
     tags,
     human: {
-      summary: `Canonical mega DTU synthesized from ${ids.length} DTUs to reduce working-set load. Reason: ${reason}.`,
+      summary,
       bullets: [
         `Members: ${ids.slice(0,8).join(", ")}${ids.length>8 ? "…" : ""}`,
-        "This mega does not add new claims; it aggregates explicit content from members."
+        "This mega consolidates explicit content from members for reduced working-set load."
       ],
     },
     core: {
@@ -7844,10 +7880,46 @@ function _makeMegaFromCluster(cluster, reason="auto_cluster") {
   };
 }
 
-function _makeHyperFromMegas(megas, reason="auto_hyper") {
+// LLM-enhanced HYPER synthesis - creates coherent kernel summaries
+async function _makeHyperFromMegas(megas, reason="auto_hyper") {
   const members = megas.slice(0, 4);
   const ids = members.map(d=>d.id);
-  const title = `HYPER: Abstraction Kernel (+${ids.length})`;
+  const megaTitles = members.map(d=>d.title).filter(Boolean);
+
+  // Try LLM-enhanced title and summary
+  let title = `HYPER: Abstraction Kernel (+${ids.length})`;
+  let summary = `Canonical hyper DTU synthesized from Megas to provide a stable derivation/checking kernel. Reason: ${reason}.`;
+
+  try {
+    const titlesStr = megaTitles.join(", ");
+    const prompt = `Create a concise title and summary for a HYPER DTU kernel that synthesizes these MEGA DTUs:
+
+Megas: ${titlesStr}
+
+A HYPER is a high-level abstraction that routes queries to the right MEGAs and enforces consistency.
+
+Output format (2 lines only):
+TITLE: [A clear 5-10 word title starting with "HYPER:"]
+SUMMARY: [A 1-2 sentence summary of what this kernel does]`;
+
+    const llmResult = await llmPipeline(prompt, { mode: "balanced", maxTokens: 150, temperature: 0.3 });
+    if (llmResult.ok && llmResult.content) {
+      const lines = llmResult.content.split("\n").filter(Boolean);
+      for (const line of lines) {
+        if (line.toUpperCase().startsWith("TITLE:")) {
+          const newTitle = line.replace(/^TITLE:\s*/i, "").trim();
+          if (newTitle && newTitle.length > 5) title = newTitle.startsWith("HYPER:") ? newTitle : `HYPER: ${newTitle}`;
+        }
+        if (line.toUpperCase().startsWith("SUMMARY:")) {
+          const newSummary = line.replace(/^SUMMARY:\s*/i, "").trim();
+          if (newSummary && newSummary.length > 10) summary = newSummary;
+        }
+      }
+    }
+  } catch (e) {
+    console.log("[HYPER] LLM synthesis failed, using template:", e.message);
+  }
+
   const tags = Array.from(new Set([
     "hyper","auto","canonical","kernel",
     ...members.flatMap(d=>_tagsOf(d)).filter(t=>typeof t==="string").slice(0,30)
@@ -7860,10 +7932,10 @@ function _makeHyperFromMegas(megas, reason="auto_hyper") {
     tier: "hyper",
     tags,
     human: {
-      summary: `Canonical hyper DTU synthesized from Megas to provide a stable derivation/checking kernel. Reason: ${reason}.`,
+      summary,
       bullets: [
         `Mega inputs: ${ids.join(", ")}`,
-        "Kernel rules remain conservative: they only route/check; they don't invent facts."
+        "Kernel routes queries and enforces invariant consistency."
       ]
     },
     core: {
@@ -7951,7 +8023,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers=1 } = {}) {
 
       if (cluster.length < 4) continue; // don't synthesize tiny clusters
 
-      const mega = _makeMegaFromCluster(cluster, "usage_coactivation");
+      const mega = await _makeMegaFromCluster(cluster, "usage_coactivation");
       const res = pipelineCommitDTU(ctx, mega, { op:"auto.promo.mega", allowRewrite:false });
       if (res?.ok) {
         made.megas.push(res.dtu?.id || mega.id);
@@ -7981,7 +8053,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers=1 } = {}) {
       .map(x=>x.d);
 
     if (megas.length >= 2) {
-      const hyper = _makeHyperFromMegas(megas, "top_megas");
+      const hyper = await _makeHyperFromMegas(megas, "top_megas");
       const res = pipelineCommitDTU(ctx, hyper, { op:"auto.promo.hyper", allowRewrite:false });
       if (res?.ok) made.hypers.push(res.dtu?.id || hyper.id);
     }
@@ -12673,6 +12745,32 @@ app.post("/api/abstraction/upgrade", async (req, res) => {
     res.json({ ok:true, result: r, abstraction: STATE.abstraction });
   } catch (e) {
     res.json({ ok:false, error: String(e?.message||e) });
+  }
+});
+
+// Manual consolidation trigger - creates MEGAs/HYPERs immediately
+app.post("/api/abstraction/consolidate", requireRole("owner", "admin"), async (req, res) => {
+  try {
+    const { maxMegas = 5, maxHypers = 2, force = false } = req.body || {};
+
+    // Optionally bypass usage requirement for testing/manual consolidation
+    if (force) {
+      STATE.abstraction.metrics = STATE.abstraction.metrics || {};
+      STATE.abstraction.metrics.totalUses = Math.max(STATE.abstraction.metrics.totalUses || 0, 30);
+    }
+
+    const ctx = makeCtx(req);
+    const result = await runAutoPromotion(ctx, { maxNewMegas: maxMegas, maxNewHypers: maxHypers });
+
+    res.json({
+      ok: true,
+      result,
+      message: result.made?.megas?.length || result.made?.hypers?.length
+        ? `Created ${result.made?.megas?.length || 0} MEGAs and ${result.made?.hypers?.length || 0} HYPERs`
+        : "No consolidation needed (insufficient clusters or already at budget)"
+    });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e) });
   }
 });
 
