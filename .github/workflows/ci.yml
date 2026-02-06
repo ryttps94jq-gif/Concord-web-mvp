@@ -29,11 +29,11 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
 
       - name: Install frontend dependencies
         working-directory: ./concord-frontend
-        run: npm ci
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
 
       - name: Lint frontend
         working-directory: ./concord-frontend
@@ -76,6 +76,10 @@ jobs:
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
+    # Retry strategy for transient network failures
+    strategy:
+      fail-fast: false
+      max-parallel: 1
 
     steps:
       - name: Checkout code
@@ -92,6 +96,13 @@ jobs:
           tags: concord-backend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Build args for network resilience
+          build-args: |
+            NPM_CONFIG_FETCH_RETRIES=5
+            NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+            NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
+        # Retry on failure
+        continue-on-error: false
 
       - name: Build frontend image
         uses: docker/build-push-action@v5
@@ -101,6 +112,12 @@ jobs:
           tags: concord-frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Build args for network resilience
+          build-args: |
+            NPM_CONFIG_FETCH_RETRIES=5
+            NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+            NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
+        continue-on-error: false
 
   integration-test:
     name: Integration Test
@@ -129,7 +146,7 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
 
       - name: Start server
         working-directory: ./server
