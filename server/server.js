@@ -5980,6 +5980,229 @@ if (String(process.env.EMBEDDINGS_ENABLED || "true").toLowerCase() === "true") {
 }
 
 // ============================================================================
+// LLM PIPELINE ORCHESTRATOR - Hybrid Local/Cloud AI
+// ============================================================================
+
+const LLM_PIPELINE = {
+  modes: ["local_only", "balanced", "quality_first"],
+  defaultMode: "balanced",
+
+  // Provider status
+  providers: {
+    ollama: { enabled: false, url: null, model: "tinyllama" },
+    openai: { enabled: false, model: "gpt-4.1-mini" }
+  }
+};
+
+// Initialize LLM providers
+function initLLMPipeline() {
+  const ollamaUrl = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "http://ollama:11434";
+  LLM_PIPELINE.providers.ollama.url = ollamaUrl;
+  LLM_PIPELINE.providers.ollama.model = process.env.OLLAMA_MODEL || "tinyllama";
+  LLM_PIPELINE.providers.ollama.enabled = Boolean(ollamaUrl);
+
+  LLM_PIPELINE.providers.openai.enabled = Boolean(OPENAI_API_KEY);
+  LLM_PIPELINE.providers.openai.model = OPENAI_MODEL_FAST;
+
+  console.log(`[LLM Pipeline] Initialized - Ollama: ${LLM_PIPELINE.providers.ollama.enabled ? 'enabled' : 'disabled'}, OpenAI: ${LLM_PIPELINE.providers.openai.enabled ? 'enabled' : 'disabled'}`);
+}
+
+// Call Ollama (local)
+async function callOllama(prompt, options = {}) {
+  const { url, model } = LLM_PIPELINE.providers.ollama;
+  if (!url) return { ok: false, error: "Ollama not configured" };
+
+  try {
+    const payload = {
+      model: options.model || model,
+      prompt: prompt,
+      stream: false,
+      options: {
+        temperature: options.temperature || 0.7,
+        num_predict: options.maxTokens || 500
+      }
+    };
+
+    const response = await fetch(`${url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(options.timeout || 60000)
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: `Ollama error: ${response.status}` };
+    }
+
+    const data = await response.json();
+    return {
+      ok: true,
+      content: data.response || "",
+      source: "ollama",
+      model: model,
+      tokens: data.eval_count || 0
+    };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e), source: "ollama" };
+  }
+}
+
+// Call OpenAI (cloud)
+async function callOpenAI(prompt, options = {}) {
+  if (!OPENAI_API_KEY) return { ok: false, error: "OpenAI not configured" };
+
+  try {
+    const payload = {
+      model: options.model || LLM_PIPELINE.providers.openai.model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens || 500
+    };
+
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(options.timeout || 30000)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      return { ok: false, error: `OpenAI error: ${response.status}`, detail: errText };
+    }
+
+    const data = await response.json();
+    return {
+      ok: true,
+      content: data.choices?.[0]?.message?.content || "",
+      source: "openai",
+      model: payload.model,
+      tokens: data.usage?.total_tokens || 0
+    };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e), source: "openai" };
+  }
+}
+
+// HYBRID PIPELINE: The magic sauce
+async function llmPipeline(input, options = {}) {
+  const mode = options.mode || LLM_PIPELINE.defaultMode;
+  const { ollama, openai } = LLM_PIPELINE.providers;
+
+  // Mode: local_only - Privacy first, Ollama only
+  if (mode === "local_only") {
+    if (!ollama.enabled) {
+      return { ok: false, error: "Local mode requires Ollama", mode };
+    }
+    return await callOllama(input, options);
+  }
+
+  // Mode: quality_first - OpenAI only (fastest, best quality)
+  if (mode === "quality_first") {
+    if (!openai.enabled) {
+      // Fallback to Ollama if OpenAI not available
+      if (ollama.enabled) return await callOllama(input, options);
+      return { ok: false, error: "No LLM providers available", mode };
+    }
+    return await callOpenAI(input, options);
+  }
+
+  // Mode: balanced - THE HYBRID PIPELINE
+  // Step 1: Ollama generates rough draft (private, free)
+  // Step 2: OpenAI polishes (cheap, fast)
+
+  if (!ollama.enabled && !openai.enabled) {
+    return { ok: false, error: "No LLM providers available", mode };
+  }
+
+  // If only one provider available, use it
+  if (!ollama.enabled) return await callOpenAI(input, options);
+  if (!openai.enabled) return await callOllama(input, options);
+
+  // HYBRID: Draft with Ollama, polish with OpenAI
+  const draftResult = await callOllama(input, {
+    ...options,
+    maxTokens: Math.min(options.maxTokens || 500, 300) // Limit draft length
+  });
+
+  if (!draftResult.ok) {
+    // Ollama failed, fallback to OpenAI only
+    console.log("[LLM Pipeline] Ollama draft failed, falling back to OpenAI");
+    return await callOpenAI(input, options);
+  }
+
+  // Polish the draft with OpenAI
+  const polishPrompt = `Improve and polish this text while preserving its meaning. Make it clearer and more coherent. Keep the same length or shorter.
+
+DRAFT:
+${draftResult.content}
+
+POLISHED VERSION:`;
+
+  const polishResult = await callOpenAI(polishPrompt, {
+    ...options,
+    maxTokens: Math.min(options.maxTokens || 500, 400),
+    temperature: 0.3 // Lower temp for polish
+  });
+
+  if (!polishResult.ok) {
+    // Polish failed, return draft
+    console.log("[LLM Pipeline] OpenAI polish failed, returning draft");
+    return { ...draftResult, polished: false };
+  }
+
+  return {
+    ok: true,
+    content: polishResult.content,
+    source: "hybrid",
+    draft: draftResult.content,
+    draftSource: "ollama",
+    polishSource: "openai",
+    tokens: (draftResult.tokens || 0) + (polishResult.tokens || 0),
+    polished: true,
+    mode: "balanced"
+  };
+}
+
+// Get pipeline status
+function getLLMPipelineStatus() {
+  return {
+    mode: LLM_PIPELINE.defaultMode,
+    providers: {
+      ollama: {
+        enabled: LLM_PIPELINE.providers.ollama.enabled,
+        model: LLM_PIPELINE.providers.ollama.model,
+        url: LLM_PIPELINE.providers.ollama.url ? "configured" : null
+      },
+      openai: {
+        enabled: LLM_PIPELINE.providers.openai.enabled,
+        model: LLM_PIPELINE.providers.openai.model
+      }
+    },
+    capabilities: {
+      local_only: LLM_PIPELINE.providers.ollama.enabled,
+      balanced: LLM_PIPELINE.providers.ollama.enabled && LLM_PIPELINE.providers.openai.enabled,
+      quality_first: LLM_PIPELINE.providers.openai.enabled || LLM_PIPELINE.providers.ollama.enabled
+    }
+  };
+}
+
+// Set default pipeline mode
+function setLLMPipelineMode(mode) {
+  if (!LLM_PIPELINE.modes.includes(mode)) {
+    return { ok: false, error: `Invalid mode. Use: ${LLM_PIPELINE.modes.join(", ")}` };
+  }
+  LLM_PIPELINE.defaultMode = mode;
+  return { ok: true, mode };
+}
+
+// Initialize on startup
+setTimeout(() => initLLMPipeline(), 100);
+
+// ============================================================================
 // END WAVE 3: AI CAPABILITIES
 // ============================================================================
 
@@ -12226,9 +12449,30 @@ app.get("/api/status", (req, res) => {
         rateLimitEnabled: Boolean(rateLimiter),
         helmetEnabled: Boolean(helmet)
       },
-      envValidation: ENV_VALIDATION
+      envValidation: ENV_VALIDATION,
+      llmPipeline: getLLMPipelineStatus()
     }
   });
+});
+
+// LLM Pipeline API
+app.get("/api/llm/status", (req, res) => {
+  res.json({ ok: true, ...getLLMPipelineStatus() });
+});
+
+app.post("/api/llm/generate", async (req, res) => {
+  const { prompt, mode, temperature, maxTokens } = req.body || {};
+  if (!prompt) {
+    return res.status(400).json({ ok: false, error: "prompt required" });
+  }
+  const result = await llmPipeline(prompt, { mode, temperature, maxTokens });
+  res.json(result);
+});
+
+app.post("/api/llm/mode", requireRole("owner", "admin"), (req, res) => {
+  const { mode } = req.body || {};
+  const result = setLLMPipelineMode(mode);
+  res.json(result);
 });
 
 // Force reseed DTUs from dtus.js (useful for debugging empty state)
