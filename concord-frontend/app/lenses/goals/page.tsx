@@ -3,8 +3,8 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Target,
   Plus,
@@ -12,31 +12,282 @@ import {
   XCircle,
   Play,
   Clock,
-  Sparkles
+  Sparkles,
+  Flame,
+  Trophy,
+  Star,
+  Lock,
+  Unlock,
+  Zap,
+  Music,
+  Users,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Award,
+  TrendingUp,
+  Swords,
 } from 'lucide-react';
 
-interface Goal {
+// --------------- Types ---------------
+
+interface SubTask {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
+interface DemoGoal {
   id: string;
   title: string;
-  description?: string;
-  status: string;
+  description: string;
+  category: 'Production' | 'Mixing' | 'Release' | 'Learning' | 'Collaboration';
   progress: number;
-  priority?: string;
-  targetDate?: string;
-  createdAt?: string;
+  priority: 'low' | 'medium' | 'high';
+  targetDate: string;
+  subtasks: SubTask[];
+  xp: number;
+  milestones: number[];
+  status: 'active' | 'completed';
 }
+
+interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  type: 'daily' | 'weekly' | 'community';
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Legendary';
+  xp: number;
+  progress: number;
+  target: number;
+  participants?: number;
+  endsIn: string;
+  accepted: boolean;
+}
+
+interface Milestone {
+  id: string;
+  title: string;
+  description: string;
+  unlocked: boolean;
+  date?: string;
+  icon: string;
+  xpReward: number;
+}
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  category: 'Production' | 'Social' | 'Sales' | 'Learning';
+  unlocked: boolean;
+  icon: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+// --------------- Demo Data ---------------
+
+const DEMO_GOALS: DemoGoal[] = [
+  { id: 'g1', title: 'Finish Lo-Fi EP', description: 'Complete 5-track lo-fi EP for streaming release', category: 'Production', progress: 0.72, priority: 'high', targetDate: '2026-02-10', subtasks: [{ id: 's1', label: 'Mix track 4', done: true }, { id: 's2', label: 'Master all tracks', done: false }, { id: 's3', label: 'Design cover art', done: true }], xp: 500, milestones: [25, 50, 75], status: 'active' },
+  { id: 'g2', title: 'Learn Serum Synthesis', description: 'Complete advanced wavetable synthesis course', category: 'Learning', progress: 0.45, priority: 'medium', targetDate: '2026-02-28', subtasks: [{ id: 's4', label: 'Oscillator basics', done: true }, { id: 's5', label: 'FM synthesis module', done: false }], xp: 300, milestones: [50], status: 'active' },
+  { id: 'g3', title: 'Collab with 3 Artists', description: 'Reach out and complete collaborative sessions', category: 'Collaboration', progress: 0.33, priority: 'medium', targetDate: '2026-03-15', subtasks: [{ id: 's6', label: 'Session with VoxLayer', done: true }, { id: 's7', label: 'Session with BeatNova', done: false }, { id: 's8', label: 'Session with Driftwave', done: false }], xp: 400, milestones: [33, 66], status: 'active' },
+  { id: 'g4', title: 'Release Single on Spotify', description: 'Distribute first solo single to all platforms', category: 'Release', progress: 0.9, priority: 'high', targetDate: '2026-02-08', subtasks: [{ id: 's9', label: 'Final master', done: true }, { id: 's10', label: 'Upload to distributor', done: true }, { id: 's11', label: 'Submit playlist pitches', done: false }], xp: 600, milestones: [50, 90], status: 'active' },
+  { id: 'g5', title: 'Build Sample Pack', description: 'Create and package 50 original drum samples', category: 'Production', progress: 0.6, priority: 'low', targetDate: '2026-03-01', subtasks: [{ id: 's12', label: 'Record 30 kicks', done: true }, { id: 's13', label: 'Process snares', done: false }], xp: 350, milestones: [25, 50, 75], status: 'active' },
+  { id: 'g6', title: 'Mix 10 Tracks for Portfolio', description: 'Professional-quality mixes to showcase skills', category: 'Mixing', progress: 0.5, priority: 'medium', targetDate: '2026-03-20', subtasks: [{ id: 's14', label: 'Mix 5 hip-hop tracks', done: true }, { id: 's15', label: 'Mix 5 electronic tracks', done: false }], xp: 450, milestones: [50], status: 'active' },
+  { id: 'g7', title: 'Produce 20 Beats This Month', description: 'Quantity challenge to sharpen production speed', category: 'Production', progress: 1.0, priority: 'high', targetDate: '2026-01-31', subtasks: [{ id: 's16', label: 'Beats 1-10', done: true }, { id: 's17', label: 'Beats 11-20', done: true }], xp: 700, milestones: [25, 50, 75, 100], status: 'completed' },
+  { id: 'g8', title: 'Master EQ Techniques', description: 'Deep-dive into surgical and creative EQ usage', category: 'Learning', progress: 1.0, priority: 'low', targetDate: '2026-01-15', subtasks: [{ id: 's18', label: 'Subtractive EQ', done: true }, { id: 's19', label: 'Dynamic EQ', done: true }], xp: 250, milestones: [50, 100], status: 'completed' },
+];
+
+const DEMO_CHALLENGES: Challenge[] = [
+  { id: 'c1', title: 'Produce a Beat in a New Genre', description: 'Step outside your comfort zone and create in a genre you have never tried', type: 'daily', difficulty: 'Medium', xp: 150, progress: 0, target: 1, endsIn: '8h 23m', accepted: false },
+  { id: 'c2', title: 'Release 3 Tracks This Week', description: 'Finish and distribute three complete tracks before the week ends', type: 'weekly', difficulty: 'Hard', xp: 400, progress: 1, target: 3, endsIn: '4d 12h', accepted: true },
+  { id: 'c3', title: '100 Beats Community Marathon', description: 'Join producers worldwide in a collective beat-making marathon', type: 'community', difficulty: 'Legendary', xp: 1000, progress: 42, target: 100, participants: 237, endsIn: '12d', accepted: true },
+  { id: 'c4', title: 'Sound Design From Scratch', description: 'Create 5 unique patches using only a basic synthesizer', type: 'daily', difficulty: 'Easy', xp: 100, progress: 3, target: 5, endsIn: '16h 45m', accepted: true },
+];
+
+const DEMO_MILESTONES: Milestone[] = [
+  { id: 'm1', title: 'First Track Completed', description: 'Finished your very first production from start to finish', unlocked: true, date: '2025-06-15', icon: 'music', xpReward: 100 },
+  { id: 'm2', title: '10 Beats Produced', description: 'Reached double digits in beat production output', unlocked: true, date: '2025-09-02', icon: 'zap', xpReward: 250 },
+  { id: 'm3', title: 'First Collaboration', description: 'Completed a creative session with another artist', unlocked: true, date: '2025-11-20', icon: 'users', xpReward: 200 },
+  { id: 'm4', title: 'First Sale', description: 'Earned your first revenue from your music career', unlocked: true, date: '2026-01-10', icon: 'star', xpReward: 500 },
+  { id: 'm5', title: '50 Beats Milestone', description: 'Half a century of beats in the catalog -- serious commitment', unlocked: false, icon: 'trophy', xpReward: 750 },
+  { id: 'm6', title: 'Album Release', description: 'Release a full-length album project to streaming platforms', unlocked: false, icon: 'award', xpReward: 1000 },
+];
+
+const DEMO_ACHIEVEMENTS: Achievement[] = [
+  { id: 'a1', name: 'Beat Machine', description: 'Produce 50 beats', category: 'Production', unlocked: false, icon: 'zap', rarity: 'epic' },
+  { id: 'a2', name: 'Mixdown Master', description: 'Mix 25 tracks professionally', category: 'Production', unlocked: false, icon: 'music', rarity: 'rare' },
+  { id: 'a3', name: 'Sound Designer', description: 'Create 100 original patches', category: 'Production', unlocked: false, icon: 'sparkles', rarity: 'legendary' },
+  { id: 'a4', name: 'Collaborator', description: 'Complete 10 collab sessions', category: 'Social', unlocked: false, icon: 'users', rarity: 'rare' },
+  { id: 'a5', name: 'Community Star', description: 'Participate in 5 community challenges', category: 'Social', unlocked: true, icon: 'star', rarity: 'common' },
+  { id: 'a6', name: 'Mentor', description: 'Help 3 new producers with feedback', category: 'Social', unlocked: false, icon: 'award', rarity: 'rare' },
+  { id: 'a7', name: 'First Dollar', description: 'Earn your first revenue from music', category: 'Sales', unlocked: true, icon: 'trophy', rarity: 'common' },
+  { id: 'a8', name: 'Catalog Builder', description: 'Have 20 tracks on streaming platforms', category: 'Sales', unlocked: false, icon: 'target', rarity: 'epic' },
+  { id: 'a9', name: '1K Streams', description: 'Reach 1,000 total streams', category: 'Sales', unlocked: false, icon: 'trending', rarity: 'rare' },
+  { id: 'a10', name: 'Theory Nerd', description: 'Complete 5 music theory courses', category: 'Learning', unlocked: false, icon: 'book', rarity: 'rare' },
+  { id: 'a11', name: 'Gear Head', description: 'Master 3 different DAWs', category: 'Learning', unlocked: true, icon: 'settings', rarity: 'common' },
+  { id: 'a12', name: 'Genre Hopper', description: 'Produce tracks in 8 different genres', category: 'Learning', unlocked: false, icon: 'flame', rarity: 'epic' },
+];
+
+// --------------- Style Mappings ---------------
+
+const categoryColors: Record<string, string> = {
+  Production: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  Mixing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  Release: 'bg-green-500/20 text-green-400 border-green-500/30',
+  Learning: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  Collaboration: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
+};
+
+const categoryDotColors: Record<string, string> = {
+  Production: 'bg-purple-400',
+  Mixing: 'bg-blue-400',
+  Release: 'bg-green-400',
+  Learning: 'bg-yellow-400',
+  Collaboration: 'bg-pink-400',
+};
+
+const difficultyColors: Record<string, string> = {
+  Easy: 'bg-green-500/20 text-green-400',
+  Medium: 'bg-yellow-500/20 text-yellow-400',
+  Hard: 'bg-orange-500/20 text-orange-400',
+  Legendary: 'bg-red-500/20 text-red-400',
+};
+
+const rarityColors: Record<string, string> = {
+  common: 'text-gray-400',
+  rare: 'text-blue-400',
+  epic: 'text-purple-400',
+  legendary: 'text-yellow-400',
+};
+
+const rarityBgColors: Record<string, string> = {
+  common: 'bg-gray-500/10 border-gray-500/20',
+  rare: 'bg-blue-500/10 border-blue-500/20',
+  epic: 'bg-purple-500/10 border-purple-500/20',
+  legendary: 'bg-yellow-500/10 border-yellow-500/20',
+};
+
+const priorityFlame: Record<string, string> = {
+  low: 'text-gray-500',
+  medium: 'text-yellow-400',
+  high: 'text-red-400',
+};
+
+// --------------- Helpers ---------------
+
+function daysUntil(dateStr: string): number {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / 86400000));
+}
+
+function getLevel(xp: number): { label: string; color: string; next: number } {
+  if (xp >= 5000) return { label: 'Legend', color: 'text-red-400', next: 10000 };
+  if (xp >= 3000) return { label: 'Pro', color: 'text-purple-400', next: 5000 };
+  if (xp >= 1000) return { label: 'Rising', color: 'text-cyan-400', next: 3000 };
+  return { label: 'Beginner', color: 'text-gray-400', next: 1000 };
+}
+
+function getLevelFloor(xp: number): number {
+  if (xp >= 5000) return 5000;
+  if (xp >= 3000) return 3000;
+  if (xp >= 1000) return 1000;
+  return 0;
+}
+
+// --------------- Sub-Components ---------------
+
+function ProgressRing({ radius, stroke, progress, color = '#22d3ee', size }: { radius: number; stroke: number; progress: number; color?: string; size: number }) {
+  const nr = radius - stroke / 2;
+  const circ = 2 * Math.PI * nr;
+  const offset = circ - Math.min(progress, 1) * circ;
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={nr} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-white/10" />
+      <motion.circle cx={size / 2} cy={size / 2} r={nr} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} initial={{ strokeDashoffset: circ }} animate={{ strokeDashoffset: offset }} transition={{ duration: 1, ease: 'easeOut' }} />
+    </svg>
+  );
+}
+
+function XpLevelBar({ xp }: { xp: number }) {
+  const lvl = getLevel(xp);
+  const floor = getLevelFloor(xp);
+  const pct = (xp - floor) / (lvl.next - floor);
+  return (
+    <div className="w-full space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className={`font-semibold ${lvl.color}`}>{lvl.label}</span>
+        <span className="text-gray-500">{xp.toLocaleString()} / {lvl.next.toLocaleString()} XP</span>
+      </div>
+      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <motion.div className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500" initial={{ width: 0 }} animate={{ width: `${Math.min(pct * 100, 100)}%` }} transition={{ duration: 1.2, ease: 'easeOut' }} />
+      </div>
+    </div>
+  );
+}
+
+function WeeklyActivityBar() {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const activity = [3, 5, 2, 7, 4, 6, 1];
+  const max = Math.max(...activity);
+  return (
+    <div className="flex items-end gap-1.5 h-10">
+      {days.map((day, i) => (
+        <div key={day} className="flex flex-col items-center gap-0.5 flex-1">
+          <motion.div className="w-full rounded-sm bg-gradient-to-t from-cyan-600 to-cyan-400" initial={{ height: 0 }} animate={{ height: `${(activity[i] / max) * 100}%` }} transition={{ duration: 0.6, delay: i * 0.05 }} title={`${activity[i]}h`} />
+          <span className="text-[8px] text-gray-500">{day}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function resolveIcon(iconName: string) {
+  const iconMap: Record<string, typeof Zap> = {
+    zap: Zap,
+    music: Music,
+    sparkles: Sparkles,
+    users: Users,
+    star: Star,
+    award: Award,
+    trophy: Trophy,
+    target: Target,
+    trending: TrendingUp,
+    flame: Flame,
+    book: Sparkles,
+    settings: Zap,
+  };
+  return iconMap[iconName] || Sparkles;
+}
+
+// --------------- Main Component ---------------
 
 export default function GoalsLensPage() {
   useLensNav('goals');
 
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'goals' | 'challenges' | 'milestones' | 'achievements'>('goals');
+  const [goalFilter, setGoalFilter] = useState('All');
   const [showCreate, setShowCreate] = useState(false);
+  const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
+
+  // Create goal form state
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [newPriority, setNewPriority] = useState('medium');
-  const [filter, setFilter] = useState<string>('all');
+  const [newCategory, setNewCategory] = useState<DemoGoal['category']>('Production');
+  const [newTargetDate, setNewTargetDate] = useState('');
+  const [newSubtasks, setNewSubtasks] = useState('');
+  const [newXp, setNewXp] = useState(200);
+  const [newPriority, setNewPriority] = useState<DemoGoal['priority']>('medium');
 
-  const { data: goalsData, isLoading } = useQuery({
+  // Demo state
+  const [goals, setGoals] = useState<DemoGoal[]>(DEMO_GOALS);
+  const [challenges, setChallenges] = useState<Challenge[]>(DEMO_CHALLENGES);
+  const [milestones] = useState<Milestone[]>(DEMO_MILESTONES);
+  const [achievements] = useState<Achievement[]>(DEMO_ACHIEVEMENTS);
+
+  // API integration (preserves original backend connectivity)
+  const { data: goalsData } = useQuery({
     queryKey: ['goals'],
     queryFn: () => apiHelpers.goals.list().then((r) => r.data),
     refetchInterval: 10000,
@@ -47,33 +298,13 @@ export default function GoalsLensPage() {
     queryFn: () => apiHelpers.goals.status().then((r) => r.data),
   });
 
-  const createGoal = useMutation({
+  const createGoalMutation = useMutation({
     mutationFn: () =>
       apiHelpers.goals.create({
         title: newTitle,
         description: newDescription,
         priority: newPriority,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['goals'] });
-      setShowCreate(false);
-      setNewTitle('');
-      setNewDescription('');
-    },
-  });
-
-  const completeGoal = useMutation({
-    mutationFn: (goalId: string) => apiHelpers.goals.complete(goalId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
-  });
-
-  const activateGoal = useMutation({
-    mutationFn: (goalId: string) => apiHelpers.goals.activate(goalId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
-  });
-
-  const abandonGoal = useMutation({
-    mutationFn: (goalId: string) => apiHelpers.goals.abandon(goalId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
   });
 
@@ -82,225 +313,642 @@ export default function GoalsLensPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
   });
 
-  const goals: Goal[] = goalsData?.goals || goalsData || [];
-  const filtered = filter === 'all' ? goals : goals.filter((g) => g.status === filter);
+  // Computed stats
+  const totalXp = useMemo(
+    () => goals.filter((g) => g.status === 'completed').reduce((s, g) => s + g.xp, 0) + 1250,
+    [goals]
+  );
+  const level = getLevel(totalXp);
+  const completedThisMonth = goals.filter((g) => g.status === 'completed').length;
+  const activeGoalCount = goals.filter((g) => g.status === 'active').length;
+  const acceptedChallengeCount = challenges.filter((c) => c.accepted).length;
+  const unlockedAchievementCount = achievements.filter((a) => a.unlocked).length;
 
-  const statusCounts = {
-    active: goals.filter((g) => g.status === 'active').length,
-    completed: goals.filter((g) => g.status === 'completed').length,
-    proposed: goals.filter((g) => g.status === 'proposed').length,
-    abandoned: goals.filter((g) => g.status === 'abandoned').length,
+  const overallProgress = useMemo(() => {
+    const active = goals.filter((g) => g.status === 'active');
+    if (!active.length) return 0;
+    return active.reduce((s, g) => s + g.progress, 0) / active.length;
+  }, [goals]);
+
+  const streakDays = 14;
+
+  const filteredGoals = useMemo(() => {
+    if (goalFilter === 'All') return goals;
+    if (goalFilter === 'Active') return goals.filter((g) => g.status === 'active');
+    if (goalFilter === 'Completed') return goals.filter((g) => g.status === 'completed');
+    if (goalFilter === 'Creative') return goals.filter((g) => g.category === 'Production' || g.category === 'Mixing');
+    if (goalFilter === 'Technical') return goals.filter((g) => g.category === 'Learning');
+    if (goalFilter === 'Release') return goals.filter((g) => g.category === 'Release');
+    return goals;
+  }, [goals, goalFilter]);
+
+  // Category breakdown for summary
+  const categoryBreakdown = useMemo(() => {
+    const cats = ['Production', 'Mixing', 'Release', 'Learning', 'Collaboration'] as const;
+    return cats.map((cat) => ({
+      name: cat,
+      count: goals.filter((g) => g.category === cat).length,
+      completed: goals.filter((g) => g.category === cat && g.status === 'completed').length,
+    }));
+  }, [goals]);
+
+  const toggleSubtask = (goalId: string, subtaskId: string) => {
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const updated = g.subtasks.map((st) =>
+          st.id === subtaskId ? { ...st, done: !st.done } : st
+        );
+        const doneCount = updated.filter((st) => st.done).length;
+        return { ...g, subtasks: updated, progress: Math.round((doneCount / updated.length) * 100) / 100 };
+      })
+    );
   };
 
-  const getPriorityColor = (p?: string) => {
-    switch (p) {
-      case 'high': return 'text-red-400 bg-red-400/20';
-      case 'low': return 'text-gray-400 bg-gray-400/20';
-      default: return 'text-yellow-400 bg-yellow-400/20';
-    }
+  const acceptChallenge = (id: string) => {
+    setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, accepted: true } : c)));
   };
+
+  const handleCreateGoal = () => {
+    const subtaskList = newSubtasks
+      .split('\n')
+      .filter(Boolean)
+      .map((label, i) => ({ id: `new-${Date.now()}-${i}`, label: label.trim(), done: false }));
+    const newGoal: DemoGoal = {
+      id: `g-${Date.now()}`,
+      title: newTitle,
+      description: newDescription,
+      category: newCategory,
+      progress: 0,
+      priority: newPriority,
+      targetDate: newTargetDate || '2026-03-31',
+      subtasks: subtaskList,
+      xp: newXp,
+      milestones: [50],
+      status: 'active',
+    };
+    setGoals((prev) => [newGoal, ...prev]);
+    createGoalMutation.mutate();
+    setShowCreate(false);
+    setNewTitle('');
+    setNewDescription('');
+    setNewSubtasks('');
+  };
+
+  const tabs = [
+    { key: 'goals' as const, label: 'Goals', icon: Target, count: activeGoalCount },
+    { key: 'challenges' as const, label: 'Challenges', icon: Swords, count: acceptedChallengeCount },
+    { key: 'milestones' as const, label: 'Milestones', icon: TrendingUp, count: milestones.filter((m) => m.unlocked).length },
+    { key: 'achievements' as const, label: 'Achievements', icon: Award, count: unlockedAchievementCount },
+  ];
+
+  const filterPills = ['All', 'Active', 'Completed', 'Creative', 'Technical', 'Release'];
 
   return (
-    <div className="p-6 space-y-6">
-      <header className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+      {/* ---- Header ---- */}
+      <header className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🎯</span>
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+            <Target className="w-5 h-5 text-cyan-400" />
+          </div>
           <div>
-            <h1 className="text-xl font-bold">Goals Lens</h1>
-            <p className="text-sm text-gray-400">
-              Goal lifecycle management — create, track, complete
-            </p>
+            <h1 className="text-xl font-bold text-white">Creative Goals</h1>
+            <p className="text-sm text-gray-400">Track your creative journey and level up</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-orange-500/15 text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold">
+            <Flame className="w-4 h-4" />
+            <span>{streakDays} day streak</span>
+          </div>
           <button
             onClick={() => autoPropose.mutate()}
             disabled={autoPropose.isPending}
             className="btn-neon flex items-center gap-1 text-sm"
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-3.5 h-3.5" />
             {autoPropose.isPending ? 'Proposing...' : 'Auto-Propose'}
           </button>
           <button
             onClick={() => setShowCreate(!showCreate)}
             className="btn-neon purple flex items-center gap-1 text-sm"
           >
-            <Plus className="w-3 h-3" /> New Goal
+            <Plus className="w-3.5 h-3.5" /> New Goal
           </button>
         </div>
       </header>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="lens-card">
-          <Play className="w-5 h-5 text-neon-blue mb-2" />
-          <p className="text-2xl font-bold">{statusCounts.active}</p>
-          <p className="text-sm text-gray-400">Active</p>
+      {/* ---- Hero Stats Bar ---- */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lens-card flex flex-col items-center justify-center col-span-1">
+          <div className="relative">
+            <ProgressRing radius={36} stroke={5} progress={overallProgress} size={72} color="#22d3ee" />
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-cyan-400">{Math.round(overallProgress * 100)}%</span>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Overall Progress</p>
+        </motion.div>
+        {[
+          { icon: Flame, iconCls: 'text-orange-400', value: streakDays, label: 'Day Streak', delay: 0.05 },
+          { icon: CheckCircle2, iconCls: 'text-green-400', value: completedThisMonth, label: 'Completed', delay: 0.1 },
+          { icon: Zap, iconCls: 'text-yellow-400', value: totalXp.toLocaleString(), label: 'XP Earned', delay: 0.15 },
+        ].map((s) => (
+          <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: s.delay }} className="lens-card flex flex-col items-center justify-center">
+            <s.icon className={`w-6 h-6 ${s.iconCls} mb-1`} />
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-xs text-gray-400">{s.label}</p>
+          </motion.div>
+        ))}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="lens-card flex flex-col items-center justify-center">
+          <Star className="w-6 h-6 text-purple-400 mb-1" />
+          <p className={`text-lg font-bold ${level.color}`}>{level.label}</p>
+          <p className="text-xs text-gray-400">Level</p>
+        </motion.div>
+      </div>
+
+      {/* XP Level Progress + Weekly Activity */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="panel p-4 space-y-2">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Level Progress</p>
+          <XpLevelBar xp={totalXp} />
         </div>
-        <div className="lens-card">
-          <CheckCircle2 className="w-5 h-5 text-neon-green mb-2" />
-          <p className="text-2xl font-bold">{statusCounts.completed}</p>
-          <p className="text-sm text-gray-400">Completed</p>
-        </div>
-        <div className="lens-card">
-          <Clock className="w-5 h-5 text-neon-yellow mb-2" />
-          <p className="text-2xl font-bold">{statusCounts.proposed}</p>
-          <p className="text-sm text-gray-400">Proposed</p>
-        </div>
-        <div className="lens-card">
-          <XCircle className="w-5 h-5 text-gray-500 mb-2" />
-          <p className="text-2xl font-bold">{statusCounts.abandoned}</p>
-          <p className="text-sm text-gray-400">Abandoned</p>
+        <div className="panel p-4 space-y-2">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Weekly Activity</p>
+          <WeeklyActivityBar />
         </div>
       </div>
 
-      {/* Create Goal Form */}
-      {showCreate && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="panel p-4 space-y-3"
-        >
-          <h2 className="font-semibold flex items-center gap-2">
-            <Plus className="w-4 h-4 text-neon-purple" />
-            Create Goal
-          </h2>
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Goal title..."
-            className="input-lattice w-full"
-          />
-          <textarea
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Description (optional)..."
-            className="input-lattice w-full h-20 resize-none"
-          />
-          <div className="flex gap-2 items-center">
-            <select
-              value={newPriority}
-              onChange={(e) => setNewPriority(e.target.value)}
-              className="input-lattice"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-            <button
-              onClick={() => createGoal.mutate()}
-              disabled={!newTitle || createGoal.isPending}
-              className="btn-neon purple flex-1"
-            >
-              {createGoal.isPending ? 'Creating...' : 'Create Goal'}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2">
-        {['all', 'active', 'proposed', 'completed', 'abandoned'].map((f) => (
+      {/* ---- Tab Navigation ---- */}
+      <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
+        {tabs.map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
-              filter === f
-                ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30'
-                : 'bg-lattice-surface text-gray-400'
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === t.key
+                ? 'bg-cyan-500/20 text-cyan-400 shadow-sm shadow-cyan-500/10'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
             }`}
           >
-            {f}
+            <t.icon className="w-4 h-4" />
+            <span className="hidden sm:inline">{t.label}</span>
+            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">{t.count}</span>
           </button>
         ))}
       </div>
 
-      {/* Goals List */}
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="text-center py-12 text-gray-500">Loading goals...</div>
-        ) : filtered.length === 0 ? (
-          <div className="panel p-12 text-center text-gray-500">
-            <Target className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p>No goals yet. Create one or use Auto-Propose!</p>
+      {/* ---- Create Goal Form ---- */}
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="panel p-5 space-y-4">
+              <h2 className="font-semibold text-white flex items-center gap-2"><Plus className="w-4 h-4 text-purple-400" /> Create New Goal</h2>
+              <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Goal title..." className="input-lattice w-full" />
+              <textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Describe your goal and what success looks like..." className="input-lattice w-full h-16 resize-none" />
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as DemoGoal['category'])} className="input-lattice">
+                  {['Production', 'Mixing', 'Release', 'Learning', 'Collaboration'].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as DemoGoal['priority'])} className="input-lattice">
+                  <option value="low">Low Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="high">High Priority</option>
+                </select>
+                <input type="date" value={newTargetDate} onChange={(e) => setNewTargetDate(e.target.value)} className="input-lattice" />
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                  <input type="number" value={newXp} onChange={(e) => setNewXp(Number(e.target.value))} min={50} max={2000} step={50} className="input-lattice w-full" placeholder="XP" />
+                </div>
+                <button onClick={handleCreateGoal} disabled={!newTitle} className="btn-neon purple">Create Goal</button>
+              </div>
+              <textarea value={newSubtasks} onChange={(e) => setNewSubtasks(e.target.value)} placeholder="Subtasks (one per line)..." className="input-lattice w-full h-16 resize-none text-sm" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ================================================================ */}
+      {/* GOALS TAB                                                        */}
+      {/* ================================================================ */}
+      {activeTab === 'goals' && (
+        <div className="space-y-4">
+          {/* Category breakdown mini-bar */}
+          <div className="flex gap-3 flex-wrap">
+            {categoryBreakdown.map((cb) => (
+              <div key={cb.name} className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className={`w-2 h-2 rounded-full ${categoryDotColors[cb.name]}`} />
+                <span>{cb.name}</span>
+                <span className="text-gray-600">
+                  {cb.completed}/{cb.count}
+                </span>
+              </div>
+            ))}
           </div>
-        ) : (
-          filtered.map((goal) => (
+
+          {/* Filter pills */}
+          <div className="flex flex-wrap gap-2">
+            {filterPills.map((f) => (
+              <button
+                key={f}
+                onClick={() => setGoalFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  goalFilter === f
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Goal cards */}
+          <div className="space-y-3">
+            {filteredGoals.map((goal, i) => {
+              const isExpanded = expandedGoal === goal.id;
+              const dLeft = daysUntil(goal.targetDate);
+              const subtasksDone = goal.subtasks.filter((st) => st.done).length;
+
+              return (
+                <motion.div
+                  key={goal.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="panel p-4 space-y-3"
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Progress ring */}
+                    <div className="relative flex-shrink-0">
+                      <ProgressRing
+                        radius={24}
+                        stroke={4}
+                        progress={goal.progress}
+                        size={48}
+                        color={goal.status === 'completed' ? '#4ade80' : '#a78bfa'}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                        {Math.round(goal.progress * 100)}%
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-white truncate">{goal.title}</h3>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border ${categoryColors[goal.category]}`}>
+                          {goal.category}
+                        </span>
+                        <Flame className={`w-3.5 h-3.5 ${priorityFlame[goal.priority]}`} />
+                        {goal.status === 'completed' && (
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{goal.description}</p>
+
+                      {/* Progress bar with milestone markers */}
+                      <div className="relative mt-2 h-2 bg-white/10 rounded-full overflow-visible">
+                        <motion.div
+                          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(goal.progress * 100, 100)}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                        />
+                        {goal.milestones.map((m) => (
+                          <div
+                            key={m}
+                            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-white/40 bg-gray-800"
+                            style={{ left: `${m}%` }}
+                            title={`Milestone at ${m}%`}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                        {goal.status === 'active' && (
+                          <span className={`flex items-center gap-1 ${dLeft <= 3 ? 'text-red-400' : ''}`}>
+                            <Clock className="w-3 h-3" />
+                            {dLeft === 0 ? 'Due today' : `${dLeft} day${dLeft !== 1 ? 's' : ''} left`}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-yellow-400">
+                          <Zap className="w-3 h-3" />{goal.xp} XP
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {subtasksDone}/{goal.subtasks.length} tasks
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setExpandedGoal(isExpanded ? null : goal.id)}
+                      className="text-gray-500 hover:text-gray-300 p-1 transition-colors"
+                    >
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {/* Expanded subtasks */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="border-t border-white/5 pt-3 space-y-1.5">
+                          {goal.subtasks.map((st) => (
+                            <button
+                              key={st.id}
+                              onClick={() => toggleSubtask(goal.id, st.id)}
+                              className="flex items-center gap-2 w-full text-left text-sm group"
+                            >
+                              <span
+                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  st.done
+                                    ? 'bg-green-500/30 border-green-500 text-green-400'
+                                    : 'border-gray-600 group-hover:border-gray-400'
+                                }`}
+                              >
+                                {st.done && <CheckCircle2 className="w-3 h-3" />}
+                              </span>
+                              <span className={st.done ? 'text-gray-500 line-through' : 'text-gray-300'}>
+                                {st.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+
+            {filteredGoals.length === 0 && (
+              <div className="panel p-12 text-center text-gray-500">
+                <Target className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p>No goals match this filter.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* CHALLENGES TAB                                                   */}
+      {/* ================================================================ */}
+      {activeTab === 'challenges' && (
+        <div className="space-y-4">
+          {/* Challenge type filter summary */}
+          <div className="flex gap-4 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-yellow-400" /> Daily: {challenges.filter((c) => c.type === 'daily').length}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-400" /> Weekly: {challenges.filter((c) => c.type === 'weekly').length}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-purple-400" /> Community: {challenges.filter((c) => c.type === 'community').length}
+            </span>
+          </div>
+
+          {challenges.map((ch, i) => (
             <motion.div
-              key={goal.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="panel p-4"
+              key={ch.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+              className="panel p-5 space-y-3"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold">{goal.title}</h3>
-                    {goal.priority && (
-                      <span className={`text-xs px-2 py-0.5 rounded ${getPriorityColor(goal.priority)}`}>
-                        {goal.priority}
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase ${difficultyColors[ch.difficulty]}`}
+                    >
+                      {ch.difficulty}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-gray-300 capitalize">
+                      {ch.type}
+                    </span>
+                    {ch.participants && (
+                      <span className="text-[10px] flex items-center gap-1 text-gray-400">
+                        <Users className="w-3 h-3" />
+                        {ch.participants} joined
                       </span>
                     )}
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      goal.status === 'active' ? 'bg-blue-400/20 text-blue-400' :
-                      goal.status === 'completed' ? 'bg-green-400/20 text-green-400' :
-                      goal.status === 'proposed' ? 'bg-yellow-400/20 text-yellow-400' :
-                      'bg-gray-400/20 text-gray-400'
-                    }`}>
-                      {goal.status}
-                    </span>
                   </div>
-                  {goal.description && (
-                    <p className="text-sm text-gray-400 mb-2">{goal.description}</p>
-                  )}
-                  {/* Progress bar */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-lattice-deep rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-neon-cyan rounded-full transition-all"
-                        style={{ width: `${(goal.progress || 0) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-400 font-mono">
-                      {((goal.progress || 0) * 100).toFixed(0)}%
-                    </span>
-                  </div>
+                  <h3 className="font-semibold text-white">{ch.title}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{ch.description}</p>
                 </div>
-                <div className="flex gap-1 ml-4">
-                  {goal.status === 'proposed' && (
-                    <button
-                      onClick={() => activateGoal.mutate(goal.id)}
-                      className="p-1.5 rounded hover:bg-blue-400/20 text-blue-400"
-                      title="Activate"
-                    >
-                      <Play className="w-4 h-4" />
-                    </button>
-                  )}
-                  {goal.status === 'active' && (
-                    <button
-                      onClick={() => completeGoal.mutate(goal.id)}
-                      className="p-1.5 rounded hover:bg-green-400/20 text-green-400"
-                      title="Complete"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {(goal.status === 'active' || goal.status === 'proposed') && (
-                    <button
-                      onClick={() => abandonGoal.mutate(goal.id)}
-                      className="p-1.5 rounded hover:bg-red-400/20 text-red-400"
-                      title="Abandon"
-                    >
-                      <XCircle className="w-4 h-4" />
-                    </button>
-                  )}
+                <div className="text-right flex-shrink-0 ml-4">
+                  <div className="flex items-center gap-1 text-yellow-400 text-sm font-bold">
+                    <Zap className="w-4 h-4" />
+                    {ch.xp} XP
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1 justify-end">
+                    <Clock className="w-3 h-3" />
+                    {ch.endsIn}
+                  </p>
                 </div>
               </div>
+
+              {/* Progress */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>Progress</span>
+                  <span>
+                    {ch.progress} / {ch.target}
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-400"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((ch.progress / ch.target) * 100, 100)}%` }}
+                    transition={{ duration: 0.8 }}
+                  />
+                </div>
+              </div>
+
+              {!ch.accepted ? (
+                <button
+                  onClick={() => acceptChallenge(ch.id)}
+                  className="btn-neon w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <Swords className="w-4 h-4" /> Accept Challenge
+                </button>
+              ) : (
+                <div className="text-xs text-center text-green-400 flex items-center justify-center gap-1 py-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Challenge Accepted
+                </div>
+              )}
             </motion.div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* MILESTONES TAB                                                   */}
+      {/* ================================================================ */}
+      {activeTab === 'milestones' && (
+        <div className="space-y-4">
+          {/* Milestone summary */}
+          <div className="panel p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              <span>
+                {milestones.filter((m) => m.unlocked).length} of {milestones.length} milestones unlocked
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-yellow-400">
+              <Zap className="w-3 h-3" />
+              {milestones.filter((m) => m.unlocked).reduce((s, m) => s + m.xpReward, 0)} XP earned
+            </div>
+          </div>
+
+          <div className="relative pl-8">
+            {/* Vertical timeline line */}
+            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/50 via-purple-500/50 to-transparent" />
+
+            <div className="space-y-6">
+              {milestones.map((ms, i) => {
+                const IconComp = resolveIcon(ms.icon);
+
+                return (
+                  <motion.div
+                    key={ms.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.08 }}
+                    className="relative"
+                  >
+                    {/* Node on timeline */}
+                    <div
+                      className={`absolute -left-8 top-3 w-6 h-6 rounded-full flex items-center justify-center border-2 ${
+                        ms.unlocked
+                          ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400'
+                          : 'bg-gray-800 border-gray-600 text-gray-600'
+                      }`}
+                    >
+                      {ms.unlocked ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                    </div>
+
+                    <div className={`panel p-4 ${ms.unlocked ? 'border-white/10' : 'opacity-50'}`}>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                            ms.unlocked ? 'bg-cyan-500/15' : 'bg-gray-700/30'
+                          }`}
+                        >
+                          <IconComp className={`w-5 h-5 ${ms.unlocked ? 'text-cyan-400' : 'text-gray-600'}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className={`font-semibold ${ms.unlocked ? 'text-white' : 'text-gray-500'}`}>
+                            {ms.title}
+                          </h3>
+                          <p className="text-xs text-gray-400">{ms.description}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {ms.date && (
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {ms.date}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-yellow-400 flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5" />
+                            +{ms.xpReward} XP
+                          </span>
+                          {!ms.unlocked && <Lock className="w-4 h-4 text-gray-600" />}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* ACHIEVEMENTS TAB                                                 */}
+      {/* ================================================================ */}
+      {activeTab === 'achievements' && (
+        <div className="space-y-6">
+          {/* Achievement summary */}
+          <div className="panel p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Award className="w-4 h-4 text-purple-400" />
+              <span>
+                {achievements.filter((a) => a.unlocked).length} of {achievements.length} achievements unlocked
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className={rarityColors.common}>Common</span>
+              <span className={rarityColors.rare}>Rare</span>
+              <span className={rarityColors.epic}>Epic</span>
+              <span className={rarityColors.legendary}>Legendary</span>
+            </div>
+          </div>
+
+          {(['Production', 'Social', 'Sales', 'Learning'] as const).map((cat) => {
+            const catAchievements = achievements.filter((a) => a.category === cat);
+
+            return (
+              <div key={cat}>
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  {cat}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {catAchievements.map((ach, i) => {
+                    const IconComp = resolveIcon(ach.icon);
+
+                    return (
+                      <motion.div
+                        key={ach.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={`panel p-4 flex flex-col items-center text-center space-y-2 border ${
+                          ach.unlocked ? rarityBgColors[ach.rarity] : 'opacity-40 grayscale border-transparent'
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            ach.unlocked ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700/50 text-gray-600'
+                          }`}
+                        >
+                          <IconComp className="w-5 h-5" />
+                        </div>
+                        <h4
+                          className={`text-sm font-semibold ${
+                            ach.unlocked ? 'text-white' : 'text-gray-500'
+                          }`}
+                        >
+                          {ach.name}
+                        </h4>
+                        <p className="text-[10px] text-gray-400 leading-tight">{ach.description}</p>
+                        <span className={`text-[9px] uppercase font-semibold tracking-wider ${rarityColors[ach.rarity]}`}>
+                          {ach.rarity}
+                        </span>
+                        {ach.unlocked && (
+                          <span className="text-[10px] text-green-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Unlocked
+                          </span>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

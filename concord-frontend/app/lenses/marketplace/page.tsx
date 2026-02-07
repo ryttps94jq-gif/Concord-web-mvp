@@ -1,105 +1,405 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store,
   Download,
   Star,
-  Github,
   Search,
   Plus,
   TrendingUp,
-  Crown,
   Grid3X3,
   List,
-  Settings,
   Trash2,
-  RefreshCw,
   Check,
   X,
   BarChart2,
-  Users,
   DollarSign,
-  Code,
-  Shield,
   Package,
-  Tag,
-  MessageSquare,
-  ThumbsUp,
-  Zap,
+  Music,
   Layers,
-  Edit,
-  Share2,
-  Info
+  ShoppingCart,
+  Play,
+  Pause,
+  ChevronLeft,
+  ChevronRight,
+  Upload,
+  Eye,
+  LayoutDashboard,
+  FileAudio,
+  Palette,
+  Plug,
+  Settings2,
 } from 'lucide-react';
-import { DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS, type DemoPlugin as _DemoPlugin } from '@/lib/marketplace-demo';
+import { cn } from '@/lib/utils';
+import { DEMO_PLUGINS } from '@/lib/marketplace-demo';
 
-interface Plugin {
-  id: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface CreatorInfo {
   name: string;
+  avatar?: string;
+  verified?: boolean;
+}
+
+interface LicensePrice {
+  basic: number;
+  premium: number;
+  unlimited: number;
+  exclusive: number;
+}
+
+interface MarketplaceItem {
+  id: string;
+  title: string;
   description: string;
-  longDescription?: string;
-  category: string;
-  author: {
-    name: string;
-    avatar?: string;
-    verified?: boolean;
-  };
-  githubUrl?: string;
-  version: string;
-  downloads: number;
+  type: 'beat' | 'stem' | 'sample' | 'artwork' | 'plugin' | 'preset';
+  genre?: string;
+  bpm?: number;
+  key?: string;
+  duration?: string;
+  creator: CreatorInfo;
+  prices: LicensePrice;
   rating: number;
   ratingCount: number;
-  status: 'approved' | 'pending_review' | 'rejected' | 'draft';
+  sales: number;
+  tags: string[];
   featured?: boolean;
-  trending?: boolean;
-  price?: number;
-  screenshots?: string[];
-  tags?: string[];
-  permissions?: string[];
-  dependencies?: string[];
-  changelog?: { version: string; date: string; changes: string[] }[];
+  thumbnail?: string;
+  previewUrl?: string;
   createdAt: string;
-  updatedAt: string;
-  weeklyDownloads?: number;
-  revenue?: number;
-  hasUpdate?: boolean;
-  installedAt?: string;
 }
 
-interface Review {
+interface CartItem {
+  item: MarketplaceItem;
+  license: string;
+  price: number;
+}
+
+interface Purchase {
   id: string;
-  pluginId: string;
-  userId: string;
-  userName: string;
-  userAvatar?: string;
-  rating: number;
-  comment: string;
-  helpful: number;
-  createdAt: string;
+  item: MarketplaceItem;
+  license: string;
+  price: number;
+  purchasedAt: string;
 }
 
-type ViewMode = 'grid' | 'list';
-type Tab = 'browse' | 'installed' | 'developer' | 'collections';
-type SortOption = 'popular' | 'rating' | 'recent' | 'trending' | 'downloads';
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-const CATEGORIES = [
+type Tab = 'browse' | 'myshop' | 'cart' | 'purchases' | 'analytics';
+type ViewMode = 'grid' | 'list';
+type SortOption = 'popular' | 'price-asc' | 'price-desc' | 'newest' | 'rating';
+type CategoryFilter = 'all' | 'beats' | 'stems' | 'samples' | 'artwork' | 'plugins' | 'presets';
+
+const LICENSE_TIERS = [
+  { id: 'basic', name: 'Basic', color: 'text-gray-400' },
+  { id: 'premium', name: 'Premium', color: 'text-neon-cyan' },
+  { id: 'unlimited', name: 'Unlimited', color: 'text-neon-purple' },
+  { id: 'exclusive', name: 'Exclusive', color: 'text-neon-pink' },
+] as const;
+
+const CATEGORIES: { id: CategoryFilter; name: string; icon: typeof Music }[] = [
   { id: 'all', name: 'All', icon: Grid3X3 },
-  { id: 'productivity', name: 'Productivity', icon: Zap },
-  { id: 'visualization', name: 'Visualization', icon: BarChart2 },
-  { id: 'ai', name: 'AI & ML', icon: Code },
-  { id: 'integration', name: 'Integrations', icon: Layers },
-  { id: 'security', name: 'Security', icon: Shield },
-  { id: 'communication', name: 'Communication', icon: MessageSquare },
-  { id: 'data', name: 'Data Tools', icon: Package },
+  { id: 'beats', name: 'Beats', icon: Music },
+  { id: 'stems', name: 'Stems', icon: FileAudio },
+  { id: 'samples', name: 'Samples', icon: Layers },
+  { id: 'artwork', name: 'Artwork', icon: Palette },
+  { id: 'plugins', name: 'Plugins', icon: Plug },
+  { id: 'presets', name: 'Presets', icon: Settings2 },
 ];
 
-// FE-006: Mock data moved to lib/marketplace-demo.ts
-// DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS imported at top
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'popular', label: 'Popular' },
+  { value: 'price-asc', label: 'Price: Low-High' },
+  { value: 'price-desc', label: 'Price: High-Low' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'rating', label: 'Best Rated' },
+];
+
+const GENRE_OPTIONS = ['All Genres', 'Hip-Hop', 'R&B', 'Pop', 'Electronic', 'Lo-Fi', 'Trap', 'Rock', 'Jazz', 'Ambient'];
+
+// ---------------------------------------------------------------------------
+// Demo Data
+// ---------------------------------------------------------------------------
+
+const DEMO_ITEMS: MarketplaceItem[] = [
+  {
+    id: 'beat-001', title: 'Midnight Cipher', description: 'Dark trap beat with haunting 808s and ethereal pads. Perfect for introspective rap.', type: 'beat', genre: 'Trap', bpm: 140, key: 'Dm', duration: '3:42',
+    creator: { name: 'ProdByNova', avatar: undefined, verified: true },
+    prices: { basic: 29, premium: 79, unlimited: 199, exclusive: 499 },
+    rating: 4.8, ratingCount: 124, sales: 312, tags: ['dark', 'trap', '808', 'atmospheric'],
+    featured: true, createdAt: '2026-01-15',
+  },
+  {
+    id: 'beat-002', title: 'Golden Hour', description: 'Smooth R&B instrumental with warm keys and layered drums.', type: 'beat', genre: 'R&B', bpm: 92, key: 'Gb', duration: '4:05',
+    creator: { name: 'VelvetBeats', verified: true },
+    prices: { basic: 25, premium: 65, unlimited: 179, exclusive: 450 },
+    rating: 4.6, ratingCount: 89, sales: 198, tags: ['rnb', 'smooth', 'keys', 'soulful'],
+    featured: true, createdAt: '2026-01-22',
+  },
+  {
+    id: 'stem-001', title: 'Neon Dreams Stem Pack', description: 'Full stem pack: drums, bass, synths, and FX from the Neon Dreams beat.', type: 'stem', genre: 'Electronic',
+    creator: { name: 'SynthLord', verified: false },
+    prices: { basic: 15, premium: 39, unlimited: 89, exclusive: 200 },
+    rating: 4.5, ratingCount: 56, sales: 143, tags: ['stems', 'electronic', 'synth', 'drums'],
+    createdAt: '2026-01-18',
+  },
+  {
+    id: 'sample-001', title: 'Lo-Fi Textures Vol. 3', description: '50 vinyl crackle, tape hiss, and ambient noise samples for lo-fi production.', type: 'sample', genre: 'Lo-Fi',
+    creator: { name: 'DustyCrates', verified: true },
+    prices: { basic: 19, premium: 45, unlimited: 99, exclusive: 250 },
+    rating: 4.9, ratingCount: 203, sales: 587, tags: ['lofi', 'texture', 'vinyl', 'ambient'],
+    featured: true, createdAt: '2026-01-05',
+  },
+  {
+    id: 'sample-002', title: 'Orchestra Hits & Stabs', description: 'Cinematic orchestral one-shots. Brass stabs, string swells, and timpani hits.', type: 'sample', genre: 'Hip-Hop',
+    creator: { name: 'CinematicSound', verified: true },
+    prices: { basic: 25, premium: 59, unlimited: 129, exclusive: 300 },
+    rating: 4.7, ratingCount: 91, sales: 234, tags: ['orchestra', 'cinematic', 'brass', 'strings'],
+    createdAt: '2026-01-12',
+  },
+  {
+    id: 'art-001', title: 'Void Walker Cover Art', description: 'Dark futuristic album cover. 3000x3000px, layered PSD included.', type: 'artwork',
+    creator: { name: 'PixelDrift', verified: true },
+    prices: { basic: 50, premium: 120, unlimited: 250, exclusive: 500 },
+    rating: 4.9, ratingCount: 67, sales: 89, tags: ['album-cover', 'dark', 'futuristic', '3d'],
+    featured: true, createdAt: '2026-01-20',
+  },
+  {
+    id: 'art-002', title: 'Gradient Aura Pack', description: '10 abstract gradient artwork templates for singles and EPs.', type: 'artwork',
+    creator: { name: 'ChromaStudio' },
+    prices: { basic: 35, premium: 75, unlimited: 150, exclusive: 350 },
+    rating: 4.4, ratingCount: 42, sales: 112, tags: ['gradient', 'abstract', 'template', 'modern'],
+    createdAt: '2026-01-25',
+  },
+  {
+    id: 'preset-001', title: 'Serum: Future Bass Essentials', description: '64 Serum presets for future bass, including leads, pads, and plucks.', type: 'preset', genre: 'Electronic',
+    creator: { name: 'SynthLord', verified: false },
+    prices: { basic: 20, premium: 49, unlimited: 99, exclusive: 200 },
+    rating: 4.6, ratingCount: 158, sales: 421, tags: ['serum', 'future-bass', 'presets', 'synth'],
+    createdAt: '2026-01-08',
+  },
+  {
+    id: 'beat-003', title: 'Paper Trail', description: 'Hard-hitting boom bap beat with dusty samples and punchy drums.', type: 'beat', genre: 'Hip-Hop', bpm: 90, key: 'Am', duration: '3:28',
+    creator: { name: 'DustyCrates', verified: true },
+    prices: { basic: 30, premium: 80, unlimited: 190, exclusive: 475 },
+    rating: 4.7, ratingCount: 76, sales: 167, tags: ['boombap', 'dusty', 'classic', 'raw'],
+    createdAt: '2026-02-01',
+  },
+  {
+    id: 'plugin-001', title: 'Concord Spectrum Analyzer', description: 'Real-time audio spectrum analyzer plugin for Concord workstation.', type: 'plugin',
+    creator: { name: 'Concord Labs', verified: true },
+    prices: { basic: 0, premium: 29, unlimited: 49, exclusive: 99 },
+    rating: 4.8, ratingCount: 312, sales: 890, tags: ['analyzer', 'audio', 'visualization', 'utility'],
+    featured: true, createdAt: '2025-12-20',
+  },
+];
+
+const DEMO_PURCHASES: Purchase[] = [
+  { id: 'p-1', item: DEMO_ITEMS[0], license: 'premium', price: 79, purchasedAt: '2026-01-28' },
+  { id: 'p-2', item: DEMO_ITEMS[3], license: 'basic', price: 19, purchasedAt: '2026-01-20' },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function starRating(rating: number) {
+  return Array.from({ length: 5 }, (_, i) => (
+    <Star key={i} className={cn('w-3 h-3', i < Math.round(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-600')} />
+  ));
+}
+
+function formatPrice(cents: number) {
+  return cents === 0 ? 'Free' : `$${cents}`;
+}
+
+function typeIcon(type: MarketplaceItem['type']) {
+  switch (type) {
+    case 'beat': return Music;
+    case 'stem': return FileAudio;
+    case 'sample': return Layers;
+    case 'artwork': return Palette;
+    case 'plugin': return Plug;
+    case 'preset': return Settings2;
+  }
+}
+
+function typeBadgeColor(type: MarketplaceItem['type']) {
+  switch (type) {
+    case 'beat': return 'bg-neon-purple/20 text-neon-purple';
+    case 'stem': return 'bg-neon-cyan/20 text-neon-cyan';
+    case 'sample': return 'bg-neon-green/20 text-neon-green';
+    case 'artwork': return 'bg-neon-pink/20 text-neon-pink';
+    case 'plugin': return 'bg-blue-500/20 text-blue-400';
+    case 'preset': return 'bg-orange-500/20 text-orange-400';
+  }
+}
+
+const isAudioType = (t: string) => ['beat', 'stem', 'sample'].includes(t);
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function WaveformBars({ playing, small }: { playing?: boolean; small?: boolean }) {
+  const barCount = small ? 20 : 40;
+  return (
+    <div className={cn('flex items-end gap-px', small ? 'h-6' : 'h-10')}>
+      {Array.from({ length: barCount }, (_, i) => {
+        const h = 20 + Math.sin(i * 0.7) * 30 + Math.cos(i * 1.3) * 25;
+        return (
+          <motion.div
+            key={i}
+            className={cn('rounded-sm', playing ? 'bg-neon-purple' : 'bg-gray-600')}
+            style={{ width: small ? 2 : 3, height: `${h}%` }}
+            animate={playing ? { height: [`${h}%`, `${h + 15}%`, `${h}%`] } : {}}
+            transition={playing ? { duration: 0.4 + Math.random() * 0.3, repeat: Infinity, repeatType: 'mirror' } : {}}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ItemCard({
+  item, onPlay, isPlaying, onAddToCart, viewMode,
+}: {
+  item: MarketplaceItem; onPlay: (item: MarketplaceItem) => void; isPlaying: boolean;
+  onAddToCart: (item: MarketplaceItem) => void; viewMode: ViewMode;
+}) {
+  const Icon = typeIcon(item.type);
+  const audio = isAudioType(item.type);
+
+  if (viewMode === 'list') {
+    return (
+      <motion.div layout className="panel p-4 flex items-center gap-4 hover:border-neon-purple/40 transition-colors cursor-pointer">
+        {/* Thumbnail */}
+        <div className="relative w-14 h-14 rounded-lg bg-lattice-deep flex items-center justify-center shrink-0 overflow-hidden">
+          {audio ? <WaveformBars playing={isPlaying} small /> : <Icon className="w-6 h-6 text-gray-500" />}
+          {audio && (
+            <button onClick={(e) => { e.stopPropagation(); onPlay(item); }}
+              className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
+              {isPlaying ? <Pause className="w-5 h-5 text-white" /> : <Play className="w-5 h-5 text-white" />}
+            </button>
+          )}
+        </div>
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold truncate">{item.title}</span>
+            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', typeBadgeColor(item.type))}>{item.type}</span>
+          </div>
+          <div className="text-sm text-gray-400 flex items-center gap-2">
+            <span>{item.creator.name}</span>
+            {item.creator.verified && <Check className="w-3 h-3 text-neon-cyan" />}
+            {item.genre && <><span className="text-gray-600">|</span><span>{item.genre}</span></>}
+            {item.bpm && <><span className="text-gray-600">|</span><span>{item.bpm} BPM</span></>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1">{starRating(item.rating)}<span className="text-xs text-gray-500 ml-1">{item.rating}</span></div>
+        <span className="text-neon-green font-bold">{formatPrice(item.prices.basic)}</span>
+        <button onClick={(e) => { e.stopPropagation(); onAddToCart(item); }} className="btn-neon small flex items-center gap-1">
+          <ShoppingCart className="w-3.5 h-3.5" />
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div layout className="panel p-0 overflow-hidden hover:border-neon-purple/40 transition-colors cursor-pointer group">
+      {/* Thumbnail */}
+      <div className="relative h-36 bg-lattice-deep flex items-center justify-center">
+        {audio ? (
+          <div className="px-4 w-full"><WaveformBars playing={isPlaying} /></div>
+        ) : (
+          <Icon className="w-12 h-12 text-gray-600" />
+        )}
+        {audio && (
+          <button onClick={(e) => { e.stopPropagation(); onPlay(item); }}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isPlaying ? <Pause className="w-8 h-8 text-white" /> : <Play className="w-8 h-8 text-white" />}
+          </button>
+        )}
+        <span className={cn('absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full font-medium', typeBadgeColor(item.type))}>{item.type}</span>
+        {item.featured && (
+          <span className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full bg-neon-green/20 text-neon-green font-medium">Featured</span>
+        )}
+      </div>
+      {/* Body */}
+      <div className="p-3 space-y-2">
+        <p className="font-semibold text-sm truncate">{item.title}</p>
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <div className="w-4 h-4 rounded-full bg-lattice-elevated flex items-center justify-center text-[9px] font-bold">
+            {item.creator.name[0]}
+          </div>
+          <span className="truncate">{item.creator.name}</span>
+          {item.creator.verified && <Check className="w-3 h-3 text-neon-cyan shrink-0" />}
+        </div>
+        <div className="flex items-center gap-1">
+          {starRating(item.rating)}
+          <span className="text-[10px] text-gray-500 ml-1">({item.ratingCount})</span>
+        </div>
+        {(item.bpm || item.key || item.genre) && (
+          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+            {item.genre && <span>{item.genre}</span>}
+            {item.bpm && <span>{item.bpm} BPM</span>}
+            {item.key && <span>{item.key}</span>}
+          </div>
+        )}
+        <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
+          <span className="text-neon-green font-bold text-sm">From {formatPrice(item.prices.basic)}</span>
+          <button onClick={(e) => { e.stopPropagation(); onAddToCart(item); }}
+            className="p-1.5 rounded-lg bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/30 transition-colors">
+            <ShoppingCart className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function AudioPreviewBar({
+  item, playing, onToggle, onClose,
+}: {
+  item: MarketplaceItem | null; playing: boolean; onToggle: () => void; onClose: () => void;
+}) {
+  if (!item) return null;
+  return (
+    <motion.div
+      initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+      className="fixed bottom-0 left-0 right-0 z-50 bg-lattice-deep/95 backdrop-blur-lg border-t border-lattice-border px-6 py-3"
+    >
+      <div className="max-w-5xl mx-auto flex items-center gap-4">
+        <button onClick={onToggle} className="p-2 rounded-full bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/30 transition-colors">
+          {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold truncate">{item.title}</span>
+            <span className="text-xs text-gray-500">by {item.creator.name}</span>
+          </div>
+          <WaveformBars playing={playing} small />
+        </div>
+        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
 
 export default function MarketplaceLensPage() {
   useLensNav('marketplace');
@@ -108,1122 +408,563 @@ export default function MarketplaceLensPage() {
   // State
   const [tab, setTab] = useState<Tab>('browse');
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('all');
+  const [category, setCategory] = useState<CategoryFilter>('all');
+  const [genreFilter, setGenreFilter] = useState('All Genres');
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
-  const [showSubmit, setShowSubmit] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [featuredIndex, _setFeaturedIndex] = useState(0);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>(DEMO_PURCHASES);
+  const [previewItem, setPreviewItem] = useState<MarketplaceItem | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [featuredIdx, setFeaturedIdx] = useState(0);
+  const [showNewListing, setShowNewListing] = useState(false);
 
-  // Queries
-  const { data: browseData, isLoading } = useQuery({
+  // Queries (with demo fallback)
+  const { data: browseData } = useQuery({
     queryKey: ['marketplace-browse', search, category],
-    queryFn: () => api.get(`/api/marketplace/browse?search=${search}&category=${category}`).then(r => r.data).catch(() => ({
-      items: DEMO_PLUGINS,
-      categories: CATEGORIES.map(c => c.id),
-      pagination: { total: DEMO_PLUGINS.length }
-    })),
+    queryFn: () => api.get(`/api/marketplace/browse?search=${search}&category=${category}`).then(r => r.data).catch(() => null),
   });
 
-  const { data: installedData } = useQuery({
-    queryKey: ['marketplace-installed'],
-    queryFn: () => api.get('/api/marketplace/installed').then(r => r.data).catch(() => ({
-      plugins: DEMO_PLUGINS.slice(0, 3).map(p => ({ ...p, installedAt: '2026-01-10', hasUpdate: Math.random() > 0.7 })),
-      count: 3
-    })),
+  const { data: beatsData } = useQuery({
+    queryKey: ['artistry-beats'],
+    queryFn: () => api.get('/api/artistry/marketplace/beats').then(r => r.data).catch(() => null),
   });
 
-  // Mutations
-  const installMutation = useMutation({
-    mutationFn: (data: { pluginId?: string; fromGithub?: boolean; githubUrl?: string }) =>
-      api.post('/api/marketplace/install', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['marketplace-installed'] }),
+  const { data: stemsData } = useQuery({
+    queryKey: ['artistry-stems'],
+    queryFn: () => api.get('/api/artistry/marketplace/stems').then(r => r.data).catch(() => null),
   });
 
-  const uninstallMutation = useMutation({
-    mutationFn: (pluginId: string) =>
-      api.delete(`/api/marketplace/uninstall/${pluginId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['marketplace-installed'] }),
+  const { data: samplesData } = useQuery({
+    queryKey: ['artistry-samples'],
+    queryFn: () => api.get('/api/artistry/marketplace/samples').then(r => r.data).catch(() => null),
   });
 
-  const submitMutation = useMutation({
-    mutationFn: (data: { name: string; githubUrl: string; description: string; category: string }) =>
-      api.post('/api/marketplace/submit', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketplace-browse'] });
-      setShowSubmit(false);
-    },
+  const { data: artData } = useQuery({
+    queryKey: ['artistry-art'],
+    queryFn: () => api.get('/api/artistry/marketplace/art').then(r => r.data).catch(() => null),
   });
 
-  const reviewMutation = useMutation({
-    mutationFn: (data: { pluginId: string; rating: number; comment: string }) =>
-      api.post('/api/marketplace/review', data),
-    onSuccess: () => setShowReviewModal(false),
-  });
+  // Merge API data with demo fallback
+  const allItems = useMemo(() => {
+    const apiItems: MarketplaceItem[] = [
+      ...(beatsData?.items ?? []),
+      ...(stemsData?.items ?? []),
+      ...(samplesData?.items ?? []),
+      ...(artData?.items ?? []),
+    ];
+    return apiItems.length > 0 ? apiItems : DEMO_ITEMS;
+  }, [beatsData, stemsData, samplesData, artData]);
 
-  // FE-006: detect demo mode vs real API data
-  const isDemo = !browseData?.items;
+  const featuredItems = useMemo(() => allItems.filter(i => i.featured), [allItems]);
 
-  // Computed
-  const plugins = browseData?.items || DEMO_PLUGINS;
-  const featuredPlugins = plugins.filter((p: Plugin) => p.featured);
-  const trendingPlugins = plugins.filter((p: Plugin) => p.trending || (p.weeklyDownloads || 0) > 500);
-  const installed = installedData?.plugins || [];
-
-  const filteredPlugins = useMemo(() => {
-    const filtered = plugins.filter((p: Plugin) => {
-      if (category !== 'all' && p.category !== category) return false;
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
-          !p.description.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-
-    switch (sortBy) {
-      case 'rating':
-        return filtered.sort((a: Plugin, b: Plugin) => b.rating - a.rating);
-      case 'recent':
-        return filtered.sort((a: Plugin, b: Plugin) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      case 'trending':
-        return filtered.sort((a: Plugin, b: Plugin) => (b.weeklyDownloads || 0) - (a.weeklyDownloads || 0));
-      case 'downloads':
-        return filtered.sort((a: Plugin, b: Plugin) => b.downloads - a.downloads);
-      default:
-        return filtered.sort((a: Plugin, b: Plugin) => (b.downloads * b.rating) - (a.downloads * a.rating));
+  // Filtered / sorted items
+  const filteredItems = useMemo(() => {
+    let items = [...allItems];
+    if (category !== 'all') {
+      const typeMap: Record<string, string> = { beats: 'beat', stems: 'stem', samples: 'sample', artwork: 'artwork', plugins: 'plugin', presets: 'preset' };
+      items = items.filter(i => i.type === typeMap[category]);
     }
-  }, [plugins, category, search, sortBy]);
+    if (genreFilter !== 'All Genres') items = items.filter(i => i.genre === genreFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      items = items.filter(i => i.title.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || i.tags.some(t => t.includes(q)));
+    }
+    switch (sortBy) {
+      case 'popular': items.sort((a, b) => b.sales - a.sales); break;
+      case 'price-asc': items.sort((a, b) => a.prices.basic - b.prices.basic); break;
+      case 'price-desc': items.sort((a, b) => b.prices.basic - a.prices.basic); break;
+      case 'newest': items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); break;
+      case 'rating': items.sort((a, b) => b.rating - a.rating); break;
+    }
+    return items;
+  }, [allItems, category, genreFilter, search, sortBy]);
 
-  const isInstalled = (pluginId: string) => installed.some((p: { id: string }) => p.id === pluginId);
+  // Cart helpers
+  const addToCart = useCallback((item: MarketplaceItem) => {
+    setCart(prev => {
+      if (prev.some(c => c.item.id === item.id)) return prev;
+      return [...prev, { item, license: 'basic', price: item.prices.basic }];
+    });
+  }, []);
 
-  // Auto-rotate featured
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     setFeaturedIndex(i => (i + 1) % Math.max(1, featuredPlugins.length));
-  //   }, 5000);
-  //   return () => clearInterval(interval);
-  // }, [featuredPlugins.length]);
+  const removeFromCart = useCallback((id: string) => {
+    setCart(prev => prev.filter(c => c.item.id !== id));
+  }, []);
+
+  const updateCartLicense = useCallback((id: string, license: string) => {
+    setCart(prev => prev.map(c => {
+      if (c.item.id !== id) return c;
+      return { ...c, license, price: c.item.prices[license as keyof LicensePrice] };
+    }));
+  }, []);
+
+  const cartTotal = useMemo(() => cart.reduce((s, c) => s + c.price, 0), [cart]);
+
+  // Audio preview
+  const handlePlay = useCallback((item: MarketplaceItem) => {
+    if (previewItem?.id === item.id) { setIsPlaying(p => !p); return; }
+    setPreviewItem(item);
+    setIsPlaying(true);
+  }, [previewItem]);
+
+  const closePreview = useCallback(() => { setPreviewItem(null); setIsPlaying(false); }, []);
+
+  // Checkout
+  const handleCheckout = useCallback(() => {
+    const newPurchases: Purchase[] = cart.map((c, i) => ({
+      id: `p-${Date.now()}-${i}`, item: c.item, license: c.license, price: c.price, purchasedAt: new Date().toISOString(),
+    }));
+    setPurchases(prev => [...newPurchases, ...prev]);
+    setCart([]);
+    setTab('purchases');
+  }, [cart]);
+
+  // Featured carousel auto-advance
+  useEffect(() => {
+    if (featuredItems.length <= 1) return;
+    const t = setInterval(() => setFeaturedIdx(i => (i + 1) % featuredItems.length), 5000);
+    return () => clearInterval(t);
+  }, [featuredItems.length]);
+
+  // Shop stats (mock)
+  const shopStats = { totalSales: 47, revenue: 3842, itemsListed: 6, avgRating: 4.7 };
+
+  // ----- Render helpers -----
+
+  const TABS: { id: Tab; label: string; icon: typeof Store }[] = [
+    { id: 'browse', label: 'Browse', icon: Store },
+    { id: 'myshop', label: 'My Shop', icon: LayoutDashboard },
+    { id: 'cart', label: 'Cart', icon: ShoppingCart },
+    { id: 'purchases', label: 'Purchases', icon: Download },
+    { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+  ];
+
+  // =========================================================================
+  // RENDER
+  // =========================================================================
 
   return (
-    <div className="p-6 space-y-6">
-      {/* FE-006: Demo mode indicator */}
-      {isDemo && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 text-sm">
-          <Info className="w-4 h-4 flex-shrink-0" />
-          <span>Demo Mode — showing sample plugins. Connect to the backend for real marketplace data.</span>
-        </div>
-      )}
-
-      {/* Header */}
-      <header className="flex items-center justify-between">
+    <div className="space-y-6 pb-24">
+      {/* ---- Header ---- */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Store className="w-8 h-8 text-neon-purple" />
-          <div>
-            <h1 className="text-xl font-bold">Plugin Marketplace</h1>
-            <p className="text-sm text-gray-400">
-              Discover, install, and manage community plugins
-            </p>
-          </div>
+          <Store className="w-6 h-6 text-neon-purple" />
+          <h1 className="text-2xl font-bold">Creative Marketplace</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSubmit(true)}
-            className="btn-neon purple flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Submit Plugin
+        <div className="flex items-center gap-3">
+          <button onClick={() => setTab('myshop')} className="btn-neon flex items-center gap-2 text-sm">
+            <LayoutDashboard className="w-4 h-4" /> Seller Dashboard
           </button>
-        </div>
-      </header>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-lattice-surface/50 p-1 rounded-lg w-fit">
-        {[
-          { id: 'browse', label: 'Browse', icon: Grid3X3 },
-          { id: 'installed', label: 'Installed', icon: Download, badge: installed.length },
-          { id: 'developer', label: 'Developer', icon: Code },
-          { id: 'collections', label: 'Collections', icon: Layers }
-        ].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id as Tab)}
-            className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
-              tab === t.id ? 'bg-neon-purple/20 text-neon-purple' : 'hover:bg-white/5'
-            }`}
-          >
-            <t.icon className="w-4 h-4" />
-            {t.label}
-            {t.badge !== undefined && t.badge > 0 && (
-              <span className="bg-neon-purple/30 text-neon-purple text-xs px-1.5 rounded">
-                {t.badge}
+          <button onClick={() => setTab('cart')} className="relative p-2 rounded-lg bg-lattice-surface border border-lattice-border hover:border-neon-purple/50 transition-colors">
+            <ShoppingCart className="w-5 h-5" />
+            {cart.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-neon-pink text-white text-[10px] font-bold flex items-center justify-center">
+                {cart.length}
               </span>
             )}
           </button>
-        ))}
-      </div>
-
-      {tab === 'browse' && (
-        <>
-          {/* Featured Section */}
-          {featuredPlugins.length > 0 && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-yellow-400" />
-                <h2 className="text-lg font-semibold">Featured Plugins</h2>
-              </div>
-              <div className="relative">
-                <motion.div
-                  key={featuredIndex}
-                  initial={{ opacity: 0, x: 50 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                >
-                  {DEMO_FEATURED.map((plugin, _i) => (
-                    <FeaturedCard
-                      key={plugin.id}
-                      plugin={plugin}
-                      onClick={() => setSelectedPlugin(plugin)}
-                      onInstall={() => installMutation.mutate({ pluginId: plugin.id })}
-                      isInstalled={isInstalled(plugin.id)}
-                    />
-                  ))}
-                </motion.div>
-              </div>
-            </section>
-          )}
-
-          {/* Stats Bar */}
-          <div className="grid grid-cols-4 gap-4">
-            <StatCard label="Total Plugins" value={plugins.length} icon={<Package />} color="purple" />
-            <StatCard label="This Week" value={plugins.reduce((a: number, p: Plugin) => a + (p.weeklyDownloads || 0), 0)} icon={<Download />} color="cyan" />
-            <StatCard label="Categories" value={CATEGORIES.length - 1} icon={<Tag />} color="green" />
-            <StatCard label="Developers" value={new Set(plugins.map((p: Plugin) => p.author.name)).size} icon={<Users />} color="pink" />
-          </div>
-
-          {/* Search & Filters */}
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px] relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search plugins..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-lattice-surface border border-lattice-border rounded-lg focus:border-neon-purple outline-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg"
-              >
-                <option value="popular">Most Popular</option>
-                <option value="rating">Highest Rated</option>
-                <option value="recent">Recently Updated</option>
-                <option value="trending">Trending</option>
-                <option value="downloads">Most Downloads</option>
-              </select>
-
-              <div className="flex items-center bg-lattice-surface border border-lattice-border rounded-lg">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 ${viewMode === 'grid' ? 'text-neon-purple' : 'text-gray-400'}`}
-                >
-                  <Grid3X3 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 ${viewMode === 'list' ? 'text-neon-purple' : 'text-gray-400'}`}
-                >
-                  <List className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Categories */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
-                  category === cat.id
-                    ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/50'
-                    : 'bg-lattice-surface border border-lattice-border hover:border-gray-600'
-                }`}
-              >
-                <cat.icon className="w-4 h-4" />
-                {cat.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Trending Section */}
-          {trendingPlugins.length > 0 && category === 'all' && !search && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-neon-green" />
-                <h3 className="font-semibold">Trending This Week</h3>
-              </div>
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {trendingPlugins.slice(0, 5).map((plugin: Plugin) => (
-                  <TrendingCard
-                    key={plugin.id}
-                    plugin={plugin}
-                    onClick={() => setSelectedPlugin(plugin)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Plugin Grid/List */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-neon-purple border-t-transparent rounded-full" />
-            </div>
-          ) : filteredPlugins.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No plugins found matching your criteria</p>
-            </div>
-          ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPlugins.map((plugin: Plugin) => (
-                <PluginCard
-                  key={plugin.id}
-                  plugin={plugin}
-                  isInstalled={isInstalled(plugin.id)}
-                  onInstall={() => installMutation.mutate({ pluginId: plugin.id })}
-                  onClick={() => setSelectedPlugin(plugin)}
-                  installing={installMutation.isPending}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredPlugins.map((plugin: Plugin) => (
-                <PluginListItem
-                  key={plugin.id}
-                  plugin={plugin}
-                  isInstalled={isInstalled(plugin.id)}
-                  onInstall={() => installMutation.mutate({ pluginId: plugin.id })}
-                  onClick={() => setSelectedPlugin(plugin)}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {tab === 'installed' && (
-        <InstalledTab
-          plugins={installed}
-          onUninstall={(id: string) => uninstallMutation.mutate(id)}
-          onUpdate={(id: string) => installMutation.mutate({ pluginId: id })}
-          onSettings={(plugin: Plugin) => setSelectedPlugin(plugin)}
-        />
-      )}
-
-      {tab === 'developer' && (
-        <DeveloperTab
-          onSubmit={() => setShowSubmit(true)}
-        />
-      )}
-
-      {tab === 'collections' && (
-        <CollectionsTab />
-      )}
-
-      {/* Plugin Detail Modal */}
-      <AnimatePresence>
-        {selectedPlugin && (
-          <PluginDetailModal
-            plugin={selectedPlugin}
-            reviews={DEMO_REVIEWS.filter(r => r.pluginId === selectedPlugin.id)}
-            isInstalled={isInstalled(selectedPlugin.id)}
-            onClose={() => setSelectedPlugin(null)}
-            onInstall={() => installMutation.mutate({ pluginId: selectedPlugin.id })}
-            onReview={() => setShowReviewModal(true)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Submit Modal */}
-      <AnimatePresence>
-        {showSubmit && (
-          <SubmitPluginModal
-            onClose={() => setShowSubmit(false)}
-            onSubmit={(data: { name: string; githubUrl: string; description: string; category: string }) => submitMutation.mutate(data)}
-            categories={CATEGORIES.slice(1).map(c => c.id)}
-            submitting={submitMutation.isPending}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Review Modal */}
-      <AnimatePresence>
-        {showReviewModal && selectedPlugin && (
-          <ReviewModal
-            plugin={selectedPlugin}
-            onClose={() => setShowReviewModal(false)}
-            onSubmit={(data: { rating: number; comment: string }) => reviewMutation.mutate({ pluginId: selectedPlugin.id, ...data })}
-            submitting={reviewMutation.isPending}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// Sub-components
-
-function StatCard({ label, value, icon, color }: { label: string; value: number; icon: React.ReactNode; color: string }) {
-  const colorClasses: Record<string, string> = {
-    purple: 'text-neon-purple bg-neon-purple/10',
-    cyan: 'text-neon-cyan bg-neon-cyan/10',
-    green: 'text-neon-green bg-neon-green/10',
-    pink: 'text-neon-pink bg-neon-pink/10'
-  };
-
-  return (
-    <div className="panel p-4 flex items-center gap-3">
-      <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-2xl font-bold">{value.toLocaleString()}</p>
-        <p className="text-sm text-gray-400">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function FeaturedCard({ plugin, onClick, onInstall, isInstalled }: { plugin: Plugin; onClick: () => void; onInstall: () => void; isInstalled: boolean }) {
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className="panel p-5 cursor-pointer bg-gradient-to-br from-neon-purple/10 to-transparent border-neon-purple/30"
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Crown className="w-4 h-4 text-yellow-400" />
-          <span className="text-xs text-yellow-400">Featured</span>
-        </div>
-        {plugin.author.verified && (
-          <span className="flex items-center gap-1 text-xs text-neon-cyan">
-            <Check className="w-3 h-3" /> Verified
-          </span>
-        )}
-      </div>
-      <h3 className="font-bold text-lg mb-1">{plugin.name}</h3>
-      <p className="text-sm text-gray-400 mb-4 line-clamp-2">{plugin.description}</p>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-sm text-gray-400">
-          <span className="flex items-center gap-1">
-            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-            {plugin.rating}
-          </span>
-          <span className="flex items-center gap-1">
-            <Download className="w-4 h-4" />
-            {(plugin.downloads / 1000).toFixed(1)}k
-          </span>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onInstall(); }}
-          disabled={isInstalled}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-            isInstalled
-              ? 'bg-green-500/20 text-green-400'
-              : 'bg-neon-purple text-white hover:bg-neon-purple/80'
-          }`}
-        >
-          {isInstalled ? 'Installed' : 'Install'}
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-function TrendingCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className="panel p-3 min-w-[200px] cursor-pointer hover:border-neon-green/50 transition-colors"
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <TrendingUp className="w-4 h-4 text-neon-green" />
-        <span className="text-xs text-neon-green">+{plugin.weeklyDownloads} this week</span>
-      </div>
-      <h4 className="font-semibold text-sm">{plugin.name}</h4>
-      <p className="text-xs text-gray-400">{plugin.category}</p>
-    </div>
-  );
-}
-
-function PluginCard({ plugin, isInstalled, onInstall, onClick, installing }: { plugin: Plugin; isInstalled: boolean; onInstall: () => void; onClick: () => void; installing: boolean }) {
-  return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      className="panel p-4 space-y-3 cursor-pointer"
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold">{plugin.name}</h3>
-            {plugin.author.verified && <Check className="w-4 h-4 text-neon-cyan" />}
-          </div>
-          <p className="text-xs text-gray-400">{plugin.category} · v{plugin.version}</p>
-        </div>
-        {plugin.trending && (
-          <span className="flex items-center gap-1 text-xs bg-neon-green/20 text-neon-green px-2 py-0.5 rounded">
-            <TrendingUp className="w-3 h-3" /> Trending
-          </span>
-        )}
-      </div>
-
-      <p className="text-sm text-gray-300 line-clamp-2">{plugin.description}</p>
-
-      {plugin.tags && (
-        <div className="flex flex-wrap gap-1">
-          {plugin.tags.slice(0, 3).map((tag: string) => (
-            <span key={tag} className="text-xs bg-lattice-surface px-2 py-0.5 rounded text-gray-400">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
-        <div className="flex items-center gap-3 text-sm text-gray-400">
-          <span className="flex items-center gap-1">
-            <Star className="w-4 h-4 text-yellow-400" />
-            {plugin.rating.toFixed(1)}
-            <span className="text-gray-500">({plugin.ratingCount})</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <Download className="w-4 h-4" />
-            {plugin.downloads.toLocaleString()}
-          </span>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onInstall(); }}
-          disabled={isInstalled || installing}
-          className={`px-3 py-1 rounded text-sm transition-colors ${
-            isInstalled
-              ? 'bg-green-500/20 text-green-400'
-              : 'bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/30'
-          }`}
-        >
-          {isInstalled ? 'Installed' : installing ? 'Installing...' : 'Install'}
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-function PluginListItem({ plugin, isInstalled, onInstall, onClick }: { plugin: Plugin; isInstalled: boolean; onInstall: () => void; onClick: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className="panel p-4 flex items-center gap-4 cursor-pointer hover:border-neon-purple/50"
-    >
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <h4 className="font-semibold">{plugin.name}</h4>
-          {plugin.author.verified && <Check className="w-4 h-4 text-neon-cyan" />}
-          <span className="text-xs text-gray-500">by {plugin.author.name}</span>
-        </div>
-        <p className="text-sm text-gray-400 mt-1">{plugin.description}</p>
-      </div>
-      <div className="flex items-center gap-4 text-sm text-gray-400">
-        <span className="flex items-center gap-1">
-          <Star className="w-4 h-4 text-yellow-400" />
-          {plugin.rating.toFixed(1)}
-        </span>
-        <span className="flex items-center gap-1">
-          <Download className="w-4 h-4" />
-          {plugin.downloads.toLocaleString()}
-        </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onInstall(); }}
-          disabled={isInstalled}
-          className={`px-4 py-2 rounded ${
-            isInstalled
-              ? 'bg-green-500/20 text-green-400'
-              : 'bg-neon-purple text-white'
-          }`}
-        >
-          {isInstalled ? 'Installed' : 'Install'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function InstalledTab({ plugins, onUninstall, onUpdate, onSettings }: { plugins: Plugin[]; onUninstall: (id: string) => void; onUpdate: (id: string) => void; onSettings: (plugin: Plugin) => void }) {
-  if (plugins.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-400">
-        <Download className="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p>No plugins installed yet</p>
-        <p className="text-sm mt-1">Browse the marketplace to find useful plugins</p>
-      </div>
-    );
-  }
-
-  const withUpdates = plugins.filter((p: Plugin) => p.hasUpdate);
-
-  return (
-    <div className="space-y-6">
-      {withUpdates.length > 0 && (
-        <div className="panel p-4 bg-neon-cyan/10 border-neon-cyan/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-5 h-5 text-neon-cyan" />
-              <span>{withUpdates.length} update(s) available</span>
-            </div>
-            <button className="btn-neon cyan">Update All</button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {plugins.map((plugin: Plugin) => (
-          <div key={plugin.id} className="panel p-4 flex items-center gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-semibold">{plugin.name}</h4>
-                <span className="text-xs text-gray-500">v{plugin.version}</span>
-                {plugin.hasUpdate && (
-                  <span className="text-xs bg-neon-cyan/20 text-neon-cyan px-2 py-0.5 rounded">
-                    Update available
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-400 mt-1">Installed {plugin.installedAt}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {plugin.hasUpdate && (
-                <button
-                  onClick={() => onUpdate(plugin.id)}
-                  className="p-2 hover:bg-neon-cyan/20 rounded transition-colors"
-                  title="Update"
-                >
-                  <RefreshCw className="w-5 h-5 text-neon-cyan" />
-                </button>
-              )}
-              <button
-                onClick={() => onSettings(plugin)}
-                className="p-2 hover:bg-white/10 rounded transition-colors"
-                title="Settings"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => onUninstall(plugin.id)}
-                className="p-2 hover:bg-red-500/20 rounded transition-colors"
-                title="Uninstall"
-              >
-                <Trash2 className="w-5 h-5 text-red-400" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DeveloperTab({ onSubmit }: { onSubmit: () => void }) {
-  const stats = {
-    plugins: 3,
-    totalDownloads: 15420,
-    totalRevenue: 2450.00,
-    avgRating: 4.7
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Your Plugins" value={stats.plugins} icon={<Package />} color="purple" />
-        <StatCard label="Total Downloads" value={stats.totalDownloads} icon={<Download />} color="cyan" />
-        <StatCard label="Revenue" value={stats.totalRevenue} icon={<DollarSign />} color="green" />
-        <StatCard label="Avg Rating" value={stats.avgRating} icon={<Star />} color="pink" />
-      </div>
-
-      <div className="panel p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold">Your Plugins</h3>
-          <button onClick={onSubmit} className="btn-neon purple">
-            <Plus className="w-4 h-4 mr-2 inline" />
-            Submit New Plugin
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {[
-            { name: 'My Plugin 1', status: 'approved', downloads: 5420, rating: 4.8 },
-            { name: 'My Plugin 2', status: 'pending_review', downloads: 0, rating: 0 },
-            { name: 'My Plugin 3', status: 'approved', downloads: 10000, rating: 4.6 }
-          ].map((plugin, i) => (
-            <div key={i} className="flex items-center justify-between p-4 bg-lattice-surface rounded-lg">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{plugin.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    plugin.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                    plugin.status === 'pending_review' ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-red-500/20 text-red-400'
-                  }`}>
-                    {plugin.status.replace('_', ' ')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
-                  <span>{plugin.downloads.toLocaleString()} downloads</span>
-                  {plugin.rating > 0 && <span>{plugin.rating} rating</span>}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="btn-neon small"><Edit className="w-4 h-4" /></button>
-                <button className="btn-neon small"><BarChart2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 
-      <div className="panel p-6">
-        <h3 className="text-lg font-semibold mb-4">Developer Resources</h3>
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { icon: Code, label: 'Plugin API Docs', desc: 'Learn how to build plugins' },
-            { icon: Github, label: 'SDK & Templates', desc: 'Get started quickly' },
-            { icon: MessageSquare, label: 'Developer Forum', desc: 'Get help from the community' }
-          ].map((resource, i) => (
-            <div key={i} className="p-4 bg-lattice-surface rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
-              <resource.icon className="w-8 h-8 text-neon-purple mb-2" />
-              <h4 className="font-medium">{resource.label}</h4>
-              <p className="text-sm text-gray-400">{resource.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CollectionsTab() {
-  const collections = [
-    { name: 'Essential Productivity', count: 8, curator: 'Concord Team' },
-    { name: 'Data Visualization Pack', count: 5, curator: 'DataViz Community' },
-    { name: 'Security Essentials', count: 4, curator: 'SecureData' },
-    { name: 'AI/ML Toolkit', count: 6, curator: 'Neural Tools' }
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Plugin Collections</h3>
-        <button className="btn-neon">
-          <Plus className="w-4 h-4 mr-2 inline" />
-          Create Collection
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {collections.map((col, i) => (
-          <div key={i} className="panel p-5 cursor-pointer hover:border-neon-purple/50 transition-colors">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-neon-purple/30 to-neon-cyan/30 rounded-lg flex items-center justify-center">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-semibold">{col.name}</h4>
-                <p className="text-sm text-gray-400">{col.count} plugins</p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-400">Curated by {col.curator}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, onReview }: { plugin: Plugin; reviews: Review[]; isInstalled: boolean; onClose: () => void; onInstall: () => void; onReview: () => void }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'reviews' | 'changelog'>('overview');
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.95 }}
-        className="bg-lattice-bg border border-lattice-border rounded-xl w-full max-w-3xl max-h-[85vh] overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-lattice-border">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-neon-purple/30 to-neon-cyan/30 rounded-xl flex items-center justify-center">
-                <Package className="w-8 h-8" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold">{plugin.name}</h2>
-                  {plugin.author.verified && (
-                    <span className="flex items-center gap-1 text-xs text-neon-cyan bg-neon-cyan/20 px-2 py-0.5 rounded">
-                      <Check className="w-3 h-3" /> Verified
-                    </span>
-                  )}
-                </div>
-                <p className="text-gray-400">by {plugin.author.name}</p>
-                <div className="flex items-center gap-4 mt-2 text-sm">
-                  <span className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                    {plugin.rating} ({plugin.ratingCount} reviews)
-                  </span>
-                  <span className="flex items-center gap-1 text-gray-400">
-                    <Download className="w-4 h-4" />
-                    {plugin.downloads.toLocaleString()} downloads
-                  </span>
-                  <span className="text-gray-500">v{plugin.version}</span>
-                </div>
-              </div>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 mt-4">
-            <button
-              onClick={onInstall}
-              disabled={isInstalled}
-              className={`px-6 py-2 rounded-lg font-medium ${
-                isInstalled
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'bg-neon-purple text-white hover:bg-neon-purple/80'
-              }`}
-            >
-              {isInstalled ? 'Installed' : 'Install Plugin'}
-            </button>
-            {plugin.githubUrl && (
-              <a
-                href={plugin.githubUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 hover:bg-white/10 rounded-lg"
-              >
-                <Github className="w-5 h-5" />
-              </a>
+      {/* ---- Tab Navigation ---- */}
+      <div className="flex items-center gap-1 bg-lattice-surface/50 p-1 rounded-lg w-fit">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={cn('px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors',
+              tab === t.id ? 'bg-neon-purple/20 text-neon-purple' : 'text-gray-400 hover:text-white hover:bg-white/5')}>
+            <t.icon className="w-4 h-4" />
+            {t.label}
+            {t.id === 'cart' && cart.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-neon-pink/20 text-neon-pink text-[10px] font-bold">{cart.length}</span>
             )}
-            <button className="p-2 hover:bg-white/10 rounded-lg">
-              <Share2 className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+          </button>
+        ))}
+      </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-lattice-border">
-          {(['overview', 'reviews', 'changelog'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`px-6 py-3 capitalize ${
-                activeTab === t
-                  ? 'text-neon-purple border-b-2 border-neon-purple'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[50vh]">
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold mb-2">Description</h3>
-                <p className="text-gray-300">{plugin.longDescription || plugin.description}</p>
-              </div>
-
-              {plugin.tags && (
-                <div>
-                  <h3 className="font-semibold mb-2">Tags</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {plugin.tags.map((tag: string) => (
-                      <span key={tag} className="px-3 py-1 bg-lattice-surface rounded-full text-sm">
-                        {tag}
-                      </span>
-                    ))}
+      {/* ================================================================== */}
+      {/* BROWSE TAB                                                         */}
+      {/* ================================================================== */}
+      {tab === 'browse' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          {/* Hero / Featured Carousel */}
+          {featuredItems.length > 0 && (
+            <div className="relative panel p-0 overflow-hidden rounded-xl">
+              <AnimatePresence mode="wait">
+                <motion.div key={featuredIdx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.35 }}
+                  className="p-6 bg-gradient-to-br from-neon-purple/10 via-transparent to-neon-cyan/5 flex items-center gap-6">
+                  <div className="w-32 h-32 rounded-xl bg-lattice-deep flex items-center justify-center shrink-0">
+                    {isAudioType(featuredItems[featuredIdx].type) ? <WaveformBars /> : (() => { const I = typeIcon(featuredItems[featuredIdx].type); return <I className="w-12 h-12 text-gray-500" />; })()}
                   </div>
-                </div>
-              )}
-
-              {plugin.permissions && (
-                <div>
-                  <h3 className="font-semibold mb-2">Permissions</h3>
-                  <div className="space-y-2">
-                    {(plugin.permissions || ['Read DTUs', 'Write DTUs', 'Network Access']).map((perm: string) => (
-                      <div key={perm} className="flex items-center gap-2 text-sm">
-                        <Shield className="w-4 h-4 text-yellow-400" />
-                        {perm}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-lattice-border">
-                <div>
-                  <p className="text-sm text-gray-400">Category</p>
-                  <p className="capitalize">{plugin.category}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Last Updated</p>
-                  <p>{new Date(plugin.updatedAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'reviews' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">User Reviews</h3>
-                <button onClick={onReview} className="btn-neon small">Write Review</button>
-              </div>
-
-              {reviews.length === 0 ? (
-                <p className="text-center py-8 text-gray-400">No reviews yet. Be the first!</p>
-              ) : (
-                reviews.map((review: Review) => (
-                  <div key={review.id} className="p-4 bg-lattice-surface rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-neon-purple/30 rounded-full flex items-center justify-center">
-                          {review.userName[0]}
-                        </div>
-                        <span className="font-medium">{review.userName}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}`}
-                          />
-                        ))}
-                      </div>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', typeBadgeColor(featuredItems[featuredIdx].type))}>
+                      {featuredItems[featuredIdx].type} -- Featured
+                    </span>
+                    <h2 className="text-xl font-bold truncate">{featuredItems[featuredIdx].title}</h2>
+                    <p className="text-sm text-gray-400 line-clamp-2">{featuredItems[featuredIdx].description}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-neon-green font-bold">From {formatPrice(featuredItems[featuredIdx].prices.basic)}</span>
+                      <div className="flex items-center gap-1">{starRating(featuredItems[featuredIdx].rating)}</div>
+                      <span className="text-xs text-gray-500">{featuredItems[featuredIdx].sales} sales</span>
                     </div>
-                    <p className="text-gray-300">{review.comment}</p>
-                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-400">
-                      <span>{new Date(review.createdAt).toLocaleDateString()}</span>
-                      <button className="flex items-center gap-1 hover:text-white">
-                        <ThumbsUp className="w-4 h-4" /> {review.helpful} helpful
+                    <div className="flex items-center gap-2 pt-1">
+                      {isAudioType(featuredItems[featuredIdx].type) && (
+                        <button onClick={() => handlePlay(featuredItems[featuredIdx])} className="btn-neon purple flex items-center gap-1 text-sm">
+                          <Play className="w-4 h-4" /> Preview
+                        </button>
+                      )}
+                      <button onClick={() => addToCart(featuredItems[featuredIdx])} className="btn-neon flex items-center gap-1 text-sm">
+                        <ShoppingCart className="w-4 h-4" /> Add to Cart
                       </button>
                     </div>
                   </div>
-                ))
+                </motion.div>
+              </AnimatePresence>
+              {featuredItems.length > 1 && (
+                <>
+                  <button onClick={() => setFeaturedIdx(i => (i - 1 + featuredItems.length) % featuredItems.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setFeaturedIdx(i => (i + 1) % featuredItems.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                    {featuredItems.map((_, i) => (
+                      <button key={i} onClick={() => setFeaturedIdx(i)}
+                        className={cn('w-2 h-2 rounded-full transition-colors', i === featuredIdx ? 'bg-neon-purple' : 'bg-gray-600')} />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
 
-          {activeTab === 'changelog' && (
-            <div className="space-y-4">
-              {(plugin.changelog || [
-                { version: plugin.version, date: plugin.updatedAt, changes: ['Initial release'] }
-              ]).map((entry: Record<string, unknown>) => (
-                <div key={entry.version as string} className="p-4 bg-lattice-surface rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-mono text-neon-purple">v{entry.version as string}</span>
-                    <span className="text-sm text-gray-400">{new Date(entry.date as string).toLocaleDateString()}</span>
-                  </div>
-                  <ul className="list-disc list-inside text-gray-300 space-y-1">
-                    {(entry.changes as string[]).map((change: string, i: number) => (
-                      <li key={i}>{change}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: { onClose: () => void; onSubmit: (data: { name: string; githubUrl: string; description: string; category: string }) => void; categories: string[]; submitting: boolean }) {
-  const [form, setForm] = useState({
-    name: '',
-    githubUrl: '',
-    description: '',
-    category: categories[0] || 'productivity'
-  });
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1 }}
-        className="bg-lattice-bg border border-lattice-border rounded-lg p-6 w-full max-w-md space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Submit Plugin</h2>
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Plugin Name</label>
-            <input
-              type="text"
-              placeholder="My Awesome Plugin"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded focus:border-neon-purple outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">GitHub Repository URL</label>
-            <div className="relative">
-              <Github className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="https://github.com/username/repo"
-                value={form.githubUrl}
-                onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
-                className="w-full pl-10 pr-3 py-2 bg-lattice-surface border border-lattice-border rounded focus:border-neon-purple outline-none"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Description</label>
-            <textarea
-              placeholder="Describe what your plugin does..."
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded h-24 focus:border-neon-purple outline-none resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Category</label>
-            <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded focus:border-neon-purple outline-none"
-            >
-              {categories.map((cat: string) => (
-                <option key={cat} value={cat} className="capitalize">{cat}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex gap-3 justify-end pt-4 border-t border-lattice-border">
-          <button onClick={onClose} className="px-4 py-2 hover:bg-white/10 rounded">
-            Cancel
-          </button>
-          <button
-            onClick={() => onSubmit(form)}
-            disabled={submitting || !form.name || !form.githubUrl}
-            className="btn-neon purple disabled:opacity-50"
-          >
-            {submitting ? 'Submitting...' : 'Submit for Review'}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function ReviewModal({ plugin, onClose, onSubmit, submitting }: { plugin: Plugin; onClose: () => void; onSubmit: (data: { rating: number; comment: string }) => void; submitting: boolean }) {
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1 }}
-        className="bg-lattice-bg border border-lattice-border rounded-lg p-6 w-full max-w-md space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-bold">Review {plugin.name}</h2>
-
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Rating</label>
-          <div className="flex items-center gap-1">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setRating(i + 1)}
-                className="p-1"
-              >
-                <Star
-                  className={`w-8 h-8 ${i < rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}`}
-                />
+          {/* Category Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {CATEGORIES.map(c => (
+              <button key={c.id} onClick={() => setCategory(c.id)}
+                className={cn('px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 transition-colors border',
+                  category === c.id ? 'bg-neon-purple/20 border-neon-purple/50 text-neon-purple' : 'bg-lattice-surface border-lattice-border text-gray-400 hover:text-white hover:border-gray-500')}>
+                <c.icon className="w-3.5 h-3.5" /> {c.name}
               </button>
             ))}
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Your Review</label>
-          <textarea
-            placeholder="Share your experience with this plugin..."
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded h-32 focus:border-neon-purple outline-none resize-none"
-          />
-        </div>
+          {/* Search + Filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search beats, samples, artwork..."
+                className="w-full pl-10 pr-4 py-2 bg-lattice-surface border border-lattice-border rounded-lg focus:border-neon-purple outline-none text-sm" />
+            </div>
+            <select value={genreFilter} onChange={e => setGenreFilter(e.target.value)}
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
+              {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as SortOption)}
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
+              {SORT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <div className="flex items-center bg-lattice-surface border border-lattice-border rounded-lg">
+              <button onClick={() => setViewMode('grid')}
+                className={cn('p-2 rounded-l-lg transition-colors', viewMode === 'grid' ? 'bg-neon-purple/20 text-neon-purple' : 'text-gray-500 hover:text-white')}>
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button onClick={() => setViewMode('list')}
+                className={cn('p-2 rounded-r-lg transition-colors', viewMode === 'list' ? 'bg-neon-purple/20 text-neon-purple' : 'text-gray-500 hover:text-white')}>
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-        <div className="flex gap-3 justify-end pt-4 border-t border-lattice-border">
-          <button onClick={onClose} className="px-4 py-2 hover:bg-white/10 rounded">
-            Cancel
-          </button>
-          <button
-            onClick={() => onSubmit({ rating, comment })}
-            disabled={submitting || !comment}
-            className="btn-neon purple disabled:opacity-50"
-          >
-            {submitting ? 'Submitting...' : 'Submit Review'}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+          {/* Results count */}
+          <p className="text-xs text-gray-500">{filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} found</p>
+
+          {/* Item Grid / List */}
+          <div className={cn(viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-2')}>
+            <AnimatePresence>
+              {filteredItems.map(item => (
+                <ItemCard key={item.id} item={item} viewMode={viewMode}
+                  isPlaying={previewItem?.id === item.id && isPlaying}
+                  onPlay={handlePlay} onAddToCart={addToCart} />
+              ))}
+            </AnimatePresence>
+          </div>
+          {filteredItems.length === 0 && (
+            <div className="text-center py-16 text-gray-500">
+              <Search className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p>No items match your filters.</p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ================================================================== */}
+      {/* MY SHOP TAB                                                        */}
+      {/* ================================================================== */}
+      {tab === 'myshop' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Sales', value: shopStats.totalSales, icon: TrendingUp, color: 'text-neon-green' },
+              { label: 'Revenue', value: `$${shopStats.revenue.toLocaleString()}`, icon: DollarSign, color: 'text-neon-cyan' },
+              { label: 'Items Listed', value: shopStats.itemsListed, icon: Package, color: 'text-neon-purple' },
+              { label: 'Avg Rating', value: shopStats.avgRating, icon: Star, color: 'text-yellow-400' },
+            ].map(s => (
+              <div key={s.label} className="lens-card p-4 space-y-1">
+                <div className="flex items-center gap-2 text-gray-400 text-xs">
+                  <s.icon className={cn('w-4 h-4', s.color)} /> {s.label}
+                </div>
+                <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Your Listings</h2>
+            <button onClick={() => setShowNewListing(true)} className="btn-neon purple flex items-center gap-2 text-sm">
+              <Plus className="w-4 h-4" /> New Listing
+            </button>
+          </div>
+
+          {/* Existing listings (mock) */}
+          <div className="space-y-2">
+            {DEMO_ITEMS.slice(0, 3).map(item => (
+              <div key={item.id} className="panel p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-lattice-deep flex items-center justify-center">
+                  {(() => { const I = typeIcon(item.type); return <I className="w-5 h-5 text-gray-500" />; })()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.type} -- {item.sales} sales -- ${item.prices.basic}+</p>
+                </div>
+                <div className="flex items-center gap-1">{starRating(item.rating)}</div>
+                <span className="text-neon-green text-sm font-bold">${(item.sales * item.prices.basic * 0.7).toFixed(0)}</span>
+                <button className="p-1.5 text-gray-400 hover:text-white transition-colors"><Eye className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* New Listing Modal */}
+          <AnimatePresence>
+            {showNewListing && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                onClick={() => setShowNewListing(false)}>
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                  className="bg-lattice-bg border border-lattice-border rounded-xl w-full max-w-lg p-6 space-y-4"
+                  onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold">Create New Listing</h3>
+                    <button onClick={() => setShowNewListing(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+                  </div>
+                  <div className="space-y-3">
+                    <input placeholder="Title" className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                    <select className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
+                      <option>Beat</option><option>Stem</option><option>Sample Pack</option><option>Artwork</option><option>Plugin</option><option>Preset</option>
+                    </select>
+                    <textarea placeholder="Description" rows={3}
+                      className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none resize-none" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input placeholder="Genre" className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                      <input placeholder="Tags (comma separated)" className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                    </div>
+                    <p className="text-xs text-gray-400 font-medium">Pricing per License Tier</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {LICENSE_TIERS.map(t => (
+                        <div key={t.id} className="space-y-1">
+                          <label className={cn('text-[10px] font-medium', t.color)}>{t.name}</label>
+                          <input type="number" placeholder="$" className="w-full px-2 py-1.5 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 p-4 border-2 border-dashed border-lattice-border rounded-lg justify-center text-gray-500 text-sm cursor-pointer hover:border-neon-purple/50 transition-colors">
+                      <Upload className="w-5 h-5" /> Upload files
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button onClick={() => setShowNewListing(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                    <button onClick={() => setShowNewListing(false)} className="btn-neon purple text-sm">Publish Listing</button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+
+      {/* ================================================================== */}
+      {/* CART TAB                                                           */}
+      {/* ================================================================== */}
+      {tab === 'cart' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          {cart.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">Your cart is empty</p>
+              <p className="text-sm mt-1">Browse the marketplace to find creative assets.</p>
+              <button onClick={() => setTab('browse')} className="btn-neon purple mt-4 text-sm">Browse Marketplace</button>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {cart.map(ci => {
+                  const Icon = typeIcon(ci.item.type);
+                  return (
+                    <div key={ci.item.id} className="panel p-4 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-lattice-deep flex items-center justify-center shrink-0">
+                        <Icon className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{ci.item.title}</p>
+                        <p className="text-xs text-gray-500">{ci.item.creator.name} -- {ci.item.type}</p>
+                      </div>
+                      <select value={ci.license} onChange={e => updateCartLicense(ci.item.id, e.target.value)}
+                        className="px-2 py-1.5 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
+                        {LICENSE_TIERS.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} - {formatPrice(ci.item.prices[t.id as keyof LicensePrice])}</option>
+                        ))}
+                      </select>
+                      <span className="text-neon-green font-bold w-16 text-right">{formatPrice(ci.price)}</span>
+                      <button onClick={() => removeFromCart(ci.item.id)} className="p-1.5 text-gray-400 hover:text-red-400 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Price breakdown */}
+              <div className="panel p-5 space-y-3">
+                <div className="flex items-center justify-between text-sm text-gray-400">
+                  <span>Subtotal ({cart.length} item{cart.length !== 1 ? 's' : ''})</span>
+                  <span>{formatPrice(cartTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-400">
+                  <span>Platform fee</span>
+                  <span>$0</span>
+                </div>
+                <div className="border-t border-lattice-border pt-3 flex items-center justify-between">
+                  <span className="font-bold">Total</span>
+                  <span className="text-neon-green text-xl font-bold">{formatPrice(cartTotal)}</span>
+                </div>
+                <button onClick={handleCheckout} className="btn-neon purple w-full py-3 text-sm font-semibold flex items-center justify-center gap-2">
+                  <Check className="w-4 h-4" /> Checkout
+                </button>
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
+
+      {/* ================================================================== */}
+      {/* PURCHASES TAB                                                      */}
+      {/* ================================================================== */}
+      {tab === 'purchases' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          {purchases.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              <Download className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No purchases yet</p>
+            </div>
+          ) : (
+            purchases.map(p => {
+              const tier = LICENSE_TIERS.find(t => t.id === p.license);
+              const Icon = typeIcon(p.item.type);
+              return (
+                <div key={p.id} className="panel p-4 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-lattice-deep flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 text-gray-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{p.item.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{p.item.creator.name}</span>
+                      <span className="text-gray-600">|</span>
+                      <span className={tier?.color}>{tier?.name} License</span>
+                      <span className="text-gray-600">|</span>
+                      <span>{new Date(p.purchasedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-400">{formatPrice(p.price)}</span>
+                  <button className="btn-neon small flex items-center gap-1 text-sm">
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </motion.div>
+      )}
+
+      {/* ================================================================== */}
+      {/* ANALYTICS TAB                                                      */}
+      {/* ================================================================== */}
+      {tab === 'analytics' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          {/* Revenue chart (mock bars) */}
+          <div className="panel p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2"><BarChart2 className="w-4 h-4 text-neon-cyan" /> Revenue Over Time</h3>
+            <div className="flex items-end gap-2 h-40">
+              {['Oct', 'Nov', 'Dec', 'Jan', 'Feb'].map((month, i) => {
+                const heights = [35, 52, 68, 85, 60];
+                return (
+                  <div key={month} className="flex-1 flex flex-col items-center gap-1">
+                    <motion.div initial={{ height: 0 }} animate={{ height: `${heights[i]}%` }} transition={{ delay: i * 0.1, duration: 0.5 }}
+                      className="w-full rounded-t-md bg-gradient-to-t from-neon-purple to-neon-cyan/50" />
+                    <span className="text-[10px] text-gray-500">{month}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Top Sellers */}
+          <div className="panel p-5 space-y-3">
+            <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-neon-green" /> Top Selling Items</h3>
+            {DEMO_ITEMS.sort((a, b) => b.sales - a.sales).slice(0, 5).map((item, i) => (
+              <div key={item.id} className="flex items-center gap-3 py-2 border-b border-lattice-border last:border-0">
+                <span className="text-xs text-gray-600 w-5 text-right font-mono">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.type} by {item.creator.name}</p>
+                </div>
+                <span className="text-xs text-gray-400">{item.sales} sales</span>
+                <span className="text-sm text-neon-green font-bold">${(item.sales * item.prices.basic * 0.7).toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick stats */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'This Month', value: '$1,240', sub: '+18% vs last month', color: 'text-neon-green' },
+              { label: 'Unique Buyers', value: '23', sub: '+5 new this month', color: 'text-neon-cyan' },
+              { label: 'Avg Order Value', value: '$52', sub: 'Across all licenses', color: 'text-neon-purple' },
+            ].map(s => (
+              <div key={s.label} className="lens-card p-4 space-y-1">
+                <p className="text-xs text-gray-400">{s.label}</p>
+                <p className={cn('text-xl font-bold', s.color)}>{s.value}</p>
+                <p className="text-[10px] text-gray-500">{s.sub}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ================================================================== */}
+      {/* AUDIO PREVIEW BAR                                                  */}
+      {/* ================================================================== */}
+      <AnimatePresence>
+        {previewItem && (
+          <AudioPreviewBar item={previewItem} playing={isPlaying}
+            onToggle={() => setIsPlaying(p => !p)} onClose={closePreview} />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
