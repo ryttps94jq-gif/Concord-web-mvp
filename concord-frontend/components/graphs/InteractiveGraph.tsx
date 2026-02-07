@@ -236,7 +236,7 @@ export function InteractiveGraph({
     return () => {
       cy.destroy();
     };
-  }, []);
+  }, [currentLayout, onEdgeClick, onNodeClick, onNodeDoubleClick, showLabels]);
 
   // Update graph data
   useEffect(() => {

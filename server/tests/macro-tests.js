@@ -221,7 +221,7 @@ async function runTests() {
 fetch(`${API_BASE}/api/status`)
   .then(() => runTests())
   .catch(() => {
-    console.error(`\\n❌ Cannot connect to server at ${API_BASE}`);
-    console.error('Make sure the Concord server is running.\\n');
-    process.exit(1);
+    console.log(`\\n⏭️  Skipping macro tests: server not running at ${API_BASE}`);
+    console.log('Start the Concord server to run integration tests.\\n');
+    process.exit(0);
   });

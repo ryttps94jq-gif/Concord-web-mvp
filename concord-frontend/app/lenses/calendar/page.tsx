@@ -198,7 +198,7 @@ export default function CalendarLensPage() {
   // Initialize events
   useEffect(() => {
     setEvents(generateMockEvents(currentDate));
-  }, []);
+  }, [currentDate]);
 
   // Calendar calculations
   const getDaysInMonth = (date: Date) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch,
@@ -319,15 +319,16 @@ export function LineageTimeline({
   className
 }: LineageTimelineProps) {
   // Flatten and sort by date
-  const flattenNodes = (node: LineageNode): LineageNode[] => {
-    return [node, ...node.children.flatMap(flattenNodes)];
-  };
+  const flattenNodes = useCallback((node: LineageNode): LineageNode[] => {
+    const flatten = (n: LineageNode): LineageNode[] => [n, ...n.children.flatMap(flatten)];
+    return flatten(node);
+  }, []);
 
   const allNodes = useMemo(() => {
     return nodes.flatMap(flattenNodes).sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
     );
-  }, [nodes]);
+  }, [nodes, flattenNodes]);
 
   return (
     <div className={cn('flex flex-col', className)}>

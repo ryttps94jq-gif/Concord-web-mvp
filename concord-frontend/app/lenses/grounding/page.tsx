@@ -124,8 +124,8 @@ export default function GroundingLensPage() {
           </h2>
           <select value={sensorId} onChange={(e) => setSensorId(e.target.value)} className="input-lattice w-full">
             <option value="">Select sensor...</option>
-            {Array.isArray(sensorList) && sensorList.map((s: Record<string, any>) => (
-              <option key={s.id || s} value={s.id || s}>{s.name || s.id || s}</option>
+            {Array.isArray(sensorList) && sensorList.map((s: Record<string, unknown>) => (
+              <option key={String(s.id || s)} value={String(s.id || s)}>{String(s.name || s.id || s)}</option>
             ))}
           </select>
           <div className="grid grid-cols-2 gap-2">
@@ -165,11 +165,11 @@ export default function GroundingLensPage() {
             <Droplets className="w-4 h-4 text-neon-blue" /> Recent Readings
           </h2>
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {Array.isArray(readingList) && readingList.slice(-20).reverse().map((r: Record<string, any>, i: number) => (
+            {Array.isArray(readingList) && readingList.slice(-20).reverse().map((r: Record<string, unknown>, i: number) => (
               <div key={i} className="lens-card text-xs flex items-center justify-between">
-                <span className="font-mono text-neon-cyan">{r.sensorId || r.sensor}</span>
-                <span>{r.value} {r.unit}</span>
-                <span className="text-gray-500">{r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : ''}</span>
+                <span className="font-mono text-neon-cyan">{String(r.sensorId || r.sensor)}</span>
+                <span>{String(r.value)} {String(r.unit)}</span>
+                <span className="text-gray-500">{r.timestamp ? new Date(r.timestamp as string).toLocaleTimeString() : ''}</span>
               </div>
             ))}
             {(!Array.isArray(readingList) || readingList.length === 0) && (

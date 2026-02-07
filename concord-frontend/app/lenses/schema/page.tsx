@@ -11,7 +11,7 @@ export default function SchemaLensPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [validateData, setValidateData] = useState({ schemaName: '', data: '' });
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<{ valid: boolean; errors?: { field: string; error: string }[] } | null>(null);
 
   const { data: schemas, isLoading } = useQuery({
     queryKey: ['schemas'],
@@ -37,7 +37,7 @@ export default function SchemaLensPage() {
       const parsed = JSON.parse(validateData.data);
       validateMutation.mutate({ schemaName: validateData.schemaName, data: parsed });
     } catch {
-      setValidationResult({ ok: false, valid: false, errors: [{ field: 'JSON', error: 'Invalid JSON' }] });
+      setValidationResult({ valid: false, errors: [{ field: 'JSON', error: 'Invalid JSON' }] });
     }
   };
 
@@ -67,8 +67,8 @@ export default function SchemaLensPage() {
             <div className="text-gray-400">Loading...</div>
           ) : (
             <div className="space-y-3">
-              {schemas?.schemas?.map((schema: Record<string, any>) => (
-                <SchemaCard key={schema.id || schema.name} schema={schema} />
+              {schemas?.schemas?.map((schema: Record<string, unknown>) => (
+                <SchemaCard key={(schema.id || schema.name) as string} schema={schema} />
               ))}
             </div>
           )}
@@ -84,8 +84,8 @@ export default function SchemaLensPage() {
               className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded"
             >
               <option value="">Select Schema</option>
-              {schemas?.schemas?.map((s: Record<string, any>) => (
-                <option key={s.name} value={s.name}>{s.name}</option>
+              {schemas?.schemas?.map((s: Record<string, unknown>) => (
+                <option key={s.name as string} value={s.name as string}>{s.name as string}</option>
               ))}
             </select>
             <textarea
@@ -114,13 +114,13 @@ export default function SchemaLensPage() {
                     {validationResult.valid ? 'Valid' : 'Invalid'}
                   </span>
                 </div>
-                {validationResult.errors?.length > 0 && (
+                {(validationResult.errors as Array<{ field: string; error: string }> | undefined)?.length ? (
                   <ul className="text-sm text-red-300 space-y-1">
-                    {validationResult.errors.map((err: Record<string, any>, i: number) => (
+                    {(validationResult.errors as Array<{ field: string; error: string }>).map((err, i: number) => (
                       <li key={i}>{err.field}: {err.error}</li>
                     ))}
                   </ul>
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -138,27 +138,27 @@ export default function SchemaLensPage() {
   );
 }
 
-function SchemaCard({ schema }: { schema: Record<string, any> }) {
+function SchemaCard({ schema }: { schema: Record<string, unknown> }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="panel p-4 cursor-pointer" onClick={() => setExpanded(!expanded)}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold">{schema.name}</h3>
-          <p className="text-xs text-gray-400">Kind: {schema.kind} | Fields: {schema.fields?.length || 0}</p>
+          <h3 className="font-semibold">{schema.name as string}</h3>
+          <p className="text-xs text-gray-400">Kind: {schema.kind as string} | Fields: {(schema.fields as unknown[])?.length || 0}</p>
         </div>
-        <span className="text-xs text-gray-400">v{schema.version || 1}</span>
+        <span className="text-xs text-gray-400">v{(schema.version as number) || 1}</span>
       </div>
       {expanded && (
         <div className="mt-3 pt-3 border-t border-lattice-border">
           <h4 className="text-sm font-medium mb-2">Fields:</h4>
           <div className="space-y-1">
-            {schema.fields?.map((field: Record<string, any>) => (
-              <div key={field.name} className="text-sm flex items-center gap-2">
-                <span className="text-neon-cyan">{field.name}</span>
-                <span className="text-gray-500">: {field.type}</span>
-                {field.required && <span className="text-xs text-red-400">*</span>}
+            {(schema.fields as Record<string, unknown>[])?.map((field: Record<string, unknown>) => (
+              <div key={field.name as string} className="text-sm flex items-center gap-2">
+                <span className="text-neon-cyan">{field.name as string}</span>
+                <span className="text-gray-500">: {field.type as string}</span>
+                {(field.required as boolean) && <span className="text-xs text-red-400">*</span>}
               </div>
             ))}
           </div>
@@ -168,7 +168,7 @@ function SchemaCard({ schema }: { schema: Record<string, any> }) {
   );
 }
 
-function CreateSchemaModal({ onClose, onCreate, creating }: { onClose: () => void; onCreate: (data: any) => void; creating: boolean }) {
+function CreateSchemaModal({ onClose, onCreate, creating }: { onClose: () => void; onCreate: (data: { name: string; kind: string; fields: { name: string; type: string; required: boolean }[] }) => void; creating: boolean }) {
   const [form, setForm] = useState({
     name: '',
     kind: '',

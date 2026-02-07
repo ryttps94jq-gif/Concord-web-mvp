@@ -257,7 +257,7 @@ export default function PhysicsLensPage() {
   // UI state
   const [tool, setTool] = useState<Tool>('select');
   const [selectedBody, setSelectedBody] = useState<string | null>(null);
-  const [selectedConstraint, setSelectedConstraint] = useState<string | null>(null);
+  const [selectedConstraint, _setSelectedConstraint] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [dragStart, setDragStart] = useState<Vector2D | null>(null);

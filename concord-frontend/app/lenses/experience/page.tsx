@@ -31,7 +31,7 @@ export default function ExperienceLensPage() {
   const queryClient = useQueryClient();
   const [retrieveDomain, setRetrieveDomain] = useState('general');
   const [retrieveTopic, setRetrieveTopic] = useState('');
-  const [retrieveResult, setRetrieveResult] = useState<any>(null);
+  const [retrieveResult, setRetrieveResult] = useState<Record<string, unknown> | null>(null);
 
   const { data: status } = useQuery({
     queryKey: ['experience-status'],
@@ -135,14 +135,14 @@ export default function ExperienceLensPage() {
 
           {retrieveResult && (
             <div className="mt-3 bg-lattice-surface p-3 rounded-lg text-xs">
-              {retrieveResult.bestStrategy && (
-                <p className="text-neon-green mb-1">Best strategy: <strong>{retrieveResult.bestStrategy}</strong> (confidence: {((retrieveResult.confidence || 0) * 100).toFixed(0)}%)</p>
+              {Boolean(retrieveResult.bestStrategy) && (
+                <p className="text-neon-green mb-1">Best strategy: <strong>{String(retrieveResult.bestStrategy)}</strong> (confidence: {(((retrieveResult.confidence as number) || 0) * 100).toFixed(0)}%)</p>
               )}
-              {retrieveResult.warnings?.length > 0 && (
-                <div className="text-yellow-400 mb-1">{retrieveResult.warnings.map((w: string, i: number) => <p key={i}>{w}</p>)}</div>
+              {(retrieveResult.warnings as unknown[] | undefined)?.length && (retrieveResult.warnings as unknown[] | undefined)!.length > 0 && (
+                <div className="text-yellow-400 mb-1">{(retrieveResult.warnings as string[]).map((w: string, i: number) => <p key={i}>{w}</p>)}</div>
               )}
-              {retrieveResult.relevantPatterns?.length > 0 && (
-                <p className="text-gray-400">{retrieveResult.relevantPatterns.length} matching patterns found</p>
+              {(retrieveResult.relevantPatterns as unknown[] | undefined)?.length && (retrieveResult.relevantPatterns as unknown[] | undefined)!.length > 0 && (
+                <p className="text-gray-400">{(retrieveResult.relevantPatterns as unknown[]).length} matching patterns found</p>
               )}
             </div>
           )}
@@ -202,12 +202,12 @@ export default function ExperienceLensPage() {
               <BookOpen className="w-4 h-4 text-neon-blue" /> Recent Episodes
             </h2>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {recentEpisodes.slice(0, 8).map((ep: Record<string, any>, i: number) => (
+              {recentEpisodes.slice(0, 8).map((ep: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-300 truncate">{ep.context?.topic || ep.context?.domain || 'Unknown'}</span>
-                    <span className={`${ep.outcome?.quality > 0.6 ? 'text-neon-green' : 'text-yellow-400'}`}>
-                      {((ep.outcome?.quality || 0) * 100).toFixed(0)}%
+                    <span className="text-gray-300 truncate">{String((ep.context as Record<string, unknown>)?.topic || (ep.context as Record<string, unknown>)?.domain || 'Unknown')}</span>
+                    <span className={`${((ep.outcome as Record<string, unknown>)?.quality as number) > 0.6 ? 'text-neon-green' : 'text-yellow-400'}`}>
+                      {((((ep.outcome as Record<string, unknown>)?.quality as number) || 0) * 100).toFixed(0)}%
                     </span>
                   </div>
                 </div>

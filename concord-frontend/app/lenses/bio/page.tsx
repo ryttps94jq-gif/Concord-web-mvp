@@ -6,6 +6,17 @@ import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Dna, Activity, Heart, Brain, Microscope } from 'lucide-react';
 
+interface BioMetric {
+  name: string;
+  value: number;
+}
+
+interface GrowthOrgan {
+  name: string;
+  active: boolean;
+  lastActivation?: string;
+}
+
 export default function BioLensPage() {
   useLensNav('bio');
 
@@ -82,7 +93,7 @@ export default function BioLensPage() {
             {systems.find((s) => s.id === selectedSystem)?.name} Metrics
           </h3>
 
-          {bioData?.systems?.[selectedSystem]?.metrics?.map((metric: Record<string, any>) => (
+          {bioData?.systems?.[selectedSystem]?.metrics?.map((metric: BioMetric) => (
             <div key={metric.name} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-400">{metric.name}</span>
@@ -112,7 +123,7 @@ export default function BioLensPage() {
           </h3>
 
           <div className="space-y-2">
-            {growthData?.organs?.map((organ: Record<string, any>) => (
+            {growthData?.organs?.map((organ: GrowthOrgan) => (
               <div
                 key={organ.name}
                 className={`lens-card ${

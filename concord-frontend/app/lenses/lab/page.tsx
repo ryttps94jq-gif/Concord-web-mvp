@@ -58,9 +58,9 @@ export default function LabLensPage() {
               onChange={(e) => setSelectedOrgan(e.target.value)}
               className="input-lattice w-auto"
             >
-              {organs?.organs?.map((organ: Record<string, any>) => (
-                <option key={organ.name} value={organ.name}>
-                  {organ.name}
+              {organs?.organs?.map((organ: Record<string, unknown>) => (
+                <option key={organ.name as string} value={organ.name as string}>
+                  {String(organ.name)}
                 </option>
               ))}
             </select>
@@ -99,16 +99,16 @@ export default function LabLensPage() {
             Growth Organs
           </h2>
           <div className="space-y-2">
-            {organs?.organs?.map((organ: Record<string, any>) => (
+            {organs?.organs?.map((organ: Record<string, unknown>) => (
               <div
-                key={organ.name}
+                key={organ.name as string}
                 className={`lens-card cursor-pointer ${
-                  selectedOrgan === organ.name ? 'border-neon-purple' : ''
+                  selectedOrgan === (organ.name as string) ? 'border-neon-purple' : ''
                 }`}
-                onClick={() => setSelectedOrgan(organ.name)}
+                onClick={() => setSelectedOrgan(organ.name as string)}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{organ.name}</span>
+                  <span className="font-medium text-sm">{String(organ.name)}</span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded ${
                       organ.active
@@ -137,16 +137,16 @@ export default function LabLensPage() {
               No experiments yet. Run your first experiment!
             </p>
           ) : (
-            experiments?.experiments?.map((exp: Record<string, any>) => (
-              <div key={exp.id} className="lens-card">
+            experiments?.experiments?.map((exp: Record<string, unknown>) => (
+              <div key={exp.id as string} className="lens-card">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm">{exp.organ}</span>
+                  <span className="font-mono text-sm">{String(exp.organ)}</span>
                   <span className="text-xs text-gray-400">
-                    {new Date(exp.timestamp).toLocaleString()}
+                    {new Date(exp.timestamp as string).toLocaleString()}
                   </span>
                 </div>
                 <pre className="text-xs text-gray-300 mt-2 overflow-auto max-h-24">
-                  {exp.result}
+                  {String(exp.result)}
                 </pre>
               </div>
             ))

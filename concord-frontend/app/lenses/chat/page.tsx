@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
@@ -122,7 +122,7 @@ export default function ChatLensPage() {
     enabled: !!selectedConversation,
   });
 
-  const messages = selectedConversation ? (serverMessages || []) : localMessages;
+  const messages = useMemo(() => selectedConversation ? (serverMessages || []) : localMessages, [selectedConversation, serverMessages, localMessages]);
 
   const sendMutation = useMutation({
     mutationFn: async (content: string) => {

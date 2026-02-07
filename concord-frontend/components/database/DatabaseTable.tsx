@@ -25,7 +25,7 @@ interface Column {
 
 interface Row {
   id: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,8 +34,8 @@ interface DatabaseTableProps {
   name: string;
   schema: Column[];
   rows: Row[];
-  onAddRow?: (data: Record<string, any>) => void;
-  onUpdateRow?: (rowId: string, data: Record<string, any>) => void;
+  onAddRow?: (data: Record<string, unknown>) => void;
+  onUpdateRow?: (rowId: string, data: Record<string, unknown>) => void;
   onDeleteRow?: (rowId: string) => void;
   onAddColumn?: (column: Partial<Column>) => void;
   className?: string;
@@ -58,7 +58,7 @@ export function DatabaseTable({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = useState('');
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
-  const [newRowData, setNewRowData] = useState<Record<string, any>>({});
+  const [newRowData, setNewRowData] = useState<Record<string, unknown>>({});
   const [showNewRow, setShowNewRow] = useState(false);
 
   const filteredAndSortedRows = useMemo(() => {
@@ -96,7 +96,7 @@ export function DatabaseTable({
     }
   };
 
-  const handleCellChange = (rowId: string, colId: string, value: any) => {
+  const handleCellChange = (rowId: string, colId: string, value: unknown) => {
     if (onUpdateRow) {
       const row = rows.find(r => r.id === rowId);
       if (row) {
@@ -114,14 +114,14 @@ export function DatabaseTable({
     }
   };
 
-  const renderCellValue = (column: Column, value: any, rowId: string) => {
+  const renderCellValue = (column: Column, value: unknown, rowId: string) => {
     const isEditing = editingCell?.rowId === rowId && editingCell?.colId === column.id;
 
     if (isEditing) {
       return (
         <input
           type={column.type === 'number' ? 'number' : column.type === 'date' ? 'date' : 'text'}
-          value={value || ''}
+          value={(value as string) || ''}
           onChange={(e) => handleCellChange(rowId, column.id, e.target.value)}
           onBlur={() => setEditingCell(null)}
           onKeyDown={(e) => e.key === 'Enter' && setEditingCell(null)}
@@ -143,14 +143,14 @@ export function DatabaseTable({
         );
       case 'url':
         return value ? (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="text-neon-cyan hover:underline truncate">
-            {value}
+          <a href={value as string} target="_blank" rel="noopener noreferrer" className="text-neon-cyan hover:underline truncate">
+            {value as string}
           </a>
         ) : null;
       case 'select':
         return (
           <span className="px-2 py-0.5 bg-lattice-surface rounded text-sm">
-            {value || '-'}
+            {(value as string) || '-'}
           </span>
         );
       case 'multiselect':
@@ -164,7 +164,7 @@ export function DatabaseTable({
           </div>
         ) : null;
       default:
-        return <span className="truncate">{value || '-'}</span>;
+        return <span className="truncate">{(value as string) || '-'}</span>;
     }
   };
 
@@ -292,7 +292,7 @@ export function DatabaseTable({
                     <td key={col.id} className="px-4 py-2">
                       <input
                         type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-                        value={newRowData[col.name] || ''}
+                        value={(newRowData[col.name] as string) || ''}
                         onChange={(e) => setNewRowData(prev => ({ ...prev, [col.name]: e.target.value }))}
                         placeholder={col.name}
                         className="w-full px-2 py-1 bg-lattice-surface border border-lattice-border rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"

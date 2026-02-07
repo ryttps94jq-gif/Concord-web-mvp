@@ -75,17 +75,17 @@ export default function ReposLensPage() {
   const { data: repos } = useQuery({
     queryKey: ['repos-list'],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'repo' } }).then(r =>
-      r.data?.dtus?.map((dtu: Record<string, any>, i: number) => ({
-        id: dtu.id,
-        name: dtu.title || `project-${i}`,
-        description: dtu.content?.slice(0, 100) || 'A Concord DTU repository',
+      r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
+        id: dtu.id as string,
+        name: (dtu.title as string) || `project-${i}`,
+        description: (dtu.content as string)?.slice(0, 100) || 'A Concord DTU repository',
         language: ['TypeScript', 'Python', 'Rust', 'Go', 'JavaScript'][i % 5],
         stars: Math.floor(Math.random() * 1000),
         forks: Math.floor(Math.random() * 200),
         watchers: Math.floor(Math.random() * 50),
         issues: Math.floor(Math.random() * 30),
         pullRequests: Math.floor(Math.random() * 10),
-        updatedAt: dtu.updatedAt || dtu.createdAt,
+        updatedAt: (dtu.updatedAt || dtu.createdAt) as string,
         isPrivate: Math.random() > 0.7,
         defaultBranch: 'main'
       })) || generateMockRepos()
@@ -95,10 +95,10 @@ export default function ReposLensPage() {
   const { data: issues } = useQuery({
     queryKey: ['repos-issues', selectedRepo],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'issue' } }).then(r =>
-      r.data?.dtus?.map((dtu: Record<string, any>, i: number) => ({
-        id: dtu.id,
+      r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
+        id: dtu.id as string,
         number: i + 1,
-        title: dtu.title || dtu.content?.slice(0, 60),
+        title: (dtu.title as string) || (dtu.content as string)?.slice(0, 60),
         state: Math.random() > 0.3 ? 'open' : 'closed',
         author: 'user',
         labels: [
@@ -106,7 +106,7 @@ export default function ReposLensPage() {
           { name: 'enhancement', color: 'a2eeef' },
         ].slice(0, Math.floor(Math.random() * 3)),
         comments: Math.floor(Math.random() * 20),
-        createdAt: dtu.createdAt
+        createdAt: dtu.createdAt as string
       })) || []
     ),
     enabled: activeTab === 'issues',

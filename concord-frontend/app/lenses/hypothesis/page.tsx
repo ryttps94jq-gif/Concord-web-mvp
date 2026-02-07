@@ -15,7 +15,7 @@ interface Hypothesis {
   domain?: string;
   status?: string;
   confidence?: number;
-  evidence?: any[];
+  evidence?: Record<string, unknown>[];
   createdAt?: string;
 }
 
@@ -201,11 +201,11 @@ export default function HypothesisLensPage() {
                     <div>
                       <h3 className="text-sm font-medium mb-2">Evidence</h3>
                       <div className="space-y-1 mb-3">
-                        {(h.evidence || []).map((e: Record<string, any>, i: number) => (
+                        {(h.evidence || []).map((e: Record<string, unknown>, i: number) => (
                           <div key={i} className={`lens-card text-xs border-l-4 ${
                             e.supports ? 'border-l-green-500' : 'border-l-red-500'
                           }`}>
-                            <span>{typeof e === 'string' ? e : e.evidence || e.content}</span>
+                            <span>{typeof e === 'string' ? e : String(e.evidence || e.content)}</span>
                           </div>
                         ))}
                       </div>

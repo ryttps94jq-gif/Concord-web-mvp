@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -120,6 +120,16 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
     return () => clearTimeout(searchTimeout);
   }, [query, scope]);
 
+  const handleSelect = useCallback((result: SearchResult) => {
+    // Save to recent searches
+    const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
+    setRecentSearches(updated);
+    localStorage.setItem('concord-recent-searches', JSON.stringify(updated));
+
+    onSelect?.(result);
+    onClose();
+  }, [query, recentSearches, onSelect, onClose]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
@@ -148,7 +158,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, results, selectedIndex, scope, onClose]);
+  }, [isOpen, results, selectedIndex, scope, onClose, handleSelect]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -159,16 +169,6 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
       }
     }
   }, [selectedIndex]);
-
-  const handleSelect = (result: SearchResult) => {
-    // Save to recent searches
-    const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
-    setRecentSearches(updated);
-    localStorage.setItem('concord-recent-searches', JSON.stringify(updated));
-
-    onSelect?.(result);
-    onClose();
-  };
 
   const getResultIcon = (type: string) => {
     switch (type) {

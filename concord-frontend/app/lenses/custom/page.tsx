@@ -243,14 +243,14 @@ export default function CustomLensPage() {
           Lens Templates
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates?.templates?.map((template: Record<string, any>) => (
-            <div key={template.id} className="lens-card">
-              <span className="text-2xl">{template.icon}</span>
-              <h4 className="font-semibold mt-2">{template.name}</h4>
-              <p className="text-sm text-gray-400 mt-1">{template.description}</p>
+          {templates?.templates?.map((template: Record<string, unknown>) => (
+            <div key={template.id as string} className="lens-card">
+              <span className="text-2xl">{String(template.icon)}</span>
+              <h4 className="font-semibold mt-2">{String(template.name)}</h4>
+              <p className="text-sm text-gray-400 mt-1">{String(template.description)}</p>
               <button
                 onClick={() => {
-                  setNewLensName(template.name);
+                  setNewLensName(template.name as string);
                   setNewLensConfig(JSON.stringify(template.config, null, 2));
                   setShowBuilder(true);
                 }}

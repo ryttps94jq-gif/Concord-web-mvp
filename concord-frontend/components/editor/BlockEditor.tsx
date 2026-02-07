@@ -125,6 +125,17 @@ export function BlockEditor({
     }
   });
 
+  const handleSave = useCallback(async () => {
+    if (!editor || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onSave?.(editor.getHTML());
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editor, onSave, isSaving]);
+
   // Keyboard shortcuts for save
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -136,18 +147,7 @@ export function BlockEditor({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    if (!editor || isSaving) return;
-
-    setIsSaving(true);
-    try {
-      await onSave?.(editor.getHTML());
-    } finally {
-      setIsSaving(false);
-    }
-  }, [editor, onSave, isSaving]);
+  }, [handleSave]);
 
   const setLink = useCallback(() => {
     if (!editor) return;

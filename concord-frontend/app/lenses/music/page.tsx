@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -240,6 +240,15 @@ export default function MusicLensPage() {
     };
   }, [isPlaying, visualizerMode]);
 
+  const handleNext = useCallback(() => {
+    if (isShuffled) {
+      setCurrentTrackIndex(Math.floor(Math.random() * queue.length));
+    } else {
+      setCurrentTrackIndex((prev) => (prev + 1) % queue.length);
+    }
+    setCurrentTime(0);
+  }, [isShuffled, queue.length]);
+
   // Progress simulation
   useEffect(() => {
     if (!isPlaying) return;
@@ -253,7 +262,7 @@ export default function MusicLensPage() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, currentTrack, handleNext]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -275,15 +284,6 @@ export default function MusicLensPage() {
       setCurrentTrackIndex((prev) => (prev - 1 + queue.length) % queue.length);
       setCurrentTime(0);
     }
-  };
-
-  const handleNext = () => {
-    if (isShuffled) {
-      setCurrentTrackIndex(Math.floor(Math.random() * queue.length));
-    } else {
-      setCurrentTrackIndex((prev) => (prev + 1) % queue.length);
-    }
-    setCurrentTime(0);
   };
 
   const toggleRepeat = () => {
@@ -940,7 +940,7 @@ export default function MusicLensPage() {
                     value={eqBands[i]}
                     onChange={(e) => handleEqChange(i, parseInt(e.target.value))}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    style={{ writingMode: 'vertical-rl' as any }}
+                    style={{ writingMode: 'vertical-rl' as React.CSSProperties['writingMode'] }}
                   />
                   <div
                     className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-neon-cyan to-neon-purple rounded-full transition-all"

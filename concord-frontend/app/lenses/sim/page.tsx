@@ -118,23 +118,23 @@ export default function SimLensPage() {
           {sims.length === 0 ? (
             <p className="text-center py-8 text-gray-500">No simulations yet</p>
           ) : (
-            sims.slice(0, 10).map((sim: Record<string, any>) => (
-              <details key={sim.id} className="bg-lattice-deep rounded-lg">
+            sims.slice(0, 10).map((sim: Record<string, unknown>) => (
+              <details key={sim.id as string} className="bg-lattice-deep rounded-lg">
                 <summary className="flex items-center justify-between p-4 cursor-pointer">
                   <div>
-                    <p className="font-medium">{sim.title}</p>
-                    <p className="text-xs text-gray-500">{sim.createdAt}</p>
+                    <p className="font-medium">{sim.title as string}</p>
+                    <p className="text-xs text-gray-500">{sim.createdAt as string}</p>
                   </div>
                   <span className="text-xs px-2 py-1 bg-neon-green/20 text-neon-green rounded">
                     Complete
                   </span>
                 </summary>
                 <div className="px-4 pb-4">
-                  <p className="text-sm text-gray-400 mb-2">{sim.prompt}</p>
-                  {sim.results && (
+                  <p className="text-sm text-gray-400 mb-2">{sim.prompt as string}</p>
+                  {Boolean(sim.results) && (
                     <div className="bg-lattice-void p-3 rounded text-xs font-mono">
-                      <p>Summary: {sim.results.summary}</p>
-                      <p className="mt-2">Risks: {sim.results.keyRisks?.join(', ')}</p>
+                      <p>Summary: {(sim.results as Record<string, unknown>).summary as string}</p>
+                      <p className="mt-2">Risks: {((sim.results as Record<string, unknown>).keyRisks as string[])?.join(', ')}</p>
                     </div>
                   )}
                 </div>

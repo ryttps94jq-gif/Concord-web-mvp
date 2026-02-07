@@ -14,6 +14,13 @@ interface Compound {
   stability: number;
 }
 
+interface Reaction {
+  id: string;
+  formula: string;
+  timestamp: string;
+  success: boolean;
+}
+
 export default function ChemLensPage() {
   useLensNav('chem');
 
@@ -157,7 +164,7 @@ export default function ChemLensPage() {
               No reactions yet. Try the reaction chamber!
             </p>
           ) : (
-            reactions?.reactions?.slice(0, 6).map((reaction: Record<string, any>) => (
+            reactions?.reactions?.slice(0, 6).map((reaction: Reaction) => (
               <div key={reaction.id} className="lens-card">
                 <p className="font-mono text-sm mb-2">{reaction.formula}</p>
                 <div className="flex items-center justify-between text-xs">

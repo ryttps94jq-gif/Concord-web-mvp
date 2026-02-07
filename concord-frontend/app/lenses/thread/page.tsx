@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -175,18 +175,21 @@ export default function ThreadLensPage() {
     });
   };
 
-  const flattenThread = (node: ThreadNode): ThreadNode[] => {
-    const nodes: ThreadNode[] = [node];
-    node.children.forEach((child) => {
-      nodes.push(...flattenThread(child));
-    });
-    return nodes;
-  };
+  const flattenThread = useCallback((node: ThreadNode): ThreadNode[] => {
+    const flatten = (n: ThreadNode): ThreadNode[] => {
+      const result: ThreadNode[] = [n];
+      n.children.forEach((child) => {
+        result.push(...flatten(child));
+      });
+      return result;
+    };
+    return flatten(node);
+  }, []);
 
   const allNodes = useMemo(() => {
     if (!selectedThread) return [];
     return flattenThread(selectedThread.rootNode);
-  }, [selectedThread]);
+  }, [selectedThread, flattenThread]);
 
   const filteredNodes = useMemo(() => {
     if (!searchQuery) return allNodes;

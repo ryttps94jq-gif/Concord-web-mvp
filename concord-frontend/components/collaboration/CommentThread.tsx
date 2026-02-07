@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
@@ -115,7 +116,7 @@ export function CommentThread({
               style={{ backgroundColor: user.color }}
             >
               {user.avatar ? (
-                <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full" />
+                <Image src={user.avatar} alt={user.name} width={32} height={32} className="w-full h-full rounded-full" />
               ) : (
                 user.name.charAt(0).toUpperCase()
               )}

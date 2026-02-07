@@ -147,17 +147,17 @@ export default function DailyLensPage() {
 
             {/* Due Reminders */}
             <div className="space-y-2">
-              {Array.isArray(reminders) && reminders.length > 0 ? reminders.map((r: Record<string, any>) => (
-                <div key={r.id} className="lens-card text-sm">
+              {Array.isArray(reminders) && reminders.length > 0 ? reminders.map((r: Record<string, unknown>) => (
+                <div key={r.id as string} className="lens-card text-sm">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium">{r.title}</p>
+                      <p className="font-medium">{String(r.title)}</p>
                       <p className="text-xs text-gray-400">
-                        {r.dueAt ? new Date(r.dueAt).toLocaleString() : ''}
+                        {r.dueAt ? new Date(r.dueAt as string).toLocaleString() : ''}
                       </p>
                     </div>
                     <button
-                      onClick={() => completeReminder.mutate(r.id)}
+                      onClick={() => completeReminder.mutate(r.id as string)}
                       className="p-1 text-green-400 hover:bg-green-400/20 rounded"
                     >
                       <CheckCircle2 className="w-4 h-4" />

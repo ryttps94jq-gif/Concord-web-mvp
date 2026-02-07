@@ -16,7 +16,7 @@ export default function CommonsenseLensPage() {
   const [relation, setRelation] = useState('is_a');
   const [object, setObject] = useState('');
   const [queryText, setQueryText] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<unknown>(null);
 
   const { data: factsData } = useQuery({
     queryKey: ['commonsense-facts'],
@@ -124,7 +124,7 @@ export default function CommonsenseLensPage() {
         </div>
 
         <div className="space-y-4">
-          {results && (
+          {results !== null && (
             <div className="panel p-4">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
                 <ArrowRight className="w-4 h-4 text-neon-green" /> Results

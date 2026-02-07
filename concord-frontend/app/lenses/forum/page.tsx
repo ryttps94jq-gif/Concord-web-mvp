@@ -65,18 +65,18 @@ export default function ForumLensPage() {
         sort: sortMode === 'new' ? 'createdAt' : 'score',
         order: 'desc'
       }
-    }).then(r => r.data?.dtus?.map((dtu: Record<string, any>) => ({
-      id: dtu.id,
-      title: dtu.title || dtu.content?.slice(0, 100),
-      content: dtu.content,
-      author: dtu.author || 'anonymous',
-      community: dtu.tags?.[0] || 'general',
-      score: dtu.score || Math.floor(Math.random() * 1000),
+    }).then(r => r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
+      id: dtu.id as string,
+      title: (dtu.title as string) || (dtu.content as string)?.slice(0, 100),
+      content: dtu.content as string,
+      author: (dtu.author as string) || 'anonymous',
+      community: (dtu.tags as string[])?.[0] || 'general',
+      score: (dtu.score as number) || Math.floor(Math.random() * 1000),
       userVote: 0,
-      commentCount: dtu.commentCount || 0,
-      createdAt: dtu.createdAt,
-      tags: dtu.tags || [],
-      dtuId: dtu.id
+      commentCount: (dtu.commentCount as number) || 0,
+      createdAt: dtu.createdAt as string,
+      tags: (dtu.tags as string[]) || [],
+      dtuId: dtu.id as string
     })) || []),
   });
 

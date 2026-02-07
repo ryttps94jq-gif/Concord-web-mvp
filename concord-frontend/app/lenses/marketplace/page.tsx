@@ -193,7 +193,7 @@ export default function MarketplaceLensPage() {
     }
   }, [plugins, category, search, sortBy]);
 
-  const isInstalled = (pluginId: string) => installed.some((p: any) => p.id === pluginId);
+  const isInstalled = (pluginId: string) => installed.some((p: { id: string }) => p.id === pluginId);
 
   // Auto-rotate featured
   // useEffect(() => {
@@ -1047,14 +1047,14 @@ function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, o
             <div className="space-y-4">
               {(plugin.changelog || [
                 { version: plugin.version, date: plugin.updatedAt, changes: ['Initial release'] }
-              ]).map((entry: Record<string, any>) => (
-                <div key={entry.version} className="p-4 bg-lattice-surface rounded-lg">
+              ]).map((entry: Record<string, unknown>) => (
+                <div key={entry.version as string} className="p-4 bg-lattice-surface rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-mono text-neon-purple">v{entry.version}</span>
-                    <span className="text-sm text-gray-400">{new Date(entry.date).toLocaleDateString()}</span>
+                    <span className="font-mono text-neon-purple">v{entry.version as string}</span>
+                    <span className="text-sm text-gray-400">{new Date(entry.date as string).toLocaleDateString()}</span>
                   </div>
                   <ul className="list-disc list-inside text-gray-300 space-y-1">
-                    {entry.changes.map((change: string, i: number) => (
+                    {(entry.changes as string[]).map((change: string, i: number) => (
                       <li key={i}>{change}</li>
                     ))}
                   </ul>
@@ -1068,7 +1068,7 @@ function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, o
   );
 }
 
-function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: { onClose: () => void; onSubmit: (data: any) => void; categories: string[]; submitting: boolean }) {
+function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: { onClose: () => void; onSubmit: (data: { name: string; githubUrl: string; description: string; category: string }) => void; categories: string[]; submitting: boolean }) {
   const [form, setForm] = useState({
     name: '',
     githubUrl: '',
@@ -1164,7 +1164,7 @@ function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: { onCl
   );
 }
 
-function ReviewModal({ plugin, onClose, onSubmit, submitting }: { plugin: Plugin; onClose: () => void; onSubmit: (data: any) => void; submitting: boolean }) {
+function ReviewModal({ plugin, onClose, onSubmit, submitting }: { plugin: Plugin; onClose: () => void; onSubmit: (data: { rating: number; comment: string }) => void; submitting: boolean }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 

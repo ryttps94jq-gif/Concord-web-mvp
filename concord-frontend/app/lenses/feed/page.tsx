@@ -65,16 +65,16 @@ export default function FeedLensPage() {
   const { data: feedPosts, isLoading } = useQuery({
     queryKey: ['feed-posts', activeTab],
     queryFn: () => api.get('/api/dtus', { params: { limit: 50 } }).then(r =>
-      r.data?.dtus?.map((dtu: Record<string, any>) => ({
-        id: dtu.id,
+      r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
+        id: dtu.id as string,
         author: {
-          id: dtu.authorId || 'user',
-          name: dtu.authorName || 'Concord User',
-          handle: dtu.authorHandle || 'user',
+          id: (dtu.authorId as string) || 'user',
+          name: (dtu.authorName as string) || 'Concord User',
+          handle: (dtu.authorHandle as string) || 'user',
           verified: Math.random() > 0.7
         },
-        content: dtu.content?.slice(0, 280) || dtu.title,
-        createdAt: dtu.createdAt,
+        content: (dtu.content as string)?.slice(0, 280) || (dtu.title as string),
+        createdAt: dtu.createdAt as string,
         likes: Math.floor(Math.random() * 1000),
         reposts: Math.floor(Math.random() * 500),
         replies: Math.floor(Math.random() * 100),
@@ -82,7 +82,7 @@ export default function FeedLensPage() {
         liked: false,
         reposted: false,
         bookmarked: false,
-        dtuId: dtu.id
+        dtuId: dtu.id as string
       })) || []
     ),
   });

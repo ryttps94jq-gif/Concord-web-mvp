@@ -69,11 +69,12 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
     socketRef.current = socket;
 
     // FE-011: Clean up on unmount — disconnect and remove all listeners
+    const listeners = listenersRef.current;
     return () => {
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
-      listenersRef.current.clear();
+      listeners.clear();
       setIsConnected(false);
     };
   }, [autoConnect, reconnection, reconnectionAttempts, reconnectionDelay]);

@@ -49,7 +49,7 @@ export function InlineCompletion({
 
   useEffect(() => {
     fetchSuggestion();
-  }, []);
+  }, [fetchSuggestion]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Tab' && suggestion) {

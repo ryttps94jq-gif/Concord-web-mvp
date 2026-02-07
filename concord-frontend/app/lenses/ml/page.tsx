@@ -61,7 +61,7 @@ interface Experiment {
   name: string;
   modelId: string;
   status: 'running' | 'completed' | 'failed' | 'queued';
-  hyperparams: Record<string, any>;
+  hyperparams: Record<string, unknown>;
   metrics: {
     epoch: number;
     trainLoss: number;
@@ -251,7 +251,7 @@ export default function MLLensPage() {
   const [selectedExperiment, setSelectedExperiment] = useState<Experiment | null>(null);
   const [showNewExperiment, setShowNewExperiment] = useState(false);
   const [playgroundInput, setPlaygroundInput] = useState('');
-  const [playgroundOutput, setPlaygroundOutput] = useState<any>(null);
+  const [playgroundOutput, setPlaygroundOutput] = useState<unknown>(null);
   const [playgroundModel, setPlaygroundModel] = useState<string>('');
 
   // Queries
@@ -288,7 +288,7 @@ export default function MLLensPage() {
   });
 
   const startTraining = useMutation({
-    mutationFn: (config: any) => api.post('/api/ml/train', config),
+    mutationFn: (config: Record<string, unknown>) => api.post('/api/ml/train', config),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ml-experiments'] });
       setShowNewExperiment(false);
@@ -601,13 +601,13 @@ export default function MLLensPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-gray-400">
-                      <span>Epoch {exp.metrics.length}/{exp.hyperparams.epochs}</span>
+                      <span>Epoch {exp.metrics.length}/{exp.hyperparams.epochs as number}</span>
                       {exp.duration && <span>{exp.duration}</span>}
                     </div>
                     <div className="mt-2 h-1 bg-lattice-surface rounded-full overflow-hidden">
                       <div
                         className="h-full bg-neon-purple transition-all"
-                        style={{ width: `${(exp.metrics.length / exp.hyperparams.epochs) * 100}%` }}
+                        style={{ width: `${(exp.metrics.length / (exp.hyperparams.epochs as number)) * 100}%` }}
                       />
                     </div>
                   </button>
@@ -640,7 +640,7 @@ export default function MLLensPage() {
                     {Object.entries(selectedExperiment.hyperparams).map(([key, value]) => (
                       <div key={key} className="bg-lattice-surface p-3 rounded-lg">
                         <p className="text-xs text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
-                        <p className="font-mono">{value}</p>
+                        <p className="font-mono">{String(value)}</p>
                       </div>
                     ))}
                   </div>
@@ -860,7 +860,7 @@ export default function MLLensPage() {
             </h3>
 
             <div className="panel p-4 h-[400px] overflow-auto">
-              {playgroundOutput ? (
+              {Boolean(playgroundOutput) ? (
                 <pre className="text-sm font-mono text-neon-green whitespace-pre-wrap">
                   {JSON.stringify(playgroundOutput, null, 2)}
                 </pre>
@@ -874,7 +874,7 @@ export default function MLLensPage() {
               )}
             </div>
 
-            {playgroundOutput && (
+            {!!playgroundOutput && (
               <div className="flex gap-2">
                 <button className="btn-neon small flex-1">
                   <Copy className="w-4 h-4 mr-1" /> Copy
@@ -941,9 +941,9 @@ function MetricCard({ icon, label, value, trend, color }: { icon: React.ReactNod
   );
 }
 
-function ModelCard({ model, statusConfig, typeConfig, onSelect, onDeploy }: { model: Model; statusConfig: Record<string, any>; typeConfig: Record<string, any>; onSelect: () => void; onDeploy: () => void }) {
-  const StatusIcon = statusConfig[model.status]?.icon || Activity;
-  const TypeIcon = typeConfig[model.type]?.icon || Brain;
+function ModelCard({ model, statusConfig, typeConfig, onSelect, onDeploy: _onDeploy }: { model: Model; statusConfig: Record<string, Record<string, unknown>>; typeConfig: Record<string, Record<string, unknown>>; onSelect: () => void; onDeploy: () => void }) {
+  const StatusIcon = (statusConfig[model.status]?.icon || Activity) as React.ElementType;
+  const TypeIcon = (typeConfig[model.type]?.icon || Brain) as React.ElementType;
 
   return (
     <motion.div
@@ -953,13 +953,13 @@ function ModelCard({ model, statusConfig, typeConfig, onSelect, onDeploy }: { mo
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <TypeIcon className={`w-5 h-5 ${typeConfig[model.type]?.color}`} />
+          <TypeIcon className={`w-5 h-5 ${typeConfig[model.type]?.color as string}`} />
           <div>
             <h4 className="font-semibold">{model.name}</h4>
             <p className="text-xs text-gray-400">v{model.version}</p>
           </div>
         </div>
-        <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${statusConfig[model.status]?.color}`}>
+        <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${statusConfig[model.status]?.color as string}`}>
           <StatusIcon className="w-3 h-3" />
           {model.status}
         </span>
@@ -999,16 +999,16 @@ function ModelCard({ model, statusConfig, typeConfig, onSelect, onDeploy }: { mo
   );
 }
 
-function ModelListItem({ model, statusConfig, typeConfig, onSelect, onDeploy }: { model: Model; statusConfig: Record<string, any>; typeConfig: Record<string, any>; onSelect: () => void; onDeploy: () => void }) {
-  const StatusIcon = statusConfig[model.status]?.icon || Activity;
-  const TypeIcon = typeConfig[model.type]?.icon || Brain;
+function ModelListItem({ model, statusConfig, typeConfig, onSelect, onDeploy }: { model: Model; statusConfig: Record<string, Record<string, unknown>>; typeConfig: Record<string, Record<string, unknown>>; onSelect: () => void; onDeploy: () => void }) {
+  const StatusIcon = (statusConfig[model.status]?.icon || Activity) as React.ElementType;
+  const TypeIcon = (typeConfig[model.type]?.icon || Brain) as React.ElementType;
 
   return (
     <div
       onClick={onSelect}
       className="panel p-4 flex items-center gap-4 cursor-pointer hover:border-neon-purple/50"
     >
-      <TypeIcon className={`w-6 h-6 ${typeConfig[model.type]?.color}`} />
+      <TypeIcon className={`w-6 h-6 ${typeConfig[model.type]?.color as string}`} />
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold">{model.name}</span>
@@ -1020,7 +1020,7 @@ function ModelListItem({ model, statusConfig, typeConfig, onSelect, onDeploy }: 
         {model.accuracy && (
           <span className="text-neon-green">{(model.accuracy * 100).toFixed(1)}%</span>
         )}
-        <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${statusConfig[model.status]?.color}`}>
+        <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${statusConfig[model.status]?.color as string}`}>
           <StatusIcon className="w-3 h-3" />
           {model.status}
         </span>
@@ -1037,9 +1037,9 @@ function ModelListItem({ model, statusConfig, typeConfig, onSelect, onDeploy }: 
   );
 }
 
-function ModelDetailModal({ model, onClose, onDeploy, onTrain, statusConfig, typeConfig }: { model: Model; onClose: () => void; onDeploy: () => void; onTrain: () => void; statusConfig: Record<string, any>; typeConfig: Record<string, any> }) {
-  const StatusIcon = statusConfig[model.status]?.icon || Activity;
-  const TypeIcon = typeConfig[model.type]?.icon || Brain;
+function ModelDetailModal({ model, onClose, onDeploy, onTrain, statusConfig, typeConfig }: { model: Model; onClose: () => void; onDeploy: () => void; onTrain: () => void; statusConfig: Record<string, Record<string, unknown>>; typeConfig: Record<string, Record<string, unknown>> }) {
+  const StatusIcon = (statusConfig[model.status]?.icon || Activity) as React.ElementType;
+  const TypeIcon = (typeConfig[model.type]?.icon || Brain) as React.ElementType;
 
   return (
     <motion.div
@@ -1059,7 +1059,7 @@ function ModelDetailModal({ model, onClose, onDeploy, onTrain, statusConfig, typ
         <div className="p-6 border-b border-lattice-border">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${typeConfig[model.type]?.color} bg-current/10`}>
+              <div className={`p-3 rounded-xl ${typeConfig[model.type]?.color as string} bg-current/10`}>
                 <TypeIcon className="w-8 h-8" />
               </div>
               <div>
@@ -1073,7 +1073,7 @@ function ModelDetailModal({ model, onClose, onDeploy, onTrain, statusConfig, typ
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <span className={`flex items-center gap-1 px-3 py-1 rounded ${statusConfig[model.status]?.color}`}>
+            <span className={`flex items-center gap-1 px-3 py-1 rounded ${statusConfig[model.status]?.color as string}`}>
               <StatusIcon className="w-4 h-4" />
               {model.status}
             </span>
@@ -1165,7 +1165,7 @@ function ModelDetailModal({ model, onClose, onDeploy, onTrain, statusConfig, typ
   );
 }
 
-function NewExperimentModal({ models, datasets, onClose, onSubmit, submitting }: { models: Model[]; datasets: Dataset[]; onClose: () => void; onSubmit: (config: any) => void; submitting: boolean }) {
+function NewExperimentModal({ models, datasets, onClose, onSubmit, submitting }: { models: Model[]; datasets: Dataset[]; onClose: () => void; onSubmit: (config: Record<string, unknown>) => void; submitting: boolean }) {
   const [config, setConfig] = useState({
     name: '',
     modelId: '',

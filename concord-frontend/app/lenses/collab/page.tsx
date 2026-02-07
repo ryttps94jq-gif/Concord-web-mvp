@@ -70,13 +70,13 @@ export default function CollabLensPage() {
         <div className="lens-card">
           <p className="text-sm text-gray-400">Total Participants</p>
           <p className="text-2xl font-bold text-neon-purple">
-            {sessions?.sessions?.reduce((acc: number, s: Record<string, any>) => acc + s.participantCount, 0) || 0}
+            {sessions?.sessions?.reduce((acc: number, s: Record<string, unknown>) => acc + (s.participantCount as number), 0) || 0}
           </p>
         </div>
         <div className="lens-card">
           <p className="text-sm text-gray-400">Pending Changes</p>
           <p className="text-2xl font-bold text-neon-cyan">
-            {sessions?.sessions?.reduce((acc: number, s: Record<string, any>) => acc + s.changeCount, 0) || 0}
+            {sessions?.sessions?.reduce((acc: number, s: Record<string, unknown>) => acc + (s.changeCount as number), 0) || 0}
           </p>
         </div>
       </div>
@@ -94,12 +94,12 @@ export default function CollabLensPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {sessions?.sessions?.map((session: Record<string, any>) => (
+            {sessions?.sessions?.map((session: Record<string, unknown>) => (
               <SessionCard
-                key={session.id}
+                key={session.id as string}
                 session={session}
-                onJoin={() => joinMutation.mutate(session.id)}
-                onMerge={() => mergeMutation.mutate(session.id)}
+                onJoin={() => joinMutation.mutate(session.id as string)}
+                onMerge={() => mergeMutation.mutate(session.id as string)}
                 joining={joinMutation.isPending}
                 merging={mergeMutation.isPending}
               />
@@ -121,7 +121,7 @@ export default function CollabLensPage() {
 }
 
 function SessionCard({ session, onJoin, onMerge, joining, merging }: {
-  session: Record<string, any>;
+  session: Record<string, unknown>;
   onJoin: () => void;
   onMerge: () => void;
   joining: boolean;
@@ -131,20 +131,20 @@ function SessionCard({ session, onJoin, onMerge, joining, merging }: {
     <div className="panel p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${session.mode === 'edit' ? 'bg-green-500' : 'bg-blue-500'}`} />
+          <div className={`w-3 h-3 rounded-full ${(session.mode as string) === 'edit' ? 'bg-green-500' : 'bg-blue-500'}`} />
           <div>
-            <h3 className="font-semibold">Session {session.id.slice(-8)}</h3>
-            <p className="text-xs text-gray-400">DTU: {session.dtuId.slice(0, 20)}...</p>
+            <h3 className="font-semibold">Session {(session.id as string).slice(-8)}</h3>
+            <p className="text-xs text-gray-400">DTU: {(session.dtuId as string).slice(0, 20)}...</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-sm text-gray-400 flex items-center gap-1">
             <Users className="w-4 h-4" />
-            {session.participantCount}
+            {String(session.participantCount)}
           </div>
           <div className="text-sm text-gray-400 flex items-center gap-1">
             <Clock className="w-4 h-4" />
-            {session.changeCount} changes
+            {String(session.changeCount)} changes
           </div>
         </div>
       </div>
@@ -164,7 +164,7 @@ function SessionCard({ session, onJoin, onMerge, joining, merging }: {
 function CreateSessionModal({ onClose, onCreate, dtus, creating }: {
   onClose: () => void;
   onCreate: (data: { dtuId: string; mode: string }) => void;
-  dtus: Record<string, any>[];
+  dtus: Record<string, unknown>[];
   creating: boolean;
 }) {
   const [form, setForm] = useState({ dtuId: '', mode: 'edit' });
@@ -179,8 +179,8 @@ function CreateSessionModal({ onClose, onCreate, dtus, creating }: {
           className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded"
         >
           <option value="">Select DTU to collaborate on</option>
-          {dtus.slice(0, 50).map((dtu: Record<string, any>) => (
-            <option key={dtu.id} value={dtu.id}>{dtu.title}</option>
+          {dtus.slice(0, 50).map((dtu: Record<string, unknown>) => (
+            <option key={dtu.id as string} value={dtu.id as string}>{String(dtu.title)}</option>
           ))}
         </select>
         <select

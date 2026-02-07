@@ -8,6 +8,13 @@ import {
   ArrowRight, Sparkles, ShieldCheck, TrendingUp
 } from 'lucide-react';
 
+interface TokenPackage {
+  id: string;
+  tokens: number;
+  price: number;
+  bonus: number;
+}
+
 export default function BillingPage() {
   const _queryClient = useQueryClient();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
@@ -182,7 +189,7 @@ export default function BillingPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {tokenPackages.map((pkg: Record<string, any>) => (
+          {tokenPackages.map((pkg: TokenPackage) => (
             <div
               key={pkg.id}
               className={`relative bg-lattice-surface border rounded-xl p-6 cursor-pointer transition-all ${

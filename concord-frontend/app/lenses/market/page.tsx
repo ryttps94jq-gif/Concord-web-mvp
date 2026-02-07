@@ -6,6 +6,17 @@ import { api } from '@/lib/api/client';
 import { MarketEmpireListing } from '@/components/market/MarketEmpireListing';
 import { Store, TrendingUp, Package, Coins } from 'lucide-react';
 
+interface MarketListingItem {
+  id: string;
+  title?: string;
+  description?: string;
+  price?: number;
+  seller?: string;
+  createdAt?: string;
+  tags?: string[];
+  type?: string;
+}
+
 export default function MarketLensPage() {
   useLensNav('market');
 
@@ -53,7 +64,7 @@ export default function MarketLensPage() {
               No listings yet. Create the first marketplace listing!
             </p>
           ) : (
-            listings?.listings?.map((listing: any) => (
+            listings?.listings?.map((listing: MarketListingItem) => (
               <MarketEmpireListing key={listing.id} listing={listing} />
             ))
           )}

@@ -6,6 +6,13 @@ import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FileSearch, AlertTriangle, Check, X, Eye } from 'lucide-react';
 
+interface RawEvent {
+  id: string;
+  type: string;
+  payload?: { entityId?: string };
+  at: string;
+}
+
 interface AuditEntry {
   id: string;
   type: 'terminal' | 'tick' | 'verifier' | 'invariant' | 'dtu';
@@ -28,7 +35,7 @@ export default function AuditLensPage() {
   });
 
   // Transform events to audit entries
-  const auditEntries: AuditEntry[] = (events?.events || []).slice(0, 100).map((e: Record<string, any>) => ({
+  const auditEntries: AuditEntry[] = (events?.events || []).slice(0, 100).map((e: RawEvent) => ({
     id: e.id,
     type: e.type?.includes('dtu') ? 'dtu' : e.type?.includes('tick') ? 'tick' : 'terminal',
     action: e.type || 'unknown',

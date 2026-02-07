@@ -109,7 +109,7 @@ export default function QueueLensPage() {
         <div className="lens-card">
           <Play className="w-5 h-5 text-neon-green mb-2" />
           <p className="text-2xl font-bold">
-            {Object.values(jobs?.jobs || {}).filter((j: any) => j?.enabled).length}
+            {Object.values(jobs?.jobs || {}).filter((j: unknown) => (j as Record<string, unknown>)?.enabled).length}
           </p>
           <p className="text-sm text-gray-400">Active Jobs</p>
         </div>
@@ -200,21 +200,24 @@ export default function QueueLensPage() {
       <div className="panel p-4">
         <h2 className="font-semibold mb-4">Governor Jobs</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {Object.entries(jobs?.jobs || {}).map(([name, job]: [string, any]) => (
+          {Object.entries(jobs?.jobs || {}).map(([name, job]) => {
+            const j = job as Record<string, unknown>;
+            return (
             <div
               key={name}
               className={`lens-card flex items-center justify-between ${
-                job?.enabled ? 'border-neon-green/30' : 'border-gray-600'
+                j?.enabled ? 'border-neon-green/30' : 'border-gray-600'
               }`}
             >
               <span className="capitalize">{name}</span>
               <span
                 className={`w-3 h-3 rounded-full ${
-                  job?.enabled ? 'bg-neon-green' : 'bg-gray-500'
+                  j?.enabled ? 'bg-neon-green' : 'bg-gray-500'
                 }`}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

@@ -26,7 +26,7 @@ export default function CouncilLensPage() {
   const [selectedDtuA, setSelectedDtuA] = useState<string>('');
   const [selectedDtuB, setSelectedDtuB] = useState<string>('');
   const [topic, setTopic] = useState('');
-  const [debateResult, setDebateResult] = useState<any>(null);
+  const [debateResult, setDebateResult] = useState<Record<string, unknown> | null>(null);
 
   // Fetch personas from backend: GET /api/personas
   const { data: personasData } = useQuery({
@@ -182,38 +182,38 @@ export default function CouncilLensPage() {
           </h2>
 
           {/* Turns */}
-          {debateResult.debate?.turns && (
+          {Boolean((debateResult.debate as Record<string, unknown> | undefined)?.turns) && (
             <div className="space-y-3 mb-6">
-              {debateResult.debate.turns.map((turn: Record<string, any>, i: number) => (
+              {((debateResult.debate as Record<string, unknown>).turns as Record<string, unknown>[]).map((turn: Record<string, unknown>, i: number) => (
                 <div
                   key={i}
                   className="p-3 bg-lattice-deep rounded-lg border-l-2 border-neon-purple"
                 >
                   <p className="font-medium text-neon-purple text-sm">
-                    {turn.personaName}
+                    {String(turn.personaName)}
                   </p>
-                  <p className="text-sm mt-1 text-gray-300">{turn.text}</p>
+                  <p className="text-sm mt-1 text-gray-300">{String(turn.text)}</p>
                 </div>
               ))}
             </div>
           )}
 
           {/* Synthesis */}
-          {debateResult.debate?.synthesis && (
+          {Boolean((debateResult.debate as Record<string, unknown> | undefined)?.synthesis) && (
             <div className="p-4 bg-neon-green/10 rounded-lg border border-neon-green/30">
               <h3 className="font-semibold text-neon-green mb-2">Synthesis</h3>
               <p className="text-sm whitespace-pre-wrap">
-                {debateResult.debate.synthesis}
+                {String((debateResult.debate as Record<string, unknown>).synthesis)}
               </p>
             </div>
           )}
 
           {/* Synthesis DTU Created */}
-          {debateResult.synthesisDTU && (
+          {Boolean(debateResult.synthesisDTU) && (
             <div className="mt-4 p-3 bg-lattice-surface rounded-lg">
               <p className="text-xs text-gray-400">New DTU Created:</p>
               <p className="font-mono text-xs text-neon-cyan truncate">
-                {debateResult.synthesisDTU.id}
+                {String((debateResult.synthesisDTU as Record<string, unknown>).id)}
               </p>
             </div>
           )}

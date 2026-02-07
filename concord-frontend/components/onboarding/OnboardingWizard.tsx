@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
@@ -19,7 +19,7 @@ interface OnboardingStep {
   id: string;
   title: string;
   description: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   action?: string;
 }
 
@@ -75,7 +75,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
   const isLastStep = currentStep === STEPS.length - 1;
   const isFirstStep = currentStep === 0;
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     setCompletedSteps(prev => new Set([...prev, step.id]));
 
     if (isLastStep) {
@@ -84,13 +84,13 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
     } else {
       setCurrentStep(prev => prev + 1);
     }
-  };
+  }, [step.id, isLastStep, onComplete, onClose]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (!isFirstStep) {
       setCurrentStep(prev => prev - 1);
     }
-  };
+  }, [isFirstStep]);
 
   const handleAction = () => {
     if (step.action && onAction) {
@@ -113,7 +113,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentStep]);
+  }, [isOpen, handleNext, handlePrev, onClose]);
 
   return (
     <AnimatePresence>

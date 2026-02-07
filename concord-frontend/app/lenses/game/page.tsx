@@ -178,9 +178,9 @@ export default function GameLensPage() {
               </tr>
             </thead>
             <tbody>
-              {leaderboard?.players?.map((player: Record<string, any>, index: number) => (
+              {leaderboard?.players?.map((player: Record<string, unknown>, index: number) => (
                 <tr
-                  key={player.id}
+                  key={player.id as string}
                   className={`border-b border-lattice-border/50 ${
                     player.isCurrentUser ? 'bg-neon-purple/10' : ''
                   }`}
@@ -194,10 +194,10 @@ export default function GameLensPage() {
                       <span className="text-gray-400">#{index + 1}</span>
                     )}
                   </td>
-                  <td className="py-3 font-medium">{player.name}</td>
-                  <td className="py-3 text-right">{player.level}</td>
+                  <td className="py-3 font-medium">{String(player.name)}</td>
+                  <td className="py-3 text-right">{String(player.level)}</td>
                   <td className="py-3 text-right font-mono text-neon-blue">
-                    {player.xp.toLocaleString()}
+                    {(player.xp as number).toLocaleString()}
                   </td>
                 </tr>
               ))}
@@ -208,28 +208,28 @@ export default function GameLensPage() {
 
       {activeTab === 'challenges' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {challenges?.challenges?.map((challenge: Record<string, any>) => (
-            <div key={challenge.id} className="lens-card">
+          {challenges?.challenges?.map((challenge: Record<string, unknown>) => (
+            <div key={challenge.id as string} className="lens-card">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl">{challenge.icon}</span>
+                <span className="text-2xl">{String(challenge.icon)}</span>
                 <span
                   className={`text-xs px-2 py-1 rounded ${
-                    challenge.difficulty === 'easy'
+                    (challenge.difficulty as string) === 'easy'
                       ? 'bg-neon-green/20 text-neon-green'
-                      : challenge.difficulty === 'medium'
+                      : (challenge.difficulty as string) === 'medium'
                       ? 'bg-neon-blue/20 text-neon-blue'
                       : 'bg-neon-pink/20 text-neon-pink'
                   }`}
                 >
-                  {challenge.difficulty}
+                  {String(challenge.difficulty)}
                 </span>
               </div>
-              <h4 className="font-semibold">{challenge.name}</h4>
-              <p className="text-sm text-gray-400 mt-1">{challenge.description}</p>
+              <h4 className="font-semibold">{String(challenge.name)}</h4>
+              <p className="text-sm text-gray-400 mt-1">{String(challenge.description)}</p>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-lattice-border">
                 <span className="text-sm text-neon-blue flex items-center gap-1">
                   <Zap className="w-4 h-4" />
-                  +{challenge.xpReward} XP
+                  +{String(challenge.xpReward)} XP
                 </span>
                 <button className="btn-neon text-sm py-1">Start</button>
               </div>

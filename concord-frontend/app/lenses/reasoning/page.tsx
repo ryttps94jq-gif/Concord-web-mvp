@@ -80,8 +80,8 @@ export default function ReasoningLensPage() {
   });
 
   const chains: Chain[] = chainsData?.chains || chainsData || [];
-  const status: Record<string, any> = statusData?.status || statusData || {};
-  const trace: Record<string, any> = traceData?.trace || traceData || {};
+  const status: Record<string, unknown> = statusData?.status || statusData || {};
+  const trace: Record<string, unknown> = traceData?.trace || traceData || {};
 
   return (
     <div className="p-6 space-y-6">
@@ -104,17 +104,17 @@ export default function ReasoningLensPage() {
         </div>
         <div className="lens-card">
           <ListTree className="w-5 h-5 text-neon-purple mb-2" />
-          <p className="text-2xl font-bold">{status.totalSteps || 0}</p>
+          <p className="text-2xl font-bold">{(status.totalSteps as number) || 0}</p>
           <p className="text-sm text-gray-400">Total Steps</p>
         </div>
         <div className="lens-card">
           <CheckCircle2 className="w-5 h-5 text-neon-green mb-2" />
-          <p className="text-2xl font-bold">{status.concluded || 0}</p>
+          <p className="text-2xl font-bold">{(status.concluded as number) || 0}</p>
           <p className="text-sm text-gray-400">Concluded</p>
         </div>
         <div className="lens-card">
           <Workflow className="w-5 h-5 text-neon-cyan mb-2" />
-          <p className="text-2xl font-bold">{status.validated || 0}</p>
+          <p className="text-2xl font-bold">{(status.validated as number) || 0}</p>
           <p className="text-sm text-gray-400">Validated</p>
         </div>
       </div>
@@ -196,7 +196,7 @@ export default function ReasoningLensPage() {
             <>
               {/* Trace visualization */}
               <div className="space-y-3">
-                {trace?.steps?.map?.((step: Record<string, any>, i: number) => (
+                {(trace?.steps as Record<string, unknown>[] | undefined)?.map?.((step: Record<string, unknown>, i: number) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -10 }}
@@ -210,14 +210,14 @@ export default function ReasoningLensPage() {
                       }`}>
                         {i + 1}
                       </div>
-                      {i < (trace.steps?.length || 0) - 1 && (
+                      {i < ((trace.steps as unknown[] | undefined)?.length || 0) - 1 && (
                         <div className="w-0.5 h-6 bg-lattice-border mt-1" />
                       )}
                     </div>
                     <div className="flex-1 lens-card">
-                      <p className="text-sm">{step.content}</p>
-                      {step.type && (
-                        <span className="text-xs text-gray-500 mt-1 block">{step.type}</span>
+                      <p className="text-sm">{step.content as string}</p>
+                      {Boolean(step.type) && (
+                        <span className="text-xs text-gray-500 mt-1 block">{step.type as string}</span>
                       )}
                     </div>
                   </motion.div>
@@ -225,12 +225,12 @@ export default function ReasoningLensPage() {
                   <p className="text-gray-500 text-sm">Loading trace...</p>
                 )}
 
-                {trace?.conclusion && (
+                {Boolean(trace?.conclusion) && (
                   <div className="p-3 rounded-lg bg-green-400/10 border border-green-400/30">
                     <p className="text-sm font-semibold text-green-400 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" /> Conclusion
                     </p>
-                    <p className="text-sm mt-1">{trace.conclusion}</p>
+                    <p className="text-sm mt-1">{trace.conclusion as string}</p>
                   </div>
                 )}
               </div>

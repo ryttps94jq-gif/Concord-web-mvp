@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -86,7 +86,7 @@ export default function ResonanceLensPage() {
   const repairRate = growth?.growth?.maintenance?.repairRate || 0.5;
   const _contradictionLoad = growth?.growth?.functionalDecline?.contradictionLoad || 0;
 
-  const healthMetrics: HealthMetric[] = [
+  const healthMetrics: HealthMetric[] = useMemo(() => [
     {
       id: 'homeostasis',
       name: 'Homeostasis',
@@ -147,7 +147,7 @@ export default function ResonanceLensPage() {
       threshold: { warning: 0.35, critical: 0.2 },
       history: Array.from({ length: 24 }, () => Math.random() * 0.3 + 0.4),
     },
-  ];
+  ], [homeostasis, coherence, continuity, stressAcute, stressChronic, repairRate]);
 
   const unacknowledgedAlerts = alerts.filter((a) => !a.acknowledged);
 

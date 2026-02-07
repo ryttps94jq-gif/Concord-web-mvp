@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, MessageSquare, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -64,9 +65,11 @@ export function PresenceIndicator({
                 style={{ backgroundColor: user.color }}
               >
                 {user.avatar ? (
-                  <img
+                  <Image
                     src={user.avatar}
                     alt={user.name}
+                    width={32}
+                    height={32}
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
@@ -146,9 +149,11 @@ export function PresenceIndicator({
                       style={{ backgroundColor: user.color }}
                     >
                       {user.avatar ? (
-                        <img
+                        <Image
                           src={user.avatar}
                           alt={user.name}
+                          width={32}
+                          height={32}
                           className="w-full h-full rounded-full object-cover"
                         />
                       ) : (
@@ -206,7 +211,7 @@ interface CollaborativeCursorsProps {
   containerRef: React.RefObject<HTMLElement>;
 }
 
-export function CollaborativeCursors({ cursors, containerRef }: CollaborativeCursorsProps) {
+export function CollaborativeCursors({ cursors, containerRef: _containerRef }: CollaborativeCursorsProps) {
   return (
     <>
       {cursors.map(cursor => (

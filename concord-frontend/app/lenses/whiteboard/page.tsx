@@ -135,21 +135,21 @@ export default function WhiteboardLensPage() {
     setRedoStack([]);
   }, [elements]);
 
-  const undo = () => {
+  const undo = useCallback(() => {
     if (undoStack.length === 0) return;
     const prev = undoStack[undoStack.length - 1];
     setRedoStack(r => [...r, [...elements]]);
     setUndoStack(u => u.slice(0, -1));
     setElements(prev);
-  };
+  }, [undoStack, elements]);
 
-  const redo = () => {
+  const redo = useCallback(() => {
     if (redoStack.length === 0) return;
     const next = redoStack[redoStack.length - 1];
     setUndoStack(u => [...u, [...elements]]);
     setRedoStack(r => r.slice(0, -1));
     setElements(next);
-  };
+  }, [redoStack, elements]);
 
   const getCanvasCoords = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -296,7 +296,7 @@ export default function WhiteboardLensPage() {
     setTextPosition(null);
   };
 
-  const addDtu = (dtu: Record<string, any>) => {
+  const addDtu = (dtu: Record<string, unknown>) => {
     if (!textPosition) return;
     pushUndo();
     setElements(prev => [...prev, {
@@ -305,7 +305,7 @@ export default function WhiteboardLensPage() {
       x: textPosition.x,
       y: textPosition.y,
       dtuId: dtu.id as string,
-      dtuTitle: (dtu.title || dtu.content?.slice(0, 30)) as string,
+      dtuTitle: ((dtu.title as string) || (dtu.content as string)?.slice(0, 30)) as string,
       stroke: '#a855f7',
       fill: 'rgba(168, 85, 247, 0.1)',
       strokeWidth: 2,
@@ -316,12 +316,12 @@ export default function WhiteboardLensPage() {
     setTextPosition(null);
   };
 
-  const deleteSelected = () => {
+  const deleteSelected = useCallback(() => {
     if (!selectedElement) return;
     pushUndo();
     setElements(prev => prev.filter(el => el.id !== selectedElement.id));
     setSelectedElement(null);
-  };
+  }, [selectedElement, pushUndo]);
 
   const exportCanvas = () => {
     const canvas = canvasRef.current;
@@ -504,7 +504,7 @@ export default function WhiteboardLensPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElement]);
+  }, [deleteSelected, undo, redo]);
 
   const tools: { id: Tool; icon: React.ElementType; label: string; key: string }[] = [
     { id: 'select', icon: MousePointer, label: 'Select', key: 'V' },
@@ -535,11 +535,11 @@ export default function WhiteboardLensPage() {
           {isLoading ? (
             <div className="text-gray-500 text-sm">Loading...</div>
           ) : (
-            whiteboards?.whiteboards?.map((wb: Record<string, any>) => (
-              <button key={wb.id} onClick={() => setSelectedWbId(wb.id)}
+            whiteboards?.whiteboards?.map((wb: Record<string, unknown>) => (
+              <button key={wb.id as string} onClick={() => setSelectedWbId(wb.id as string)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedWbId === wb.id ? 'border-neon-pink bg-lattice-elevated' : 'border-lattice-border hover:border-neon-pink/50'}`}>
-                <p className="font-medium truncate">{wb.title}</p>
-                <p className="text-xs text-gray-400 mt-1">{wb.elementCount || 0} elements</p>
+                <p className="font-medium truncate">{wb.title as string}</p>
+                <p className="text-xs text-gray-400 mt-1">{(wb.elementCount as number) || 0} elements</p>
               </button>
             ))
           )}
@@ -670,11 +670,11 @@ export default function WhiteboardLensPage() {
                         <button onClick={() => setShowDtuPicker(false)}><X className="w-5 h-5" /></button>
                       </div>
                       <div className="space-y-2">
-                        {dtus?.dtus?.slice(0, 20).map((dtu: Record<string, any>) => (
-                          <button key={dtu.id} onClick={() => addDtu(dtu)}
+                        {dtus?.dtus?.slice(0, 20).map((dtu: Record<string, unknown>) => (
+                          <button key={dtu.id as string} onClick={() => addDtu(dtu)}
                             className="w-full text-left p-3 rounded-lg border border-lattice-border hover:border-neon-purple transition-colors">
-                            <p className="font-medium truncate">{dtu.title || dtu.content?.slice(0, 40)}</p>
-                            <p className="text-xs text-gray-400 mt-1">{dtu.tier} · {dtu.tags?.slice(0, 3).join(', ')}</p>
+                            <p className="font-medium truncate">{(dtu.title as string) || (dtu.content as string)?.slice(0, 40)}</p>
+                            <p className="text-xs text-gray-400 mt-1">{dtu.tier as string} · {(dtu.tags as string[])?.slice(0, 3).join(', ')}</p>
                           </button>
                         ))}
                       </div>

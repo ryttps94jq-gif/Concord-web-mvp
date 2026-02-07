@@ -125,12 +125,12 @@ export default function GraphLensPage() {
     return Infinity;
   }, []);
 
-  const assignClusters = useCallback((nodes: GraphNode[], linksList: any[], k: number) => {
+  const assignClusters = useCallback((nodes: GraphNode[], linksList: Record<string, unknown>[], k: number) => {
     const adjacency = new Map<string, Set<string>>();
     nodes.forEach(n => adjacency.set(n.id, new Set()));
-    linksList.forEach((l: Record<string, any>) => {
-      adjacency.get(l.sourceId)?.add(l.targetId);
-      adjacency.get(l.targetId)?.add(l.sourceId);
+    linksList.forEach((l: Record<string, unknown>) => {
+      adjacency.get(l.sourceId as string)?.add(l.targetId as string);
+      adjacency.get(l.targetId as string)?.add(l.sourceId as string);
     });
 
     const sortedByConnections = [...nodes].sort((a, b) => b.connections - a.connections);
@@ -156,7 +156,7 @@ export default function GraphLensPage() {
     const width = dimensions.width;
     const height = dimensions.height;
 
-    const nodes: GraphNode[] = dtuList.map((dtu: Record<string, any>, i: number) => {
+    const nodes: GraphNode[] = dtuList.map((dtu: Record<string, unknown>, i: number) => {
       let x, y;
       if (layoutMode === 'radial') {
         const angle = (2 * Math.PI * i) / dtuList.length;
@@ -164,7 +164,7 @@ export default function GraphLensPage() {
         x = width / 2 + Math.cos(angle) * radius;
         y = height / 2 + Math.sin(angle) * radius;
       } else if (layoutMode === 'hierarchical') {
-        const tier = dtu.tier || 'regular';
+        const tier = (dtu.tier as string) || 'regular';
         const tierOrder = { hyper: 0, mega: 1, regular: 2, shadow: 3 };
         const tierY = (tierOrder[tier as keyof typeof tierOrder] + 1) * (height / 5);
         x = (i % 10 + 1) * (width / 11);
@@ -175,16 +175,16 @@ export default function GraphLensPage() {
       }
 
       return {
-        id: dtu.id,
-        label: dtu.title || dtu.content?.slice(0, 30) || `DTU ${i}`,
-        tier: dtu.tier || 'regular',
+        id: dtu.id as string,
+        label: (dtu.title as string) || (dtu.content as string)?.slice(0, 30) || `DTU ${i}`,
+        tier: (dtu.tier as string) || 'regular',
         x, y,
         vx: 0, vy: 0,
         fx: null, fy: null,
-        connections: linkList.filter((l: Record<string, any>) => l.sourceId === dtu.id || l.targetId === dtu.id).length,
-        tags: dtu.tags || [],
-        createdAt: dtu.createdAt,
-        content: dtu.content,
+        connections: linkList.filter((l: Record<string, unknown>) => l.sourceId === dtu.id || l.targetId === dtu.id).length,
+        tags: (dtu.tags as string[]) || [],
+        createdAt: dtu.createdAt as string,
+        content: dtu.content as string,
       } as GraphNode;
     });
 
@@ -195,11 +195,11 @@ export default function GraphLensPage() {
     nodesRef.current = nodes;
     return {
       nodes,
-      edges: linkList.map((link: Record<string, any>) => ({
-        source: link.sourceId,
-        target: link.targetId,
-        weight: link.weight || 0.5,
-        type: link.type || 'semantic',
+      edges: linkList.map((link: Record<string, unknown>) => ({
+        source: link.sourceId as string,
+        target: link.targetId as string,
+        weight: (link.weight as number) || 0.5,
+        type: (link.type as string) || 'semantic',
       })) as GraphEdge[]
     };
   }, [dtus, links, dimensions, layoutMode, viewMode, clusterCount, assignClusters]);

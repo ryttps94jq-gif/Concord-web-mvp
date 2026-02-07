@@ -195,8 +195,8 @@ function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {dtus.slice(0, 6).map((dtu: any) => (
-              <DTUEmpireCard key={dtu.id} dtu={dtu} />
+            {dtus.slice(0, 6).map((dtu: Record<string, unknown>) => (
+              <DTUEmpireCard key={dtu.id as string} dtu={dtu as { id: string; tier: 'regular' | 'mega' | 'hyper' | 'shadow'; summary: string; timestamp: string }} />
             ))}
             {dtus.length === 0 && (
               <div className="col-span-full text-center py-12">

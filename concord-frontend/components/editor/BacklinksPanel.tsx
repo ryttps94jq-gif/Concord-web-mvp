@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ChevronRight, Brain, Search, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -30,12 +30,7 @@ export function BacklinksPanel({ dtuId, className, collapsed = false, onToggle }
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!dtuId) return;
-    loadLinks();
-  }, [dtuId]);
-
-  const loadLinks = async () => {
+  const loadLinks = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch backlinks (DTUs that link to this one)
@@ -50,7 +45,12 @@ export function BacklinksPanel({ dtuId, className, collapsed = false, onToggle }
     } finally {
       setLoading(false);
     }
-  };
+  }, [dtuId]);
+
+  useEffect(() => {
+    if (!dtuId) return;
+    loadLinks();
+  }, [dtuId, loadLinks]);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds(prev => {

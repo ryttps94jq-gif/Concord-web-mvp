@@ -134,10 +134,10 @@ export default function TransferLensPage() {
               <History className="w-4 h-4 text-neon-blue" /> Transfer History
             </h2>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {transfers.length > 0 ? transfers.map((t: Record<string, any>, i: number) => (
+              {transfers.length > 0 ? transfers.map((t: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
-                  <p className="font-medium">{t.source || t.pattern}</p>
-                  <p className="text-gray-400">{t.target || t.domain}</p>
+                  <p className="font-medium">{(t.source as string) || (t.pattern as string)}</p>
+                  <p className="text-gray-400">{(t.target as string) || (t.domain as string)}</p>
                 </div>
               )) : (
                 <p className="text-center py-4 text-gray-500 text-sm">No transfers yet</p>

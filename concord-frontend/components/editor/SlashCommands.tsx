@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import {
@@ -29,6 +29,7 @@ import {
   Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { Editor } from '@tiptap/core';
 
 export interface SlashCommand {
   id: string;
@@ -37,7 +38,7 @@ export interface SlashCommand {
   description: string;
   keywords: string[];
   category: 'basic' | 'media' | 'advanced' | 'dtu' | 'ai';
-  action: (editor: any) => void;
+  action: (editor: Editor) => void;
 }
 
 // Default slash commands
@@ -288,7 +289,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 interface SlashCommandMenuProps {
-  editor: any;
+  editor: Editor;
   isOpen: boolean;
   onClose: () => void;
   position: { top: number; left: number };
@@ -326,6 +327,12 @@ export function SlashCommandMenu({
   // Flatten for navigation
   const flatCommands = Object.values(groupedCommands).flat();
 
+  const executeCommand = useCallback((command: SlashCommand) => {
+    command.action(editor);
+    onClose();
+    setQuery('');
+  }, [editor, onClose]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
@@ -350,7 +357,7 @@ export function SlashCommandMenu({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, flatCommands]);
+  }, [isOpen, selectedIndex, flatCommands, executeCommand, onClose]);
 
   // Reset selection when query changes
   useEffect(() => {
@@ -370,12 +377,6 @@ export function SlashCommandMenu({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
-
-  const executeCommand = (command: SlashCommand) => {
-    command.action(editor);
-    onClose();
-    setQuery('');
-  };
 
   return (
     <AnimatePresence>
@@ -488,7 +489,7 @@ export function SlashCommandMenu({
 }
 
 // Hook to detect slash command trigger
-export function useSlashCommand(editor: any) {
+export function useSlashCommand(editor: Editor | null) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 

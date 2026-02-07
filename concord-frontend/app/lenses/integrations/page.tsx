@@ -28,7 +28,7 @@ export default function IntegrationsLensPage() {
   });
 
   const createWebhookMutation = useMutation({
-    mutationFn: (data: any) => api.post('/api/webhooks', data),
+    mutationFn: (data: Record<string, unknown>) => api.post('/api/webhooks', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] });
       setShowCreate(false);
@@ -97,27 +97,27 @@ export default function IntegrationsLensPage() {
           {webhooks?.webhooks?.length === 0 ? (
             <EmptyState icon={<Webhook />} message="No webhooks configured" />
           ) : (
-            webhooks?.webhooks?.map((wh: Record<string, any>) => (
-              <div key={wh.id} className="panel p-4 flex items-center justify-between">
+            webhooks?.webhooks?.map((wh: Record<string, unknown>) => (
+              <div key={wh.id as string} className="panel p-4 flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold">{wh.name}</h3>
-                  <p className="text-xs text-gray-400 truncate max-w-md">{wh.url}</p>
+                  <h3 className="font-semibold">{String(wh.name)}</h3>
+                  <p className="text-xs text-gray-400 truncate max-w-md">{String(wh.url)}</p>
                   <div className="flex gap-2 mt-1">
-                    {wh.events?.map((e: string) => (
+                    {(wh.events as string[])?.map((e: string) => (
                       <span key={e} className="text-xs bg-lattice-surface px-2 py-0.5 rounded">{e}</span>
                     ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-400">{wh.triggerCount} triggers</span>
+                  <span className="text-sm text-gray-400">{String(wh.triggerCount)} triggers</span>
                   <button
-                    onClick={() => toggleWebhookMutation.mutate({ id: wh.id, enabled: !wh.enabled })}
+                    onClick={() => toggleWebhookMutation.mutate({ id: wh.id as string, enabled: !(wh.enabled as boolean) })}
                     className="text-gray-400 hover:text-white"
                   >
                     {wh.enabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6" />}
                   </button>
                   <button
-                    onClick={() => deleteWebhookMutation.mutate(wh.id)}
+                    onClick={() => deleteWebhookMutation.mutate(wh.id as string)}
                     className="text-gray-400 hover:text-red-400"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -134,16 +134,16 @@ export default function IntegrationsLensPage() {
           {automations?.automations?.length === 0 ? (
             <EmptyState icon={<Zap />} message="No automations configured" />
           ) : (
-            automations?.automations?.map((auto: Record<string, any>) => (
-              <div key={auto.id} className="panel p-4 flex items-center justify-between">
+            automations?.automations?.map((auto: Record<string, unknown>) => (
+              <div key={auto.id as string} className="panel p-4 flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold">{auto.name}</h3>
-                  <p className="text-xs text-gray-400">Trigger: {auto.trigger} | Actions: {auto.actionCount}</p>
-                  <p className="text-xs text-gray-500 mt-1">Runs: {auto.runCount}</p>
+                  <h3 className="font-semibold">{String(auto.name)}</h3>
+                  <p className="text-xs text-gray-400">Trigger: {String(auto.trigger)} | Actions: {String(auto.actionCount)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Runs: {String(auto.runCount)}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => runAutomationMutation.mutate(auto.id)}
+                    onClick={() => runAutomationMutation.mutate(auto.id as string)}
                     disabled={runAutomationMutation.isPending}
                     className="btn-secondary text-sm flex items-center gap-1"
                   >
@@ -160,22 +160,22 @@ export default function IntegrationsLensPage() {
 
       {activeTab === 'services' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {integrations?.integrations?.map((svc: Record<string, any>) => (
-            <div key={svc.id} className="panel p-4">
+          {integrations?.integrations?.map((svc: Record<string, unknown>) => (
+            <div key={svc.id as string} className="panel p-4">
               <div className="flex items-center gap-3 mb-2">
-                {svc.id === 'vscode' && <Code className="w-6 h-6 text-blue-400" />}
-                {svc.id === 'obsidian' && <FileText className="w-6 h-6 text-purple-400" />}
-                {svc.id === 'notion' && <FileText className="w-6 h-6 text-white" />}
-                {!['vscode', 'obsidian', 'notion'].includes(svc.id) && <Plug className="w-6 h-6 text-gray-400" />}
+                {(svc.id as string) === 'vscode' && <Code className="w-6 h-6 text-blue-400" />}
+                {(svc.id as string) === 'obsidian' && <FileText className="w-6 h-6 text-purple-400" />}
+                {(svc.id as string) === 'notion' && <FileText className="w-6 h-6 text-white" />}
+                {!['vscode', 'obsidian', 'notion'].includes(svc.id as string) && <Plug className="w-6 h-6 text-gray-400" />}
                 <div>
-                  <h3 className="font-semibold">{svc.name}</h3>
-                  <span className={`text-xs ${svc.status === 'available' ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {svc.status}
+                  <h3 className="font-semibold">{String(svc.name)}</h3>
+                  <span className={`text-xs ${(svc.status as string) === 'available' ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {String(svc.status)}
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-gray-400">{svc.description}</p>
-              <p className="text-xs text-gray-500 mt-2">Type: {svc.type}</p>
+              <p className="text-sm text-gray-400">{String(svc.description)}</p>
+              <p className="text-xs text-gray-500 mt-2">Type: {String(svc.type)}</p>
             </div>
           ))}
         </div>
@@ -184,7 +184,7 @@ export default function IntegrationsLensPage() {
       {showCreate && activeTab === 'webhooks' && (
         <CreateWebhookModal
           onClose={() => setShowCreate(false)}
-          onCreate={(data: { name: string; url: string; events: string }) => createWebhookMutation.mutate(data)}
+          onCreate={(data) => createWebhookMutation.mutate(data)}
           creating={createWebhookMutation.isPending}
         />
       )}
@@ -201,7 +201,7 @@ function EmptyState({ icon, message }: { icon: React.ReactNode; message: string 
   );
 }
 
-function CreateWebhookModal({ onClose, onCreate, creating }: { onClose: () => void; onCreate: (data: any) => void; creating: boolean }) {
+function CreateWebhookModal({ onClose, onCreate, creating }: { onClose: () => void; onCreate: (data: Record<string, unknown>) => void; creating: boolean }) {
   const [form, setForm] = useState({ name: '', url: '', events: 'dtu.created' });
 
   return (

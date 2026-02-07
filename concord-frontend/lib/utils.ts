@@ -98,14 +98,14 @@ export function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
 // Sort array by multiple keys
 export function sortBy<T>(
   array: T[],
-  ...keys: Array<keyof T | ((item: T) => any)>
+  ...keys: Array<keyof T | ((item: T) => unknown)>
 ): T[] {
   return [...array].sort((a, b) => {
     for (const key of keys) {
       const valueA = typeof key === 'function' ? key(a) : a[key];
       const valueB = typeof key === 'function' ? key(b) : b[key];
-      if ((valueA as any) < (valueB as any)) return -1;
-      if ((valueA as any) > (valueB as any)) return 1;
+      if ((valueA as string | number) < (valueB as string | number)) return -1;
+      if ((valueA as string | number) > (valueB as string | number)) return 1;
     }
     return 0;
   });
