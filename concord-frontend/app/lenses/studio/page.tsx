@@ -83,6 +83,8 @@ interface Effect {
   id: string;
   effectId?: string;
   name: string;
+  label?: string;
+  effect?: string;
   category: string;
   enabled: boolean;
   params: Record<string, unknown>;

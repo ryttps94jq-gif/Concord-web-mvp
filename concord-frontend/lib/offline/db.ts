@@ -79,7 +79,7 @@ export const dtuOffline = {
   },
 
   async getUnsynced(): Promise<DTURecord[]> {
-    return getDB().dtus.where('synced').equals(0).toArray();
+    return getDB().dtus.filter(dtu => !dtu.synced).toArray();
   },
 
   async markSynced(id: string): Promise<void> {
@@ -94,7 +94,7 @@ export const dtuOffline = {
 // Pending actions operations
 export const pendingActions = {
   async add(action: Omit<PendingAction, 'id' | 'timestamp' | 'attempts'>): Promise<void> {
-    const id = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     await getDB().pendingActions.add({
       ...action,
       id,
@@ -135,7 +135,7 @@ export const chatOffline = {
   },
 
   async add(message: Omit<ChatMessage, 'id' | 'timestamp'>): Promise<void> {
-    const id = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     await getDB().chatMessages.add({
       ...message,
       id,

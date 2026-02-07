@@ -15,11 +15,13 @@ export interface Lens {
 
 export type LensCategory =
   | 'core'
+  | 'knowledge'
   | 'science'
   | 'creative'
   | 'governance'
-  | 'specialized'
-  | 'custom';
+  | 'ai'
+  | 'system'
+  | 'specialized';
 
 export interface LensConfig {
   layout?: 'default' | 'split' | 'full' | 'minimal';
@@ -85,14 +87,16 @@ export const BUILT_IN_LENSES: Omit<Lens, 'isActive' | 'order'>[] = [
   { id: 'news', name: 'News', slug: 'news', icon: '📰', description: 'News aggregation', category: 'specialized', isBuiltIn: true },
 
   // Custom lens builder
-  { id: 'custom', name: 'Custom', slug: 'custom', icon: '🔧', description: 'Custom lens builder', category: 'custom', isBuiltIn: true },
+  { id: 'custom', name: 'Custom', slug: 'custom', icon: '🔧', description: 'Custom lens builder', category: 'specialized', isBuiltIn: true },
 ];
 
 export const LENS_CATEGORIES: Record<LensCategory, { label: string; color: string }> = {
   core: { label: 'Core', color: 'text-neon-blue' },
-  governance: { label: 'Governance', color: 'text-neon-purple' },
+  knowledge: { label: 'Knowledge', color: 'text-neon-cyan' },
   science: { label: 'Science', color: 'text-neon-green' },
   creative: { label: 'Creative', color: 'text-neon-pink' },
+  governance: { label: 'Governance', color: 'text-neon-purple' },
+  ai: { label: 'AI & Cognition', color: 'text-yellow-400' },
+  system: { label: 'System', color: 'text-gray-400' },
   specialized: { label: 'Specialized', color: 'text-neon-cyan' },
-  custom: { label: 'Custom', color: 'text-gray-400' },
 };
