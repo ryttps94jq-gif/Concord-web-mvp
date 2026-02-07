@@ -712,6 +712,181 @@ export const apiHelpers = {
     auditLog: (params?: { limit?: number; offset?: number; category?: string; action?: string }) =>
       api.get('/api/auth/audit-log', { params }),
   },
+
+  // =============================================
+  // ARTISTRY GLOBAL: Music Production & Art Platform
+  // =============================================
+
+  artistry: {
+    // Assets (Phase 1)
+    assets: {
+      list: (params?: { type?: string; genre?: string; search?: string; ownerId?: string; sort?: string; limit?: number; offset?: number }) =>
+        api.get('/api/artistry/assets', { params }),
+      get: (id: string) => api.get(`/api/artistry/assets/${id}`),
+      create: (data: { type: string; title?: string; description?: string; tags?: string[]; genre?: string; bpm?: number; key?: string; ownerId?: string; metadata?: Record<string, unknown> }) =>
+        api.post('/api/artistry/assets', data),
+      update: (id: string, data: Record<string, unknown>) =>
+        api.patch(`/api/artistry/assets/${id}`, data),
+      delete: (id: string) => api.delete(`/api/artistry/assets/${id}`),
+    },
+
+    blobs: {
+      upload: (data: { data: string; mimeType?: string; filename?: string }) =>
+        api.post('/api/artistry/blobs', data),
+      get: (id: string) => api.get(`/api/artistry/blobs/${id}`),
+    },
+
+    genres: () => api.get('/api/artistry/genres'),
+    assetTypes: () => api.get('/api/artistry/asset-types'),
+    stats: () => api.get('/api/artistry/stats'),
+
+    // Studio / DAW (Phase 2-6)
+    studio: {
+      projects: {
+        list: (params?: { ownerId?: string }) =>
+          api.get('/api/artistry/studio/projects', { params }),
+        get: (id: string) => api.get(`/api/artistry/studio/projects/${id}`),
+        create: (data: { title?: string; bpm?: number; key?: string; scale?: string; genre?: string; ownerId?: string }) =>
+          api.post('/api/artistry/studio/projects', data),
+        update: (id: string, data: Record<string, unknown>) =>
+          api.patch(`/api/artistry/studio/projects/${id}`, data),
+      },
+      tracks: {
+        add: (projectId: string, data: { name?: string; type?: string; instrumentId?: string; color?: string }) =>
+          api.post(`/api/artistry/studio/projects/${projectId}/tracks`, data),
+        update: (projectId: string, trackId: string, data: Record<string, unknown>) =>
+          api.patch(`/api/artistry/studio/projects/${projectId}/tracks/${trackId}`, data),
+        delete: (projectId: string, trackId: string) =>
+          api.delete(`/api/artistry/studio/projects/${projectId}/tracks/${trackId}`),
+        addEffect: (projectId: string, trackId: string, data: { effectId: string; params?: Record<string, unknown> }) =>
+          api.post(`/api/artistry/studio/projects/${projectId}/tracks/${trackId}/effects`, data),
+        addClip: (projectId: string, trackId: string, data: { name?: string; startBar?: number; lengthBars?: number; assetId?: string; midiNotes?: unknown[] }) =>
+          api.post(`/api/artistry/studio/projects/${projectId}/tracks/${trackId}/clips`, data),
+      },
+      instruments: () => api.get('/api/artistry/studio/instruments'),
+      effects: () => api.get('/api/artistry/studio/effects'),
+      vocal: {
+        analyze: (data: { projectId: string; trackId: string }) =>
+          api.post('/api/artistry/studio/vocal/analyze', data),
+        process: (data: { projectId: string; trackId: string; corrections?: string[] }) =>
+          api.post('/api/artistry/studio/vocal/process', data),
+      },
+      master: (data: { projectId: string; preset?: string; targetLufs?: number; format?: string }) =>
+        api.post('/api/artistry/studio/master', data),
+    },
+
+    // Distribution (Phase 7)
+    distribution: {
+      releases: {
+        list: (params?: { ownerId?: string; genre?: string; search?: string; sort?: string }) =>
+          api.get('/api/artistry/distribution/releases', { params }),
+        get: (id: string) => api.get(`/api/artistry/distribution/releases/${id}`),
+        create: (data: { title?: string; artistName?: string; trackIds?: string[]; genre?: string; ownerId?: string }) =>
+          api.post('/api/artistry/distribution/releases', data),
+      },
+      stream: (data: { assetId: string; userId?: string; duration?: number }) =>
+        api.post('/api/artistry/distribution/stream', data),
+      streams: (assetId: string) => api.get(`/api/artistry/distribution/streams/${assetId}`),
+      follow: (data: { followerId: string; followedId: string }) =>
+        api.post('/api/artistry/distribution/follow', data),
+      unfollow: (data: { followerId: string; followedId: string }) =>
+        api.post('/api/artistry/distribution/unfollow', data),
+      followers: (userId: string) => api.get(`/api/artistry/distribution/followers/${userId}`),
+      following: (userId: string) => api.get(`/api/artistry/distribution/following/${userId}`),
+      feed: (userId: string) => api.get(`/api/artistry/distribution/feed/${userId}`),
+      embeds: {
+        create: (data: { assetId?: string; releaseId?: string; style?: string }) =>
+          api.post('/api/artistry/distribution/embeds', data),
+        get: (id: string) => api.get(`/api/artistry/distribution/embeds/${id}`),
+      },
+    },
+
+    // Marketplace (Phase 8)
+    marketplace: {
+      beats: {
+        list: (params?: { genre?: string; bpmMin?: number; bpmMax?: number; key?: string; search?: string; sort?: string }) =>
+          api.get('/api/artistry/marketplace/beats', { params }),
+        create: (data: { title?: string; assetId?: string; bpm?: number; key?: string; genre?: string; tags?: string[]; licenses?: string[]; ownerId?: string }) =>
+          api.post('/api/artistry/marketplace/beats', data),
+      },
+      stems: {
+        list: () => api.get('/api/artistry/marketplace/stems'),
+        create: (data: { title?: string; assetIds?: string[]; genre?: string; price?: number; ownerId?: string }) =>
+          api.post('/api/artistry/marketplace/stems', data),
+      },
+      samples: {
+        list: () => api.get('/api/artistry/marketplace/samples'),
+        create: (data: { title?: string; assetIds?: string[]; sampleCount?: number; genre?: string; price?: number; ownerId?: string }) =>
+          api.post('/api/artistry/marketplace/samples', data),
+      },
+      art: {
+        list: () => api.get('/api/artistry/marketplace/art'),
+        create: (data: { title?: string; assetId?: string; artType?: string; style?: string; price?: number; ownerId?: string }) =>
+          api.post('/api/artistry/marketplace/art', data),
+      },
+      splits: {
+        create: (data: { assetId?: string; releaseId?: string; participants: { userId: string; name?: string; role?: string; percentage: number }[] }) =>
+          api.post('/api/artistry/marketplace/splits', data),
+        get: (id: string) => api.get(`/api/artistry/marketplace/splits/${id}`),
+      },
+      licenses: () => api.get('/api/artistry/marketplace/licenses'),
+      purchase: (data: { buyerId: string; listingId: string; listingType?: string; licenseType?: string }) =>
+        api.post('/api/artistry/marketplace/purchase', data),
+    },
+
+    // Collaboration (Phase 9)
+    collab: {
+      sessions: {
+        list: (params?: { userId?: string }) =>
+          api.get('/api/artistry/collab/sessions', { params }),
+        create: (data: { projectId: string; hostId?: string; maxParticipants?: number; mode?: string }) =>
+          api.post('/api/artistry/collab/sessions', data),
+        join: (sessionId: string, data: { userId: string }) =>
+          api.post(`/api/artistry/collab/sessions/${sessionId}/join`, data),
+        leave: (sessionId: string, data: { userId: string }) =>
+          api.post(`/api/artistry/collab/sessions/${sessionId}/leave`, data),
+        action: (sessionId: string, data: { userId: string; action: string; data?: unknown }) =>
+          api.post(`/api/artistry/collab/sessions/${sessionId}/action`, data),
+        chat: (sessionId: string, data: { userId: string; message: string }) =>
+          api.post(`/api/artistry/collab/sessions/${sessionId}/chat`, data),
+      },
+      remix: {
+        list: (params?: { originalAssetId?: string; remixerId?: string }) =>
+          api.get('/api/artistry/collab/remixes', { params }),
+        create: (data: { originalAssetId?: string; remixerId?: string; title?: string; genre?: string }) =>
+          api.post('/api/artistry/collab/remix', data),
+      },
+      share: {
+        list: (params?: { userId?: string }) =>
+          api.get('/api/artistry/collab/shared', { params }),
+        create: (data: { projectId: string; ownerId?: string; sharedWithIds?: string[]; permissions?: Record<string, boolean> }) =>
+          api.post('/api/artistry/collab/share', data),
+      },
+    },
+
+    // AI Production Assistant (Phase 10)
+    ai: {
+      analyzeProject: (data: { projectId: string }) =>
+        api.post('/api/artistry/ai/analyze-project', data),
+      suggestChords: (data: { key?: string; scale?: string; genre?: string; currentChords?: string[] }) =>
+        api.post('/api/artistry/ai/suggest-chords', data),
+      suggestMelody: (data: { key?: string; scale?: string; bpm?: number; bars?: number; style?: string }) =>
+        api.post('/api/artistry/ai/suggest-melody', data),
+      suggestDrums: (data: { bpm?: number; genre?: string; bars?: number; swing?: number }) =>
+        api.post('/api/artistry/ai/suggest-drums', data),
+      genreCoach: (data: { userId?: string; genre: string }) =>
+        api.post('/api/artistry/ai/genre-coach', data),
+      learning: {
+        start: (data: { userId?: string; topic?: string; level?: string }) =>
+          api.post('/api/artistry/ai/learning/start', data),
+        completeLesson: (data: { pathId: string; moduleId: string; lesson: string }) =>
+          api.post('/api/artistry/ai/learning/complete-lesson', data),
+        get: (pathId: string) => api.get(`/api/artistry/ai/learning/${pathId}`),
+      },
+      session: (data: { userId?: string; projectId?: string; question?: string }) =>
+        api.post('/api/artistry/ai/session', data),
+    },
+  },
 };
 
 // Initialize CSRF token on page load (browser only)
