@@ -17,8 +17,7 @@ import { readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 // Import the registry (relative to the project root)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getAllLensIds } = require('../lib/lens-registry');
+import { getAllLensIds } from '../lib/lens-registry';
 
 const LENSES_DIR = join(__dirname, '..', 'app', 'lenses');
 
