@@ -10,6 +10,10 @@
  * LOAF IV  — Advanced Cognitive Operations
  * LOAF V   — Civilizational-Scale Operations
  * LOAF VI  — Epistemic Limits & Meta-Reasoning
+ * LOAF VII — Reality-Grounded Epistemics
+ * LOAF VIII— Distributed Coordination
+ * LOAF IX  — Knowledge Survival & Continuity
+ * LOAF X   — Environmental Constraints
  */
 
 import * as governance from "./governance.js";
@@ -40,8 +44,21 @@ import * as civilizationSim from "./civilization-sim.js";
 import * as epistemicLimits from "./epistemic-limits.js";
 import * as metaReasoning from "./meta-reasoning.js";
 import * as structuralHumility from "./structural-humility.js";
+// LOAF VII — Reality-Grounded Epistemics
+import * as realityInterface from "./reality-interface.js";
+import * as actionSafety from "./action-safety.js";
+import * as interventionGovernance from "./intervention-governance.js";
+// LOAF VIII — Distributed Coordination
+import * as coordinationProtocols from "./coordination-protocols.js";
+import * as collectiveAction from "./collective-action.js";
+// LOAF IX — Knowledge Survival & Continuity
+import * as knowledgeSurvival from "./knowledge-survival.js";
+import * as temporalResilience from "./temporal-resilience.js";
+// LOAF X — Environmental Constraints
+import * as environmentalConstraints from "./environmental-constraints.js";
+import * as substrateIndependence from "./substrate-independence.js";
 
-const LOAF_VERSION = "2.0.0";
+const LOAF_VERSION = "3.0.0";
 
 const ALL_MODULES = [
   // LOAF I — Hardening & Integrity
@@ -75,6 +92,19 @@ const ALL_MODULES = [
   { name: "epistemic-limits", module: epistemicLimits, loaf: "VI" },
   { name: "meta-reasoning", module: metaReasoning, loaf: "VI" },
   { name: "structural-humility", module: structuralHumility, loaf: "VI" },
+  // LOAF VII — Reality-Grounded Epistemics
+  { name: "reality-interface", module: realityInterface, loaf: "VII" },
+  { name: "action-safety", module: actionSafety, loaf: "VII" },
+  { name: "intervention-governance", module: interventionGovernance, loaf: "VII" },
+  // LOAF VIII — Distributed Coordination
+  { name: "coordination-protocols", module: coordinationProtocols, loaf: "VIII" },
+  { name: "collective-action", module: collectiveAction, loaf: "VIII" },
+  // LOAF IX — Knowledge Survival & Continuity
+  { name: "knowledge-survival", module: knowledgeSurvival, loaf: "IX" },
+  { name: "temporal-resilience", module: temporalResilience, loaf: "IX" },
+  // LOAF X — Environmental Constraints
+  { name: "environmental-constraints", module: environmentalConstraints, loaf: "X" },
+  { name: "substrate-independence", module: substrateIndependence, loaf: "X" },
 ];
 
 /**
@@ -127,6 +157,10 @@ function initAll(ctx) {
       loafIV: ALL_MODULES.filter(m => m.loaf === "IV").map(m => m.name),
       loafV: ALL_MODULES.filter(m => m.loaf === "V").map(m => m.name),
       loafVI: ALL_MODULES.filter(m => m.loaf === "VI").map(m => m.name),
+      loafVII: ALL_MODULES.filter(m => m.loaf === "VII").map(m => m.name),
+      loafVIII: ALL_MODULES.filter(m => m.loaf === "VIII").map(m => m.name),
+      loafIX: ALL_MODULES.filter(m => m.loaf === "IX").map(m => m.name),
+      loafX: ALL_MODULES.filter(m => m.loaf === "X").map(m => m.name),
       errors: errors.length > 0 ? errors : undefined,
     };
   }, { public: true });
@@ -172,4 +206,17 @@ export {
   epistemicLimits,
   metaReasoning,
   structuralHumility,
+  // LOAF VII
+  realityInterface,
+  actionSafety,
+  interventionGovernance,
+  // LOAF VIII
+  coordinationProtocols,
+  collectiveAction,
+  // LOAF IX
+  knowledgeSurvival,
+  temporalResilience,
+  // LOAF X
+  environmentalConstraints,
+  substrateIndependence,
 };
