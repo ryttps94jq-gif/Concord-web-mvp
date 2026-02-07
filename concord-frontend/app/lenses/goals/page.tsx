@@ -441,39 +441,24 @@ export default function GoalsLensPage() {
 
       {/* ---- Hero Stats Bar ---- */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0 }}
-          className="lens-card flex flex-col items-center justify-center col-span-1"
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lens-card flex flex-col items-center justify-center col-span-1">
           <div className="relative">
             <ProgressRing radius={36} stroke={5} progress={overallProgress} size={72} color="#22d3ee" />
-            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-cyan-400">
-              {Math.round(overallProgress * 100)}%
-            </span>
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-cyan-400">{Math.round(overallProgress * 100)}%</span>
           </div>
           <p className="text-xs text-gray-400 mt-2">Overall Progress</p>
         </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="lens-card flex flex-col items-center justify-center">
-          <Flame className="w-6 h-6 text-orange-400 mb-1" />
-          <p className="text-2xl font-bold text-white">{streakDays}</p>
-          <p className="text-xs text-gray-400">Day Streak</p>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lens-card flex flex-col items-center justify-center">
-          <CheckCircle2 className="w-6 h-6 text-green-400 mb-1" />
-          <p className="text-2xl font-bold text-white">{completedThisMonth}</p>
-          <p className="text-xs text-gray-400">Completed</p>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lens-card flex flex-col items-center justify-center">
-          <Zap className="w-6 h-6 text-yellow-400 mb-1" />
-          <p className="text-2xl font-bold text-white">{totalXp.toLocaleString()}</p>
-          <p className="text-xs text-gray-400">XP Earned</p>
-        </motion.div>
-
+        {[
+          { icon: Flame, iconCls: 'text-orange-400', value: streakDays, label: 'Day Streak', delay: 0.05 },
+          { icon: CheckCircle2, iconCls: 'text-green-400', value: completedThisMonth, label: 'Completed', delay: 0.1 },
+          { icon: Zap, iconCls: 'text-yellow-400', value: totalXp.toLocaleString(), label: 'XP Earned', delay: 0.15 },
+        ].map((s) => (
+          <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: s.delay }} className="lens-card flex flex-col items-center justify-center">
+            <s.icon className={`w-6 h-6 ${s.iconCls} mb-1`} />
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-xs text-gray-400">{s.label}</p>
+          </motion.div>
+        ))}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="lens-card flex flex-col items-center justify-center">
           <Star className="w-6 h-6 text-purple-400 mb-1" />
           <p className={`text-lg font-bold ${level.color}`}>{level.label}</p>
@@ -515,81 +500,28 @@ export default function GoalsLensPage() {
       {/* ---- Create Goal Form ---- */}
       <AnimatePresence>
         {showCreate && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
             <div className="panel p-5 space-y-4">
-              <h2 className="font-semibold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-purple-400" /> Create New Goal
-              </h2>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Goal title..."
-                className="input-lattice w-full"
-              />
-              <textarea
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Describe your goal and what success looks like..."
-                className="input-lattice w-full h-16 resize-none"
-              />
+              <h2 className="font-semibold text-white flex items-center gap-2"><Plus className="w-4 h-4 text-purple-400" /> Create New Goal</h2>
+              <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Goal title..." className="input-lattice w-full" />
+              <textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Describe your goal and what success looks like..." className="input-lattice w-full h-16 resize-none" />
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value as DemoGoal['category'])}
-                  className="input-lattice"
-                >
-                  {['Production', 'Mixing', 'Release', 'Learning', 'Collaboration'].map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as DemoGoal['category'])} className="input-lattice">
+                  {['Production', 'Mixing', 'Release', 'Learning', 'Collaboration'].map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select
-                  value={newPriority}
-                  onChange={(e) => setNewPriority(e.target.value as DemoGoal['priority'])}
-                  className="input-lattice"
-                >
+                <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as DemoGoal['priority'])} className="input-lattice">
                   <option value="low">Low Priority</option>
                   <option value="medium">Medium Priority</option>
                   <option value="high">High Priority</option>
                 </select>
-                <input
-                  type="date"
-                  value={newTargetDate}
-                  onChange={(e) => setNewTargetDate(e.target.value)}
-                  className="input-lattice"
-                />
+                <input type="date" value={newTargetDate} onChange={(e) => setNewTargetDate(e.target.value)} className="input-lattice" />
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                  <input
-                    type="number"
-                    value={newXp}
-                    onChange={(e) => setNewXp(Number(e.target.value))}
-                    min={50}
-                    max={2000}
-                    step={50}
-                    className="input-lattice w-full"
-                    placeholder="XP"
-                  />
+                  <input type="number" value={newXp} onChange={(e) => setNewXp(Number(e.target.value))} min={50} max={2000} step={50} className="input-lattice w-full" placeholder="XP" />
                 </div>
-                <button
-                  onClick={handleCreateGoal}
-                  disabled={!newTitle}
-                  className="btn-neon purple"
-                >
-                  Create Goal
-                </button>
+                <button onClick={handleCreateGoal} disabled={!newTitle} className="btn-neon purple">Create Goal</button>
               </div>
-              <textarea
-                value={newSubtasks}
-                onChange={(e) => setNewSubtasks(e.target.value)}
-                placeholder="Subtasks (one per line)..."
-                className="input-lattice w-full h-16 resize-none text-sm"
-              />
+              <textarea value={newSubtasks} onChange={(e) => setNewSubtasks(e.target.value)} placeholder="Subtasks (one per line)..." className="input-lattice w-full h-16 resize-none text-sm" />
             </div>
           </motion.div>
         )}
