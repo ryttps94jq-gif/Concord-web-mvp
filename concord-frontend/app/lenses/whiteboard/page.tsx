@@ -26,13 +26,29 @@ import {
   X,
   Save,
   Grid3X3,
-  Move
+  Move,
+  Music,
+  Image,
+  StickyNote,
+  Bookmark,
+  Play,
+  Pause,
+  LayoutGrid,
+  Clock,
+  ChevronDown,
+  GripVertical,
 } from 'lucide-react';
 
-type Tool = 'select' | 'draw' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'text' | 'dtu';
+/* ---------- types ---------- */
+type BoardMode = 'canvas' | 'moodboard' | 'arrangement';
+type Tool =
+  | 'select' | 'draw' | 'rectangle' | 'ellipse' | 'line' | 'arrow'
+  | 'text' | 'dtu' | 'audio' | 'image' | 'notecard' | 'section';
+
 type Element = {
   id: string;
-  type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'text' | 'freehand' | 'dtu';
+  type: 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'text' | 'freehand' | 'dtu'
+    | 'audio' | 'image' | 'notecard' | 'section';
   x: number;
   y: number;
   width?: number;
@@ -45,19 +61,85 @@ type Element = {
   fill: string;
   strokeWidth: number;
   rotation?: number;
+  /* audio pin */
+  clipName?: string;
+  duration?: number;
+  playing?: boolean;
+  /* image pin */
+  imageUrl?: string;
+  imageLabel?: string;
+  /* notecard */
+  cardColor?: string;
+  /* section marker */
+  sectionType?: string;
+  bars?: number;
 };
 
+type ArrangementSection = {
+  id: string;
+  type: string;
+  label: string;
+  bars: number;
+  color: string;
+};
+
+type MoodZone = {
+  id: string;
+  label: string;
+  items: { kind: 'color' | 'text' | 'image' | 'audio'; value: string }[];
+};
+
+/* ---------- constants ---------- */
 const COLORS = ['#00d4ff', '#a855f7', '#ec4899', '#22c55e', '#f59e0b', '#ef4444', '#ffffff', '#6b7280'];
 const STROKE_WIDTHS = [1, 2, 4, 6, 8];
+const CARD_COLORS = ['#fbbf24', '#34d399', '#f472b6', '#60a5fa', '#c084fc', '#fb923c'];
+const SECTION_PRESETS: { type: string; label: string; bars: number; color: string }[] = [
+  { type: 'intro', label: 'Intro', bars: 4, color: '#60a5fa' },
+  { type: 'verse', label: 'Verse', bars: 8, color: '#34d399' },
+  { type: 'prechorus', label: 'Pre-Chorus', bars: 4, color: '#fbbf24' },
+  { type: 'chorus', label: 'Chorus', bars: 8, color: '#f472b6' },
+  { type: 'bridge', label: 'Bridge', bars: 4, color: '#c084fc' },
+  { type: 'outro', label: 'Outro', bars: 4, color: '#fb923c' },
+];
+const DEFAULT_ARRANGEMENT: ArrangementSection[] = [
+  { id: 'arr_1', type: 'intro', label: 'Intro', bars: 4, color: '#60a5fa' },
+  { id: 'arr_2', type: 'verse', label: 'Verse 1', bars: 8, color: '#34d399' },
+  { id: 'arr_3', type: 'prechorus', label: 'Pre-Chorus', bars: 4, color: '#fbbf24' },
+  { id: 'arr_4', type: 'chorus', label: 'Chorus 1', bars: 8, color: '#f472b6' },
+  { id: 'arr_5', type: 'verse', label: 'Verse 2', bars: 8, color: '#34d399' },
+  { id: 'arr_6', type: 'chorus', label: 'Chorus 2', bars: 8, color: '#f472b6' },
+  { id: 'arr_7', type: 'bridge', label: 'Bridge', bars: 4, color: '#c084fc' },
+  { id: 'arr_8', type: 'chorus', label: 'Final Chorus', bars: 8, color: '#f472b6' },
+  { id: 'arr_9', type: 'outro', label: 'Outro', bars: 4, color: '#fb923c' },
+];
+const DEFAULT_MOOD_ZONES: MoodZone[] = [
+  { id: 'mz_1', label: 'Sonic Palette', items: [] },
+  { id: 'mz_2', label: 'Visual References', items: [] },
+  { id: 'mz_3', label: 'Mood Words', items: [] },
+  { id: 'mz_4', label: 'Color Palette', items: [] },
+  { id: 'mz_5', label: 'Instruments & Textures', items: [] },
+  { id: 'mz_6', label: 'Inspiration Tracks', items: [] },
+];
 
+/* ---------- tiny helpers ---------- */
+const uid = () => `el_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/* ================================================================== */
 export default function WhiteboardLensPage() {
   useLensNav('whiteboard');
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  /* board list state */
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWbId, setSelectedWbId] = useState<string | null>(null);
+  const [boardMode, setBoardMode] = useState<BoardMode>('canvas');
+  const [showModeMenu, setShowModeMenu] = useState(false);
+
+  /* canvas state */
   const [tool, setTool] = useState<Tool>('select');
   const [elements, setElements] = useState<Element[]>([]);
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
@@ -79,6 +161,31 @@ export default function WhiteboardLensPage() {
   const [textInput, setTextInput] = useState('');
   const [textPosition, setTextPosition] = useState<{ x: number; y: number } | null>(null);
 
+  /* new-tool input dialogs */
+  const [showAudioDialog, setShowAudioDialog] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [showSectionDialog, setShowSectionDialog] = useState(false);
+  const [audioClipName, setAudioClipName] = useState('');
+  const [audioClipDur, setAudioClipDur] = useState(30);
+  const [imageLabel, setImageLabel] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [noteColor, setNoteColor] = useState(CARD_COLORS[0]);
+  const [sectionChoice, setSectionChoice] = useState(SECTION_PRESETS[0]);
+
+  /* arrangement state */
+  const [arrangement, setArrangement] = useState<ArrangementSection[]>(DEFAULT_ARRANGEMENT);
+  const [bpm, setBpm] = useState(120);
+  const [musicalKey, setMusicalKey] = useState('C minor');
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  /* moodboard state */
+  const [moodZones, setMoodZones] = useState<MoodZone[]>(DEFAULT_MOOD_ZONES);
+  const [moodInput, setMoodInput] = useState('');
+  const [moodTarget, setMoodTarget] = useState<string | null>(null);
+  const [moodKind, setMoodKind] = useState<'text' | 'color' | 'audio' | 'image'>('text');
+
+  /* ---------- queries / mutations ---------- */
   const { data: whiteboards, isLoading } = useQuery({
     queryKey: ['whiteboards'],
     queryFn: () => api.get('/api/whiteboards').then(r => r.data),
@@ -109,7 +216,7 @@ export default function WhiteboardLensPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whiteboard', selectedWbId] }),
   });
 
-  // Load elements when whiteboard changes
+  /* load elements */
   useEffect(() => {
     if (selectedWb?.whiteboard?.elements) {
       setElements(selectedWb.whiteboard.elements);
@@ -118,18 +225,19 @@ export default function WhiteboardLensPage() {
     }
   }, [selectedWb]);
 
-  // Resize handler
+  /* resize */
   useEffect(() => {
-    const updateDimensions = () => {
+    const update = () => {
       if (containerRef.current) {
         setDimensions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
       }
     };
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
+  /* ---------- undo / redo ---------- */
   const pushUndo = useCallback(() => {
     setUndoStack(prev => [...prev.slice(-50), [...elements]]);
     setRedoStack([]);
@@ -137,29 +245,29 @@ export default function WhiteboardLensPage() {
 
   const undo = useCallback(() => {
     if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
     setRedoStack(r => [...r, [...elements]]);
     setUndoStack(u => u.slice(0, -1));
-    setElements(prev);
+    setElements(undoStack[undoStack.length - 1]);
   }, [undoStack, elements]);
 
   const redo = useCallback(() => {
     if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
     setUndoStack(u => [...u, [...elements]]);
     setRedoStack(r => r.slice(0, -1));
-    setElements(next);
+    setElements(redoStack[redoStack.length - 1]);
   }, [redoStack, elements]);
 
+  /* ---------- canvas coordinate helpers ---------- */
   const getCanvasCoords = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     return {
       x: (e.clientX - rect.left - offset.x) / zoom,
-      y: (e.clientY - rect.top - offset.y) / zoom
+      y: (e.clientY - rect.top - offset.y) / zoom,
     };
   };
 
+  /* ---------- mouse handlers (canvas mode) ---------- */
   const handleMouseDown = (e: React.MouseEvent) => {
     const { x, y } = getCanvasCoords(e);
 
@@ -186,21 +294,17 @@ export default function WhiteboardLensPage() {
       return;
     }
 
-    if (tool === 'text') {
-      setTextPosition({ x, y });
-      return;
-    }
-
-    if (tool === 'dtu') {
-      setShowDtuPicker(true);
-      setTextPosition({ x, y });
-      return;
-    }
+    if (tool === 'text') { setTextPosition({ x, y }); return; }
+    if (tool === 'dtu') { setShowDtuPicker(true); setTextPosition({ x, y }); return; }
+    if (tool === 'audio') { setShowAudioDialog(true); setTextPosition({ x, y }); return; }
+    if (tool === 'image') { setShowImageDialog(true); setTextPosition({ x, y }); return; }
+    if (tool === 'notecard') { setShowNoteDialog(true); setTextPosition({ x, y }); return; }
+    if (tool === 'section') { setShowSectionDialog(true); setTextPosition({ x, y }); return; }
 
     pushUndo();
     setIsDrawing(true);
-    const newElement: Element = {
-      id: `el_${Date.now()}`,
+    const newEl: Element = {
+      id: uid(),
       type: tool === 'draw' ? 'freehand' : tool as Element['type'],
       x, y,
       width: 0, height: 0,
@@ -209,7 +313,7 @@ export default function WhiteboardLensPage() {
       fill: fillColor,
       strokeWidth,
     };
-    setCurrentElement(newElement);
+    setCurrentElement(newEl);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -217,7 +321,6 @@ export default function WhiteboardLensPage() {
       setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
       return;
     }
-
     if (!isDrawing || !currentElement) return;
     const { x, y } = getCanvasCoords(e);
 
@@ -233,11 +336,7 @@ export default function WhiteboardLensPage() {
     if (currentElement.type === 'freehand' && currentElement.points) {
       setCurrentElement({ ...currentElement, points: [...currentElement.points, { x, y }] });
     } else {
-      setCurrentElement({
-        ...currentElement,
-        width: x - currentElement.x,
-        height: y - currentElement.y,
-      });
+      setCurrentElement({ ...currentElement, width: x - currentElement.x, height: y - currentElement.y });
     }
   };
 
@@ -245,75 +344,97 @@ export default function WhiteboardLensPage() {
     setIsPanning(false);
     if (!isDrawing) return;
     setIsDrawing(false);
-
-    if (tool === 'select') {
-      pushUndo();
-      return;
-    }
-
+    if (tool === 'select') { pushUndo(); return; }
     if (currentElement && (
       (currentElement.width && Math.abs(currentElement.width) > 5) ||
       (currentElement.height && Math.abs(currentElement.height) > 5) ||
       (currentElement.points && currentElement.points.length > 2)
     )) {
-      // Normalize negative dimensions
-      const normalized = { ...currentElement };
-      if (normalized.width && normalized.width < 0) {
-        normalized.x += normalized.width;
-        normalized.width = Math.abs(normalized.width);
-      }
-      if (normalized.height && normalized.height < 0) {
-        normalized.y += normalized.height;
-        normalized.height = Math.abs(normalized.height);
-      }
-      setElements(prev => [...prev, normalized]);
+      const n = { ...currentElement };
+      if (n.width && n.width < 0) { n.x += n.width; n.width = Math.abs(n.width); }
+      if (n.height && n.height < 0) { n.y += n.height; n.height = Math.abs(n.height); }
+      setElements(prev => [...prev, n]);
     }
     setCurrentElement(null);
   };
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(z => Math.min(Math.max(z * delta, 0.25), 4));
+    const d = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(z => clamp(z * d, 0.25, 4));
   };
 
+  /* ---------- add helpers ---------- */
   const addText = () => {
     if (!textPosition || !textInput.trim()) return;
     pushUndo();
     setElements(prev => [...prev, {
-      id: `el_${Date.now()}`,
-      type: 'text',
-      x: textPosition.x,
-      y: textPosition.y,
-      text: textInput,
-      stroke: strokeColor,
-      fill: strokeColor,
-      strokeWidth: 1,
-      width: textInput.length * 12,
-      height: 24,
+      id: uid(), type: 'text', x: textPosition.x, y: textPosition.y,
+      text: textInput, stroke: strokeColor, fill: strokeColor, strokeWidth: 1,
+      width: textInput.length * 12, height: 24,
     }]);
-    setTextInput('');
-    setTextPosition(null);
+    setTextInput(''); setTextPosition(null);
   };
 
   const addDtu = (dtu: Record<string, unknown>) => {
     if (!textPosition) return;
     pushUndo();
     setElements(prev => [...prev, {
-      id: `el_${Date.now()}`,
-      type: 'dtu',
-      x: textPosition.x,
-      y: textPosition.y,
+      id: uid(), type: 'dtu', x: textPosition.x, y: textPosition.y,
       dtuId: dtu.id as string,
       dtuTitle: ((dtu.title as string) || (dtu.content as string)?.slice(0, 30)) as string,
-      stroke: '#a855f7',
-      fill: 'rgba(168, 85, 247, 0.1)',
-      strokeWidth: 2,
-      width: 200,
-      height: 80,
+      stroke: '#a855f7', fill: 'rgba(168, 85, 247, 0.1)', strokeWidth: 2, width: 200, height: 80,
     }]);
-    setShowDtuPicker(false);
-    setTextPosition(null);
+    setShowDtuPicker(false); setTextPosition(null);
+  };
+
+  const addAudioPin = () => {
+    if (!textPosition || !audioClipName.trim()) return;
+    pushUndo();
+    setElements(prev => [...prev, {
+      id: uid(), type: 'audio', x: textPosition.x, y: textPosition.y,
+      clipName: audioClipName, duration: audioClipDur, playing: false,
+      stroke: '#00d4ff', fill: 'rgba(0, 212, 255, 0.08)', strokeWidth: 2, width: 220, height: 72,
+    }]);
+    setAudioClipName(''); setAudioClipDur(30); setShowAudioDialog(false); setTextPosition(null);
+  };
+
+  const addImagePin = () => {
+    if (!textPosition || !imageLabel.trim()) return;
+    pushUndo();
+    setElements(prev => [...prev, {
+      id: uid(), type: 'image', x: textPosition.x, y: textPosition.y,
+      imageLabel, imageUrl: '', stroke: '#f59e0b', fill: 'rgba(245, 158, 11, 0.08)',
+      strokeWidth: 2, width: 160, height: 160,
+    }]);
+    setImageLabel(''); setShowImageDialog(false); setTextPosition(null);
+  };
+
+  const addNoteCard = () => {
+    if (!textPosition || !noteText.trim()) return;
+    pushUndo();
+    setElements(prev => [...prev, {
+      id: uid(), type: 'notecard', x: textPosition.x, y: textPosition.y,
+      text: noteText, cardColor: noteColor, stroke: noteColor, fill: noteColor + '22',
+      strokeWidth: 2, width: 180, height: 100,
+    }]);
+    setNoteText(''); setShowNoteDialog(false); setTextPosition(null);
+  };
+
+  const addSectionMarker = () => {
+    if (!textPosition) return;
+    pushUndo();
+    setElements(prev => [...prev, {
+      id: uid(), type: 'section', x: textPosition.x, y: textPosition.y,
+      sectionType: sectionChoice.type, text: sectionChoice.label, bars: sectionChoice.bars,
+      stroke: sectionChoice.color, fill: sectionChoice.color + '18',
+      strokeWidth: 2, width: sectionChoice.bars * 24, height: 56,
+    }]);
+    setShowSectionDialog(false); setTextPosition(null);
+  };
+
+  const toggleAudioPlay = (id: string) => {
+    setElements(prev => prev.map(el => el.id === id ? { ...el, playing: !el.playing } : el));
   };
 
   const deleteSelected = useCallback(() => {
@@ -332,8 +453,9 @@ export default function WhiteboardLensPage() {
     link.click();
   };
 
-  // Render canvas
+  /* ---------- canvas render ---------- */
   useEffect(() => {
+    if (boardMode !== 'canvas') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -343,20 +465,18 @@ export default function WhiteboardLensPage() {
     canvas.height = dimensions.height * 2;
     ctx.scale(2, 2);
 
-    // Background
     ctx.fillStyle = '#0f0f1a';
     ctx.fillRect(0, 0, dimensions.width, dimensions.height);
 
-    // Grid
     if (showGrid) {
       ctx.strokeStyle = 'rgba(100, 100, 150, 0.1)';
       ctx.lineWidth = 1;
-      const gridSize = 20 * zoom;
-      for (let x = (offset.x % gridSize); x < dimensions.width; x += gridSize) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, dimensions.height); ctx.stroke();
+      const gs = 20 * zoom;
+      for (let gx = (offset.x % gs); gx < dimensions.width; gx += gs) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, dimensions.height); ctx.stroke();
       }
-      for (let y = (offset.y % gridSize); y < dimensions.height; y += gridSize) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(dimensions.width, y); ctx.stroke();
+      for (let gy = (offset.y % gs); gy < dimensions.height; gy += gs) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(dimensions.width, gy); ctx.stroke();
       }
     }
 
@@ -364,36 +484,25 @@ export default function WhiteboardLensPage() {
     ctx.translate(offset.x, offset.y);
     ctx.scale(zoom, zoom);
 
-    const drawElement = (el: Element, isPreview = false) => {
+    const drawEl = (el: Element, preview = false) => {
       ctx.strokeStyle = el.stroke;
       ctx.fillStyle = el.fill || 'transparent';
       ctx.lineWidth = el.strokeWidth;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      const isSelected = selectedElement?.id === el.id;
-      if (isSelected && !isPreview) {
-        ctx.shadowColor = el.stroke;
-        ctx.shadowBlur = 10;
-      }
+      const isSel = selectedElement?.id === el.id;
+      if (isSel && !preview) { ctx.shadowColor = el.stroke; ctx.shadowBlur = 10; }
 
       switch (el.type) {
         case 'rectangle':
-          if (el.fill && el.fill !== 'transparent') {
-            ctx.fillRect(el.x, el.y, el.width || 0, el.height || 0);
-          }
+          if (el.fill && el.fill !== 'transparent') ctx.fillRect(el.x, el.y, el.width || 0, el.height || 0);
           ctx.strokeRect(el.x, el.y, el.width || 0, el.height || 0);
           break;
 
         case 'ellipse':
           ctx.beginPath();
-          ctx.ellipse(
-            el.x + (el.width || 0) / 2,
-            el.y + (el.height || 0) / 2,
-            Math.abs((el.width || 0) / 2),
-            Math.abs((el.height || 0) / 2),
-            0, 0, 2 * Math.PI
-          );
+          ctx.ellipse(el.x + (el.width || 0) / 2, el.y + (el.height || 0) / 2, Math.abs((el.width || 0) / 2), Math.abs((el.height || 0) / 2), 0, 0, 2 * Math.PI);
           if (el.fill && el.fill !== 'transparent') ctx.fill();
           ctx.stroke();
           break;
@@ -406,14 +515,12 @@ export default function WhiteboardLensPage() {
           ctx.stroke();
           if (el.type === 'arrow') {
             const angle = Math.atan2(el.height || 0, el.width || 0);
-            const endX = el.x + (el.width || 0);
-            const endY = el.y + (el.height || 0);
-            const arrowSize = 12;
+            const ex = el.x + (el.width || 0), ey = el.y + (el.height || 0), as2 = 12;
             ctx.beginPath();
-            ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - arrowSize * Math.cos(angle - Math.PI / 6), endY - arrowSize * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - arrowSize * Math.cos(angle + Math.PI / 6), endY - arrowSize * Math.sin(angle + Math.PI / 6));
+            ctx.moveTo(ex, ey);
+            ctx.lineTo(ex - as2 * Math.cos(angle - Math.PI / 6), ey - as2 * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(ex, ey);
+            ctx.lineTo(ex - as2 * Math.cos(angle + Math.PI / 6), ey - as2 * Math.sin(angle + Math.PI / 6));
             ctx.stroke();
           }
           break;
@@ -422,9 +529,7 @@ export default function WhiteboardLensPage() {
           if (el.points && el.points.length > 1) {
             ctx.beginPath();
             ctx.moveTo(el.points[0].x, el.points[0].y);
-            for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x, el.points[i].y);
-            }
+            for (let i = 1; i < el.points.length; i++) ctx.lineTo(el.points[i].x, el.points[i].y);
             ctx.stroke();
           }
           break;
@@ -435,61 +540,123 @@ export default function WhiteboardLensPage() {
           ctx.fillText(el.text || '', el.x, el.y + 16);
           break;
 
-        case 'dtu':
-          const gradient = ctx.createLinearGradient(el.x, el.y, el.x + (el.width || 200), el.y + (el.height || 80));
-          gradient.addColorStop(0, 'rgba(168, 85, 247, 0.15)');
-          gradient.addColorStop(1, 'rgba(0, 212, 255, 0.15)');
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.roundRect(el.x, el.y, el.width || 200, el.height || 80, 8);
-          ctx.fill();
-          ctx.strokeStyle = '#a855f7';
-          ctx.stroke();
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 14px Inter, sans-serif';
+        case 'dtu': {
+          const g = ctx.createLinearGradient(el.x, el.y, el.x + (el.width || 200), el.y + (el.height || 80));
+          g.addColorStop(0, 'rgba(168, 85, 247, 0.15)');
+          g.addColorStop(1, 'rgba(0, 212, 255, 0.15)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.roundRect(el.x, el.y, el.width || 200, el.height || 80, 8); ctx.fill();
+          ctx.strokeStyle = '#a855f7'; ctx.stroke();
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 14px Inter, sans-serif';
           ctx.fillText(el.dtuTitle || 'DTU', el.x + 12, el.y + 28);
-          ctx.fillStyle = '#9ca3af';
-          ctx.font = '12px Inter, sans-serif';
+          ctx.fillStyle = '#9ca3af'; ctx.font = '12px Inter, sans-serif';
           ctx.fillText(`ID: ${el.dtuId?.slice(0, 12)}...`, el.x + 12, el.y + 50);
-          ctx.fillStyle = '#a855f7';
-          ctx.fillText('Click to view', el.x + 12, el.y + 68);
+          ctx.fillStyle = '#a855f7'; ctx.fillText('Click to view', el.x + 12, el.y + 68);
           break;
+        }
+
+        case 'audio': {
+          const w = el.width || 220, h = el.height || 72;
+          ctx.fillStyle = el.fill || 'rgba(0,212,255,0.08)';
+          ctx.beginPath(); ctx.roundRect(el.x, el.y, w, h, 10); ctx.fill();
+          ctx.strokeStyle = el.stroke; ctx.lineWidth = 1.5; ctx.stroke();
+          /* play circle */
+          ctx.beginPath(); ctx.arc(el.x + 26, el.y + h / 2, 14, 0, 2 * Math.PI);
+          ctx.fillStyle = el.playing ? '#ef4444' : '#00d4ff'; ctx.fill();
+          ctx.fillStyle = '#0f0f1a';
+          if (el.playing) {
+            ctx.fillRect(el.x + 21, el.y + h / 2 - 6, 4, 12);
+            ctx.fillRect(el.x + 27, el.y + h / 2 - 6, 4, 12);
+          } else {
+            ctx.beginPath(); ctx.moveTo(el.x + 23, el.y + h / 2 - 7);
+            ctx.lineTo(el.x + 23, el.y + h / 2 + 7);
+            ctx.lineTo(el.x + 33, el.y + h / 2); ctx.fill();
+          }
+          /* waveform bars */
+          const barHeights = [0.3, 0.6, 1, 0.5, 0.8, 0.4, 0.9, 0.6, 0.3, 0.7, 0.5, 0.8, 0.4, 0.6];
+          const bx = el.x + 50;
+          barHeights.forEach((bh, i) => {
+            const bht = bh * 22;
+            ctx.fillStyle = el.playing ? '#00d4ff' : 'rgba(0,212,255,0.5)';
+            ctx.fillRect(bx + i * 10, el.y + h / 2 - bht / 2, 5, bht);
+          });
+          /* clip name + duration */
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px Inter, sans-serif';
+          ctx.fillText(el.clipName || 'Untitled Clip', el.x + 50, el.y + 16);
+          ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter, sans-serif';
+          ctx.fillText(fmtDur(el.duration || 0), el.x + w - 40, el.y + 16);
+          break;
+        }
+
+        case 'image': {
+          const w = el.width || 160, h = el.height || 160;
+          ctx.fillStyle = el.fill || 'rgba(245,158,11,0.08)';
+          ctx.beginPath(); ctx.roundRect(el.x, el.y, w, h, 10); ctx.fill();
+          ctx.strokeStyle = el.stroke; ctx.lineWidth = 1.5; ctx.stroke();
+          /* placeholder icon area */
+          ctx.fillStyle = 'rgba(245,158,11,0.15)';
+          ctx.fillRect(el.x + 12, el.y + 12, w - 24, h - 44);
+          ctx.fillStyle = '#f59e0b'; ctx.font = '24px sans-serif';
+          ctx.fillText('\u{1F5BC}', el.x + w / 2 - 12, el.y + h / 2 - 10);
+          ctx.fillStyle = '#ffffff'; ctx.font = '11px Inter, sans-serif';
+          ctx.fillText(el.imageLabel || 'Image', el.x + 12, el.y + h - 12);
+          break;
+        }
+
+        case 'notecard': {
+          const w = el.width || 180, h = el.height || 100;
+          ctx.fillStyle = (el.cardColor || '#fbbf24') + '30';
+          ctx.beginPath(); ctx.roundRect(el.x, el.y, w, h, 6); ctx.fill();
+          ctx.strokeStyle = el.cardColor || '#fbbf24'; ctx.lineWidth = 2; ctx.stroke();
+          /* fold */
+          ctx.fillStyle = (el.cardColor || '#fbbf24') + '50';
+          ctx.beginPath(); ctx.moveTo(el.x + w - 20, el.y); ctx.lineTo(el.x + w, el.y + 20); ctx.lineTo(el.x + w, el.y); ctx.fill();
+          /* text */
+          ctx.fillStyle = '#ffffff'; ctx.font = '12px Inter, sans-serif';
+          const words = (el.text || '').split(' ');
+          let line = '', ly = el.y + 24;
+          words.forEach(word => {
+            const test = line + word + ' ';
+            if (ctx.measureText(test).width > w - 24) { ctx.fillText(line, el.x + 12, ly); ly += 16; line = word + ' '; }
+            else line = test;
+          });
+          ctx.fillText(line, el.x + 12, ly);
+          break;
+        }
+
+        case 'section': {
+          const w = el.width || 120, h = el.height || 56;
+          ctx.fillStyle = el.fill || (el.stroke + '18');
+          ctx.beginPath(); ctx.roundRect(el.x, el.y, w, h, 8); ctx.fill();
+          ctx.strokeStyle = el.stroke; ctx.lineWidth = 2; ctx.stroke();
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px Inter, sans-serif';
+          ctx.fillText(el.text || '', el.x + 10, el.y + 22);
+          ctx.fillStyle = '#9ca3af'; ctx.font = '11px Inter, sans-serif';
+          ctx.fillText(`${el.bars || 0} bars`, el.x + 10, el.y + 42);
+          break;
+        }
       }
 
       ctx.shadowBlur = 0;
 
-      // Selection box
-      if (isSelected && !isPreview) {
-        ctx.strokeStyle = '#00d4ff';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        const padding = 8;
-        ctx.strokeRect(
-          el.x - padding,
-          el.y - padding,
-          (el.width || 100) + padding * 2,
-          (el.height || 50) + padding * 2
-        );
+      if (isSel && !preview) {
+        ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+        const p = 8;
+        ctx.strokeRect(el.x - p, el.y - p, (el.width || 100) + p * 2, (el.height || 50) + p * 2);
         ctx.setLineDash([]);
       }
     };
 
-    // Draw elements
-    elements.forEach(el => drawElement(el));
-
-    // Draw current element preview
+    elements.forEach(el => drawEl(el));
     if (currentElement && tool !== 'select') {
-      ctx.globalAlpha = 0.7;
-      drawElement(currentElement, true);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.7; drawEl(currentElement, true); ctx.globalAlpha = 1;
     }
-
     ctx.restore();
-  }, [elements, currentElement, selectedElement, dimensions, zoom, offset, showGrid, tool]);
+  }, [elements, currentElement, selectedElement, dimensions, zoom, offset, showGrid, tool, boardMode]);
 
-  // Keyboard shortcuts
+  /* ---------- keyboard shortcuts ---------- */
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
       if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { e.preventDefault(); undo(); }
@@ -502,10 +669,11 @@ export default function WhiteboardLensPage() {
       if (e.key === 'a') setTool('arrow');
       if (e.key === 't') setTool('text');
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, [deleteSelected, undo, redo]);
 
+  /* ---------- tools array ---------- */
   const tools: { id: Tool; icon: React.ElementType; label: string; key: string }[] = [
     { id: 'select', icon: MousePointer, label: 'Select', key: 'V' },
     { id: 'draw', icon: Pencil, label: 'Draw', key: 'P' },
@@ -515,15 +683,85 @@ export default function WhiteboardLensPage() {
     { id: 'arrow', icon: ArrowRight, label: 'Arrow', key: 'A' },
     { id: 'text', icon: Type, label: 'Text', key: 'T' },
     { id: 'dtu', icon: Link2, label: 'Link DTU', key: 'D' },
+    { id: 'audio', icon: Music, label: 'Audio Pin', key: '' },
+    { id: 'image', icon: Image, label: 'Image Pin', key: '' },
+    { id: 'notecard', icon: StickyNote, label: 'Note Card', key: '' },
+    { id: 'section', icon: Bookmark, label: 'Section Marker', key: '' },
   ];
 
+  /* ---------- arrangement helpers ---------- */
+  const totalBars = arrangement.reduce((s, sec) => s + sec.bars, 0);
+  const addSection = (preset: typeof SECTION_PRESETS[0]) => {
+    setArrangement(prev => [...prev, { ...preset, id: `arr_${Date.now()}`, label: preset.label }]);
+  };
+  const removeSection = (id: string) => setArrangement(prev => prev.filter(s => s.id !== id));
+  const updateSectionBars = (id: string, bars: number) => {
+    setArrangement(prev => prev.map(s => s.id === id ? { ...s, bars: clamp(bars, 1, 32) } : s));
+  };
+  const handleArrDragStart = (idx: number) => setDragIdx(idx);
+  const handleArrDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    const updated = [...arrangement];
+    const [moved] = updated.splice(dragIdx, 1);
+    updated.splice(idx, 0, moved);
+    setArrangement(updated);
+    setDragIdx(idx);
+  };
+  const handleArrDragEnd = () => setDragIdx(null);
+
+  /* ---------- mood helpers ---------- */
+  const addMoodItem = () => {
+    if (!moodTarget || !moodInput.trim()) return;
+    setMoodZones(prev => prev.map(z =>
+      z.id === moodTarget
+        ? { ...z, items: [...z.items, { kind: moodKind, value: moodInput.trim() }] }
+        : z
+    ));
+    setMoodInput(''); setMoodTarget(null);
+  };
+  const removeMoodItem = (zoneId: string, idx: number) => {
+    setMoodZones(prev => prev.map(z => z.id === zoneId ? { ...z, items: z.items.filter((_, i) => i !== idx) } : z));
+  };
+
+  const modeLabels: Record<BoardMode, string> = {
+    canvas: 'Freeform Canvas',
+    moodboard: 'Moodboard',
+    arrangement: 'Arrangement Sketch',
+  };
+
+  /* ================================================================== */
+  /*                             RENDER                                  */
+  /* ================================================================== */
   return (
     <div className="h-full flex bg-lattice-bg">
-      {/* Sidebar */}
+      {/* ===== Sidebar ===== */}
       <aside className="w-64 border-r border-lattice-border bg-lattice-surface p-4 flex flex-col">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-2">
           <PenTool className="w-6 h-6 text-neon-pink" />
-          <h1 className="text-lg font-bold">Whiteboard</h1>
+          <h1 className="text-base font-bold leading-tight">Creative Canvas<br />&amp; Moodboard</h1>
+        </div>
+
+        {/* Board mode selector */}
+        <div className="relative mb-4">
+          <button onClick={() => setShowModeMenu(v => !v)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-lattice-bg border border-lattice-border text-sm">
+            <span>{modeLabels[boardMode]}</span>
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          </button>
+          <AnimatePresence>
+            {showModeMenu && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                className="absolute left-0 right-0 top-full mt-1 bg-lattice-surface border border-lattice-border rounded-lg overflow-hidden z-30 shadow-xl">
+                {(Object.keys(modeLabels) as BoardMode[]).map(m => (
+                  <button key={m} onClick={() => { setBoardMode(m); setShowModeMenu(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-lattice-elevated ${boardMode === m ? 'text-neon-cyan' : 'text-gray-300'}`}>
+                    {modeLabels[m]}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <button onClick={() => setShowCreate(true)} className="w-full py-2 bg-neon-pink text-black font-medium rounded-lg hover:bg-neon-pink/90 mb-4 flex items-center justify-center gap-2">
@@ -546,155 +784,494 @@ export default function WhiteboardLensPage() {
         </div>
       </aside>
 
-      {/* Main Canvas Area */}
+      {/* ===== Main area ===== */}
       <div className="flex-1 flex flex-col">
         {selectedWbId ? (
           <>
-            {/* Toolbar */}
-            <div className="border-b border-lattice-border bg-lattice-surface/50 backdrop-blur p-2 flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-lattice-bg rounded-lg p-1">
-                {tools.map(t => (
-                  <button key={t.id} onClick={() => setTool(t.id)} title={`${t.label} (${t.key})`}
-                    className={`p-2 rounded-md transition-colors ${tool === t.id ? 'bg-neon-pink/20 text-neon-pink' : 'text-gray-400 hover:text-white'}`}>
-                    <t.icon className="w-5 h-5" />
-                  </button>
-                ))}
+            {/* ===== Toolbar (canvas mode) ===== */}
+            {boardMode === 'canvas' && (
+              <div className="border-b border-lattice-border bg-lattice-surface/50 backdrop-blur p-2 flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 bg-lattice-bg rounded-lg p-1">
+                  {tools.map(t => (
+                    <button key={t.id} onClick={() => setTool(t.id)} title={`${t.label}${t.key ? ` (${t.key})` : ''}`}
+                      className={`p-2 rounded-md transition-colors ${tool === t.id ? 'bg-neon-pink/20 text-neon-pink' : 'text-gray-400 hover:text-white'}`}>
+                      <t.icon className="w-5 h-5" />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-px h-8 bg-lattice-border mx-1" />
+
+                <button onClick={() => setShowColorPicker(!showColorPicker)} className="p-2 rounded-lg border border-lattice-border hover:bg-lattice-elevated relative">
+                  <Palette className="w-5 h-5" style={{ color: strokeColor }} />
+                </button>
+
+                <div className="flex items-center gap-1 bg-lattice-bg rounded-lg p-1">
+                  {STROKE_WIDTHS.map(w => (
+                    <button key={w} onClick={() => setStrokeWidth(w)}
+                      className={`w-8 h-8 rounded flex items-center justify-center ${strokeWidth === w ? 'bg-lattice-elevated' : 'hover:bg-lattice-elevated'}`}>
+                      <div className="rounded-full bg-current" style={{ width: w * 2, height: w * 2 }} />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-px h-8 bg-lattice-border mx-1" />
+
+                <button onClick={undo} disabled={undoStack.length === 0} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30" title="Undo (Ctrl+Z)"><Undo2 className="w-5 h-5" /></button>
+                <button onClick={redo} disabled={redoStack.length === 0} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30" title="Redo (Ctrl+Y)"><Redo2 className="w-5 h-5" /></button>
+                <button onClick={deleteSelected} disabled={!selectedElement} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30 text-red-400" title="Delete"><Trash2 className="w-5 h-5" /></button>
+
+                <div className="w-px h-8 bg-lattice-border mx-1" />
+
+                <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-lg ${showGrid ? 'bg-lattice-elevated text-neon-cyan' : 'hover:bg-lattice-elevated text-gray-400'}`}><Grid3X3 className="w-5 h-5" /></button>
+                <button onClick={() => setZoom(z => clamp(z * 1.2, 0.25, 4))} className="p-2 rounded-lg hover:bg-lattice-elevated"><ZoomIn className="w-5 h-5" /></button>
+                <span className="text-sm text-gray-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => setZoom(z => clamp(z / 1.2, 0.25, 4))} className="p-2 rounded-lg hover:bg-lattice-elevated"><ZoomOut className="w-5 h-5" /></button>
+                <button onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }} className="p-2 rounded-lg hover:bg-lattice-elevated"><RotateCcw className="w-5 h-5" /></button>
+
+                <div className="flex-1" />
+
+                <button onClick={() => saveMutation.mutate({ elements })} disabled={saveMutation.isPending}
+                  className="px-4 py-2 bg-lattice-elevated rounded-lg hover:bg-lattice-bg flex items-center gap-2 text-sm">
+                  <Save className="w-4 h-4" />{saveMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={exportCanvas} className="px-4 py-2 bg-lattice-elevated rounded-lg hover:bg-lattice-bg flex items-center gap-2 text-sm">
+                  <Download className="w-4 h-4" />Export
+                </button>
               </div>
+            )}
 
-              <div className="w-px h-8 bg-lattice-border mx-2" />
-
-              <button onClick={() => setShowColorPicker(!showColorPicker)} className="p-2 rounded-lg border border-lattice-border hover:bg-lattice-elevated relative">
-                <Palette className="w-5 h-5" style={{ color: strokeColor }} />
-              </button>
-
-              <div className="flex items-center gap-1 bg-lattice-bg rounded-lg p-1">
-                {STROKE_WIDTHS.map(w => (
-                  <button key={w} onClick={() => setStrokeWidth(w)}
-                    className={`w-8 h-8 rounded flex items-center justify-center ${strokeWidth === w ? 'bg-lattice-elevated' : 'hover:bg-lattice-elevated'}`}>
-                    <div className="rounded-full bg-current" style={{ width: w * 2, height: w * 2 }} />
-                  </button>
-                ))}
+            {/* ===== Arrangement toolbar ===== */}
+            {boardMode === 'arrangement' && (
+              <div className="border-b border-lattice-border bg-lattice-surface/50 backdrop-blur px-4 py-2 flex items-center gap-4">
+                <Clock className="w-5 h-5 text-neon-cyan" />
+                <span className="text-sm font-semibold">Arrangement Sketch</span>
+                <div className="w-px h-6 bg-lattice-border" />
+                <label className="text-xs text-gray-400">BPM</label>
+                <input type="number" value={bpm} onChange={e => setBpm(clamp(+e.target.value, 20, 300))}
+                  className="w-16 px-2 py-1 bg-lattice-bg border border-lattice-border rounded text-sm text-center" />
+                <label className="text-xs text-gray-400">Key</label>
+                <input type="text" value={musicalKey} onChange={e => setMusicalKey(e.target.value)}
+                  className="w-24 px-2 py-1 bg-lattice-bg border border-lattice-border rounded text-sm text-center" />
+                <div className="w-px h-6 bg-lattice-border" />
+                <span className="text-xs text-gray-400">Total: <strong className="text-white">{totalBars} bars</strong></span>
+                <div className="flex-1" />
+                <span className="text-xs text-gray-400">Drag to rearrange sections</span>
               </div>
+            )}
 
-              <div className="w-px h-8 bg-lattice-border mx-2" />
+            {/* ===== Moodboard toolbar ===== */}
+            {boardMode === 'moodboard' && (
+              <div className="border-b border-lattice-border bg-lattice-surface/50 backdrop-blur px-4 py-2 flex items-center gap-4">
+                <LayoutGrid className="w-5 h-5 text-neon-pink" />
+                <span className="text-sm font-semibold">Moodboard</span>
+                <div className="w-px h-6 bg-lattice-border" />
+                <span className="text-xs text-gray-400">Click a zone to add inspiration items</span>
+              </div>
+            )}
 
-              <button onClick={undo} disabled={undoStack.length === 0} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30" title="Undo (Ctrl+Z)">
-                <Undo2 className="w-5 h-5" />
-              </button>
-              <button onClick={redo} disabled={redoStack.length === 0} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30" title="Redo (Ctrl+Y)">
-                <Redo2 className="w-5 h-5" />
-              </button>
-              <button onClick={deleteSelected} disabled={!selectedElement} className="p-2 rounded-lg hover:bg-lattice-elevated disabled:opacity-30 text-red-400" title="Delete">
-                <Trash2 className="w-5 h-5" />
-              </button>
+            {/* ===== Canvas view ===== */}
+            {boardMode === 'canvas' && (
+              <div ref={containerRef} className="flex-1 relative overflow-hidden">
+                <canvas ref={canvasRef} className="w-full h-full cursor-crosshair"
+                  style={{ width: dimensions.width, height: dimensions.height }}
+                  onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp} onWheel={handleWheel} />
 
-              <div className="w-px h-8 bg-lattice-border mx-2" />
+                {/* Audio play overlay buttons (canvas-space) */}
+                {elements.filter(el => el.type === 'audio').map(el => (
+                  <button key={`play_${el.id}`}
+                    onClick={() => toggleAudioPlay(el.id)}
+                    className="absolute w-7 h-7 rounded-full opacity-0 hover:opacity-30"
+                    style={{
+                      left: el.x * zoom + offset.x + 12,
+                      top: el.y * zoom + offset.y + (el.height || 72) / 2 * zoom - 14,
+                    }} />
+                ))}
 
-              <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-lg ${showGrid ? 'bg-lattice-elevated text-neon-cyan' : 'hover:bg-lattice-elevated text-gray-400'}`}>
-                <Grid3X3 className="w-5 h-5" />
-              </button>
-              <button onClick={() => setZoom(z => Math.min(z * 1.2, 4))} className="p-2 rounded-lg hover:bg-lattice-elevated"><ZoomIn className="w-5 h-5" /></button>
-              <span className="text-sm text-gray-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.25))} className="p-2 rounded-lg hover:bg-lattice-elevated"><ZoomOut className="w-5 h-5" /></button>
-              <button onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }} className="p-2 rounded-lg hover:bg-lattice-elevated"><RotateCcw className="w-5 h-5" /></button>
-
-              <div className="flex-1" />
-
-              <button onClick={() => saveMutation.mutate({ elements })} disabled={saveMutation.isPending} className="px-4 py-2 bg-lattice-elevated rounded-lg hover:bg-lattice-bg flex items-center gap-2 text-sm">
-                <Save className="w-4 h-4" />{saveMutation.isPending ? 'Saving...' : 'Save'}
-              </button>
-              <button onClick={exportCanvas} className="px-4 py-2 bg-lattice-elevated rounded-lg hover:bg-lattice-bg flex items-center gap-2 text-sm">
-                <Download className="w-4 h-4" />Export
-              </button>
-            </div>
-
-            {/* Canvas */}
-            <div ref={containerRef} className="flex-1 relative overflow-hidden">
-              <canvas ref={canvasRef} className="w-full h-full cursor-crosshair" style={{ width: dimensions.width, height: dimensions.height }}
-                onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} />
-
-              {/* Color Picker */}
-              <AnimatePresence>
-                {showColorPicker && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-16 left-48 bg-lattice-surface border border-lattice-border rounded-lg p-4 shadow-xl z-10">
-                    <p className="text-xs text-gray-400 mb-2">Stroke</p>
-                    <div className="grid grid-cols-4 gap-2 mb-4">
-                      {COLORS.map(c => (
-                        <button key={c} onClick={() => setStrokeColor(c)}
-                          className={`w-8 h-8 rounded-lg border-2 ${strokeColor === c ? 'border-white' : 'border-transparent'}`}
-                          style={{ backgroundColor: c }} />
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-400 mb-2">Fill</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      <button onClick={() => setFillColor('transparent')}
-                        className={`w-8 h-8 rounded-lg border-2 ${fillColor === 'transparent' ? 'border-white' : 'border-transparent'} bg-transparent`}>
-                        <X className="w-4 h-4 mx-auto text-gray-500" />
-                      </button>
-                      {COLORS.slice(0, 7).map(c => (
-                        <button key={c} onClick={() => setFillColor(c + '40')}
-                          className={`w-8 h-8 rounded-lg border-2 ${fillColor === c + '40' ? 'border-white' : 'border-transparent'}`}
-                          style={{ backgroundColor: c + '40' }} />
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Text Input */}
-              <AnimatePresence>
-                {textPosition && tool === 'text' && (
-                  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                    className="absolute bg-lattice-surface border border-lattice-border rounded-lg p-3 shadow-xl"
-                    style={{ left: textPosition.x * zoom + offset.x, top: textPosition.y * zoom + offset.y }}>
-                    <input type="text" value={textInput} onChange={e => setTextInput(e.target.value)} autoFocus placeholder="Enter text..."
-                      onKeyDown={e => e.key === 'Enter' && addText()} className="px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm w-48" />
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={addText} className="flex-1 py-1 bg-neon-cyan text-black rounded text-sm">Add</button>
-                      <button onClick={() => setTextPosition(null)} className="flex-1 py-1 bg-lattice-bg rounded text-sm">Cancel</button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* DTU Picker */}
-              <AnimatePresence>
-                {showDtuPicker && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-                    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-                      className="bg-lattice-surface border border-lattice-border rounded-lg p-4 w-96 max-h-96 overflow-y-auto">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold">Link DTU</h3>
-                        <button onClick={() => setShowDtuPicker(false)}><X className="w-5 h-5" /></button>
+                {/* Color Picker */}
+                <AnimatePresence>
+                  {showColorPicker && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-16 left-48 bg-lattice-surface border border-lattice-border rounded-lg p-4 shadow-xl z-10">
+                      <p className="text-xs text-gray-400 mb-2">Stroke</p>
+                      <div className="grid grid-cols-4 gap-2 mb-4">
+                        {COLORS.map(c => (
+                          <button key={c} onClick={() => setStrokeColor(c)}
+                            className={`w-8 h-8 rounded-lg border-2 ${strokeColor === c ? 'border-white' : 'border-transparent'}`}
+                            style={{ backgroundColor: c }} />
+                        ))}
                       </div>
-                      <div className="space-y-2">
-                        {dtus?.dtus?.slice(0, 20).map((dtu: Record<string, unknown>) => (
-                          <button key={dtu.id as string} onClick={() => addDtu(dtu)}
-                            className="w-full text-left p-3 rounded-lg border border-lattice-border hover:border-neon-purple transition-colors">
-                            <p className="font-medium truncate">{(dtu.title as string) || (dtu.content as string)?.slice(0, 40)}</p>
-                            <p className="text-xs text-gray-400 mt-1">{dtu.tier as string} · {(dtu.tags as string[])?.slice(0, 3).join(', ')}</p>
-                          </button>
+                      <p className="text-xs text-gray-400 mb-2">Fill</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        <button onClick={() => setFillColor('transparent')}
+                          className={`w-8 h-8 rounded-lg border-2 ${fillColor === 'transparent' ? 'border-white' : 'border-transparent'} bg-transparent`}>
+                          <X className="w-4 h-4 mx-auto text-gray-500" />
+                        </button>
+                        {COLORS.slice(0, 7).map(c => (
+                          <button key={c} onClick={() => setFillColor(c + '40')}
+                            className={`w-8 h-8 rounded-lg border-2 ${fillColor === c + '40' ? 'border-white' : 'border-transparent'}`}
+                            style={{ backgroundColor: c + '40' }} />
                         ))}
                       </div>
                     </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                  )}
+                </AnimatePresence>
+
+                {/* Text Input */}
+                <AnimatePresence>
+                  {textPosition && tool === 'text' && (
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                      className="absolute bg-lattice-surface border border-lattice-border rounded-lg p-3 shadow-xl z-10"
+                      style={{ left: textPosition.x * zoom + offset.x, top: textPosition.y * zoom + offset.y }}>
+                      <input type="text" value={textInput} onChange={e => setTextInput(e.target.value)} autoFocus placeholder="Enter text..."
+                        onKeyDown={e => e.key === 'Enter' && addText()} className="px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm w-48" />
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={addText} className="flex-1 py-1 bg-neon-cyan text-black rounded text-sm">Add</button>
+                        <button onClick={() => setTextPosition(null)} className="flex-1 py-1 bg-lattice-bg rounded text-sm">Cancel</button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Audio Pin Dialog */}
+                <AnimatePresence>
+                  {showAudioDialog && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold flex items-center gap-2"><Music className="w-4 h-4 text-neon-cyan" />Pin Audio Clip</h3>
+                          <button onClick={() => { setShowAudioDialog(false); setTextPosition(null); }}><X className="w-5 h-5" /></button>
+                        </div>
+                        <input type="text" placeholder="Clip name (e.g. Verse Vocal Take 3)" value={audioClipName}
+                          onChange={e => setAudioClipName(e.target.value)} autoFocus
+                          className="w-full px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm mb-3" />
+                        <label className="text-xs text-gray-400">Duration (seconds)</label>
+                        <input type="number" value={audioClipDur} onChange={e => setAudioClipDur(clamp(+e.target.value, 1, 3600))}
+                          className="w-full px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm mb-4" />
+                        <div className="flex gap-2">
+                          <button onClick={addAudioPin} disabled={!audioClipName.trim()} className="flex-1 py-2 bg-neon-cyan text-black rounded-lg text-sm font-medium disabled:opacity-40">Place Pin</button>
+                          <button onClick={() => { setShowAudioDialog(false); setTextPosition(null); }} className="flex-1 py-2 bg-lattice-bg rounded-lg text-sm">Cancel</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Image Pin Dialog */}
+                <AnimatePresence>
+                  {showImageDialog && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold flex items-center gap-2"><Image className="w-4 h-4 text-amber-400" />Pin Image Reference</h3>
+                          <button onClick={() => { setShowImageDialog(false); setTextPosition(null); }}><X className="w-5 h-5" /></button>
+                        </div>
+                        <input type="text" placeholder="Label (e.g. Album Cover Ref)" value={imageLabel}
+                          onChange={e => setImageLabel(e.target.value)} autoFocus
+                          className="w-full px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm mb-4" />
+                        <div className="flex gap-2">
+                          <button onClick={addImagePin} disabled={!imageLabel.trim()} className="flex-1 py-2 bg-amber-500 text-black rounded-lg text-sm font-medium disabled:opacity-40">Place Pin</button>
+                          <button onClick={() => { setShowImageDialog(false); setTextPosition(null); }} className="flex-1 py-2 bg-lattice-bg rounded-lg text-sm">Cancel</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Note Card Dialog */}
+                <AnimatePresence>
+                  {showNoteDialog && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold flex items-center gap-2"><StickyNote className="w-4 h-4 text-yellow-400" />Note Card</h3>
+                          <button onClick={() => { setShowNoteDialog(false); setTextPosition(null); }}><X className="w-5 h-5" /></button>
+                        </div>
+                        <textarea placeholder="Note text..." value={noteText}
+                          onChange={e => setNoteText(e.target.value)} autoFocus rows={3}
+                          className="w-full px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm mb-3 resize-none" />
+                        <p className="text-xs text-gray-400 mb-2">Card color</p>
+                        <div className="flex gap-2 mb-4">
+                          {CARD_COLORS.map(c => (
+                            <button key={c} onClick={() => setNoteColor(c)}
+                              className={`w-8 h-8 rounded-lg border-2 ${noteColor === c ? 'border-white' : 'border-transparent'}`}
+                              style={{ backgroundColor: c }} />
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={addNoteCard} disabled={!noteText.trim()} className="flex-1 py-2 bg-yellow-500 text-black rounded-lg text-sm font-medium disabled:opacity-40">Place Card</button>
+                          <button onClick={() => { setShowNoteDialog(false); setTextPosition(null); }} className="flex-1 py-2 bg-lattice-bg rounded-lg text-sm">Cancel</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Section Marker Dialog */}
+                <AnimatePresence>
+                  {showSectionDialog && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold flex items-center gap-2"><Bookmark className="w-4 h-4 text-purple-400" />Section Marker</h3>
+                          <button onClick={() => { setShowSectionDialog(false); setTextPosition(null); }}><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="space-y-2 mb-4">
+                          {SECTION_PRESETS.map(s => (
+                            <button key={s.type} onClick={() => setSectionChoice(s)}
+                              className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-colors ${sectionChoice.type === s.type ? 'border-white bg-lattice-elevated' : 'border-lattice-border hover:border-gray-500'}`}>
+                              <div className="w-4 h-4 rounded" style={{ backgroundColor: s.color }} />
+                              <span className="text-sm">{s.label}</span>
+                              <span className="text-xs text-gray-400 ml-auto">{s.bars} bars</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={addSectionMarker} className="flex-1 py-2 bg-purple-500 text-black rounded-lg text-sm font-medium">Place Marker</button>
+                          <button onClick={() => { setShowSectionDialog(false); setTextPosition(null); }} className="flex-1 py-2 bg-lattice-bg rounded-lg text-sm">Cancel</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* DTU Picker */}
+                <AnimatePresence>
+                  {showDtuPicker && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-4 w-96 max-h-96 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold">Link DTU</h3>
+                          <button onClick={() => setShowDtuPicker(false)}><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="space-y-2">
+                          {dtus?.dtus?.slice(0, 20).map((dtu: Record<string, unknown>) => (
+                            <button key={dtu.id as string} onClick={() => addDtu(dtu)}
+                              className="w-full text-left p-3 rounded-lg border border-lattice-border hover:border-neon-purple transition-colors">
+                              <p className="font-medium truncate">{(dtu.title as string) || (dtu.content as string)?.slice(0, 40)}</p>
+                              <p className="text-xs text-gray-400 mt-1">{dtu.tier as string} · {(dtu.tags as string[])?.slice(0, 3).join(', ')}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* ===== Arrangement Sketch view ===== */}
+            {boardMode === 'arrangement' && (
+              <div className="flex-1 overflow-auto p-6">
+                {/* BPM/Key badge */}
+                <div className="absolute top-20 right-6 flex items-center gap-3 bg-lattice-surface border border-lattice-border rounded-lg px-4 py-2 z-10">
+                  <span className="text-xs text-gray-400">BPM</span>
+                  <span className="text-lg font-bold text-neon-cyan">{bpm}</span>
+                  <div className="w-px h-6 bg-lattice-border" />
+                  <span className="text-xs text-gray-400">Key</span>
+                  <span className="text-lg font-bold text-neon-pink">{musicalKey}</span>
+                </div>
+
+                {/* Timeline */}
+                <div className="mt-4">
+                  <div className="flex items-end gap-3 mb-6 overflow-x-auto pb-4">
+                    {arrangement.map((sec, idx) => (
+                      <motion.div key={sec.id} layout draggable
+                        onDragStart={() => handleArrDragStart(idx)}
+                        onDragOver={e => handleArrDragOver(e, idx)}
+                        onDragEnd={handleArrDragEnd}
+                        className={`flex-shrink-0 rounded-xl border-2 cursor-grab active:cursor-grabbing transition-shadow ${dragIdx === idx ? 'shadow-lg shadow-white/10' : ''}`}
+                        style={{ borderColor: sec.color, width: Math.max(sec.bars * 20, 80), minHeight: 120, backgroundColor: sec.color + '15' }}>
+                        <div className="p-3 flex flex-col h-full">
+                          <div className="flex items-center gap-1 mb-2">
+                            <GripVertical className="w-3 h-3 text-gray-500" />
+                            <span className="text-xs font-bold" style={{ color: sec.color }}>{sec.label}</span>
+                          </div>
+                          <div className="flex-1 flex items-center justify-center">
+                            <span className="text-2xl font-bold text-white/80">{sec.bars}</span>
+                            <span className="text-xs text-gray-400 ml-1 mt-1">bars</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-2">
+                            <button onClick={() => updateSectionBars(sec.id, sec.bars - 1)}
+                              className="w-6 h-6 rounded bg-lattice-bg text-gray-400 hover:text-white flex items-center justify-center text-xs">-</button>
+                            <button onClick={() => updateSectionBars(sec.id, sec.bars + 1)}
+                              className="w-6 h-6 rounded bg-lattice-bg text-gray-400 hover:text-white flex items-center justify-center text-xs">+</button>
+                            <div className="flex-1" />
+                            <button onClick={() => removeSection(sec.id)}
+                              className="w-6 h-6 rounded bg-lattice-bg text-red-400 hover:text-red-300 flex items-center justify-center"><Trash2 className="w-3 h-3" /></button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+
+                    {/* Add section button */}
+                    <div className="flex-shrink-0 w-20">
+                      <div className="border-2 border-dashed border-lattice-border rounded-xl flex items-center justify-center min-h-[120px] hover:border-gray-500 transition-colors group relative">
+                        <Plus className="w-6 h-6 text-gray-600 group-hover:text-gray-400" />
+                        <div className="absolute top-full mt-2 left-0 bg-lattice-surface border border-lattice-border rounded-lg overflow-hidden shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-20 w-40">
+                          {SECTION_PRESETS.map(s => (
+                            <button key={s.type} onClick={() => addSection(s)}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-lattice-elevated flex items-center gap-2">
+                              <div className="w-3 h-3 rounded" style={{ backgroundColor: s.color }} />
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bar ruler */}
+                  <div className="flex items-center gap-0 overflow-x-auto">
+                    {arrangement.map(sec => (
+                      <div key={`ruler_${sec.id}`} className="flex-shrink-0 flex" style={{ width: Math.max(sec.bars * 20, 80) + 12 }}>
+                        {Array.from({ length: sec.bars }, (_, i) => (
+                          <div key={i} className="flex-1 h-4 border-l border-gray-700 flex items-end">
+                            <span className="text-[9px] text-gray-600 pl-0.5">{i + 1}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ===== Moodboard view ===== */}
+            {boardMode === 'moodboard' && (
+              <div ref={containerRef} className="flex-1 overflow-auto p-6">
+                <div className="grid grid-cols-3 gap-4 max-w-6xl mx-auto">
+                  {moodZones.map(zone => (
+                    <div key={zone.id}
+                      className="bg-lattice-surface border border-lattice-border rounded-xl p-4 min-h-[200px] flex flex-col">
+                      <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                        {zone.label}
+                        <button onClick={() => { setMoodTarget(zone.id); setMoodKind('text'); }}
+                          className="ml-auto w-6 h-6 rounded bg-lattice-bg text-gray-400 hover:text-white flex items-center justify-center">
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </h3>
+
+                      <div className="flex-1 flex flex-wrap gap-2 content-start">
+                        {zone.items.map((item, idx) => (
+                          <div key={idx} className="group relative">
+                            {item.kind === 'color' ? (
+                              <div className="w-10 h-10 rounded-lg border border-white/10" style={{ backgroundColor: item.value }} />
+                            ) : item.kind === 'audio' ? (
+                              <div className="flex items-center gap-2 bg-neon-cyan/10 border border-neon-cyan/30 rounded-lg px-3 py-1.5">
+                                <Music className="w-3 h-3 text-neon-cyan" />
+                                <span className="text-xs text-neon-cyan">{item.value}</span>
+                              </div>
+                            ) : item.kind === 'image' ? (
+                              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
+                                <Image className="w-3 h-3 text-amber-400" />
+                                <span className="text-xs text-amber-400">{item.value}</span>
+                              </div>
+                            ) : (
+                              <div className="bg-lattice-elevated border border-lattice-border rounded-lg px-3 py-1.5">
+                                <span className="text-xs text-gray-300">{item.value}</span>
+                              </div>
+                            )}
+                            <button onClick={() => removeMoodItem(zone.id, idx)}
+                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white items-center justify-center text-[9px] hidden group-hover:flex">
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                        {zone.items.length === 0 && (
+                          <p className="text-xs text-gray-600 italic">Drop or add items here...</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Color palette section */}
+                <div className="mt-6 max-w-6xl mx-auto">
+                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Quick Mood Colors</h3>
+                  <div className="flex gap-3 flex-wrap">
+                    {['#1a1a2e', '#16213e', '#0f3460', '#533483', '#e94560', '#f5c518', '#06d6a0', '#118ab2', '#073b4c', '#ef476f', '#ffd166', '#6c5ce7'].map(c => (
+                      <button key={c}
+                        onClick={() => {
+                          const colorZone = moodZones.find(z => z.label === 'Color Palette');
+                          if (colorZone) {
+                            setMoodZones(prev => prev.map(z => z.id === colorZone.id
+                              ? { ...z, items: [...z.items, { kind: 'color', value: c }] } : z));
+                          }
+                        }}
+                        className="w-10 h-10 rounded-lg border border-white/10 hover:scale-110 transition-transform"
+                        style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mood item input modal */}
+                <AnimatePresence>
+                  {moodTarget && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-sm">Add to {moodZones.find(z => z.id === moodTarget)?.label}</h3>
+                          <button onClick={() => setMoodTarget(null)}><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="flex gap-2 mb-3">
+                          {(['text', 'audio', 'image', 'color'] as const).map(k => (
+                            <button key={k} onClick={() => setMoodKind(k)}
+                              className={`px-3 py-1 rounded-lg text-xs capitalize ${moodKind === k ? 'bg-neon-pink/20 text-neon-pink' : 'bg-lattice-bg text-gray-400'}`}>
+                              {k}
+                            </button>
+                          ))}
+                        </div>
+                        {moodKind === 'color' ? (
+                          <div className="grid grid-cols-6 gap-2 mb-4">
+                            {COLORS.concat(['#1a1a2e', '#0f3460', '#e94560', '#06d6a0']).map(c => (
+                              <button key={c} onClick={() => { setMoodInput(c); }}
+                                className={`w-8 h-8 rounded-lg border-2 ${moodInput === c ? 'border-white' : 'border-transparent'}`}
+                                style={{ backgroundColor: c }} />
+                            ))}
+                          </div>
+                        ) : (
+                          <input type="text" value={moodInput} onChange={e => setMoodInput(e.target.value)} autoFocus
+                            placeholder={moodKind === 'audio' ? 'Track name...' : moodKind === 'image' ? 'Image description...' : 'Mood description...'}
+                            onKeyDown={e => e.key === 'Enter' && addMoodItem()}
+                            className="w-full px-3 py-2 bg-lattice-bg border border-lattice-border rounded text-sm mb-4" />
+                        )}
+                        <div className="flex gap-2">
+                          <button onClick={addMoodItem} disabled={!moodInput.trim()} className="flex-1 py-2 bg-neon-pink text-black rounded-lg text-sm font-medium disabled:opacity-40">Add</button>
+                          <button onClick={() => setMoodTarget(null)} className="flex-1 py-2 bg-lattice-bg rounded-lg text-sm">Cancel</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <PenTool className="w-16 h-16 mx-auto mb-4 opacity-30" />
-              <p>Select or create a whiteboard to start</p>
+              <p className="text-lg mb-2">Creative Canvas &amp; Moodboard</p>
+              <p className="text-sm">Select or create a whiteboard to start</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* ===== Create Modal ===== */}
       <AnimatePresence>
         {showCreate && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -709,6 +1286,7 @@ export default function WhiteboardLensPage() {
   );
 }
 
+/* ===== Create Form sub-component ===== */
 function CreateForm({ onClose, onCreate, creating }: { onClose: () => void; onCreate: (data: { title: string; linkedDtus: string[] }) => void; creating: boolean }) {
   const [title, setTitle] = useState('');
   return (

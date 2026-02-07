@@ -8,9 +8,16 @@ import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin,
   Plus, X, Edit2, Trash2, Bell, Repeat, Users,
   Search, Settings, Check, Video,
-  ExternalLink
+  ExternalLink, Rocket, Mic, Megaphone, BookOpen, Music, Headphones,
+  Play, Disc3, Timer
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type EventType = 'release' | 'session' | 'deadline' | 'collab' | 'marketing' | 'learning';
 
 interface CalendarEvent {
   id: string;
@@ -21,18 +28,20 @@ interface CalendarEvent {
   allDay: boolean;
   color: string;
   category: string;
+  eventType: EventType;
   location?: string;
   url?: string;
-  attendees?: { id: string; name: string; email: string; status: 'accepted' | 'declined' | 'pending' }[];
-  reminders?: { time: number; unit: 'minutes' | 'hours' | 'days' }[];
+  collaborators?: string[];
+  platforms?: string[];
+  linkedProject?: string;
+  reminders?: { time: number; unit: 'minutes' | 'hours' | 'days' | 'weeks' }[];
   recurrence?: {
     frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
     interval: number;
     endDate?: Date;
     daysOfWeek?: number[];
   };
-  isPrivate?: boolean;
-  dtuId?: string;
+  artworkColor?: string;
 }
 
 interface CalendarCategory {
@@ -40,121 +49,220 @@ interface CalendarCategory {
   name: string;
   color: string;
   visible: boolean;
+  icon: EventType;
 }
 
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const EVENT_TYPE_META: Record<EventType, { label: string; color: string }> = {
+  release:   { label: 'Release Dates',  color: '#22c55e' },
+  session:   { label: 'Studio Sessions', color: '#06b6d4' },
+  deadline:  { label: 'Deadlines',       color: '#ef4444' },
+  collab:    { label: 'Collaboration',   color: '#8b5cf6' },
+  marketing: { label: 'Marketing',       color: '#f97316' },
+  learning:  { label: 'Learning',        color: '#3b82f6' },
+};
+
 const COLORS = [
-  { name: 'Blue', value: '#3b82f6' },
-  { name: 'Green', value: '#22c55e' },
+  { name: 'Green',  value: '#22c55e' },
+  { name: 'Cyan',   value: '#06b6d4' },
+  { name: 'Red',    value: '#ef4444' },
   { name: 'Purple', value: '#8b5cf6' },
-  { name: 'Pink', value: '#ec4899' },
   { name: 'Orange', value: '#f97316' },
+  { name: 'Blue',   value: '#3b82f6' },
+  { name: 'Pink',   value: '#ec4899' },
   { name: 'Yellow', value: '#eab308' },
-  { name: 'Cyan', value: '#06b6d4' },
-  { name: 'Red', value: '#ef4444' },
 ];
 
 const MOCK_CATEGORIES: CalendarCategory[] = [
-  { id: '1', name: 'Work', color: '#3b82f6', visible: true },
-  { id: '2', name: 'Personal', color: '#22c55e', visible: true },
-  { id: '3', name: 'DTU Events', color: '#8b5cf6', visible: true },
-  { id: '4', name: 'Meetings', color: '#f97316', visible: true },
-  { id: '5', name: 'Reminders', color: '#eab308', visible: true },
+  { id: '1', name: 'Release Dates',   color: '#22c55e', visible: true, icon: 'release' },
+  { id: '2', name: 'Studio Sessions', color: '#06b6d4', visible: true, icon: 'session' },
+  { id: '3', name: 'Deadlines',       color: '#ef4444', visible: true, icon: 'deadline' },
+  { id: '4', name: 'Collaboration',   color: '#8b5cf6', visible: true, icon: 'collab' },
+  { id: '5', name: 'Marketing',       color: '#f97316', visible: true, icon: 'marketing' },
+  { id: '6', name: 'Learning',        color: '#3b82f6', visible: true, icon: 'learning' },
 ];
+
+const PLATFORMS = ['Spotify', 'Apple Music', 'SoundCloud', 'YouTube Music', 'Tidal', 'Bandcamp', 'Amazon Music'];
+
+const MOCK_PROJECTS = [
+  'Night Vibes EP',
+  'Summer Beat Pack',
+  'Weekly Series',
+  'Collab Tape Vol. 2',
+  'Ambient Sketches',
+];
+
+const REMINDER_OPTIONS = [
+  { label: '1 week before',  time: 1, unit: 'weeks' as const },
+  { label: '3 days before',  time: 3, unit: 'days' as const },
+  { label: '1 day before',   time: 1, unit: 'days' as const },
+  { label: '1 hour before',  time: 1, unit: 'hours' as const },
+];
+
+const SESSION_TYPES = ['Vocal Recording', 'Beat Making', 'Mixing', 'Mastering', 'Sound Design', 'Songwriting'];
+const SESSION_DURATIONS = [1, 1.5, 2, 3, 4];
+
+const CategoryIcon = ({ type, className }: { type: EventType; className?: string }) => {
+  switch (type) {
+    case 'release':   return <Rocket className={className} />;
+    case 'session':   return <Mic className={className} />;
+    case 'deadline':  return <Clock className={className} />;
+    case 'collab':    return <Users className={className} />;
+    case 'marketing': return <Megaphone className={className} />;
+    case 'learning':  return <BookOpen className={className} />;
+  }
+};
 
 const generateMockEvents = (currentDate: Date): CalendarEvent[] => {
   const events: CalendarEvent[] = [];
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+  const today = currentDate.getDate();
 
-  // Add some mock events
   events.push({
     id: '1',
-    title: 'DTU Council Meeting',
-    description: 'Weekly review of global DTU proposals',
-    startDate: new Date(year, month, 15, 10, 0),
-    endDate: new Date(year, month, 15, 11, 30),
-    allDay: false,
-    color: '#8b5cf6',
-    category: 'DTU Events',
-    location: 'Virtual - Lattice Room',
-    attendees: [
-      { id: '1', name: 'Alice Chen', email: 'alice@example.com', status: 'accepted' },
-      { id: '2', name: 'Bob Smith', email: 'bob@example.com', status: 'pending' },
-    ],
-    reminders: [{ time: 30, unit: 'minutes' }],
-  });
-
-  events.push({
-    id: '2',
-    title: 'Sprint Planning',
-    description: 'Plan next sprint tasks and priorities',
-    startDate: new Date(year, month, 8, 9, 0),
-    endDate: new Date(year, month, 8, 10, 0),
-    allDay: false,
-    color: '#3b82f6',
-    category: 'Work',
-    url: 'https://meet.example.com/sprint',
-    reminders: [{ time: 15, unit: 'minutes' }],
-    recurrence: { frequency: 'weekly', interval: 2, daysOfWeek: [1] },
-  });
-
-  events.push({
-    id: '3',
-    title: 'Quarterly Review',
-    description: 'Review Q1 performance and metrics',
-    startDate: new Date(year, month, 20, 14, 0),
-    endDate: new Date(year, month, 20, 16, 0),
-    allDay: false,
-    color: '#f97316',
-    category: 'Meetings',
-    location: 'Conference Room A',
-  });
-
-  events.push({
-    id: '4',
-    title: 'Product Launch',
+    title: 'EP Release: Night Vibes',
+    description: 'Full 6-track EP drop across all platforms. Artwork finalized, pre-save campaign live.',
     startDate: new Date(year, month, 25, 0, 0),
     endDate: new Date(year, month, 25, 23, 59),
     allDay: true,
     color: '#22c55e',
-    category: 'Work',
-    description: 'Major product release day',
+    category: 'Release Dates',
+    eventType: 'release',
+    platforms: ['Spotify', 'Apple Music', 'SoundCloud', 'YouTube Music'],
+    linkedProject: 'Night Vibes EP',
+    reminders: [{ time: 1, unit: 'weeks' }, { time: 1, unit: 'days' }],
+    artworkColor: '#22c55e',
+  });
+
+  events.push({
+    id: '2',
+    title: 'Vocal Recording Session - Studio B',
+    description: 'Recording vocals for tracks 3 and 5 of the EP. Bring lyric sheets and warm up 30 min before.',
+    startDate: new Date(year, month, 15, 10, 0),
+    endDate: new Date(year, month, 15, 12, 0),
+    allDay: false,
+    color: '#06b6d4',
+    category: 'Studio Sessions',
+    eventType: 'session',
+    location: 'Studio B - Wavelength Studios',
+    linkedProject: 'Night Vibes EP',
+    reminders: [{ time: 1, unit: 'hours' }],
+  });
+
+  events.push({
+    id: '3',
+    title: 'Mix deadline: Summer Beat Pack',
+    description: 'Final mixes due for all 10 tracks. Stems exported at 48kHz/24bit.',
+    startDate: new Date(year, month, 20, 17, 0),
+    endDate: new Date(year, month, 20, 17, 0),
+    allDay: false,
+    color: '#ef4444',
+    category: 'Deadlines',
+    eventType: 'deadline',
+    linkedProject: 'Summer Beat Pack',
+    reminders: [{ time: 3, unit: 'days' }, { time: 1, unit: 'days' }],
+  });
+
+  events.push({
+    id: '4',
+    title: 'Collab session with @producer_x',
+    description: 'Working on the lo-fi flip. Bring MIDI controller and headphones.',
+    startDate: new Date(year, month, 12, 14, 0),
+    endDate: new Date(year, month, 12, 17, 0),
+    allDay: false,
+    color: '#8b5cf6',
+    category: 'Collaboration',
+    eventType: 'collab',
+    collaborators: ['@producer_x'],
+    location: 'Home Studio',
+    url: 'https://meet.example.com/collab-room',
   });
 
   events.push({
     id: '5',
-    title: 'Dentist Appointment',
-    startDate: new Date(year, month, 12, 15, 30),
-    endDate: new Date(year, month, 12, 16, 30),
+    title: 'Instagram promo push',
+    description: 'Post teaser clips, behind-the-scenes stories, and pre-save link for Night Vibes.',
+    startDate: new Date(year, month, 22, 12, 0),
+    endDate: new Date(year, month, 22, 14, 0),
     allDay: false,
-    color: '#22c55e',
-    category: 'Personal',
-    location: '123 Health St',
-    isPrivate: true,
+    color: '#f97316',
+    category: 'Marketing',
+    eventType: 'marketing',
+    linkedProject: 'Night Vibes EP',
+    platforms: ['Spotify', 'Apple Music'],
   });
 
   events.push({
     id: '6',
-    title: 'Team Sync',
-    startDate: new Date(year, month, currentDate.getDate(), 11, 0),
-    endDate: new Date(year, month, currentDate.getDate(), 11, 30),
+    title: 'Mastering workshop',
+    description: 'Online masterclass: Advanced limiting and loudness standards for streaming.',
+    startDate: new Date(year, month, 18, 19, 0),
+    endDate: new Date(year, month, 18, 21, 0),
     allDay: false,
     color: '#3b82f6',
-    category: 'Work',
-    recurrence: { frequency: 'daily', interval: 1 },
+    category: 'Learning',
+    eventType: 'learning',
+    url: 'https://workshop.example.com/mastering-101',
   });
 
   events.push({
     id: '7',
-    title: 'DTU Synthesis Complete',
-    startDate: new Date(year, month, currentDate.getDate() + 2, 8, 0),
-    endDate: new Date(year, month, currentDate.getDate() + 2, 8, 0),
+    title: 'Beat drop: Weekly Series #12',
+    description: 'Weekly beat release - dark trap instrumental, 140 BPM.',
+    startDate: new Date(year, month, today + 1, 0, 0),
+    endDate: new Date(year, month, today + 1, 23, 59),
+    allDay: true,
+    color: '#22c55e',
+    category: 'Release Dates',
+    eventType: 'release',
+    platforms: ['SoundCloud', 'YouTube Music'],
+    linkedProject: 'Weekly Series',
+    artworkColor: '#8b5cf6',
+  });
+
+  events.push({
+    id: '8',
+    title: 'Sample pack submission deadline',
+    description: 'Submit finalized sample pack to distributor. 50 one-shots + 10 loops required.',
+    startDate: new Date(year, month, today + 5, 23, 59),
+    endDate: new Date(year, month, today + 5, 23, 59),
     allDay: false,
-    color: '#8b5cf6',
-    category: 'DTU Events',
-    dtuId: 'dtu_12345',
+    color: '#ef4444',
+    category: 'Deadlines',
+    eventType: 'deadline',
+    reminders: [{ time: 3, unit: 'days' }, { time: 1, unit: 'days' }],
+  });
+
+  events.push({
+    id: '9',
+    title: 'Sound design session',
+    description: 'Designing synth patches and foley for ambient EP.',
+    startDate: new Date(year, month, today, 15, 0),
+    endDate: new Date(year, month, today, 17, 0),
+    allDay: false,
+    color: '#06b6d4',
+    category: 'Studio Sessions',
+    eventType: 'session',
+    location: 'Home Studio',
+    linkedProject: 'Ambient Sketches',
+  });
+
+  events.push({
+    id: '10',
+    title: 'TikTok content batch',
+    description: 'Record 5 short clips: beat-making process, before/after mix, gear showcase.',
+    startDate: new Date(year, month, today + 3, 10, 0),
+    endDate: new Date(year, month, today + 3, 12, 0),
+    allDay: false,
+    color: '#f97316',
+    category: 'Marketing',
+    eventType: 'marketing',
   });
 
   return events;
@@ -167,6 +275,10 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function CalendarLensPage() {
   useLensNav('calendar');
@@ -181,6 +293,7 @@ export default function CalendarLensPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const [_searchQuery, _setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
 
@@ -192,8 +305,23 @@ export default function CalendarLensPage() {
     endDate: new Date(),
     allDay: false,
     color: COLORS[0].value,
-    category: 'Work',
+    category: 'Release Dates',
+    eventType: 'release',
+    platforms: [],
+    collaborators: [],
+    linkedProject: '',
+    reminders: [],
   });
+
+  // Quick-book session form
+  const [bookSession, setBookSession] = useState({
+    sessionType: SESSION_TYPES[0],
+    duration: 2,
+    date: new Date(),
+    hour: 10,
+  });
+
+  const [collaboratorInput, setCollaboratorInput] = useState('');
 
   // Initialize events
   useEffect(() => {
@@ -244,15 +372,8 @@ export default function CalendarLensPage() {
   const getEventsForDay = (date: Date) => {
     return events.filter((event) => {
       const eventStart = new Date(event.startDate);
-      const _eventEnd = new Date(event.endDate);
       const categoryVisible = categories.find((c) => c.name === event.category)?.visible ?? true;
-
       if (!categoryVisible) return false;
-
-      if (event.allDay) {
-        return isSameDay(eventStart, date);
-      }
-
       return isSameDay(eventStart, date);
     });
   };
@@ -300,6 +421,51 @@ export default function CalendarLensPage() {
     return `${formatTime(start)} - ${formatTime(end)}`;
   };
 
+  const getDaysUntil = (date: Date) => {
+    const now = new Date();
+    const diff = date.getTime() - now.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const handleEventTypeChange = (eventType: EventType) => {
+    const meta = EVENT_TYPE_META[eventType];
+    const cat = categories.find((c) => c.icon === eventType);
+    setNewEvent({
+      ...newEvent,
+      eventType,
+      color: meta.color,
+      category: cat?.name || meta.label,
+    });
+  };
+
+  const handleTogglePlatform = (platform: string) => {
+    const current = newEvent.platforms || [];
+    const updated = current.includes(platform)
+      ? current.filter((p) => p !== platform)
+      : [...current, platform];
+    setNewEvent({ ...newEvent, platforms: updated });
+  };
+
+  const handleToggleReminder = (reminder: { time: number; unit: 'minutes' | 'hours' | 'days' | 'weeks' }) => {
+    const current = newEvent.reminders || [];
+    const exists = current.some((r) => r.time === reminder.time && r.unit === reminder.unit);
+    const updated = exists
+      ? current.filter((r) => !(r.time === reminder.time && r.unit === reminder.unit))
+      : [...current, reminder];
+    setNewEvent({ ...newEvent, reminders: updated });
+  };
+
+  const handleAddCollaborator = () => {
+    if (!collaboratorInput.trim()) return;
+    const tag = collaboratorInput.startsWith('@') ? collaboratorInput : `@${collaboratorInput}`;
+    setNewEvent({ ...newEvent, collaborators: [...(newEvent.collaborators || []), tag] });
+    setCollaboratorInput('');
+  };
+
+  const handleRemoveCollaborator = (tag: string) => {
+    setNewEvent({ ...newEvent, collaborators: (newEvent.collaborators || []).filter((c) => c !== tag) });
+  };
+
   const handleCreateEvent = () => {
     if (!newEvent.title) return;
 
@@ -311,9 +477,14 @@ export default function CalendarLensPage() {
       endDate: newEvent.endDate || new Date(),
       allDay: newEvent.allDay || false,
       color: newEvent.color || COLORS[0].value,
-      category: newEvent.category || 'Work',
+      category: newEvent.category || 'Release Dates',
+      eventType: newEvent.eventType || 'release',
       location: newEvent.location,
       url: newEvent.url,
+      platforms: newEvent.platforms,
+      collaborators: newEvent.collaborators,
+      linkedProject: newEvent.linkedProject,
+      reminders: newEvent.reminders,
     };
 
     setEvents([...events, event]);
@@ -325,8 +496,36 @@ export default function CalendarLensPage() {
       endDate: new Date(),
       allDay: false,
       color: COLORS[0].value,
-      category: 'Work',
+      category: 'Release Dates',
+      eventType: 'release',
+      platforms: [],
+      collaborators: [],
+      linkedProject: '',
+      reminders: [],
     });
+  };
+
+  const handleBookSession = () => {
+    const start = new Date(bookSession.date);
+    start.setHours(bookSession.hour, 0, 0, 0);
+    const end = new Date(start);
+    end.setMinutes(start.getMinutes() + bookSession.duration * 60);
+
+    const event: CalendarEvent = {
+      id: Date.now().toString(),
+      title: `${bookSession.sessionType} - Studio`,
+      startDate: start,
+      endDate: end,
+      allDay: false,
+      color: '#06b6d4',
+      category: 'Studio Sessions',
+      eventType: 'session',
+      location: 'Studio A',
+      reminders: [{ time: 1, unit: 'hours' }],
+    };
+
+    setEvents([...events, event]);
+    setShowBookingModal(false);
   };
 
   const handleDeleteEvent = (eventId: string) => {
@@ -343,6 +542,10 @@ export default function CalendarLensPage() {
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // Views
+  // ---------------------------------------------------------------------------
+
   const renderMonthView = () => {
     const daysInMonth = getDaysInMonth(currentDate);
     const firstDay = getFirstDayOfMonth(currentDate);
@@ -350,18 +553,15 @@ export default function CalendarLensPage() {
 
     const days: (Date | null)[] = [];
 
-    // Previous month days
     for (let i = firstDay - 1; i >= 0; i--) {
       const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, prevMonthDays - i);
       days.push(d);
     }
 
-    // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(currentDate.getFullYear(), currentDate.getMonth(), i));
     }
 
-    // Next month days
     const remaining = 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
       days.push(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, i));
@@ -369,7 +569,6 @@ export default function CalendarLensPage() {
 
     return (
       <div className="flex-1 flex flex-col">
-        {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-lattice-border">
           {DAY_NAMES.map((day) => (
             <div key={day} className="py-3 text-center text-sm font-medium text-gray-400">
@@ -378,7 +577,6 @@ export default function CalendarLensPage() {
           ))}
         </div>
 
-        {/* Calendar grid */}
         <div className="flex-1 grid grid-cols-7 grid-rows-6">
           {days.map((date, index) => {
             if (!date) return <div key={index} />;
@@ -422,13 +620,14 @@ export default function CalendarLensPage() {
                         setSelectedEvent(event);
                         setShowEventModal(true);
                       }}
-                      className="w-full text-left px-1.5 py-0.5 rounded text-xs truncate font-medium transition-colors hover:opacity-80"
+                      className="w-full text-left px-1.5 py-0.5 rounded text-xs truncate font-medium transition-colors hover:opacity-80 flex items-center gap-1"
                       style={{ backgroundColor: event.color + '30', color: event.color }}
                     >
+                      <CategoryIcon type={event.eventType} className="w-3 h-3 flex-shrink-0" />
                       {!event.allDay && (
                         <span className="opacity-70">{formatTime(new Date(event.startDate))} </span>
                       )}
-                      {event.title}
+                      <span className="truncate">{event.title}</span>
                     </button>
                   ))}
                 </div>
@@ -446,7 +645,6 @@ export default function CalendarLensPage() {
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex border-b border-lattice-border">
           <div className="w-16 flex-shrink-0" />
           {weekDates.map((date, i) => (
@@ -458,19 +656,13 @@ export default function CalendarLensPage() {
               )}
             >
               <p className="text-xs text-gray-400">{DAY_NAMES[i]}</p>
-              <p
-                className={cn(
-                  'text-lg font-semibold',
-                  isToday(date) && 'text-neon-blue'
-                )}
-              >
+              <p className={cn('text-lg font-semibold', isToday(date) && 'text-neon-blue')}>
                 {date.getDate()}
               </p>
             </div>
           ))}
         </div>
 
-        {/* All-day events */}
         <div className="flex border-b border-lattice-border min-h-[40px]">
           <div className="w-16 flex-shrink-0 flex items-center justify-center text-xs text-gray-400">
             All day
@@ -486,9 +678,10 @@ export default function CalendarLensPage() {
                       setSelectedEvent(event);
                       setShowEventModal(true);
                     }}
-                    className="w-full text-left px-2 py-1 rounded text-xs font-medium truncate"
+                    className="w-full text-left px-2 py-1 rounded text-xs font-medium truncate flex items-center gap-1"
                     style={{ backgroundColor: event.color + '30', color: event.color }}
                   >
+                    <CategoryIcon type={event.eventType} className="w-3 h-3 flex-shrink-0" />
                     {event.title}
                   </button>
                 ))}
@@ -497,7 +690,6 @@ export default function CalendarLensPage() {
           })}
         </div>
 
-        {/* Time grid */}
         <div className="flex-1 overflow-y-auto">
           <div className="relative">
             {hours.map((hour) => (
@@ -544,7 +736,10 @@ export default function CalendarLensPage() {
                               borderLeft: `3px solid ${event.color}`,
                             }}
                           >
-                            <p className="font-semibold truncate">{event.title}</p>
+                            <p className="font-semibold truncate flex items-center gap-1">
+                              <CategoryIcon type={event.eventType} className="w-3 h-3" />
+                              {event.title}
+                            </p>
                             <p className="opacity-70 text-[10px]">{formatTime(start)}</p>
                           </button>
                         );
@@ -567,7 +762,6 @@ export default function CalendarLensPage() {
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="py-4 text-center border-b border-lattice-border">
           <p className="text-sm text-gray-400">{DAY_NAMES_FULL[selectedDate.getDay()]}</p>
           <p className={cn('text-3xl font-bold', isToday(selectedDate) && 'text-neon-blue')}>
@@ -578,7 +772,6 @@ export default function CalendarLensPage() {
           </p>
         </div>
 
-        {/* All-day events */}
         {allDayEvents.length > 0 && (
           <div className="border-b border-lattice-border p-2 space-y-1">
             <p className="text-xs text-gray-400 mb-1">All day</p>
@@ -589,16 +782,16 @@ export default function CalendarLensPage() {
                   setSelectedEvent(event);
                   setShowEventModal(true);
                 }}
-                className="w-full text-left px-3 py-2 rounded font-medium"
+                className="w-full text-left px-3 py-2 rounded font-medium flex items-center gap-2"
                 style={{ backgroundColor: event.color + '30', color: event.color }}
               >
+                <CategoryIcon type={event.eventType} className="w-4 h-4" />
                 {event.title}
               </button>
             ))}
           </div>
         )}
 
-        {/* Time grid */}
         <div className="flex-1 overflow-y-auto">
           {hours.map((hour) => {
             const hourEvents = getEventsForHour(selectedDate, hour);
@@ -643,7 +836,10 @@ export default function CalendarLensPage() {
                           borderLeft: `4px solid ${event.color}`,
                         }}
                       >
-                        <p className="font-semibold">{event.title}</p>
+                        <p className="font-semibold flex items-center gap-1">
+                          <CategoryIcon type={event.eventType} className="w-4 h-4" />
+                          {event.title}
+                        </p>
                         <p className="text-xs opacity-70">
                           {formatDateRange(start, end, event.allDay)}
                         </p>
@@ -665,6 +861,89 @@ export default function CalendarLensPage() {
     );
   };
 
+  const renderReleaseTimeline = () => {
+    const releaseEvents = events
+      .filter((e) => e.eventType === 'release' && new Date(e.startDate) >= new Date())
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      .slice(0, 6);
+
+    if (releaseEvents.length === 0) return null;
+
+    return (
+      <div className="border-t border-lattice-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Rocket className="w-5 h-5 text-neon-cyan" />
+          <h3 className="text-lg font-semibold text-neon-cyan">Upcoming Releases</h3>
+        </div>
+
+        <div className="relative">
+          <div className="absolute top-8 left-0 right-0 h-0.5 bg-lattice-border" />
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {releaseEvents.map((event) => {
+              const daysLeft = getDaysUntil(new Date(event.startDate));
+              return (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex-shrink-0 w-48"
+                >
+                  <div className="flex flex-col items-center">
+                    <div className="w-4 h-4 rounded-full bg-neon-cyan border-2 border-lattice-surface z-10 mb-3" />
+                    <div
+                      className="w-full rounded-lg border border-lattice-border p-3 bg-lattice-elevated hover:border-neon-cyan/40 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setShowEventModal(true);
+                      }}
+                    >
+                      {/* Artwork placeholder */}
+                      <div
+                        className="w-full h-20 rounded-md mb-2 flex items-center justify-center"
+                        style={{
+                          background: `linear-gradient(135deg, ${event.artworkColor || event.color}40, ${event.color}20)`,
+                        }}
+                      >
+                        <Disc3 className="w-8 h-8" style={{ color: event.artworkColor || event.color }} />
+                      </div>
+                      <p className="font-semibold text-sm truncate">{event.title}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                      {/* Platform icons */}
+                      {event.platforms && event.platforms.length > 0 && (
+                        <div className="flex items-center gap-1 mt-2 flex-wrap">
+                          {event.platforms.map((p) => (
+                            <span
+                              key={p}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-lattice-deep text-gray-400"
+                            >
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Countdown */}
+                      <div className="mt-2 flex items-center gap-1">
+                        <Timer className="w-3 h-3 text-neon-cyan" />
+                        <span className={cn(
+                          'text-xs font-semibold',
+                          daysLeft <= 3 ? 'text-red-400' : daysLeft <= 7 ? 'text-yellow-400' : 'text-neon-cyan'
+                        )}>
+                          {daysLeft <= 0 ? 'Today!' : `${daysLeft}d left`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAgendaView = () => {
     const upcomingEvents = events
       .filter((e) => new Date(e.startDate) >= new Date())
@@ -679,74 +958,91 @@ export default function CalendarLensPage() {
     });
 
     return (
-      <div className="flex-1 overflow-y-auto p-4">
-        {Object.entries(groupedEvents).map(([dateKey, dayEvents]) => {
-          const date = new Date(dateKey);
-          return (
-            <div key={dateKey} className="mb-6">
-              <div className="flex items-center gap-4 mb-3">
-                <div
-                  className={cn(
-                    'w-12 h-12 rounded-lg flex flex-col items-center justify-center',
-                    isToday(date) ? 'bg-neon-blue text-white' : 'bg-lattice-elevated'
-                  )}
-                >
-                  <span className="text-xs">{DAY_NAMES[date.getDay()]}</span>
-                  <span className="text-lg font-bold">{date.getDate()}</span>
-                </div>
-                <div>
-                  <p className="font-semibold">{DAY_NAMES_FULL[date.getDay()]}</p>
-                  <p className="text-sm text-gray-400">
-                    {MONTH_NAMES[date.getMonth()]} {date.getFullYear()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 ml-16">
-                {dayEvents.map((event) => (
-                  <button
-                    key={event.id}
-                    onClick={() => {
-                      setSelectedEvent(event);
-                      setShowEventModal(true);
-                    }}
-                    className="w-full text-left p-3 rounded-lg hover:bg-lattice-elevated transition-colors"
-                    style={{ borderLeft: `4px solid ${event.color}` }}
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="flex-1 p-4">
+          {Object.entries(groupedEvents).map(([dateKey, dayEvents]) => {
+            const date = new Date(dateKey);
+            return (
+              <div key={dateKey} className="mb-6">
+                <div className="flex items-center gap-4 mb-3">
+                  <div
+                    className={cn(
+                      'w-12 h-12 rounded-lg flex flex-col items-center justify-center',
+                      isToday(date) ? 'bg-neon-blue text-white' : 'bg-lattice-elevated'
+                    )}
                   >
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">{event.title}</h4>
-                      <span className="text-sm text-gray-400">
-                        {formatDateRange(new Date(event.startDate), new Date(event.endDate), event.allDay)}
-                      </span>
-                    </div>
-                    {event.location && (
-                      <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3" />
-                        {event.location}
-                      </p>
-                    )}
-                    {event.description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{event.description}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                    <span className="text-xs">{DAY_NAMES[date.getDay()]}</span>
+                    <span className="text-lg font-bold">{date.getDate()}</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold">{DAY_NAMES_FULL[date.getDay()]}</p>
+                    <p className="text-sm text-gray-400">
+                      {MONTH_NAMES[date.getMonth()]} {date.getFullYear()}
+                    </p>
+                  </div>
+                </div>
 
-        {upcomingEvents.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-            <CalendarIcon className="w-16 h-16 mb-4 opacity-30" />
-            <p>No upcoming events</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="mt-4 btn-neon"
-            >
-              Create Event
-            </button>
-          </div>
-        )}
+                <div className="space-y-2 ml-16">
+                  {dayEvents.map((event) => (
+                    <button
+                      key={event.id}
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setShowEventModal(true);
+                      }}
+                      className="w-full text-left p-3 rounded-lg hover:bg-lattice-elevated transition-colors"
+                      style={{ borderLeft: `4px solid ${event.color}` }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <CategoryIcon type={event.eventType} className="w-4 h-4" />
+                          {event.title}
+                        </h4>
+                        <span className="text-sm text-gray-400">
+                          {formatDateRange(new Date(event.startDate), new Date(event.endDate), event.allDay)}
+                        </span>
+                      </div>
+                      {event.location && (
+                        <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
+                          <MapPin className="w-3 h-3" />
+                          {event.location}
+                        </p>
+                      )}
+                      {event.collaborators && event.collaborators.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {event.collaborators.map((c) => (
+                            <span key={c} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {event.description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{event.description}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {upcomingEvents.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+              <Music className="w-16 h-16 mb-4 opacity-30" />
+              <p>No upcoming events</p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="mt-4 btn-neon"
+              >
+                Schedule Something
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Release Timeline */}
+        {renderReleaseTimeline()}
       </div>
     );
   };
@@ -825,12 +1121,12 @@ export default function CalendarLensPage() {
               className="w-full btn-neon flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Create Event
+              Schedule Event
             </button>
 
             {/* Categories */}
             <div>
-              <h4 className="text-sm font-medium mb-3">Calendars</h4>
+              <h4 className="text-sm font-medium mb-3">Categories</h4>
               <div className="space-y-2">
                 {categories.map((category) => (
                   <button
@@ -847,6 +1143,10 @@ export default function CalendarLensPage() {
                     >
                       {category.visible && <Check className="w-3 h-3 text-white" />}
                     </div>
+                    <CategoryIcon
+                      type={category.icon}
+                      className={cn('w-4 h-4', !category.visible && 'text-gray-500')}
+                    />
                     <span className={cn('text-sm', !category.visible && 'text-gray-500')}>
                       {category.name}
                     </span>
@@ -872,7 +1172,10 @@ export default function CalendarLensPage() {
                       className="w-full text-left p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
                       style={{ borderLeft: `3px solid ${event.color}` }}
                     >
-                      <p className="text-sm font-medium">{event.title}</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        <CategoryIcon type={event.eventType} className="w-3 h-3" />
+                        {event.title}
+                      </p>
                       <p className="text-xs text-gray-400">
                         {formatDateRange(new Date(event.startDate), new Date(event.endDate), event.allDay)}
                       </p>
@@ -888,6 +1191,10 @@ export default function CalendarLensPage() {
       )}
     </AnimatePresence>
   );
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -932,12 +1239,11 @@ export default function CalendarLensPage() {
             {viewMode === 'month' && `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
             {viewMode === 'week' && `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
             {viewMode === 'day' && selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            {viewMode === 'agenda' && 'Agenda'}
+            {viewMode === 'agenda' && 'Release Schedule'}
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View mode selector */}
           <div className="flex items-center bg-lattice-deep rounded-lg p-1">
             {(['day', 'week', 'month', 'agenda'] as ViewMode[]).map((mode) => (
               <button
@@ -967,16 +1273,28 @@ export default function CalendarLensPage() {
       <div className="flex-1 flex overflow-hidden">
         {renderSidebar()}
 
-        {/* Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-lattice-deep">
+        <main className="flex-1 flex flex-col overflow-hidden bg-lattice-deep relative">
           {viewMode === 'month' && renderMonthView()}
           {viewMode === 'week' && renderWeekView()}
           {viewMode === 'day' && renderDayView()}
           {viewMode === 'agenda' && renderAgendaView()}
+
+          {/* Book Studio Time floating button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowBookingModal(true)}
+            className="absolute bottom-6 right-6 flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-shadow z-20"
+          >
+            <Headphones className="w-5 h-5" />
+            Book Studio Time
+          </motion.button>
         </main>
       </div>
 
-      {/* Event detail modal */}
+      {/* ----------------------------------------------------------------- */}
+      {/* Event detail modal                                                */}
+      {/* ----------------------------------------------------------------- */}
       <AnimatePresence>
         {showEventModal && selectedEvent && (
           <motion.div
@@ -996,10 +1314,17 @@ export default function CalendarLensPage() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: selectedEvent.color }}
-                  />
-                  <h2 className="text-xl font-bold">{selectedEvent.title}</h2>
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: selectedEvent.color + '30' }}
+                  >
+                    <CategoryIcon type={selectedEvent.eventType} className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{selectedEvent.title}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: selectedEvent.color + '20', color: selectedEvent.color }}>
+                      {EVENT_TYPE_META[selectedEvent.eventType]?.label}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button className="p-2 rounded-lg hover:bg-lattice-elevated text-gray-400">
@@ -1026,18 +1351,11 @@ export default function CalendarLensPage() {
                   <div>
                     <p>
                       {new Date(selectedEvent.startDate).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'long',
-                        day: 'numeric',
-                        year: 'numeric',
+                        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
                       })}
                     </p>
                     <p className="text-sm">
-                      {formatDateRange(
-                        new Date(selectedEvent.startDate),
-                        new Date(selectedEvent.endDate),
-                        selectedEvent.allDay
-                      )}
+                      {formatDateRange(new Date(selectedEvent.startDate), new Date(selectedEvent.endDate), selectedEvent.allDay)}
                     </p>
                   </div>
                 </div>
@@ -1053,8 +1371,37 @@ export default function CalendarLensPage() {
                   <div className="flex items-center gap-3 text-gray-400">
                     <Video className="w-5 h-5" />
                     <a href={selectedEvent.url} className="text-neon-cyan hover:underline">
-                      Join meeting
+                      Join session
                     </a>
+                  </div>
+                )}
+
+                {selectedEvent.linkedProject && (
+                  <div className="flex items-center gap-3 text-gray-400">
+                    <Music className="w-5 h-5" />
+                    <span>Project: <span className="text-neon-cyan">{selectedEvent.linkedProject}</span></span>
+                  </div>
+                )}
+
+                {selectedEvent.platforms && selectedEvent.platforms.length > 0 && (
+                  <div className="flex items-center gap-3 text-gray-400">
+                    <Play className="w-5 h-5" />
+                    <div className="flex flex-wrap gap-1">
+                      {selectedEvent.platforms.map((p) => (
+                        <span key={p} className="text-xs px-2 py-0.5 rounded-full bg-lattice-elevated text-gray-300">{p}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedEvent.collaborators && selectedEvent.collaborators.length > 0 && (
+                  <div className="flex items-center gap-3 text-gray-400">
+                    <Users className="w-5 h-5" />
+                    <div className="flex flex-wrap gap-1">
+                      {selectedEvent.collaborators.map((c) => (
+                        <span key={c} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">{c}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1077,41 +1424,17 @@ export default function CalendarLensPage() {
                   </div>
                 )}
 
-                {selectedEvent.attendees && selectedEvent.attendees.length > 0 && (
-                  <div className="flex items-start gap-3 text-gray-400">
-                    <Users className="w-5 h-5 mt-0.5" />
-                    <div className="space-y-1">
-                      {selectedEvent.attendees.map((attendee) => (
-                        <div key={attendee.id} className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500" />
-                          <span className="text-sm">{attendee.name}</span>
-                          <span
-                            className={cn(
-                              'text-xs px-2 py-0.5 rounded',
-                              attendee.status === 'accepted' && 'bg-green-500/20 text-green-400',
-                              attendee.status === 'declined' && 'bg-red-500/20 text-red-400',
-                              attendee.status === 'pending' && 'bg-yellow-500/20 text-yellow-400'
-                            )}
-                          >
-                            {attendee.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {selectedEvent.description && (
                   <div className="pt-4 border-t border-lattice-border">
                     <p className="text-gray-300">{selectedEvent.description}</p>
                   </div>
                 )}
 
-                {selectedEvent.dtuId && (
+                {selectedEvent.eventType === 'release' && (
                   <div className="pt-4 border-t border-lattice-border">
                     <button className="flex items-center gap-2 text-neon-cyan hover:underline">
                       <ExternalLink className="w-4 h-4" />
-                      View linked DTU
+                      Open release dashboard
                     </button>
                   </div>
                 )}
@@ -1121,7 +1444,9 @@ export default function CalendarLensPage() {
         )}
       </AnimatePresence>
 
-      {/* Create event modal */}
+      {/* ----------------------------------------------------------------- */}
+      {/* Create event modal                                                */}
+      {/* ----------------------------------------------------------------- */}
       <AnimatePresence>
         {showCreateModal && (
           <motion.div
@@ -1135,11 +1460,11 @@ export default function CalendarLensPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-lattice-surface border border-lattice-border rounded-xl p-6 max-w-lg w-full"
+              className="bg-lattice-surface border border-lattice-border rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Create Event</h2>
+                <h2 className="text-xl font-bold">Schedule Event</h2>
                 <button
                   onClick={() => setShowCreateModal(false)}
                   className="p-2 rounded-lg hover:bg-lattice-elevated text-gray-400"
@@ -1149,6 +1474,33 @@ export default function CalendarLensPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Event type selector */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Event Type</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(Object.keys(EVENT_TYPE_META) as EventType[]).map((type) => {
+                      const meta = EVENT_TYPE_META[type];
+                      const isActive = newEvent.eventType === type;
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => handleEventTypeChange(type)}
+                          className={cn(
+                            'flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors text-xs',
+                            isActive
+                              ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                              : 'border-lattice-border hover:border-gray-500 text-gray-400'
+                          )}
+                        >
+                          <CategoryIcon type={type} className="w-4 h-4" />
+                          <span>{meta.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Title */}
                 <div>
                   <input
                     type="text"
@@ -1159,6 +1511,7 @@ export default function CalendarLensPage() {
                   />
                 </div>
 
+                {/* All day toggle */}
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1171,6 +1524,7 @@ export default function CalendarLensPage() {
                   </label>
                 </div>
 
+                {/* Date/time */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Start</label>
@@ -1192,21 +1546,84 @@ export default function CalendarLensPage() {
                   </div>
                 </div>
 
+                {/* Link to Project */}
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Category</label>
+                  <label className="text-xs text-gray-400 mb-1 block">Link to Project (optional)</label>
                   <select
-                    value={newEvent.category}
-                    onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value })}
+                    value={newEvent.linkedProject || ''}
+                    onChange={(e) => setNewEvent({ ...newEvent, linkedProject: e.target.value })}
                     className="w-full bg-lattice-deep rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan"
                   >
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name}>
-                        {cat.name}
-                      </option>
+                    <option value="">None</option>
+                    {MOCK_PROJECTS.map((proj) => (
+                      <option key={proj} value={proj}>{proj}</option>
                     ))}
                   </select>
                 </div>
 
+                {/* Platform selector (shown for release & marketing types) */}
+                {(newEvent.eventType === 'release' || newEvent.eventType === 'marketing') && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-2 block">Platforms</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PLATFORMS.map((platform) => {
+                        const isSelected = (newEvent.platforms || []).includes(platform);
+                        return (
+                          <button
+                            key={platform}
+                            onClick={() => handleTogglePlatform(platform)}
+                            className={cn(
+                              'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                              isSelected
+                                ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                                : 'border-lattice-border text-gray-400 hover:border-gray-500'
+                            )}
+                          >
+                            {platform}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Collaborator tags */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Collaborators (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={collaboratorInput}
+                        onChange={(e) => setCollaboratorInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCollaborator(); } }}
+                        placeholder="@username"
+                        className="w-full bg-lattice-deep rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan"
+                      />
+                    </div>
+                    <button
+                      onClick={handleAddCollaborator}
+                      className="px-3 py-2 rounded-lg border border-lattice-border hover:bg-lattice-elevated text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {(newEvent.collaborators || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {(newEvent.collaborators || []).map((c) => (
+                        <span key={c} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-400">
+                          {c}
+                          <button onClick={() => handleRemoveCollaborator(c)} className="hover:text-white">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Color */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Color</label>
                   <div className="flex items-center gap-2">
@@ -1224,6 +1641,34 @@ export default function CalendarLensPage() {
                   </div>
                 </div>
 
+                {/* Auto-reminders */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Reminders</label>
+                  <div className="flex flex-wrap gap-2">
+                    {REMINDER_OPTIONS.map((opt) => {
+                      const isSelected = (newEvent.reminders || []).some(
+                        (r) => r.time === opt.time && r.unit === opt.unit
+                      );
+                      return (
+                        <button
+                          key={opt.label}
+                          onClick={() => handleToggleReminder({ time: opt.time, unit: opt.unit })}
+                          className={cn(
+                            'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                            isSelected
+                              ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                              : 'border-lattice-border text-gray-400 hover:border-gray-500'
+                          )}
+                        >
+                          <Bell className="w-3 h-3 inline mr-1" />
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Location */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Location (optional)</label>
                   <div className="relative">
@@ -1232,23 +1677,25 @@ export default function CalendarLensPage() {
                       type="text"
                       value={newEvent.location || ''}
                       onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                      placeholder="Add location"
+                      placeholder="Studio name or address"
                       className="w-full bg-lattice-deep rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan"
                     />
                   </div>
                 </div>
 
+                {/* Description */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Description (optional)</label>
                   <textarea
                     value={newEvent.description || ''}
                     onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                    placeholder="Add description"
+                    placeholder="Add notes, BPM, key, stems info..."
                     rows={3}
                     className="w-full bg-lattice-deep rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan resize-none"
                   />
                 </div>
 
+                {/* Actions */}
                 <div className="flex items-center gap-3 pt-4">
                   <button
                     onClick={() => setShowCreateModal(false)}
@@ -1261,7 +1708,150 @@ export default function CalendarLensPage() {
                     disabled={!newEvent.title}
                     className="flex-1 py-2 rounded-lg bg-neon-cyan text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create
+                    Schedule
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Quick Book Studio Time modal                                      */}
+      {/* ----------------------------------------------------------------- */}
+      <AnimatePresence>
+        {showBookingModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowBookingModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-lattice-surface border border-lattice-border rounded-xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                    <Headphones className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <h2 className="text-xl font-bold">Book Studio Time</h2>
+                </div>
+                <button
+                  onClick={() => setShowBookingModal(false)}
+                  className="p-2 rounded-lg hover:bg-lattice-elevated text-gray-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Session type */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Session Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SESSION_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setBookSession({ ...bookSession, sessionType: type })}
+                        className={cn(
+                          'px-3 py-2 rounded-lg border text-sm transition-colors text-left',
+                          bookSession.sessionType === type
+                            ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                            : 'border-lattice-border text-gray-400 hover:border-gray-500'
+                        )}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Date</label>
+                  <input
+                    type="date"
+                    value={bookSession.date.toISOString().slice(0, 10)}
+                    onChange={(e) => setBookSession({ ...bookSession, date: new Date(e.target.value) })}
+                    className="w-full bg-lattice-deep rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan"
+                  />
+                </div>
+
+                {/* Time slot */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Start Time</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((hour) => (
+                      <button
+                        key={hour}
+                        onClick={() => setBookSession({ ...bookSession, hour })}
+                        className={cn(
+                          'px-2 py-1.5 rounded-lg border text-xs transition-colors',
+                          bookSession.hour === hour
+                            ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                            : 'border-lattice-border text-gray-400 hover:border-gray-500'
+                        )}
+                      >
+                        {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Duration</label>
+                  <div className="flex gap-2">
+                    {SESSION_DURATIONS.map((dur) => (
+                      <button
+                        key={dur}
+                        onClick={() => setBookSession({ ...bookSession, duration: dur })}
+                        className={cn(
+                          'flex-1 px-3 py-2 rounded-lg border text-sm transition-colors',
+                          bookSession.duration === dur
+                            ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                            : 'border-lattice-border text-gray-400 hover:border-gray-500'
+                        )}
+                      >
+                        {dur}h
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="p-3 rounded-lg bg-lattice-deep border border-lattice-border">
+                  <p className="text-sm text-gray-400">Session summary</p>
+                  <p className="font-semibold mt-1">{bookSession.sessionType}</p>
+                  <p className="text-sm text-gray-300">
+                    {bookSession.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {' at '}
+                    {bookSession.hour === 0 ? '12 AM' : bookSession.hour < 12 ? `${bookSession.hour} AM` : bookSession.hour === 12 ? '12 PM' : `${bookSession.hour - 12} PM`}
+                    {' for '}
+                    {bookSession.duration}h
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={() => setShowBookingModal(false)}
+                    className="flex-1 py-2 rounded-lg border border-lattice-border hover:bg-lattice-elevated transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBookSession}
+                    className="flex-1 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold"
+                  >
+                    Book Session
                   </button>
                 </div>
               </div>
