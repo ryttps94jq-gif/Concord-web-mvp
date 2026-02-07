@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { FileSearch, AlertTriangle, Check, X, Filter, Clock, Eye } from 'lucide-react';
+import { FileSearch, AlertTriangle, Check, X, Eye } from 'lucide-react';
 
 interface AuditEntry {
   id: string;
@@ -28,7 +28,7 @@ export default function AuditLensPage() {
   });
 
   // Transform events to audit entries
-  const auditEntries: AuditEntry[] = (events?.events || []).slice(0, 100).map((e: any) => ({
+  const auditEntries: AuditEntry[] = (events?.events || []).slice(0, 100).map((e: Record<string, unknown>) => ({
     id: e.id,
     type: e.type?.includes('dtu') ? 'dtu' : e.type?.includes('tick') ? 'tick' : 'terminal',
     action: e.type || 'unknown',

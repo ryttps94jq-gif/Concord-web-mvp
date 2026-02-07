@@ -53,7 +53,7 @@ export default function MarketLensPage() {
               No listings yet. Create the first marketplace listing!
             </p>
           ) : (
-            listings?.listings?.map((listing: any) => (
+            listings?.listings?.map((listing: Record<string, unknown>) => (
               <MarketEmpireListing key={listing.id} listing={listing} />
             ))
           )}

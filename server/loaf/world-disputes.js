@@ -229,13 +229,13 @@ function detectContradiction(claimA, claimB) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.worldDisputes = {
     stats: { disputesCreated: 0, disputesResolved: 0, itemsQuarantined: 0, itemsReleased: 0, contradictionsDetected: 0 },
   };
 
-  register("loaf.world", "disputes_status", async (ctx) => {
+  register("loaf.world", "disputes_status", (ctx) => {
     const wd = ctx.state.__loaf.worldDisputes;
     return {
       ok: true,
@@ -246,25 +246,25 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.world", "create_dispute", async (ctx, input = {}) => {
+  register("loaf.world", "create_dispute", (ctx, input = {}) => {
     const wd = ctx.state.__loaf.worldDisputes;
     const result = createDispute(input.claims, input.evidence, input.context);
     if (result.ok) wd.stats.disputesCreated++;
     return result;
   }, { public: false });
 
-  register("loaf.world", "add_evidence", async (ctx, input = {}) => {
+  register("loaf.world", "add_evidence", (_ctx, input = {}) => {
     return addEvidence(String(input.disputeId || ""), input.evidence);
   }, { public: false });
 
-  register("loaf.world", "resolve_dispute", async (ctx, input = {}) => {
+  register("loaf.world", "resolve_dispute", (ctx, input = {}) => {
     const wd = ctx.state.__loaf.worldDisputes;
     const result = resolveDispute(String(input.disputeId || ""), input.resolution || {}, ctx.actor);
     if (result.ok) wd.stats.disputesResolved++;
     return result;
   }, { public: false });
 
-  register("loaf.world", "list_disputes", async (ctx, input = {}) => {
+  register("loaf.world", "list_disputes", (_ctx, input = {}) => {
     const status = input.status || null;
     let list = Array.from(disputes.values());
     if (status) list = list.filter(d => d.status === status);
@@ -272,7 +272,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, disputes: list };
   }, { public: true });
 
-  register("loaf.world", "validate_provenance", async (ctx, input = {}) => {
+  register("loaf.world", "validate_provenance", (ctx, input = {}) => {
     const result = validateProvenance(input.item || input);
     if (!result.valid && input.item?.id) {
       const wd = ctx.state.__loaf.worldDisputes;
@@ -282,21 +282,21 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.world", "list_quarantine", async (ctx) => {
+  register("loaf.world", "list_quarantine", (_ctx) => {
     const items = Array.from(quarantine.entries()).map(([id, q]) => ({
       id, reason: q.reason, quarantinedAt: q.quarantinedAt,
     }));
     return { ok: true, items };
   }, { public: true });
 
-  register("loaf.world", "release_quarantine", async (ctx, input = {}) => {
+  register("loaf.world", "release_quarantine", (ctx, input = {}) => {
     const wd = ctx.state.__loaf.worldDisputes;
     const result = releaseFromQuarantine(String(input.itemId || ""), input.provenance);
     if (result.ok) wd.stats.itemsReleased++;
     return result;
   }, { public: false });
 
-  register("loaf.world", "detect_contradiction", async (ctx, input = {}) => {
+  register("loaf.world", "detect_contradiction", (ctx, input = {}) => {
     const wd = ctx.state.__loaf.worldDisputes;
     const result = detectContradiction(input.claimA || "", input.claimB || "");
     if (result.isContradiction) wd.stats.contradictionsDetected++;

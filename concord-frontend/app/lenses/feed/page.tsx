@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart,
   MessageCircle,
@@ -15,7 +14,6 @@ import {
   Image as ImageIcon,
   Smile,
   MapPin,
-  Calendar,
   BarChart3,
   Verified,
   Home,
@@ -23,8 +21,7 @@ import {
   Bell,
   Mail,
   User,
-  Sparkles,
-  TrendingUp
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -68,7 +65,7 @@ export default function FeedLensPage() {
   const { data: feedPosts, isLoading } = useQuery({
     queryKey: ['feed-posts', activeTab],
     queryFn: () => api.get('/api/dtus', { params: { limit: 50 } }).then(r =>
-      r.data?.dtus?.map((dtu: any) => ({
+      r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
         id: dtu.id,
         author: {
           id: dtu.authorId || 'user',
@@ -93,7 +90,7 @@ export default function FeedLensPage() {
   const { data: trending } = useQuery({
     queryKey: ['trending'],
     queryFn: () => api.get('/api/tags').then(r =>
-      r.data?.tags?.slice(0, 5).map((tag: string, i: number) => ({
+      r.data?.tags?.slice(0, 5).map((tag: string, _i: number) => ({
         id: tag,
         category: 'Trending in Lattice',
         topic: `#${tag}`,
@@ -175,7 +172,7 @@ export default function FeedLensPage() {
             {['for-you', 'following'].map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => setActiveTab(tab as typeof activeTab)}
                 className={cn(
                   'flex-1 py-4 text-sm font-medium transition-colors relative',
                   activeTab === tab ? 'text-white' : 'text-gray-500 hover:bg-gray-900'

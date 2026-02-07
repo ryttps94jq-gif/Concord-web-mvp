@@ -552,82 +552,82 @@ function addRedundancy(knowledgeId, replicaLocation) {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "register_knowledge", async (ctx) => {
+  register("loaf", "register_knowledge", (ctx) => {
     const { content, priority, metadata } = ctx.args || {};
     return registerKnowledge(content, priority || SURVIVAL_PRIORITY.MEDIUM, metadata);
   }, { public: true });
 
-  register("loaf", "verify_knowledge_integrity", async (ctx) => {
+  register("loaf", "verify_knowledge_integrity", (ctx) => {
     return verifyIntegrity(ctx.args?.knowledgeId);
   }, { public: true });
 
-  register("loaf", "access_knowledge", async (ctx) => {
+  register("loaf", "access_knowledge", (ctx) => {
     return accessKnowledge(ctx.args?.knowledgeId);
   }, { public: true });
 
-  register("loaf", "identify_at_risk", async (ctx) => {
+  register("loaf", "identify_at_risk", (_ctx) => {
     return identifyAtRisk();
   }, { public: true });
 
-  register("loaf", "detect_dead_knowledge", async (ctx) => {
+  register("loaf", "detect_dead_knowledge", (ctx) => {
     return detectDeadKnowledge(ctx.args?.thresholdDays);
   }, { public: true });
 
-  register("loaf", "archive_knowledge", async (ctx) => {
+  register("loaf", "archive_knowledge", (ctx) => {
     const { knowledgeId, reason } = ctx.args || {};
     return archiveKnowledge(knowledgeId, reason);
   }, { public: true });
 
-  register("loaf", "create_canon", async (ctx) => {
+  register("loaf", "create_canon", (ctx) => {
     const { name, knowledgeIds, survivalStrategy } = ctx.args || {};
     return createCanon(name, knowledgeIds || [], survivalStrategy);
   }, { public: true });
 
-  register("loaf", "verify_canon", async (ctx) => {
+  register("loaf", "verify_canon", (ctx) => {
     return verifyCanon(ctx.args?.canonId);
   }, { public: true });
 
-  register("loaf", "create_cold_start_seed", async (ctx) => {
+  register("loaf", "create_cold_start_seed", (ctx) => {
     const { name, knowledgeIds, instructions } = ctx.args || {};
     return createColdStartSeed(name, knowledgeIds || [], instructions);
   }, { public: true });
 
-  register("loaf", "execute_cold_start", async (ctx) => {
+  register("loaf", "execute_cold_start", (ctx) => {
     return executeColdStart(ctx.args?.seedId);
   }, { public: true });
 
-  register("loaf", "identify_minimum_viable", async (ctx) => {
+  register("loaf", "identify_minimum_viable", (_ctx) => {
     return identifyMinimumViable();
   }, { public: true });
 
-  register("loaf", "plan_succession", async (ctx) => {
+  register("loaf", "plan_succession", (ctx) => {
     const { from, to, knowledgeIds, description } = ctx.args || {};
     return planSuccession(from, to, knowledgeIds || [], description);
   }, { public: true });
 
-  register("loaf", "rehearse_succession", async (ctx) => {
+  register("loaf", "rehearse_succession", (ctx) => {
     return rehearseSuccession(ctx.args?.successionId);
   }, { public: true });
 
-  register("loaf", "execute_succession", async (ctx) => {
+  register("loaf", "execute_succession", (ctx) => {
     return executeSuccession(ctx.args?.successionId);
   }, { public: true });
 
-  register("loaf", "register_dependency", async (ctx) => {
+  register("loaf", "register_dependency", (ctx) => {
     const { from, to, type, strength } = ctx.args || {};
     return registerDependency(from, to, type, strength);
   }, { public: true });
 
-  register("loaf", "map_dependencies", async (ctx) => {
+  register("loaf", "map_dependencies", (ctx) => {
     return mapDependencies(ctx.args?.knowledgeId);
   }, { public: true });
 
-  register("loaf", "resurrect_knowledge", async (ctx) => {
+  register("loaf", "resurrect_knowledge", (ctx) => {
     const { knowledgeId, fragments } = ctx.args || {};
     return resurrectKnowledge(knowledgeId, fragments);
   }, { public: true });
 
-  register("loaf", "add_redundancy", async (ctx) => {
+  register("loaf", "add_redundancy", (ctx) => {
     const { knowledgeId, replicaLocation } = ctx.args || {};
     return addRedundancy(knowledgeId, replicaLocation);
   }, { public: true });

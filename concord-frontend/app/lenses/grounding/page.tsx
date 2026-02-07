@@ -5,8 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import {
-  Globe, Activity, Thermometer, Droplets, Eye,
-  BarChart3, RefreshCw
+  Globe,
+  Activity,
+  Thermometer,
+  Droplets,
+  Eye,
+  BarChart3
 } from 'lucide-react';
 
 export default function GroundingLensPage() {
@@ -120,7 +124,7 @@ export default function GroundingLensPage() {
           </h2>
           <select value={sensorId} onChange={(e) => setSensorId(e.target.value)} className="input-lattice w-full">
             <option value="">Select sensor...</option>
-            {Array.isArray(sensorList) && sensorList.map((s: any) => (
+            {Array.isArray(sensorList) && sensorList.map((s: Record<string, unknown>) => (
               <option key={s.id || s} value={s.id || s}>{s.name || s.id || s}</option>
             ))}
           </select>
@@ -161,7 +165,7 @@ export default function GroundingLensPage() {
             <Droplets className="w-4 h-4 text-neon-blue" /> Recent Readings
           </h2>
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {Array.isArray(readingList) && readingList.slice(-20).reverse().map((r: any, i: number) => (
+            {Array.isArray(readingList) && readingList.slice(-20).reverse().map((r: Record<string, unknown>, i: number) => (
               <div key={i} className="lens-card text-xs flex items-center justify-between">
                 <span className="font-mono text-neon-cyan">{r.sensorId || r.sensor}</span>
                 <span>{r.value} {r.unit}</span>

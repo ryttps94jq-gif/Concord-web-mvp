@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState } from 'react';
-import { Heart, Scale, Users, Brain, MessageSquare, Shield } from 'lucide-react';
+import { Heart, Scale, Brain, MessageSquare, Shield } from 'lucide-react';
 
 interface MoralDTU {
   id: string;

@@ -458,7 +458,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.intervention", "status", async (ctx) => {
+  register("loaf.intervention", "status", (ctx) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     return {
       ok: true,
@@ -468,53 +468,53 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.intervention", "define_optimization", async (ctx, input = {}) => {
+  register("loaf.intervention", "define_optimization", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.optimizationsDefined++;
     return defineConstrainedOptimization(input.objective, input.constraints, input.realityBounds);
   }, { public: false });
 
-  register("loaf.intervention", "check_constraints", async (ctx, input = {}) => {
+  register("loaf.intervention", "check_constraints", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.constraintChecks++;
     return checkOptimizationConstraints(String(input.optimizationId || ""), input.currentState);
   }, { public: true });
 
-  register("loaf.intervention", "detect_fragility", async (ctx, input = {}) => {
+  register("loaf.intervention", "detect_fragility", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.fragilityScans++;
     return detectSystemicFragility(input.system || input);
   }, { public: true });
 
-  register("loaf.intervention", "map_leverage_point", async (ctx, input = {}) => {
+  register("loaf.intervention", "map_leverage_point", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.leveragePointsMapped++;
     return mapLeveragePoint(input.description, input.leverage, input.risk, input.domain);
   }, { public: false });
 
-  register("loaf.intervention", "find_optimal_interventions", async (ctx, input = {}) => {
+  register("loaf.intervention", "find_optimal_interventions", (_ctx, input = {}) => {
     return findOptimalInterventions(input.minLeverage, input.maxRisk);
   }, { public: true });
 
-  register("loaf.intervention", "detect_cascade", async (ctx, input = {}) => {
+  register("loaf.intervention", "detect_cascade", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.cascadeChecks++;
     return detectOptimizationCascade(input.metrics || []);
   }, { public: true });
 
-  register("loaf.intervention", "evaluate_do_no_harm", async (ctx, input = {}) => {
+  register("loaf.intervention", "evaluate_do_no_harm", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.doNoHarmChecks++;
     return evaluateDoNoHarm(input.action || input, input.context);
   }, { public: true });
 
-  register("loaf.intervention", "check_separation", async (ctx, input = {}) => {
+  register("loaf.intervention", "check_separation", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.separationChecks++;
     return evaluateIntelligencePowerSeparation(input.capabilities, input.authorities);
   }, { public: true });
 
-  register("loaf.intervention", "plan_stable_intervention", async (ctx, input = {}) => {
+  register("loaf.intervention", "plan_stable_intervention", (ctx, input = {}) => {
     const ig = ctx.state.__loaf.interventionGovernance;
     ig.stats.stabilityPlans++;
     return planStabilityFirstIntervention(

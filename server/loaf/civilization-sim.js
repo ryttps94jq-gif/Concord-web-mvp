@@ -501,7 +501,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.civilization", "status", async (ctx) => {
+  register("loaf.civilization", "status", (ctx) => {
     const cs = ctx.state.__loaf.civilizationSim;
     return {
       ok: true,
@@ -513,88 +513,88 @@ function init({ register, STATE }) {
   }, { public: true });
 
   // Simulation operations
-  register("loaf.civilization", "create_simulation", async (ctx, input = {}) => {
+  register("loaf.civilization", "create_simulation", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.simulations++;
     return createSimulation(input.label, input.initialConditions, input.parameters);
   }, { public: false });
 
-  register("loaf.civilization", "step_simulation", async (ctx, input = {}) => {
+  register("loaf.civilization", "step_simulation", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.simSteps++;
     return stepSimulation(String(input.simId || ""), input.event, input.stateTransform);
   }, { public: false });
 
-  register("loaf.civilization", "compare_simulations", async (ctx, input = {}) => {
+  register("loaf.civilization", "compare_simulations", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.simComparisons++;
     return compareSimulations(String(input.simIdA || ""), String(input.simIdB || ""));
   }, { public: true });
 
   // Policy rehearsal operations
-  register("loaf.civilization", "create_rehearsal", async (ctx, input = {}) => {
+  register("loaf.civilization", "create_rehearsal", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.rehearsals++;
     return createRehearsal(input.policy || {}, input.scenarios);
   }, { public: false });
 
-  register("loaf.civilization", "run_rehearsal", async (ctx, input = {}) => {
+  register("loaf.civilization", "run_rehearsal", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.rehearsalRuns++;
     return runRehearsal(String(input.rehearsalId || ""));
   }, { public: false });
 
-  register("loaf.civilization", "deploy_policy", async (ctx, input = {}) => {
+  register("loaf.civilization", "deploy_policy", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.deploys++;
     return deployPolicy(String(input.rehearsalId || ""));
   }, { public: false });
 
-  register("loaf.civilization", "revert_policy", async (ctx, input = {}) => {
+  register("loaf.civilization", "revert_policy", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.reverts++;
     return revertPolicy(String(input.rehearsalId || ""));
   }, { public: false });
 
   // Science programs
-  register("loaf.civilization", "create_science_program", async (ctx, input = {}) => {
+  register("loaf.civilization", "create_science_program", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.sciencePrograms++;
     return createScienceProgram(input.name, input.hypothesis, input.method, input.expectedOutputs);
   }, { public: false });
 
-  register("loaf.civilization", "record_science_run", async (ctx, input = {}) => {
+  register("loaf.civilization", "record_science_run", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.scienceRuns++;
     return recordScienceRun(String(input.programId || ""), input.actualOutputs, input.notes);
   }, { public: false });
 
   // Testable governance
-  register("loaf.civilization", "test_governance", async (ctx, input = {}) => {
+  register("loaf.civilization", "test_governance", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.governanceTests++;
     return testGovernanceRule(input.rules, input.scenario || {});
   }, { public: true });
 
   // Education pipeline
-  register("loaf.civilization", "generate_education_pipeline", async (ctx, input = {}) => {
+  register("loaf.civilization", "generate_education_pipeline", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.educationPipelines++;
     return generateEducationPipeline(input.gaps || [], input.existingKnowledge);
   }, { public: true });
 
   // Missing sciences
-  register("loaf.civilization", "identify_missing_sciences", async (ctx, input = {}) => {
+  register("loaf.civilization", "identify_missing_sciences", (ctx, input = {}) => {
     const cs = ctx.state.__loaf.civilizationSim;
     cs.stats.missingScienceScans++;
     return identifyMissingSciences(input.domains, input.connections);
   }, { public: true });
 
-  register("loaf.civilization", "list_simulations", async (ctx) => {
+  register("loaf.civilization", "list_simulations", (_ctx) => {
     return { ok: true, simulations: Array.from(simulations.values()).map(sanitizeSim) };
   }, { public: true });
 
-  register("loaf.civilization", "list_rehearsals", async (ctx, input = {}) => {
+  register("loaf.civilization", "list_rehearsals", (_ctx, input = {}) => {
     let list = Array.from(rehearsals.values());
     if (input.state) list = list.filter(r => r.state === input.state);
     return { ok: true, rehearsals: list.map(sanitizeRehearsal) };

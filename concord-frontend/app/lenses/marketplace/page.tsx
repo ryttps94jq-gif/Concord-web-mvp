@@ -6,13 +6,37 @@ import { api } from '@/lib/api/client';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Store, Download, Star, Github, Search, Filter, Plus, TrendingUp, Crown, Grid3X3,
-  List, ChevronRight, ExternalLink, Settings, Trash2, RefreshCw, Check, X, Clock,
-  BarChart2, Users, DollarSign, Code, Shield, Package, Heart, Tag, Award, Eye,
-  MessageSquare, ThumbsUp, ThumbsDown, AlertCircle, Zap, Layers, ChevronDown,
-  Upload, Edit, Copy, Share2, Info
+  Store,
+  Download,
+  Star,
+  Github,
+  Search,
+  Plus,
+  TrendingUp,
+  Crown,
+  Grid3X3,
+  List,
+  Settings,
+  Trash2,
+  RefreshCw,
+  Check,
+  X,
+  BarChart2,
+  Users,
+  DollarSign,
+  Code,
+  Shield,
+  Package,
+  Tag,
+  MessageSquare,
+  ThumbsUp,
+  Zap,
+  Layers,
+  Edit,
+  Share2,
+  Info
 } from 'lucide-react';
-import { DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS, type DemoPlugin } from '@/lib/marketplace-demo';
+import { DEMO_PLUGINS, DEMO_FEATURED, DEMO_REVIEWS, type DemoPlugin as _DemoPlugin } from '@/lib/marketplace-demo';
 
 interface Plugin {
   id: string;
@@ -88,7 +112,7 @@ export default function MarketplaceLensPage() {
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
   const [showSubmit, setShowSubmit] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [featuredIndex, _setFeaturedIndex] = useState(0);
 
   // Queries
   const { data: browseData, isLoading } = useQuery({
@@ -167,7 +191,7 @@ export default function MarketplaceLensPage() {
     }
   }, [plugins, category, search, sortBy]);
 
-  const isInstalled = (pluginId: string) => installed.some((p: any) => p.id === pluginId);
+  const isInstalled = (pluginId: string) => installed.some((p: Record<string, unknown>) => p.id === pluginId);
 
   // Auto-rotate featured
   // useEffect(() => {
@@ -251,7 +275,7 @@ export default function MarketplaceLensPage() {
                   animate={{ opacity: 1, x: 0 }}
                   className="grid grid-cols-1 md:grid-cols-3 gap-4"
                 >
-                  {DEMO_FEATURED.map((plugin, i) => (
+                  {DEMO_FEATURED.map((plugin, _i) => (
                     <FeaturedCard
                       key={plugin.id}
                       plugin={plugin}
@@ -538,7 +562,7 @@ function TrendingCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void
   );
 }
 
-function PluginCard({ plugin, isInstalled, onInstall, onClick, installing }: any) {
+function PluginCard({ plugin, isInstalled, onInstall, onClick, installing }: { plugin: Plugin; isInstalled: boolean; onInstall: () => void; onClick: () => void; installing: boolean }) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -600,7 +624,7 @@ function PluginCard({ plugin, isInstalled, onInstall, onClick, installing }: any
   );
 }
 
-function PluginListItem({ plugin, isInstalled, onInstall, onClick }: any) {
+function PluginListItem({ plugin, isInstalled, onInstall, onClick }: { plugin: Plugin; isInstalled: boolean; onInstall: () => void; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
@@ -639,7 +663,7 @@ function PluginListItem({ plugin, isInstalled, onInstall, onClick }: any) {
   );
 }
 
-function InstalledTab({ plugins, onUninstall, onUpdate, onSettings }: any) {
+function InstalledTab({ plugins, onUninstall, onUpdate, onSettings }: { plugins: Plugin[]; onUninstall: (id: string) => void; onUpdate: (id: string) => void; onSettings: (id: string) => void }) {
   if (plugins.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -650,7 +674,7 @@ function InstalledTab({ plugins, onUninstall, onUpdate, onSettings }: any) {
     );
   }
 
-  const withUpdates = plugins.filter((p: any) => p.hasUpdate);
+  const withUpdates = plugins.filter((p: Plugin) => p.hasUpdate);
 
   return (
     <div className="space-y-6">
@@ -667,7 +691,7 @@ function InstalledTab({ plugins, onUninstall, onUpdate, onSettings }: any) {
       )}
 
       <div className="space-y-3">
-        {plugins.map((plugin: any) => (
+        {plugins.map((plugin: Plugin) => (
           <div key={plugin.id} className="panel p-4 flex items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -829,7 +853,7 @@ function CollectionsTab() {
   );
 }
 
-function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, onReview }: any) {
+function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, onReview }: { plugin: Plugin; reviews: Record<string, unknown>[]; isInstalled: boolean; onClose: () => void; onInstall: () => void; onReview: () => void }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'reviews' | 'changelog'>('overview');
 
   return (
@@ -1021,7 +1045,7 @@ function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, o
             <div className="space-y-4">
               {(plugin.changelog || [
                 { version: plugin.version, date: plugin.updatedAt, changes: ['Initial release'] }
-              ]).map((entry: any) => (
+              ]).map((entry: Record<string, unknown>) => (
                 <div key={entry.version} className="p-4 bg-lattice-surface rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="font-mono text-neon-purple">v{entry.version}</span>
@@ -1042,7 +1066,7 @@ function PluginDetailModal({ plugin, reviews, isInstalled, onClose, onInstall, o
   );
 }
 
-function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: any) {
+function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: { onClose: () => void; onSubmit: (data: Record<string, unknown>) => void; categories: string[]; submitting: boolean }) {
   const [form, setForm] = useState({
     name: '',
     githubUrl: '',
@@ -1138,7 +1162,7 @@ function SubmitPluginModal({ onClose, onSubmit, categories, submitting }: any) {
   );
 }
 
-function ReviewModal({ plugin, onClose, onSubmit, submitting }: any) {
+function ReviewModal({ plugin, onClose, onSubmit, submitting }: { plugin: Plugin; onClose: () => void; onSubmit: (data: Record<string, unknown>) => void; submitting: boolean }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 

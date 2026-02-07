@@ -263,47 +263,47 @@ function compileStrategy(task, constraints, availableTools, graph) {
 // Singleton skill graph
 const skillGraph = new SkillGraph();
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.skillGraph = {
     stats: { nodesAdded: 0, edgesAdded: 0, compilations: 0 },
   };
 
-  register("loaf.skillgraph", "status", async (ctx) => {
+  register("loaf.skillgraph", "status", (ctx) => {
     const sg = ctx.state.__loaf.skillGraph;
     return { ok: true, graph: skillGraph.stats(), stats: sg.stats };
   }, { public: true });
 
-  register("loaf.skillgraph", "add_node", async (ctx, input = {}) => {
+  register("loaf.skillgraph", "add_node", (ctx, input = {}) => {
     const sg = ctx.state.__loaf.skillGraph;
     const node = skillGraph.addNode(input.id, input.type, input.name, input.metadata);
     sg.stats.nodesAdded++;
     return { ok: true, node };
   }, { public: false });
 
-  register("loaf.skillgraph", "add_edge", async (ctx, input = {}) => {
+  register("loaf.skillgraph", "add_edge", (ctx, input = {}) => {
     const sg = ctx.state.__loaf.skillGraph;
     const edge = skillGraph.addEdge(input.from, input.to, input.type, input.weight, input.metadata);
     sg.stats.edgesAdded++;
     return { ok: true, edge };
   }, { public: false });
 
-  register("loaf.skillgraph", "find_strategies", async (ctx, input = {}) => {
+  register("loaf.skillgraph", "find_strategies", (_ctx, input = {}) => {
     const strategies = skillGraph.findStrategies(String(input.domainId || ""));
     return { ok: true, strategies };
   }, { public: true });
 
-  register("loaf.skillgraph", "compile", async (ctx, input = {}) => {
+  register("loaf.skillgraph", "compile", (ctx, input = {}) => {
     const sg = ctx.state.__loaf.skillGraph;
     sg.stats.compilations++;
     return compileStrategy(input.task || {}, input.constraints || {}, input.tools || [], skillGraph);
   }, { public: false });
 
-  register("loaf.skillgraph", "export", async (ctx) => {
+  register("loaf.skillgraph", "export", (_ctx) => {
     return { ok: true, graph: skillGraph.export() };
   }, { public: true });
 
-  register("loaf.skillgraph", "import", async (ctx, input = {}) => {
+  register("loaf.skillgraph", "import", (_ctx, input = {}) => {
     skillGraph.import(input.data || {});
     return { ok: true, imported: skillGraph.stats() };
   }, { public: false });

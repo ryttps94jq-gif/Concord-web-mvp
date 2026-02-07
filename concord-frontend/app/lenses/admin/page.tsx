@@ -3,7 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Activity,
   Database,
@@ -508,7 +508,7 @@ export default function AdminDashboardPage() {
           Recent Activity
         </h2>
         <div className="space-y-2 max-h-60 overflow-auto">
-          {(logs?.logs || []).slice(0, 10).map((log: any, i: number) => (
+          {(logs?.logs || []).slice(0, 10).map((log: Record<string, unknown>, i: number) => (
             <div
               key={i}
               className="flex items-center justify-between p-2 bg-lattice-deep rounded-lg text-sm"

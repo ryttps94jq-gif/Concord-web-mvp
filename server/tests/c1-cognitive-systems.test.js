@@ -809,7 +809,7 @@ describe('Transfer Pattern Extraction', () => {
     const results = [];
     for (const [patternId, pattern] of STATE.transfer.patterns) {
       if (pattern.sourceDomain === targetDomain) continue;
-      let relevance = 0.5 + pattern.confidence * 0.2;
+      const relevance = 0.5 + pattern.confidence * 0.2;
       results.push({ patternId, sourceDomain: pattern.sourceDomain, targetDomain, relevance: clamp(relevance, 0, 1), template: pattern.template });
     }
     return results.sort((a, b) => b.relevance - a.relevance).slice(0, 10);

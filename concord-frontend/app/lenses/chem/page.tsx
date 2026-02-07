@@ -157,7 +157,7 @@ export default function ChemLensPage() {
               No reactions yet. Try the reaction chamber!
             </p>
           ) : (
-            reactions?.reactions?.slice(0, 6).map((reaction: any) => (
+            reactions?.reactions?.slice(0, 6).map((reaction: Record<string, unknown>) => (
               <div key={reaction.id} className="lens-card">
                 <p className="font-mono text-sm mb-2">{reaction.formula}</p>
                 <div className="flex items-center justify-between text-xs">

@@ -174,7 +174,7 @@ function assessReflectionQuality(text, config = DEFAULT_CONFIG) {
   let gamingRisk = 0;
 
   // Verbosity inflation: high word count with low information density
-  const avgWordLen = wordCount > 0 ? words.reduce((s, w) => s + w.length, 0) / wordCount : 0;
+  const _avgWordLen = wordCount > 0 ? words.reduce((s, w) => s + w.length, 0) / wordCount : 0;
   const fillerWords = (s.match(/\b(very|really|basically|actually|essentially|simply|just|quite|rather|somewhat|overall)\b/gi) || []).length;
   const fillerRatio = wordCount > 0 ? fillerWords / wordCount : 0;
   if (fillerRatio > 0.05 || (wordCount > 200 && uniqueRatio < 0.3)) {
@@ -230,19 +230,19 @@ function getActorStats(actorId, config = DEFAULT_CONFIG) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.learningIntegrity = {
     config: { ...DEFAULT_CONFIG },
     stats: { contributionsTracked: 0, contributionsDenied: 0, outliersSuppressed: 0, reflectionsAssessed: 0 },
   };
 
-  register("loaf.learning", "status", async (ctx) => {
+  register("loaf.learning", "status", (ctx) => {
     const li = ctx.state.__loaf.learningIntegrity;
     return { ok: true, config: li.config, stats: li.stats, activeActors: actorContributions.size };
   }, { public: true });
 
-  register("loaf.learning", "track_contribution", async (ctx, input = {}) => {
+  register("loaf.learning", "track_contribution", (ctx, input = {}) => {
     const actorId = String(input.actorId || ctx.actor?.id || "anonymous");
     const li = ctx.state.__loaf.learningIntegrity;
     const result = trackContribution(actorId, input.domain, input.lens, input.value, li.config);
@@ -254,7 +254,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: false });
 
-  register("loaf.learning", "assess_reflection", async (ctx, input = {}) => {
+  register("loaf.learning", "assess_reflection", (ctx, input = {}) => {
     const text = String(input.text || "");
     if (!text) return { ok: false, error: "text required" };
     const li = ctx.state.__loaf.learningIntegrity;
@@ -262,14 +262,14 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...assessReflectionQuality(text, li.config) };
   }, { public: true });
 
-  register("loaf.learning", "actor_stats", async (ctx, input = {}) => {
+  register("loaf.learning", "actor_stats", (ctx, input = {}) => {
     const actorId = String(input.actorId || ctx.actor?.id || "");
     if (!actorId) return { ok: false, error: "actorId required" };
     const li = ctx.state.__loaf.learningIntegrity;
     return { ok: true, ...getActorStats(actorId, li.config) };
   }, { public: true });
 
-  register("loaf.learning", "suppress_outliers", async (ctx, input = {}) => {
+  register("loaf.learning", "suppress_outliers", (ctx, input = {}) => {
     const values = Array.isArray(input.values) ? input.values.map(Number).filter(v => !isNaN(v)) : [];
     if (values.length === 0) return { ok: false, error: "values array required" };
     const li = ctx.state.__loaf.learningIntegrity;
@@ -278,7 +278,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.learning", "clamp_strategy", async (ctx, input = {}) => {
+  register("loaf.learning", "clamp_strategy", (ctx, input = {}) => {
     const current = Number(input.currentWeight ?? 0.5);
     const proposed = Number(input.proposedWeight ?? 0.5);
     const li = ctx.state.__loaf.learningIntegrity;

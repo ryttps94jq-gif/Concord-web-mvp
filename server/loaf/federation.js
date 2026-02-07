@@ -182,13 +182,13 @@ function registerPeer(peerId, endpoint, trust = 0) {
   return { ok: true, peerId };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.federation = {
     stats: { exports: 0, imports: 0, trusted: 0, rejected: 0, reputationVotes: 0 },
   };
 
-  register("loaf.federation", "status", async (ctx) => {
+  register("loaf.federation", "status", (ctx) => {
     const f = ctx.state.__loaf.federation;
     return {
       ok: true,
@@ -200,54 +200,54 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.federation", "export", async (ctx, input = {}) => {
+  register("loaf.federation", "export", (ctx, input = {}) => {
     const f = ctx.state.__loaf.federation;
     const result = exportArtifact(input.artifact || {}, input.evidence, input.disputeHistory, input.license);
     f.stats.exports++;
     return { ok: true, exported: result };
   }, { public: false });
 
-  register("loaf.federation", "import", async (ctx, input = {}) => {
+  register("loaf.federation", "import", (ctx, input = {}) => {
     const f = ctx.state.__loaf.federation;
     const result = importArtifact(input.data, input.verifier);
     if (result.ok) f.stats.imports++;
     return result;
   }, { public: false });
 
-  register("loaf.federation", "trust", async (ctx, input = {}) => {
+  register("loaf.federation", "trust", (ctx, input = {}) => {
     const f = ctx.state.__loaf.federation;
     const result = trustImport(String(input.importId || ""), ctx.actor);
     if (result.ok && !result.alreadyTrusted) f.stats.trusted++;
     return result;
   }, { public: false });
 
-  register("loaf.federation", "vote_reputation", async (ctx, input = {}) => {
+  register("loaf.federation", "vote_reputation", (ctx, input = {}) => {
     const f = ctx.state.__loaf.federation;
     const result = voteReputation(String(input.artifactId || ""), input.score, ctx.actor);
     f.stats.reputationVotes++;
     return result;
   }, { public: false });
 
-  register("loaf.federation", "get_reputation", async (ctx, input = {}) => {
+  register("loaf.federation", "get_reputation", (_ctx, input = {}) => {
     return { ok: true, ...getArtifactReputation(String(input.artifactId || "")) };
   }, { public: true });
 
-  register("loaf.federation", "register_peer", async (ctx, input = {}) => {
+  register("loaf.federation", "register_peer", (_ctx, input = {}) => {
     return registerPeer(input.peerId, input.endpoint, input.trust);
   }, { public: false });
 
-  register("loaf.federation", "list_peers", async (ctx) => {
+  register("loaf.federation", "list_peers", (_ctx) => {
     return { ok: true, peers: Array.from(peers.values()) };
   }, { public: true });
 
-  register("loaf.federation", "list_imports", async (ctx, input = {}) => {
+  register("loaf.federation", "list_imports", (_ctx, input = {}) => {
     const status = input.status || null;
     let list = [...importQueue];
     if (status) list = list.filter(e => e.status === status || e.trust === status);
     return { ok: true, imports: list.slice(-(Number(input.limit || 50))) };
   }, { public: true });
 
-  register("loaf.federation", "map_ontology", async (ctx, input = {}) => {
+  register("loaf.federation", "map_ontology", (_ctx, input = {}) => {
     return mapOntology(String(input.importId || ""), input.mapping);
   }, { public: false });
 }

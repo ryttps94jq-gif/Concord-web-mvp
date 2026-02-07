@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Sparkles,
   Check,
@@ -26,7 +26,7 @@ export function InlineCompletion({
   position,
   onAccept,
   onReject,
-  onRefresh,
+  onRefresh: _onRefresh,
   getSuggestion,
   className
 }: InlineCompletionProps) {
@@ -40,7 +40,7 @@ export function InlineCompletion({
     try {
       const result = await getSuggestion(value);
       setSuggestion(result);
-    } catch (err) {
+    } catch {
       setError('Failed to get suggestion');
     } finally {
       setLoading(false);

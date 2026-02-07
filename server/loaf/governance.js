@@ -220,12 +220,12 @@ function detectPowerCreep(windowMs = 86400000) {
 /**
  * Register governance macros into the macro system.
  */
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   // Attach CONSTITUTION to state
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.constitution = CONSTITUTION;
 
-  register("loaf.governance", "status", async (ctx) => {
+  register("loaf.governance", "status", (_ctx) => {
     return {
       ok: true,
       gatedDomains: GATED_DOMAINS,
@@ -236,7 +236,7 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.governance", "check_gate", async (ctx, input = {}) => {
+  register("loaf.governance", "check_gate", (ctx, input = {}) => {
     const result = mandatoryMutationGate(
       ctx.actor || input.actor,
       String(input.domain || ""),
@@ -246,19 +246,19 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.governance", "create_rule", async (ctx, input = {}) => {
+  register("loaf.governance", "create_rule", (ctx, input = {}) => {
     return createConstitutionRule(input.text, input.provenance, ctx.actor);
   }, { public: false });
 
-  register("loaf.governance", "amend_rule", async (ctx, input = {}) => {
+  register("loaf.governance", "amend_rule", (ctx, input = {}) => {
     return amendConstitutionRule(input.ruleId, input.newText, input.provenance, ctx.actor, input.votes);
   }, { public: false });
 
-  register("loaf.governance", "revert_rule", async (ctx, input = {}) => {
+  register("loaf.governance", "revert_rule", (ctx, input = {}) => {
     return revertConstitutionRule(input.ruleId, ctx.actor, input.votes);
   }, { public: false });
 
-  register("loaf.governance", "list_rules", async (ctx) => {
+  register("loaf.governance", "list_rules", (_ctx) => {
     const rules = Array.from(CONSTITUTION.rules.values()).map(r => ({
       id: r.id, text: r.text, version: r.version, active: r.active,
       provenance: r.provenance, createdAt: r.createdAt, amendedAt: r.amendedAt,
@@ -266,7 +266,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, rules };
   }, { public: true });
 
-  register("loaf.governance", "detect_power_creep", async (ctx, input = {}) => {
+  register("loaf.governance", "detect_power_creep", (_ctx, input = {}) => {
     const windowMs = Number(input.windowMs) || 86400000;
     return { ok: true, ...detectPowerCreep(windowMs) };
   }, { public: true });

@@ -207,7 +207,7 @@ export function ResonanceEmpireGraph({
     setHoveredNode(hovered || null);
   };
 
-  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleClick = (_e: React.MouseEvent<HTMLCanvasElement>) => {
     if (hoveredNode && onNodeClick) {
       onNodeClick(hoveredNode);
     }

@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Book, ChevronRight, Search, ExternalLink } from 'lucide-react';
+import { Book, ChevronRight, Search } from 'lucide-react';
 
 export default function DocsLensPage() {
   useLensNav('docs');

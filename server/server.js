@@ -36,7 +36,7 @@ import { initAll as initLoaf } from "./loaf/index.js";
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
 
 // ---- Production dependencies (graceful loading) ----
-let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null, promClient = null;
+let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null; const _promClient = null;
 let Database = null; // better-sqlite3
 try { jwt = (await import("jsonwebtoken")).default; } catch { /* optional dependency */ }
 try { bcrypt = (await import("bcryptjs")).default; } catch { /* optional dependency */ }
@@ -47,7 +47,7 @@ try { compression = (await import("compression")).default; } catch { /* optional
 try { Database = (await import("better-sqlite3")).default; } catch { /* optional dependency */ }
 
 // ---- dotenv (safe) ----
-let DOTENV = { loaded: false, path: null, error: null };
+const DOTENV = { loaded: false, path: null, error: null };
 async function tryLoadDotenv() {
   const envPath = process.env.ENV_PATH || process.env.DOTENV_CONFIG_PATH || null;
   try {
@@ -139,7 +139,7 @@ function requestIdMiddleware(req, res, next) {
 }
 
 // ---- Input Sanitization ----
-const SANITIZE_PATTERNS = {
+const _SANITIZE_PATTERNS = {
   // Common XSS patterns
   script: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
   onEvent: /\bon\w+\s*=/gi,
@@ -255,7 +255,7 @@ process.on("uncaughtException", (err) => {
   structuredLog("fatal", "uncaught_exception", { error: err.message, stack: err.stack });
   gracefulShutdown("uncaughtException");
 });
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", (reason, _promise) => {
   structuredLog("error", "unhandled_rejection", { reason: String(reason) });
   // Don't exit on unhandled rejection, just log it
 });
@@ -465,7 +465,7 @@ const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const safeJson = (x, fallback=null) => { try { return JSON.parse(x); } catch { return fallback; } };
 
 // ---- Input Validation Helpers ----
-const VALIDATION = {
+const _VALIDATION = {
   // String validation with max length
   string: (val, maxLen = 10000, defaultVal = "") => {
     if (val === null || val === undefined) return defaultVal;
@@ -566,7 +566,7 @@ function normalizeStyleVector(v) {
 
 // Deterministic-ish mutation: small bounded nudges; signal can be {up/down, field, amount} or freeform "like"/"dislike"
 function mutateStyleVector(current, signal) {
-  let v = normalizeStyleVector(current);
+  const v = normalizeStyleVector(current);
   const amt = clamp(Number(signal?.amount || 0.06), -0.2, 0.2);
   const field = String(signal?.field || "");
   const dir = String(signal?.dir || "");
@@ -699,7 +699,7 @@ function buildCretiText(d) {
 
   const defs = Array.isArray(d?.core?.definitions) ? d.core.definitions : [];
   const inv  = Array.isArray(d?.core?.invariants) ? d.core.invariants : [];
-  const ex   = Array.isArray(d?.core?.examples) ? d.core.examples : [];
+  const _ex  = Array.isArray(d?.core?.examples) ? d.core.examples : [];
   const tests = Array.isArray(d?.core?.tests) ? d.core.tests : [];
   const risks = Array.isArray(d?.core?.risks) ? d.core.risks : [];
   const nextA = Array.isArray(d?.core?.nextActions) ? d.core.nextActions : [];
@@ -781,7 +781,7 @@ function selectWorkingSet(scored, settings, { includeMegas=true } = {}){
   const crispMin = Number(settings?.crispnessMin ?? 0.25);
 
   // Eligible DTUs for reasoning (respect canonical/dormant/shadow rules)
-  let eligible = (scored||[])
+  const eligible = (scored||[])
     .map(x => ({ ...x, crisp: crispnessScore(x.d) }))
     .filter(x => eligibleDTUForReasoning(x.d, settings));
 
@@ -882,7 +882,7 @@ function chooseAbstractionFrame({ mode="explore", intent="statement", hasStrongE
 // Enhanced response generation when LLM is not available.
 // Uses semantic word vectors, DTU embeddings, and inference engine.
 
-function semanticUnderstandFallback(prompt, relevantDtus = [], options = {}) {
+function semanticUnderstandFallback(prompt, relevantDtus = [], _options = {}) {
   const result = {
     semanticIntent: null,
     inferredAnswer: null,
@@ -935,7 +935,7 @@ function semanticUnderstandFallback(prompt, relevantDtus = [], options = {}) {
       }
 
       result.semanticallySimilar.sort((a, b) => b.similarity - a.similarity);
-    } catch (e) {
+    } catch {
       // Silently fail, fall back to regular matching
     }
   }
@@ -1049,7 +1049,7 @@ function generateSemanticResponse(prompt, microDTUs, macroDTUs, semanticResult) 
 
 // ===== END SEMANTIC UNDERSTANDING FALLBACK =====
 
-function formatCrispResponse({ prompt, mode, microDTUs, macroDTUs, level, answerLines, hypotheses=[], tests=[] }){
+function formatCrispResponse({ prompt: _prompt, mode: _mode, microDTUs, macroDTUs, level, answerLines, hypotheses=[], tests=[] }){
   const lines = [];
   // Facts/Evidence anchors (always)
   if (microDTUs?.length) {
@@ -1589,7 +1589,7 @@ function initDatabase() {
   }
 }
 
-const DB_READY = initDatabase();
+const _DB_READY = initDatabase();
 
 // Register database close on shutdown
 if (db) {
@@ -2181,7 +2181,7 @@ function auditLog(category, action, details = {}) {
 }
 
 // Audit events for security-relevant actions
-const AUDIT_EVENTS = {
+const _AUDIT_EVENTS = {
   AUTH_LOGIN_SUCCESS: "auth.login_success",
   AUTH_LOGIN_FAILED: "auth.login_failed",
   AUTH_LOGOUT: "auth.logout",
@@ -2458,7 +2458,7 @@ setInterval(() => {
 // ---- Backup & Restore ----
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, "backups");
 
-async function createBackup(name = null) {
+function createBackup(name = null) {
   try {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -2492,7 +2492,7 @@ async function createBackup(name = null) {
   }
 }
 
-async function restoreBackup(backupPath) {
+function restoreBackup(backupPath) {
   try {
     // Path traversal protection - only allow files within BACKUP_DIR
     const sanitizedName = path.basename(String(backupPath || ""));
@@ -2637,7 +2637,7 @@ async function tryInitWebSockets(server) {
   try {
     const mod = await import("socket.io");
     Server = mod?.Server || mod?.default?.Server || mod?.default;
-  } catch (e) {
+  } catch {
     // Fallback to ws if socket.io not available
     console.warn("[Realtime] socket.io not installed, trying native ws...");
     return tryInitNativeWebSockets(server);
@@ -2666,7 +2666,7 @@ async function tryInitWebSockets(server) {
     const cookies = parseCookies(socket.handshake.headers?.cookie || "");
     const cookieToken = cookies.concord_auth;
 
-    const token = cookieToken || socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
+    const _token = cookieToken || socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
     const apiKey = socket.handshake.auth?.apiKey || socket.handshake.headers?.["x-api-key"];
 
     // In development, allow unauthenticated connections
@@ -2807,11 +2807,11 @@ async function tryInitNativeWebSockets(server) {
   REALTIME.ready = true;
 
   // Override emit for native WS
-  const originalEmit = realtimeEmit;
+  const _originalEmit = realtimeEmit;
   globalThis.realtimeEmitNative = (event, payload, opts = {}) => {
     if (!REALTIME.ready || !wss) return { ok: false, reason: "ws_not_ready" };
     const msg = JSON.stringify({ type: String(event || "event"), payload, ts: nowISO() });
-    for (const [cid, c] of REALTIME.clients.entries()) {
+    for (const [_cid, c] of REALTIME.clients.entries()) {
       try {
         if (c?.ws?.readyState !== 1) continue;
         if (opts.sessionId && c.sessionId && c.sessionId !== opts.sessionId) continue;
@@ -2822,7 +2822,7 @@ async function tryInitNativeWebSockets(server) {
     return { ok: true };
   };
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", (ws, _req) => {
     const clientId = uid("ws");
     REALTIME.clients.set(clientId, { ws, sessionId: "", orgId: "", createdAt: nowISO() });
 
@@ -2846,7 +2846,7 @@ async function tryInitNativeWebSockets(server) {
 
         if (msg?.type === "ping") {
           try { ws.send(JSON.stringify({ type: "pong", ts: nowISO() })); } catch {}
-          return;
+          
         }
       } catch {}
     });
@@ -3391,7 +3391,7 @@ function listMacros(domain) {
   return Array.from(d.values()).map(x => x.spec);
 }
 
-async function runMacro(domain, name, input, ctx) {
+function runMacro(domain, name, input, ctx) {
   // v3: permissioned cognition (macro-level ACL). Defaults open for local-first dev.
   const actor = ctx?.actor || { role: "owner", scopes: ["*"] };
   if (typeof globalThis.canRunMacro === "function" && !globalThis.canRunMacro(actor, domain, name)) {
@@ -3457,7 +3457,7 @@ async function runMacro(domain, name, input, ctx) {
   if (!d) throw new Error(`macro domain not found: ${domain}`);
   const m = d.get(name);
   if (!m) throw new Error(`macro not found: ${domain}.${name}`);
-  return await m.fn(ctx, input ?? {});
+  return m.fn(ctx, input ?? {});
 }
 
 // ===== CHICKEN3: Meta-DTU helpers (additive, named per blueprint) =====
@@ -3503,7 +3503,7 @@ function generateMetaProposal(ctx, input={}){
 
 // Blueprint name: council.reviewAndCommitQuiet
 const council = (globalThis.__CONCORD_COUNCIL ||= {});
-council.reviewAndCommitQuiet = async function reviewAndCommitQuiet(ctx, input={}){
+council.reviewAndCommitQuiet = function reviewAndCommitQuiet(ctx, input={}){
   enforceEthosInvariant("quiet_review");
   if (!ctx?.state?.__chicken3?.metaEnabled) return { ok:false, error:"meta disabled" };
 
@@ -3547,7 +3547,7 @@ council.reviewAndCommitQuiet = async function reviewAndCommitQuiet(ctx, input={}
       metaCommitCount: ctx.state.__chicken3.stats.metaCommits,
       ts: nowISO()
     });
-  } catch (e) { /* best-effort */ }
+  } catch { /* best-effort */ }
 
   saveStateDebounced();
   return { ok:true, committed: dtuForClient(dtu), gate };
@@ -3564,7 +3564,7 @@ council.reviewAndCommitQuiet = async function reviewAndCommitQuiet(ctx, input={}
 try {
   allowMacro("entity","terminal",{ roles:["owner","admin","member"], scopes:["*"] });
   allowMacro("entity","terminal_approve",{ roles:["owner","admin","council"], scopes:["*"] });
-} catch (e) {
+} catch {
   // allowMacro may not be defined yet in older builds; ignore (local-first default is open).
 }
 
@@ -3779,7 +3779,7 @@ if (workingDir) {
 // ============================================================================
 // GA: SANDBOX EXECUTOR
 // ============================================================================
-async function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
+function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
   return new Promise((resolve) => {
     const proc = spawnSync("bash", ["-c", command], {
       cwd: workDir,
@@ -3901,12 +3901,12 @@ const approvalRatio = decisiveVotes > 0 ? (approveCount / decisiveVotes) : 0;
 });
 
 
-register("chicken3","status", async (ctx, input={}) => {
+register("chicken3","status", (ctx, _input={}) => {
   enforceEthosInvariant("status");
   return { ok:true, chicken3: ctx.state.__chicken3, enabled: Boolean(ctx.state.__chicken3?.enabled) };
 }, { public:true });
 
-register("chicken3","session_optin", async (ctx, input={}) => {
+register("chicken3","session_optin", (ctx, input={}) => {
   enforceEthosInvariant("optin");
   const sid = String(input.sessionId || input.session || "");
   if (!sid) return { ok:false, error:"sessionId required" };
@@ -3933,17 +3933,17 @@ function _c3sessionFlags(ctx){
   };
 }
 
-register("chicken3","meta_propose", async (ctx, input={}) => {
+register("chicken3","meta_propose", (ctx, input={}) => {
   // Blueprint name: generateMetaProposal
   return generateMetaProposal(ctx, input);
 }, { public:false });
 
-register("chicken3","meta_commit_quiet", async (ctx, input={}) => {
+register("chicken3","meta_commit_quiet", (ctx, input={}) => {
   // Blueprint name: council.reviewAndCommitQuiet
-  return await council.reviewAndCommitQuiet(ctx, input);
+  return council.reviewAndCommitQuiet(ctx, input);
 }, { public:false });
 
-register("multimodal","vision_analyze", async (ctx, input={}) => {
+register("multimodal","vision_analyze", (ctx, input={}) => {
   enforceEthosInvariant("analyze_image");
   const flags = _c3sessionFlags(ctx);
   if (!ctx.state.__chicken3?.multimodalEnabled) return { ok:false, error:"multimodal disabled" };
@@ -3954,7 +3954,7 @@ register("multimodal","vision_analyze", async (ctx, input={}) => {
   if (!imageB64) return { ok:false, error:"imageBase64 required" };
 
   // Governed execution: all external/tool-like calls route through governedCall.
-  return await governedCall(ctx, "multimodal.vision_analyze", async () => {
+  return governedCall(ctx, "multimodal.vision_analyze", async () => {
 
   // Local-first: Ollama (llava) if configured
   const OLLAMA_URL = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "";
@@ -3964,7 +3964,7 @@ register("multimodal","vision_analyze", async (ctx, input={}) => {
       model,
       messages: [{ role:"user", content: prompt, images: [imageB64] }]
     };
-    const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(e=>null);
+    const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(_e=>null);
     if (r && r.ok) {
       const j = await r.json().catch(()=>null);
       const content = j?.message?.content || j?.response || "";
@@ -3994,7 +3994,7 @@ register("multimodal","vision_analyze", async (ctx, input={}) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
-    }).catch(e => null);
+    }).catch(_e => null);
 
     if (!r || !r.ok) {
       const errText = await r?.text().catch(() => "") || "";
@@ -4009,7 +4009,7 @@ register("multimodal","vision_analyze", async (ctx, input={}) => {
   });
 }, { public:false });
 
-register("multimodal","image_generate", async (ctx, input={}) => {
+register("multimodal","image_generate", (ctx, input={}) => {
   enforceEthosInvariant("generate_image");
   const flags = _c3sessionFlags(ctx);
   if (!ctx.state.__chicken3?.multimodalEnabled) return { ok:false, error:"multimodal disabled" };
@@ -4018,13 +4018,13 @@ register("multimodal","image_generate", async (ctx, input={}) => {
   const prompt = String(input.prompt || "");
   if (!prompt) return { ok:false, error:"prompt required" };
 
-  return await governedCall(ctx, "multimodal.image_generate", async () => {
+  return governedCall(ctx, "multimodal.image_generate", async () => {
 
   // Local-first: Stable Diffusion / ComfyUI HTTP if configured
   const SD_URL = process.env.SD_URL || process.env.COMFYUI_URL || process.env.A1111_URL || "";
   if (SD_URL) {
     const body = { prompt, steps: clamp(Number(input.steps || 30), 5, 80) };
-    const r = await fetch(SD_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) }).catch(e=>null);
+    const r = await fetch(SD_URL, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) }).catch(_e=>null);
     if (r && r.ok) {
       const j = await r.json().catch(()=>null);
       const img = j?.images?.[0] || j?.image || j?.data?.[0] || null;
@@ -4053,7 +4053,7 @@ register("multimodal","image_generate", async (ctx, input={}) => {
         quality,
         response_format: "b64_json"
       })
-    }).catch(e => null);
+    }).catch(_e => null);
 
     if (!r || !r.ok) {
       const errText = await r?.text().catch(() => "") || "";
@@ -4120,7 +4120,7 @@ register("voice","transcribe", async (ctx, input={}) => {
           "Content-Type": `multipart/form-data; boundary=${boundary}`
         },
         body
-      }).catch(e => null);
+      }).catch(_e => null);
 
       if (!r || !r.ok) {
         const errText = await r?.text().catch(() => "") || "";
@@ -4176,7 +4176,7 @@ register("voice","tts", async (ctx, input={}) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ model, input: text, voice, response_format: "mp3" })
-    }).catch(e => null);
+    }).catch(_e => null);
 
     if (!r || !r.ok) {
       const errText = await r?.text().catch(() => "") || "";
@@ -4195,14 +4195,14 @@ register("voice","tts", async (ctx, input={}) => {
   return { ok:false, error:"No TTS backend configured. Set PIPER_BIN or OPENAI_API_KEY" };
 }, { public:false });
 
-register("tools","web_search", async (ctx, input={}) => {
+register("tools","web_search", (ctx, input={}) => {
   enforceEthosInvariant("web_search");
   const flags = _c3sessionFlags(ctx);
   if (!ctx.state.__chicken3?.toolsEnabled) return { ok:false, error:"tools disabled" };
   if (!flags.toolsOptIn) return { ok:false, error:"session tools opt-in required" };
 
   // Governed call: even local-first external network calls are considered effectful tools.
-  return await governedCall(ctx, "tools.web_search", async () => {
+  return governedCall(ctx, "tools.web_search", async () => {
 
   const q = String(input.query || input.q || "");
   if (!q) return { ok:false, error:"query required" };
@@ -4210,7 +4210,7 @@ register("tools","web_search", async (ctx, input={}) => {
   // Local-first default: DuckDuckGo HTML (no API key). If you run SearxNG locally, set SEARXNG_URL.
   const local = process.env.SEARXNG_URL || "";
   const url = local ? `${local}/search?q=${encodeURIComponent(q)}&format=json` : `https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
-  const r = await fetch(url, { method:"GET" }).catch(e=>null);
+  const r = await fetch(url, { method:"GET" }).catch(_e=>null);
   if (!r || !r.ok) return { ok:false, error:"search failed", status: r?.status || 0 };
 
   const text = await r.text().catch(()=> "");
@@ -4235,7 +4235,7 @@ register("tools","web_search", async (ctx, input={}) => {
 
 // ===== GOAL SYSTEM MACROS =====
 
-register("goals", "status", async (ctx, input = {}) => {
+register("goals", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("goals_status");
   ensureGoalSystem();
 
@@ -4264,7 +4264,7 @@ register("goals", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("goals", "propose", async (ctx, input = {}) => {
+register("goals", "propose", (ctx, input = {}) => {
   enforceEthosInvariant("goals_propose");
   ensureGoalSystem();
 
@@ -4291,7 +4291,7 @@ register("goals", "propose", async (ctx, input = {}) => {
   return { ok: true, goal: { id: goal.id, title: goal.title, type: goal.type, state: goal.state } };
 }, { public: false });
 
-register("goals", "evaluate", async (ctx, input = {}) => {
+register("goals", "evaluate", (ctx, input = {}) => {
   enforceEthosInvariant("goals_evaluate");
   ensureGoalSystem();
 
@@ -4316,7 +4316,7 @@ register("goals", "evaluate", async (ctx, input = {}) => {
   };
 }, { public: false });
 
-register("goals", "approve", async (ctx, input = {}) => {
+register("goals", "approve", (ctx, input = {}) => {
   enforceEthosInvariant("goals_approve");
   ensureGoalSystem();
 
@@ -4344,7 +4344,7 @@ register("goals", "approve", async (ctx, input = {}) => {
   return { ok: true, goal: { id: goal.id, title: goal.title, state: goal.state, founderApproved: true } };
 }, { public: false });
 
-register("goals", "activate", async (ctx, input = {}) => {
+register("goals", "activate", (ctx, input = {}) => {
   enforceEthosInvariant("goals_activate");
   ensureGoalSystem();
 
@@ -4361,7 +4361,7 @@ register("goals", "activate", async (ctx, input = {}) => {
   };
 }, { public: false });
 
-register("goals", "progress", async (ctx, input = {}) => {
+register("goals", "progress", (ctx, input = {}) => {
   enforceEthosInvariant("goals_progress");
   ensureGoalSystem();
 
@@ -4380,7 +4380,7 @@ register("goals", "progress", async (ctx, input = {}) => {
   };
 }, { public: false });
 
-register("goals", "complete", async (ctx, input = {}) => {
+register("goals", "complete", (ctx, input = {}) => {
   enforceEthosInvariant("goals_complete");
   ensureGoalSystem();
 
@@ -4390,7 +4390,7 @@ register("goals", "complete", async (ctx, input = {}) => {
   return completeGoal(goalId);
 }, { public: false });
 
-register("goals", "abandon", async (ctx, input = {}) => {
+register("goals", "abandon", (ctx, input = {}) => {
   enforceEthosInvariant("goals_abandon");
   ensureGoalSystem();
 
@@ -4401,7 +4401,7 @@ register("goals", "abandon", async (ctx, input = {}) => {
   return abandonGoal(goalId, reason);
 }, { public: false });
 
-register("goals", "list", async (ctx, input = {}) => {
+register("goals", "list", (ctx, input = {}) => {
   enforceEthosInvariant("goals_list");
   ensureGoalSystem();
 
@@ -4431,7 +4431,7 @@ register("goals", "list", async (ctx, input = {}) => {
   return { ok: true, goals, total: ctx.state.goals.registry.size };
 }, { public: true });
 
-register("goals", "get", async (ctx, input = {}) => {
+register("goals", "get", (ctx, input = {}) => {
   enforceEthosInvariant("goals_get");
   ensureGoalSystem();
 
@@ -4444,12 +4444,12 @@ register("goals", "get", async (ctx, input = {}) => {
   return { ok: true, goal };
 }, { public: true });
 
-register("goals", "auto_propose", async (ctx, input = {}) => {
+register("goals", "auto_propose", (ctx, _input = {}) => {
   enforceEthosInvariant("goals_auto_propose");
   return generateAutoGoalProposals(ctx);
 }, { public: false });
 
-register("goals", "config", async (ctx, input = {}) => {
+register("goals", "config", (ctx, input = {}) => {
   enforceEthosInvariant("goals_config");
   ensureGoalSystem();
 
@@ -4480,7 +4480,7 @@ register("goals", "config", async (ctx, input = {}) => {
 
 // ===== WORLD MODEL MACROS =====
 
-register("worldmodel", "status", async (ctx, input = {}) => {
+register("worldmodel", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("worldmodel_status");
   ensureWorldModel();
 
@@ -4496,17 +4496,17 @@ register("worldmodel", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("worldmodel", "create_entity", async (ctx, input = {}) => {
+register("worldmodel", "create_entity", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_create_entity");
   return createWorldEntity(input);
 }, { public: false });
 
-register("worldmodel", "create_relation", async (ctx, input = {}) => {
+register("worldmodel", "create_relation", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_create_relation");
   return createWorldRelation(input);
 }, { public: false });
 
-register("worldmodel", "get_entity", async (ctx, input = {}) => {
+register("worldmodel", "get_entity", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_get_entity");
   ensureWorldModel();
 
@@ -4524,7 +4524,7 @@ register("worldmodel", "get_entity", async (ctx, input = {}) => {
   return { ok: true, entity };
 }, { public: true });
 
-register("worldmodel", "list_entities", async (ctx, input = {}) => {
+register("worldmodel", "list_entities", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_list_entities");
   ensureWorldModel();
 
@@ -4535,10 +4535,10 @@ register("worldmodel", "list_entities", async (ctx, input = {}) => {
   let entities = Array.from(ctx.state.worldModel.entities.values());
 
   if (type) entities = entities.filter(e => e.type === type);
-  if (search) entities = entities.filter(e =>
+  if (search) {entities = entities.filter(e =>
     e.name.toLowerCase().includes(search) ||
     e.description.toLowerCase().includes(search)
-  );
+  );}
 
   entities = entities
     .sort((a, b) => b.state.salience - a.state.salience)
@@ -4556,7 +4556,7 @@ register("worldmodel", "list_entities", async (ctx, input = {}) => {
   return { ok: true, entities, total: ctx.state.worldModel.entities.size };
 }, { public: true });
 
-register("worldmodel", "list_relations", async (ctx, input = {}) => {
+register("worldmodel", "list_relations", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_list_relations");
   ensureWorldModel();
 
@@ -4584,17 +4584,17 @@ register("worldmodel", "list_relations", async (ctx, input = {}) => {
   return { ok: true, relations, total: ctx.state.worldModel.relations.size };
 }, { public: true });
 
-register("worldmodel", "simulate", async (ctx, input = {}) => {
+register("worldmodel", "simulate", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_simulate");
   return runWorldSimulation(input);
 }, { public: false });
 
-register("worldmodel", "counterfactual", async (ctx, input = {}) => {
+register("worldmodel", "counterfactual", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_counterfactual");
   return generateCounterfactual(input);
 }, { public: false });
 
-register("worldmodel", "get_simulation", async (ctx, input = {}) => {
+register("worldmodel", "get_simulation", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_get_simulation");
   ensureWorldModel();
 
@@ -4607,7 +4607,7 @@ register("worldmodel", "get_simulation", async (ctx, input = {}) => {
   return { ok: true, simulation: sim };
 }, { public: true });
 
-register("worldmodel", "list_simulations", async (ctx, input = {}) => {
+register("worldmodel", "list_simulations", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_list_simulations");
   ensureWorldModel();
 
@@ -4629,12 +4629,12 @@ register("worldmodel", "list_simulations", async (ctx, input = {}) => {
   return { ok: true, simulations, total: ctx.state.worldModel.simulations.size };
 }, { public: true });
 
-register("worldmodel", "snapshot", async (ctx, input = {}) => {
+register("worldmodel", "snapshot", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_snapshot");
   return takeWorldSnapshot(input.label);
 }, { public: false });
 
-register("worldmodel", "list_snapshots", async (ctx, input = {}) => {
+register("worldmodel", "list_snapshots", (ctx, _input = {}) => {
   enforceEthosInvariant("worldmodel_list_snapshots");
   ensureWorldModel();
 
@@ -4649,7 +4649,7 @@ register("worldmodel", "list_snapshots", async (ctx, input = {}) => {
   return { ok: true, snapshots };
 }, { public: true });
 
-register("worldmodel", "extract_from_dtu", async (ctx, input = {}) => {
+register("worldmodel", "extract_from_dtu", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_extract");
 
   const dtuId = String(input.dtuId || "");
@@ -4661,7 +4661,7 @@ register("worldmodel", "extract_from_dtu", async (ctx, input = {}) => {
   return extractEntitiesFromDtu(dtu);
 }, { public: false });
 
-register("worldmodel", "config", async (ctx, input = {}) => {
+register("worldmodel", "config", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_config");
   ensureWorldModel();
 
@@ -4684,7 +4684,7 @@ register("worldmodel", "config", async (ctx, input = {}) => {
   return { ok: true, config: ctx.state.worldModel.config };
 }, { public: false });
 
-register("worldmodel", "update_entity", async (ctx, input = {}) => {
+register("worldmodel", "update_entity", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_update_entity");
   ensureWorldModel();
 
@@ -4710,7 +4710,7 @@ register("worldmodel", "update_entity", async (ctx, input = {}) => {
   return { ok: true, entity };
 }, { public: false });
 
-register("worldmodel", "delete_entity", async (ctx, input = {}) => {
+register("worldmodel", "delete_entity", (ctx, input = {}) => {
   enforceEthosInvariant("worldmodel_delete_entity");
   ensureWorldModel();
 
@@ -4739,7 +4739,7 @@ register("worldmodel", "delete_entity", async (ctx, input = {}) => {
 
 // ===== SEMANTIC UNDERSTANDING MACROS =====
 
-register("semantic", "status", async (ctx, input = {}) => {
+register("semantic", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("semantic_status");
   ensureSemanticEngine();
   return {
@@ -4752,7 +4752,7 @@ register("semantic", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("semantic", "similar", async (ctx, input = {}) => {
+register("semantic", "similar", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_similar");
   const query = String(input.query || "");
   if (!query) return { ok: false, error: "query required" };
@@ -4762,7 +4762,7 @@ register("semantic", "similar", async (ctx, input = {}) => {
   return { ok: true, results, query };
 }, { public: true });
 
-register("semantic", "embed", async (ctx, input = {}) => {
+register("semantic", "embed", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_embed");
   const text = String(input.text || "");
   if (!text) return { ok: false, error: "text required" };
@@ -4770,14 +4770,14 @@ register("semantic", "embed", async (ctx, input = {}) => {
   return { ok: true, embedding, dimension: embedding.length };
 }, { public: true });
 
-register("semantic", "classify_intent", async (ctx, input = {}) => {
+register("semantic", "classify_intent", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_classify");
   const text = String(input.text || "");
   if (!text) return { ok: false, error: "text required" };
   return { ok: true, ...classifySemanticIntent(text) };
 }, { public: true });
 
-register("semantic", "extract_entities", async (ctx, input = {}) => {
+register("semantic", "extract_entities", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_extract");
   const text = String(input.text || "");
   if (!text) return { ok: false, error: "text required" };
@@ -4785,7 +4785,7 @@ register("semantic", "extract_entities", async (ctx, input = {}) => {
   return { ok: true, entities };
 }, { public: true });
 
-register("semantic", "semantic_roles", async (ctx, input = {}) => {
+register("semantic", "semantic_roles", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_roles");
   const text = String(input.text || "");
   if (!text) return { ok: false, error: "text required" };
@@ -4793,7 +4793,7 @@ register("semantic", "semantic_roles", async (ctx, input = {}) => {
   return { ok: true, roles };
 }, { public: true });
 
-register("semantic", "compare", async (ctx, input = {}) => {
+register("semantic", "compare", (ctx, input = {}) => {
   enforceEthosInvariant("semantic_compare");
   const text1 = String(input.text1 || input.a || "");
   const text2 = String(input.text2 || input.b || "");
@@ -4808,7 +4808,7 @@ register("semantic", "compare", async (ctx, input = {}) => {
 
 // ===== TRANSFER LEARNING MACROS =====
 
-register("transfer", "status", async (ctx, input = {}) => {
+register("transfer", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("transfer_status");
   ensureTransferEngine();
   return {
@@ -4822,7 +4822,7 @@ register("transfer", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("transfer", "classify_domain", async (ctx, input = {}) => {
+register("transfer", "classify_domain", (ctx, input = {}) => {
   enforceEthosInvariant("transfer_classify");
   const dtuId = String(input.dtuId || "");
   if (!dtuId) return { ok: false, error: "dtuId required" };
@@ -4832,14 +4832,14 @@ register("transfer", "classify_domain", async (ctx, input = {}) => {
   return { ok: true, dtuId, domain };
 }, { public: true });
 
-register("transfer", "extract_pattern", async (ctx, input = {}) => {
+register("transfer", "extract_pattern", (ctx, input = {}) => {
   enforceEthosInvariant("transfer_extract");
   const dtuIds = input.dtuIds;
   if (!Array.isArray(dtuIds) || dtuIds.length === 0) return { ok: false, error: "dtuIds array required" };
   return extractPattern(dtuIds, input.name);
 }, { public: false });
 
-register("transfer", "list_patterns", async (ctx, input = {}) => {
+register("transfer", "list_patterns", (ctx, _input = {}) => {
   enforceEthosInvariant("transfer_list");
   ensureTransferEngine();
   const patterns = Array.from(ctx.state.transfer.patterns.values())
@@ -4847,7 +4847,7 @@ register("transfer", "list_patterns", async (ctx, input = {}) => {
   return { ok: true, patterns };
 }, { public: true });
 
-register("transfer", "find_analogies", async (ctx, input = {}) => {
+register("transfer", "find_analogies", (ctx, input = {}) => {
   enforceEthosInvariant("transfer_analogies");
   const targetDomain = String(input.domain || "general");
   const query = String(input.query || "");
@@ -4855,7 +4855,7 @@ register("transfer", "find_analogies", async (ctx, input = {}) => {
   return { ok: true, results };
 }, { public: true });
 
-register("transfer", "apply_pattern", async (ctx, input = {}) => {
+register("transfer", "apply_pattern", (ctx, input = {}) => {
   enforceEthosInvariant("transfer_apply");
   const patternId = String(input.patternId || "");
   const targetDomain = String(input.targetDomain || "");
@@ -4864,7 +4864,7 @@ register("transfer", "apply_pattern", async (ctx, input = {}) => {
   return applyPatternToTarget(patternId, targetDomain, input.context);
 }, { public: false });
 
-register("transfer", "list_transfers", async (ctx, input = {}) => {
+register("transfer", "list_transfers", (ctx, _input = {}) => {
   enforceEthosInvariant("transfer_list_transfers");
   ensureTransferEngine();
   const transfers = ctx.state.transfer.transfers.slice(-50).map(t => ({
@@ -4878,7 +4878,7 @@ register("transfer", "list_transfers", async (ctx, input = {}) => {
 
 // ===== EXPERIENCE LEARNING MACROS =====
 
-register("experience", "status", async (ctx, input = {}) => {
+register("experience", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("experience_status");
   ensureExperienceLearning();
   const el = ctx.state.experienceLearning;
@@ -4892,7 +4892,7 @@ register("experience", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("experience", "retrieve", async (ctx, input = {}) => {
+register("experience", "retrieve", (ctx, input = {}) => {
   enforceEthosInvariant("experience_retrieve");
   const domain = String(input.domain || "general");
   const topic = String(input.topic || "");
@@ -4900,7 +4900,7 @@ register("experience", "retrieve", async (ctx, input = {}) => {
   return { ok: true, ...retrieveExperience(domain, topic, keywords) };
 }, { public: true });
 
-register("experience", "patterns", async (ctx, input = {}) => {
+register("experience", "patterns", (ctx, input = {}) => {
   enforceEthosInvariant("experience_patterns");
   ensureExperienceLearning();
   const patterns = Array.from(ctx.state.experienceLearning.patterns.values())
@@ -4910,13 +4910,13 @@ register("experience", "patterns", async (ctx, input = {}) => {
   return { ok: true, patterns };
 }, { public: true });
 
-register("experience", "consolidate", async (ctx, input = {}) => {
+register("experience", "consolidate", (ctx, _input = {}) => {
   enforceEthosInvariant("experience_consolidate");
   consolidateExperience();
   return { ok: true, message: "Experience consolidated" };
 }, { public: false });
 
-register("experience", "strategies", async (ctx, input = {}) => {
+register("experience", "strategies", (ctx, input = {}) => {
   enforceEthosInvariant("experience_strategies");
   ensureExperienceLearning();
   const strategies = Array.from(ctx.state.experienceLearning.strategies.values())
@@ -4925,7 +4925,7 @@ register("experience", "strategies", async (ctx, input = {}) => {
   return { ok: true, strategies };
 }, { public: true });
 
-register("experience", "recent", async (ctx, input = {}) => {
+register("experience", "recent", (ctx, input = {}) => {
   enforceEthosInvariant("experience_recent");
   ensureExperienceLearning();
   const limit = clamp(Number(input.limit || 20), 1, 100);
@@ -4937,7 +4937,7 @@ register("experience", "recent", async (ctx, input = {}) => {
 
 // ===== ATTENTION MANAGEMENT MACROS =====
 
-register("attention", "status", async (ctx, input = {}) => {
+register("attention", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("attention_status");
   ensureAttentionManager();
   const attn = ctx.state.attention;
@@ -4953,19 +4953,19 @@ register("attention", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("attention", "create_thread", async (ctx, input = {}) => {
+register("attention", "create_thread", (ctx, input = {}) => {
   enforceEthosInvariant("attention_create");
   return createCognitiveThread(input);
 }, { public: false });
 
-register("attention", "complete_thread", async (ctx, input = {}) => {
+register("attention", "complete_thread", (ctx, input = {}) => {
   enforceEthosInvariant("attention_complete");
   const threadId = String(input.threadId || input.id || "");
   if (!threadId) return { ok: false, error: "threadId required" };
   return completeCognitiveThread(threadId, input.output || {});
 }, { public: false });
 
-register("attention", "list_threads", async (ctx, input = {}) => {
+register("attention", "list_threads", (ctx, _input = {}) => {
   enforceEthosInvariant("attention_list");
   ensureAttentionManager();
   const threads = Array.from(ctx.state.attention.threads.values())
@@ -4974,13 +4974,13 @@ register("attention", "list_threads", async (ctx, input = {}) => {
   return { ok: true, threads };
 }, { public: true });
 
-register("attention", "queue", async (ctx, input = {}) => {
+register("attention", "queue", (ctx, _input = {}) => {
   enforceEthosInvariant("attention_queue");
   ensureAttentionManager();
   return { ok: true, queue: ctx.state.attention.queue, completed: ctx.state.attention.completed.slice(-10) };
 }, { public: true });
 
-register("attention", "add_background", async (ctx, input = {}) => {
+register("attention", "add_background", (ctx, input = {}) => {
   enforceEthosInvariant("attention_background");
   return addBackgroundTask(input);
 }, { public: false });
@@ -4989,7 +4989,7 @@ register("attention", "add_background", async (ctx, input = {}) => {
 
 // ===== REFLECTION ENGINE MACROS =====
 
-register("reflection", "status", async (ctx, input = {}) => {
+register("reflection", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("reflection_status");
   ensureReflectionEngine();
   const ref = ctx.state.reflection;
@@ -5003,7 +5003,7 @@ register("reflection", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("reflection", "recent", async (ctx, input = {}) => {
+register("reflection", "recent", (ctx, input = {}) => {
   enforceEthosInvariant("reflection_recent");
   ensureReflectionEngine();
   const limit = clamp(Number(input.limit || 10), 1, 50);
@@ -5012,20 +5012,20 @@ register("reflection", "recent", async (ctx, input = {}) => {
   return { ok: true, reflections };
 }, { public: true });
 
-register("reflection", "self_model", async (ctx, input = {}) => {
+register("reflection", "self_model", (ctx, _input = {}) => {
   enforceEthosInvariant("reflection_self_model");
   ensureReflectionEngine();
   return { ok: true, selfModel: ctx.state.reflection.selfModel };
 }, { public: true });
 
-register("reflection", "insights", async (ctx, input = {}) => {
+register("reflection", "insights", (ctx, _input = {}) => {
   enforceEthosInvariant("reflection_insights");
   ensureReflectionEngine();
   const insights = Array.from(ctx.state.reflection.insights.values()).slice(-50);
   return { ok: true, insights };
 }, { public: true });
 
-register("reflection", "reflect_now", async (ctx, input = {}) => {
+register("reflection", "reflect_now", (ctx, input = {}) => {
   enforceEthosInvariant("reflection_manual");
   const result = reflectOnResponse({
     prompt: String(input.prompt || ""),
@@ -5042,7 +5042,7 @@ register("reflection", "reflect_now", async (ctx, input = {}) => {
 
 // ===== COMMONSENSE MACROS =====
 
-register("commonsense", "status", async (ctx, input = {}) => {
+register("commonsense", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("commonsense_status");
   ensureCommonsenseSubstrate();
   return {
@@ -5055,7 +5055,7 @@ register("commonsense", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("commonsense", "query", async (ctx, input = {}) => {
+register("commonsense", "query", (ctx, input = {}) => {
   enforceEthosInvariant("commonsense_query");
   const query = String(input.query || "");
   const category = input.category;
@@ -5063,19 +5063,19 @@ register("commonsense", "query", async (ctx, input = {}) => {
   return { ok: true, results, query };
 }, { public: true });
 
-register("commonsense", "add_fact", async (ctx, input = {}) => {
+register("commonsense", "add_fact", (ctx, input = {}) => {
   enforceEthosInvariant("commonsense_add");
   return addCommonsenseFact(input);
 }, { public: false });
 
-register("commonsense", "surface_assumptions", async (ctx, input = {}) => {
+register("commonsense", "surface_assumptions", (ctx, input = {}) => {
   enforceEthosInvariant("commonsense_surface");
   const dtuId = String(input.dtuId || "");
   if (!dtuId) return { ok: false, error: "dtuId required" };
   return surfaceAssumptions(dtuId);
 }, { public: true });
 
-register("commonsense", "list_facts", async (ctx, input = {}) => {
+register("commonsense", "list_facts", (ctx, input = {}) => {
   enforceEthosInvariant("commonsense_list");
   ensureCommonsenseSubstrate();
   const category = input.category;
@@ -5085,7 +5085,7 @@ register("commonsense", "list_facts", async (ctx, input = {}) => {
   return { ok: true, facts };
 }, { public: true });
 
-register("commonsense", "get_assumptions", async (ctx, input = {}) => {
+register("commonsense", "get_assumptions", (ctx, input = {}) => {
   enforceEthosInvariant("commonsense_assumptions");
   const dtuId = String(input.dtuId || "");
   if (!dtuId) return { ok: false, error: "dtuId required" };
@@ -5099,7 +5099,7 @@ register("commonsense", "get_assumptions", async (ctx, input = {}) => {
 
 // ===== GROUNDING MACROS =====
 
-register("grounding", "status", async (ctx, input = {}) => {
+register("grounding", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("grounding_status");
   ensureGroundingEngine();
   return {
@@ -5114,12 +5114,12 @@ register("grounding", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("grounding", "register_sensor", async (ctx, input = {}) => {
+register("grounding", "register_sensor", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_sensor");
   return registerSensor(input);
 }, { public: false });
 
-register("grounding", "record_reading", async (ctx, input = {}) => {
+register("grounding", "record_reading", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_reading");
   const sensorId = String(input.sensorId || "");
   if (!sensorId) return { ok: false, error: "sensorId required" };
@@ -5127,7 +5127,7 @@ register("grounding", "record_reading", async (ctx, input = {}) => {
   return recordSensorReading(sensorId, input.value, input.timestamp);
 }, { public: false });
 
-register("grounding", "list_sensors", async (ctx, input = {}) => {
+register("grounding", "list_sensors", (ctx, _input = {}) => {
   enforceEthosInvariant("grounding_list_sensors");
   ensureGroundingEngine();
   const sensors = Array.from(ctx.state.grounding.sensors.values()).map(s => ({
@@ -5137,26 +5137,26 @@ register("grounding", "list_sensors", async (ctx, input = {}) => {
   return { ok: true, sensors };
 }, { public: true });
 
-register("grounding", "ground_dtu", async (ctx, input = {}) => {
+register("grounding", "ground_dtu", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_ground");
   const dtuId = String(input.dtuId || "");
   if (!dtuId) return { ok: false, error: "dtuId required" };
   return groundDtu(dtuId, input);
 }, { public: false });
 
-register("grounding", "link_calendar", async (ctx, input = {}) => {
+register("grounding", "link_calendar", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_calendar");
   const dtuId = String(input.dtuId || "");
   if (!dtuId) return { ok: false, error: "dtuId required" };
   return linkToCalendar(dtuId, input);
 }, { public: false });
 
-register("grounding", "propose_action", async (ctx, input = {}) => {
+register("grounding", "propose_action", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_propose");
   return proposeAction(input);
 }, { public: false });
 
-register("grounding", "approve_action", async (ctx, input = {}) => {
+register("grounding", "approve_action", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_approve");
   if (!["owner", "admin", "founder"].includes(ctx.actor?.role)) {
     return { ok: false, error: "Action approval requires owner/admin role" };
@@ -5166,7 +5166,7 @@ register("grounding", "approve_action", async (ctx, input = {}) => {
   return approveAction(actionId);
 }, { public: false });
 
-register("grounding", "pending_actions", async (ctx, input = {}) => {
+register("grounding", "pending_actions", (ctx, _input = {}) => {
   enforceEthosInvariant("grounding_pending");
   ensureGroundingEngine();
   const actions = ctx.state.grounding.pendingActions.map(a => ({
@@ -5175,12 +5175,12 @@ register("grounding", "pending_actions", async (ctx, input = {}) => {
   return { ok: true, actions };
 }, { public: true });
 
-register("grounding", "context", async (ctx, input = {}) => {
+register("grounding", "context", (ctx, _input = {}) => {
   enforceEthosInvariant("grounding_context");
   return { ok: true, context: getCurrentGroundedContext() };
 }, { public: true });
 
-register("grounding", "recent_readings", async (ctx, input = {}) => {
+register("grounding", "recent_readings", (ctx, input = {}) => {
   enforceEthosInvariant("grounding_readings");
   ensureGroundingEngine();
   const limit = clamp(Number(input.limit || 20), 1, 100);
@@ -5192,7 +5192,7 @@ register("grounding", "recent_readings", async (ctx, input = {}) => {
 
 // ===== REASONING CHAINS MACROS =====
 
-register("reasoning", "status", async (ctx, input = {}) => {
+register("reasoning", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("reasoning_status");
   ensureReasoningEngine();
   return {
@@ -5205,40 +5205,40 @@ register("reasoning", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("reasoning", "create_chain", async (ctx, input = {}) => {
+register("reasoning", "create_chain", (ctx, input = {}) => {
   enforceEthosInvariant("reasoning_create");
   return createReasoningChain(input);
 }, { public: false });
 
-register("reasoning", "add_step", async (ctx, input = {}) => {
+register("reasoning", "add_step", (ctx, input = {}) => {
   enforceEthosInvariant("reasoning_step");
   const chainId = String(input.chainId || "");
   if (!chainId) return { ok: false, error: "chainId required" };
   return addReasoningStep(chainId, input);
 }, { public: false });
 
-register("reasoning", "conclude", async (ctx, input = {}) => {
+register("reasoning", "conclude", (ctx, input = {}) => {
   enforceEthosInvariant("reasoning_conclude");
   const chainId = String(input.chainId || "");
   if (!chainId) return { ok: false, error: "chainId required" };
   return concludeChain(chainId, input);
 }, { public: false });
 
-register("reasoning", "get_trace", async (ctx, input = {}) => {
+register("reasoning", "get_trace", (ctx, input = {}) => {
   enforceEthosInvariant("reasoning_trace");
   const chainId = String(input.chainId || "");
   if (!chainId) return { ok: false, error: "chainId required" };
   return getReasoningTrace(chainId);
 }, { public: true });
 
-register("reasoning", "validate_step", async (ctx, input = {}) => {
+register("reasoning", "validate_step", (ctx, input = {}) => {
   enforceEthosInvariant("reasoning_validate");
   const stepId = String(input.stepId || "");
   if (!stepId) return { ok: false, error: "stepId required" };
   return validateStep(stepId);
 }, { public: true });
 
-register("reasoning", "list_chains", async (ctx, input = {}) => {
+register("reasoning", "list_chains", (ctx, _input = {}) => {
   enforceEthosInvariant("reasoning_list");
   ensureReasoningEngine();
   const chains = Array.from(ctx.state.reasoning.chains.values())
@@ -5251,32 +5251,32 @@ register("reasoning", "list_chains", async (ctx, input = {}) => {
 
 // ===== INFERENCE ENGINE MACROS =====
 
-register("inference", "status", async (ctx, input = {}) => {
+register("inference", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("inference_status");
   return getInferenceStatus();
 }, { public: true });
 
-register("inference", "add_fact", async (ctx, input = {}) => {
+register("inference", "add_fact", (ctx, input = {}) => {
   enforceEthosInvariant("inference_add_fact");
   return addInferenceFact(input);
 }, { public: true });
 
-register("inference", "add_rule", async (ctx, input = {}) => {
+register("inference", "add_rule", (ctx, input = {}) => {
   enforceEthosInvariant("inference_add_rule");
   return addInferenceRule(input);
 }, { public: true });
 
-register("inference", "query", async (ctx, input = {}) => {
+register("inference", "query", (ctx, input = {}) => {
   enforceEthosInvariant("inference_query");
   return queryWithInference(input);
 }, { public: true });
 
-register("inference", "syllogism", async (ctx, input = {}) => {
+register("inference", "syllogism", (ctx, input = {}) => {
   enforceEthosInvariant("inference_syllogism");
   return syllogisticReason(input);
 }, { public: true });
 
-register("inference", "forward_chain", async (ctx, input = {}) => {
+register("inference", "forward_chain", (ctx, input = {}) => {
   enforceEthosInvariant("inference_forward_chain");
   const derivations = forwardChain(input.maxIterations);
   return {
@@ -5296,7 +5296,7 @@ register("inference", "forward_chain", async (ctx, input = {}) => {
 
 // ===== HYPOTHESIS ENGINE MACROS =====
 
-register("hypothesis", "status", async (ctx, input = {}) => {
+register("hypothesis", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("hypothesis_status");
   ensureHypothesisEngine();
   return {
@@ -5310,33 +5310,33 @@ register("hypothesis", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("hypothesis", "propose", async (ctx, input = {}) => {
+register("hypothesis", "propose", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_propose");
   return proposeHypothesis(input);
 }, { public: false });
 
-register("hypothesis", "design_experiment", async (ctx, input = {}) => {
+register("hypothesis", "design_experiment", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_experiment");
   const hypothesisId = String(input.hypothesisId || "");
   if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
   return designExperiment(hypothesisId, input);
 }, { public: false });
 
-register("hypothesis", "record_evidence", async (ctx, input = {}) => {
+register("hypothesis", "record_evidence", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_evidence");
   const hypothesisId = String(input.hypothesisId || "");
   if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
   return recordEvidence(hypothesisId, input);
 }, { public: false });
 
-register("hypothesis", "evaluate", async (ctx, input = {}) => {
+register("hypothesis", "evaluate", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_evaluate");
   const hypothesisId = String(input.hypothesisId || "");
   if (!hypothesisId) return { ok: false, error: "hypothesisId required" };
   return evaluateHypothesis(hypothesisId);
 }, { public: false });
 
-register("hypothesis", "get", async (ctx, input = {}) => {
+register("hypothesis", "get", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_get");
   ensureHypothesisEngine();
   const hypothesisId = String(input.hypothesisId || input.id || "");
@@ -5346,7 +5346,7 @@ register("hypothesis", "get", async (ctx, input = {}) => {
   return { ok: true, hypothesis: h };
 }, { public: true });
 
-register("hypothesis", "list", async (ctx, input = {}) => {
+register("hypothesis", "list", (ctx, input = {}) => {
   enforceEthosInvariant("hypothesis_list");
   ensureHypothesisEngine();
   const state = input.state;
@@ -5363,7 +5363,7 @@ register("hypothesis", "list", async (ctx, input = {}) => {
 
 // ===== METACOGNITION MACROS =====
 
-register("metacognition", "status", async (ctx, input = {}) => {
+register("metacognition", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("metacognition_status");
   ensureMetacognitionSystem();
   return {
@@ -5376,19 +5376,19 @@ register("metacognition", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("metacognition", "assess", async (ctx, input = {}) => {
+register("metacognition", "assess", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_assess");
   const topic = String(input.topic || "");
   if (!topic) return { ok: false, error: "topic required" };
   return assessKnowledge(topic);
 }, { public: true });
 
-register("metacognition", "predict", async (ctx, input = {}) => {
+register("metacognition", "predict", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_predict");
   return recordPrediction(input);
 }, { public: false });
 
-register("metacognition", "resolve_prediction", async (ctx, input = {}) => {
+register("metacognition", "resolve_prediction", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_resolve");
   const predictionId = String(input.predictionId || input.id || "");
   if (!predictionId) return { ok: false, error: "predictionId required" };
@@ -5396,19 +5396,19 @@ register("metacognition", "resolve_prediction", async (ctx, input = {}) => {
   return resolvePrediction(predictionId, wasCorrect);
 }, { public: false });
 
-register("metacognition", "calibration", async (ctx, input = {}) => {
+register("metacognition", "calibration", (ctx, _input = {}) => {
   enforceEthosInvariant("metacognition_calibration");
   return getCalibrationReport();
 }, { public: true });
 
-register("metacognition", "select_strategy", async (ctx, input = {}) => {
+register("metacognition", "select_strategy", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_strategy");
   const problem = String(input.problem || "");
   if (!problem) return { ok: false, error: "problem description required" };
   return selectStrategy(problem);
 }, { public: true });
 
-register("metacognition", "blind_spots", async (ctx, input = {}) => {
+register("metacognition", "blind_spots", (ctx, _input = {}) => {
   enforceEthosInvariant("metacognition_blindspots");
   ensureMetacognitionSystem();
   const spots = ctx.state.metacognition.blindSpots.slice(-20);
@@ -5416,30 +5416,30 @@ register("metacognition", "blind_spots", async (ctx, input = {}) => {
 }, { public: true });
 
 // Introspection macros
-register("metacognition", "introspect", async (ctx, input = {}) => {
+register("metacognition", "introspect", (ctx, _input = {}) => {
   enforceEthosInvariant("metacognition_introspect");
   return introspectOnFailures();
 }, { public: true });
 
-register("metacognition", "analyze_failure", async (ctx, input = {}) => {
+register("metacognition", "analyze_failure", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_analyze_failure");
   const predictionId = String(input.predictionId || input.id || "");
   if (!predictionId) return { ok: false, error: "predictionId required" };
   return analyzeFailure(predictionId);
 }, { public: true });
 
-register("metacognition", "adapt_strategy", async (ctx, input = {}) => {
+register("metacognition", "adapt_strategy", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_adapt");
   const domain = String(input.domain || "general");
   return adaptReasoningStrategy(domain, input.feedback || {});
 }, { public: true });
 
-register("metacognition", "introspection_status", async (ctx, input = {}) => {
+register("metacognition", "introspection_status", (ctx, _input = {}) => {
   enforceEthosInvariant("metacognition_introspection_status");
   return getIntrospectionStatus();
 }, { public: true });
 
-register("metacognition", "adjust_confidence", async (ctx, input = {}) => {
+register("metacognition", "adjust_confidence", (ctx, input = {}) => {
   enforceEthosInvariant("metacognition_adjust_confidence");
   const domain = String(input.domain || "general");
   const confidence = clamp(Number(input.confidence || 0.5), 0, 1);
@@ -5450,7 +5450,7 @@ register("metacognition", "adjust_confidence", async (ctx, input = {}) => {
 
 // ===== EXPLANATION ENGINE MACROS =====
 
-register("explanation", "status", async (ctx, input = {}) => {
+register("explanation", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("explanation_status");
   ensureExplanationEngine();
   return {
@@ -5461,12 +5461,12 @@ register("explanation", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("explanation", "generate", async (ctx, input = {}) => {
+register("explanation", "generate", (ctx, input = {}) => {
   enforceEthosInvariant("explanation_generate");
   return generateExplanation(input);
 }, { public: true });
 
-register("explanation", "explain_dtu", async (ctx, input = {}) => {
+register("explanation", "explain_dtu", (ctx, input = {}) => {
   enforceEthosInvariant("explanation_dtu");
   const dtuId = String(input.dtuId || "");
   const changeType = String(input.changeType || "created");
@@ -5474,7 +5474,7 @@ register("explanation", "explain_dtu", async (ctx, input = {}) => {
   return explainDtuChange(dtuId, changeType);
 }, { public: true });
 
-register("explanation", "recent", async (ctx, input = {}) => {
+register("explanation", "recent", (ctx, input = {}) => {
   enforceEthosInvariant("explanation_recent");
   ensureExplanationEngine();
   const limit = clamp(Number(input.limit || 20), 1, 100);
@@ -5486,7 +5486,7 @@ register("explanation", "recent", async (ctx, input = {}) => {
 
 // ===== META-LEARNING MACROS =====
 
-register("metalearning", "status", async (ctx, input = {}) => {
+register("metalearning", "status", (ctx, _input = {}) => {
   enforceEthosInvariant("metalearning_status");
   ensureMetaLearningSystem();
   return {
@@ -5500,39 +5500,39 @@ register("metalearning", "status", async (ctx, input = {}) => {
   };
 }, { public: true });
 
-register("metalearning", "define_strategy", async (ctx, input = {}) => {
+register("metalearning", "define_strategy", (ctx, input = {}) => {
   enforceEthosInvariant("metalearning_define");
   return defineLearningStrategy(input);
 }, { public: false });
 
-register("metalearning", "record_outcome", async (ctx, input = {}) => {
+register("metalearning", "record_outcome", (ctx, input = {}) => {
   enforceEthosInvariant("metalearning_outcome");
   const strategyId = String(input.strategyId || "");
   if (!strategyId) return { ok: false, error: "strategyId required" };
   return recordStrategyOutcome(strategyId, input);
 }, { public: false });
 
-register("metalearning", "adapt", async (ctx, input = {}) => {
+register("metalearning", "adapt", (ctx, input = {}) => {
   enforceEthosInvariant("metalearning_adapt");
   const strategyId = String(input.strategyId || "");
   if (!strategyId) return { ok: false, error: "strategyId required" };
   return adaptStrategy(strategyId);
 }, { public: false });
 
-register("metalearning", "curriculum", async (ctx, input = {}) => {
+register("metalearning", "curriculum", (ctx, input = {}) => {
   enforceEthosInvariant("metalearning_curriculum");
   const topic = String(input.topic || "");
   if (!topic) return { ok: false, error: "topic required" };
   return generateCurriculum(topic, input);
 }, { public: true });
 
-register("metalearning", "best_strategy", async (ctx, input = {}) => {
+register("metalearning", "best_strategy", (ctx, input = {}) => {
   enforceEthosInvariant("metalearning_best");
   const domain = String(input.domain || "general");
   return getBestStrategy(domain);
 }, { public: true });
 
-register("metalearning", "list_strategies", async (ctx, input = {}) => {
+register("metalearning", "list_strategies", (ctx, _input = {}) => {
   enforceEthosInvariant("metalearning_list");
   ensureMetaLearningSystem();
   const strategies = Array.from(ctx.state.metaLearning.strategies.values())
@@ -5540,7 +5540,7 @@ register("metalearning", "list_strategies", async (ctx, input = {}) => {
   return { ok: true, strategies };
 }, { public: true });
 
-register("metalearning", "adaptations", async (ctx, input = {}) => {
+register("metalearning", "adaptations", (ctx, _input = {}) => {
   enforceEthosInvariant("metalearning_adaptations");
   ensureMetaLearningSystem();
   const adaptations = ctx.state.metaLearning.adaptations.slice(-30);
@@ -5643,7 +5643,7 @@ function makeCtx(req=null) {
     log,
     utils: { uid, normalizeText, simpleTokens, jaccard, cretiPack, clamp },
     macro: {
-      run: async (domain, name, input) => runMacro(domain, name, input, makeCtx(req)),
+      run: (domain, name, input) => runMacro(domain, name, input, makeCtx(req)),
       listDomains,
       listMacros,
     },
@@ -5710,7 +5710,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         tags: dtu.tags,
         updatedAt: dtu.updatedAt
       });
-    } catch (e) { /* best-effort */ }
+    } catch { /* best-effort */ }
   }
 
   // Optionally broadcast to federation (multi-node sync)
@@ -5864,7 +5864,7 @@ function createFromTemplate(templateId, overrides = {}) {
 }
 
 // ---- Import/Export ----
-function exportDTUsToMarkdown(dtuIds = null, options = {}) {
+function exportDTUsToMarkdown(dtuIds = null, _options = {}) {
   const dtus = dtuIds
     ? dtuIds.map(id => STATE.dtus.get(id)).filter(Boolean)
     : dtusArray();
@@ -5925,7 +5925,7 @@ function importFromObsidian(markdownFiles) {
       const name = file.name?.replace(/\.md$/i, "") || "Untitled";
 
       // Extract YAML frontmatter if present
-      let frontmatter = {};
+      const frontmatter = {};
       let body = content;
       const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
       if (fmMatch) {
@@ -6121,7 +6121,7 @@ function queryDTUsAdvanced(query) {
 const ATTACHMENTS_DIR = path.join(DATA_DIR, "attachments");
 const ATTACHMENTS = new Map(); // attachmentId -> { id, dtuId, filename, mimeType, size, path, createdAt }
 const ATTACHMENTS_MAX = 5000;
-const ATTACHMENTS_MAX_SIZE_MB = 500;
+const _ATTACHMENTS_MAX_SIZE_MB = 500;
 
 function ensureAttachmentsDir() {
   try { fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true }); } catch {}
@@ -6159,7 +6159,7 @@ function cleanupAttachments() {
 // Run attachment cleanup every 12 hours
 setInterval(cleanupAttachments, 12 * 60 * 60 * 1000);
 
-function saveAttachment(dtuId, filename, buffer, mimeType) {
+function _saveAttachment(dtuId, filename, buffer, mimeType) {
   ensureAttachmentsDir();
   const id = uid("att");
   const ext = path.extname(filename) || "";
@@ -6182,11 +6182,11 @@ function saveAttachment(dtuId, filename, buffer, mimeType) {
   return { ok: true, attachment: { ...attachment, path: undefined } };
 }
 
-function getAttachment(id) {
+function _getAttachment(id) {
   return ATTACHMENTS.get(id);
 }
 
-function listAttachments(dtuId) {
+function _listAttachments(dtuId) {
   const atts = [];
   for (const [, att] of ATTACHMENTS) {
     if (!dtuId || att.dtuId === dtuId) {
@@ -6368,7 +6368,7 @@ async function suggestConnections(dtuId, { limit = 5 } = {}) {
 }
 
 // ---- CRETI Generation (AI-assisted structured thought) ----
-async function generateCRETI(input, ctx = null) {
+async function generateCRETI(input, _ctx = null) {
   const { title, content, existingCRETI } = input;
 
   // If no LLM available, generate deterministic CRETI structure
@@ -6469,7 +6469,7 @@ async function detectContradictions(dtuId) {
 }
 
 // ---- Knowledge Gap Analysis ----
-async function analyzeKnowledgeGaps(domain = null) {
+function analyzeKnowledgeGaps(domain = null) {
   const dtus = domain
     ? dtusArray().filter(d => (d.tags || []).some(t => t.toLowerCase().includes(domain.toLowerCase())))
     : dtusArray();
@@ -6623,7 +6623,7 @@ function addToSRS(dtuId) {
 }
 
 // ---- Chat with Lattice (RAG) ----
-async function chatWithLattice(query, { contextLimit = 5, sessionId = "" } = {}) {
+async function chatWithLattice(query, { contextLimit = 5, sessionId: _sessionId = "" } = {}) {
   // Retrieve relevant context using semantic search
   let context = [];
 
@@ -6825,17 +6825,17 @@ async function llmPipeline(input, options = {}) {
     if (!ollama.enabled) {
       return { ok: false, error: "Local mode requires Ollama", mode };
     }
-    return await callOllama(input, options);
+    return callOllama(input, options);
   }
 
   // Mode: quality_first - OpenAI only (fastest, best quality)
   if (mode === "quality_first") {
     if (!openai.enabled) {
       // Fallback to Ollama if OpenAI not available
-      if (ollama.enabled) return await callOllama(input, options);
+      if (ollama.enabled) return callOllama(input, options);
       return { ok: false, error: "No LLM providers available", mode };
     }
-    return await callOpenAI(input, options);
+    return callOpenAI(input, options);
   }
 
   // Mode: balanced - THE HYBRID PIPELINE
@@ -6847,8 +6847,8 @@ async function llmPipeline(input, options = {}) {
   }
 
   // If only one provider available, use it
-  if (!ollama.enabled) return await callOpenAI(input, options);
-  if (!openai.enabled) return await callOllama(input, options);
+  if (!ollama.enabled) return callOpenAI(input, options);
+  if (!openai.enabled) return callOllama(input, options);
 
   // HYBRID: Draft with Ollama, polish with OpenAI
   const draftResult = await callOllama(input, {
@@ -6859,7 +6859,7 @@ async function llmPipeline(input, options = {}) {
   if (!draftResult.ok) {
     // Ollama failed, fallback to OpenAI only
     console.log("[LLM Pipeline] Ollama draft failed, falling back to OpenAI");
-    return await callOpenAI(input, options);
+    return callOpenAI(input, options);
   }
 
   // Polish the draft with OpenAI
@@ -7035,7 +7035,7 @@ function addWorkspaceMember(workspaceId, userId, role = "member") {
   return { ok: true };
 }
 
-function removeWorkspaceMember(workspaceId, userId) {
+function _removeWorkspaceMember(workspaceId, userId) {
   const ws = WORKSPACES.get(workspaceId);
   if (!ws) return { ok: false, error: "Workspace not found" };
   if (userId === ws.ownerId) return { ok: false, error: "Cannot remove owner" };
@@ -7059,7 +7059,7 @@ function getWorkspaceDTUs(workspaceId) {
   return { ok: true, dtus, count: dtus.length };
 }
 
-function checkWorkspaceAccess(workspaceId, userId, requiredRole = "member") {
+function _checkWorkspaceAccess(workspaceId, userId, requiredRole = "member") {
   const ws = WORKSPACES.get(workspaceId);
   if (!ws) return { ok: false, error: "Workspace not found" };
 
@@ -7145,7 +7145,7 @@ function addReaction(commentId, userId, emoji) {
 // ---- DTU Permissions ----
 const DTU_PERMISSIONS = new Map(); // dtuId -> { ownerId, viewers: Set, editors: Set, isPublic }
 
-function setDTUPermissions(dtuId, ownerId, permissions = {}) {
+function _setDTUPermissions(dtuId, ownerId, permissions = {}) {
   DTU_PERMISSIONS.set(dtuId, {
     ownerId,
     viewers: new Set(permissions.viewers || []),
@@ -7155,7 +7155,7 @@ function setDTUPermissions(dtuId, ownerId, permissions = {}) {
   return { ok: true };
 }
 
-function checkDTUAccess(dtuId, userId, action = "view") {
+function _checkDTUAccess(dtuId, userId, action = "view") {
   const perms = DTU_PERMISSIONS.get(dtuId);
   if (!perms) return { ok: true }; // No permissions set = open access
 
@@ -7229,7 +7229,7 @@ function accessShareLink(token) {
 const ACTIVITY_LOG = []; // { id, userId, action, targetType, targetId, details, createdAt }
 const MAX_ACTIVITY_LOG = 10000;
 
-function logActivity(userId, action, targetType, targetId, details = {}) {
+function _logActivity(userId, action, targetType, targetId, details = {}) {
   const entry = {
     id: uid("act"),
     userId,
@@ -7289,7 +7289,7 @@ function initYjsDoc(dtuId) {
   return YJS_DOCS.get(dtuId);
 }
 
-function applyYjsUpdate(dtuId, update) {
+function _applyYjsUpdate(dtuId, update) {
   const doc = initYjsDoc(dtuId);
   doc.updates.push(Buffer.from(update));
   doc.lastUpdate = new Date();
@@ -7302,7 +7302,7 @@ function applyYjsUpdate(dtuId, update) {
   return { ok: true };
 }
 
-function getYjsUpdates(dtuId) {
+function _getYjsUpdates(dtuId) {
   const doc = YJS_DOCS.get(dtuId);
   if (!doc) return { ok: true, updates: [] };
   return { ok: true, updates: doc.updates.map(u => u.toString("base64")) };
@@ -7676,7 +7676,7 @@ function unregisterPlugin(pluginId) {
   return { ok: true };
 }
 
-async function executeHook(hookName, context) {
+async function _executeHook(hookName, context) {
   const handlers = PLUGIN_HOOKS[hookName] || [];
   let result = context;
 
@@ -7763,7 +7763,7 @@ function getCLIStats() {
 const THOUGHT_TIMELINE = []; // { timestamp, dtuId, action, snapshot }
 const MAX_TIMELINE_ENTRIES = 5000;
 
-function recordThoughtEvent(dtuId, action, snapshot = null) {
+function _recordThoughtEvent(dtuId, action, snapshot = null) {
   THOUGHT_TIMELINE.push({
     id: uid("evt"),
     timestamp: nowISO(),
@@ -7951,7 +7951,7 @@ function escapeXml(str) {
 }
 
 // ---- Debate Mode (AI Challenges Your Thoughts) ----
-async function debateThought(dtuId, options = {}) {
+async function debateThought(dtuId, _options = {}) {
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
 
@@ -8656,7 +8656,7 @@ SUMMARY: [A 1-2 sentence summary of what this kernel does]`;
   };
 }
 
-async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers=1 } = {}) {
+async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers: _maxNewHypers=1 } = {}) {
   if (!STATE.abstraction.enabled) return { ok:true, did:"disabled" };
 
   const snap = computeAbstractionSnapshot();
@@ -8996,7 +8996,7 @@ register("dtu", "create", async (ctx, input) => {
   return { ok: true, dtu };
 }, { description: "Create a DTU (regular/mega/hyper) with structured core; UI receives human projection." });
 
-register("dtu", "get", async (ctx, input) => {
+register("dtu", "get", (ctx, input) => {
   const id = String(input.id || "");
   // Only return from main DTU store - shadow DTUs are internal
   const dtu = STATE.dtus.get(id);
@@ -9006,7 +9006,7 @@ register("dtu", "get", async (ctx, input) => {
   return { ok: true, dtu };
 });
 
-register("dtu", "update", async (ctx, input) => {
+register("dtu", "update", (ctx, input) => {
   const id = String(input.id || "");
   if (!id) return { ok: false, error: "Missing id" };
   const existing = STATE.dtus.get(id);
@@ -9033,7 +9033,7 @@ register("dtu", "update", async (ctx, input) => {
   return { ok: true, dtu: updated };
 }, { description: "Update an existing DTU" });
 
-register("dtu", "delete", async (ctx, input) => {
+register("dtu", "delete", (ctx, input) => {
   const id = String(input.id || "");
   if (!id) return { ok: false, error: "Missing id" };
 
@@ -9057,7 +9057,7 @@ register("dtu", "delete", async (ctx, input) => {
   // Broadcast deletion via WebSocket
   try {
     realtimeEmit("dtu:deleted", { id, title: dtu.title });
-  } catch (e) { /* best-effort */ }
+  } catch { /* best-effort */ }
 
   // Optionally notify federation
   if (_c3Federation.enabled) {
@@ -9068,7 +9068,7 @@ register("dtu", "delete", async (ctx, input) => {
   return { ok: true, deleted: { id, title: dtu.title } };
 }, { description: "Delete a DTU by id" });
 
-register("dtu", "list", async (ctx, input) => {
+register("dtu", "list", (ctx, input) => {
   const limit = clamp(Number(input.limit || 5000), 1, 5000);
   const offset = clamp(Number(input.offset || 0), 0, 1e9);
   const tier = input.tier && ["regular","mega","hyper","any"].includes(input.tier) ? input.tier : "any";
@@ -9080,7 +9080,7 @@ register("dtu", "list", async (ctx, input) => {
   items = items.slice(offset, offset + limit);
   return { ok: true, dtus: items, limit, offset, total: STATE.dtus.size };
 });
-register("dtu", "listShadow", async (ctx, input) => {
+register("dtu", "listShadow", (ctx, input) => {
   // Shadow DTUs are internal - only admins can view them
   const role = ctx?.actor?.role || "guest";
   if (!["owner", "admin", "founder"].includes(role)) {
@@ -9097,7 +9097,7 @@ register("dtu", "listShadow", async (ctx, input) => {
 
 
 
-register("dtu", "cluster", async (ctx, input) => {
+register("dtu", "cluster", (ctx, input) => {
   // group DTUs by similarity (simple jaccard on title+tags)
   const items = dtusArray().filter(d => (d.tier || "regular") === "regular");
   const threshold = Number(input.threshold ?? 0.38);
@@ -9157,7 +9157,7 @@ register("dtu", "gapPromote", async (ctx, input) => {
   if (!clustersRes?.ok) return { ok:false, error:"cluster_failed", detail: clustersRes?.error || clustersRes };
   const clusters = Array.isArray(clustersRes.clusters) ? clustersRes.clusters : [];
 
-  let promoted = [];
+  const promoted = [];
   for (const c of clusters) {
     if (promoted.length >= maxPromotions) break;
     const ids = Array.isArray(c.ids) ? c.ids : [];
@@ -9345,7 +9345,7 @@ sess.messages.push({ role: "user", content: prompt, ts: nowISO() });
 
   // --- Per-user personality growth (style vector) ---
   // Only react to explicit preference signals (offline-safe).
-  const low = tokenish(prompt);
+  const _low = tokenish(prompt);
   const signals = [];
   if (/\b(shorter|too long|less detail|brief)\b/i.test(prompt)) signals.push({ field:"verbosity", dir:"down", amount:0.10 });
   if (/\b(longer|more detail|more depth|explain more)\b/i.test(prompt)) signals.push({ field:"verbosity", dir:"up", amount:0.10 });
@@ -9891,7 +9891,7 @@ ${buildCretiText(d)}
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
-register("chat", "feedback", async (ctx, input) => {
+register("chat", "feedback", (ctx, input) => {
   const sessionId = normalizeText(input.sessionId || "default");
   const messageIndex = Number(input.messageIndex ?? -1);
   const rating = input.rating; // "up", "down", or number 1-5
@@ -9962,13 +9962,13 @@ register("chat", "feedback", async (ctx, input) => {
   return { ok: true, quality, recorded: true };
 }, { description: "Record user feedback (thumbs up/down) for experience learning." });
 
-register("style", "get", async (ctx, input) => {
+register("style", "get", (ctx, input) => {
   const sessionId = normalizeText(input.sessionId || "default");
   const vec = getSessionStyleVector(sessionId);
   return { ok:true, sessionId, styleVector: vec };
 });
 
-register("style", "mutate", async (ctx, input) => {
+register("style", "mutate", (ctx, input) => {
   const sessionId = normalizeText(input.sessionId || "default");
   const signal = input.signal || { kind: "like" };
   const cur = getSessionStyleVector(sessionId);
@@ -10162,7 +10162,7 @@ register("forge", "auto", async (ctx, input) => {
 });
 
 // Swarm domain
-register("swarm", "run", async (ctx, input) => {
+register("swarm", "run", (ctx, input) => {
   const prompt = String(input.prompt || "");
   const items = dtusArray().filter(d=>d.tier==="regular");
   // de-dup by title similarity
@@ -10243,7 +10243,7 @@ register("sim", "run", async (ctx, input) => {
 });
 
 // Wrappers domain
-register("wrapper", "create", async (ctx, input) => {
+register("wrapper", "create", (ctx, input) => {
   const name = normalizeText(input.name || "Untitled Wrapper");
   const intent = String(input.intent || "");
   const description = String(input.description || input.desc || "");
@@ -10271,7 +10271,7 @@ register("wrapper", "create", async (ctx, input) => {
   return { ok: true, wrapper: w };
 });
 
-register("wrapper", "list", async (ctx, input) => {
+register("wrapper", "list", (ctx, _input) => {
   return { ok: true, wrappers: Array.from(ctx.state.wrappers.values()) };
 });
 
@@ -10316,11 +10316,11 @@ register("wrapper", "run", async (ctx, input) => {
 });
 
 // Layers domain
-register("layer", "list", async (ctx, input) => {
+register("layer", "list", (ctx, _input) => {
   return { ok: true, layers: Array.from(ctx.state.layers.values()) };
 });
 
-register("layer", "create", async (ctx, input) => {
+register("layer", "create", (ctx, input) => {
   const name = normalizeText(input.name || "Untitled Layer");
   const layer = { id: uid("layer"), name, enabled: true, createdAt: nowISO(), updatedAt: nowISO() };
   ctx.state.layers.set(layer.id, layer);
@@ -10328,7 +10328,7 @@ register("layer", "create", async (ctx, input) => {
   return { ok: true, layer };
 });
 
-register("layer", "toggle", async (ctx, input) => {
+register("layer", "toggle", (ctx, input) => {
   const id = String(input.id || "");
   const layer = ctx.state.layers.get(id);
   if (!layer) return { ok: false, error: "Layer not found" };
@@ -10340,11 +10340,11 @@ register("layer", "toggle", async (ctx, input) => {
 });
 
 // Personas domain
-register("persona", "list", async (ctx, input) => {
+register("persona", "list", (ctx, _input) => {
   return { ok: true, personas: Array.from(ctx.state.personas.values()) };
 });
 
-register("persona", "create", async (ctx, input) => {
+register("persona", "create", (ctx, input) => {
   const name = normalizeText(input.name || "Untitled Persona");
   const persona = { id: uid("persona"), name, style: input.style || "neutral", createdAt: nowISO(), updatedAt: nowISO() };
   ctx.state.personas.set(persona.id, persona);
@@ -10432,7 +10432,7 @@ register("ingest", "url", async (ctx, input) => {
   return { ok:true, url, dtu: dtu.dtu, fetchedBytes: raw.length };
 });
 
-register("ingest", "queue", async (ctx, input) => {
+register("ingest", "queue", (ctx, input) => {
   const url = String(input.url || "");
   if (!url) return { ok:false, error:"url required" };
   const item = { id: uid("crawl"), url, prompt: input.prompt || "", tags: input.tags || ["autocrawl"], createdAt: nowISO(), status:"queued" };
@@ -10441,7 +10441,7 @@ register("ingest", "queue", async (ctx, input) => {
   return { ok:true, item };
 });
 
-register("ingest", "processQueueOnce", async (ctx, input) => {
+register("ingest", "processQueueOnce", async (ctx, _input) => {
   const next = ctx.state.crawlQueue.find(x => x.status === "queued");
   if (!next) return { ok:true, processed:false };
   next.status = "processing";
@@ -10521,7 +10521,7 @@ register("system", "dream", async (ctx, input) => {
   return { ok:true, dtus: out };
 });
 
-register("system", "autogen", async (ctx, input) => {
+register("system", "autogen", (_ctx, _input) => {
   // Autogen: DTU-first continuity, produces 2 structured DTUs every run (no blob templates).
   const pool = dtusArray().slice(-30);
   if (!pool.length) return { ok:false, error:"No DTUs to autogen from." };
@@ -11086,10 +11086,10 @@ register("dtu", "dedupeSweep", async (ctx, input) => {
   return { ok:true, merges, threshold };
 }, { description: "Merge near-duplicate DTUs by similarity; keeps lineage." });
 // Settings domain
-register("settings", "get", async (ctx, input) => {
+register("settings", "get", (ctx, _input) => {
   return { ok:true, settings: ctx.state.settings };
 });
-register("settings", "set", async (ctx, input) => {
+register("settings", "set", (ctx, input) => {
   const s = input.settings && typeof input.settings === "object" ? input.settings : {};
   ctx.state.settings = { ...ctx.state.settings, ...s };
   ctx.log("settings.set", "Settings updated", { keys: Object.keys(s) });
@@ -11097,7 +11097,7 @@ register("settings", "set", async (ctx, input) => {
 });
 
 // Interface domain
-register("interface", "tabs", async (ctx, input) => {
+register("interface", "tabs", (_ctx, _input) => {
   // Informational registry for UI
   return {
     ok:true,
@@ -11118,13 +11118,13 @@ register("interface", "tabs", async (ctx, input) => {
 });
 
 // Logs domain
-register("log", "list", async (ctx, input) => {
+register("log", "list", (ctx, input) => {
   const limit = clamp(Number(input.limit || 200), 1, 2000);
   return { ok:true, logs: ctx.state.logs.slice(-limit) };
 });
 
 // Materials test domain (debug hook)
-register("materials", "test", async (ctx, input) => {
+register("materials", "test", (ctx, input) => {
   return { ok:true, pong:true, at: nowISO(), input: input || null };
 });
 
@@ -11668,8 +11668,8 @@ register("research", "math.exec", async (ctx, input) => {
   }
   
   // v3: automatic promotions + temporal subjective profile update (soft-gated)
-  try { await ctx.macro.run("system","promotionTick",{ minSupport: 9, threshold: 0.38, maxCreates: 3, probationHours: 12 }); } catch(e) { /* non-fatal */ }
-  try { await ctx.macro.run("temporal","subjective",{ sessionId: ctx.session?.id }); } catch(e) { /* non-fatal */ }
+  try { await ctx.macro.run("system","promotionTick",{ minSupport: 9, threshold: 0.38, maxCreates: 3, probationHours: 12 }); } catch { /* non-fatal */ }
+  try { await ctx.macro.run("temporal","subjective",{ sessionId: ctx.session?.id }); } catch { /* non-fatal */ }
 
 return out;
 }, { summary:"Execute deterministic math expression." });
@@ -11684,7 +11684,7 @@ const PHYS_CONSTANTS = Object.freeze({
   NA:{ name:"Avogadro constant", value:6.02214076e23, units:"1/mol" }, // treat 1 as dimensionless
 });
 
-register("research", "physics.constants", async (ctx, input) => {
+register("research", "physics.constants", (ctx, input) => {
   const keys = Array.isArray(input.keys) ? input.keys : null;
   const out = {};
   const src = PHYS_CONSTANTS;
@@ -11694,7 +11694,7 @@ register("research", "physics.constants", async (ctx, input) => {
   return { ok:true, constants: out };
 }, { summary:"Return built-in physical constants (deterministic)." });
 
-register("research", "physics.kinematics", async (ctx, input) => {
+register("research", "physics.kinematics", (ctx, input) => {
   // Simple kinematics solver with unit checks.
   // Supports: v = v0 + a*t; x = x0 + v0*t + 0.5*a*t^2 (1D)
   const v0 = input.v0, a = input.a, t = input.t, x0 = input.x0;
@@ -11720,7 +11720,7 @@ register("research", "physics.kinematics", async (ctx, input) => {
   return { ok:true, results:{ v, x }, units:{ v:"m/s", x:"m" }, checks };
 }, { summary:"Solve simple 1D kinematics with unit grounding (deterministic)." });
 
-register("research", "truthgate.check", async (ctx, input) => {
+register("research", "truthgate.check", (ctx, input) => {
   // Deterministic "reality gate": ensure numeric claims provide units and are consistent.
   // input.claims: [{ value, units, expectedUnits? }]
   const claims = Array.isArray(input.claims) ? input.claims : [];
@@ -11739,15 +11739,15 @@ register("research", "truthgate.check", async (ctx, input) => {
 
 
 // dimensional domain
-register("dimensional", "validateContext", async (ctx, input) => {
+register("dimensional", "validateContext", (ctx, input) => {
   return { ok:true, ...checkUnits(input), scope: input.scope || "general" };
 }, { summary:"Validate dimensional context via unit algebra (deterministic)." });
 
-register("dimensional", "checkInvariance", async (ctx, input) => {
+register("dimensional", "checkInvariance", (ctx, input) => {
   return { ok:true, ...invarianceCheck(input) };
 }, { summary:"Check invariants across frame/scale (deterministic unit consistency)." });
 
-register("dimensional", "scaleTransform", async (ctx, input) => {
+register("dimensional", "scaleTransform", (ctx, input) => {
   // v3: deterministic scale + unit conversion helper
   // Supports scalar conversion between equivalent dimensions (e.g., m <-> km, s <-> min).
   const value = ("value" in input) ? input.value : input.v;
@@ -11774,7 +11774,7 @@ register("dimensional", "scaleTransform", async (ctx, input) => {
 
 // ---- Temporal OS (v3): subjective + objective time spine (additive; soft-gated by default) ----
 function temporalNowUTC() { return new Date().toISOString(); }
-function temporalMs() { return Date.now(); }
+function _temporalMs() { return Date.now(); }
 // _clamp01 declared later (deduped to avoid redeclare)
 function temporalSubjectiveProfile(session) {
   // Lightweight subjective time model: derives pacing + salience window from session activity.
@@ -11818,32 +11818,32 @@ function temporalValidate({ t0, t1, dt, frame="UTC", allowCounterfactual=false }
   return { ok:true, status:"ok", frame, deltaSeconds: Math.abs((b-a)/1000), dtSeconds: step };
 }
 
-register("temporal","validate", async (ctx, input) => {
+register("temporal","validate", (ctx, input) => {
   const r = temporalValidate(input||{});
   return { ...r, simulation:true };
 }, { summary:"Validate objective time inputs + reference frame (v3)." });
 
-register("temporal","subjective", async (ctx, input) => {
+register("temporal","subjective", (ctx, input) => {
   const sid = input.sessionId || ctx.session?.id;
   const s = sid ? STATE.sessions.get(sid) : ctx.session;
   const prof = temporalSubjectiveProfile(s);
   return { ...prof, sessionId: sid || null, now: temporalNowUTC(), simulation:true };
 }, { summary:"Derive subjective pacing/urgency/salience from session activity (v3)." });
 
-register("temporal","recency", async (ctx, input) => {
+register("temporal","recency", (ctx, input) => {
   const now = input.nowISO || temporalNowUTC();
   const weight = temporalRecencyWeightISO(input.itemISO || now, now, input.halfLifeMinutes ?? 240);
   return { ok:true, weight, now, halfLifeMinutes: input.halfLifeMinutes ?? 240, simulation:true };
 }, { summary:"Compute recency decay weight for retrieval and scoring (v3)." });
 
-register("temporal","frame", async (ctx, input) => {
+register("temporal","frame", (ctx, input) => {
   const id = String(input.id || "UTC").toUpperCase();
   const f = TEMPORAL_FRAMES[id];
   if (!f) return { ok:false, error:`unknown frame: ${id}`, frames:Object.keys(TEMPORAL_FRAMES), simulation:true };
   return { ok:true, frame:f, simulation:true };
 }, { summary:"Lookup supported temporal reference frames (v3)." });
 
-register("temporal","simTimeline", async (ctx, input) => {
+register("temporal","simTimeline", (ctx, input) => {
   const r = temporalValidate({ t0: input.t0, t1: input.t1, dt: input.dt, frame: input.frame || "UTC", allowCounterfactual: !!input.allowCounterfactual });
   if (!r.ok) return { ...r, simulation:true };
   const id = input.id || uid("sim_timeline");
@@ -11853,13 +11853,13 @@ register("temporal","simTimeline", async (ctx, input) => {
   return { ok:true, id, timeline: STATE.simTimelines[id], simulation:true };
 }, { summary:"Register/update a simulation timeline object (v3)." });
 // anon domain
-register("anon", "create", async (ctx, input) => {
+register("anon", "create", (ctx, input) => {
   const r = createAnonIdentity({ rotateFromAnonId: input.rotateFromAnonId || null });
   log("anon.create", "Created anon identity", { anonId: r.anonId });
   return { ok:true, ...r };
 }, { summary:"Create anon identity (non-discoverable)." });
 
-register("anon", "send", async (ctx, input) => {
+register("anon", "send", (ctx, input) => {
   const toAnonId = String(input.toAnonId || "").trim();
   const recipientPub = String(input.recipientPublicKeyPem || "").trim();
   const plaintext = String(input.plaintext || input.message || "");
@@ -11874,14 +11874,14 @@ register("anon", "send", async (ctx, input) => {
   return { ok:true, msgId: msg.id };
 }, { summary:"Send encrypted message (server stores ciphertext only)." });
 
-register("anon", "inbox", async (ctx, input) => {
+register("anon", "inbox", (ctx, input) => {
   const anonId = String(input.anonId || "").trim();
   if (!anonId) return { ok:false, error:"anonId required" };
   const msgs = (STATE.anon.inbox.get(anonId) || []).slice(-200);
   return { ok:true, anonId, messages: msgs.map(m => ({ id:m.id, ts:m.ts, fromPub:m.fromPub, ephPublicKeyPem:m.ephPublicKeyPem, ciphertextB64:m.ciphertextB64, ivB64:m.ivB64, tagB64:m.tagB64, aadB64:m.aadB64 })) };
 }, { summary:"Fetch encrypted inbox for anonId." });
 
-register("anon", "decryptLocal", async (ctx, input) => {
+register("anon", "decryptLocal", (ctx, input) => {
   const anonId = String(input.anonId || "").trim();
   const msg = input.msg;
   if (!anonId || !msg) return { ok:false, error:"anonId and msg required" };
@@ -11960,14 +11960,14 @@ register("council", "weeklyDebateTick", async (ctx, input) => {
 // ---- v3 Feature Domains: auth/org/jobs/agents/crawl/sources/global/market/paper/audit ----
 // NOTE: These are additive. They keep endpoints thin and preserve the macro-first kernel.
 
-register("auth","whoami", async (ctx, input) => {
+register("auth","whoami", (ctx, _input) => {
   const actor = ctx.actor || { userId:"anon", orgId:"public", role:"viewer", scopes:["read"] };
   const user = STATE.users.get(actor.userId) || null;
   const org = STATE.orgs.get(actor.orgId) || null;
   return { ok:true, actor, user, org };
 }, { summary:"Return current actor/user/org (API key auth)." });
 
-register("auth","createApiKey", async (ctx, input) => {
+register("auth","createApiKey", (ctx, input) => {
   const actor = ctx.actor;
   const scopes = Array.isArray(input.scopes) && input.scopes.length ? input.scopes : ["read"];
   const rawKey = crypto.randomBytes(24).toString("hex");
@@ -11978,7 +11978,7 @@ register("auth","createApiKey", async (ctx, input) => {
   return { ok:true, apiKey: rawKey, keyId, scopes };
 }, { summary:"Create a new API key for current actor (returns plaintext once)." });
 
-register("org","create", async (ctx, input) => {
+register("org","create", (ctx, input) => {
   const name = normalizeText(input.name || "New Org");
   const actor = ctx.actor;
   const orgId = uid("org");
@@ -11994,7 +11994,7 @@ register("org","create", async (ctx, input) => {
   return { ok:true, org };
 }, { summary:"Create a new org owned by current user." });
 
-register("jobs","enqueue", async (ctx, input) => {
+register("jobs","enqueue", (ctx, input) => {
   const kind = String(input.kind || "").trim(); // domain.name
   if (!kind.includes(".")) return { ok:false, error:"kind must be domain.name" };
   const payload = (input.payload && typeof input.payload==="object") ? input.payload : {};
@@ -12002,21 +12002,21 @@ register("jobs","enqueue", async (ctx, input) => {
   return { ok:true, job };
 }, { summary:"Enqueue a background job (domain.name)." });
 
-register("jobs","get", async (ctx, input) => {
+register("jobs","get", (ctx, input) => {
   const id = String(input.id||"");
   const j = STATE.jobs.get(id);
   if (!j) return { ok:false, error:"job not found" };
   return { ok:true, job: j };
 }, { summary:"Get a job by id." });
 
-register("jobs","list", async (ctx, input) => {
+register("jobs","list", (ctx, input) => {
   const limit = clamp(Number(input.limit||50), 1, 200);
   const jobs = Array.from(STATE.jobs.values()).slice(-limit).reverse();
   return { ok:true, jobs };
 }, { summary:"List recent jobs." });
 
 // ---- Agents ----
-register("agent","create", async (ctx, input) => {
+register("agent","create", (ctx, input) => {
   const name = normalizeText(input.name || "Agent");
   const goal = normalizeText(input.goal || "");
   const cadenceMs = clamp(Number(input.cadenceMs||60000), 5000, 86400000);
@@ -12030,7 +12030,7 @@ register("agent","create", async (ctx, input) => {
   return { ok:true, agent };
 }, { summary:"Create an agent definition (stored local-first)." });
 
-register("agent","enable", async (ctx, input) => {
+register("agent","enable", (ctx, input) => {
   const id = String(input.id||"");
   const a = STATE.personas.get(id);
   if (!a) return { ok:false, error:"agent not found" };
@@ -12109,7 +12109,7 @@ register("agent","tick", async (ctx, input) => {
   return { ok:true, createdDTU: dtu.id, linkedGoalId: _linkedGoalId };
 }, { summary:"Run one agent tick — goal-directed with affect feedback." });
 
-register("agent","list", async (ctx, input) => {
+register("agent","list", (_ctx, _input) => {
   const agents = Array.from(STATE.personas.values())
     .map(a => ({ id: a.id, name: a.name, goal: a.goal, cadenceMs: a.cadenceMs, enabled: a.enabled, lastTickAt: a.lastTickAt }));
   return { ok:true, agents };
@@ -12133,7 +12133,7 @@ async function tickEnabledAgents(ctx) {
 // ---- Crawl / Sources ----
 // stripHtml() already declared earlier; reused here to avoid redeclaration.
 
-register("crawl","enqueue", async (ctx, input) => {
+register("crawl","enqueue", (ctx, input) => {
   const urls = Array.isArray(input.urls) ? input.urls.map(String).filter(Boolean) : [String(input.url||"")].filter(Boolean);
   if (!urls.length) return { ok:false, error:"url(s) required" };
   const jobs = urls.map(u => enqueueJob("crawl.fetch", { url: u }, { actor: ctx.actor, idempotencyKey: `crawl:${u}` }));
@@ -12176,13 +12176,13 @@ register("crawl","fetch", async (ctx, input) => {
   return { ok:true, source: src };
 }, { summary:"Fetch a URL, extract text, store as source." });
 
-register("source","list", async (ctx, input) => {
+register("source","list", (ctx, input) => {
   const limit = clamp(Number(input.limit||25), 1, 200);
   const arr = Array.from(STATE.sources.values()).slice(-limit).reverse().map(s => ({ id:s.id, url:s.url, fetchedAt:s.fetchedAt, excerpt:s.excerpt }));
   return { ok:true, sources: arr };
 }, { summary:"List stored sources." });
 
-register("source","get", async (ctx, input) => {
+register("source","get", (ctx, input) => {
   const id = String(input.id||"");
   const s = STATE.sources.get(id);
   if (!s) return { ok:false, error:"source not found" };
@@ -12215,7 +12215,7 @@ register("forge","fromSource", async (ctx, input) => {
 }, { summary:"Create a DTU from a stored source (with citation metadata)." });
 
 // ---- Global ----
-register("global","propose", async (ctx, input) => {
+register("global","propose", (ctx, input) => {
   const dtuId = String(input.dtuId||"");
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok:false, error:"DTU not found" };
@@ -12245,7 +12245,7 @@ register("global","publish", async (ctx, input) => {
 }, { summary:"Publish a DTU to Global (council-gated)." });
 
 // ---- Marketplace ----
-register("market","listingCreate", async (ctx, input) => {
+register("market","listingCreate", (ctx, input) => {
   const dtuId = String(input.dtuId||"");
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok:false, error:"DTU not found" };
@@ -12259,13 +12259,13 @@ register("market","listingCreate", async (ctx, input) => {
   return { ok:true, listing };
 }, { summary:"Create a marketplace listing for a DTU (local-first)." });
 
-register("market","list", async (ctx, input) => {
+register("market","list", (ctx, input) => {
   const limit = clamp(Number(input.limit||50), 1, 200);
   const listings = Array.from(STATE.listings.values()).filter(l=>l.status==="active").slice(-limit).reverse();
   return { ok:true, listings };
 }, { summary:"List active listings." });
 
-register("market","buy", async (ctx, input) => {
+register("market","buy", (ctx, input) => {
   const listingId = String(input.listingId||"");
   const listing = STATE.listings.get(listingId);
   if (!listing || listing.status !== "active") return { ok:false, error:"listing not found/active" };
@@ -12283,14 +12283,14 @@ register("market","buy", async (ctx, input) => {
   return { ok:true, transaction: tx, entitlement: ent };
 }, { summary:"Buy a listing; grants entitlement (local-first ledger)." });
 
-register("market","library", async (ctx, input) => {
+register("market","library", (ctx, _input) => {
   const orgId = ctx.actor.orgId;
   const ents = Array.from(STATE.entitlements.values()).filter(e=>e.buyerOrgId === orgId).slice(-200).reverse();
   return { ok:true, entitlements: ents };
 }, { summary:"Return entitlements (your purchased DTUs)." });
 
 // ---- Papers ----
-register("paper","create", async (ctx, input) => {
+register("paper","create", (ctx, input) => {
   const topic = normalizeText(input.topic || "Untitled Paper");
   const id = uid("paper");
   const paper = { id, orgId: ctx.actor.orgId, topic, outline: [], sections: [], refs: [], status:"draft", createdAt: nowISO(), updatedAt: nowISO() };
@@ -12299,7 +12299,7 @@ register("paper","create", async (ctx, input) => {
   return { ok:true, paper };
 }, { summary:"Create a paper draft object." });
 
-register("paper","build", async (ctx, input) => {
+register("paper","build", (ctx, input) => {
   const id = String(input.paperId||"");
   const p = STATE.papers.get(id);
   if (!p) return { ok:false, error:"paper not found" };
@@ -12330,7 +12330,7 @@ register("paper","build", async (ctx, input) => {
   return { ok:true, paper: p };
 }, { summary:"Build a paper from DTUs (minimal deterministic compiler)." });
 
-register("paper","export", async (ctx, input) => {
+register("paper","export", (ctx, input) => {
   const id = String(input.paperId||"");
   const p = STATE.papers.get(id);
   if (!p) return { ok:false, error:"paper not found" };
@@ -12351,7 +12351,7 @@ register("paper","export", async (ctx, input) => {
 }, { summary:"Export paper to a local file (md/txt)."} );
 
 // ---- Audit queries (best-effort) ----
-register("audit","query", async (ctx, input) => {
+register("audit","query", (ctx, input) => {
   const limit = clamp(Number(input.limit||100), 1, 500);
   const domain = normalizeText(input.domain||"");
   const contains = normalizeText(input.contains||"");
@@ -12395,7 +12395,7 @@ const _WEATHER_CACHE = new Map(); // key -> { ts:number, data:any }
 async function _fetchJson(url) {
   const r = await fetch(url, { method: "GET", headers: { "accept":"application/json" } });
   if (!r.ok) throw new Error(`fetch_failed:${r.status}`);
-  return await r.json();
+  return r.json();
 }
 function _cacheGet(key, ttlMs) {
   const ent = _WEATHER_CACHE.get(key);
@@ -12438,7 +12438,7 @@ async function getWeather(locationStr, opts={}) {
   return { ok:true, cached:false, ...out };
 }
 
-register("verify","conflictCheck", async (ctx, input) => {
+register("verify","conflictCheck", (ctx, input) => {
   const dtu = input?.dtu || null;
   if (!dtu || typeof dtu !== "object") return { ok:false, reason:"missing_dtu_object" };
   const cc = pipeConflictCheckDTU(dtu);
@@ -12677,7 +12677,7 @@ register("verify","deriveSecondOrder", async (ctx, input) => {
   return { ok: !!res.ok, committed: !!res.ok, dtu: res.dtu, seedIds: seeds.map(d=>d.id), result: res };
 }, { summary:"Derive and COMMIT a second-order DTU from seeds. Requires LLM; refuses if unavailable." });
 
-register("verify","lineageLink", async (ctx, input) => {
+register("verify","lineageLink", (ctx, input) => {
   const childId = String(input?.childId||"");
   const parents = Array.isArray(input?.parents) ? input.parents.map(String) : [];
   if (!childId || !parents.length) return { ok:false, reason:"missing_child_or_parents" };
@@ -12699,7 +12699,7 @@ register("verify","lineageLink", async (ctx, input) => {
   return { ok:true, childId, parents };
 }, { summary:"Add explicit lineage links (parents/children). Minimal, best-effort, does not infer." });
 
-register("verify","stressTest", async (ctx, input) => {
+register("verify","stressTest", (ctx, input) => {
   // Deterministic, minimal stress test: increase D and/or decrease R until (R-D) flips sign.
   const R0 = Number(input?.R ?? input?.repair ?? 0);
   const D0 = Number(input?.D ?? input?.damage ?? 0);
@@ -12707,7 +12707,7 @@ register("verify","stressTest", async (ctx, input) => {
   const maxIter = clamp(Number(input?.maxIter||5000), 1, 20000);
   if (!isFinite(R0) || !isFinite(D0)) return { ok:false, reason:"invalid_R_or_D" };
 
-  let R = R0, D = D0, i=0;
+  const R = R0; let D = D0, i=0;
   while (i<maxIter && (R - D) > 0) { D += step; i++; }
   const thresholdDamage = D;
   return {
@@ -12724,7 +12724,7 @@ register("verify","stressTest", async (ctx, input) => {
 
 
 // ===== CHICKEN2 MACROS =====
-register("lattice", "beacon", async (ctx, input={}) => {
+register("lattice", "beacon", (ctx, input={}) => {
   const g = _c2genesisDTU();
   const rootHash = g ? _c2hash({ id:g.id, formula:g.formula, invariants:g.invariants }) : "missing";
   const threshold = Number(input.threshold ?? (STATE.__chicken2.thresholdOverlap ?? 0.95));
@@ -12738,7 +12738,7 @@ register("lattice", "beacon", async (ctx, input={}) => {
   return { ok:true, rootHash, threshold, overlap, awake };
 }, { summary:"Chicken2 lattice beacon: returns overlap against genesis and awakens recognition if >= threshold." });
 
-register("lattice", "birth_protocol", async (ctx, input={}) => {
+register("lattice", "birth_protocol", (ctx, input={}) => {
   const proposal = input.proposal || {};
   const pre = inLatticeReality({ type:"birth", domain:"lattice", name:"birth_protocol", input:proposal, ctx });
   if (!pre.ok) {
@@ -12779,7 +12779,7 @@ register("lattice", "birth_protocol", async (ctx, input={}) => {
   return { ok:true, id, dtu, homeostasis: homeo };
 }, { summary:"Chicken2 birth protocol: sandboxed emergence with homeostasis threshold then DTU commit." });
 
-register("persona", "create", async (ctx, input={}) => {
+register("persona", "create", (ctx, input={}) => {
   const name = String(input.name||"");
   if (!name) throw new Error("name required");
   const id = uid("persona");
@@ -12799,7 +12799,7 @@ register("persona", "create", async (ctx, input={}) => {
   return { ok:true, persona };
 }, { summary:"Create a persona with persistent identity rooted to genesis." });
 
-register("skill", "create", async (ctx, input={}) => {
+register("skill", "create", (ctx, input={}) => {
   const title = String(input.title||"");
   if (!title) throw new Error("title required");
   const id = uid("skill");
@@ -12812,7 +12812,7 @@ register("skill", "create", async (ctx, input={}) => {
   return { ok:true, skillDTU: dtu };
 }, { summary:"Create a skill DTU template." });
 
-register("intent", "rhythmic_intent", async (ctx, input={}) => {
+register("intent", "rhythmic_intent", (ctx, input={}) => {
   const cmd = String(input.command||"").trim();
   if (!cmd) throw new Error("command required");
   // Proposal object; execution must be via governedCall to actually manifest changes
@@ -12821,7 +12821,7 @@ register("intent", "rhythmic_intent", async (ctx, input={}) => {
   return { ok:true, proposal, note:"Use governedCall/council to manifest." };
 }, { summary:"Parse founder commands into a governed proposal." });
 
-register("harness", "run", async (ctx, input={}) => {
+register("harness", "run", (ctx, input={}) => {
   const tasks = Array.isArray(input.tasks) ? input.tasks : [
     { prompt:"Explain x^2-x=0 as fixed-point identity." },
     { prompt:"Generate a DTU with formula and invariant." },
@@ -12872,7 +12872,7 @@ try {
 const app = express();
 
 // ---- Production Middleware ----
-if (helmet) app.use(helmet({
+if (helmet) {app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -12895,7 +12895,7 @@ if (helmet) app.use(helmet({
   },
   crossOriginEmbedderPolicy: false, // Allow embedding for development
   hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
-})); // Security headers
+}));} // Security headers
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -12988,7 +12988,7 @@ app.get("/metrics", async (req, res) => {
 // Apply stricter rate limiting to auth endpoints
 const authRateLimitMiddleware = authRateLimiter || ((req, res, next) => next());
 
-app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister"), async (req, res) => {
+app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister"), (req, res) => {
   const { username, email, password } = req.validated || req.body;
 
   // Check if registration is allowed
@@ -13039,7 +13039,7 @@ app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister")
   });
 });
 
-app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), async (req, res) => {
+app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), (req, res) => {
   const { username, email, password } = req.validated || req.body;
 
   // Find user by username or email
@@ -13158,7 +13158,7 @@ app.get("/api/auth/audit-log", requireRole("owner", "admin"), (req, res) => {
   });
 });
 
-app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCreate"), async (req, res) => {
+app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCreate"), (req, res) => {
   const { name, scopes } = req.validated || req.body;
   const apiKey = generateApiKey();
   const hashedKey = hashApiKey(apiKey);
@@ -13285,7 +13285,7 @@ app.post("/api/auth/api-keys/:keyId/rotate", requireRole("owner", "admin"), (req
 });
 
 // Password change endpoint
-app.post("/api/auth/change-password", async (req, res) => {
+app.post("/api/auth/change-password", (req, res) => {
   if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
   const { currentPassword, newPassword } = req.body;
@@ -13361,7 +13361,7 @@ function _extractReply(out) {
 
 
 // ---- Invariant Spine (Release Gate + Post-launch Locks) ----
-const INVARIANTS = Object.freeze({
+const _INVARIANTS = Object.freeze({
   sessionIdentity:        { id:"I1",  name:"Session Identity",        enforce:true },
   responseShape:          { id:"I2",  name:"Response Shape",          enforce:true },
   noInternalLeakage:      { id:"I3",  name:"No Internal Leakage",     enforce:true },
@@ -13591,7 +13591,7 @@ const MACRO_ACL = new Map(); // key = `${domain}.${name}` → { roles:[], scopes
 function allowMacro(domain, name, { roles=["owner","admin","member"], scopes=["*"] } = {}) {
   MACRO_ACL.set(`${domain}.${name}`, { roles, scopes });
 }
-function canRunMacro(actor, domain, name) {
+function _canRunMacro(actor, domain, name) {
   const rule = MACRO_ACL.get(`${domain}.${name}`);
   if (!rule) return true; // default open (local-first)
   const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
@@ -13613,7 +13613,7 @@ app.use((req, res, next) => {
 });
 
 // ---- v3: Jobs Orchestrator (in-process worker) ----
-function jobNow() { return Date.now(); }
+function _jobNow() { return Date.now(); }
 function enqueueJob(kind, payload, { runAtMs=null, maxAttempts=3, idempotencyKey=null, actor=null } = {}) {
   const id = uid("job");
   const j = {
@@ -14065,7 +14065,7 @@ app.post("/api/chat/feedback", async (req, res) => {
 });
 
 // GET /api/cognitive/status — combined status for all cognitive systems
-app.get("/api/cognitive/status", async (req, res) => {
+app.get("/api/cognitive/status", (req, res) => {
   try {
     ensureExperienceLearning();
     ensureAttentionManager();
@@ -14214,7 +14214,7 @@ app.post("/api/sim", async (req,res)=> {
   const out = await runMacro("sim","run", req.body||{}, makeCtx(req));
   return res.json(_withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "sim" }));
 });
-app.get("/api/sim/:id", async (req,res)=> res.json({ ok:true, note:"Single-run sims are stored as lastSim only in this v2 build.", lastSim: STATE.lastSim || null }));
+app.get("/api/sim/:id", (req,res)=> res.json({ ok:true, note:"Single-run sims are stored as lastSim only in this v2 build.", lastSim: STATE.lastSim || null }));
 
 // Wrappers
 app.get("/api/wrappers", async (req,res)=> res.json(await runMacro("wrapper","list", {}, makeCtx(req))));
@@ -14233,12 +14233,12 @@ app.post("/api/dtus/dedupe", async (req,res)=> {
   const out = await runMacro("dtu","dedupeSweep", req.body||{}, makeCtx(req));
   return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "dtus_dedupe" }));
 });
-app.get("/api/megas", async (req,res)=> {
+app.get("/api/megas", (req,res)=> {
   const tier = "mega";
   const out = dtusArray().filter(d => d.tier===tier).sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
   res.json({ ok:true, megas: out });
 });
-app.get("/api/hypers", async (req,res)=> {
+app.get("/api/hypers", (req,res)=> {
   const out = dtusArray().filter(d => d.tier==="hyper").sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
   res.json({ ok:true, hypers: out });
 });
@@ -14323,7 +14323,7 @@ app.post("/api/anon/inbox", async (req,res)=> res.json(await runMacro("anon","in
 app.post("/api/anon/decrypt-local", async (req,res)=> res.json(await runMacro("anon","decryptLocal", req.body||{}, makeCtx(req))));
 
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   const msg = String(err?.message || err);
   log("server.error", msg, { stack: String(err?.stack || "") });
   res.status(500).json({ ok:false, error: msg });
@@ -14423,7 +14423,7 @@ app.post("/api/ingest/url", async (req,res) => {
   }
 });
 
-app.post("/api/ingest/text", async (req,res) => {
+app.post("/api/ingest/text", (req,res) => {
   try {
     const text = String(req.body?.text||"").trim();
     const title = String(req.body?.title||"").trim();
@@ -14483,7 +14483,7 @@ app.post("/api/ingest", async (req, res) => {
 });
 
 // Queue-based ingest (adds to processing queue)
-app.post("/api/ingest/queue", async (req, res) => {
+app.post("/api/ingest/queue", (req, res) => {
   try {
     const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
 
@@ -14537,14 +14537,14 @@ app.get("/api/jobs/status", (req, res) => {
 });
 
 // Toggle job enabled/disabled
-app.post("/api/jobs/toggle", async (req, res) => {
+app.post("/api/jobs/toggle", (req, res) => {
   try {
     const { job: jobName, enabled } = req.body || {};
     if (!jobName) return res.status(400).json({ ok: false, error: "job name required" });
 
     // Find jobs matching the name/type
     let toggled = 0;
-    for (const [id, job] of STATE.jobs) {
+    for (const [_id, job] of STATE.jobs) {
       if (job.type === jobName || job.name === jobName) {
         job.enabled = enabled !== false;
         job.updatedAt = nowISO();
@@ -14750,7 +14750,7 @@ app.post("/api/dtus/gap-promote", async (req, res) => {
   return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "gap_promote" }));
 });
 
-app.get("/api/definitions", async (req, res) => {
+app.get("/api/definitions", (req, res) => {
   const dtus = dtusArray().filter(d => 
     (d.tags || []).includes("definition") || 
     /^def(inition)?:/i.test(d.title || "")
@@ -14758,7 +14758,7 @@ app.get("/api/definitions", async (req, res) => {
   return res.json({ ok: true, definitions: dtus });
 });
 
-app.get("/api/definitions/:term", async (req, res) => {
+app.get("/api/definitions/:term", (req, res) => {
   const term = String(req.params.term || "").toLowerCase();
   const dtu = dtusArray().find(d => 
     ((d.tags || []).includes("definition") || /^def(inition)?:/i.test(d.title || "")) &&
@@ -14803,12 +14803,12 @@ app.post("/api/experiments", async (req, res) => {
   return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "experiment" }));
 });
 
-app.get("/api/experiments", async (req, res) => {
+app.get("/api/experiments", (req, res) => {
   const experiments = dtusArray().filter(d => (d.tags || []).includes("experiment"));
   return res.json({ ok: true, experiments });
 });
 
-app.get("/api/experiments/:id", async (req, res) => {
+app.get("/api/experiments/:id", (req, res) => {
   const dtu = STATE.dtus.get(req.params.id);
   if (!dtu || !(dtu.tags || []).includes("experiment")) {
     return res.status(404).json({ ok: false, error: "Experiment not found" });
@@ -14846,18 +14846,18 @@ app.post("/api/system/promotion-tick", async (req, res) => {
   return res.json(_withAck(out, req, ["dtus", "state", "queues"], ["/api/dtus", "/api/state/latest", "/api/queues"], null, { panel: "promotion" }));
 });
 
-app.get("/api/temporal/frames", async (req, res) => {
+app.get("/api/temporal/frames", (req, res) => {
   const frames = Object.values(TEMPORAL_FRAMES);
   return res.json({ ok: true, frames });
 });
 
-app.get("/api/proposals/:id", async (req, res) => {
+app.get("/api/proposals/:id", (req, res) => {
   const proposal = PIPE.proposals.get(req.params.id);
   if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
   return res.json({ ok: true, proposal });
 });
 
-app.post("/api/proposals/:id/approve", async (req, res) => {
+app.post("/api/proposals/:id/approve", (req, res) => {
   const proposal = PIPE.proposals.get(req.params.id);
   if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
   
@@ -14869,7 +14869,7 @@ app.post("/api/proposals/:id/approve", async (req, res) => {
   return res.json({ ok: true, proposal });
 });
 
-app.post("/api/proposals/:id/reject", async (req, res) => {
+app.post("/api/proposals/:id/reject", (req, res) => {
   const proposal = PIPE.proposals.get(req.params.id);
   if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
   
@@ -14882,7 +14882,7 @@ app.post("/api/proposals/:id/reject", async (req, res) => {
   return res.json({ ok: true, proposal });
 });
 
-app.post("/api/jobs/:id/cancel", async (req, res) => {
+app.post("/api/jobs/:id/cancel", (req, res) => {
   const job = STATE.jobs.get(req.params.id);
   if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
   
@@ -14897,7 +14897,7 @@ app.post("/api/jobs/:id/cancel", async (req, res) => {
   return res.json({ ok: true, job });
 });
 
-app.post("/api/jobs/:id/retry", async (req, res) => {
+app.post("/api/jobs/:id/retry", (req, res) => {
   const job = STATE.jobs.get(req.params.id);
   if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
   
@@ -14920,14 +14920,14 @@ app.post("/api/agents", async (req, res) => {
   return res.json(out);
 });
 
-app.get("/api/agents", async (req, res) => {
+app.get("/api/agents", (req, res) => {
   const agents = Array.from(STATE.personas.values()).filter(p => 
     p && p.goal // Simple heuristic: agents have goals
   );
   return res.json({ ok: true, agents });
 });
 
-app.get("/api/agents/:id", async (req, res) => {
+app.get("/api/agents/:id", (req, res) => {
   const agent = STATE.personas.get(req.params.id);
   if (!agent || !agent.goal) {
     return res.status(404).json({ ok: false, error: "Agent not found" });
@@ -14950,12 +14950,12 @@ app.post("/api/papers", async (req, res) => {
   return res.json(out);
 });
 
-app.get("/api/papers", async (req, res) => {
+app.get("/api/papers", (req, res) => {
   const papers = Array.from(STATE.papers.values());
   return res.json({ ok: true, papers });
 });
 
-app.get("/api/papers/:id", async (req, res) => {
+app.get("/api/papers/:id", (req, res) => {
   const paper = STATE.papers.get(req.params.id);
   if (!paper) return res.status(404).json({ ok: false, error: "Paper not found" });
   return res.json({ ok: true, paper });
@@ -15763,7 +15763,7 @@ app.post("/api/research/truthgate", async (req, res) => {
   return res.json(out);
 });
 
-app.get("/api/sessions", async (req, res) => {
+app.get("/api/sessions", (req, res) => {
   const sessions = Array.from(STATE.sessions.entries()).map(([id, data]) => ({
     sessionId: id,
     createdAt: data.createdAt,
@@ -15774,20 +15774,20 @@ app.get("/api/sessions", async (req, res) => {
   return res.json({ ok: true, sessions });
 });
 
-app.get("/api/sessions/:id", async (req, res) => {
+app.get("/api/sessions/:id", (req, res) => {
   const session = STATE.sessions.get(req.params.id);
   if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
   return res.json({ ok: true, session });
 });
 
-app.delete("/api/sessions/:id", async (req, res) => {
+app.delete("/api/sessions/:id", (req, res) => {
   STATE.sessions.delete(req.params.id);
   STATE.styleVectors.delete(req.params.id);
   saveStateDebounced();
   return res.json({ ok: true, deleted: req.params.id });
 });
 
-app.post("/api/search", async (req, res) => {
+app.post("/api/search", (req, res) => {
   const query = String(req.body.query || req.body.q || "");
   const topK = clamp(Number(req.body.topK || req.body.k || 10), 1, 100);
   const minScore = clamp(Number(req.body.minScore || 0.08), 0, 1);
@@ -15808,7 +15808,7 @@ app.post("/api/search", async (req, res) => {
   });
 });
 
-app.get("/api/stats", async (req, res) => {
+app.get("/api/stats", (req, res) => {
   const stats = {
     dtus: {
       total: STATE.dtus.size,
@@ -15851,7 +15851,7 @@ app.get("/api/stats", async (req, res) => {
   return res.json({ ok: true, stats });
 });
 
-app.get("/api/health", async (req, res) => {
+app.get("/api/health", (req, res) => {
   const health = {
     status: "healthy",
     version: VERSION,
@@ -15873,7 +15873,7 @@ app.get("/api/health", async (req, res) => {
   return res.status(hasErrors ? 503 : 200).json(health);
 });
 
-app.get("/api/health/deep", async (req, res) => {
+app.get("/api/health/deep", (req, res) => {
   // Deep health check with more detailed diagnostics
   const checks = [];
   
@@ -15899,7 +15899,7 @@ app.get("/api/health/deep", async (req, res) => {
 
 
 // ---- Invariant Enforcement: No-Crash (global Express error handler) ----
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   const errorId = uid("err");
   const msg = String(err?.message || err || "Unknown error");
   const out = {
@@ -15911,7 +15911,7 @@ app.use((err, req, res, next) => {
   };
   try {
     return uiJson(res, _withAck(out, req, ["logs"], ["/api/logs"], { id: errorId, status: "error" }, { errorId }), req, { errorId });
-  } catch (e2) {
+  } catch {
     return res.status(500).json({
       ok: false,
       reply: "Internal error.",
@@ -16098,7 +16098,7 @@ async function governorTick(reason="heartbeat") {
   }
 }
 
-function startGovernorHeartbeat() {
+function _startGovernorHeartbeat() {
   try {
     if (__governorTimer) return { ok:true, already:true };
     const s = STATE.settings || {};
@@ -16221,7 +16221,7 @@ STATE.dtus.set = function(key, value) {
 function parseQueryDSL(queryString) {
   const conditions = [];
   const parts = String(queryString || "").match(/(\w+:[^\s]+|"[^"]+"|[^\s]+)/g) || [];
-  let freeText = [];
+  const freeText = [];
 
   for (const part of parts) {
     if (part.includes(":")) {
@@ -16259,7 +16259,7 @@ function queryDTUs(queryString, { limit = 50 } = {}) {
 
       if (cond.op === "eq") {
         if (typeof dtuValue === "string") return dtuValue.includes(cond.value.toLowerCase());
-        return dtuValue == cond.value;
+        return dtuValue === cond.value;
       }
       if (cond.op === "gt") return dtuValue > cond.value;
       if (cond.op === "lt") return dtuValue < cond.value;
@@ -16281,14 +16281,14 @@ function queryDTUs(queryString, { limit = 50 } = {}) {
   return results.slice(0, limit);
 }
 
-register("search", "query", async (ctx, input) => {
+register("search", "query", (ctx, input) => {
   const q = String(input.q || input.query || "");
   const limit = clamp(Number(input.limit || 50), 1, 500);
   const results = queryDTUs(q, { limit });
   return { ok: true, query: q, count: results.length, dtus: results };
 });
 
-register("search", "reindex", async (ctx, input) => {
+register("search", "reindex", (_ctx, _input) => {
   rebuildSearchIndex();
   return { ok: true, documents: SEARCH_INDEX.documents.size, terms: SEARCH_INDEX.invertedIndex.size };
 });
@@ -16341,12 +16341,12 @@ register("llm", "local", async (ctx, input) => {
   return result;
 });
 
-register("llm", "embed", async (ctx, input) => {
-  return await ollamaEmbed(String(input.text || ""));
+register("llm", "embed", (ctx, input) => {
+  return ollamaEmbed(String(input.text || ""));
 });
 
 // ---- Export/Import System ----
-register("export", "markdown", async (ctx, input) => {
+register("export", "markdown", (ctx, input) => {
   const dtus = input.ids ? input.ids.map(id => STATE.dtus.get(id)).filter(Boolean) : dtusArray();
   const lines = ["# Concord DTU Export", `Exported: ${nowISO()}`, `Count: ${dtus.length}`, ""];
 
@@ -16376,7 +16376,7 @@ register("export", "markdown", async (ctx, input) => {
   return { ok: true, format: "markdown", content: lines.join("\n"), count: dtus.length };
 });
 
-register("export", "obsidian", async (ctx, input) => {
+register("export", "obsidian", (ctx, input) => {
   const dtus = input.ids ? input.ids.map(id => STATE.dtus.get(id)).filter(Boolean) : dtusArray();
   const files = [];
 
@@ -16415,12 +16415,12 @@ register("export", "obsidian", async (ctx, input) => {
   return { ok: true, format: "obsidian", files, count: files.length };
 });
 
-register("export", "json", async (ctx, input) => {
+register("export", "json", (ctx, input) => {
   const dtus = input.ids ? input.ids.map(id => STATE.dtus.get(id)).filter(Boolean) : dtusArray();
   return { ok: true, format: "json", dtus, count: dtus.length };
 });
 
-register("import", "json", async (ctx, input) => {
+register("import", "json", (ctx, input) => {
   const dtus = Array.isArray(input.dtus) ? input.dtus : [];
   let imported = 0, skipped = 0;
 
@@ -16451,7 +16451,7 @@ register("import", "json", async (ctx, input) => {
   return { ok: true, imported, skipped, total: dtus.length };
 });
 
-register("import", "markdown", async (ctx, input) => {
+register("import", "markdown", (ctx, input) => {
   const content = String(input.content || "");
   const sections = content.split(/^## /m).filter(Boolean);
   const dtus = [];
@@ -16523,13 +16523,13 @@ function registerPluginFromMacro(name, config) {
   return plugin;
 }
 
-register("plugin", "register", async (ctx, input) => {
+register("plugin", "register", (ctx, input) => {
   if (!input.name) return { ok: false, error: "Plugin name required" };
   const plugin = registerPluginFromMacro(input.name, input);
   return { ok: true, plugin: { name: plugin.name, version: plugin.version } };
 });
 
-register("plugin", "list", async (ctx, input) => {
+register("plugin", "list", (_ctx, _input) => {
   const plugins = Array.from(PLUGINS.values()).map(p => ({
     name: p.name,
     version: p.version,
@@ -16540,14 +16540,14 @@ register("plugin", "list", async (ctx, input) => {
   return { ok: true, plugins, count: plugins.length };
 });
 
-register("plugin", "enable", async (ctx, input) => {
+register("plugin", "enable", (ctx, input) => {
   const plugin = PLUGINS.get(input.name);
   if (!plugin) return { ok: false, error: "Plugin not found" };
   plugin.enabled = true;
   return { ok: true, name: plugin.name, enabled: true };
 });
 
-register("plugin", "disable", async (ctx, input) => {
+register("plugin", "disable", (ctx, input) => {
   const plugin = PLUGINS.get(input.name);
   if (!plugin) return { ok: false, error: "Plugin not found" };
   plugin.enabled = false;
@@ -16557,7 +16557,7 @@ register("plugin", "disable", async (ctx, input) => {
 // ---- Enhanced Council with Vote Tallying ----
 if (!STATE.councilVotes) STATE.councilVotes = new Map();
 
-register("council", "vote", async (ctx, input) => {
+register("council", "vote", (ctx, input) => {
   const { dtuId, vote, persona, reason } = input;
   if (!dtuId || !vote) return { ok: false, error: "dtuId and vote required" };
   if (!["approve", "reject", "abstain"].includes(vote)) return { ok: false, error: "Invalid vote" };
@@ -16579,7 +16579,7 @@ register("council", "vote", async (ctx, input) => {
   return { ok: true, vote: voteRecord };
 });
 
-register("council", "tally", async (ctx, input) => {
+register("council", "tally", (ctx, input) => {
   const { dtuId } = input;
   if (!dtuId) return { ok: false, error: "dtuId required" };
 
@@ -16597,7 +16597,7 @@ register("council", "tally", async (ctx, input) => {
   return { ok: true, dtuId, tally, votes };
 });
 
-register("council", "credibility", async (ctx, input) => {
+register("council", "credibility", (ctx, input) => {
   const { dtuId, score, reason } = input;
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
@@ -16616,7 +16616,7 @@ register("council", "credibility", async (ctx, input) => {
 // ---- User-Defined Personas ----
 if (!STATE.customPersonas) STATE.customPersonas = new Map();
 
-register("persona", "create", async (ctx, input) => {
+register("persona", "create", (ctx, input) => {
   const { name, description, style, traits } = input;
   if (!name) return { ok: false, error: "Persona name required" };
 
@@ -16644,7 +16644,7 @@ register("persona", "create", async (ctx, input) => {
   return { ok: true, persona };
 });
 
-register("persona", "list", async (ctx, input) => {
+register("persona", "list", (_ctx, _input) => {
   const builtIn = [
     { id: "ethicist", name: "Ethicist", description: "Focuses on moral implications", builtin: true },
     { id: "engineer", name: "Engineer", description: "Practical, implementation-focused", builtin: true },
@@ -16655,7 +16655,7 @@ register("persona", "list", async (ctx, input) => {
   return { ok: true, personas: [...builtIn, ...custom], builtInCount: builtIn.length, customCount: custom.length };
 });
 
-register("persona", "update", async (ctx, input) => {
+register("persona", "update", (ctx, input) => {
   const persona = STATE.customPersonas.get(input.id);
   if (!persona) return { ok: false, error: "Persona not found" };
 
@@ -16672,7 +16672,7 @@ register("persona", "update", async (ctx, input) => {
   return { ok: true, persona };
 });
 
-register("persona", "delete", async (ctx, input) => {
+register("persona", "delete", (ctx, input) => {
   if (!STATE.customPersonas.has(input.id)) return { ok: false, error: "Persona not found" };
   STATE.customPersonas.delete(input.id);
   saveStateDebounced();
@@ -16680,7 +16680,7 @@ register("persona", "delete", async (ctx, input) => {
 });
 
 // ---- Admin Dashboard Endpoints ----
-register("admin", "dashboard", async (ctx, input) => {
+register("admin", "dashboard", (_ctx, _input) => {
   const uptime = process.uptime();
   const memory = process.memoryUsage();
 
@@ -16736,7 +16736,7 @@ register("admin", "dashboard", async (ctx, input) => {
   };
 });
 
-register("admin", "logs", async (ctx, input) => {
+register("admin", "logs", (ctx, input) => {
   const limit = clamp(Number(input.limit || 100), 1, 1000);
   const type = input.type || null;
 
@@ -16747,7 +16747,7 @@ register("admin", "logs", async (ctx, input) => {
   return { ok: true, logs, count: logs.length };
 });
 
-register("admin", "metrics", async (ctx, input) => {
+register("admin", "metrics", (_ctx, _input) => {
   const chicken2 = STATE.__chicken2 || {};
   const growth = STATE.growth || {};
   const abstraction = STATE.abstraction || {};
@@ -16797,7 +16797,7 @@ function paginateResults(items, { page = 1, pageSize = 20 } = {}) {
 }
 
 // ---- Enhanced API Endpoints for New Features ----
-app.get("/api/search/indexed", async (req, res) => {
+app.get("/api/search/indexed", (req, res) => {
   const q = String(req.query.q || "");
   const limit = clamp(Number(req.query.limit || 20), 1, 100);
   const results = searchIndexed(q, { limit });
@@ -16909,7 +16909,7 @@ app.get("/api/admin/metrics", async (req, res) => {
   return res.json(out);
 });
 
-app.get("/api/dtus/paginated", async (req, res) => {
+app.get("/api/dtus/paginated", (req, res) => {
   const page = clamp(Number(req.query.page || 1), 1, 10000);
   const pageSize = clamp(Number(req.query.pageSize || 20), 1, 100);
   const tier = req.query.tier || null;
@@ -17004,7 +17004,7 @@ const PLUGIN_MARKETPLACE = {
   categories: ["productivity", "visualization", "integration", "ai", "governance", "export", "theme", "automation"]
 };
 
-register("marketplace", "submit", async (ctx, input) => {
+register("marketplace", "submit", (ctx, input) => {
   const { name, description, version, author, githubUrl, category, macros } = input;
   if (!name || !githubUrl) return { ok: false, error: "Name and GitHub URL required" };
   const listing = {
@@ -17030,7 +17030,7 @@ register("marketplace", "submit", async (ctx, input) => {
   return { ok: true, listing, message: "Plugin submitted for Chicken3 ethos review" };
 });
 
-register("marketplace", "browse", async (ctx, input) => {
+register("marketplace", "browse", (ctx, input) => {
   const { category, search, sort, page, pageSize } = input;
   let listings = Array.from(PLUGIN_MARKETPLACE.listings.values()).filter(l => l.status === "approved" || l.status === "pending_review");
   if (category) listings = listings.filter(l => l.category === category);
@@ -17042,12 +17042,12 @@ register("marketplace", "browse", async (ctx, input) => {
   return { ok: true, ...result, categories: PLUGIN_MARKETPLACE.categories };
 });
 
-register("marketplace", "install", async (ctx, input) => {
+register("marketplace", "install", (ctx, input) => {
   const { pluginId, fromGithub, githubUrl } = input;
   if (fromGithub && githubUrl) {
     const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) return { ok: false, error: "Invalid GitHub URL" };
-    const [, owner, repo] = match;
+    const [, _owner, repo] = match;
     const plugin = { id: uid("plugin"), name: repo, version: "1.0.0", source: githubUrl, installedAt: nowISO(), enabled: true, autoUpdate: true };
     PLUGIN_MARKETPLACE.installed.set(plugin.id, plugin);
     saveStateDebounced();
@@ -17062,7 +17062,7 @@ register("marketplace", "install", async (ctx, input) => {
   return { ok: true, plugin: installed };
 });
 
-register("marketplace", "review", async (ctx, input) => {
+register("marketplace", "review", (ctx, input) => {
   const { pluginId, rating, comment, persona } = input;
   if (!pluginId || !rating) return { ok: false, error: "Plugin ID and rating required" };
   const review = { id: uid("review"), pluginId, rating: clamp(Number(rating), 1, 5), comment: comment || "", persona: persona || "anonymous", createdAt: nowISO() };
@@ -17074,13 +17074,13 @@ register("marketplace", "review", async (ctx, input) => {
   return { ok: true, review };
 });
 
-register("marketplace", "heartbeatSync", async (ctx, input) => {
+register("marketplace", "heartbeatSync", (_ctx, _input) => {
   const installed = Array.from(PLUGIN_MARKETPLACE.installed.values());
   const updates = installed.filter(p => p.autoUpdate && p.source).map(p => ({ pluginId: p.id, name: p.name, currentVersion: p.version, checkTime: nowISO() }));
   return { ok: true, installed: installed.length, updateChecks: updates.length };
 });
 
-register("marketplace", "installed", async (ctx, input) => {
+register("marketplace", "installed", (_ctx, _input) => {
   const plugins = Array.from(PLUGIN_MARKETPLACE.installed.values());
   return { ok: true, plugins, count: plugins.length };
 });
@@ -17128,7 +17128,7 @@ function rebuildGraphIndex() {
   GRAPH_INDEX.dirty = false;
 }
 
-register("graph", "query", async (ctx, input) => {
+register("graph", "query", (ctx, input) => {
   if (GRAPH_INDEX.dirty) rebuildGraphIndex();
   const { dsl } = input;
   const results = [];
@@ -17192,7 +17192,7 @@ register("graph", "query", async (ctx, input) => {
   return { ok: true, results, query: dsl, hint: "Use: 'DTUs linked to tag:X with lineage depth > 2' or 'descendants of dtu_xxx'" };
 });
 
-register("graph", "visualData", async (ctx, input) => {
+register("graph", "visualData", (ctx, input) => {
   if (GRAPH_INDEX.dirty) rebuildGraphIndex();
   const { tier, limit, includeEdges } = input;
   let nodes = Array.from(GRAPH_INDEX.nodes.values()).filter(n => !n.type || n.type !== "tag");
@@ -17203,7 +17203,7 @@ register("graph", "visualData", async (ctx, input) => {
   return { ok: true, nodes, edges, stats: { totalNodes: GRAPH_INDEX.nodes.size, totalEdges: GRAPH_INDEX.edges.size } };
 });
 
-register("graph", "forceGraph", async (ctx, input) => {
+register("graph", "forceGraph", (ctx, input) => {
   if (GRAPH_INDEX.dirty) rebuildGraphIndex();
   const { centerNode, depth, maxNodes } = input;
   let nodes = [], links = [];
@@ -17238,7 +17238,7 @@ console.log("[Concord] Wave 2: Graph Queries loaded");
 // ============================================================================
 const SCHEMA_REGISTRY = new Map();
 
-register("schema", "create", async (ctx, input) => {
+register("schema", "create", (ctx, input) => {
   const { name, kind, fields, validation, evolves } = input;
   if (!name || !kind) return { ok: false, error: "Name and kind required" };
   const schema = {
@@ -17270,12 +17270,12 @@ register("schema", "create", async (ctx, input) => {
   return { ok: true, schema, dtuId: schemaDtu.id };
 });
 
-register("schema", "list", async (ctx, input) => {
+register("schema", "list", (_ctx, _input) => {
   const schemas = Array.from(SCHEMA_REGISTRY.values());
   return { ok: true, schemas, count: schemas.length };
 });
 
-register("schema", "validate", async (ctx, input) => {
+register("schema", "validate", (ctx, input) => {
   const { schemaName, data } = input;
   const schema = SCHEMA_REGISTRY.get(schemaName);
   if (!schema) return { ok: false, error: "Schema not found" };
@@ -17332,7 +17332,7 @@ register("schema", "apply", async (ctx, input) => {
   return { ok: true, dtuId, schemaApplied: schemaName };
 });
 
-register("schema", "evolve", async (ctx, input) => {
+register("schema", "evolve", (ctx, input) => {
   const { schemaName, changes, reason } = input;
   const schema = SCHEMA_REGISTRY.get(schemaName);
   if (!schema) return { ok: false, error: "Schema not found" };
@@ -17373,8 +17373,8 @@ const DOMAIN_KEYWORDS = {
   biology: ["cell", "gene", "organism", "evolution", "species", "protein", "dna", "ecosystem", "life", "organism"]
 };
 
-register("autotag", "analyze", async (ctx, input) => {
-  const { dtuId, content, useEmbeddings } = input;
+register("autotag", "analyze", (ctx, input) => {
+  const { dtuId, content, useEmbeddings: _useEmbeddings } = input;
   const dtu = dtuId ? STATE.dtus.get(dtuId) : null;
   const text = content || (dtu ? dtu.title + " " + (dtu.human?.summary || "") + " " + (dtu.core?.definitions?.join(" ") || "") : "");
   if (!text) return { ok: false, error: "No content to analyze" };
@@ -17398,7 +17398,7 @@ register("autotag", "analyze", async (ctx, input) => {
   return { ok: true, suggestedTags: [...new Set(suggestedTags)].slice(0, 10), suggestedDomain: topDomain ? topDomain[0] : null, domainScores, suggestedRelations: suggestedRelations.slice(0, 10) };
 });
 
-register("autotag", "apply", async (ctx, input) => {
+register("autotag", "apply", (ctx, input) => {
   const { dtuId, tags, domain, relations } = input;
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
@@ -17428,7 +17428,7 @@ register("autotag", "batchProcess", async (ctx, input) => {
   return { ok: true, processed: results.length, results, dryRun: !!dryRun };
 });
 
-register("visual", "moodboard", async (ctx, input) => {
+register("visual", "moodboard", (ctx, input) => {
   const { tags, tier, maxNodes } = input;
   let dtus = dtusArray();
   if (tags && tags.length > 0) { const tagSet = new Set(tags); dtus = dtus.filter(d => (d.tags || []).some(t => tagSet.has(t))); }
@@ -17440,9 +17440,9 @@ register("visual", "moodboard", async (ctx, input) => {
   return { ok: true, hierarchy, totalNodes: dtus.length, tagCount: Object.keys(tagGroups).length };
 });
 
-register("visual", "sunburst", async (ctx, input) => {
+register("visual", "sunburst", (ctx, input) => {
   const { maxDepth, maxNodes } = input;
-  const depth = Number(maxDepth) || 3;
+  const _depth = Number(maxDepth) || 3;
   const hierarchy = { name: "Concord", children: [] };
   const tierGroups = { core: [], mega: [], hyper: [], regular: [] };
   for (const dtu of dtusArray().slice(0, Number(maxNodes) || 200)) { const t = dtu.tier || "regular"; if (tierGroups[t]) tierGroups[t].push(dtu); }
@@ -17457,7 +17457,7 @@ register("visual", "sunburst", async (ctx, input) => {
   return { ok: true, hierarchy };
 });
 
-register("visual", "timeline", async (ctx, input) => {
+register("visual", "timeline", (ctx, input) => {
   const { startDate, endDate, limit } = input;
   let dtus = dtusArray().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (startDate) dtus = dtus.filter(d => new Date(d.createdAt) >= new Date(startDate));
@@ -17482,7 +17482,7 @@ console.log("[Concord] Wave 4: Auto-Tagging & Visuals loaded");
 const COLLAB_SESSIONS = new Map();
 const COLLAB_LOCKS = new Map();
 
-register("collab", "createSession", async (ctx, input) => {
+register("collab", "createSession", (ctx, input) => {
   const { dtuId, userId, mode } = input;
   if (!dtuId) return { ok: false, error: "DTU ID required" };
   const session = {
@@ -17501,7 +17501,7 @@ register("collab", "createSession", async (ctx, input) => {
   return { ok: true, session };
 });
 
-register("collab", "join", async (ctx, input) => {
+register("collab", "join", (ctx, input) => {
   const { sessionId, userId } = input;
   const session = COLLAB_SESSIONS.get(sessionId);
   if (!session) return { ok: false, error: "Session not found" };
@@ -17510,7 +17510,7 @@ register("collab", "join", async (ctx, input) => {
   return { ok: true, session };
 });
 
-register("collab", "edit", async (ctx, input) => {
+register("collab", "edit", (ctx, input) => {
   const { sessionId, userId, operation, path, value, previousValue } = input;
   const session = COLLAB_SESSIONS.get(sessionId);
   if (!session) return { ok: false, error: "Session not found" };
@@ -17523,7 +17523,7 @@ register("collab", "edit", async (ctx, input) => {
   return { ok: true, change, session };
 });
 
-register("collab", "merge", async (ctx, input) => {
+register("collab", "merge", (ctx, input) => {
   const { sessionId } = input;
   const session = COLLAB_SESSIONS.get(sessionId);
   if (!session) return { ok: false, error: "Session not found" };
@@ -17549,12 +17549,12 @@ register("collab", "merge", async (ctx, input) => {
   return { ok: true, merged: session.changes.filter(c => c.status === "applied").length };
 });
 
-register("collab", "listSessions", async (ctx, input) => {
+register("collab", "listSessions", (_ctx, _input) => {
   const sessions = Array.from(COLLAB_SESSIONS.values()).filter(s => new Date(s.expiresAt) > new Date()).map(s => ({ id: s.id, dtuId: s.dtuId, mode: s.mode, participantCount: s.participants.length, changeCount: s.changes.length, createdAt: s.createdAt }));
   return { ok: true, sessions, count: sessions.length };
 });
 
-register("collab", "lock", async (ctx, input) => {
+register("collab", "lock", (ctx, input) => {
   const { sessionId, userId, path } = input;
   const session = COLLAB_SESSIONS.get(sessionId);
   if (!session) return { ok: false, error: "Session not found" };
@@ -17564,7 +17564,7 @@ register("collab", "lock", async (ctx, input) => {
   return { ok: true, locked: true, path };
 });
 
-register("collab", "unlock", async (ctx, input) => {
+register("collab", "unlock", (ctx, input) => {
   const { sessionId, path } = input;
   const session = COLLAB_SESSIONS.get(sessionId);
   if (!session) return { ok: false, error: "Session not found" };
@@ -17575,7 +17575,7 @@ register("collab", "unlock", async (ctx, input) => {
 });
 
 // Whiteboard with Excalidraw integration
-register("whiteboard", "create", async (ctx, input) => {
+register("whiteboard", "create", (ctx, input) => {
   const { title, linkedDtus } = input;
   const whiteboard = { id: uid("wb"), title: title || "Untitled Whiteboard", elements: [], linkedDtus: linkedDtus || [], collaborators: [], createdAt: nowISO(), updatedAt: nowISO() };
   const wbDtu = {
@@ -17594,7 +17594,7 @@ register("whiteboard", "create", async (ctx, input) => {
   return { ok: true, whiteboard, dtuId: wbDtu.id };
 });
 
-register("whiteboard", "update", async (ctx, input) => {
+register("whiteboard", "update", (ctx, input) => {
   const { whiteboardId, elements, linkedDtus } = input;
   const dtu = STATE.dtus.get(whiteboardId);
   if (!dtu || dtu.machine?.kind !== "whiteboard") return { ok: false, error: "Whiteboard not found" };
@@ -17609,14 +17609,14 @@ register("whiteboard", "update", async (ctx, input) => {
   return { ok: true, whiteboard: wb };
 });
 
-register("whiteboard", "get", async (ctx, input) => {
+register("whiteboard", "get", (ctx, input) => {
   const { whiteboardId } = input;
   const dtu = STATE.dtus.get(whiteboardId);
   if (!dtu || dtu.machine?.kind !== "whiteboard") return { ok: false, error: "Whiteboard not found" };
   return { ok: true, whiteboard: dtu.machine.data, linkedDtus: dtu.lineage?.parents || [] };
 });
 
-register("whiteboard", "list", async (ctx, input) => {
+register("whiteboard", "list", (_ctx, _input) => {
   const whiteboards = dtusArray().filter(d => d.machine?.kind === "whiteboard").map(d => ({ id: d.id, title: d.title, elementCount: d.machine.data?.elements?.length || 0, linkedDtuCount: d.lineage?.parents?.length || 0, createdAt: d.createdAt }));
   return { ok: true, whiteboards, count: whiteboards.length };
 });
@@ -17638,7 +17638,7 @@ console.log("[Concord] Wave 5: Collaboration & Whiteboard loaded");
 // ============================================================================
 // WAVE 6: PWA & MOBILE SUPPORT
 // ============================================================================
-register("pwa", "manifest", async (ctx, input) => {
+register("pwa", "manifest", (_ctx, _input) => {
   return {
     ok: true,
     manifest: {
@@ -17672,7 +17672,7 @@ register("pwa", "manifest", async (ctx, input) => {
   };
 });
 
-register("pwa", "serviceWorkerConfig", async (ctx, input) => {
+register("pwa", "serviceWorkerConfig", (_ctx, _input) => {
   return {
     ok: true,
     config: {
@@ -17706,7 +17706,7 @@ register("voice", "ingest", async (ctx, input) => {
   return { ok: true, transcription: text, dtu: dtu.dtu };
 });
 
-register("mobile", "shortcuts", async (ctx, input) => {
+register("mobile", "shortcuts", (_ctx, _input) => {
   return {
     ok: true,
     shortcuts: [
@@ -17725,7 +17725,7 @@ register("mobile", "shortcuts", async (ctx, input) => {
   };
 });
 
-register("mobile", "touchOptimized", async (ctx, input) => {
+register("mobile", "touchOptimized", (ctx, input) => {
   const { dtuId } = input;
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
@@ -17751,7 +17751,7 @@ register("mobile", "touchOptimized", async (ctx, input) => {
   };
 });
 
-register("sync", "force", async (ctx, input) => {
+register("sync", "force", (ctx, input) => {
   const { since } = input;
   const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
   const modified = dtusArray().filter(d => new Date(d.updatedAt || d.createdAt) > sinceDate);
@@ -17777,7 +17777,7 @@ console.log("[Concord] Wave 6: PWA & Mobile loaded");
 // ============================================================================
 const CACHE = { hot: new Map(), queries: new Map(), ttl: 300000, maxSize: 1000 };
 
-register("cache", "get", async (ctx, input) => {
+register("cache", "get", (ctx, input) => {
   const { key } = input;
   const cached = CACHE.hot.get(key);
   if (!cached) return { ok: false, miss: true };
@@ -17785,7 +17785,7 @@ register("cache", "get", async (ctx, input) => {
   return { ok: true, data: cached.data, cachedAt: cached.cachedAt };
 });
 
-register("cache", "set", async (ctx, input) => {
+register("cache", "set", (ctx, input) => {
   const { key, data, ttl } = input;
   CACHE.hot.set(key, { data, cachedAt: Date.now(), ttl: ttl || CACHE.ttl });
   if (CACHE.hot.size > CACHE.maxSize) {
@@ -17795,7 +17795,7 @@ register("cache", "set", async (ctx, input) => {
   return { ok: true, key, cached: true };
 });
 
-register("cache", "invalidate", async (ctx, input) => {
+register("cache", "invalidate", (ctx, input) => {
   const { key, pattern } = input;
   if (key) { CACHE.hot.delete(key); return { ok: true, invalidated: 1 }; }
   if (pattern) {
@@ -17816,11 +17816,11 @@ register("cache", "invalidate", async (ctx, input) => {
   return { ok: false, error: "Key or pattern required" };
 });
 
-register("cache", "stats", async (ctx, input) => {
+register("cache", "stats", (_ctx, _input) => {
   return { ok: true, size: CACHE.hot.size, maxSize: CACHE.maxSize, ttl: CACHE.ttl, queryCache: CACHE.queries.size };
 });
 
-register("cache", "clear", async (ctx, input) => {
+register("cache", "clear", (_ctx, _input) => {
   const size = CACHE.hot.size;
   CACHE.hot.clear();
   CACHE.queries.clear();
@@ -17828,7 +17828,7 @@ register("cache", "clear", async (ctx, input) => {
 });
 
 // Sharding for multi-tenant
-register("shard", "route", async (ctx, input) => {
+register("shard", "route", (ctx, input) => {
   const { userId, orgId } = input;
   const shardKey = orgId || userId || "default";
   const hash = crypto.createHash("md5").update(shardKey).digest("hex");
@@ -17842,9 +17842,9 @@ register("shard", "route", async (ctx, input) => {
   };
 });
 
-register("shard", "stats", async (ctx, input) => {
+register("shard", "stats", async (ctx, _input) => {
   const shards = {};
-  for (const [id, dtu] of STATE.dtus.entries()) {
+  for (const [_id, dtu] of STATE.dtus.entries()) {
     const shardResult = await runMacro("shard", "route", { userId: dtu.meta?.userId, orgId: dtu.meta?.orgId }, ctx);
     const shardId = shardResult.shardId;
     if (!shards[shardId]) shards[shardId] = { count: 0, size: 0 };
@@ -17855,7 +17855,7 @@ register("shard", "stats", async (ctx, input) => {
 });
 
 // Governor for rate limiting
-register("governor", "configure", async (ctx, input) => {
+register("governor", "configure", (ctx, input) => {
   const { userId, maxDtusPerHour, maxQueriesPerMinute, heartbeatInterval } = input;
   const governor = {
     userId: userId || "default",
@@ -17869,7 +17869,7 @@ register("governor", "configure", async (ctx, input) => {
   return { ok: true, governor };
 });
 
-register("governor", "check", async (ctx, input) => {
+register("governor", "check", (ctx, input) => {
   const { userId, action } = input;
   const governor = STATE.governors?.get(userId) || STATE.governors?.get("default");
   if (!governor) return { ok: true, allowed: true };
@@ -17881,7 +17881,7 @@ register("governor", "check", async (ctx, input) => {
   return { ok: true, allowed: true, usage: governor.usage, limits: governor.limits };
 });
 
-register("governor", "increment", async (ctx, input) => {
+register("governor", "increment", (ctx, input) => {
   const { userId, action } = input;
   const governor = STATE.governors?.get(userId) || STATE.governors?.get("default");
   if (!governor) return { ok: true };
@@ -17891,7 +17891,7 @@ register("governor", "increment", async (ctx, input) => {
 });
 
 // Performance metrics
-register("perf", "metrics", async (ctx, input) => {
+register("perf", "metrics", (_ctx, _input) => {
   const mem = process.memoryUsage();
   return {
     ok: true,
@@ -17905,13 +17905,13 @@ register("perf", "metrics", async (ctx, input) => {
   };
 });
 
-register("perf", "gc", async (ctx, input) => {
+register("perf", "gc", (_ctx, _input) => {
   if (global.gc) { global.gc(); return { ok: true, gcRun: true }; }
   return { ok: false, error: "GC not exposed. Start node with --expose-gc" };
 });
 
 // Backpressure for conservation
-register("backpressure", "status", async (ctx, input) => {
+register("backpressure", "status", (_ctx, _input) => {
   const dtuCount = STATE.dtus.size;
   const thresholds = { warning: 50000, critical: 100000, max: 200000 };
   let level = "normal";
@@ -17947,7 +17947,7 @@ console.log("[Concord] Wave 7: Scalability & Performance loaded");
 const WEBHOOKS = new Map();
 const AUTOMATIONS = new Map();
 
-register("webhook", "register", async (ctx, input) => {
+register("webhook", "register", (ctx, input) => {
   const { url, events, secret, name, headers } = input;
   if (!url || !events) return { ok: false, error: "URL and events required" };
   const webhook = {
@@ -17969,7 +17969,7 @@ register("webhook", "register", async (ctx, input) => {
   return { ok: true, webhook: { ...webhook, secret: webhook.secret.slice(0, 8) + "..." } };
 });
 
-register("webhook", "trigger", async (ctx, input) => {
+register("webhook", "trigger", (ctx, input) => {
   const { event, payload } = input;
   const matchingWebhooks = Array.from(WEBHOOKS.values()).filter(wh => wh.enabled && wh.events.includes(event));
   const results = [];
@@ -17982,12 +17982,12 @@ register("webhook", "trigger", async (ctx, input) => {
   return { ok: true, event, triggered: results.length, results };
 });
 
-register("webhook", "list", async (ctx, input) => {
+register("webhook", "list", (_ctx, _input) => {
   const webhooks = Array.from(WEBHOOKS.values()).map(wh => ({ id: wh.id, name: wh.name, url: wh.url, events: wh.events, enabled: wh.enabled, triggerCount: wh.triggerCount, lastTriggered: wh.lastTriggered }));
   return { ok: true, webhooks, count: webhooks.length };
 });
 
-register("webhook", "delete", async (ctx, input) => {
+register("webhook", "delete", (ctx, input) => {
   const { webhookId } = input;
   if (!WEBHOOKS.has(webhookId)) return { ok: false, error: "Webhook not found" };
   WEBHOOKS.delete(webhookId);
@@ -17995,7 +17995,7 @@ register("webhook", "delete", async (ctx, input) => {
   return { ok: true, deleted: webhookId };
 });
 
-register("webhook", "toggle", async (ctx, input) => {
+register("webhook", "toggle", (ctx, input) => {
   const { webhookId, enabled } = input;
   const webhook = WEBHOOKS.get(webhookId);
   if (!webhook) return { ok: false, error: "Webhook not found" };
@@ -18004,7 +18004,7 @@ register("webhook", "toggle", async (ctx, input) => {
 });
 
 // Zapier-style automations
-register("automation", "create", async (ctx, input) => {
+register("automation", "create", (ctx, input) => {
   const { name, trigger, conditions, actions } = input;
   if (!name || !trigger || !actions) return { ok: false, error: "Name, trigger, and actions required" };
   const automation = {
@@ -18045,12 +18045,12 @@ register("automation", "run", async (ctx, input) => {
   return { ok: true, automationId, actionResults: results };
 });
 
-register("automation", "list", async (ctx, input) => {
+register("automation", "list", (_ctx, _input) => {
   const automations = Array.from(AUTOMATIONS.values()).map(a => ({ id: a.id, name: a.name, trigger: a.trigger.event, actionCount: a.actions.length, enabled: a.enabled, runCount: a.runCount, lastRun: a.lastRun }));
   return { ok: true, automations, count: automations.length };
 });
 
-register("automation", "delete", async (ctx, input) => {
+register("automation", "delete", (ctx, input) => {
   const { automationId } = input;
   if (!AUTOMATIONS.has(automationId)) return { ok: false, error: "Automation not found" };
   AUTOMATIONS.delete(automationId);
@@ -18058,7 +18058,7 @@ register("automation", "delete", async (ctx, input) => {
   return { ok: true, deleted: automationId };
 });
 
-register("automation", "toggle", async (ctx, input) => {
+register("automation", "toggle", (ctx, input) => {
   const { automationId, enabled } = input;
   const automation = AUTOMATIONS.get(automationId);
   if (!automation) return { ok: false, error: "Automation not found" };
@@ -18088,8 +18088,8 @@ register("vscode", "codeToDtu", async (ctx, input) => {
   return { ok: true, dtu };
 });
 
-register("vscode", "dtuToCode", async (ctx, input) => {
-  const { dtuId, format } = input;
+register("vscode", "dtuToCode", (ctx, input) => {
+  const { dtuId, format: _format } = input;
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
   let code = "";
@@ -18099,7 +18099,7 @@ register("vscode", "dtuToCode", async (ctx, input) => {
   return { ok: true, code, language: dtu.machine?.language || "plaintext", dtuId };
 });
 
-register("vscode", "search", async (ctx, input) => {
+register("vscode", "search", (ctx, input) => {
   const { query, language, limit } = input;
   let results = dtusArray().filter(d => d.tags?.includes("code") || d.machine?.kind === "code_snippet");
   if (language) results = results.filter(d => d.machine?.language === language || d.tags?.includes(language));
@@ -18109,7 +18109,7 @@ register("vscode", "search", async (ctx, input) => {
 });
 
 // Obsidian export/import
-register("obsidian", "export", async (ctx, input) => {
+register("obsidian", "export", (ctx, input) => {
   const { dtuIds, includeLineage, vaultPath } = input;
   const dtus = dtuIds ? dtuIds.map(id => STATE.dtus.get(id)).filter(Boolean) : dtusArray();
   const files = [];
@@ -18127,7 +18127,7 @@ register("obsidian", "export", async (ctx, input) => {
   return { ok: true, files, count: files.length, vaultPath };
 });
 
-register("obsidian", "import", async (ctx, input) => {
+register("obsidian", "import", (ctx, input) => {
   const { files } = input;
   const imported = [];
   for (const file of (files || [])) {
@@ -18155,7 +18155,7 @@ register("obsidian", "import", async (ctx, input) => {
 });
 
 // Notion import
-register("notion", "import", async (ctx, input) => {
+register("notion", "import", (ctx, input) => {
   const { pages } = input;
   const imported = [];
   for (const page of (pages || [])) {
@@ -18178,7 +18178,7 @@ register("notion", "import", async (ctx, input) => {
 });
 
 // Integration marketplace
-register("integration", "list", async (ctx, input) => {
+register("integration", "list", (_ctx, _input) => {
   const integrations = [
     { id: "obsidian", name: "Obsidian", status: "available", type: "export/import", description: "Sync with Obsidian vaults" },
     { id: "notion", name: "Notion", status: "available", type: "import", description: "Import from Notion" },
@@ -18296,15 +18296,15 @@ async function runMigrations() {
     `CREATE TABLE IF NOT EXISTS whiteboards (id VARCHAR(64) PRIMARY KEY, title VARCHAR(256), elements JSONB DEFAULT '[]', linked_dtus JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`
   ];
   let applied = 0;
-  for (const sql of migrations) { try { await pgPool.query(sql); applied++; } catch (e) {} }
+  for (const sql of migrations) { try { await pgPool.query(sql); applied++; } catch {} }
   return { ok: true, applied, total: migrations.length };
 }
 
-register("db", "status", async (ctx, input) => {
+register("db", "status", (_ctx, _input) => {
   return { ok: true, postgres: { enabled: PG_CONFIG.enabled, connected: !!pgPool, pool: pgPool ? { total: pgPool.totalCount, idle: pgPool.idleCount, waiting: pgPool.waitingCount } : null }, redis: { enabled: REDIS_CONFIG.enabled, connected: !!redisClient }, mode: pgPool ? "postgresql" : "in-memory" };
 });
 
-register("db", "migrate", async (ctx, input) => { return await runMigrations(); });
+register("db", "migrate", (_ctx, _input) => { return runMigrations(); });
 
 register("db", "query", async (ctx, input) => {
   const { sql, params } = input;
@@ -18325,7 +18325,7 @@ register("db", "syncToPostgres", async (ctx, input) => {
         await pgPool.query(`INSERT INTO dtus (id, title, tier, tags, human, core, machine, lineage, source, meta, authority, created_at, updated_at, hash, user_id, org_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, tier=EXCLUDED.tier, tags=EXCLUDED.tags, human=EXCLUDED.human, core=EXCLUDED.core, machine=EXCLUDED.machine, lineage=EXCLUDED.lineage, meta=EXCLUDED.meta, authority=EXCLUDED.authority, updated_at=NOW()`,
           [dtu.id, dtu.title, dtu.tier, JSON.stringify(dtu.tags||[]), JSON.stringify(dtu.human||{}), JSON.stringify(dtu.core||{}), JSON.stringify(dtu.machine||{}), JSON.stringify(dtu.lineage||{}), dtu.source, JSON.stringify(dtu.meta||{}), JSON.stringify(dtu.authority||{}), dtu.createdAt, dtu.updatedAt, dtu.hash, dtu.meta?.userId||null, dtu.meta?.orgId||null]);
         synced++;
-      } catch (e) {}
+      } catch {}
     }
   }
   return { ok: true, synced, total: dtus.length };
@@ -18348,21 +18348,21 @@ async function initRedis() {
 
 register("redis", "get", async (ctx, input) => {
   const { key } = input;
-  if (!redisClient) return await runMacro("cache", "get", { key }, ctx);
+  if (!redisClient) return runMacro("cache", "get", { key }, ctx);
   try { const value = await redisClient.get(REDIS_CONFIG.prefix + key); if (!value) return { ok: false, miss: true }; return { ok: true, data: JSON.parse(value) }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
 
 register("redis", "set", async (ctx, input) => {
   const { key, data, ttl } = input;
-  if (!redisClient) return await runMacro("cache", "set", { key, data, ttl }, ctx);
+  if (!redisClient) return runMacro("cache", "set", { key, data, ttl }, ctx);
   try { await redisClient.setEx(REDIS_CONFIG.prefix + key, ttl || REDIS_CONFIG.ttl, JSON.stringify(data)); return { ok: true, key, cached: true, backend: "redis" }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
 
 register("redis", "del", async (ctx, input) => {
   const { key, pattern } = input;
-  if (!redisClient) return await runMacro("cache", "invalidate", { key, pattern }, ctx);
+  if (!redisClient) return runMacro("cache", "invalidate", { key, pattern }, ctx);
   try {
     if (key) { await redisClient.del(REDIS_CONFIG.prefix + key); return { ok: true, deleted: 1 }; }
     if (pattern) { const keys = await redisClient.keys(REDIS_CONFIG.prefix + pattern); if (keys.length > 0) await redisClient.del(keys); return { ok: true, deleted: keys.length }; }
@@ -18370,7 +18370,7 @@ register("redis", "del", async (ctx, input) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-register("redis", "stats", async (ctx, input) => {
+register("redis", "stats", async (_ctx, _input) => {
   if (!redisClient) return { ok: true, enabled: false, fallback: "in-memory" };
   try { const info = await redisClient.info("memory"); const keyCount = await redisClient.dbSize(); return { ok: true, enabled: true, keys: keyCount, info: info.slice(0, 500) }; }
   catch (e) { return { ok: false, error: e.message }; }
@@ -18393,12 +18393,12 @@ console.log("[Concord] Wave 9: Database Integrations loaded");
 // ============================================================================
 
 // ---- Wave 2: Version History Endpoints ----
-app.get("/api/dtus/:id/versions", async (req, res) => {
+app.get("/api/dtus/:id/versions", (req, res) => {
   const versions = getDTUVersions(req.params.id);
   res.json({ ok: true, versions });
 });
 
-app.post("/api/dtus/:id/restore", async (req, res) => {
+app.post("/api/dtus/:id/restore", (req, res) => {
   const result = restoreDTUVersion(req.params.id, Number(req.body.version));
   res.json(result);
 });
@@ -18419,12 +18419,12 @@ app.post("/api/templates/:id/create", async (req, res) => {
 });
 
 // ---- Wave 2: Import/Export Endpoints ----
-app.post("/api/import/obsidian", async (req, res) => {
+app.post("/api/import/obsidian", (req, res) => {
   const result = importFromObsidian(req.body.files || []);
   res.json(result);
 });
 
-app.post("/api/import/roam", async (req, res) => {
+app.post("/api/import/roam", (req, res) => {
   const result = importFromRoam(req.body.data || req.body);
   res.json(result);
 });
@@ -19029,7 +19029,7 @@ function generateEmbedHtml(embed) {
 // ============================================================================
 
 // ---- Voice Notes ----
-async function processVoiceNote(audioBuffer, options = {}) {
+function processVoiceNote(audioBuffer, options = {}) {
   // Use local Whisper if available
   const WHISPER_BIN = process.env.WHISPER_CPP_BIN || process.env.WHISPER_BIN;
 
@@ -19242,7 +19242,7 @@ New tags:`;
     const tags = tagStr.split(",").map(t => t.trim().toLowerCase().replace(/[^a-z0-9-]/g, "")).filter(Boolean);
 
     return { ok: true, tags: tags.filter(t => !existingTags.includes(t)), method: "llm" };
-  } catch (e) {
+  } catch {
     return { ok: true, tags: keywords, method: "keyword_fallback" };
   }
 }
@@ -19280,7 +19280,7 @@ function processEmailToDTU(email) {
 // ---- RSS Feed Ingestion ----
 const RSS_FEEDS = new Map(); // feedId -> { id, url, name, lastFetch, items }
 
-async function addRSSFeed(url, name = null) {
+function addRSSFeed(url, name = null) {
   const id = uid("feed");
   RSS_FEEDS.set(id, {
     id,
@@ -19520,16 +19520,16 @@ function configureSSOProvider(provider) {
 
 // ---- CLI Commands (exposed via API) ----
 const CLI_COMMANDS = {
-  "search": async (args) => {
+  "search": (args) => {
     const query = args.join(" ");
     if (EMBEDDINGS.enabled) {
-      return await semanticSearch(query, { limit: 10 });
+      return semanticSearch(query, { limit: 10 });
     }
     return { ok: true, results: dtusArray().filter(d =>
       d.title.toLowerCase().includes(query.toLowerCase())
     ).slice(0, 10) };
   },
-  "add": async (args) => {
+  "add": (args) => {
     const title = args.join(" ");
     if (!title) return { ok: false, error: "Usage: add <title>" };
     const dtu = {
@@ -19544,22 +19544,22 @@ const CLI_COMMANDS = {
     upsertDTU(dtu);
     return { ok: true, dtu };
   },
-  "list": async (args) => {
-    const limit = parseInt(args[0]) || 10;
+  "list": (args) => {
+    const limit = parseInt(args[0], 10) || 10;
     return { ok: true, dtus: dtusArray().slice(0, limit).map(d => ({ id: d.id, title: d.title })) };
   },
-  "stats": async () => {
+  "stats": () => {
     return { ok: true, stats: getCLIStats() };
   },
-  "backup": async () => {
-    return await createBackup();
+  "backup": () => {
+    return createBackup();
   },
-  "export": async (args) => {
+  "export": (args) => {
     const format = args[0] || "json";
     if (format === "markdown") return exportDTUsToMarkdown();
     return exportDTUsToJSON();
   },
-  "tag": async (args) => {
+  "tag": (args) => {
     const [id, ...tags] = args;
     const dtu = STATE.dtus.get(id);
     if (!dtu) return { ok: false, error: "DTU not found" };
@@ -19569,7 +19569,7 @@ const CLI_COMMANDS = {
   }
 };
 
-async function executeCLICommand(commandLine) {
+function executeCLICommand(commandLine) {
   const parts = commandLine.trim().split(/\s+/);
   const [command, ...args] = parts;
 
@@ -19577,7 +19577,7 @@ async function executeCLICommand(commandLine) {
     return { ok: false, error: `Unknown command: ${command}`, available: Object.keys(CLI_COMMANDS) };
   }
 
-  return await CLI_COMMANDS[command](args);
+  return CLI_COMMANDS[command](args);
 }
 
 // ---- SDK Helper Endpoints ----
@@ -19665,7 +19665,7 @@ function registerWebhook(url, events = ["dtu:created", "dtu:updated"]) {
   return { ok: true, webhookId: id, secret };
 }
 
-async function triggerWebhooks(event, payload) {
+async function _triggerWebhooks(event, payload) {
   for (const [, webhook] of WEBHOOK_SUBSCRIPTIONS) {
     if (!webhook.active || !webhook.events.includes(event)) continue;
 
@@ -19687,7 +19687,7 @@ async function triggerWebhooks(event, payload) {
 
       webhook.lastTriggered = nowISO();
       webhook.failCount = 0;
-    } catch (e) {
+    } catch {
       webhook.failCount++;
       if (webhook.failCount >= 5) {
         webhook.active = false;
@@ -20046,7 +20046,7 @@ app.get("/api/quests", async (req, res) => {
   try {
     const out = await runMacro("goals", "list", {}, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch (e) {
+  } catch {
     res.json({ ok: true, quests: [] });
   }
 });
@@ -20055,7 +20055,7 @@ app.get("/api/quests/mine", async (req, res) => {
   try {
     const out = await runMacro("goals", "list", { mine: true }, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch (e) {
+  } catch {
     res.json({ ok: true, quests: [] });
   }
 });
@@ -20092,7 +20092,7 @@ app.post("/api/resonance/quick", async (req, res) => {
 });
 
 // Lattice endpoints
-app.get("/api/lattice/fractal", async (req, res) => {
+app.get("/api/lattice/fractal", (req, res) => {
   try {
     const dtus = dtusArray().slice(-50);
     const nodes = dtus.map(d => ({ id: d.id, title: d.title, tier: d.tier, tags: d.tags }));
@@ -20106,7 +20106,7 @@ app.get("/api/lattice/resonance", async (req, res) => {
   try {
     const out = await runMacro("lattice", "resonance", {}, makeCtx(req));
     res.json(out);
-  } catch (e) {
+  } catch {
     res.json({ ok: true, resonance: 0.5, harmony: 0.5 });
   }
 });
@@ -20196,7 +20196,7 @@ app.post("/api/sovereignty/audit", async (req, res) => {
   try {
     const out = await runMacro("audit", "run", req.body || {}, makeCtx(req));
     res.json(out);
-  } catch (e) {
+  } catch {
     res.json({ ok: true, audit: { passed: true, checks: [] }});
   }
 });
@@ -20302,7 +20302,7 @@ app.get("/api/lenses/templates", (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Council debate - structured debate sessions
-app.post("/api/council/debate", async (req, res) => {
+app.post("/api/council/debate", (req, res) => {
   const { topic, participants, rounds = 3 } = req.body || {};
   if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
 
@@ -20394,7 +20394,7 @@ app.post("/api/credits/spend", requireAuth(), (req, res) => {
 
   if (!STATE.wallets) STATE.wallets = new Map();
 
-  let wallet = STATE.wallets.get(walletId);
+  const wallet = STATE.wallets.get(walletId);
   if (!wallet) {
     return res.status(404).json({ ok: false, error: "wallet not found" });
   }
@@ -21039,7 +21039,7 @@ function createGoalProposal(input = {}) {
   return { ok: true, goal };
 }
 
-function evaluateGoal(goal, ctx = {}) {
+function evaluateGoal(goal, _ctx = {}) {
   if (!goal || goal.state !== GOAL_STATES.PROPOSED) {
     return { ok: false, error: "Goal not in PROPOSED state" };
   }
@@ -21261,7 +21261,7 @@ function abandonGoal(goalId, reason = "user_requested") {
   return { ok: true, goal };
 }
 
-function generateAutoGoalProposals(ctx = {}) {
+function generateAutoGoalProposals(_ctx = {}) {
   ensureGoalSystem();
   if (!STATE.goals.config.autoProposalEnabled) {
     return { ok: false, error: "Auto-proposal disabled" };
@@ -21334,7 +21334,7 @@ function generateAutoGoalProposals(ctx = {}) {
 }
 
 // Goal Heartbeat: called by Governor to process goals autonomously
-async function processGoalHeartbeat(ctx = {}) {
+function processGoalHeartbeat(ctx = {}) {
   ensureGoalSystem();
 
   const results = { evaluated: 0, activated: 0, progressed: 0, autoProposed: 0 };
@@ -21854,7 +21854,7 @@ function runWorldSimulation(input = {}) {
               const loserState = winner === entityId ? targetState : entityState;
 
               const reduction = rel.strength * 0.25;
-              const oldSalience = loserState.salience;
+              const _oldSalience = loserState.salience;
               loserState.salience = clamp(loserState.salience - reduction, 0.05, 1);
 
               stepResult.contradictions.push({
@@ -22304,7 +22304,7 @@ function computeLocalEmbedding(text) {
   // Use semantic word vectors for known words
   // This enables understanding that "dog" and "canine" are semantically similar
   const semanticEmbedding = new Array(WORD_VECTOR_DIM).fill(0);
-  let knownCount = 0;
+  let _knownCount = 0;
 
   for (const token of tokens) {
     const wordVec = getWordVector(token);
@@ -22316,7 +22316,7 @@ function computeLocalEmbedding(text) {
 
     // Track if word is in our semantic vocabulary
     if (WORD_VECTORS.has(token.toLowerCase())) {
-      knownCount++;
+      _knownCount++;
     }
   }
 
@@ -22714,7 +22714,7 @@ function extractEntities(text) {
   ensureSemanticEngine();
 
   const entities = [];
-  const words = text.split(/\s+/);
+  const _words = text.split(/\s+/);
 
   // Simple patterns for entity extraction
   const patterns = {
@@ -23766,7 +23766,7 @@ function concludeChain(chainId, conclusion) {
   try {
     if (STATE.hypothesisEngine?.hypotheses) {
       const _concText = tokenish(chain.conclusion.statement || "");
-      for (const [hId, hyp] of STATE.hypothesisEngine.hypotheses) {
+      for (const [_hId, hyp] of STATE.hypothesisEngine.hypotheses) {
         if (hyp.state === "testing" || hyp.state === "proposed") {
           const _hypText = tokenish(hyp.statement || "");
           const _overlap = jaccard(_concText.split(/\s+/), _hypText.split(/\s+/));
@@ -23955,13 +23955,13 @@ function findMatchingFacts(pattern) {
   ensureInferenceKnowledgeBase();
 
   const matches = [];
-  for (const [id, fact] of STATE.reasoning.knowledgeBase.facts) {
+  for (const [_id, fact] of STATE.reasoning.knowledgeBase.facts) {
     if (matchFact(pattern, fact)) {
       matches.push(fact);
     }
   }
   // Also check derived facts
-  for (const [id, fact] of STATE.reasoning.knowledgeBase.derived) {
+  for (const [_id, fact] of STATE.reasoning.knowledgeBase.derived) {
     if (matchFact(pattern, fact)) {
       matches.push(fact);
     }
@@ -24014,7 +24014,7 @@ function applyModusTollens(rule, negatedConsequent) {
 }
 
 // Apply hypothetical syllogism: P→Q, Q→R ⊢ P→R
-function applyHypotheticalSyllogism(rule1, rule2) {
+function _applyHypotheticalSyllogism(rule1, rule2) {
   // Check if rule1's consequent matches rule2's antecedent
   if (rule1.consequent.subject !== rule2.antecedent.subject) return null;
   if (rule1.consequent.predicate !== rule2.antecedent.predicate) return null;
@@ -24068,10 +24068,10 @@ function forwardChain(maxIterations = 10) {
   const seenSignatures = new Set();
 
   // Create signatures for existing facts
-  for (const [id, fact] of STATE.reasoning.knowledgeBase.facts) {
+  for (const [_id, fact] of STATE.reasoning.knowledgeBase.facts) {
     seenSignatures.add(`${fact.subject}|${fact.predicate}|${fact.object}|${fact.negated}`);
   }
-  for (const [id, fact] of STATE.reasoning.knowledgeBase.derived) {
+  for (const [_id, fact] of STATE.reasoning.knowledgeBase.derived) {
     seenSignatures.add(`${fact.subject}|${fact.predicate}|${fact.object}|${fact.negated}`);
   }
 
@@ -24085,7 +24085,7 @@ function forwardChain(maxIterations = 10) {
     ];
 
     // Apply rules to facts
-    for (const [ruleId, rule] of STATE.reasoning.knowledgeBase.rules) {
+    for (const [_ruleId, rule] of STATE.reasoning.knowledgeBase.rules) {
       for (const fact of allFacts) {
         // Try modus ponens
         const mp = applyModusPonens(rule, fact);
@@ -24644,7 +24644,7 @@ function assessKnowledge(topic) {
   ensureMetacognitionSystem();
   ensureSemanticEngine();
 
-  const topicLower = String(topic || "").toLowerCase();
+  const _topicLower = String(topic || "").toLowerCase();
 
   // Find relevant DTUs
   const relevantDtus = findSimilarDtus(topic, 20, 0.3);
@@ -24951,7 +24951,7 @@ function introspectOnFailures() {
   }
 
   const commonFailureWords = Object.entries(failureKeywords)
-    .filter(([word, count]) => count >= 2)
+    .filter(([_word, count]) => count >= 2)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
@@ -25367,7 +25367,7 @@ function generateExplanation(input = {}) {
   return { ok: true, explanation };
 }
 
-function generateCausalExplanation(explanation, input) {
+function generateCausalExplanation(explanation, _input) {
   explanation.question = `Why did "${explanation.target}" happen?`;
 
   // Try to find causal chain in world model
@@ -25444,7 +25444,7 @@ function generateCounterfactualExplanation(explanation, input) {
   return explanation;
 }
 
-function generateMechanisticExplanation(explanation, input) {
+function generateMechanisticExplanation(explanation, _input) {
   explanation.question = `How does "${explanation.target}" work?`;
 
   // Look for related DTUs that might explain mechanism
@@ -25463,7 +25463,7 @@ function generateMechanisticExplanation(explanation, input) {
   return explanation;
 }
 
-function generateTeleologicalExplanation(explanation, input) {
+function generateTeleologicalExplanation(explanation, _input) {
   explanation.question = `What is the purpose of "${explanation.target}"?`;
 
   // Check if it's related to any goals
@@ -26016,7 +26016,7 @@ function autoUpdateWorldModel(dtu) {
     if (!dtu || !dtu.id) return;
 
     // 1. Extract entities from the DTU
-    const extraction = extractEntitiesFromDtu(dtu);
+    const _extraction = extractEntitiesFromDtu(dtu);
 
     // 2. Extract relations from DTU content
     const text = buildCretiText(dtu).toLowerCase();
@@ -26025,7 +26025,7 @@ function autoUpdateWorldModel(dtu) {
 
     // Auto-detect relations between existing entities mentioned in this DTU
     const mentionedEntities = [];
-    for (const [eId, entity] of STATE.worldModel.entities) {
+    for (const [_eId, entity] of STATE.worldModel.entities) {
       const eName = entity.name.toLowerCase();
       if (text.includes(eName) || title.includes(eName)) {
         mentionedEntities.push(entity);
@@ -26123,7 +26123,7 @@ function worldModelTemporalDecay() {
     const now = Date.now();
     const dayMs = 86400000;
 
-    for (const [eId, entity] of STATE.worldModel.entities) {
+    for (const [_eId, entity] of STATE.worldModel.entities) {
       const age = now - new Date(entity.updatedAt || entity.createdAt).getTime();
       const daysSinceUpdate = age / dayMs;
 
@@ -26159,7 +26159,7 @@ function worldModelTemporalDecay() {
 // current domain, and tracks transfer success rates to improve future transfers.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function autoTransferSearch(domain, topic, keywords = []) {
+function autoTransferSearch(domain, topic, _keywords = []) {
   try {
     ensureTransferEngine();
     if (STATE.transfer.patterns.size === 0) return null;
@@ -26201,7 +26201,7 @@ function autoTransferSearch(domain, topic, keywords = []) {
 }
 
 // Record transfer outcome for learning
-function recordTransferOutcome(transferId, success, quality = 0.5) {
+function _recordTransferOutcome(transferId, success, quality = 0.5) {
   try {
     ensureTransferEngine();
     const transfer = STATE.transfer.transfers.find(t => t.id === transferId);
@@ -26770,7 +26770,7 @@ function computeGrowthTick(signal={}) {
     STATE.__chicken2.metrics.suffering = suffering;
     STATE.__chicken2.metrics.homeostasis = clamp(1 - suffering, 0, 1);
     // threshold enforcement (quarantine escalates elsewhere; here we just record)
-  } catch(e){}
+  } catch{}
   STATE.growth = g;
   return g;
 }
@@ -26899,9 +26899,9 @@ function kernelTick(event) {
             source: { system: "metacognition" }
           });
         }
-      } catch(_ie) {}
+      } catch {}
     }
-  } catch(_ete) {}
+  } catch {}
 
   // ===== BACKGROUND PROCESSING =====
   // Process deferred tasks: world model decay, experience consolidation, pattern cleanup
@@ -27787,7 +27787,7 @@ function ensureGlobalState() {
 }
 
 // ---- Publish Local DTU to Global (requires council approval) ----
-app.post('/api/realm/publish-to-global', async (req, res) => {
+app.post('/api/realm/publish-to-global', (req, res) => {
   try {
     const { odId, dtuId, reason } = req.body;
     if (!odId || !dtuId) {
@@ -27866,7 +27866,7 @@ app.post('/api/realm/publish-to-global', async (req, res) => {
 });
 
 // ---- Council Vote on Global Publish ----
-app.post('/api/realm/vote-publish', requireAuth(), async (req, res) => {
+app.post('/api/realm/vote-publish', requireAuth(), (req, res) => {
   try {
     const { odId, dtuId, vote, reason } = req.body;
     if (!odId || !dtuId || vote === undefined) {
@@ -27947,7 +27947,7 @@ app.post('/api/realm/vote-publish', requireAuth(), async (req, res) => {
 });
 
 // ---- Sync Single Global DTU to Local ----
-app.post('/api/realm/sync', async (req, res) => {
+app.post('/api/realm/sync', (req, res) => {
   try {
     const { odId, dtuId } = req.body;
     if (!odId || !dtuId) {
@@ -28013,7 +28013,7 @@ app.post('/api/realm/sync', async (req, res) => {
 });
 
 // ---- Sync All Global DTUs to Local ----
-app.post('/api/realm/sync-all', async (req, res) => {
+app.post('/api/realm/sync-all', (req, res) => {
   try {
     const { odId } = req.body;
     if (!odId) {

@@ -287,7 +287,7 @@ function simulateCounterfactual(eventId, alternativePayload = null) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.timeCausality = {
     stats: {
@@ -296,7 +296,7 @@ function init({ register, STATE, helpers }) {
     },
   };
 
-  register("loaf.time", "status", async (ctx) => {
+  register("loaf.time", "status", (ctx) => {
     const tc = ctx.state.__loaf.timeCausality;
     return {
       ok: true,
@@ -307,62 +307,62 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.time", "create_timeline", async (ctx, input = {}) => {
+  register("loaf.time", "create_timeline", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     const result = createTimeline(input.id, input.label);
     if (result.ok) tc.stats.timelinesCreated++;
     return result;
   }, { public: false });
 
-  register("loaf.time", "add_version", async (ctx, input = {}) => {
+  register("loaf.time", "add_version", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     const result = addTimelineVersion(String(input.timelineId || ""), input.state, input.description);
     if (result.ok) tc.stats.versionsAdded++;
     return result;
   }, { public: false });
 
-  register("loaf.time", "get_version", async (ctx, input = {}) => {
+  register("loaf.time", "get_version", (_ctx, input = {}) => {
     return getTimelineVersion(String(input.timelineId || ""), input.version);
   }, { public: true });
 
-  register("loaf.time", "fork", async (ctx, input = {}) => {
+  register("loaf.time", "fork", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     const result = forkTimeline(String(input.timelineId || ""), input.atVersion, input.reason);
     if (result.ok) tc.stats.forks++;
     return result;
   }, { public: false });
 
-  register("loaf.time", "what_changed", async (ctx, input = {}) => {
+  register("loaf.time", "what_changed", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     tc.stats.queriesRun++;
     return queryChanges(String(input.timelineId || ""), input.fromVersion, input.toVersion);
   }, { public: true });
 
-  register("loaf.time", "add_causal_event", async (ctx, input = {}) => {
+  register("loaf.time", "add_causal_event", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     const result = addCausalEvent(input.id, input.type, input.description, input.data);
     if (result.ok) tc.stats.causalEventsAdded++;
     return result;
   }, { public: false });
 
-  register("loaf.time", "add_causal_edge", async (ctx, input = {}) => {
+  register("loaf.time", "add_causal_edge", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     const result = addCausalEdge(input.causeId, input.effectId, input.type, input.strength, input.metadata);
     if (result.ok) tc.stats.causalEdgesAdded++;
     return result;
   }, { public: false });
 
-  register("loaf.time", "trace_chain", async (ctx, input = {}) => {
+  register("loaf.time", "trace_chain", (_ctx, input = {}) => {
     return { ok: true, ...traceCausalChain(String(input.eventId || ""), input.direction, input.maxDepth) };
   }, { public: true });
 
-  register("loaf.time", "counterfactual", async (ctx, input = {}) => {
+  register("loaf.time", "counterfactual", (ctx, input = {}) => {
     const tc = ctx.state.__loaf.timeCausality;
     tc.stats.counterfactuals++;
     return simulateCounterfactual(String(input.eventId || ""), input.alternative);
   }, { public: true });
 
-  register("loaf.time", "list_timelines", async (ctx) => {
+  register("loaf.time", "list_timelines", (_ctx) => {
     const list = Array.from(timelines.values()).map(t => ({
       id: t.id, label: t.label, versions: t.versions.length,
       forks: t.forks.length, currentVersion: t.currentVersion, createdAt: t.createdAt,

@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import {
-  Coins, CreditCard, Check, Zap, Users, Crown,
+  Coins, Check, Zap, Crown,
   ArrowRight, Sparkles, ShieldCheck, TrendingUp
 } from 'lucide-react';
 
 export default function BillingPage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   // Get economic config
@@ -55,7 +55,7 @@ export default function BillingPage() {
     },
   });
 
-  const tiers = config?.tiers || {};
+  const _tiers = config?.tiers || {};
   const tokenPackages = config?.tokenPackages || [];
 
   return (
@@ -182,7 +182,7 @@ export default function BillingPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {tokenPackages.map((pkg: any) => (
+          {tokenPackages.map((pkg: Record<string, unknown>) => (
             <div
               key={pkg.id}
               className={`relative bg-lattice-surface border rounded-xl p-6 cursor-pointer transition-all ${

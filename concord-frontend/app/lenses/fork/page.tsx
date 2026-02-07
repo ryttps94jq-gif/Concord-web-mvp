@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState } from 'react';
-import { GitFork, GitBranch, GitMerge, Clock, User, Layers } from 'lucide-react';
+import { GitFork, GitBranch, GitMerge, Layers } from 'lucide-react';
 
 interface Fork {
   id: string;

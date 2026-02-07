@@ -12,15 +12,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay, enforceInvariants, resetState } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay as _applyDecay, enforceInvariants as _enforceInvariants, resetState } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
 import { projectLabel, projectToneTags, projectSummary } from '../affect/projection.js';
 import { validateEvent } from '../affect/schema.js';
 import { BASELINE, DIMS, BOUNDS, DECAY, CONSERVATION, MOMENTUM } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
-  deleteSession, listSessions, sessionCount,
-  serializeAll, restoreAll
+  deleteSession, listSessions, sessionCount as _sessionCount,
+  serializeAll as _serializeAll, restoreAll as _restoreAll
 } from '../affect/index.js';
 
 // ============= Helpers =============

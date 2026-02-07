@@ -1,10 +1,10 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Gamepad2, Trophy, Star, Zap, Target, Users } from 'lucide-react';
+import { Trophy, Star, Zap, Target, Users } from 'lucide-react';
 
 interface Achievement {
   id: string;
@@ -19,7 +19,7 @@ interface Achievement {
 export default function GameLensPage() {
   useLensNav('game');
 
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'achievements' | 'leaderboard' | 'challenges'>('achievements');
 
   const { data: profile } = useQuery({
@@ -109,7 +109,7 @@ export default function GameLensPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as unknown)}
               className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors ${
                 activeTab === tab.id
                   ? 'bg-neon-purple/20 text-neon-purple'
@@ -178,7 +178,7 @@ export default function GameLensPage() {
               </tr>
             </thead>
             <tbody>
-              {leaderboard?.players?.map((player: any, index: number) => (
+              {leaderboard?.players?.map((player: Record<string, unknown>, index: number) => (
                 <tr
                   key={player.id}
                   className={`border-b border-lattice-border/50 ${
@@ -208,7 +208,7 @@ export default function GameLensPage() {
 
       {activeTab === 'challenges' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {challenges?.challenges?.map((challenge: any) => (
+          {challenges?.challenges?.map((challenge: Record<string, unknown>) => (
             <div key={challenge.id} className="lens-card">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-2xl">{challenge.icon}</span>

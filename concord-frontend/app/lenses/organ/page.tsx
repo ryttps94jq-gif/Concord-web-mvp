@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Heart, Activity, Zap, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Heart, Activity, Zap, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface Organ {
   id: string;
@@ -21,7 +21,7 @@ export default function OrganLensPage() {
   const [selectedOrgan, setSelectedOrgan] = useState<string | null>(null);
 
   // Backend: GET /api/status for organ registry
-  const { data: status } = useQuery({
+  const { data: _status } = useQuery({
     queryKey: ['status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });

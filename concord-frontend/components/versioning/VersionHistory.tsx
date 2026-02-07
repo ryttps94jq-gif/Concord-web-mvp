@@ -35,7 +35,7 @@ interface VersionHistoryProps {
 }
 
 export function VersionHistory({
-  dtuId,
+  _dtuId,
   versions,
   currentVersion,
   onRestore,
@@ -136,7 +136,7 @@ export function VersionHistory({
 
       {/* Version list */}
       <div className="flex-1 overflow-y-auto">
-        {versions.map((v, index) => {
+        {versions.map((v, _index) => {
           const isExpanded = expandedVersion === v.version;
           const isSelected = selectedVersions.includes(v.version);
           const isCurrent = v.version === currentVersion;

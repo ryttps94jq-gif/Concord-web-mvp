@@ -24,7 +24,7 @@ export default function MetalearningLensPage() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('exploration');
   const [curriculumTopic, setCurriculumTopic] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<unknown>(null);
 
   const { data: status } = useQuery({
     queryKey: ['metalearning-status'],

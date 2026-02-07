@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { Wifi, WifiOff, Cloud, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SyncStatus = 'synced' | 'syncing' | 'pending' | 'offline' | 'error';

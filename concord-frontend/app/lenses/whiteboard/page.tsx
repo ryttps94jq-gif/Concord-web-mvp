@@ -6,9 +6,27 @@ import { api } from '@/lib/api/client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  PenTool, Plus, Link2, Maximize2, Square, Circle, Type, ArrowRight,
-  MousePointer, Pencil, Trash2, Download, Undo2, Redo2, ZoomIn, ZoomOut,
-  RotateCcw, Palette, Layers, X, Save, Settings, Grid3X3, Move
+  PenTool,
+  Plus,
+  Link2,
+  Square,
+  Circle,
+  Type,
+  ArrowRight,
+  MousePointer,
+  Pencil,
+  Trash2,
+  Download,
+  Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Palette,
+  X,
+  Save,
+  Grid3X3,
+  Move
 } from 'lucide-react';
 
 type Tool = 'select' | 'draw' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'text' | 'dtu';
@@ -163,7 +181,7 @@ export default function WhiteboardLensPage() {
       setSelectedElement(clicked || null);
       if (clicked) {
         setIsDrawing(true);
-        setCurrentElement({ ...clicked, x: x - clicked.x, y: y - clicked.y } as any);
+        setCurrentElement({ ...clicked, x: x - clicked.x, y: y - clicked.y } as unknown as Element);
       }
       return;
     }
@@ -183,7 +201,7 @@ export default function WhiteboardLensPage() {
     setIsDrawing(true);
     const newElement: Element = {
       id: `el_${Date.now()}`,
-      type: tool === 'draw' ? 'freehand' : tool as any,
+      type: tool === 'draw' ? 'freehand' : tool as Element['type'],
       x, y,
       width: 0, height: 0,
       points: tool === 'draw' ? [{ x, y }] : undefined,
@@ -206,7 +224,7 @@ export default function WhiteboardLensPage() {
     if (tool === 'select' && selectedElement) {
       setElements(prev => prev.map(el =>
         el.id === selectedElement.id
-          ? { ...el, x: x - (currentElement as any).x, y: y - (currentElement as any).y }
+          ? { ...el, x: x - (currentElement as unknown as Record<string, number>).x, y: y - (currentElement as unknown as Record<string, number>).y }
           : el
       ));
       return;
@@ -278,7 +296,7 @@ export default function WhiteboardLensPage() {
     setTextPosition(null);
   };
 
-  const addDtu = (dtu: any) => {
+  const addDtu = (dtu: Record<string, unknown>) => {
     if (!textPosition) return;
     pushUndo();
     setElements(prev => [...prev, {
@@ -488,7 +506,7 @@ export default function WhiteboardLensPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedElement]);
 
-  const tools: { id: Tool; icon: any; label: string; key: string }[] = [
+  const tools: { id: Tool; icon: React.ElementType; label: string; key: string }[] = [
     { id: 'select', icon: MousePointer, label: 'Select', key: 'V' },
     { id: 'draw', icon: Pencil, label: 'Draw', key: 'P' },
     { id: 'rectangle', icon: Square, label: 'Rectangle', key: 'R' },
@@ -517,7 +535,7 @@ export default function WhiteboardLensPage() {
           {isLoading ? (
             <div className="text-gray-500 text-sm">Loading...</div>
           ) : (
-            whiteboards?.whiteboards?.map((wb: any) => (
+            whiteboards?.whiteboards?.map((wb: Record<string, unknown>) => (
               <button key={wb.id} onClick={() => setSelectedWbId(wb.id)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedWbId === wb.id ? 'border-neon-pink bg-lattice-elevated' : 'border-lattice-border hover:border-neon-pink/50'}`}>
                 <p className="font-medium truncate">{wb.title}</p>
@@ -652,7 +670,7 @@ export default function WhiteboardLensPage() {
                         <button onClick={() => setShowDtuPicker(false)}><X className="w-5 h-5" /></button>
                       </div>
                       <div className="space-y-2">
-                        {dtus?.dtus?.slice(0, 20).map((dtu: any) => (
+                        {dtus?.dtus?.slice(0, 20).map((dtu: Record<string, unknown>) => (
                           <button key={dtu.id} onClick={() => addDtu(dtu)}
                             className="w-full text-left p-3 rounded-lg border border-lattice-border hover:border-neon-purple transition-colors">
                             <p className="font-medium truncate">{dtu.title || dtu.content?.slice(0, 40)}</p>

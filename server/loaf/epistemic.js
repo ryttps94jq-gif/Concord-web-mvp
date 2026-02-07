@@ -115,7 +115,7 @@ function applyDecay(dtMs = 60000) {
   let decayed = 0;
   // Guard against negative or non-numeric time deltas
   const safeDtMs = Math.max(0, Number(dtMs) || 0);
-  for (const [id, item] of epistemicItems) {
+  for (const [_id, item] of epistemicItems) {
     const config = LAYER_CONFIG[item.layer];
     if (!config) continue;
 
@@ -337,7 +337,7 @@ function realityCheck(claim) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.epistemic = {
     stats: {
@@ -346,7 +346,7 @@ function init({ register, STATE, helpers }) {
     },
   };
 
-  register("loaf.epistemic", "status", async (ctx) => {
+  register("loaf.epistemic", "status", (ctx) => {
     const e = ctx.state.__loaf.epistemic;
     return {
       ok: true,
@@ -361,14 +361,14 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.epistemic", "classify", async (ctx, input = {}) => {
+  register("loaf.epistemic", "classify", (ctx, input = {}) => {
     const e = ctx.state.__loaf.epistemic;
     const layer = classifyLayer(input);
     e.stats.itemsClassified++;
     return { ok: true, layer, config: LAYER_CONFIG[layer] };
   }, { public: true });
 
-  register("loaf.epistemic", "add_item", async (ctx, input = {}) => {
+  register("loaf.epistemic", "add_item", (ctx, input = {}) => {
     const e = ctx.state.__loaf.epistemic;
     const result = addEpistemicItem(input);
     if (result.ok) {
@@ -380,21 +380,21 @@ function init({ register, STATE, helpers }) {
     return result;
   }, { public: false });
 
-  register("loaf.epistemic", "decay", async (ctx, input = {}) => {
+  register("loaf.epistemic", "decay", (ctx, input = {}) => {
     const e = ctx.state.__loaf.epistemic;
     const dtMs = Number(input.dtMs || 60000);
     e.stats.decayRuns++;
     return { ok: true, ...applyDecay(dtMs) };
   }, { public: false });
 
-  register("loaf.epistemic", "check_contradiction", async (ctx, input = {}) => {
+  register("loaf.epistemic", "check_contradiction", (ctx, input = {}) => {
     const e = ctx.state.__loaf.epistemic;
     const result = checkHardKernelContradiction(input);
     if (result.hasContradiction) e.stats.contradictionsBlocked++;
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.epistemic", "reality_check", async (ctx, input = {}) => {
+  register("loaf.epistemic", "reality_check", (ctx, input = {}) => {
     const e = ctx.state.__loaf.epistemic;
     e.stats.realityChecks++;
     const result = realityCheck(input);
@@ -402,15 +402,15 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.epistemic", "check_units", async (ctx, input = {}) => {
+  register("loaf.epistemic", "check_units", (_ctx, input = {}) => {
     return { ok: true, ...checkUnitCorrectness(input) };
   }, { public: true });
 
-  register("loaf.epistemic", "check_dimensions", async (ctx, input = {}) => {
+  register("loaf.epistemic", "check_dimensions", (_ctx, input = {}) => {
     return { ok: true, ...checkDimensionalConsistency(input.quantityA, input.quantityB, input.operation) };
   }, { public: true });
 
-  register("loaf.epistemic", "list_items", async (ctx, input = {}) => {
+  register("loaf.epistemic", "list_items", (_ctx, input = {}) => {
     const layer = input.layer || null;
     let items = Array.from(epistemicItems.values());
     if (layer) items = items.filter(i => i.layer === layer);

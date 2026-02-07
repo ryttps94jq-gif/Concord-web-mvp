@@ -488,7 +488,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.limits", "status", async (ctx) => {
+  register("loaf.limits", "status", (ctx) => {
     const el = ctx.state.__loaf.epistemicLimits;
     return {
       ok: true,
@@ -499,69 +499,69 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.limits", "create_uncertainty", async (ctx, input = {}) => {
+  register("loaf.limits", "create_uncertainty", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.uncertaintiesCreated++;
     return createUncertainty(input.description, input.type, input.domain, input.bounds);
   }, { public: false });
 
-  register("loaf.limits", "reduce_uncertainty", async (ctx, input = {}) => {
+  register("loaf.limits", "reduce_uncertainty", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.reductions++;
     return reduceUncertainty(String(input.uncertaintyId || ""), input.newInformation, input.newBounds);
   }, { public: false });
 
-  register("loaf.limits", "map_boundary", async (ctx, input = {}) => {
+  register("loaf.limits", "map_boundary", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.boundariesMapped++;
     return mapBoundary(input.domain, input.knownFrontier, input.unknownBeyond, input.limitType);
   }, { public: false });
 
-  register("loaf.limits", "get_boundary", async (ctx, input = {}) => {
+  register("loaf.limits", "get_boundary", (_ctx, input = {}) => {
     return getBoundary(String(input.domain || ""));
   }, { public: true });
 
-  register("loaf.limits", "detect_false_certainty", async (ctx, input = {}) => {
+  register("loaf.limits", "detect_false_certainty", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.falseCertaintyScans++;
     return detectFalseCertainty(input.claims || []);
   }, { public: true });
 
-  register("loaf.limits", "identify_illegible", async (ctx, input = {}) => {
+  register("loaf.limits", "identify_illegible", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.illegibleScans++;
     return identifyIllegibleProblems(input.problems || []);
   }, { public: true });
 
-  register("loaf.limits", "detect_overfit", async (ctx, input = {}) => {
+  register("loaf.limits", "detect_overfit", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.overfitChecks++;
     return detectOverfit(input.model || input);
   }, { public: true });
 
-  register("loaf.limits", "safety_margins", async (ctx, input = {}) => {
+  register("loaf.limits", "safety_margins", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.safetyMarginChecks++;
     return computeSafetyMargins(input.systemState || input);
   }, { public: true });
 
-  register("loaf.limits", "measure_growth", async (ctx, input = {}) => {
+  register("loaf.limits", "measure_growth", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.growthMeasurements++;
     return measureGrowth(input.count, input.domain);
   }, { public: false });
 
-  register("loaf.limits", "growth_rate", async (ctx, input = {}) => {
+  register("loaf.limits", "growth_rate", (_ctx, input = {}) => {
     return computeGrowthRate(input.windowMs);
   }, { public: true });
 
-  register("loaf.limits", "detect_blind_assumptions", async (ctx, input = {}) => {
+  register("loaf.limits", "detect_blind_assumptions", (ctx, input = {}) => {
     const el = ctx.state.__loaf.epistemicLimits;
     el.stats.blindAssumptionScans++;
     return detectBlindAssumptions(input.beliefs || []);
   }, { public: true });
 
-  register("loaf.limits", "list_uncertainties", async (ctx, input = {}) => {
+  register("loaf.limits", "list_uncertainties", (_ctx, input = {}) => {
     let list = Array.from(uncertainties.values());
     if (input.type) list = list.filter(u => u.type === input.type);
     if (input.domain) list = list.filter(u => u.domain === input.domain);

@@ -7,9 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Clock,
-  Tag,
-  MoreHorizontal
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -346,7 +344,7 @@ export function CalendarView({
 }
 
 function DayView({
-  date,
+  date: _date,
   events,
   onSelectEvent
 }: {

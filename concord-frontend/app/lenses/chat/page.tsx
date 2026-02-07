@@ -25,7 +25,6 @@ import {
   FileText,
   Brain,
   ChevronDown,
-  X,
   MessageSquare,
   Zap,
   BookOpen,
@@ -58,7 +57,7 @@ interface Conversation {
 interface AIMode {
   id: string;
   name: string;
-  icon: any;
+  icon: React.ComponentType;
   description: string;
 }
 
@@ -95,7 +94,7 @@ export default function ChatLensPage() {
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => api.get('/api/state/sessions').then(r =>
-      r.data?.sessions?.map((s: any) => ({
+      r.data?.sessions?.map((s: Record<string, unknown>) => ({
         id: s.id || s.sessionId,
         title: s.title || 'New Conversation',
         lastMessage: s.lastMessage || '',
@@ -110,7 +109,7 @@ export default function ChatLensPage() {
     queryFn: () => api.get('/api/state/latest', {
       params: { sessionId: selectedConversation }
     }).then(r =>
-      r.data?.lastMessages?.map((m: any, i: number) => ({
+      r.data?.lastMessages?.map((m: Record<string, unknown>, i: number) => ({
         id: m.id || `msg-${i}`,
         role: m.role,
         content: m.content,

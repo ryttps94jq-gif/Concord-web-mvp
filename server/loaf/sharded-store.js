@@ -190,13 +190,13 @@ const stores = {
   auditLogs: new ShardedStore("auditLogs", instanceShardKey),
 };
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.shardedStores = {
     storeNames: Object.keys(stores),
   };
 
-  register("loaf.stores", "status", async (ctx) => {
+  register("loaf.stores", "status", (_ctx) => {
     const summary = {};
     for (const [name, store] of Object.entries(stores)) {
       summary[name] = {
@@ -209,14 +209,14 @@ function init({ register, STATE, helpers }) {
     return { ok: true, stores: summary };
   }, { public: true });
 
-  register("loaf.stores", "put", async (ctx, input = {}) => {
+  register("loaf.stores", "put", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };
     return store.put(String(input.itemId || `item_${Date.now()}`), input.item);
   }, { public: false });
 
-  register("loaf.stores", "get", async (ctx, input = {}) => {
+  register("loaf.stores", "get", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };
@@ -224,7 +224,7 @@ function init({ register, STATE, helpers }) {
     return item ? { ok: true, item } : { ok: false, error: "not_found" };
   }, { public: true });
 
-  register("loaf.stores", "query_shard", async (ctx, input = {}) => {
+  register("loaf.stores", "query_shard", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };
@@ -232,21 +232,21 @@ function init({ register, STATE, helpers }) {
     return { ok: true, items, count: items.length };
   }, { public: true });
 
-  register("loaf.stores", "list_shards", async (ctx, input = {}) => {
+  register("loaf.stores", "list_shards", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };
     return { ok: true, shards: store.listShards(), sizes: store.shardSizes() };
   }, { public: true });
 
-  register("loaf.stores", "export", async (ctx, input = {}) => {
+  register("loaf.stores", "export", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };
     return { ok: true, data: store.export() };
   }, { public: false });
 
-  register("loaf.stores", "import", async (ctx, input = {}) => {
+  register("loaf.stores", "import", (_ctx, input = {}) => {
     const storeName = String(input.store || "");
     const store = stores[storeName];
     if (!store) return { ok: false, error: `unknown store: ${storeName}` };

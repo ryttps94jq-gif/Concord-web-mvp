@@ -4,10 +4,15 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
-  Eye, Brain, AlertTriangle, Target, BarChart3,
-  Crosshair, Lightbulb, RefreshCw, Send, CheckCircle2
+  Eye,
+  Brain,
+  AlertTriangle,
+  Target,
+  BarChart3,
+  Crosshair,
+  Lightbulb,
+  Send
 } from 'lucide-react';
 
 export default function MetacognitionLensPage() {
@@ -176,7 +181,7 @@ export default function MetacognitionLensPage() {
         </h2>
         {Array.isArray(spots) && spots.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {spots.map((spot: any, i: number) => (
+            {spots.map((spot: Record<string, unknown>, i: number) => (
               <div key={i} className="lens-card border-l-4 border-l-yellow-500">
                 <p className="font-medium text-sm">{spot.description || spot.domain || spot}</p>
                 {spot.severity && (

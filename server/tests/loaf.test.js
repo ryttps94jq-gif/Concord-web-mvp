@@ -7,7 +7,7 @@
  *   III — Civilizational-Grade Infrastructure
  */
 
-import { describe, it, before } from "node:test";
+import { describe, it, before as _before } from "node:test";
 import assert from "node:assert/strict";
 
 // ===== LOAF I — Hardening & Integrity =====
@@ -17,10 +17,10 @@ import {
   mandatoryMutationGate,
   createConstitutionRule,
   amendConstitutionRule,
-  revertConstitutionRule,
+  revertConstitutionRule as _revertConstitutionRule,
   detectPowerCreep,
   GATED_DOMAINS,
-  CONSTITUTION,
+  CONSTITUTION as _CONSTITUTION,
 } from "../loaf/governance.js";
 
 import {
@@ -29,7 +29,7 @@ import {
   suppressOutliers,
   clampStrategyUpdate,
   assessReflectionQuality,
-  getActorStats,
+  getActorStats as _getActorStats,
 } from "../loaf/learning.js";
 
 import {
@@ -39,7 +39,7 @@ import {
   isHardBlocked,
   computeSimilarity,
   evaluateTransfer,
-  getTransferHealth,
+  getTransferHealth as _getTransferHealth,
 } from "../loaf/transfer-hardening.js";
 
 import {
@@ -55,11 +55,11 @@ import {
 
 import {
   consumeBudget,
-  getBudgetStatus,
+  getBudgetStatus as _getBudgetStatus,
   scheduleTask,
   applyPriorityAging,
   dequeueNext,
-  completeThread,
+  completeThread as _completeThread,
   enforceThreadLifetimes,
 } from "../loaf/scheduler.js";
 
@@ -69,9 +69,9 @@ import {
   emit,
   subscribe,
   queryEvents,
-  getSnapshot,
+  getSnapshot as _getSnapshot,
   createReplayContext,
-  replayStep,
+  replayStep as _replayStep,
   replayAll,
   EVENT_TYPES,
 } from "../loaf/cognition-bus.js";
@@ -79,12 +79,12 @@ import {
 import {
   ShardedStore,
   domainShardKey,
-  stores,
+  stores as _stores,
 } from "../loaf/sharded-store.js";
 
 import {
   createEvidenceBundle,
-  computeConfidenceDistribution,
+  computeConfidenceDistribution as _computeConfidenceDistribution,
   runVerification,
   VERIFIER_TYPES,
 } from "../loaf/verification.js";
@@ -100,9 +100,9 @@ import {
   consumeSandboxBudget,
   checkPermission,
   writeMemory,
-  readMemory,
+  readMemory as _readMemory,
   killSandbox,
-  enforceTimeLimit,
+  enforceTimeLimit as _enforceTimeLimit,
 } from "../loaf/sandbox.js";
 
 import {
@@ -129,7 +129,7 @@ import {
 import {
   createTimeline,
   addTimelineVersion,
-  getTimelineVersion,
+  getTimelineVersion as _getTimelineVersion,
   forkTimeline,
   queryChanges,
   diffStates,
@@ -738,7 +738,7 @@ describe("LOAF II.7 — Federation", () => {
 
   it("should import with local verification", () => {
     const data = exportArtifact({ id: "a2", title: "Import Test" }, { evidence: [], counterEvidence: [] }, [], {});
-    const result = importArtifact(data, (d) => ({ pass: true }));
+    const result = importArtifact(data, (_d) => ({ pass: true }));
     assert.equal(result.ok, true);
     assert.equal(result.import.trust, "sandboxed"); // sandboxed until trusted
   });
@@ -860,8 +860,8 @@ describe("LOAF III.3 — Time & Causality Engine", () => {
   });
 
   it("should build and trace causal graphs", () => {
-    const e1 = addCausalEvent("ce1", "action", "User clicked button");
-    const e2 = addCausalEvent("ce2", "effect", "Form submitted");
+    const _e1 = addCausalEvent("ce1", "action", "User clicked button");
+    const _e2 = addCausalEvent("ce2", "effect", "Form submitted");
     addCausalEdge("ce1", "ce2", "causes", 0.9);
 
     const chain = traceCausalChain("ce1", "effects");

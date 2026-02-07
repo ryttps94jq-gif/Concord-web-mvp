@@ -6,10 +6,25 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  MessageSquare, GitBranch, GitMerge, GitFork, ChevronRight,
-  ChevronDown, Plus, Search, Filter, Clock, User, Bot,
-  MoreHorizontal, Trash2, Edit2, Copy, Pin, Archive,
-  ArrowUp, ArrowDown, Maximize2, Link2
+  MessageSquare,
+  GitBranch,
+  GitMerge,
+  GitFork,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Search,
+  Clock,
+  User,
+  Bot,
+  MoreHorizontal,
+  Trash2,
+  Copy,
+  Pin,
+  ArrowUp,
+  ArrowDown,
+  Maximize2,
+  Link2
 } from 'lucide-react';
 
 interface ThreadNode {
@@ -141,7 +156,7 @@ export default function ThreadLensPage() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
+  const [_showArchived, _setShowArchived] = useState(false);
 
   const { data: sessions } = useQuery({
     queryKey: ['sessions'],
@@ -188,7 +203,7 @@ export default function ThreadLensPage() {
     return `${Math.floor(diff / 86400000)}d ago`;
   };
 
-  const renderThreadNode = (node: ThreadNode, isLast: boolean = false) => {
+  const renderThreadNode = (node: ThreadNode, _isLast: boolean = false) => {
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children.length > 0;
     const isSelected = selectedNode?.id === node.id;

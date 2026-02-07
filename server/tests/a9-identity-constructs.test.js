@@ -11,13 +11,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay, resetState } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay, resetState as _resetState } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
-import { projectLabel, projectToneTags, projectSummary } from '../affect/projection.js';
+import { projectLabel, projectToneTags as _projectToneTags, projectSummary } from '../affect/projection.js';
 import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
-  deleteSession, listSessions, sessionCount,
+  deleteSession, listSessions, sessionCount as _sessionCount,
   serializeAll, restoreAll
 } from '../affect/index.js';
 
@@ -161,9 +161,9 @@ describe('A9.83 — Long-Lived Emergents', () => {
     assert(typeof state.v === 'number', 'Long-lived emergent should have valid state');
 
     // Should not be at baseline (has accumulated experience)
-    let isAtBaseline = true;
+    let _isAtBaseline = true;
     for (const dim of DIMS) {
-      if (Math.abs(state[dim] - BASELINE[dim]) > 0.05) isAtBaseline = false;
+      if (Math.abs(state[dim] - BASELINE[dim]) > 0.05) _isAtBaseline = false;
     }
     // Due to decay, might be near baseline, but state should be valid
     assert(typeof state.label === 'string', 'Long-lived emergent should still produce labels');
@@ -241,7 +241,7 @@ describe('A9.85 — Identity Fork / Merge', () => {
       emitAffectEvent(parent, makeEvent('SUCCESS', 0.7, 0.5));
     }
 
-    const parentState = getAffectState(parent);
+    const _parentState = getAffectState(parent);
 
     // Fork by copying state values
     const child = 'identity-child';
@@ -336,8 +336,8 @@ describe('A9.86 — Identity Decay', () => {
     applyDecay(unstable, 60000);
 
     // Stable identity should retain more of its character
-    const stableRetention = Math.abs(stable.v - 0.9);
-    const unstableRetention = Math.abs(unstable.v - 0.9);
+    const _stableRetention = Math.abs(stable.v - 0.9);
+    const _unstableRetention = Math.abs(unstable.v - 0.9);
 
     // Both will have decayed, but stable should retain better (closer to original)
     // Note: decay toward BASELINE.v=0.5, so both will have moved toward 0.5

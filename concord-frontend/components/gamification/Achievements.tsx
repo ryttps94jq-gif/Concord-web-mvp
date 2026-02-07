@@ -5,22 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import {
   Trophy,
-  Star,
-  Zap,
   Target,
   Flame,
   Brain,
   GitBranch,
-  MessageSquare,
   Clock,
   Sparkles,
-  Award,
   Crown,
-  Medal,
-  Rocket,
-  Book,
-  Heart,
-  Shield,
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,7 +20,7 @@ interface Achievement {
   id: string;
   title: string;
   description: string;
-  icon: any;
+  icon: React.ElementType;
   iconColor: string;
   bgColor: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';

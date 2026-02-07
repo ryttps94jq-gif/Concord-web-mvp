@@ -169,14 +169,14 @@ function getTransferHealth(sourceDomain, targetDomain, config = DEFAULT_CONFIG) 
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.transferHardening = {
     config: { ...DEFAULT_CONFIG },
     stats: { evaluations: 0, proposals: 0, autoApplied: 0, blocked: 0, negativeRecorded: 0, cooldownsApplied: 0 },
   };
 
-  register("loaf.transfer", "status", async (ctx) => {
+  register("loaf.transfer", "status", (ctx) => {
     const th = ctx.state.__loaf.transferHardening;
     return {
       ok: true,
@@ -187,7 +187,7 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.transfer", "evaluate", async (ctx, input = {}) => {
+  register("loaf.transfer", "evaluate", (ctx, input = {}) => {
     const th = ctx.state.__loaf.transferHardening;
     th.stats.evaluations++;
     const result = evaluateTransfer(
@@ -203,7 +203,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.transfer", "record_negative", async (ctx, input = {}) => {
+  register("loaf.transfer", "record_negative", (ctx, input = {}) => {
     const th = ctx.state.__loaf.transferHardening;
     const result = recordNegativeTransfer(
       String(input.sourceDomain || ""),
@@ -222,7 +222,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: false });
 
-  register("loaf.transfer", "health", async (ctx, input = {}) => {
+  register("loaf.transfer", "health", (ctx, input = {}) => {
     const th = ctx.state.__loaf.transferHardening;
     return { ok: true, ...getTransferHealth(input.sourceDomain, input.targetDomain, th.config) };
   }, { public: true });

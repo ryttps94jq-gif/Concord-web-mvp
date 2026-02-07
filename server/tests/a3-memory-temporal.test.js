@@ -17,9 +17,9 @@ import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
   getAffectEvents, serializeAll, restoreAll, deleteSession,
-  listSessions, sessionCount
+  listSessions, sessionCount as _sessionCount
 } from '../affect/index.js';
-import { getSession, logEvent, getEvents, resetSession } from '../affect/store.js';
+import { getSession as _getSession, logEvent as _logEvent, getEvents as _getEvents, resetSession as _resetSession } from '../affect/store.js';
 
 // ============= Helpers =============
 
@@ -154,8 +154,8 @@ describe('A3.22 — Episodic Recall', () => {
 
 describe('A3.23 — Semantic Memory', () => {
   it('Affect state encodes semantic meaning of events (not raw data)', () => {
-    const E = createState();
-    const M = createMomentum();
+    const _E = createState();
+    const _M = createMomentum();
 
     // Different events with same raw intensity → different semantic impact
     const E1 = createState();

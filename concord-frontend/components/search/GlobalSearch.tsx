@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -10,16 +10,12 @@ import {
   Users,
   Calendar,
   Brain,
-  Hash,
   Clock,
   ArrowRight,
   Filter,
-  Sparkles,
-  Command
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api/client';
-import Fuse from 'fuse.js';
 
 interface SearchResult {
   id: string;

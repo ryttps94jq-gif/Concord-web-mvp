@@ -14,7 +14,7 @@ interface Chain {
   id: string;
   premise: string;
   type?: string;
-  steps?: any[];
+  steps?: unknown[];
   conclusion?: string;
   status?: string;
   createdAt?: string;
@@ -29,7 +29,7 @@ export default function ReasoningLensPage() {
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
   const [newStep, setNewStep] = useState('');
 
-  const { data: chainsData, isLoading } = useQuery({
+  const { data: chainsData, _isLoading } = useQuery({
     queryKey: ['reasoning-chains'],
     queryFn: () => apiHelpers.reasoning.list().then((r) => r.data),
     refetchInterval: 10000,
@@ -196,7 +196,7 @@ export default function ReasoningLensPage() {
             <>
               {/* Trace visualization */}
               <div className="space-y-3">
-                {trace?.steps?.map?.((step: any, i: number) => (
+                {trace?.steps?.map?.((step: Record<string, unknown>, i: number) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -10 }}

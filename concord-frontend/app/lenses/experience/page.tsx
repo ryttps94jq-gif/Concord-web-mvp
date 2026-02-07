@@ -31,7 +31,7 @@ export default function ExperienceLensPage() {
   const queryClient = useQueryClient();
   const [retrieveDomain, setRetrieveDomain] = useState('general');
   const [retrieveTopic, setRetrieveTopic] = useState('');
-  const [retrieveResult, setRetrieveResult] = useState<any>(null);
+  const [retrieveResult, setRetrieveResult] = useState<unknown>(null);
 
   const { data: status } = useQuery({
     queryKey: ['experience-status'],
@@ -202,7 +202,7 @@ export default function ExperienceLensPage() {
               <BookOpen className="w-4 h-4 text-neon-blue" /> Recent Episodes
             </h2>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {recentEpisodes.slice(0, 8).map((ep: any, i: number) => (
+              {recentEpisodes.slice(0, 8).map((ep: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
                   <div className="flex justify-between">
                     <span className="text-gray-300 truncate">{ep.context?.topic || ep.context?.domain || 'Unknown'}</span>

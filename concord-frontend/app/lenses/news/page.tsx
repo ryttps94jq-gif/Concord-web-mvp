@@ -132,7 +132,7 @@ export default function NewsLensPage() {
               Trending Topics
             </h3>
             <div className="space-y-2">
-              {trending?.topics?.map((topic: any, index: number) => (
+              {trending?.topics?.map((topic: Record<string, unknown>, index: number) => (
                 <div
                   key={topic.id}
                   className="flex items-center gap-3 p-2 rounded-lg hover:bg-lattice-elevated cursor-pointer"

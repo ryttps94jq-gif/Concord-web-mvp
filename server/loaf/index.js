@@ -143,7 +143,7 @@ function initAll(ctx) {
   STATE.__loaf.initializedAt = new Date().toISOString();
 
   // Register the LOAF meta-status macro
-  register("loaf", "status", async (ctx) => {
+  register("loaf", "status", (ctx) => {
     return {
       ok: true,
       version: LOAF_VERSION,

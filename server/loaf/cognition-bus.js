@@ -262,13 +262,13 @@ function hashSeed(seed) {
   return Math.abs(hash);
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.cognitionBus = {
     stats: { eventsEmitted: 0, subscriberCount: 0, replaysRun: 0, queriesRun: 0 },
   };
 
-  register("loaf.bus", "status", async (ctx) => {
+  register("loaf.bus", "status", (ctx) => {
     const cb = ctx.state.__loaf.cognitionBus;
     return {
       ok: true,
@@ -280,7 +280,7 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.bus", "emit", async (ctx, input = {}) => {
+  register("loaf.bus", "emit", (ctx, input = {}) => {
     const cb = ctx.state.__loaf.cognitionBus;
     const event = emit(String(input.type || "custom.event"), input.payload || {}, {
       actorId: ctx.actor?.id, sessionId: input.sessionId, shard: input.shard, ...input.meta,
@@ -289,18 +289,18 @@ function init({ register, STATE, helpers }) {
     return { ok: true, event };
   }, { public: false });
 
-  register("loaf.bus", "query", async (ctx, input = {}) => {
+  register("loaf.bus", "query", (ctx, input = {}) => {
     const cb = ctx.state.__loaf.cognitionBus;
     cb.stats.queriesRun++;
     return { ok: true, ...queryEvents(input) };
   }, { public: true });
 
-  register("loaf.bus", "snapshot", async (ctx, input = {}) => {
+  register("loaf.bus", "snapshot", (_ctx, input = {}) => {
     const events = getSnapshot(Number(input.fromSeq || 0), Number(input.toSeq || Infinity));
     return { ok: true, events, count: events.length };
   }, { public: true });
 
-  register("loaf.bus", "replay", async (ctx, input = {}) => {
+  register("loaf.bus", "replay", (ctx, input = {}) => {
     const cb = ctx.state.__loaf.cognitionBus;
     const events = input.events || getSnapshot(Number(input.fromSeq || 0), Number(input.toSeq || Infinity));
     const replayCtx = createReplayContext(events, input.seed || "default", input.modelVersion);

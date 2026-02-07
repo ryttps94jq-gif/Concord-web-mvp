@@ -4,10 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic,
-  MicOff,
   Square,
-  Play,
-  Pause,
   Trash2,
   Upload,
   Loader2,
@@ -150,7 +147,7 @@ export function VoiceRecorder({
       const text = await onTranscribe(audioBlobRef.current);
       setTranscript(text);
       setState('stopped');
-    } catch (err) {
+    } catch {
       setError('Transcription failed. Please try again.');
       setState('stopped');
     }

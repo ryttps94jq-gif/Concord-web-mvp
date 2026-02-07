@@ -6,8 +6,10 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState, useMemo } from 'react';
 import { DailyNotes } from '@/components/daily/DailyNotes';
 import {
-  Calendar, Clock, Bell, FileText, Plus,
-  Sparkles, CheckCircle2
+  Bell,
+  Plus,
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function DailyLensPage() {
@@ -60,7 +62,7 @@ export default function DailyLensPage() {
   }, [dailyData]);
 
   const currentNote = useMemo(() => {
-    return notes.find((n: any) => n.date === selectedDate) || currentData?.note || null;
+    return notes.find((n: Record<string, unknown>) => n.date === selectedDate) || currentData?.note || null;
   }, [notes, selectedDate, currentData]);
 
   const reminders = dueReminders?.reminders || dueReminders || [];
@@ -145,7 +147,7 @@ export default function DailyLensPage() {
 
             {/* Due Reminders */}
             <div className="space-y-2">
-              {Array.isArray(reminders) && reminders.length > 0 ? reminders.map((r: any) => (
+              {Array.isArray(reminders) && reminders.length > 0 ? reminders.map((r: Record<string, unknown>) => (
                 <div key={r.id} className="lens-card text-sm">
                   <div className="flex items-start justify-between">
                     <div>

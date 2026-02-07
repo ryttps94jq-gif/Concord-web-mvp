@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link2, ChevronRight, ChevronDown, Brain, ExternalLink, Search, Filter, ArrowUpRight } from 'lucide-react';
+import { Link2, ChevronRight, Brain, Search, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api, apiHelpers } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 
 interface Backlink {
   id: string;
@@ -305,7 +305,7 @@ interface UnlinkedMentionsProps {
 }
 
 export function UnlinkedMentions({ dtuId, className }: UnlinkedMentionsProps) {
-  const [mentions, setMentions] = useState<UnlinkedMention[]>([]);
+  const [mentions, _setMentions] = useState<UnlinkedMention[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

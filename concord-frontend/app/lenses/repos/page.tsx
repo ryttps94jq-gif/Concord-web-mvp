@@ -4,12 +4,10 @@ import { useState } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { motion } from 'framer-motion';
 import {
   GitBranch,
   GitCommit,
   GitPullRequest,
-  GitMerge,
   Star,
   Eye,
   GitFork,
@@ -17,16 +15,12 @@ import {
   FileText,
   Folder,
   ChevronRight,
-  Clock,
-  User,
   Plus,
   Search,
   BookOpen,
   AlertCircle,
   CheckCircle,
-  XCircle,
   MessageSquare,
-  Tag,
   Settings,
   Shield,
   BarChart3,
@@ -81,7 +75,7 @@ export default function ReposLensPage() {
   const { data: repos } = useQuery({
     queryKey: ['repos-list'],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'repo' } }).then(r =>
-      r.data?.dtus?.map((dtu: any, i: number) => ({
+      r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
         id: dtu.id,
         name: dtu.title || `project-${i}`,
         description: dtu.content?.slice(0, 100) || 'A Concord DTU repository',
@@ -101,7 +95,7 @@ export default function ReposLensPage() {
   const { data: issues } = useQuery({
     queryKey: ['repos-issues', selectedRepo],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'issue' } }).then(r =>
-      r.data?.dtus?.map((dtu: any, i: number) => ({
+      r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
         id: dtu.id,
         number: i + 1,
         title: dtu.title || dtu.content?.slice(0, 60),
@@ -143,7 +137,7 @@ export default function ReposLensPage() {
     return date.toLocaleDateString();
   };
 
-  const tabs: { id: ActiveTab; label: string; icon: any; count?: number }[] = [
+  const tabs: { id: ActiveTab; label: string; icon: React.ElementType; count?: number }[] = [
     { id: 'code', label: 'Code', icon: Code },
     { id: 'issues', label: 'Issues', icon: AlertCircle, count: 12 },
     { id: 'pulls', label: 'Pull requests', icon: GitPullRequest, count: 3 },

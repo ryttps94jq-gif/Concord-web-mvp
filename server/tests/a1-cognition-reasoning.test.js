@@ -11,7 +11,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay, enforceInvariants } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay, enforceInvariants as _enforceInvariants } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
 import { projectLabel, projectToneTags } from '../affect/projection.js';
 import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
@@ -22,7 +22,7 @@ function makeEvent(type, intensity = 0.5, polarity = 0.0) {
   return { type, intensity, polarity, payload: {}, source: {} };
 }
 
-function runEventSequence(events) {
+function _runEventSequence(events) {
   const E = createState();
   const M = createMomentum();
   const results = [];

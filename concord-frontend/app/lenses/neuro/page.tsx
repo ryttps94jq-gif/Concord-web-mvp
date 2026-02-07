@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState } from 'react';
-import { Brain, Zap, Network, Activity, Layers, RefreshCw } from 'lucide-react';
+import { Brain, Network, Activity, Layers } from 'lucide-react';
 
 export default function NeuroLensPage() {
   useLensNav('neuro');

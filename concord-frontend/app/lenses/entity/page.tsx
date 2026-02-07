@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Users, Plus, Terminal, GitFork, Activity, Shield, Play } from 'lucide-react';
+import { Users, Plus, Terminal, GitFork, Activity, Play } from 'lucide-react';
 
 interface Entity {
   id: string;
@@ -73,7 +73,7 @@ export default function EntityLensPage() {
       ]);
       setTerminalCommand('');
     },
-    onError: (err: any) => {
+    onError: (err: Record<string, unknown>) => {
       setTerminalOutput(prev => [
         ...prev,
         `$ ${terminalCommand}`,

@@ -58,7 +58,7 @@ export default function LabLensPage() {
               onChange={(e) => setSelectedOrgan(e.target.value)}
               className="input-lattice w-auto"
             >
-              {organs?.organs?.map((organ: any) => (
+              {organs?.organs?.map((organ: Record<string, unknown>) => (
                 <option key={organ.name} value={organ.name}>
                   {organ.name}
                 </option>
@@ -99,7 +99,7 @@ export default function LabLensPage() {
             Growth Organs
           </h2>
           <div className="space-y-2">
-            {organs?.organs?.map((organ: any) => (
+            {organs?.organs?.map((organ: Record<string, unknown>) => (
               <div
                 key={organ.name}
                 className={`lens-card cursor-pointer ${
@@ -137,7 +137,7 @@ export default function LabLensPage() {
               No experiments yet. Run your first experiment!
             </p>
           ) : (
-            experiments?.experiments?.map((exp: any) => (
+            experiments?.experiments?.map((exp: Record<string, unknown>) => (
               <div key={exp.id} className="lens-card">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-sm">{exp.organ}</span>

@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Users, Plus, Lock, Unlock, GitMerge, Clock } from 'lucide-react';
+import { Users, Plus, GitMerge, Clock } from 'lucide-react';
 
 export default function CollabLensPage() {
   useLensNav('collab');
@@ -70,13 +70,13 @@ export default function CollabLensPage() {
         <div className="lens-card">
           <p className="text-sm text-gray-400">Total Participants</p>
           <p className="text-2xl font-bold text-neon-purple">
-            {sessions?.sessions?.reduce((acc: number, s: any) => acc + s.participantCount, 0) || 0}
+            {sessions?.sessions?.reduce((acc: number, s: Record<string, unknown>) => acc + s.participantCount, 0) || 0}
           </p>
         </div>
         <div className="lens-card">
           <p className="text-sm text-gray-400">Pending Changes</p>
           <p className="text-2xl font-bold text-neon-cyan">
-            {sessions?.sessions?.reduce((acc: number, s: any) => acc + s.changeCount, 0) || 0}
+            {sessions?.sessions?.reduce((acc: number, s: Record<string, unknown>) => acc + s.changeCount, 0) || 0}
           </p>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function CollabLensPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {sessions?.sessions?.map((session: any) => (
+            {sessions?.sessions?.map((session: Record<string, unknown>) => (
               <SessionCard
                 key={session.id}
                 session={session}
@@ -120,7 +120,7 @@ export default function CollabLensPage() {
   );
 }
 
-function SessionCard({ session, onJoin, onMerge, joining, merging }: any) {
+function SessionCard({ session, onJoin, onMerge, joining, merging }: unknown) {
   return (
     <div className="panel p-4">
       <div className="flex items-center justify-between">
@@ -155,7 +155,7 @@ function SessionCard({ session, onJoin, onMerge, joining, merging }: any) {
   );
 }
 
-function CreateSessionModal({ onClose, onCreate, dtus, creating }: any) {
+function CreateSessionModal({ onClose, onCreate, dtus, creating }: unknown) {
   const [form, setForm] = useState({ dtuId: '', mode: 'edit' });
 
   return (
@@ -168,7 +168,7 @@ function CreateSessionModal({ onClose, onCreate, dtus, creating }: any) {
           className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded"
         >
           <option value="">Select DTU to collaborate on</option>
-          {dtus.slice(0, 50).map((dtu: any) => (
+          {dtus.slice(0, 50).map((dtu: Record<string, unknown>) => (
             <option key={dtu.id} value={dtu.id}>{dtu.title}</option>
           ))}
         </select>

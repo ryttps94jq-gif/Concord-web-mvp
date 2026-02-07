@@ -5,9 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
   Reply,
-  MoreHorizontal,
   Check,
-  Smile,
   Send,
   ChevronDown,
   ChevronRight

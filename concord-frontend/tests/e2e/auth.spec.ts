@@ -85,7 +85,7 @@ test.describe('CSRF Protection', () => {
 
     // Check for CSRF cookie
     const cookies = await context.cookies();
-    const csrfCookie = cookies.find(c => c.name === 'csrf_token');
+    const _csrfCookie = cookies.find(c => c.name === 'csrf_token');
 
     // CSRF token should be present (or the app handles it differently)
     // This is a soft check since implementation may vary

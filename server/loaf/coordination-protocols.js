@@ -636,76 +636,76 @@ function getProtocolStatus(protocolId) {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "create_protocol", async (ctx) => {
+  register("loaf", "create_protocol", (ctx) => {
     const { mode, description } = ctx.args || {};
     return createProtocol(mode || COORDINATION_MODES.PEER, description, ctx.args?.initiatorId);
   }, { public: true });
 
-  register("loaf", "join_protocol", async (ctx) => {
+  register("loaf", "join_protocol", (ctx) => {
     const { protocolId, actorId, intent } = ctx.args || {};
     return joinProtocol(protocolId, actorId, intent);
   }, { public: true });
 
-  register("loaf", "declare_intent", async (ctx) => {
+  register("loaf", "declare_intent", (ctx) => {
     const { protocolId, actorId, intent, evidence } = ctx.args || {};
     return declareIntent(protocolId, actorId, intent, evidence);
   }, { public: true });
 
-  register("loaf", "submit_plan", async (ctx) => {
+  register("loaf", "submit_plan", (ctx) => {
     const { protocolId, actorId, plan } = ctx.args || {};
     return submitPlan(protocolId, actorId, plan);
   }, { public: true });
 
-  register("loaf", "check_plan_compatibility", async (ctx) => {
+  register("loaf", "check_plan_compatibility", (ctx) => {
     return checkPlanCompatibility(ctx.args?.protocolId);
   }, { public: true });
 
-  register("loaf", "start_negotiation", async (ctx) => {
+  register("loaf", "start_negotiation", (ctx) => {
     const { protocolId, topic } = ctx.args || {};
     return startNegotiation(protocolId, topic);
   }, { public: true });
 
-  register("loaf", "submit_position", async (ctx) => {
+  register("loaf", "submit_position", (ctx) => {
     const { negotiationId, actorId, position, evidence } = ctx.args || {};
     return submitPosition(negotiationId, actorId, position, evidence);
   }, { public: true });
 
-  register("loaf", "resolve_negotiation", async (ctx) => {
+  register("loaf", "resolve_negotiation", (ctx) => {
     return resolveNegotiation(ctx.args?.negotiationId);
   }, { public: true });
 
-  register("loaf", "create_interlock", async (ctx) => {
+  register("loaf", "create_interlock", (ctx) => {
     const { type, resources, ...options } = ctx.args || {};
     return createInterlock(type, resources, options);
   }, { public: true });
 
-  register("loaf", "acquire_interlock", async (ctx) => {
+  register("loaf", "acquire_interlock", (ctx) => {
     return acquireInterlock(ctx.args?.interlockId, ctx.args?.actorId);
   }, { public: true });
 
-  register("loaf", "release_interlock", async (ctx) => {
+  register("loaf", "release_interlock", (ctx) => {
     return releaseInterlock(ctx.args?.interlockId, ctx.args?.actorId);
   }, { public: true });
 
-  register("loaf", "veto_protocol", async (ctx) => {
+  register("loaf", "veto_protocol", (ctx) => {
     const { protocolId, actorId, reason, evidence } = ctx.args || {};
     return vetoProtocol(protocolId, actorId, reason, evidence);
   }, { public: true });
 
-  register("loaf", "pause_protocol", async (ctx) => {
+  register("loaf", "pause_protocol", (ctx) => {
     const { protocolId, actorId, reason } = ctx.args || {};
     return pauseProtocol(protocolId, actorId, reason);
   }, { public: true });
 
-  register("loaf", "arbitrate_priority", async (ctx) => {
+  register("loaf", "arbitrate_priority", (ctx) => {
     return arbitratePriority(ctx.args?.protocolId);
   }, { public: true });
 
-  register("loaf", "check_compatibility_envelope", async (ctx) => {
+  register("loaf", "check_compatibility_envelope", (ctx) => {
     return checkCompatibilityEnvelope(ctx.args?.actions);
   }, { public: true });
 
-  register("loaf", "protocol_status", async (ctx) => {
+  register("loaf", "protocol_status", (ctx) => {
     return getProtocolStatus(ctx.args?.protocolId);
   }, { public: true });
 }

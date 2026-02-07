@@ -1,23 +1,18 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { Virtuoso } from 'react-virtuoso';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
-  Sparkles,
   Star,
   MoreHorizontal,
-  ChevronRight,
-  Tag,
   Clock,
   GitBranch,
   Trash2,
   Edit,
   Copy,
   ExternalLink,
-  Check,
-  Filter,
   SortAsc,
   SortDesc,
   Search
@@ -130,7 +125,7 @@ export function VirtualDTUList({
     setContextMenu(null);
   }, []);
 
-  const toggleSort = (field: SortField) => {
+  const _toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -420,7 +415,7 @@ function ContextMenuItem({
   onClick,
   danger = false
 }: {
-  icon: any;
+  icon: React.ElementType;
   label: string;
   onClick: () => void;
   danger?: boolean;

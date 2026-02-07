@@ -82,7 +82,7 @@ export default function BioLensPage() {
             {systems.find((s) => s.id === selectedSystem)?.name} Metrics
           </h3>
 
-          {bioData?.systems?.[selectedSystem]?.metrics?.map((metric: any) => (
+          {bioData?.systems?.[selectedSystem]?.metrics?.map((metric: Record<string, unknown>) => (
             <div key={metric.name} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-400">{metric.name}</span>
@@ -112,7 +112,7 @@ export default function BioLensPage() {
           </h3>
 
           <div className="space-y-2">
-            {growthData?.organs?.map((organ: any) => (
+            {growthData?.organs?.map((organ: Record<string, unknown>) => (
               <div
                 key={organ.name}
                 className={`lens-card ${

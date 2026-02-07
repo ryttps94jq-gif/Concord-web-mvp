@@ -303,11 +303,11 @@ export const apiHelpers = {
   // Schema System
   schema: {
     list: () => api.get('/api/schema'),
-    create: (data: { name: string; kind: string; fields: any[] }) =>
+    create: (data: { name: string; kind: string; fields: unknown[] }) =>
       api.post('/api/schema', data),
-    validate: (data: { schemaName: string; data: any }) =>
+    validate: (data: { schemaName: string; data: unknown }) =>
       api.post('/api/schema/validate', data),
-    apply: (data: { schemaName: string; dtuId: string; data: any }) =>
+    apply: (data: { schemaName: string; dtuId: string; data: unknown }) =>
       api.post('/api/schema/apply', data),
   },
 
@@ -338,7 +338,7 @@ export const apiHelpers = {
       api.post('/api/collab/session', data),
     join: (data: { sessionId: string; userId?: string }) =>
       api.post('/api/collab/join', data),
-    edit: (data: { sessionId: string; path: string; value: any }) =>
+    edit: (data: { sessionId: string; path: string; value: unknown }) =>
       api.post('/api/collab/edit', data),
     merge: (sessionId: string) => api.post('/api/collab/merge', { sessionId }),
   },
@@ -349,7 +349,7 @@ export const apiHelpers = {
     get: (id: string) => api.get(`/api/whiteboard/${id}`),
     create: (data: { title: string; linkedDtus?: string[] }) =>
       api.post('/api/whiteboard', data),
-    update: (id: string, data: { elements?: any[]; linkedDtus?: string[] }) =>
+    update: (id: string, data: { elements?: unknown[]; linkedDtus?: string[] }) =>
       api.put(`/api/whiteboard/${id}`, data),
   },
 
@@ -365,9 +365,9 @@ export const apiHelpers = {
 
   automations: {
     list: () => api.get('/api/automations'),
-    create: (data: { name: string; trigger: any; actions: any[] }) =>
+    create: (data: { name: string; trigger: unknown; actions: unknown[] }) =>
       api.post('/api/automations', data),
-    run: (id: string, triggerData?: any) =>
+    run: (id: string, triggerData?: unknown) =>
       api.post(`/api/automations/${id}/run`, triggerData || {}),
     delete: (id: string) => api.delete(`/api/automations/${id}`),
   },
@@ -377,8 +377,8 @@ export const apiHelpers = {
     list: () => api.get('/api/integrations'),
     obsidianExport: (data: { dtuIds?: string[]; includeLineage?: boolean }) =>
       api.post('/api/obsidian/export', data),
-    obsidianImport: (files: any[]) => api.post('/api/obsidian/import', { files }),
-    notionImport: (pages: any[]) => api.post('/api/notion/import', { pages }),
+    obsidianImport: (files: unknown[]) => api.post('/api/obsidian/import', { files }),
+    notionImport: (pages: unknown[]) => api.post('/api/notion/import', { pages }),
   },
 
   // Database & Performance
@@ -420,7 +420,7 @@ export const apiHelpers = {
   affect: {
     state: (sessionId?: string) =>
       api.get('/api/affect/state', { params: { sessionId } }),
-    emit: (sessionId: string, event: { type: string; intensity: number; polarity: number; payload?: any }) =>
+    emit: (sessionId: string, event: { type: string; intensity: number; polarity: number; payload?: unknown }) =>
       api.post('/api/affect/event', { sessionId, ...event }),
     policy: (sessionId?: string) =>
       api.get('/api/affect/policy', { params: { sessionId } }),
@@ -461,7 +461,7 @@ export const apiHelpers = {
       api.post('/api/metacognition/assess', data),
     introspect: (data: { focus?: string }) =>
       api.post('/api/metacognition/introspect', data),
-    strategy: (data: { strategy: string; params?: any }) =>
+    strategy: (data: { strategy: string; params?: Record<string, unknown> }) =>
       api.post('/api/metacognition/strategy', data),
   },
 
@@ -470,11 +470,11 @@ export const apiHelpers = {
     status: () => api.get('/api/metalearning/status'),
     strategies: () => api.get('/api/metalearning/strategies'),
     bestStrategy: () => api.get('/api/metalearning/strategies/best'),
-    createStrategy: (data: { name: string; type: string; params?: any }) =>
+    createStrategy: (data: { name: string; type: string; params?: Record<string, unknown> }) =>
       api.post('/api/metalearning/strategies', data),
     adaptStrategy: (strategyId: string) =>
       api.post(`/api/metalearning/strategies/${strategyId}/adapt`, {}),
-    recordOutcome: (strategyId: string, data: { success: boolean; metrics?: any }) =>
+    recordOutcome: (strategyId: string, data: { success: boolean; metrics?: Record<string, unknown> }) =>
       api.post(`/api/metalearning/strategies/${strategyId}/outcome`, data),
     curriculum: (data: { topic: string }) =>
       api.post('/api/metalearning/curriculum', data),
@@ -515,7 +515,7 @@ export const apiHelpers = {
     status: () => api.get('/api/inference/status'),
     facts: (data: { facts: string[] }) =>
       api.post('/api/inference/facts', data),
-    rules: (data: { rules: any[] }) =>
+    rules: (data: { rules: unknown[] }) =>
       api.post('/api/inference/rules', data),
     query: (data: { query: string }) =>
       api.post('/api/inference/query', data),
@@ -529,7 +529,7 @@ export const apiHelpers = {
   agents: {
     list: () => api.get('/api/agents'),
     get: (id: string) => api.get(`/api/agents/${id}`),
-    create: (data: { name: string; type?: string; config?: any }) =>
+    create: (data: { name: string; type?: string; config?: Record<string, unknown> }) =>
       api.post('/api/agents', data),
     enable: (id: string) => api.post(`/api/agents/${id}/enable`, {}),
     tick: (id: string) => api.post(`/api/agents/${id}/tick`, {}),
@@ -605,7 +605,7 @@ export const apiHelpers = {
 
   // Temporal reasoning
   temporal: {
-    validate: (data: { claims: any[] }) =>
+    validate: (data: { claims: unknown[] }) =>
       api.post('/api/temporal/validate', data),
     recency: (data: { dtuIds: string[] }) =>
       api.post('/api/temporal/recency', data),
@@ -633,15 +633,15 @@ export const apiHelpers = {
   worldmodel: {
     status: () => api.get('/api/worldmodel/status'),
     entities: () => api.get('/api/worldmodel/entities'),
-    createEntity: (data: { name: string; type: string; properties?: any }) =>
+    createEntity: (data: { name: string; type: string; properties?: Record<string, unknown> }) =>
       api.post('/api/worldmodel/entities', data),
     getEntity: (entityId: string) => api.get(`/api/worldmodel/entities/${entityId}`),
-    updateEntity: (entityId: string, data: any) =>
+    updateEntity: (entityId: string, data: Record<string, unknown>) =>
       api.put(`/api/worldmodel/entities/${entityId}`, data),
     relations: () => api.get('/api/worldmodel/relations'),
     createRelation: (data: { from: string; to: string; type: string }) =>
       api.post('/api/worldmodel/relations', data),
-    counterfactual: (data: { scenario: string; changes: any }) =>
+    counterfactual: (data: { scenario: string; changes: Record<string, unknown> }) =>
       api.post('/api/worldmodel/counterfactual', data),
   },
 
@@ -667,7 +667,7 @@ export const apiHelpers = {
     status: () => api.get('/api/attention/status'),
     createThread: (data: { type?: string; priority?: number; description?: string; domain?: string }) =>
       api.post('/api/attention/thread', data),
-    completeThread: (data: { threadId: string; output?: any }) =>
+    completeThread: (data: { threadId: string; output?: unknown }) =>
       api.post('/api/attention/thread/complete', data),
     threads: () => api.get('/api/attention/threads'),
     queue: () => api.get('/api/attention/queue'),

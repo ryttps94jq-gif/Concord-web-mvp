@@ -13,7 +13,6 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bold,
   Italic,
@@ -32,14 +31,7 @@ import {
   Minus,
   Undo,
   Redo,
-  Highlighter,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Type,
-  Hash,
-  AtSign,
-  Sparkles
+  Highlighter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useState, useEffect } from 'react';
@@ -447,12 +439,12 @@ function ToolbarButton({
 
 // Slash command menu component
 export function SlashCommandMenu({
-  editor,
+  editor: _editor,
   items,
   onSelect
 }: {
-  editor: any;
-  items: Array<{ icon: any; label: string; description: string; command: () => void }>;
+  editor: unknown;
+  items: Array<{ icon: React.ElementType; label: string; description: string; command: () => void }>;
   onSelect: () => void;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);

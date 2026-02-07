@@ -4,14 +4,14 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { FileCode, Plus, Check, X, AlertCircle } from 'lucide-react';
+import { FileCode, Plus, Check, X } from 'lucide-react';
 
 export default function SchemaLensPage() {
   useLensNav('schema');
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [validateData, setValidateData] = useState({ schemaName: '', data: '' });
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<unknown>(null);
 
   const { data: schemas, isLoading } = useQuery({
     queryKey: ['schemas'],
@@ -19,7 +19,7 @@ export default function SchemaLensPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/api/schema', data),
+    mutationFn: (data: unknown) => api.post('/api/schema', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schemas'] });
       setShowCreate(false);
@@ -27,7 +27,7 @@ export default function SchemaLensPage() {
   });
 
   const validateMutation = useMutation({
-    mutationFn: (data: { schemaName: string; data: any }) =>
+    mutationFn: (data: { schemaName: string; data: unknown }) =>
       api.post('/api/schema/validate', data),
     onSuccess: (result) => setValidationResult(result.data),
   });
@@ -36,7 +36,7 @@ export default function SchemaLensPage() {
     try {
       const parsed = JSON.parse(validateData.data);
       validateMutation.mutate({ schemaName: validateData.schemaName, data: parsed });
-    } catch (e) {
+    } catch {
       setValidationResult({ ok: false, valid: false, errors: [{ field: 'JSON', error: 'Invalid JSON' }] });
     }
   };
@@ -67,7 +67,7 @@ export default function SchemaLensPage() {
             <div className="text-gray-400">Loading...</div>
           ) : (
             <div className="space-y-3">
-              {schemas?.schemas?.map((schema: any) => (
+              {schemas?.schemas?.map((schema: Record<string, unknown>) => (
                 <SchemaCard key={schema.id || schema.name} schema={schema} />
               ))}
             </div>
@@ -84,7 +84,7 @@ export default function SchemaLensPage() {
               className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded"
             >
               <option value="">Select Schema</option>
-              {schemas?.schemas?.map((s: any) => (
+              {schemas?.schemas?.map((s: Record<string, unknown>) => (
                 <option key={s.name} value={s.name}>{s.name}</option>
               ))}
             </select>
@@ -116,7 +116,7 @@ export default function SchemaLensPage() {
                 </div>
                 {validationResult.errors?.length > 0 && (
                   <ul className="text-sm text-red-300 space-y-1">
-                    {validationResult.errors.map((err: any, i: number) => (
+                    {validationResult.errors.map((err: Record<string, unknown>, i: number) => (
                       <li key={i}>{err.field}: {err.error}</li>
                     ))}
                   </ul>
@@ -138,7 +138,7 @@ export default function SchemaLensPage() {
   );
 }
 
-function SchemaCard({ schema }: { schema: any }) {
+function SchemaCard({ schema }: { schema: unknown }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -154,7 +154,7 @@ function SchemaCard({ schema }: { schema: any }) {
         <div className="mt-3 pt-3 border-t border-lattice-border">
           <h4 className="text-sm font-medium mb-2">Fields:</h4>
           <div className="space-y-1">
-            {schema.fields?.map((field: any) => (
+            {schema.fields?.map((field: Record<string, unknown>) => (
               <div key={field.name} className="text-sm flex items-center gap-2">
                 <span className="text-neon-cyan">{field.name}</span>
                 <span className="text-gray-500">: {field.type}</span>
@@ -168,7 +168,7 @@ function SchemaCard({ schema }: { schema: any }) {
   );
 }
 
-function CreateSchemaModal({ onClose, onCreate, creating }: any) {
+function CreateSchemaModal({ onClose, onCreate, creating }: unknown) {
   const [form, setForm] = useState({
     name: '',
     kind: '',
@@ -179,7 +179,7 @@ function CreateSchemaModal({ onClose, onCreate, creating }: any) {
     setForm({ ...form, fields: [...form.fields, { name: '', type: 'string', required: false }] });
   };
 
-  const updateField = (idx: number, key: string, value: any) => {
+  const updateField = (idx: number, key: string, value: unknown) => {
     const fields = [...form.fields];
     fields[idx] = { ...fields[idx], [key]: value };
     setForm({ ...form, fields });

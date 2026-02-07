@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   Palette,
   Check,
@@ -201,7 +200,7 @@ export function ThemeSelector({
             return (
               <button
                 key={option.id}
-                onClick={() => setSystemPreference(option.id as any)}
+                onClick={() => setSystemPreference(option.id as typeof systemPreference)}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors',
                   systemPreference === option.id

@@ -237,13 +237,13 @@ function sanitizeModule(mod) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.normative = {
     stats: { modulesCreated: 0, modulesUpdated: 0, modulesForks: 0, evaluations: 0, violations: 0 },
   };
 
-  register("loaf.normative", "status", async (ctx) => {
+  register("loaf.normative", "status", (ctx) => {
     const n = ctx.state.__loaf.normative;
     const byType = {};
     for (const type of Object.values(NORMATIVE_TYPES)) {
@@ -258,28 +258,28 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.normative", "create", async (ctx, input = {}) => {
+  register("loaf.normative", "create", (ctx, input = {}) => {
     const n = ctx.state.__loaf.normative;
     const result = createModule(input.type, input.name, input.rules, ctx.actor);
     if (result.ok) n.stats.modulesCreated++;
     return result;
   }, { public: false });
 
-  register("loaf.normative", "update", async (ctx, input = {}) => {
+  register("loaf.normative", "update", (ctx, input = {}) => {
     const n = ctx.state.__loaf.normative;
     const result = updateModule(String(input.moduleId || ""), input.rules, ctx.actor);
     if (result.ok) n.stats.modulesUpdated++;
     return result;
   }, { public: false });
 
-  register("loaf.normative", "fork", async (ctx, input = {}) => {
+  register("loaf.normative", "fork", (ctx, input = {}) => {
     const n = ctx.state.__loaf.normative;
     const result = forkModule(String(input.moduleId || ""), input.name, ctx.actor);
     if (result.ok) n.stats.modulesForks++;
     return result;
   }, { public: false });
 
-  register("loaf.normative", "evaluate", async (ctx, input = {}) => {
+  register("loaf.normative", "evaluate", (ctx, input = {}) => {
     const n = ctx.state.__loaf.normative;
     n.stats.evaluations++;
     const result = evaluate(String(input.moduleId || ""), input.content || input);
@@ -287,17 +287,17 @@ function init({ register, STATE, helpers }) {
     return result;
   }, { public: true });
 
-  register("loaf.normative", "revert", async (ctx, input = {}) => {
+  register("loaf.normative", "revert", (ctx, input = {}) => {
     return revertModule(String(input.moduleId || ""), input.toVersion, ctx.actor);
   }, { public: false });
 
-  register("loaf.normative", "get", async (ctx, input = {}) => {
+  register("loaf.normative", "get", (_ctx, input = {}) => {
     const mod = modules.get(String(input.moduleId || ""));
     if (!mod) return { ok: false, error: "module_not_found" };
     return { ok: true, module: sanitizeModule(mod), rules: mod.rules, history: mod.history };
   }, { public: true });
 
-  register("loaf.normative", "list", async (ctx, input = {}) => {
+  register("loaf.normative", "list", (_ctx, input = {}) => {
     let list = Array.from(modules.values());
     if (input.type) list = list.filter(m => m.type === input.type);
     return { ok: true, modules: list.map(sanitizeModule) };

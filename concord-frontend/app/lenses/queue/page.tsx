@@ -49,7 +49,7 @@ export default function QueueLensPage() {
   };
 
   const processItem = useMutation({
-    mutationFn: async (itemId: string) => {
+    mutationFn: async (_itemId: string) => {
       // Would call backend to process queue item
       return { ok: true };
     },
@@ -81,7 +81,7 @@ export default function QueueLensPage() {
         {queues.map((q) => (
           <button
             key={q.key}
-            onClick={() => setSelectedQueue(q.key as any)}
+            onClick={() => setSelectedQueue(q.key as unknown)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               selectedQueue === q.key
                 ? 'bg-neon-blue/20 text-neon-blue border border-neon-blue/30'
@@ -109,7 +109,7 @@ export default function QueueLensPage() {
         <div className="lens-card">
           <Play className="w-5 h-5 text-neon-green mb-2" />
           <p className="text-2xl font-bold">
-            {Object.values(jobs?.jobs || {}).filter((j: any) => j?.enabled).length}
+            {Object.values(jobs?.jobs || {}).filter((j: unknown) => j?.enabled).length}
           </p>
           <p className="text-sm text-gray-400">Active Jobs</p>
         </div>
@@ -200,7 +200,7 @@ export default function QueueLensPage() {
       <div className="panel p-4">
         <h2 className="font-semibold mb-4">Governor Jobs</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {Object.entries(jobs?.jobs || {}).map(([name, job]: [string, any]) => (
+          {Object.entries(jobs?.jobs || {}).map(([name, job]: [string, unknown]) => (
             <div
               key={name}
               className={`lens-card flex items-center justify-between ${

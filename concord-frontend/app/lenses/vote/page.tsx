@@ -1,10 +1,9 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Vote, Check, X, Clock, TrendingUp, Users, Scale } from 'lucide-react';
+import { Check, X, Users, Scale } from 'lucide-react';
 
 interface Proposal {
   id: string;
@@ -34,7 +33,7 @@ export default function VoteLensPage() {
   ];
 
   const castVote = useMutation({
-    mutationFn: async (data: { proposalId: string; vote: 'for' | 'against' }) => {
+    mutationFn: async (_data: { proposalId: string; vote: 'for' | 'against' }) => {
       // Would call council vote endpoint
       return { ok: true };
     },
@@ -113,7 +112,7 @@ export default function VoteLensPage() {
       <div className="space-y-4">
         {filteredProposals.map((proposal) => {
           const progress = ((proposal.votesFor + proposal.votesAgainst) / proposal.threshold) * 100;
-          const approval = proposal.votesFor / (proposal.votesFor + proposal.votesAgainst || 1) * 100;
+          const _approval = proposal.votesFor / (proposal.votesFor + proposal.votesAgainst || 1) * 100;
 
           return (
             <div key={proposal.id} className="panel p-4">

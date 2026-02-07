@@ -565,92 +565,92 @@ function reconstructState(snapshotId) {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "defer_conclusion", async (ctx) => {
+  register("loaf", "defer_conclusion", (ctx) => {
     const { conclusion, evidence, reason, threshold } = ctx.args || {};
     return deferConclusion(conclusion, evidence, reason || DEFERRAL_REASONS.EVIDENCE_IMMATURE, threshold);
   }, { public: true });
 
-  register("loaf", "add_deferred_evidence", async (ctx) => {
+  register("loaf", "add_deferred_evidence", (ctx) => {
     const { deferralId, evidence } = ctx.args || {};
     return addDeferredEvidence(deferralId, evidence);
   }, { public: true });
 
-  register("loaf", "resolve_deferral", async (ctx) => {
+  register("loaf", "resolve_deferral", (ctx) => {
     const { deferralId, accepted, justification } = ctx.args || {};
     return resolveDeferral(deferralId, accepted, justification);
   }, { public: true });
 
-  register("loaf", "seal_escrow", async (ctx) => {
+  register("loaf", "seal_escrow", (ctx) => {
     const { content, releaseCondition, expiresAt } = ctx.args || {};
     return sealEscrow(content, releaseCondition, expiresAt);
   }, { public: true });
 
-  register("loaf", "check_escrow_condition", async (ctx) => {
+  register("loaf", "check_escrow_condition", (ctx) => {
     const { escrowId, currentState } = ctx.args || {};
     return checkEscrowCondition(escrowId, currentState);
   }, { public: true });
 
-  register("loaf", "release_escrow", async (ctx) => {
+  register("loaf", "release_escrow", (ctx) => {
     return releaseEscrow(ctx.args?.escrowId);
   }, { public: true });
 
-  register("loaf", "contest_escrow", async (ctx) => {
+  register("loaf", "contest_escrow", (ctx) => {
     const { escrowId, actorId, reason } = ctx.args || {};
     return contestEscrow(escrowId, actorId, reason);
   }, { public: true });
 
-  register("loaf", "preserve_dissent", async (ctx) => {
+  register("loaf", "preserve_dissent", (ctx) => {
     const { consensusId, author, view, evidence } = ctx.args || {};
     return preserveDissent(consensusId, author, view, evidence);
   }, { public: true });
 
-  register("loaf", "record_suppression_attempt", async (ctx) => {
+  register("loaf", "record_suppression_attempt", (ctx) => {
     const { dissentId, attemptedBy, reason } = ctx.args || {};
     return recordSuppressionAttempt(dissentId, attemptedBy, reason);
   }, { public: true });
 
-  register("loaf", "get_dissents_by_consensus", async (ctx) => {
+  register("loaf", "get_dissents_by_consensus", (ctx) => {
     return getDissentsByConsensus(ctx.args?.consensusId);
   }, { public: true });
 
-  register("loaf", "verify_history_chain", async (ctx) => {
+  register("loaf", "verify_history_chain", (ctx) => {
     return verifyHistoryChain(ctx.args?.startIndex, ctx.args?.endIndex);
   }, { public: true });
 
-  register("loaf", "query_history", async (ctx) => {
+  register("loaf", "query_history", (ctx) => {
     const { eventType, from, to } = ctx.args || {};
     return queryHistory(eventType, from, to);
   }, { public: true });
 
-  register("loaf", "plan_migration", async (ctx) => {
+  register("loaf", "plan_migration", (ctx) => {
     const { fromVersion, toVersion, mappings } = ctx.args || {};
     return planMigration(fromVersion, toVersion, mappings);
   }, { public: true });
 
-  register("loaf", "execute_migration", async (ctx) => {
+  register("loaf", "execute_migration", (ctx) => {
     return executeMigration(ctx.args?.migrationId);
   }, { public: true });
 
-  register("loaf", "create_time_capsule", async (ctx) => {
+  register("loaf", "create_time_capsule", (ctx) => {
     const { content, releaseTime, releaseCondition } = ctx.args || {};
     return createTimeCapsule(content, releaseTime, releaseCondition);
   }, { public: true });
 
-  register("loaf", "check_time_capsules", async (ctx) => {
+  register("loaf", "check_time_capsules", (ctx) => {
     return checkTimeCapsules(ctx.args?.currentState);
   }, { public: true });
 
-  register("loaf", "estimate_half_life", async (ctx) => {
+  register("loaf", "estimate_half_life", (ctx) => {
     const { domain, knowledgeType, createdAt } = ctx.args || {};
     return estimateHalfLife(domain, knowledgeType, createdAt);
   }, { public: true });
 
-  register("loaf", "take_snapshot", async (ctx) => {
+  register("loaf", "take_snapshot", (ctx) => {
     const { label, knowledgeIds } = ctx.args || {};
     return takeSnapshot(label, knowledgeIds);
   }, { public: true });
 
-  register("loaf", "reconstruct_state", async (ctx) => {
+  register("loaf", "reconstruct_state", (ctx) => {
     return reconstructState(ctx.args?.snapshotId);
   }, { public: true });
 }

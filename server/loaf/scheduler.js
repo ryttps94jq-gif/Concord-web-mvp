@@ -260,7 +260,7 @@ function enforceThreadLifetimes(config = SCHEDULER_CONFIG) {
   return { terminated, activeCount: activeThreads.size };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.scheduler = {
     config: { ...SCHEDULER_CONFIG },
@@ -271,7 +271,7 @@ function init({ register, STATE, helpers }) {
     },
   };
 
-  register("loaf.scheduler", "status", async (ctx) => {
+  register("loaf.scheduler", "status", (ctx) => {
     const s = ctx.state.__loaf.scheduler;
     return {
       ok: true,
@@ -283,28 +283,28 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.scheduler", "schedule", async (ctx, input = {}) => {
+  register("loaf.scheduler", "schedule", (ctx, input = {}) => {
     const s = ctx.state.__loaf.scheduler;
     const result = scheduleTask(input, s.config);
     if (result.ok) s.stats.tasksScheduled++;
     return result;
   }, { public: false });
 
-  register("loaf.scheduler", "dequeue", async (ctx) => {
+  register("loaf.scheduler", "dequeue", (ctx) => {
     const s = ctx.state.__loaf.scheduler;
     const result = dequeueNext(s.config);
     if (result.ok) s.stats.tasksDequeued++;
     return result;
   }, { public: false });
 
-  register("loaf.scheduler", "complete", async (ctx, input = {}) => {
+  register("loaf.scheduler", "complete", (ctx, input = {}) => {
     const s = ctx.state.__loaf.scheduler;
     const result = completeThread(String(input.threadId || input.id || ""));
     if (result.ok) s.stats.tasksCompleted++;
     return result;
   }, { public: false });
 
-  register("loaf.scheduler", "age", async (ctx) => {
+  register("loaf.scheduler", "age", (ctx) => {
     const s = ctx.state.__loaf.scheduler;
     const result = applyPriorityAging(s.config);
     s.stats.agingRuns++;
@@ -312,14 +312,14 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: false });
 
-  register("loaf.scheduler", "enforce_lifetimes", async (ctx) => {
+  register("loaf.scheduler", "enforce_lifetimes", (ctx) => {
     const s = ctx.state.__loaf.scheduler;
     const result = enforceThreadLifetimes(s.config);
     s.stats.threadsTerminated += result.terminated.length;
     return { ok: true, ...result };
   }, { public: false });
 
-  register("loaf.scheduler", "consume_budget", async (ctx, input = {}) => {
+  register("loaf.scheduler", "consume_budget", (ctx, input = {}) => {
     const s = ctx.state.__loaf.scheduler;
     s.stats.budgetChecks++;
     const actorId = String(input.actorId || ctx.actor?.id || "anonymous");
@@ -328,13 +328,13 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: true });
 
-  register("loaf.scheduler", "budget_status", async (ctx, input = {}) => {
+  register("loaf.scheduler", "budget_status", (ctx, input = {}) => {
     const s = ctx.state.__loaf.scheduler;
     const actorId = String(input.actorId || ctx.actor?.id || "anonymous");
     return { ok: true, ...getBudgetStatus(actorId, s.budgetConfig) };
   }, { public: true });
 
-  register("loaf.scheduler", "queue", async (ctx) => {
+  register("loaf.scheduler", "queue", (_ctx) => {
     const tasks = schedulerQueue.map(t => ({
       id: t.id, priority: t.priority, originalPriority: t.originalPriority,
       isBackground: t.isBackground, status: t.status,

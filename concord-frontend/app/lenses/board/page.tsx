@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Layout, Plus, MoreHorizontal, GripVertical } from 'lucide-react';
+import { Plus, MoreHorizontal, GripVertical } from 'lucide-react';
 
 interface Task {
   id: string;

@@ -267,7 +267,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.patterns", "status", async (ctx) => {
+  register("loaf.patterns", "status", (ctx) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     return {
       ok: true,
@@ -284,38 +284,38 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.patterns", "register", async (ctx, input = {}) => {
+  register("loaf.patterns", "register", (ctx, input = {}) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     cp.stats.patternsRegistered++;
     return registerPattern(input.name, input.type, input.description, input.steps, input.metadata);
   }, { public: false });
 
-  register("loaf.patterns", "record_outcome", async (ctx, input = {}) => {
+  register("loaf.patterns", "record_outcome", (ctx, input = {}) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     cp.stats.outcomesRecorded++;
     return recordOutcome(String(input.patternId || ""), input.domain, input.success, input.context);
   }, { public: false });
 
-  register("loaf.patterns", "crystallize", async (ctx, input = {}) => {
+  register("loaf.patterns", "crystallize", (ctx, input = {}) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     const result = crystallize(String(input.patternId || ""));
     if (result.ok) cp.stats.crystallized++;
     return result;
   }, { public: false });
 
-  register("loaf.patterns", "search", async (ctx, input = {}) => {
+  register("loaf.patterns", "search", (ctx, input = {}) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     cp.stats.searches++;
     return { ok: true, patterns: searchPatterns(input) };
   }, { public: true });
 
-  register("loaf.patterns", "compile_best_practices", async (ctx, input = {}) => {
+  register("loaf.patterns", "compile_best_practices", (ctx, input = {}) => {
     const cp = ctx.state.__loaf.cognitivePatterns;
     cp.stats.bestPracticesCompiled++;
     return compileBestPractices(input.minSuccessRate, input.minUseCount);
   }, { public: true });
 
-  register("loaf.patterns", "list_crystals", async (ctx, input = {}) => {
+  register("loaf.patterns", "list_crystals", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     const list = Array.from(crystals.values())
       .filter(c => !c.deprecated)
@@ -324,7 +324,7 @@ function init({ register, STATE }) {
     return { ok: true, crystals: list };
   }, { public: true });
 
-  register("loaf.patterns", "list_best_practices", async (ctx, input = {}) => {
+  register("loaf.patterns", "list_best_practices", (_ctx, input = {}) => {
     let list = Array.from(bestPractices.values());
     if (input.domain) list = list.filter(p => p.domain === input.domain);
     return { ok: true, bestPractices: list.slice(0, 50) };

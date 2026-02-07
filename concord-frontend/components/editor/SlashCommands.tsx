@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import {
@@ -23,9 +23,7 @@ import {
   AtSign,
   Brain,
   Sparkles,
-  Lightbulb,
   Search,
-  Database,
   GitBranch,
   MessageSquare,
   Zap
@@ -34,12 +32,12 @@ import { cn } from '@/lib/utils';
 
 export interface SlashCommand {
   id: string;
-  icon: any;
+  icon: React.ElementType;
   label: string;
   description: string;
   keywords: string[];
   category: 'basic' | 'media' | 'advanced' | 'dtu' | 'ai';
-  action: (editor: any) => void;
+  action: (editor: Record<string, unknown>) => void;
 }
 
 // Default slash commands
@@ -183,7 +181,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Link to another DTU',
     keywords: ['dtu', 'link', 'reference', 'connect'],
     category: 'dtu',
-    action: (editor) => {
+    action: (_editor) => {
       // This would open a DTU picker modal
       console.log('Open DTU picker');
     }
@@ -195,7 +193,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Embed DTU content inline',
     keywords: ['dtu', 'embed', 'transclusion'],
     category: 'dtu',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('Open DTU embed picker');
     }
   },
@@ -206,7 +204,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Add a tag to this DTU',
     keywords: ['tag', 'label', 'category'],
     category: 'dtu',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('Open tag picker');
     }
   },
@@ -217,7 +215,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Mention a person or DTU',
     keywords: ['mention', 'at', 'person', 'user'],
     category: 'dtu',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('Open mention picker');
     }
   },
@@ -242,7 +240,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Expand on selected text with AI',
     keywords: ['ai', 'expand', 'elaborate', 'more'],
     category: 'ai',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('AI expand');
     }
   },
@@ -253,7 +251,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Summarize selected text',
     keywords: ['ai', 'summarize', 'tldr', 'brief'],
     category: 'ai',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('AI summarize');
     }
   },
@@ -264,7 +262,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Ask AI about selected text',
     keywords: ['ai', 'question', 'ask', 'help'],
     category: 'ai',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('AI question');
     }
   },
@@ -275,7 +273,7 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Find related DTUs',
     keywords: ['ai', 'connections', 'related', 'similar'],
     category: 'ai',
-    action: (editor) => {
+    action: (_editor) => {
       console.log('AI find connections');
     }
   }
@@ -290,7 +288,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 interface SlashCommandMenuProps {
-  editor: any;
+  editor: unknown;
   isOpen: boolean;
   onClose: () => void;
   position: { top: number; left: number };
@@ -490,7 +488,7 @@ export function SlashCommandMenu({
 }
 
 // Hook to detect slash command trigger
-export function useSlashCommand(editor: any) {
+export function useSlashCommand(editor: unknown) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 

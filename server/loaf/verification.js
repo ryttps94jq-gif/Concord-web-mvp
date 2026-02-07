@@ -233,13 +233,13 @@ function runVerification(artifact, bundle) {
 // Evidence bundle store
 const bundles = new Map(); // artifactId -> bundle
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.verification = {
     stats: { bundlesCreated: 0, verificationsRun: 0, promoted: 0, rejected: 0, reviews: 0 },
   };
 
-  register("loaf.verification", "status", async (ctx) => {
+  register("loaf.verification", "status", (ctx) => {
     const v = ctx.state.__loaf.verification;
     return {
       ok: true,
@@ -249,7 +249,7 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.verification", "create_bundle", async (ctx, input = {}) => {
+  register("loaf.verification", "create_bundle", (ctx, input = {}) => {
     const v = ctx.state.__loaf.verification;
     const bundle = createEvidenceBundle(
       input.artifactId, input.evidence, input.counterEvidence, input.provenance
@@ -264,12 +264,12 @@ function init({ register, STATE, helpers }) {
     return { ok: true, bundle };
   }, { public: false });
 
-  register("loaf.verification", "get_bundle", async (ctx, input = {}) => {
+  register("loaf.verification", "get_bundle", (_ctx, input = {}) => {
     const bundle = bundles.get(String(input.artifactId || ""));
     return bundle ? { ok: true, bundle } : { ok: false, error: "bundle_not_found" };
   }, { public: true });
 
-  register("loaf.verification", "verify", async (ctx, input = {}) => {
+  register("loaf.verification", "verify", (ctx, input = {}) => {
     const v = ctx.state.__loaf.verification;
     const artifactId = String(input.artifactId || "");
     const bundle = bundles.get(artifactId);
@@ -287,7 +287,7 @@ function init({ register, STATE, helpers }) {
     return { ok: true, ...result };
   }, { public: false });
 
-  register("loaf.verification", "add_evidence", async (ctx, input = {}) => {
+  register("loaf.verification", "add_evidence", (_ctx, input = {}) => {
     const artifactId = String(input.artifactId || "");
     const bundle = bundles.get(artifactId);
     if (!bundle) return { ok: false, error: "bundle_not_found" };

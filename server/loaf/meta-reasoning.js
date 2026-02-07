@@ -392,7 +392,7 @@ function evaluateTransfer(source, target, transferCandidate) {
 
   // Check confidence gap
   const sourceConf = Number(source.confidence ?? 0.5);
-  const targetConf = Number(target.confidence ?? 0.5);
+  const _targetConf = Number(target.confidence ?? 0.5);
   if (sourceConf < 0.3) {
     risks.push({
       type: "low_source_confidence",
@@ -492,7 +492,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.meta_reasoning", "status", async (ctx) => {
+  register("loaf.meta_reasoning", "status", (ctx) => {
     const mr = ctx.state.__loaf.metaReasoning;
     return {
       ok: true,
@@ -506,89 +506,89 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.meta_reasoning", "record_failure", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "record_failure", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.failuresRecorded++;
     return recordReasoningFailure(input.type, input.context, input.affectedClaims, input.diagnosis);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "analyze_failure", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "analyze_failure", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.failureAnalyses++;
     return analyzeReasoningFailure(input.claims, input.evidence);
   }, { public: true });
 
-  register("loaf.meta_reasoning", "register_assumption", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "register_assumption", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.assumptionsRegistered++;
     return registerAssumption(input.text, input.enabledBy, input.enables);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "invalidate_assumption", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "invalidate_assumption", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.invalidations++;
     return invalidateAssumption(String(input.assumptionId || ""));
   }, { public: false });
 
-  register("loaf.meta_reasoning", "trace_lineage", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "trace_lineage", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.lineageTraces++;
     return traceLineage(String(input.assumptionId || ""), input.maxDepth);
   }, { public: true });
 
-  register("loaf.meta_reasoning", "detect_collapse", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "detect_collapse", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.collapseChecks++;
     return detectFrameworkCollapse(input.framework || input);
   }, { public: true });
 
-  register("loaf.meta_reasoning", "register_disagreement", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "register_disagreement", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.disagreementsRegistered++;
     return registerDisagreement(input.positions, input.domain, input.reason);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "register_coexisting_models", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "register_coexisting_models", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.modelNamespaces++;
     return registerCoexistingModels(input.namespace, input.models, input.policy);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "evaluate_transfer", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "evaluate_transfer", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.transferEvals++;
     return evaluateTransfer(input.source || {}, input.target || {}, input.candidate || {});
   }, { public: true });
 
-  register("loaf.meta_reasoning", "register_paradox", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "register_paradox", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.paradoxesRegistered++;
     return registerParadox(input.description, input.domain, input.relatedClaims);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "register_invariant", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "register_invariant", (ctx, input = {}) => {
     const mr = ctx.state.__loaf.metaReasoning;
     mr.stats.invariantsRegistered++;
     return registerEpistemicInvariant(input.name, input.description, input.domain, input.properties);
   }, { public: false });
 
-  register("loaf.meta_reasoning", "list_failures", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "list_failures", (_ctx, input = {}) => {
     let list = Array.from(reasoningFailures.values());
     if (input.type) list = list.filter(f => f.type === input.type);
     return { ok: true, failures: list.slice(-(Number(input.limit || 50))) };
   }, { public: true });
 
-  register("loaf.meta_reasoning", "list_disagreements", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "list_disagreements", (_ctx, input = {}) => {
     let list = Array.from(disagreements.values());
     if (input.domain) list = list.filter(d => d.domain === input.domain);
     return { ok: true, disagreements: list.slice(0, 50) };
   }, { public: true });
 
-  register("loaf.meta_reasoning", "list_paradoxes", async (ctx) => {
+  register("loaf.meta_reasoning", "list_paradoxes", (_ctx) => {
     return { ok: true, paradoxes: Array.from(paradoxes.values()).slice(0, 50) };
   }, { public: true });
 
-  register("loaf.meta_reasoning", "list_invariants", async (ctx, input = {}) => {
+  register("loaf.meta_reasoning", "list_invariants", (_ctx, input = {}) => {
     let list = Array.from(epistemicInvariants.values());
     if (input.domain) list = list.filter(i => i.domain === input.domain);
     return { ok: true, invariants: list.slice(0, 50) };

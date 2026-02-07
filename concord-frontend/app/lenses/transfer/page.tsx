@@ -14,7 +14,7 @@ export default function TransferLensPage() {
   const [sourceText, setSourceText] = useState('');
   const [targetDomain, setTargetDomain] = useState('');
   const [classifyText, setClassifyText] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<unknown>(null);
 
   const { data: history } = useQuery({
     queryKey: ['transfer-history'],
@@ -134,7 +134,7 @@ export default function TransferLensPage() {
               <History className="w-4 h-4 text-neon-blue" /> Transfer History
             </h2>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {transfers.length > 0 ? transfers.map((t: any, i: number) => (
+              {transfers.length > 0 ? transfers.map((t: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
                   <p className="font-medium">{t.source || t.pattern}</p>
                   <p className="text-gray-400">{t.target || t.domain}</p>

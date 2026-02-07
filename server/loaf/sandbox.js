@@ -238,13 +238,13 @@ function sanitizeSandbox(sandbox) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.sandbox = {
     stats: { agentsCreated: 0, appsCreated: 0, killed: 0, budgetExceeded: 0 },
   };
 
-  register("loaf.sandbox", "status", async (ctx) => {
+  register("loaf.sandbox", "status", (ctx) => {
     const s = ctx.state.__loaf.sandbox;
     const active = Array.from(sandboxes.values()).filter(s => s.status === "active");
     return {
@@ -255,49 +255,49 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.sandbox", "create_agent", async (ctx, input = {}) => {
+  register("loaf.sandbox", "create_agent", (ctx, input = {}) => {
     const s = ctx.state.__loaf.sandbox;
     const result = createAgentSandbox(input.agentId || "agent", input);
     if (result.ok) s.stats.agentsCreated++;
     return result;
   }, { public: false });
 
-  register("loaf.sandbox", "create_app", async (ctx, input = {}) => {
+  register("loaf.sandbox", "create_app", (ctx, input = {}) => {
     const s = ctx.state.__loaf.sandbox;
     const result = createAppSandbox(input.manifest || input);
     if (result.ok) s.stats.appsCreated++;
     return result;
   }, { public: false });
 
-  register("loaf.sandbox", "consume_budget", async (ctx, input = {}) => {
+  register("loaf.sandbox", "consume_budget", (_ctx, input = {}) => {
     return consumeSandboxBudget(String(input.sandboxId || ""), input.cost);
   }, { public: false });
 
-  register("loaf.sandbox", "check_permission", async (ctx, input = {}) => {
+  register("loaf.sandbox", "check_permission", (_ctx, input = {}) => {
     return checkPermission(String(input.sandboxId || ""), String(input.permission || ""));
   }, { public: true });
 
-  register("loaf.sandbox", "write_memory", async (ctx, input = {}) => {
+  register("loaf.sandbox", "write_memory", (_ctx, input = {}) => {
     return writeMemory(String(input.sandboxId || ""), String(input.key || ""), input.value);
   }, { public: false });
 
-  register("loaf.sandbox", "read_memory", async (ctx, input = {}) => {
+  register("loaf.sandbox", "read_memory", (_ctx, input = {}) => {
     return readMemory(String(input.sandboxId || ""), String(input.key || ""));
   }, { public: true });
 
-  register("loaf.sandbox", "kill", async (ctx, input = {}) => {
+  register("loaf.sandbox", "kill", (ctx, input = {}) => {
     const s = ctx.state.__loaf.sandbox;
     const result = killSandbox(String(input.sandboxId || ""), input.reason);
     if (result.ok) s.stats.killed++;
     return result;
   }, { public: false });
 
-  register("loaf.sandbox", "list", async (ctx) => {
+  register("loaf.sandbox", "list", (_ctx) => {
     const list = Array.from(sandboxes.values()).map(sanitizeSandbox);
     return { ok: true, sandboxes: list };
   }, { public: true });
 
-  register("loaf.sandbox", "audit_trail", async (ctx, input = {}) => {
+  register("loaf.sandbox", "audit_trail", (_ctx, input = {}) => {
     const sandbox = sandboxes.get(String(input.sandboxId || ""));
     if (!sandbox) return { ok: false, error: "sandbox_not_found" };
     const limit = Math.min(Number(input.limit || 50), 200);

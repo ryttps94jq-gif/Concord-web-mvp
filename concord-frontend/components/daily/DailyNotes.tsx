@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar,
@@ -84,7 +84,7 @@ export function DailyNotes({
   };
 
   const days = getDaysInMonth(viewMonth);
-  const noteDates = new Set(notes.map(n => n.date));
+  const _noteDates = new Set(notes.map(n => n.date));
 
   const prevMonth = () => {
     setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1));

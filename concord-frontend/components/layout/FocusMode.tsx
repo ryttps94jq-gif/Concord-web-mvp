@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Maximize2, Minimize2, Clock, Target, Coffee, Play, Pause, RotateCcw } from 'lucide-react';
+import { X, Target, Coffee, Play, Pause, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FocusModeProps {

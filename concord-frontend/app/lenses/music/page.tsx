@@ -1,16 +1,39 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
-  Music, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  Repeat, Repeat1, Shuffle, Heart, Plus, MoreHorizontal, Search,
-  Mic2, Radio, Library, Home, Disc3, ListMusic, Clock, TrendingUp,
-  Download, Share2, Users, Headphones, Waves, Settings, ChevronDown,
-  ChevronUp, GripVertical, X, Maximize2, Minimize2, BarChart3
+  Music,
+  Play,
+  Pause,
+  SkipForward,
+  SkipBack,
+  Volume2,
+  VolumeX,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  Heart,
+  Plus,
+  MoreHorizontal,
+  Search,
+  Mic2,
+  Library,
+  Home,
+  Disc3,
+  ListMusic,
+  Clock,
+  TrendingUp,
+  Download,
+  Headphones,
+  ChevronDown,
+  GripVertical,
+  X,
+  Maximize2,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -92,7 +115,7 @@ const MOCK_ARTISTS: Artist[] = [
 
 export default function MusicLensPage() {
   useLensNav('music');
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
 
@@ -290,7 +313,7 @@ export default function MusicLensPage() {
     }
   };
 
-  const addToQueue = (track: Track) => {
+  const _addToQueue = (track: Track) => {
     setQueue([...queue, track]);
   };
 
@@ -917,7 +940,7 @@ export default function MusicLensPage() {
                     value={eqBands[i]}
                     onChange={(e) => handleEqChange(i, parseInt(e.target.value))}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    style={{ writingMode: 'vertical-rl' as any }}
+                    style={{ writingMode: 'vertical-rl' as unknown as string }}
                   />
                   <div
                     className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-neon-cyan to-neon-purple rounded-full transition-all"

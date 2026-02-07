@@ -19,7 +19,7 @@ import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
   getAffectEvents, deleteSession, serializeAll, restoreAll,
-  listSessions
+  listSessions as _listSessions
 } from '../affect/index.js';
 
 // ============= Helpers =============
@@ -291,7 +291,7 @@ describe('A11.106 — Skill Graphs', () => {
     const E = createState();
     const M = createMomentum();
 
-    const preSkills = getAffectPolicy(E);
+    const _preSkills = getAffectPolicy(E);
 
     // Develop skills through practice
     for (let i = 0; i < 20; i++) {
@@ -331,7 +331,7 @@ describe('A11.107 — Domain Bootstrapping', () => {
       emitAffectEvent(source, makeEvent('SUCCESS', 0.6, 0.4));
     }
 
-    const sourceState = getAffectState(source);
+    const _sourceState = getAffectState(source);
 
     // Bootstrap new domain from serialized source
     const backup = serializeAll();

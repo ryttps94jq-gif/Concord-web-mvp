@@ -545,81 +545,81 @@ function getAccountingSummary(sinceTimestamp) {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "create_resource_budget", async (ctx) => {
+  register("loaf", "create_resource_budget", (ctx) => {
     const { resourceType, total, label } = ctx.args || {};
     return createBudget(resourceType, total, label);
   }, { public: true });
 
-  register("loaf", "reserve_resources", async (ctx) => {
+  register("loaf", "reserve_resources", (ctx) => {
     const { budgetId, amount, operationId } = ctx.args || {};
     return reserveResources(budgetId, amount, operationId);
   }, { public: true });
 
-  register("loaf", "consume_resources", async (ctx) => {
+  register("loaf", "consume_resources", (ctx) => {
     const { budgetId, amount, operationId } = ctx.args || {};
     return consumeResources(budgetId, amount, operationId);
   }, { public: true });
 
-  register("loaf", "release_resources", async (ctx) => {
+  register("loaf", "release_resources", (ctx) => {
     const { budgetId, amount, operationId } = ctx.args || {};
     return releaseResources(budgetId, amount, operationId);
   }, { public: true });
 
-  register("loaf", "budget_status", async (ctx) => {
+  register("loaf", "budget_status", (ctx) => {
     return getBudgetStatus(ctx.args?.budgetId);
   }, { public: true });
 
-  register("loaf", "exhaustion_alerts", async (ctx) => {
+  register("loaf", "exhaustion_alerts", (_ctx) => {
     return getExhaustionAlerts();
   }, { public: true });
 
-  register("loaf", "register_operation", async (ctx) => {
+  register("loaf", "register_operation", (ctx) => {
     const { name, costs, qosTier } = ctx.args || {};
     return registerOperation(name, costs || {}, qosTier);
   }, { public: true });
 
-  register("loaf", "select_resolution", async (ctx) => {
+  register("loaf", "select_resolution", (ctx) => {
     const { operationId, availableResources } = ctx.args || {};
     return selectResolution(operationId, availableResources);
   }, { public: true });
 
-  register("loaf", "set_degradation", async (ctx) => {
+  register("loaf", "set_degradation", (ctx) => {
     return setGlobalDegradation(ctx.args?.level);
   }, { public: true });
 
-  register("loaf", "get_degradation", async (ctx) => {
+  register("loaf", "get_degradation", (_ctx) => {
     return getGlobalDegradation();
   }, { public: true });
 
-  register("loaf", "perform_triage", async (ctx) => {
+  register("loaf", "perform_triage", (ctx) => {
     return performTriage(ctx.args?.availableResources || {});
   }, { public: true });
 
-  register("loaf", "create_resource_pool", async (ctx) => {
+  register("loaf", "create_resource_pool", (ctx) => {
     const { name, resources, maxConsumers } = ctx.args || {};
     return createPool(name, resources || {}, maxConsumers);
   }, { public: true });
 
-  register("loaf", "draw_from_pool", async (ctx) => {
+  register("loaf", "draw_from_pool", (ctx) => {
     const { poolId, consumerId, amounts } = ctx.args || {};
     return drawFromPool(poolId, consumerId, amounts || {});
   }, { public: true });
 
-  register("loaf", "return_to_pool", async (ctx) => {
+  register("loaf", "return_to_pool", (ctx) => {
     const { poolId, consumerId, amounts } = ctx.args || {};
     return returnToPool(poolId, consumerId, amounts || {});
   }, { public: true });
 
-  register("loaf", "define_safety_threshold", async (ctx) => {
+  register("loaf", "define_safety_threshold", (ctx) => {
     const { resourceType, minimum, action } = ctx.args || {};
     return defineSafetyThreshold(resourceType, minimum, action);
   }, { public: true });
 
-  register("loaf", "check_safety_thresholds", async (ctx) => {
+  register("loaf", "check_safety_thresholds", (ctx) => {
     return checkSafetyThresholds(ctx.args?.currentResources || {});
   }, { public: true });
 
-  register("loaf", "resource_accounting", async (ctx) => {
+  register("loaf", "resource_accounting", (ctx) => {
     return getAccountingSummary(ctx.args?.since);
   }, { public: true });
 }

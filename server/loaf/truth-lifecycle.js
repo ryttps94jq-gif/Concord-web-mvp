@@ -150,7 +150,7 @@ function detectStagnation(thresholdMs = 7 * 86400000) {
  */
 function discoverBlindSpots(expectedDomains, actualDomains) {
   const expected = new Set(Array.isArray(expectedDomains) ? expectedDomains : []);
-  const actual = new Set(Array.isArray(actualDomains) ? actualDomains : []);
+  const _actual = new Set(Array.isArray(actualDomains) ? actualDomains : []);
 
   // Domains with truths in the system
   const coveredDomains = new Set();
@@ -442,7 +442,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.truth", "status", async (ctx) => {
+  register("loaf.truth", "status", (ctx) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     const all = Array.from(truths.values());
     return {
@@ -456,55 +456,55 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.truth", "birth", async (ctx, input = {}) => {
+  register("loaf.truth", "birth", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.born++;
     return birthTruth(input.claim, input.domain, input.evidence, ctx.actor?.id || input.proposer);
   }, { public: false });
 
-  register("loaf.truth", "transition", async (ctx, input = {}) => {
+  register("loaf.truth", "transition", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.transitioned++;
     return transitionTruth(String(input.truthId || ""), input.newState, input.reason);
   }, { public: false });
 
-  register("loaf.truth", "detect_stagnation", async (ctx, input = {}) => {
+  register("loaf.truth", "detect_stagnation", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.stagnationScans++;
     return detectStagnation(input.thresholdMs);
   }, { public: true });
 
-  register("loaf.truth", "discover_blind_spots", async (ctx, input = {}) => {
+  register("loaf.truth", "discover_blind_spots", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.blindSpotScans++;
     return discoverBlindSpots(input.expectedDomains, input.actualDomains);
   }, { public: true });
 
-  register("loaf.truth", "rollback", async (ctx, input = {}) => {
+  register("loaf.truth", "rollback", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.rollbacks++;
     return epistemicRollback(input.truthIds, input.reason, ctx.actor?.id);
   }, { public: false });
 
-  register("loaf.truth", "detect_fractures", async (ctx) => {
+  register("loaf.truth", "detect_fractures", (ctx) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.fractureScans++;
     return detectCanonFractures();
   }, { public: true });
 
-  register("loaf.truth", "robustness", async (ctx, input = {}) => {
+  register("loaf.truth", "robustness", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.robustnessChecks++;
     return computeRobustnessMetrics(String(input.truthId || ""));
   }, { public: true });
 
-  register("loaf.truth", "stress_test", async (ctx, input = {}) => {
+  register("loaf.truth", "stress_test", (ctx, input = {}) => {
     const tl = ctx.state.__loaf.truthLifecycle;
     tl.stats.stressTests++;
     return stressTest(input.truthIds, input.assumptions);
   }, { public: true });
 
-  register("loaf.truth", "list", async (ctx, input = {}) => {
+  register("loaf.truth", "list", (_ctx, input = {}) => {
     let list = Array.from(truths.values());
     if (input.state) list = list.filter(t => t.state === input.state);
     if (input.domain) list = list.filter(t => t.domain === input.domain);
@@ -512,7 +512,7 @@ function init({ register, STATE }) {
     return { ok: true, truths: list.slice(-limit).map(sanitizeTruth) };
   }, { public: true });
 
-  register("loaf.truth", "rollback_log", async (ctx, input = {}) => {
+  register("loaf.truth", "rollback_log", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     return { ok: true, rollbacks: rollbackLog.slice(-limit) };
   }, { public: true });

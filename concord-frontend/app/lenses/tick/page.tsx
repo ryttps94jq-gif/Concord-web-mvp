@@ -30,7 +30,7 @@ export default function TickLensPage() {
   // Simulate tick events from real events
   useEffect(() => {
     if (events?.events) {
-      const ticks: TickEvent[] = events.events.slice(0, 50).map((e: any, i: number) => ({
+      const ticks: TickEvent[] = events.events.slice(0, 50).map((e: Record<string, unknown>, i: number) => ({
         id: e.id || `tick-${i}`,
         type: e.type || 'kernel',
         signal: Math.random() * 0.8 + 0.2,
@@ -104,7 +104,7 @@ export default function TickLensPage() {
           Signal Wave
         </h2>
         <div className="h-32 flex items-end gap-1">
-          {tickHistory.slice(0, 40).map((tick, i) => (
+          {tickHistory.slice(0, 40).map((tick, _i) => (
             <div
               key={tick.id}
               className="flex-1 bg-gradient-to-t from-neon-blue to-neon-cyan rounded-t transition-all"

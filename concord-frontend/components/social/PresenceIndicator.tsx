@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Circle, MoreHorizontal, MessageSquare, Eye } from 'lucide-react';
+import { Users, MessageSquare, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -206,7 +206,7 @@ interface CollaborativeCursorsProps {
   containerRef: React.RefObject<HTMLElement>;
 }
 
-export function CollaborativeCursors({ cursors, containerRef }: CollaborativeCursorsProps) {
+export function CollaborativeCursors({ cursors, _containerRef }: CollaborativeCursorsProps) {
   return (
     <>
       {cursors.map(cursor => (

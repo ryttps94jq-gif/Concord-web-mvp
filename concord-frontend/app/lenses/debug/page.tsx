@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Bug, Terminal, Eye, RefreshCw, Play, Database } from 'lucide-react';
+import { Terminal, Eye, RefreshCw, Play, Database } from 'lucide-react';
 
 export default function DebugLensPage() {
   useLensNav('debug');
@@ -102,7 +102,7 @@ export default function DebugLensPage() {
             Recent Events ({events?.events?.length || 0})
           </h2>
           <div className="space-y-2 max-h-[500px] overflow-auto">
-            {(events?.events || []).slice(0, 50).map((event: any) => (
+            {(events?.events || []).slice(0, 50).map((event: Record<string, unknown>) => (
               <details key={event.id} className="bg-lattice-deep rounded-lg">
                 <summary className="flex items-center justify-between p-3 cursor-pointer">
                   <div className="flex items-center gap-3">

@@ -11,10 +11,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay as _applyDecay } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
-import { projectLabel, projectToneTags } from '../affect/projection.js';
-import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
+import { projectLabel as _projectLabel, projectToneTags as _projectToneTags } from '../affect/projection.js';
+import { BASELINE, DIMS, BOUNDS as _BOUNDS } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
   deleteSession, listSessions, sessionCount, serializeAll
@@ -382,7 +382,7 @@ describe('A5.49 — Agent Decay & Death', () => {
 
     // Create active state
     emitAffectEvent(sid, makeEvent('SUCCESS', 0.9, 0.8));
-    const activeState = getAffectState(sid);
+    const _activeState = getAffectState(sid);
 
     // Simulate long inactivity (decay)
     const session = getAffectState(sid); // triggers tick
@@ -433,7 +433,7 @@ describe('A5.50 — Forkable Agents', () => {
       emitAffectEvent(parent, makeEvent('SUCCESS', 0.7, 0.5));
     }
 
-    const parentState = getAffectState(parent);
+    const _parentState = getAffectState(parent);
 
     // Fork: serialize parent, restore as child
     const backup = serializeAll();
@@ -441,7 +441,7 @@ describe('A5.50 — Forkable Agents', () => {
 
     // Manually create child with parent's state
     resetAffect(child);
-    const childSession = getAffectState(child);
+    const _childSession = getAffectState(child);
 
     // Verify fork capability via serialization
     assert(backup[parent] !== undefined, 'Parent state should be serializable for forking');

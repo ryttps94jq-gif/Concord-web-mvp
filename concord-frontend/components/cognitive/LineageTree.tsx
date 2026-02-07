@@ -6,11 +6,7 @@ import {
   GitBranch,
   ChevronRight,
   ChevronDown,
-  Brain,
   Sparkles,
-  Clock,
-  ArrowRight,
-  Filter,
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
@@ -51,7 +47,7 @@ export function LineageTree({
   selectedId,
   onNodeClick,
   className,
-  showTimeline = false
+  showTimeline: _showTimeline = false
 }: LineageTreeProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set([root.id]));
   const [zoom, setZoom] = useState(1);
@@ -274,7 +270,7 @@ function TreeNode({
             >
               <div className="absolute left-0 top-0 bottom-0 w-px bg-lattice-border" />
 
-              {node.children.map((child, index) => (
+              {node.children.map((child, _index) => (
                 <div key={child.id} className="relative">
                   {/* Horizontal connector */}
                   <div

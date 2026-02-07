@@ -487,7 +487,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.cognitive_load", "status", async (ctx) => {
+  register("loaf.cognitive_load", "status", (ctx) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     return {
       ok: true,
@@ -500,7 +500,7 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.cognitive_load", "record_load", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "record_load", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     cl.stats.loadsRecorded++;
     return {
@@ -514,83 +514,83 @@ function init({ register, STATE }) {
     };
   }, { public: false });
 
-  register("loaf.cognitive_load", "decay", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "decay", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     cl.stats.decayRuns++;
     return { ok: true, ...decayLoads(input.dtMs) };
   }, { public: false });
 
-  register("loaf.cognitive_load", "balance", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "balance", (_ctx, input = {}) => {
     return balanceLoad(input.userIds || [], input.taskType, String(input.domain || "general"));
   }, { public: true });
 
-  register("loaf.cognitive_load", "update_coverage", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "update_coverage", (_ctx, input = {}) => {
     return { ok: true, ...updateCoverage(String(input.domain || ""), input.subdomain, input.dtuCount) };
   }, { public: false });
 
-  register("loaf.cognitive_load", "identify_gaps", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "identify_gaps", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const gaps = identifyGaps(input.knownDomains || []);
     cl.stats.gapsIdentified += gaps.length;
     return { ok: true, gaps };
   }, { public: true });
 
-  register("loaf.cognitive_load", "research_agenda", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "research_agenda", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const gaps = identifyGaps(input.knownDomains || []);
     cl.stats.agendasGenerated++;
     return { ok: true, ...generateResearchAgenda(gaps, input.maxItems) };
   }, { public: true });
 
-  register("loaf.cognitive_load", "synthesize_meta_dtu", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "synthesize_meta_dtu", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const result = synthesizeMetaDTU(input.contributions || []);
     if (result.ok) cl.stats.metaDTUsSynthesized++;
     return result;
   }, { public: false });
 
-  register("loaf.cognitive_load", "register_concept", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "register_concept", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     cl.stats.conceptsRegistered++;
     return registerConcept(input.name, String(input.domain || "general"), input.relations || []);
   }, { public: false });
 
-  register("loaf.cognitive_load", "find_unifications", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "find_unifications", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const unifications = findConceptUnifications(input.minDomains || 2);
     cl.stats.unificationsFound += unifications.length;
     return { ok: true, unifications };
   }, { public: true });
 
-  register("loaf.cognitive_load", "detect_canon_divergence", async (ctx) => {
+  register("loaf.cognitive_load", "detect_canon_divergence", (_ctx) => {
     return { ok: true, divergences: detectCanonDivergence() };
   }, { public: true });
 
-  register("loaf.cognitive_load", "discover_invariants", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "discover_invariants", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const result = discoverLatentInvariants(input.items || []);
     if (result.ok) cl.stats.invariantsDiscovered += result.invariants.length;
     return result;
   }, { public: true });
 
-  register("loaf.cognitive_load", "record_debt", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "record_debt", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     cl.stats.debtsRecorded++;
     return recordDebt(String(input.domain || "general"), String(input.description || ""), input.severity);
   }, { public: false });
 
-  register("loaf.cognitive_load", "resolve_debt", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "resolve_debt", (ctx, input = {}) => {
     const cl = ctx.state.__loaf.cognitiveLoad;
     const result = resolveDebt(String(input.debtId || ""), input.resolution);
     if (result.ok) cl.stats.debtsResolved++;
     return result;
   }, { public: false });
 
-  register("loaf.cognitive_load", "debt_summary", async (ctx) => {
+  register("loaf.cognitive_load", "debt_summary", (_ctx) => {
     return { ok: true, ...debtSummary() };
   }, { public: true });
 
-  register("loaf.cognitive_load", "list_meta_dtus", async (ctx, input = {}) => {
+  register("loaf.cognitive_load", "list_meta_dtus", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     const items = Array.from(metaDTUs.values()).slice(-limit);
     return { ok: true, metaDTUs: items };

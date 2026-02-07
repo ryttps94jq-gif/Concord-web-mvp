@@ -6,7 +6,7 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import {
   Eye, Plus, Play, CheckCircle2,
-  Layers, Clock, Zap, BarChart3
+  Layers, Clock, BarChart3
 } from 'lucide-react';
 
 interface Thread {
@@ -191,7 +191,7 @@ export default function AttentionLensPage() {
               <Clock className="w-4 h-4 text-neon-yellow" /> Queue
             </h2>
             <div className="space-y-1 max-h-40 overflow-y-auto">
-              {queueData.length > 0 ? queueData.map((q: any, i: number) => (
+              {queueData.length > 0 ? queueData.map((q: Record<string, unknown>, i: number) => (
                 <div key={i} className="flex justify-between text-xs text-gray-400">
                   <span>{q.threadId?.slice(0, 12)}</span>
                   <span>P:{q.priority?.toFixed(1)}</span>
@@ -207,7 +207,7 @@ export default function AttentionLensPage() {
               <CheckCircle2 className="w-4 h-4 text-neon-green" /> Recently Completed
             </h2>
             <div className="space-y-1 max-h-48 overflow-y-auto">
-              {completedData.length > 0 ? completedData.map((c: any, i: number) => (
+              {completedData.length > 0 ? completedData.map((c: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
                   <span className="text-gray-300">{c.type}</span>
                 </div>

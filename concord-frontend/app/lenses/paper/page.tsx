@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { FileText, Plus, Search, Tag, Calendar } from 'lucide-react';
+import { FileText, Plus, Search, Calendar } from 'lucide-react';
 
 export default function PaperLensPage() {
   useLensNav('paper');
@@ -87,7 +87,7 @@ export default function PaperLensPage() {
             No papers found. Create your first paper!
           </p>
         ) : (
-          papers?.papers?.map((paper: any) => (
+          papers?.papers?.map((paper: Record<string, unknown>) => (
             <div key={paper.id} className="lens-card hover:glow-purple cursor-pointer">
               <div className="flex items-start justify-between mb-3">
                 <FileText className="w-8 h-8 text-neon-purple" />

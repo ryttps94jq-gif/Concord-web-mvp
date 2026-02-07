@@ -6,8 +6,11 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BookOpen, Clock, CheckCircle2, Star, RotateCcw,
-  Brain, TrendingUp
+  BookOpen,
+  Clock,
+  CheckCircle2,
+  Brain,
+  TrendingUp
 } from 'lucide-react';
 
 interface SRSItem {

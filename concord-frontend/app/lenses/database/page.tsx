@@ -3,7 +3,6 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useState } from 'react';
 import { Database, Server, HardDrive, Cpu, RefreshCw, Play, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 export default function DatabaseLensPage() {

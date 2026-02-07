@@ -105,7 +105,7 @@ describe('A4.32 — Multi-Step Goal Decomposition', () => {
       makeEvent('SUCCESS', 0.8, 0.6),         // step 5: completion
     ];
 
-    const { E, snapshots } = simulateSequence(steps);
+    const { E: _E, snapshots } = simulateSequence(steps);
 
     // Final state should reflect mixed trajectory
     assert(snapshots.length === steps.length + 1);

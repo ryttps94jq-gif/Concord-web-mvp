@@ -439,7 +439,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.action_safety", "status", async (ctx) => {
+  register("loaf.action_safety", "status", (ctx) => {
     const as = ctx.state.__loaf.actionSafety;
     return {
       ok: true,
@@ -452,71 +452,71 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.action_safety", "define_envelope", async (ctx, input = {}) => {
+  register("loaf.action_safety", "define_envelope", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.envelopesDefined++;
     return defineEnvelope(input.actionName, input.constraints, input.confidenceRequired);
   }, { public: false });
 
-  register("loaf.action_safety", "check_envelope", async (ctx, input = {}) => {
+  register("loaf.action_safety", "check_envelope", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.envelopeChecks++;
     return checkEnvelope(String(input.envelopeId || ""), input.values, input.confidence);
   }, { public: true });
 
-  register("loaf.action_safety", "register_decision", async (ctx, input = {}) => {
+  register("loaf.action_safety", "register_decision", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.decisionsRegistered++;
     return registerDecision(input.description, input.irreversibility, input.domain, ctx.actor?.id);
   }, { public: false });
 
-  register("loaf.action_safety", "audit_decision", async (ctx, input = {}) => {
+  register("loaf.action_safety", "audit_decision", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.audits++;
     return auditDecision(String(input.decisionId || ""), input.action, input.details, ctx.actor?.id);
   }, { public: false });
 
-  register("loaf.action_safety", "trace_consequence", async (ctx, input = {}) => {
+  register("loaf.action_safety", "trace_consequence", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.consequencesTraced++;
     return traceConsequences(String(input.decisionId || ""), input.consequence || input);
   }, { public: false });
 
-  register("loaf.action_safety", "points_of_no_return", async (ctx) => {
+  register("loaf.action_safety", "points_of_no_return", (_ctx) => {
     return identifyPointsOfNoReturn();
   }, { public: true });
 
-  register("loaf.action_safety", "create_experiment", async (ctx, input = {}) => {
+  register("loaf.action_safety", "create_experiment", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.experimentsCreated++;
     return createExperiment(input.hypothesis, input.harmBudget, input.controls);
   }, { public: false });
 
-  register("loaf.action_safety", "record_observation", async (ctx, input = {}) => {
+  register("loaf.action_safety", "record_observation", (_ctx, input = {}) => {
     return recordExperimentObservation(String(input.experimentId || ""), input.observation, input.harmCost);
   }, { public: false });
 
-  register("loaf.action_safety", "define_throttle", async (ctx, input = {}) => {
+  register("loaf.action_safety", "define_throttle", (_ctx, input = {}) => {
     return defineThrottle(input.domain, input.maxActions, input.windowMs);
   }, { public: false });
 
-  register("loaf.action_safety", "check_throttle", async (ctx, input = {}) => {
+  register("loaf.action_safety", "check_throttle", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.throttleChecks++;
     return checkThrottle(String(input.domain || ""));
   }, { public: true });
 
-  register("loaf.action_safety", "define_abstention_rule", async (ctx, input = {}) => {
+  register("loaf.action_safety", "define_abstention_rule", (_ctx, input = {}) => {
     return defineAbstentionRule(input.domain, input.minConfidence, input.description);
   }, { public: false });
 
-  register("loaf.action_safety", "enforce_abstention", async (ctx, input = {}) => {
+  register("loaf.action_safety", "enforce_abstention", (ctx, input = {}) => {
     const as = ctx.state.__loaf.actionSafety;
     as.stats.abstentionEnforcements++;
     return enforceAbstention(String(input.domain || ""), input.confidence);
   }, { public: true });
 
-  register("loaf.action_safety", "list_decisions", async (ctx, input = {}) => {
+  register("loaf.action_safety", "list_decisions", (_ctx, input = {}) => {
     let list = Array.from(decisions.values());
     if (input.domain) list = list.filter(d => d.domain === input.domain);
     if (input.irreversibility) list = list.filter(d => d.irreversibility === input.irreversibility);

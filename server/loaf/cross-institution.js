@@ -365,7 +365,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.institution", "status", async (ctx) => {
+  register("loaf.institution", "status", (ctx) => {
     const ci = ctx.state.__loaf.crossInstitution;
     return {
       ok: true,
@@ -377,35 +377,35 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.institution", "create_primitive", async (ctx, input = {}) => {
+  register("loaf.institution", "create_primitive", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.primitivesCreated++;
     return createPrimitive(input.type, input.content, input.provenance, input.institutionId);
   }, { public: false });
 
-  register("loaf.institution", "adopt_primitive", async (ctx, input = {}) => {
+  register("loaf.institution", "adopt_primitive", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.adoptions++;
     return adoptPrimitive(String(input.primitiveId || ""), String(input.institutionId || ""));
   }, { public: false });
 
-  register("loaf.institution", "create_archive", async (ctx, input = {}) => {
+  register("loaf.institution", "create_archive", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.archivesCreated++;
     return createArchive(input.name, input.description, input.institutionId);
   }, { public: false });
 
-  register("loaf.institution", "add_archive_entry", async (ctx, input = {}) => {
+  register("loaf.institution", "add_archive_entry", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.archiveEntries++;
     return addArchiveEntry(String(input.archiveId || ""), input.content, input.domain, input.provenance);
   }, { public: false });
 
-  register("loaf.institution", "query_archive", async (ctx, input = {}) => {
+  register("loaf.institution", "query_archive", (_ctx, input = {}) => {
     return queryArchive(String(input.archiveId || ""), input);
   }, { public: true });
 
-  register("loaf.institution", "submit_evidence", async (ctx, input = {}) => {
+  register("loaf.institution", "submit_evidence", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.evidenceSubmitted++;
     return submitEvidence(
@@ -414,25 +414,25 @@ function init({ register, STATE }) {
     );
   }, { public: false });
 
-  register("loaf.institution", "evaluate_consensus", async (ctx, input = {}) => {
+  register("loaf.institution", "evaluate_consensus", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.consensusEvaluations++;
     return evaluateConsensus(String(input.topicId || ""));
   }, { public: true });
 
-  register("loaf.institution", "oracle_query", async (ctx, input = {}) => {
+  register("loaf.institution", "oracle_query", (ctx, input = {}) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.oracleQueries++;
     return oracleQuery(input.question, input.context);
   }, { public: true });
 
-  register("loaf.institution", "export_continuity", async (ctx) => {
+  register("loaf.institution", "export_continuity", (ctx) => {
     const ci = ctx.state.__loaf.crossInstitution;
     ci.stats.exports++;
     return { ok: true, ...exportForContinuity() };
   }, { public: true });
 
-  register("loaf.institution", "list_primitives", async (ctx, input = {}) => {
+  register("loaf.institution", "list_primitives", (_ctx, input = {}) => {
     let list = Array.from(sharedPrimitives.values());
     if (input.type) list = list.filter(p => p.type === input.type);
     if (input.institutionId) list = list.filter(p => p.institutions.includes(input.institutionId));

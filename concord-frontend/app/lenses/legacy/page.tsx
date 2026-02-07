@@ -26,7 +26,7 @@ export default function LegacyLensPage() {
   ];
 
   const currentYear = 2026;
-  const yearsToGo = 400 - (currentYear - 2026);
+  const _yearsToGo = 400 - (currentYear - 2026);
 
   return (
     <div className="p-6 space-y-6">

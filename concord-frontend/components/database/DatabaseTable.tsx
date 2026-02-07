@@ -1,17 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import {
   Table,
   Plus,
-  Filter,
   SortAsc,
   SortDesc,
-  MoreHorizontal,
   Trash2,
-  Edit,
-  ChevronDown,
   Search,
   Grid3X3,
   LayoutList,
@@ -30,7 +25,7 @@ interface Column {
 
 interface Row {
   id: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,8 +34,8 @@ interface DatabaseTableProps {
   name: string;
   schema: Column[];
   rows: Row[];
-  onAddRow?: (data: Record<string, any>) => void;
-  onUpdateRow?: (rowId: string, data: Record<string, any>) => void;
+  onAddRow?: (data: Record<string, unknown>) => void;
+  onUpdateRow?: (rowId: string, data: Record<string, unknown>) => void;
   onDeleteRow?: (rowId: string) => void;
   onAddColumn?: (column: Partial<Column>) => void;
   className?: string;
@@ -55,7 +50,7 @@ export function DatabaseTable({
   onAddRow,
   onUpdateRow,
   onDeleteRow,
-  onAddColumn,
+  onAddColumn: _onAddColumn,
   className
 }: DatabaseTableProps) {
   const [viewType, setViewType] = useState<ViewType>('table');
@@ -63,7 +58,7 @@ export function DatabaseTable({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = useState('');
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
-  const [newRowData, setNewRowData] = useState<Record<string, any>>({});
+  const [newRowData, setNewRowData] = useState<Record<string, unknown>>({});
   const [showNewRow, setShowNewRow] = useState(false);
 
   const filteredAndSortedRows = useMemo(() => {
@@ -101,7 +96,7 @@ export function DatabaseTable({
     }
   };
 
-  const handleCellChange = (rowId: string, colId: string, value: any) => {
+  const handleCellChange = (rowId: string, colId: string, value: unknown) => {
     if (onUpdateRow) {
       const row = rows.find(r => r.id === rowId);
       if (row) {
@@ -119,7 +114,7 @@ export function DatabaseTable({
     }
   };
 
-  const renderCellValue = (column: Column, value: any, rowId: string) => {
+  const renderCellValue = (column: Column, value: unknown, rowId: string) => {
     const isEditing = editingCell?.rowId === rowId && editingCell?.colId === column.id;
 
     if (isEditing) {

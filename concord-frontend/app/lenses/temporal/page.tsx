@@ -5,7 +5,11 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import {
-  Clock, Calendar, ArrowRight, Play, Layers, AlertTriangle
+  Clock,
+  Calendar,
+  ArrowRight,
+  Play,
+  Layers
 } from 'lucide-react';
 
 export default function TemporalLensPage() {
@@ -16,7 +20,7 @@ export default function TemporalLensPage() {
   const [frameName, setFrameName] = useState('');
   const [frameStart, setFrameStart] = useState('');
   const [frameEnd, setFrameEnd] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<unknown>(null);
 
   const { data: frames } = useQuery({
     queryKey: ['temporal-frames'],
@@ -135,7 +139,7 @@ export default function TemporalLensPage() {
           <div className="panel p-4">
             <h2 className="font-semibold mb-3">Time Frames</h2>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {Array.isArray(framesList) && framesList.map((f: any, i: number) => (
+              {Array.isArray(framesList) && framesList.map((f: Record<string, unknown>, i: number) => (
                 <div key={i} className="lens-card text-xs">
                   <p className="font-medium">{f.name}</p>
                   <p className="text-gray-400">{f.start} → {f.end}</p>

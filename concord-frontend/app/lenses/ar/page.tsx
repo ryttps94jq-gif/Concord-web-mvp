@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Glasses, Camera, Layers, Box, Scan, Settings } from 'lucide-react';
+import { Glasses, Camera, Scan, Settings } from 'lucide-react';
 
 export default function ARLensPage() {
   useLensNav('ar');
@@ -12,7 +12,7 @@ export default function ARLensPage() {
   const [arEnabled, setArEnabled] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
 
-  const { data: arStatus } = useQuery({
+  const { data: _arStatus } = useQuery({
     queryKey: ['ar-status'],
     queryFn: () => api.get('/api/ar/status').then((r) => r.data),
   });

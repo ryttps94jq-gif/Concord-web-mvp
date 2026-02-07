@@ -9,9 +9,7 @@ import {
   Trash2,
   Clock,
   CheckCircle,
-  Calendar,
-  Repeat,
-  X
+  Repeat
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -122,7 +120,7 @@ export function ReminderList({
           ].map(f => (
             <button
               key={f.id}
-              onClick={() => setFilter(f.id as any)}
+              onClick={() => setFilter(f.id as typeof filter)}
               className={cn(
                 'px-3 py-1 text-xs rounded transition-colors',
                 filter === f.id

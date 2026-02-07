@@ -321,13 +321,13 @@ function verifyAcceptanceCriteria(systemState = {}) {
   };
 }
 
-function init({ register, STATE, helpers }) {
+function init({ register, STATE, helpers: _helpers }) {
   STATE.__loaf = STATE.__loaf || {};
   STATE.__loaf.stability = {
     stats: { driftScans: 0, failuresProcessed: 0, testsGenerated: 0, acceptanceChecks: 0 },
   };
 
-  register("loaf.stability", "status", async (ctx) => {
+  register("loaf.stability", "status", (ctx) => {
     const s = ctx.state.__loaf.stability;
     return {
       ok: true,
@@ -342,43 +342,43 @@ function init({ register, STATE, helpers }) {
     };
   }, { public: true });
 
-  register("loaf.stability", "drift_scan", async (ctx, input = {}) => {
+  register("loaf.stability", "drift_scan", (ctx, input = {}) => {
     const s = ctx.state.__loaf.stability;
     s.stats.driftScans++;
     return { ok: true, ...runDriftScan(input) };
   }, { public: true });
 
-  register("loaf.stability", "record_failure", async (ctx, input = {}) => {
+  register("loaf.stability", "record_failure", (ctx, input = {}) => {
     const s = ctx.state.__loaf.stability;
     s.stats.failuresProcessed++;
     s.stats.testsGenerated++;
     return generateFromFailure(input);
   }, { public: false });
 
-  register("loaf.stability", "list_alerts", async (ctx, input = {}) => {
+  register("loaf.stability", "list_alerts", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     return { ok: true, alerts: driftState.activeAlerts.slice(-limit) };
   }, { public: true });
 
-  register("loaf.stability", "list_guardrails", async (ctx) => {
+  register("loaf.stability", "list_guardrails", (_ctx) => {
     return { ok: true, guardrails: driftState.guardrails };
   }, { public: true });
 
-  register("loaf.stability", "list_tests", async (ctx) => {
+  register("loaf.stability", "list_tests", (_ctx) => {
     return { ok: true, tests: driftState.tests };
   }, { public: true });
 
-  register("loaf.stability", "list_constraints", async (ctx) => {
+  register("loaf.stability", "list_constraints", (_ctx) => {
     return { ok: true, constraints: driftState.constraints };
   }, { public: true });
 
-  register("loaf.stability", "verify_acceptance", async (ctx, input = {}) => {
+  register("loaf.stability", "verify_acceptance", (ctx, input = {}) => {
     const s = ctx.state.__loaf.stability;
     s.stats.acceptanceChecks++;
     return { ok: true, ...verifyAcceptanceCriteria(input) };
   }, { public: true });
 
-  register("loaf.stability", "identity", async (ctx) => {
+  register("loaf.stability", "identity", (_ctx) => {
     return { ok: true, identity: INFRASTRUCTURE_IDENTITY };
   }, { public: true });
 }

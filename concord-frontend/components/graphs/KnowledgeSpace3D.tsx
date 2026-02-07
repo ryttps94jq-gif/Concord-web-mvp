@@ -2,10 +2,10 @@
 
 import { useRef, useState, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Html, Stars, Float, Line } from '@react-three/drei';
+import { OrbitControls, Html, Stars, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, RotateCcw, Eye, Layers } from 'lucide-react';
+import { RotateCcw, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Node3D {
@@ -153,7 +153,7 @@ function Scene({
   selectedNodeId?: string;
 }) {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const { camera } = useThree();
+  const { _camera } = useThree();
 
   // Create position map for edges
   const positionMap = useMemo(() => {

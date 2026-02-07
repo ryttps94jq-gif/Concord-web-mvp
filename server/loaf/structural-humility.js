@@ -421,7 +421,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.humility", "status", async (ctx) => {
+  register("loaf.humility", "status", (ctx) => {
     const sh = ctx.state.__loaf.structuralHumility;
     return {
       ok: true,
@@ -434,74 +434,74 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.humility", "abstain", async (ctx, input = {}) => {
+  register("loaf.humility", "abstain", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.abstentions++;
     return recordAbstention(input.question, input.reason, input.domain, input.notes);
   }, { public: false });
 
-  register("loaf.humility", "schedule_revisit", async (ctx, input = {}) => {
+  register("loaf.humility", "schedule_revisit", (_ctx, input = {}) => {
     return scheduleRevisit(String(input.abstentionId || ""), input.revisitAfterMs);
   }, { public: false });
 
-  register("loaf.humility", "record_non_progress", async (ctx, input = {}) => {
+  register("loaf.humility", "record_non_progress", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.nonProgressRecords++;
     return recordNonProgress(input.question, input.attemptHistory, input.diagnosis);
   }, { public: false });
 
-  register("loaf.humility", "register_terminal_question", async (ctx, input = {}) => {
+  register("loaf.humility", "register_terminal_question", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.terminalQuestions++;
     return registerTerminalQuestion(input.question, input.domain, input.reason, input.relatedQuestions);
   }, { public: false });
 
-  register("loaf.humility", "annotate_resolution_path", async (ctx, input = {}) => {
+  register("loaf.humility", "annotate_resolution_path", (_ctx, input = {}) => {
     return annotateResolutionPath(String(input.questionId || ""), input.requirements);
   }, { public: false });
 
-  register("loaf.humility", "preserve_unresolved", async (ctx, input = {}) => {
+  register("loaf.humility", "preserve_unresolved", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.unresolvedPreserved++;
     return preserveUnresolvedQuestion(input.question, input.domain, input.context);
   }, { public: false });
 
-  register("loaf.humility", "track_conceptual_debt", async (ctx, input = {}) => {
+  register("loaf.humility", "track_conceptual_debt", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.conceptualDebtsTracked++;
     return trackConceptualDebt(input.category, input.description, input.domain, input.priority);
   }, { public: false });
 
-  register("loaf.humility", "conceptual_debt_summary", async (ctx) => {
+  register("loaf.humility", "conceptual_debt_summary", (_ctx) => {
     return { ok: true, ...conceptualDebtSummary() };
   }, { public: true });
 
-  register("loaf.humility", "analyze_belief_stability", async (ctx, input = {}) => {
+  register("loaf.humility", "analyze_belief_stability", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.stabilityAnalyses++;
     return analyzeBeliefStability(input.beliefs || []);
   }, { public: true });
 
-  register("loaf.humility", "model_future_capacity", async (ctx, input = {}) => {
+  register("loaf.humility", "model_future_capacity", (ctx, input = {}) => {
     const sh = ctx.state.__loaf.structuralHumility;
     sh.stats.futureCapacityModels++;
     return modelFutureCapacity(input.currentCapabilities, input.projectedImprovements);
   }, { public: true });
 
-  register("loaf.humility", "list_abstentions", async (ctx, input = {}) => {
+  register("loaf.humility", "list_abstentions", (_ctx, input = {}) => {
     let list = Array.from(abstentions.values());
     if (input.reason) list = list.filter(a => a.reason === input.reason);
     if (input.domain) list = list.filter(a => a.domain === input.domain);
     return { ok: true, abstentions: list.slice(0, Number(input.limit || 50)) };
   }, { public: true });
 
-  register("loaf.humility", "list_terminal_questions", async (ctx, input = {}) => {
+  register("loaf.humility", "list_terminal_questions", (_ctx, input = {}) => {
     let list = Array.from(terminalQuestions.values());
     if (input.domain) list = list.filter(q => q.domain === input.domain);
     return { ok: true, terminalQuestions: list.slice(0, 50) };
   }, { public: true });
 
-  register("loaf.humility", "list_unresolved", async (ctx, input = {}) => {
+  register("loaf.humility", "list_unresolved", (_ctx, input = {}) => {
     let list = Array.from(unresolvedQuestions.values());
     if (input.domain) list = list.filter(q => q.domain === input.domain);
     return { ok: true, unresolvedQuestions: list.slice(0, 50) };

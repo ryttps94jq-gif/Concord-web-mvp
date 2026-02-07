@@ -6,8 +6,13 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Target, Plus, CheckCircle2, Circle, XCircle, Play,
-  TrendingUp, Clock, Sparkles, BarChart3
+  Target,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Play,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 interface Goal {
@@ -37,7 +42,7 @@ export default function GoalsLensPage() {
     refetchInterval: 10000,
   });
 
-  const { data: statusData } = useQuery({
+  const { data: _statusData } = useQuery({
     queryKey: ['goals-status'],
     queryFn: () => apiHelpers.goals.status().then((r) => r.data),
   });

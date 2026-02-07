@@ -7,10 +7,22 @@ import { api } from '@/lib/api/client';
 import { ResonanceEmpireGraph } from '@/components/graphs/ResonanceEmpireGraph';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Waves, Activity, Zap, Heart, Brain, Shield, AlertTriangle,
-  TrendingUp, TrendingDown, Minus, Clock, RefreshCw, Settings,
-  Bell, BellOff, Maximize2, BarChart3, LineChart, PieChart,
-  Thermometer, Wind, Droplets, Sun, Moon, Eye, EyeOff
+  Waves,
+  Activity,
+  Zap,
+  Heart,
+  Brain,
+  Shield,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  RefreshCw,
+  Bell,
+  BarChart3,
+  LineChart,
+  PieChart,
+  EyeOff
 } from 'lucide-react';
 
 type TimeRange = '1h' | '24h' | '7d' | '30d';
@@ -53,13 +65,13 @@ export default function ResonanceLensPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { data: growth, refetch: refetchGrowth } = useQuery({
+  const { data: growth, refetch: _refetchGrowth } = useQuery({
     queryKey: ['growth'],
     queryFn: () => api.get('/api/growth').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const { data: metrics, refetch: refetchMetrics } = useQuery({
+  const { data: metrics, refetch: _refetchMetrics } = useQuery({
     queryKey: ['metrics'],
     queryFn: () => api.get('/api/metrics').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
@@ -72,7 +84,7 @@ export default function ResonanceLensPage() {
   const stressAcute = growth?.growth?.stress?.acute || 0;
   const stressChronic = growth?.growth?.stress?.chronic || 0;
   const repairRate = growth?.growth?.maintenance?.repairRate || 0.5;
-  const contradictionLoad = growth?.growth?.functionalDecline?.contradictionLoad || 0;
+  const _contradictionLoad = growth?.growth?.functionalDecline?.contradictionLoad || 0;
 
   const healthMetrics: HealthMetric[] = [
     {

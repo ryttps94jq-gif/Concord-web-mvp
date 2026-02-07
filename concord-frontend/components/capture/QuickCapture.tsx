@@ -7,7 +7,6 @@ import {
   X,
   Sparkles,
   Tag,
-  Link2,
   Hash,
   ArrowRight,
   Zap,
@@ -18,17 +17,17 @@ import {
   Bookmark
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api, apiHelpers } from '@/lib/api/client';
+import { apiHelpers } from '@/lib/api/client';
 
 interface QuickCaptureProps {
   isOpen: boolean;
   onClose: () => void;
-  onCapture?: (dtu: any) => void;
+  onCapture?: (dtu: unknown) => void;
 }
 
 type CaptureType = 'thought' | 'note' | 'idea' | 'question' | 'bookmark';
 
-const captureTypes: { type: CaptureType; icon: any; label: string; color: string }[] = [
+const captureTypes: { type: CaptureType; icon: React.ElementType; label: string; color: string }[] = [
   { type: 'thought', icon: Brain, label: 'Thought', color: 'text-neon-cyan' },
   { type: 'idea', icon: Lightbulb, label: 'Idea', color: 'text-neon-yellow' },
   { type: 'note', icon: FileText, label: 'Note', color: 'text-neon-purple' },
@@ -76,7 +75,7 @@ export function QuickCapture({ isOpen, onClose, onCapture }: QuickCaptureProps) 
             .slice(0, 3)
             .map(w => `#${w}`);
           setAiSuggestions(suggestions);
-        } catch (e) {
+        } catch {
           // Ignore errors
         }
       }, 500);

@@ -427,7 +427,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.hypothesis", "status", async (ctx) => {
+  register("loaf.hypothesis", "status", (ctx) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     const all = Array.from(hypotheses.values());
     return {
@@ -447,7 +447,7 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.hypothesis", "propose", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "propose", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     const result = proposeHypothesis(
       input.claim, input.evidence, ctx.actor?.id || input.proposerId, input.domain
@@ -456,7 +456,7 @@ function init({ register, STATE }) {
     return result;
   }, { public: false });
 
-  register("loaf.hypothesis", "challenge", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "challenge", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     const result = challengeHypothesis(
       String(input.hypothesisId || ""), input.counterEvidence,
@@ -466,7 +466,7 @@ function init({ register, STATE }) {
     return result;
   }, { public: false });
 
-  register("loaf.hypothesis", "defend", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "defend", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     const result = defendHypothesis(
       String(input.hypothesisId || ""), String(input.challengeId || ""),
@@ -476,30 +476,30 @@ function init({ register, STATE }) {
     return result;
   }, { public: false });
 
-  register("loaf.hypothesis", "resolve", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "resolve", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     const result = resolveByEvidence(String(input.hypothesisId || ""));
     if (result.ok) hm.stats.resolved++;
     return result;
   }, { public: false });
 
-  register("loaf.hypothesis", "get_influence", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "get_influence", (ctx, input = {}) => {
     return { ok: true, ...getInfluence(String(input.actorId || ctx.actor?.id || "")) };
   }, { public: true });
 
-  register("loaf.hypothesis", "red_team", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "red_team", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     hm.stats.redTeamRuns++;
     return redTeam(String(input.hypothesisId || ""));
   }, { public: true });
 
-  register("loaf.hypothesis", "check_circular", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "check_circular", (ctx, input = {}) => {
     const hm = ctx.state.__loaf.hypothesisMarket;
     hm.stats.circularDetections++;
     return { ok: true, ...detectCircularReasoning(String(input.hypothesisId || "")) };
   }, { public: true });
 
-  register("loaf.hypothesis", "list", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "list", (_ctx, input = {}) => {
     let list = Array.from(hypotheses.values());
     if (input.state) list = list.filter(h => h.state === input.state);
     if (input.domain) list = list.filter(h => h.domain === input.domain);
@@ -507,7 +507,7 @@ function init({ register, STATE }) {
     return { ok: true, hypotheses: list.slice(-limit).map(sanitizeHypothesis) };
   }, { public: true });
 
-  register("loaf.hypothesis", "influence_leaderboard", async (ctx, input = {}) => {
+  register("loaf.hypothesis", "influence_leaderboard", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 20), 100);
     const entries = Array.from(influenceLedger.entries())
       .map(([id]) => getInfluence(id))

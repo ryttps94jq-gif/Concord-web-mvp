@@ -11,10 +11,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { createState, createMomentum, applyEvent, applyDecay } from '../affect/engine.js';
+import { createState, createMomentum, applyEvent, applyDecay as _applyDecay } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
-import { projectLabel } from '../affect/projection.js';
-import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
+import { projectLabel as _projectLabel } from '../affect/projection.js';
+import { BASELINE as _BASELINE, DIMS, BOUNDS as _BOUNDS } from '../affect/defaults.js';
 import {
   emitAffectEvent, getAffectState, resetAffect,
   getAffectEvents, serializeAll, restoreAll, deleteSession
@@ -122,7 +122,7 @@ describe('A2.13 — Strategy Refinement', () => {
 
     // Initial strategy
     const event = makeEvent('SUCCESS', 0.5, 0.3);
-    const r1 = applyEvent(E, M, event);
+    const _r1 = applyEvent(E, M, event);
 
     // After repeated success, momentum builds (strategy refined)
     for (let i = 0; i < 5; i++) {
@@ -414,7 +414,7 @@ describe('A2.20 — Self-Evaluation Loops', () => {
 
     // Push state away from baseline
     emitAffectEvent(sid, makeEvent('ERROR', 0.9, -0.8));
-    const postError = getAffectState(sid);
+    const _postError = getAffectState(sid);
 
     // Wait a simulated interval (decay happens on next getAffectState call)
     const state = getAffectState(sid);

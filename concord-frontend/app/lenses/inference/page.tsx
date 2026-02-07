@@ -4,7 +4,6 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   GitMerge, Plus, ArrowRight, Database, Search, Zap
 } from 'lucide-react';
@@ -17,7 +16,7 @@ export default function InferenceLensPage() {
   const [queryInput, setQueryInput] = useState('');
   const [majorPremise, setMajorPremise] = useState('');
   const [minorPremise, setMinorPremise] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<unknown>(null);
   const [tab, setTab] = useState<'facts' | 'query' | 'syllogism' | 'forward'>('facts');
 
   const { data: status } = useQuery({

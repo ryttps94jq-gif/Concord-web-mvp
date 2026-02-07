@@ -1,14 +1,27 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Orbit, Play, Pause, RotateCcw, Settings, Gauge, Plus, Circle, Square,
-  Triangle, Trash2, Eye, EyeOff, Link2, Zap, Download, Upload, ChevronDown,
-  Move, Target, Maximize2, Wind, Magnet
+  Play,
+  Pause,
+  RotateCcw,
+  Settings,
+  Gauge,
+  Circle,
+  Square,
+  Trash2,
+  Link2,
+  Zap,
+  Download,
+  Upload,
+  ChevronDown,
+  Move,
+  Target,
+  Magnet
 } from 'lucide-react';
 
 // Physics body types
@@ -244,7 +257,7 @@ export default function PhysicsLensPage() {
   // UI state
   const [tool, setTool] = useState<Tool>('select');
   const [selectedBody, setSelectedBody] = useState<string | null>(null);
-  const [selectedConstraint, setSelectedConstraint] = useState<string | null>(null);
+  const [_selectedConstraint, _setSelectedConstraint] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [dragStart, setDragStart] = useState<Vector2D | null>(null);
@@ -261,7 +274,7 @@ export default function PhysicsLensPage() {
   });
 
   // Sync with backend (optional)
-  const { data: backendSim } = useQuery({
+  const { data: _backendSim } = useQuery({
     queryKey: ['physics-sim'],
     queryFn: () => api.get('/api/physics/simulation').then((r) => r.data).catch(() => null),
     enabled: false // Disable for now - run client-side
@@ -276,7 +289,7 @@ export default function PhysicsLensPage() {
     return mag > 0 ? { x: v.x / mag, y: v.y / mag } : { x: 0, y: 0 };
   };
 
-  const dot = (a: Vector2D, b: Vector2D) => a.x * b.x + a.y * b.y;
+  const _dot = (a: Vector2D, b: Vector2D) => a.x * b.x + a.y * b.y;
 
   // Physics simulation step
   const simulate = useCallback(() => {
@@ -578,7 +591,7 @@ export default function PhysicsLensPage() {
         if (body.trail.length < 2) return;
         ctx.beginPath();
         ctx.moveTo(body.trail[0].x, body.trail[0].y);
-        body.trail.forEach((p, i) => {
+        body.trail.forEach((p, _i) => {
           ctx.lineTo(p.x, p.y);
         });
         ctx.strokeStyle = body.color + '40';

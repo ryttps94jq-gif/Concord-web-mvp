@@ -1,17 +1,35 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  DollarSign, TrendingUp, TrendingDown, PieChart, BarChart3, Wallet,
-  ArrowUpRight, ArrowDownRight, Activity, Bell, Settings, Plus,
-  Search, Filter, Download, RefreshCw, Eye, EyeOff, Star, StarOff,
-  ChevronDown, ChevronUp, X, ExternalLink, Zap, Target, AlertTriangle,
-  Clock, Calendar, Globe, Lock, Unlock, ArrowRight, Minus, MoreHorizontal,
-  LineChart, CandlestickChart, BarChart2, Layers, Newspaper, MessageSquare
+  TrendingUp,
+  PieChart,
+  ArrowUpRight,
+  ArrowDownRight,
+  Activity,
+  Bell,
+  Settings,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Star,
+  X,
+  ExternalLink,
+  AlertTriangle,
+  Lock,
+  ArrowRight,
+  LineChart,
+  CandlestickChart,
+  BarChart2,
+  Layers,
+  Newspaper
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -122,7 +140,7 @@ const MOCK_NEWS: NewsItem[] = [
 
 export default function FinanceLensPage() {
   useLensNav('finance');
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const chartRef = useRef<HTMLCanvasElement>(null);
 
   // State

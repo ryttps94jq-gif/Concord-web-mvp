@@ -5,14 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
   Eye,
-  EyeOff,
   ThumbsUp,
   ThumbsDown,
   Meh,
-  Sparkles,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

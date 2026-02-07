@@ -26,7 +26,7 @@ export default function CouncilLensPage() {
   const [selectedDtuA, setSelectedDtuA] = useState<string>('');
   const [selectedDtuB, setSelectedDtuB] = useState<string>('');
   const [topic, setTopic] = useState('');
-  const [debateResult, setDebateResult] = useState<any>(null);
+  const [debateResult, setDebateResult] = useState<unknown>(null);
 
   // Fetch personas from backend: GET /api/personas
   const { data: personasData } = useQuery({
@@ -184,7 +184,7 @@ export default function CouncilLensPage() {
           {/* Turns */}
           {debateResult.debate?.turns && (
             <div className="space-y-3 mb-6">
-              {debateResult.debate.turns.map((turn: any, i: number) => (
+              {debateResult.debate.turns.map((turn: Record<string, unknown>, i: number) => (
                 <div
                   key={i}
                   className="p-3 bg-lattice-deep rounded-lg border-l-2 border-neon-purple"

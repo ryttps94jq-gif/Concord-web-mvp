@@ -17,22 +17,17 @@ import {
   Image as ImageIcon,
   Video,
   Smile,
-  MapPin,
   Users,
   Globe,
   Lock,
   Clock,
-  UserPlus,
   Home,
   Tv,
   Store,
   Users2,
   Bookmark,
   CalendarDays,
-  Flag,
-  ChevronDown,
-  Send,
-  X
+  Flag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -90,13 +85,13 @@ export default function TimelineLensPage() {
   useLensNav('timeline');
   const queryClient = useQueryClient();
 
-  const [newPost, setNewPost] = useState('');
+  const [_newPost, setNewPost] = useState('');
   const [showReactions, setShowReactions] = useState<string | null>(null);
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ['timeline-posts'],
     queryFn: () => api.get('/api/dtus', { params: { limit: 30 } }).then(r =>
-      r.data?.dtus?.map((dtu: any) => ({
+      r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
         id: dtu.id,
         author: {
           id: dtu.authorId || 'user',
@@ -141,7 +136,7 @@ export default function TimelineLensPage() {
     ] as Story[]),
   });
 
-  const postMutation = useMutation({
+  const _postMutation = useMutation({
     mutationFn: (content: string) => api.post('/api/dtus', { content, tags: ['timeline'] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timeline-posts'] });

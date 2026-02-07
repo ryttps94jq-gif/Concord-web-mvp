@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Play, Pause, RotateCcw, Sliders, Zap, Clock, Target } from 'lucide-react';
+import { Play, Sliders, Zap, Clock, Target } from 'lucide-react';
 
 export default function SimLensPage() {
   useLensNav('sim');
@@ -118,7 +118,7 @@ export default function SimLensPage() {
           {sims.length === 0 ? (
             <p className="text-center py-8 text-gray-500">No simulations yet</p>
           ) : (
-            sims.slice(0, 10).map((sim: any) => (
+            sims.slice(0, 10).map((sim: Record<string, unknown>) => (
               <details key={sim.id} className="bg-lattice-deep rounded-lg">
                 <summary className="flex items-center justify-between p-4 cursor-pointer">
                   <div>

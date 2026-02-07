@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Code2, Play, FileCode, Terminal, FolderTree, Plus, X,
+  Play, FileCode, Terminal, FolderTree, Plus, X,
   ChevronRight, ChevronDown, File, Folder, FolderOpen,
-  Bug, Sparkles, RefreshCw, TestTube, GitCompare, Copy,
-  Download, Upload, Settings, Search, Zap, Brain, Wand2,
-  CheckCircle, XCircle, AlertCircle, Loader2, MoreHorizontal,
+  Sparkles, RefreshCw, TestTube, Copy,
+  Download, Zap, Brain,
+  CheckCircle, Loader2,
   Save, FileJson, FileText, Maximize2, Minimize2
 } from 'lucide-react';
 
@@ -116,7 +116,7 @@ export default function CodeLensPage() {
   const [showFileTree, setShowFileTree] = useState(true);
   const [showOutput, setShowOutput] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [_searchQuery, _setSearchQuery] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
@@ -134,7 +134,7 @@ export default function CodeLensPage() {
       setOutput(data.answer || data.reply || 'No analysis available');
       setShowOutput(true);
     },
-    onError: (error: any) => {
+    onError: (error: Record<string, unknown>) => {
       setOutput(`Error: ${error.message || 'Analysis failed'}`);
     },
   });

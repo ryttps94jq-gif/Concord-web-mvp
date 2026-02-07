@@ -15,13 +15,9 @@ import {
   TrendingUp,
   Clock,
   Flame,
-  Award,
   Users,
   Plus,
-  Search,
-  ChevronDown,
-  ExternalLink,
-  Image as ImageIcon
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +54,7 @@ export default function ForumLensPage() {
 
   const [selectedCommunity, setSelectedCommunity] = useState<string>('all');
   const [sortMode, setSortMode] = useState<SortMode>('hot');
-  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [_showCreatePost, setShowCreatePost] = useState(false);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
 
   const { data: posts, isLoading } = useQuery({
@@ -69,7 +65,7 @@ export default function ForumLensPage() {
         sort: sortMode === 'new' ? 'createdAt' : 'score',
         order: 'desc'
       }
-    }).then(r => r.data?.dtus?.map((dtu: any) => ({
+    }).then(r => r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
       id: dtu.id,
       title: dtu.title || dtu.content?.slice(0, 100),
       content: dtu.content,

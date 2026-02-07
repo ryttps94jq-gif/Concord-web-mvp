@@ -49,24 +49,24 @@ export function generateId(): string {
 }
 
 // Debounce function
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
+export function debounce<Args extends unknown[]>(
+  fn: (...args: Args) => void,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let timeoutId: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return (...args: Args) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
   };
 }
 
 // Throttle function
-export function throttle<T extends (...args: any[]) => any>(
-  fn: T,
+export function throttle<Args extends unknown[]>(
+  fn: (...args: Args) => void,
   limit: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let inThrottle = false;
-  return (...args: Parameters<T>) => {
+  return (...args: Args) => {
     if (!inThrottle) {
       fn(...args);
       inThrottle = true;
@@ -98,7 +98,7 @@ export function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
 // Sort array by multiple keys
 export function sortBy<T>(
   array: T[],
-  ...keys: Array<keyof T | ((item: T) => any)>
+  ...keys: Array<keyof T | ((item: T) => unknown)>
 ): T[] {
   return [...array].sort((a, b) => {
     for (const key of keys) {
@@ -164,17 +164,17 @@ export function parseJSON<T>(json: string, fallback: T): T {
 }
 
 // Get nested object value by path
-export function getByPath(obj: any, path: string): any {
-  return path.split('.').reduce((acc, part) => acc?.[part], obj);
+export function getByPath(obj: unknown, path: string): unknown {
+  return path.split('.').reduce((acc: unknown, part) => (acc as Record<string, unknown>)?.[part], obj);
 }
 
 // Set nested object value by path
-export function setByPath(obj: any, path: string, value: any): void {
+export function setByPath(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   const last = parts.pop()!;
-  const target = parts.reduce((acc, part) => {
+  const target = parts.reduce((acc: Record<string, unknown>, part) => {
     if (!acc[part]) acc[part] = {};
-    return acc[part];
+    return acc[part] as Record<string, unknown>;
   }, obj);
   target[last] = value;
 }
@@ -214,7 +214,7 @@ export const storage = {
       return fallback;
     }
   },
-  set(key: string, value: any): void {
+  set(key: string, value: unknown): void {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(key, JSON.stringify(value));

@@ -3,15 +3,14 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useState } from 'react';
 import { AlertTriangle, Heart, Brain, Zap, TrendingDown, Shield } from 'lucide-react';
 
 export default function SufferingLensPage() {
   useLensNav('suffering');
 
   // Backend: GET /api/status
-  const { data: status } = useQuery({
-    queryKey: ['status'],
+  const { data: _status } = useQuery({
+    queryKey: ['_status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });
 

@@ -558,100 +558,100 @@ function coordinationHealth() {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "initiate_rollback", async (ctx) => {
+  register("loaf", "initiate_rollback", (ctx) => {
     const { actors, reason, triggeredBy } = ctx.args || {};
     return initiateRollback(actors || [], reason, triggeredBy);
   }, { public: true });
 
-  register("loaf", "record_checkpoint", async (ctx) => {
+  register("loaf", "record_checkpoint", (ctx) => {
     const { rollbackId, actorId, checkpoint } = ctx.args || {};
     return recordCheckpoint(rollbackId, actorId, checkpoint);
   }, { public: true });
 
-  register("loaf", "execute_rollback", async (ctx) => {
+  register("loaf", "execute_rollback", (ctx) => {
     return executeRollback(ctx.args?.rollbackId);
   }, { public: true });
 
-  register("loaf", "create_accountability_graph", async (ctx) => {
+  register("loaf", "create_accountability_graph", (ctx) => {
     const { outcomeId, description } = ctx.args || {};
     return createAccountabilityGraph(outcomeId, description);
   }, { public: true });
 
-  register("loaf", "add_accountability_node", async (ctx) => {
+  register("loaf", "add_accountability_node", (ctx) => {
     const { graphId, nodeId, type, data } = ctx.args || {};
     return addAccountabilityNode(graphId, nodeId, type, data);
   }, { public: true });
 
-  register("loaf", "add_accountability_edge", async (ctx) => {
+  register("loaf", "add_accountability_edge", (ctx) => {
     const { graphId, from, to, edgeType, weight, evidence } = ctx.args || {};
     return addAccountabilityEdge(graphId, from, to, edgeType, weight, evidence);
   }, { public: true });
 
-  register("loaf", "compute_attribution", async (ctx) => {
+  register("loaf", "compute_attribution", (ctx) => {
     return computeAttribution(ctx.args?.graphId);
   }, { public: true });
 
-  register("loaf", "form_coalition", async (ctx) => {
+  register("loaf", "form_coalition", (ctx) => {
     const { name, motivation, members } = ctx.args || {};
     return formCoalition(name, motivation, members);
   }, { public: true });
 
-  register("loaf", "join_coalition", async (ctx) => {
+  register("loaf", "join_coalition", (ctx) => {
     const { coalitionId, actorId, motivation, stake } = ctx.args || {};
     return joinCoalition(coalitionId, actorId, motivation, stake);
   }, { public: true });
 
-  register("loaf", "register_cascade_monitor", async (ctx) => {
+  register("loaf", "register_cascade_monitor", (ctx) => {
     const { name, triggerCondition, severity } = ctx.args || {};
     return registerCascadeMonitor(name, triggerCondition, severity);
   }, { public: true });
 
-  register("loaf", "report_cascade_event", async (ctx) => {
+  register("loaf", "report_cascade_event", (ctx) => {
     return reportCascadeEvent(ctx.args?.event);
   }, { public: true });
 
-  register("loaf", "register_commitment", async (ctx) => {
+  register("loaf", "register_commitment", (ctx) => {
     const { actorId, commitment, deadline, verifiers } = ctx.args || {};
     return registerCommitment(actorId, commitment, deadline, verifiers);
   }, { public: true });
 
-  register("loaf", "transition_commitment", async (ctx) => {
+  register("loaf", "transition_commitment", (ctx) => {
     const { commitmentId, newState, actorId, evidence } = ctx.args || {};
     return transitionCommitment(commitmentId, newState, actorId, evidence);
   }, { public: true });
 
-  register("loaf", "detect_breaches", async (ctx) => {
+  register("loaf", "detect_breaches", (_ctx) => {
     return detectBreaches();
   }, { public: true });
 
-  register("loaf", "create_evidence_pool", async (ctx) => {
+  register("loaf", "create_evidence_pool", (ctx) => {
     const { name, contributors } = ctx.args || {};
     return createEvidencePool(name, contributors);
   }, { public: true });
 
-  register("loaf", "add_pool_evidence", async (ctx) => {
+  register("loaf", "add_pool_evidence", (ctx) => {
     const { poolId, actorId, evidence } = ctx.args || {};
     return addPoolEvidence(poolId, actorId, evidence);
   }, { public: true });
 
-  register("loaf", "start_replay", async (ctx) => {
+  register("loaf", "start_replay", (ctx) => {
     return startReplay(ctx.args?.protocolId);
   }, { public: true });
 
-  register("loaf", "record_replay_event", async (ctx) => {
+  register("loaf", "record_replay_event", (ctx) => {
     const { replayId, event } = ctx.args || {};
     return recordReplayEvent(replayId, event);
   }, { public: true });
 
-  register("loaf", "get_replay", async (ctx) => {
+  register("loaf", "get_replay", (ctx) => {
     return getReplay(ctx.args?.replayId);
   }, { public: true });
 
-  register("loaf", "generate_post_mortem", async (ctx) => {
+  register("loaf", "generate_post_mortem", (ctx) => {
     return generatePostMortem(ctx.args?.replayId);
   }, { public: true });
 
-  register("loaf", "coordination_health", async (ctx) => {
+  register("loaf", "coordination_health", (_ctx) => {
     return coordinationHealth();
   }, { public: true });
 }

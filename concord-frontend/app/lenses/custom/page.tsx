@@ -243,7 +243,7 @@ export default function CustomLensPage() {
           Lens Templates
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates?.templates?.map((template: any) => (
+          {templates?.templates?.map((template: Record<string, unknown>) => (
             <div key={template.id} className="lens-card">
               <span className="text-2xl">{template.icon}</span>
               <h4 className="font-semibold mt-2">{template.name}</h4>

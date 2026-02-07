@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -12,14 +12,12 @@ import {
   Copy,
   Check,
   RefreshCw,
-  ChevronDown,
   Brain,
   Zap,
   FileText,
   GitBranch,
   MessageSquare,
   Lightbulb,
-  Search,
   Wand2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,7 +41,7 @@ interface AIAssistPanelProps {
   className?: string;
 }
 
-const actionConfig: Record<AIAction, { icon: any; label: string; description: string }> = {
+const actionConfig: Record<AIAction, { icon: React.ElementType; label: string; description: string }> = {
   expand: { icon: Zap, label: 'Expand', description: 'Elaborate on the selected content' },
   summarize: { icon: FileText, label: 'Summarize', description: 'Create a concise summary' },
   question: { icon: MessageSquare, label: 'Question', description: 'Ask about this content' },
@@ -117,7 +115,7 @@ export function AIAssistPanel({
   };
 
   // Generate AI response (simulated)
-  const generateResponse = async (action: AIAction, content: string) => {
+  const generateResponse = async (action: AIAction, _content: string) => {
     setIsLoading(true);
 
     // Create placeholder message
@@ -389,8 +387,8 @@ export function useAIAssist() {
       setDtuContext(e.detail?.dtuContext);
       setIsOpen(true);
     };
-    document.addEventListener('toggle-ai-assist' as any, handler);
-    return () => document.removeEventListener('toggle-ai-assist' as any, handler);
+    document.addEventListener('toggle-ai-assist', handler as EventListener);
+    return () => document.removeEventListener('toggle-ai-assist', handler as EventListener);
   }, []);
 
   return {

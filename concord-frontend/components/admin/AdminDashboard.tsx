@@ -1,21 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
 import {
   Users,
   FileText,
-  Database,
   Activity,
-  TrendingUp,
   Shield,
   Settings,
   AlertTriangle,
   CheckCircle,
   Clock,
   HardDrive,
-  Cpu,
-  Wifi
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -119,7 +114,7 @@ export function AdminDashboard({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={cn(
                   'px-4 py-3 text-sm flex items-center gap-2 border-b-2 transition-colors',
                   activeTab === tab.id
@@ -293,7 +288,7 @@ function StatCard({
   title: string;
   value: string | number;
   change: string;
-  icon: any;
+  icon: React.ElementType;
   color: 'cyan' | 'purple' | 'green' | 'yellow';
 }) {
   const colors = {

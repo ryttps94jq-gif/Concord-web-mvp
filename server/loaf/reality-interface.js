@@ -468,7 +468,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.reality", "status", async (ctx) => {
+  register("loaf.reality", "status", (ctx) => {
     const ri = ctx.state.__loaf.realityInterface;
     return {
       ok: true,
@@ -482,93 +482,93 @@ function init({ register, STATE }) {
     };
   }, { public: true });
 
-  register("loaf.reality", "record_mismatch", async (ctx, input = {}) => {
+  register("loaf.reality", "record_mismatch", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.mismatchesRecorded++;
     return recordMismatch(input.prediction || {}, input.reality || {}, input.type, input.modelId);
   }, { public: false });
 
-  register("loaf.reality", "attribute_error", async (ctx, input = {}) => {
+  register("loaf.reality", "attribute_error", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.attributions++;
     return attributeError(String(input.mismatchId || ""), input.layer, input.explanation);
   }, { public: false });
 
-  register("loaf.reality", "register_abstraction", async (ctx, input = {}) => {
+  register("loaf.reality", "register_abstraction", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.abstractionsRegistered++;
     return registerAbstraction(input.name, input.domain, input.validityConditions);
   }, { public: false });
 
-  register("loaf.reality", "record_breakdown", async (ctx, input = {}) => {
+  register("loaf.reality", "record_breakdown", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.breakdowns++;
     return recordBreakdown(String(input.abstractionId || ""), input.context, input.failedCondition);
   }, { public: false });
 
-  register("loaf.reality", "create_feedback_loop", async (ctx, input = {}) => {
+  register("loaf.reality", "create_feedback_loop", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.feedbackLoops++;
     return createFeedbackLoop(input.claimId, input.prediction, input.domain);
   }, { public: false });
 
-  register("loaf.reality", "record_outcome", async (ctx, input = {}) => {
+  register("loaf.reality", "record_outcome", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.outcomes++;
     return recordOutcome(String(input.feedbackId || ""), input.outcome, input.matchesPrediction);
   }, { public: false });
 
-  register("loaf.reality", "apply_correction", async (ctx, input = {}) => {
+  register("loaf.reality", "apply_correction", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.corrections++;
     return applyCorrection(String(input.feedbackId || ""), input.correction);
   }, { public: false });
 
-  register("loaf.reality", "monitor_metric", async (ctx, input = {}) => {
+  register("loaf.reality", "monitor_metric", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.metricsMonitored++;
     return monitorMetric(input.name, input.target, input.domain);
   }, { public: false });
 
-  register("loaf.reality", "record_metric_value", async (ctx, input = {}) => {
+  register("loaf.reality", "record_metric_value", (_ctx, input = {}) => {
     return recordMetricValue(String(input.metricId || ""), input.value, input.context);
   }, { public: false });
 
-  register("loaf.reality", "detect_goodhart", async (ctx) => {
+  register("loaf.reality", "detect_goodhart", (ctx) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.goodhartScans++;
     return detectGoodhartPressure();
   }, { public: true });
 
-  register("loaf.reality", "register_typed_truth", async (ctx, input = {}) => {
+  register("loaf.reality", "register_typed_truth", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.typedTruths++;
     return registerTypedTruth(input.content, input.kind, input.domain, input.linkedActions);
   }, { public: false });
 
-  register("loaf.reality", "measure_intervention_impact", async (ctx, input = {}) => {
+  register("loaf.reality", "measure_intervention_impact", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.interventionMeasurements++;
     return measureInterventionImpact(input.interventions || []);
   }, { public: true });
 
-  register("loaf.reality", "validate_against_reality", async (ctx, input = {}) => {
+  register("loaf.reality", "validate_against_reality", (ctx, input = {}) => {
     const ri = ctx.state.__loaf.realityInterface;
     ri.stats.validations++;
     return validateAgainstReality(input.claims || [], input.observations || []);
   }, { public: true });
 
-  register("loaf.reality", "error_summary", async (ctx) => {
+  register("loaf.reality", "error_summary", (_ctx) => {
     return { ok: true, ...errorAttributionSummary() };
   }, { public: true });
 
-  register("loaf.reality", "list_mismatches", async (ctx, input = {}) => {
+  register("loaf.reality", "list_mismatches", (_ctx, input = {}) => {
     let list = Array.from(mismatches.values());
     if (input.type) list = list.filter(m => m.type === input.type);
     return { ok: true, mismatches: list.slice(-(Number(input.limit || 50))) };
   }, { public: true });
 
-  register("loaf.reality", "list_feedback_loops", async (ctx, input = {}) => {
+  register("loaf.reality", "list_feedback_loops", (_ctx, input = {}) => {
     let list = Array.from(feedbackLoops.values());
     if (input.status) list = list.filter(l => l.status === input.status);
     return { ok: true, feedbackLoops: list.slice(-(Number(input.limit || 50))) };

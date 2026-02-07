@@ -125,10 +125,10 @@ export default function GraphLensPage() {
     return Infinity;
   }, []);
 
-  const assignClusters = useCallback((nodes: GraphNode[], linksList: any[], k: number) => {
+  const assignClusters = useCallback((nodes: GraphNode[], linksList: unknown[], k: number) => {
     const adjacency = new Map<string, Set<string>>();
     nodes.forEach(n => adjacency.set(n.id, new Set()));
-    linksList.forEach((l: any) => {
+    linksList.forEach((l: Record<string, unknown>) => {
       adjacency.get(l.sourceId)?.add(l.targetId);
       adjacency.get(l.targetId)?.add(l.sourceId);
     });
@@ -156,7 +156,7 @@ export default function GraphLensPage() {
     const width = dimensions.width;
     const height = dimensions.height;
 
-    const nodes: GraphNode[] = dtuList.map((dtu: any, i: number) => {
+    const nodes: GraphNode[] = dtuList.map((dtu: Record<string, unknown>, i: number) => {
       let x, y;
       if (layoutMode === 'radial') {
         const angle = (2 * Math.PI * i) / dtuList.length;
@@ -181,7 +181,7 @@ export default function GraphLensPage() {
         x, y,
         vx: 0, vy: 0,
         fx: null, fy: null,
-        connections: linkList.filter((l: any) => l.sourceId === dtu.id || l.targetId === dtu.id).length,
+        connections: linkList.filter((l: Record<string, unknown>) => l.sourceId === dtu.id || l.targetId === dtu.id).length,
         tags: dtu.tags || [],
         createdAt: dtu.createdAt,
         content: dtu.content,
@@ -195,7 +195,7 @@ export default function GraphLensPage() {
     nodesRef.current = nodes;
     return {
       nodes,
-      edges: linkList.map((link: any) => ({
+      edges: linkList.map((link: Record<string, unknown>) => ({
         source: link.sourceId,
         target: link.targetId,
         weight: link.weight || 0.5,

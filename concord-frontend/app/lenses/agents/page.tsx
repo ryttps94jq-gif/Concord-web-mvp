@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Bot, Plus, Play, Power, Activity, Clock,
-  Settings, Zap, Users
+  Zap
 } from 'lucide-react';
 
 interface Agent {
@@ -15,7 +15,7 @@ interface Agent {
   name: string;
   type?: string;
   enabled?: boolean;
-  config?: any;
+  config?: Record<string, unknown>;
   lastTick?: string;
   status?: string;
 }

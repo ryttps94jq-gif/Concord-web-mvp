@@ -28,7 +28,7 @@ export default function IntegrationsLensPage() {
   });
 
   const createWebhookMutation = useMutation({
-    mutationFn: (data: any) => api.post('/api/webhooks', data),
+    mutationFn: (data: unknown) => api.post('/api/webhooks', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] });
       setShowCreate(false);
@@ -77,7 +77,7 @@ export default function IntegrationsLensPage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as unknown)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
               activeTab === tab.id
                 ? 'border-neon-green text-neon-green'
@@ -97,7 +97,7 @@ export default function IntegrationsLensPage() {
           {webhooks?.webhooks?.length === 0 ? (
             <EmptyState icon={<Webhook />} message="No webhooks configured" />
           ) : (
-            webhooks?.webhooks?.map((wh: any) => (
+            webhooks?.webhooks?.map((wh: Record<string, unknown>) => (
               <div key={wh.id} className="panel p-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{wh.name}</h3>
@@ -134,7 +134,7 @@ export default function IntegrationsLensPage() {
           {automations?.automations?.length === 0 ? (
             <EmptyState icon={<Zap />} message="No automations configured" />
           ) : (
-            automations?.automations?.map((auto: any) => (
+            automations?.automations?.map((auto: Record<string, unknown>) => (
               <div key={auto.id} className="panel p-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{auto.name}</h3>
@@ -160,7 +160,7 @@ export default function IntegrationsLensPage() {
 
       {activeTab === 'services' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {integrations?.integrations?.map((svc: any) => (
+          {integrations?.integrations?.map((svc: Record<string, unknown>) => (
             <div key={svc.id} className="panel p-4">
               <div className="flex items-center gap-3 mb-2">
                 {svc.id === 'vscode' && <Code className="w-6 h-6 text-blue-400" />}
@@ -201,7 +201,7 @@ function EmptyState({ icon, message }: { icon: React.ReactNode; message: string 
   );
 }
 
-function CreateWebhookModal({ onClose, onCreate, creating }: any) {
+function CreateWebhookModal({ onClose, onCreate, creating }: unknown) {
   const [form, setForm] = useState({ name: '', url: '', events: 'dtu.created' });
 
   return (

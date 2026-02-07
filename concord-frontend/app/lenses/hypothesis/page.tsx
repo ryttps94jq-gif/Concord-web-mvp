@@ -4,7 +4,6 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   FlaskConical, Plus, CheckCircle2, XCircle, Beaker,
   FileText, TrendingUp, ArrowRight
@@ -16,7 +15,7 @@ interface Hypothesis {
   domain?: string;
   status?: string;
   confidence?: number;
-  evidence?: any[];
+  evidence?: unknown[];
   createdAt?: string;
 }
 
@@ -30,7 +29,7 @@ export default function HypothesisLensPage() {
   const [newEvidence, setNewEvidence] = useState('');
   const [evidenceSupports, setEvidenceSupports] = useState(true);
 
-  const { data: hypothesesData, isLoading } = useQuery({
+  const { data: hypothesesData, isLoading: _isLoading } = useQuery({
     queryKey: ['hypotheses'],
     queryFn: () => apiHelpers.hypothesis.list().then((r) => r.data),
     refetchInterval: 10000,
@@ -202,7 +201,7 @@ export default function HypothesisLensPage() {
                     <div>
                       <h3 className="text-sm font-medium mb-2">Evidence</h3>
                       <div className="space-y-1 mb-3">
-                        {(h.evidence || []).map((e: any, i: number) => (
+                        {(h.evidence || []).map((e: Record<string, unknown>, i: number) => (
                           <div key={i} className={`lens-card text-xs border-l-4 ${
                             e.supports ? 'border-l-green-500' : 'border-l-red-500'
                           }`}>

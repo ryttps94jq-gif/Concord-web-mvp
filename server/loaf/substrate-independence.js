@@ -216,7 +216,7 @@ function computePortabilityScore(encoded, bounds) {
   let score = 1.0;
 
   // Universal bounds = most portable
-  const universalBounds = bounds.filter(b => b.type === CONTEXT_VALIDITY.UNIVERSAL);
+  const _universalBounds = bounds.filter(b => b.type === CONTEXT_VALIDITY.UNIVERSAL);
   const boundBounds = bounds.filter(b => b.type !== CONTEXT_VALIDITY.UNIVERSAL);
   if (boundBounds.length > 0) {
     score -= boundBounds.length * 0.15;
@@ -563,65 +563,65 @@ function consistencyReport() {
 // === MODULE INIT ===
 
 function init({ register }) {
-  register("loaf", "register_substrate", async (ctx) => {
+  register("loaf", "register_substrate", (ctx) => {
     const { name, capabilities, limitations } = ctx.args || {};
     return registerSubstrate(name, capabilities, limitations);
   }, { public: true });
 
-  register("loaf", "discover_capabilities", async (ctx) => {
+  register("loaf", "discover_capabilities", (_ctx) => {
     return discoverCapabilities();
   }, { public: true });
 
-  register("loaf", "encode_portable", async (ctx) => {
+  register("loaf", "encode_portable", (ctx) => {
     const { content, encoding, contextBounds } = ctx.args || {};
     return encodePortable(content, encoding, contextBounds);
   }, { public: true });
 
-  register("loaf", "check_context_validity", async (ctx) => {
+  register("loaf", "check_context_validity", (ctx) => {
     const { knowledgeId, context } = ctx.args || {};
     return checkContextValidity(knowledgeId, context || {});
   }, { public: true });
 
-  register("loaf", "translate_knowledge", async (ctx) => {
+  register("loaf", "translate_knowledge", (ctx) => {
     const { knowledgeId, fromSubstrate, toSubstrate } = ctx.args || {};
     return translateKnowledge(knowledgeId, fromSubstrate, toSubstrate);
   }, { public: true });
 
-  register("loaf", "register_invariant", async (ctx) => {
+  register("loaf", "register_invariant", (ctx) => {
     const { rule, description } = ctx.args || {};
     return registerInvariant(rule, description);
   }, { public: true });
 
-  register("loaf", "validate_invariant", async (ctx) => {
+  register("loaf", "validate_invariant", (ctx) => {
     const { invariantId, substrateId, holds } = ctx.args || {};
     return validateInvariant(invariantId, substrateId, holds);
   }, { public: true });
 
-  register("loaf", "register_adaptive_governance", async (ctx) => {
+  register("loaf", "register_adaptive_governance", (ctx) => {
     const { ruleName, baseRule, adaptations } = ctx.args || {};
     return registerAdaptiveGovernance(ruleName, baseRule, adaptations);
   }, { public: true });
 
-  register("loaf", "adapt_governance", async (ctx) => {
+  register("loaf", "adapt_governance", (ctx) => {
     const { governanceId, environment } = ctx.args || {};
     return adaptGovernance(governanceId, environment || {});
   }, { public: true });
 
-  register("loaf", "plan_substrate_migration", async (ctx) => {
+  register("loaf", "plan_substrate_migration", (ctx) => {
     const { fromSubstrate, toSubstrate, knowledgeIds } = ctx.args || {};
     return planSubstrateMigration(fromSubstrate, toSubstrate, knowledgeIds);
   }, { public: true });
 
-  register("loaf", "execute_substrate_migration", async (ctx) => {
+  register("loaf", "execute_substrate_migration", (ctx) => {
     return executeSubstrateMigration(ctx.args?.migrationId);
   }, { public: true });
 
-  register("loaf", "verify_portability", async (ctx) => {
+  register("loaf", "verify_portability", (ctx) => {
     const { knowledgeId, substrateIds } = ctx.args || {};
     return verifyPortability(knowledgeId, substrateIds || []);
   }, { public: true });
 
-  register("loaf", "consistency_report", async (ctx) => {
+  register("loaf", "consistency_report", (_ctx) => {
     return consistencyReport();
   }, { public: true });
 }

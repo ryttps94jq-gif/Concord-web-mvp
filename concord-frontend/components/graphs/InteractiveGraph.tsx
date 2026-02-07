@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import cytoscape, { Core, NodeSingular, EdgeSingular } from 'cytoscape';
+import { useEffect, useRef, useState } from 'react';
+import cytoscape, { Core } from 'cytoscape';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ZoomIn,
   ZoomOut,
   Maximize,
-  Filter,
   Download,
   RefreshCw,
   Eye,
   EyeOff,
-  Settings,
   Search,
-  Layers,
-  Move
+  Layers
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -87,7 +84,7 @@ const layoutConfigs = {
     name: 'concentric',
     animate: true,
     animationDuration: 300,
-    concentric: (node: any) => node.data('resonance') || 1,
+    concentric: (node: cytoscape.NodeSingular) => node.data('resonance') || 1,
     levelWidth: () => 2
   }
 };
@@ -102,7 +99,7 @@ export function InteractiveGraph({
   className,
   layout = 'force',
   showControls = true,
-  showMinimap = false
+  showMinimap: _showMinimap = false
 }: InteractiveGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -193,7 +190,7 @@ export function InteractiveGraph({
           }
         }
       ],
-      layout: layoutConfigs[currentLayout] as any,
+      layout: layoutConfigs[currentLayout] as cytoscape.LayoutOptions,
       minZoom: 0.2,
       maxZoom: 3,
       wheelSensitivity: 0.3
@@ -277,7 +274,7 @@ export function InteractiveGraph({
     ]);
 
     // Run layout
-    cy.layout(layoutConfigs[currentLayout] as any).run();
+    cy.layout(layoutConfigs[currentLayout] as cytoscape.LayoutOptions).run();
   }, [nodes, edges, filterTiers, currentLayout]);
 
   // Update selected node
@@ -318,7 +315,7 @@ export function InteractiveGraph({
   const handleZoomIn = () => cyRef.current?.zoom(cyRef.current.zoom() * 1.2);
   const handleZoomOut = () => cyRef.current?.zoom(cyRef.current.zoom() / 1.2);
   const handleFit = () => cyRef.current?.fit(undefined, 50);
-  const handleRefresh = () => cyRef.current?.layout(layoutConfigs[currentLayout] as any).run();
+  const handleRefresh = () => cyRef.current?.layout(layoutConfigs[currentLayout] as cytoscape.LayoutOptions).run();
 
   const handleExport = () => {
     const cy = cyRef.current;
@@ -413,7 +410,7 @@ export function InteractiveGraph({
             <Layers className="w-4 h-4 text-gray-400" />
             <select
               value={currentLayout}
-              onChange={(e) => setCurrentLayout(e.target.value as any)}
+              onChange={(e) => setCurrentLayout(e.target.value as typeof currentLayout)}
               className="bg-transparent text-sm text-white focus:outline-none cursor-pointer"
             >
               <option value="force">Force-directed</option>

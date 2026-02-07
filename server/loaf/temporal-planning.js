@@ -507,7 +507,7 @@ function init({ register, STATE }) {
     },
   };
 
-  register("loaf.temporal_planning", "status", async (ctx) => {
+  register("loaf.temporal_planning", "status", (ctx) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     return {
       ok: true,
@@ -520,84 +520,84 @@ function init({ register, STATE }) {
   }, { public: true });
 
   // Plan operations
-  register("loaf.temporal_planning", "create_plan", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "create_plan", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.plansCreated++;
     return createPlan(input.goal, input.steps, input.horizonMs, ctx.actor?.id);
   }, { public: false });
 
-  register("loaf.temporal_planning", "checkpoint", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "checkpoint", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.checkpoints++;
     return checkpoint(String(input.planId || ""), input.stateSnapshot, input.description);
   }, { public: false });
 
-  register("loaf.temporal_planning", "rollback", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "rollback", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.rollbacks++;
     return rollback(String(input.planId || ""), String(input.checkpointId || ""));
   }, { public: false });
 
   // Forecast operations
-  register("loaf.temporal_planning", "create_forecast", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "create_forecast", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.forecastsCreated++;
     return createForecast(input.prediction, input.confidence, input.horizonMs, input.decayModel);
   }, { public: false });
 
-  register("loaf.temporal_planning", "decay_forecast", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "decay_forecast", (_ctx, input = {}) => {
     return computeDecayedConfidence(String(input.forecastId || ""));
   }, { public: true });
 
   // World model operations
-  register("loaf.temporal_planning", "create_world_model", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "create_world_model", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.worldModelsCreated++;
     return createWorldModel(input.label, input.initialState, input.assumptions);
   }, { public: false });
 
-  register("loaf.temporal_planning", "apply_event", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "apply_event", (_ctx, input = {}) => {
     return applyWorldEvent(String(input.worldModelId || ""), input.event || {}, input.stateChanges);
   }, { public: false });
 
-  register("loaf.temporal_planning", "compare_worlds", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "compare_worlds", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.comparisons++;
     return compareWorldModels(String(input.modelIdA || ""), String(input.modelIdB || ""));
   }, { public: true });
 
   // Memory pruning
-  register("loaf.temporal_planning", "prune_memory", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "prune_memory", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.pruneOps++;
     return pruneWithLossGuarantee(input.items || [], Number(input.targetSize || 100), input.maxLoss);
   }, { public: false });
 
   // Cognitive diffing
-  register("loaf.temporal_planning", "cognitive_diff", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "cognitive_diff", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.diffs++;
     return { ok: true, diff: cognitiveDiff(input.stateA, input.stateB, input.labelA, input.labelB) };
   }, { public: true });
 
   // Governance self-healing
-  register("loaf.temporal_planning", "propose_governance_heal", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "propose_governance_heal", (ctx, input = {}) => {
     const tp = ctx.state.__loaf.temporalPlanning;
     tp.stats.governanceHeals++;
     return proposeGovernanceHeal(input.failure || input);
   }, { public: false });
 
-  register("loaf.temporal_planning", "list_plans", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "list_plans", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     return { ok: true, plans: Array.from(plans.values()).slice(-limit).map(sanitizePlan) };
   }, { public: true });
 
-  register("loaf.temporal_planning", "list_forecasts", async (ctx, input = {}) => {
+  register("loaf.temporal_planning", "list_forecasts", (_ctx, input = {}) => {
     const limit = Math.min(Number(input.limit || 50), 200);
     return { ok: true, forecasts: Array.from(forecasts.values()).slice(-limit) };
   }, { public: true });
 
-  register("loaf.temporal_planning", "list_world_models", async (ctx) => {
+  register("loaf.temporal_planning", "list_world_models", (_ctx) => {
     return { ok: true, worldModels: Array.from(worldModels.values()).map(sanitizeWorldModel) };
   }, { public: true });
 }

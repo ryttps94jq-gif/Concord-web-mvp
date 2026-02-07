@@ -196,7 +196,7 @@ interface PaneHeaderProps {
   isMaximized?: boolean;
 }
 
-function PaneHeader({ title, onClose, onCollapse, onMaximize, isMaximized }: PaneHeaderProps) {
+function PaneHeader({ title, _onClose, onCollapse, onMaximize, isMaximized }: PaneHeaderProps) {
   return (
     <div className="absolute top-0 left-0 right-0 h-10 flex items-center justify-between px-3 bg-lattice-surface border-b border-lattice-border z-10">
       <span className="text-sm font-medium text-gray-300 truncate">{title}</span>
@@ -242,7 +242,7 @@ interface MultiPaneLayoutProps {
 }
 
 export function MultiPaneLayout({ panes, direction = 'horizontal', className }: MultiPaneLayoutProps) {
-  const [sizes, setSizes] = useState<number[]>(
+  const [sizes, _setSizes] = useState<number[]>(
     panes.map(p => p.defaultSize ?? 100 / panes.length)
   );
 
@@ -293,9 +293,9 @@ interface WorkspaceLayoutProps {
   className?: string;
 }
 
-export function WorkspaceLayout({ panes, onClosePane, onSplitPane, className }: WorkspaceLayoutProps) {
+export function WorkspaceLayout({ panes, onClosePane, _onSplitPane, className }: WorkspaceLayoutProps) {
   const [activePaneId, setActivePaneId] = useState(panes[0]?.id);
-  const [layout, setLayout] = useState<'single' | 'split-h' | 'split-v'>('single');
+  const [_layout, _setLayout] = useState<'single' | 'split-h' | 'split-v'>('single');
 
   const activePane = panes.find(p => p.id === activePaneId);
 

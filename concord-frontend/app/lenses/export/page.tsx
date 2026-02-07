@@ -126,7 +126,7 @@ export default function ExportLensPage() {
           {formats.map((fmt) => (
             <button
               key={fmt.id}
-              onClick={() => setSelectedFormat(fmt.id as any)}
+              onClick={() => setSelectedFormat(fmt.id as unknown)}
               className={`flex-1 lens-card ${
                 selectedFormat === fmt.id ? 'border-neon-purple ring-1 ring-neon-purple' : ''
               }`}

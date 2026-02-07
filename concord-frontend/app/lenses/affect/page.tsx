@@ -2,13 +2,13 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, apiHelpers } from '@/lib/api/client';
+import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Heart, Activity, Shield, Brain, Zap, Battery,
-  Users, RefreshCw, Send, AlertTriangle, TrendingUp,
-  TrendingDown, Minus, BarChart3
+  Users, RefreshCw, Send, AlertTriangle,
+  BarChart3
 } from 'lucide-react';
 
 type AffectDim = { key: string; label: string; icon: React.ReactNode; color: string };
@@ -38,7 +38,7 @@ export default function AffectLensPage() {
   const [intensity, setIntensity] = useState(0.5);
   const [polarity, setPolarity] = useState(0.0);
 
-  const { data: state, isLoading: stateLoading } = useQuery({
+  const { data: state, isLoading: _stateLoading } = useQuery({
     queryKey: ['affect-state', sessionId],
     queryFn: () => apiHelpers.affect.state(sessionId).then((r) => r.data),
     refetchInterval: 3000,
@@ -239,7 +239,7 @@ export default function AffectLensPage() {
             Recent Events
           </h2>
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {(events?.events || events || []).slice?.(-15)?.reverse?.()?.map?.((evt: any, i: number) => (
+            {(events?.events || events || []).slice?.(-15)?.reverse?.()?.map?.((evt: Record<string, unknown>, i: number) => (
               <div key={i} className="lens-card text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-medium">{evt.type}</span>

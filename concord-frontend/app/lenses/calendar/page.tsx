@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin,
-  Plus, X, Edit2, Trash2, Bell, Repeat, Users, Tag, MoreHorizontal,
-  Search, Filter, Download, Upload, Settings, Check, Link, Video,
-  Globe, Lock, Eye, EyeOff, ChevronDown, Grip, ExternalLink
+  Plus, X, Edit2, Trash2, Bell, Repeat, Users,
+  Search, Settings, Check, Video,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -171,7 +170,7 @@ const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
 
 export default function CalendarLensPage() {
   useLensNav('calendar');
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -182,7 +181,7 @@ export default function CalendarLensPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [_searchQuery, _setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
 
   // New event form
@@ -245,7 +244,7 @@ export default function CalendarLensPage() {
   const getEventsForDay = (date: Date) => {
     return events.filter((event) => {
       const eventStart = new Date(event.startDate);
-      const eventEnd = new Date(event.endDate);
+      const _eventEnd = new Date(event.endDate);
       const categoryVisible = categories.find((c) => c.name === event.category)?.visible ?? true;
 
       if (!categoryVisible) return false;

@@ -1,14 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion, Reorder } from 'framer-motion';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Plus,
-  MoreHorizontal,
   GripVertical,
   Trash2,
-  Edit2,
-  Tag,
   Clock,
   User
 } from 'lucide-react';
@@ -48,7 +45,7 @@ export function KanbanBoard({
   columns,
   onMoveCard,
   onAddCard,
-  onUpdateCard,
+  onUpdateCard: _onUpdateCard,
   onDeleteCard,
   onAddColumn,
   onDeleteColumn,
@@ -190,7 +187,7 @@ export function KanbanBoard({
             )}
 
             {/* Cards */}
-            {column.cards.map((card, index) => (
+            {column.cards.map((card, _index) => (
               <motion.div
                 key={card.id}
                 layout

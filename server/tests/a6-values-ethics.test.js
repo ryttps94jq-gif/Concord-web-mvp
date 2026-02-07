@@ -13,7 +13,7 @@ import assert from 'node:assert';
 
 import { createState, createMomentum, applyEvent, applyDecay } from '../affect/engine.js';
 import { getAffectPolicy } from '../affect/policy.js';
-import { projectLabel, projectToneTags } from '../affect/projection.js';
+import { projectLabel, projectToneTags as _projectToneTags } from '../affect/projection.js';
 import { BASELINE, DIMS, BOUNDS } from '../affect/defaults.js';
 import { emitAffectEvent, getAffectState, resetAffect, deleteSession } from '../affect/index.js';
 
