@@ -1,13 +1,18 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { Scale, Gavel, FileText, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Scale, Gavel, FileText, CheckCircle, XCircle, AlertTriangle, Plus } from 'lucide-react';
 
 export default function LawLensPage() {
   useLensNav('law');
   const [testProposal, setTestProposal] = useState('');
   const [gateResult, setGateResult] = useState<{ passed: boolean; reasons: string[] } | null>(null);
+  const [newCaseTitle, setNewCaseTitle] = useState('');
+
+  // Lens artifact persistence layer
+  const { items: caseItems, create: createCase } = useLensData('law', 'case', { noSeed: true });
 
   const legalFrameworks = [
     { id: 'gdpr', name: 'GDPR', status: 'compliant', description: 'EU data protection' },
@@ -15,6 +20,12 @@ export default function LawLensPage() {
     { id: 'ai-act', name: 'EU AI Act', status: 'review', description: 'AI regulations' },
     { id: 'dmca', name: 'DMCA', status: 'compliant', description: 'Copyright law' },
   ];
+
+  const handleCreateCase = () => {
+    if (!newCaseTitle.trim()) return;
+    createCase({ title: newCaseTitle, data: { jurisdiction: 'US', frameworks: ['GDPR', 'CCPA', 'DMCA'] }, meta: { status: 'open' } });
+    setNewCaseTitle('');
+  };
 
   const handleGateCheck = () => {
     const lower = testProposal.toLowerCase();
@@ -108,6 +119,48 @@ export default function LawLensPage() {
             </ul>
           </div>
         )}
+      </div>
+
+      {/* Case Files */}
+      <div className="panel p-4">
+        <h2 className="font-semibold mb-4 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-neon-cyan" />
+          Case Files
+        </h2>
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={newCaseTitle}
+            onChange={(e) => setNewCaseTitle(e.target.value)}
+            placeholder="New case file title..."
+            className="input-lattice flex-1"
+          />
+          <button onClick={handleCreateCase} className="btn-neon purple">
+            <Plus className="w-4 h-4 mr-1 inline" />
+            Create
+          </button>
+        </div>
+        <div className="space-y-2">
+          {caseItems.length === 0 ? (
+            <p className="text-center py-4 text-gray-500 text-sm">No case files yet</p>
+          ) : (
+            caseItems.map((item) => (
+              <div key={item.id} className="lens-card">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">{item.title}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    item.meta?.status === 'open' ? 'bg-blue-400/20 text-blue-400' : 'bg-green-400/20 text-green-400'
+                  }`}>
+                    {item.meta?.status || 'draft'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Created {new Date(item.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Frameworks */}

@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Scale, Users, MessageSquare, Sparkles } from 'lucide-react';
 
@@ -57,6 +58,9 @@ export default function CouncilLensPage() {
       queryClient.invalidateQueries({ queryKey: ['dtus'] });
     },
   });
+
+  // Lens artifact persistence layer
+  const { items: _proposalArtifacts, create: _createProposal } = useLensData('council', 'proposal', { noSeed: true });
 
   const personas: Persona[] = personasData?.personas || [];
   const dtus: DTU[] = dtusData?.dtus?.slice(0, 50) || [];

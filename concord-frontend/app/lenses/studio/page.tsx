@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Music,
@@ -106,6 +107,9 @@ const _TRACK_COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#
 export default function StudioLensPage() {
   useLensNav('studio');
   const queryClient = useQueryClient();
+
+  // Lens artifact persistence layer
+  const { items: _projectArtifacts, create: _createProjectArtifact } = useLensData('studio', 'project', { noSeed: true });
 
   const [studioView, setStudioView] = useState<StudioView>('arrange');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);

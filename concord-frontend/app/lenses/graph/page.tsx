@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ZoomIn, ZoomOut, RotateCcw, Search, Eye, EyeOff,
@@ -177,6 +178,9 @@ export default function GraphLensPage() {
   const [foundPath, setFoundPath] = useState<string[]>([]);
   const [showEdgeTypes, setShowEdgeTypes] = useState(true);
   const [clusterCount, setClusterCount] = useState(5);
+
+  // Lens artifact persistence layer
+  const { items: _entityArtifacts, create: _createEntity } = useLensData('graph', 'entity', { noSeed: true });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const [showLegend, setShowLegend] = useState(true);
 

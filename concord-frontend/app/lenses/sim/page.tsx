@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Play, Sliders, Zap, Clock, Target } from 'lucide-react';
 
@@ -33,6 +34,9 @@ export default function SimLensPage() {
       setAssumptions('');
     },
   });
+
+  // Lens artifact persistence layer
+  const { items: _scenarioArtifacts, create: _createScenario } = useLensData('sim', 'scenario', { noSeed: true });
 
   const sims = simulations?.simulations || [];
 

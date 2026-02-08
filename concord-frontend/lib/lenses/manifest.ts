@@ -186,10 +186,10 @@ export const LENS_MANIFESTS: LensManifest[] = [
   {
     domain: 'agents',
     label: 'Agents',
-    artifacts: ['agent', 'memory', 'log'],
-    macros: { list: 'lens.agents.list', get: 'lens.agents.get', create: 'lens.agents.create', update: 'lens.agents.update', run: 'lens.agents.run' },
+    artifacts: ['agent', 'role', 'task', 'deliberation', 'decision'],
+    macros: { list: 'lens.agents.list', get: 'lens.agents.get', create: 'lens.agents.create', update: 'lens.agents.update', delete: 'lens.agents.delete', run: 'lens.agents.run', export: 'lens.agents.export' },
     exports: ['json'],
-    actions: ['start', 'stop', 'reset', 'configure'],
+    actions: ['start', 'stop', 'reset', 'configure', 'deliberate', 'arbitrate'],
     category: 'knowledge',
   },
   {
@@ -201,15 +201,84 @@ export const LENS_MANIFESTS: LensManifest[] = [
     actions: ['branch', 'merge', 'summarize'],
     category: 'knowledge',
   },
+  {
+    domain: 'paper',
+    label: 'Paper',
+    artifacts: ['project', 'claim', 'hypothesis', 'evidence', 'experiment', 'synthesis'],
+    macros: { list: 'lens.paper.list', get: 'lens.paper.get', create: 'lens.paper.create', update: 'lens.paper.update', delete: 'lens.paper.delete', run: 'lens.paper.run', export: 'lens.paper.export' },
+    exports: ['json', 'md'],
+    actions: ['validate', 'synthesize', 'detect-contradictions', 'trace-lineage'],
+    category: 'knowledge',
+  },
+  {
+    domain: 'reasoning',
+    label: 'Reasoning',
+    artifacts: ['chain', 'premise', 'inference', 'conclusion'],
+    macros: { list: 'lens.reasoning.list', get: 'lens.reasoning.get', create: 'lens.reasoning.create', update: 'lens.reasoning.update', delete: 'lens.reasoning.delete', run: 'lens.reasoning.run', export: 'lens.reasoning.export' },
+    exports: ['json'],
+    actions: ['validate', 'trace', 'conclude', 'fork'],
+    category: 'knowledge',
+  },
+  {
+    domain: 'graph',
+    label: 'Graph',
+    artifacts: ['entity', 'relation', 'assertion', 'source'],
+    macros: { list: 'lens.graph.list', get: 'lens.graph.get', create: 'lens.graph.create', update: 'lens.graph.update', delete: 'lens.graph.delete', run: 'lens.graph.run', export: 'lens.graph.export' },
+    exports: ['json', 'csv', 'graphml'],
+    actions: ['query', 'cluster', 'analyze', 'merge'],
+    category: 'knowledge',
+  },
+
+  // === GOVERNANCE ===
+  {
+    domain: 'council',
+    label: 'Council',
+    artifacts: ['proposal', 'vote', 'budget', 'project', 'audit'],
+    macros: { list: 'lens.council.list', get: 'lens.council.get', create: 'lens.council.create', update: 'lens.council.update', delete: 'lens.council.delete', run: 'lens.council.run', export: 'lens.council.export' },
+    exports: ['json', 'csv'],
+    actions: ['debate', 'vote', 'simulate-budget', 'audit'],
+    category: 'social',
+  },
+  {
+    domain: 'law',
+    label: 'Law',
+    artifacts: ['case', 'clause', 'draft', 'precedent'],
+    macros: { list: 'lens.law.list', get: 'lens.law.get', create: 'lens.law.create', update: 'lens.law.update', delete: 'lens.law.delete', run: 'lens.law.run', export: 'lens.law.export' },
+    exports: ['json', 'md'],
+    actions: ['check-compliance', 'analyze', 'draft', 'cite'],
+    category: 'social',
+  },
+
+  // === SIMULATION ===
+  {
+    domain: 'sim',
+    label: 'Sim',
+    artifacts: ['scenario', 'assumption', 'run', 'outcome'],
+    macros: { list: 'lens.sim.list', get: 'lens.sim.get', create: 'lens.sim.create', update: 'lens.sim.update', delete: 'lens.sim.delete', run: 'lens.sim.run', export: 'lens.sim.export' },
+    exports: ['json', 'csv'],
+    actions: ['simulate', 'analyze', 'compare', 'archive'],
+    category: 'system',
+  },
+
+  // === COLLABORATION ===
+  {
+    domain: 'whiteboard',
+    label: 'Whiteboard',
+    artifacts: ['board', 'element', 'connection', 'comment'],
+    macros: { list: 'lens.whiteboard.list', get: 'lens.whiteboard.get', create: 'lens.whiteboard.create', update: 'lens.whiteboard.update', delete: 'lens.whiteboard.delete', run: 'lens.whiteboard.run', export: 'lens.whiteboard.export' },
+    exports: ['json', 'png', 'svg'],
+    actions: ['render', 'layout', 'collaborate', 'snapshot'],
+    category: 'creative',
+  },
 
   // === SYSTEM ===
   {
     domain: 'database',
     label: 'Database',
-    artifacts: ['query', 'snapshot'],
-    macros: { list: 'lens.database.list', get: 'lens.database.get', create: 'lens.database.create', update: 'lens.database.update', run: 'lens.database.run', export: 'lens.database.export' },
-    exports: ['json', 'csv'],
-    actions: ['query', 'analyze', 'optimize'],
+    artifacts: ['query', 'snapshot', 'table', 'view'],
+    macros: { list: 'lens.database.list', get: 'lens.database.get', create: 'lens.database.create', update: 'lens.database.update', delete: 'lens.database.delete', run: 'lens.database.run', export: 'lens.database.export' },
+    exports: ['json', 'csv', 'sql'],
+    actions: ['query', 'analyze', 'optimize', 'schema-inspect'],
     category: 'system',
   },
   {
