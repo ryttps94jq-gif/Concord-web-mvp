@@ -1,7 +1,7 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -170,7 +170,7 @@ function avatarColor(name: string): string {
 export default function BoardLensPage() {
   useLensNav('board');
 
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [tasks, setTasks] = useState<Task[]>(buildDemoTasks);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('board');

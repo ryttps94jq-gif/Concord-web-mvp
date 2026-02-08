@@ -13,23 +13,14 @@ import {
   Circle,
   Plus,
   Trash2,
-  Volume2,
-  VolumeX,
   Sliders,
   Mic2,
   Piano,
   Guitar,
   Drum,
   Waves,
-  Settings,
   Save,
-  FolderOpen,
   Download,
-  Upload,
-  Wand2,
-  ChevronDown,
-  ChevronRight,
-  MoreHorizontal,
   X,
   Headphones,
   Radio,
@@ -38,9 +29,6 @@ import {
   Activity,
   Layers,
   Clock,
-  GitBranch,
-  Users,
-  MessageSquare,
   Sparkles,
   Brain,
   BookOpen,
@@ -113,7 +101,7 @@ interface Instrument {
   params: string[];
 }
 
-const TRACK_COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6'];
+const _TRACK_COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6'];
 
 export default function StudioLensPage() {
   useLensNav('studio');
@@ -125,7 +113,7 @@ export default function StudioLensPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showAddTrack, setShowAddTrack] = useState(false);
-  const [showEffects, setShowEffects] = useState(false);
+  const [_showEffects, setShowEffects] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
 
@@ -316,7 +304,7 @@ export default function StudioLensPage() {
 
       {/* Tracks */}
       <div className="flex-1 overflow-auto">
-        {proj?.tracks?.map((track: Track, idx: number) => (
+        {proj?.tracks?.map((track: Track, _idx: number) => (
           <div key={track.id} className={cn('flex border-b border-white/5 hover:bg-white/[0.02]', selectedTrackId === track.id && 'bg-white/5')}>
             {/* Track header */}
             <div className="w-48 flex-shrink-0 p-2 border-r border-white/10 bg-black/30" onClick={() => setSelectedTrackId(track.id)}>

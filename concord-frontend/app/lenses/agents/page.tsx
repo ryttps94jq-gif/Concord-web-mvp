@@ -3,15 +3,15 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot, Plus, Play, Power, Activity, Clock, Zap, Settings, Search,
-  Terminal, Eye, Trash2, RefreshCw, ChevronRight, BarChart3,
-  Code, MessageSquare, Brain, Shield, Cpu, Network, AlertTriangle,
-  CheckCircle, XCircle, Pause, MoreHorizontal, Copy, Edit3,
-  ArrowRight, Workflow, Database, GitBranch, Globe, Lock,
-  Layers, TrendingUp, Hash, Filter, SlidersHorizontal
+  Terminal, Eye, ChevronRight, BarChart3,
+  Code, Brain, Shield, Cpu,
+  CheckCircle, XCircle,
+  Workflow, Database,
+  Layers, TrendingUp,
 } from 'lucide-react';
 
 // --- Types ---
@@ -175,7 +175,7 @@ export default function AgentsLensPage() {
   useLensNav('agents');
 
   const queryClient = useQueryClient();
-  const [view, setView] = useState<ViewMode>('dashboard');
+  const [_view, setView] = useState<ViewMode>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState<AgentFilter>('all');

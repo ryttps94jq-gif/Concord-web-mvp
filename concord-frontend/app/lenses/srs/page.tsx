@@ -3,14 +3,14 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, Clock, CheckCircle2, Brain, TrendingUp, Plus, Search,
-  FolderOpen, BarChart3, Settings, Shuffle, Eye, EyeOff, Trash2,
-  Edit3, Star, Filter, ChevronDown, ChevronRight, RotateCcw,
+  FolderOpen, BarChart3, Trash2,
+  Star, RotateCcw,
   Zap, Target, Award, Layers, Tag, Calendar, ArrowRight,
-  Play, Pause, Volume2, XCircle, GripVertical, Hash
+  Play, XCircle,
 } from 'lucide-react';
 
 // --- Types ---
@@ -47,7 +47,7 @@ type ViewMode = 'study' | 'decks' | 'browse' | 'stats' | 'create';
 type StudyMode = 'normal' | 'cram' | 'reverse' | 'quiz';
 
 // --- SM-2 Algorithm (client-side) ---
-function sm2(item: SRSItem, quality: number): { interval: number; easiness: number; repetitions: number } {
+function _sm2(item: SRSItem, quality: number): { interval: number; easiness: number; repetitions: number } {
   let { easiness = 2.5, repetitions = 0, interval = 1 } = item;
 
   if (quality >= 3) {

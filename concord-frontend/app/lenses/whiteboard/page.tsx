@@ -28,11 +28,9 @@ import {
   Grid3X3,
   Move,
   Music,
-  Image,
+  Image as ImageIcon,
   StickyNote,
   Bookmark,
-  Play,
-  Pause,
   LayoutGrid,
   Clock,
   ChevronDown,
@@ -684,7 +682,7 @@ export default function WhiteboardLensPage() {
     { id: 'text', icon: Type, label: 'Text', key: 'T' },
     { id: 'dtu', icon: Link2, label: 'Link DTU', key: 'D' },
     { id: 'audio', icon: Music, label: 'Audio Pin', key: '' },
-    { id: 'image', icon: Image, label: 'Image Pin', key: '' },
+    { id: 'image', icon: ImageIcon, label: 'Image Pin', key: '' },
     { id: 'notecard', icon: StickyNote, label: 'Note Card', key: '' },
     { id: 'section', icon: Bookmark, label: 'Section Marker', key: '' },
   ];
@@ -968,7 +966,7 @@ export default function WhiteboardLensPage() {
                       <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
                         className="bg-lattice-surface border border-lattice-border rounded-lg p-5 w-80">
                         <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold flex items-center gap-2"><Image className="w-4 h-4 text-amber-400" />Pin Image Reference</h3>
+                          <h3 className="font-semibold flex items-center gap-2"><ImageIcon className="w-4 h-4 text-amber-400" />Pin Image Reference</h3>
                           <button onClick={() => { setShowImageDialog(false); setTextPosition(null); }}><X className="w-5 h-5" /></button>
                         </div>
                         <input type="text" placeholder="Label (e.g. Album Cover Ref)" value={imageLabel}
@@ -1175,7 +1173,7 @@ export default function WhiteboardLensPage() {
                               </div>
                             ) : item.kind === 'image' ? (
                               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
-                                <Image className="w-3 h-3 text-amber-400" />
+                                <ImageIcon className="w-3 h-3 text-amber-400" />
                                 <span className="text-xs text-amber-400">{item.value}</span>
                               </div>
                             ) : (

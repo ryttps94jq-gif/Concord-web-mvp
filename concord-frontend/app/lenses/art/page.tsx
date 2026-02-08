@@ -7,7 +7,7 @@ import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Palette,
-  Image,
+  Image as ImageIcon,
   Upload,
   Plus,
   Grid,
@@ -18,12 +18,10 @@ import {
   Share2,
   Filter,
   Search,
-  Tag,
   Eye,
   ShoppingBag,
   DollarSign,
   X,
-  ChevronDown,
   Brush,
   Droplets,
   Pen,
@@ -105,11 +103,11 @@ export default function ArtLensPage() {
   // Listing form
   const [listingTitle, setListingTitle] = useState('');
   const [listingType, setListingType] = useState('cover-art');
-  const [listingStyle, setListingStyle] = useState('digital');
+  const [listingStyle, _setListingStyle] = useState('digital');
   const [listingPrice, setListingPrice] = useState('50');
   const [listingTags, setListingTags] = useState('');
 
-  const { data: artAssets, isLoading: assetsLoading } = useQuery({
+  const { data: artAssets, isLoading: _assetsLoading } = useQuery({
     queryKey: ['art-assets', selectedStyle, searchQuery],
     queryFn: () => api.get('/api/artistry/assets', {
       params: { type: 'artwork', search: searchQuery || undefined }
@@ -239,7 +237,7 @@ export default function ArtLensPage() {
               className="group relative rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-neon-pink/30 transition-colors cursor-pointer"
             >
               <div className="aspect-square bg-gradient-to-br from-purple-600/30 to-pink-600/30 flex items-center justify-center">
-                <Image className="w-16 h-16 opacity-30" />
+                <ImageIcon className="w-16 h-16 opacity-30" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -256,7 +254,7 @@ export default function ArtLensPage() {
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="rounded-xl overflow-hidden bg-white/5 border border-white/10">
                 <div className="aspect-square flex items-center justify-center" style={{ background: `linear-gradient(135deg, hsl(${i * 45}, 60%, 25%), hsl(${i * 45 + 60}, 60%, 20%))` }}>
-                  <Image className="w-12 h-12 opacity-20" />
+                  <ImageIcon className="w-12 h-12 opacity-20" />
                 </div>
                 <div className="p-3">
                   <p className="font-medium text-sm text-gray-300">{['Neon Dreams', 'Digital Horizons', 'Abstract Flow', 'Cosmic Pulse', 'Neural Art', 'Pixel Paradise', 'Wave Form', 'Fractal Mind'][i]}</p>
@@ -458,7 +456,7 @@ export default function ArtLensPage() {
         {(artListings as ArtListing[]).length > 0 ? (artListings as ArtListing[]).map((listing: ArtListing) => (
           <div key={listing.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden hover:border-neon-pink/30 transition-colors">
             <div className="aspect-[4/3] bg-gradient-to-br from-purple-600/20 to-pink-600/20 flex items-center justify-center">
-              <Image className="w-12 h-12 opacity-20" />
+              <ImageIcon className="w-12 h-12 opacity-20" />
             </div>
             <div className="p-4">
               <h3 className="font-medium">{listing.title}</h3>
@@ -476,7 +474,7 @@ export default function ArtLensPage() {
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
               <div className="aspect-[4/3] flex items-center justify-center" style={{ background: `linear-gradient(135deg, hsl(${i * 60}, 50%, 20%), hsl(${i * 60 + 30}, 50%, 15%))` }}>
-                <Image className="w-10 h-10 opacity-20" />
+                <ImageIcon className="w-10 h-10 opacity-20" />
               </div>
               <div className="p-4">
                 <h3 className="font-medium text-gray-300">{['Album Cover Pack', 'Neon Logo Kit', 'Abstract Backgrounds', 'Character Set', 'Social Media Kit', 'Poster Templates'][i]}</h3>
@@ -514,7 +512,7 @@ export default function ArtLensPage() {
         {(artAssets as ArtAsset[]).filter((a: ArtAsset) => a.type === 'artwork').map((art: ArtAsset) => (
           <div key={art.id} className="aspect-square rounded-xl bg-white/5 border border-white/10 overflow-hidden group relative cursor-pointer hover:border-neon-pink/30">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-pink-600/20 flex items-center justify-center">
-              <Image className="w-10 h-10 opacity-20" />
+              <ImageIcon className="w-10 h-10 opacity-20" />
             </div>
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
               <span className="text-sm font-medium">{art.title}</span>

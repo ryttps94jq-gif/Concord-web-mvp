@@ -4,7 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { DailyNotes } from '@/components/daily/DailyNotes';
+import { DailyNotes as _DailyNotes } from '@/components/daily/DailyNotes';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell, Plus, Sparkles, CheckCircle2, Clock, Play, Square, RotateCcw,
@@ -143,11 +143,11 @@ export default function DailyLensPage() {
     queryKey: ['daily-notes'],
     queryFn: () => apiHelpers.daily.list().then((r) => r.data),
   });
-  const { data: currentData } = useQuery({
+  const { data: _currentData } = useQuery({
     queryKey: ['daily-current'],
     queryFn: () => apiHelpers.daily.get().then((r) => r.data),
   });
-  const { data: dueReminders } = useQuery({
+  const { data: _dueReminders } = useQuery({
     queryKey: ['reminders-due'],
     queryFn: () => apiHelpers.daily.dueReminders().then((r) => r.data),
     refetchInterval: 60000,
@@ -164,7 +164,7 @@ export default function DailyLensPage() {
     mutationFn: (id: string) => apiHelpers.daily.completeReminder(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reminders-due'] }),
   });
-  const notes = useMemo(() => {
+  const _notes = useMemo(() => {
     const raw = dailyData?.notes || dailyData || [];
     return Array.isArray(raw) ? raw : [];
   }, [dailyData]);

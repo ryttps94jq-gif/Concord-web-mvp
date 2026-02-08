@@ -6,12 +6,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Trophy, Star, Zap, Target, Users, Shield, Swords, Crown,
-  Flame, TrendingUp, Gift, ShoppingBag, Award, Lock, Unlock,
-  ChevronRight, ChevronDown, Plus, X, Check, Clock, Calendar,
-  BarChart3, Sparkles, Gem, Music, Headphones, Mic2, Radio,
-  Volume2, Disc3, Brain, Layers, GitBranch, BookOpen, Cpu,
-  Gauge, Activity, Heart, CircleDot, ArrowUp, RefreshCw,
+  Trophy, Star, Zap, Target, Users, Swords, Crown,
+  Flame, TrendingUp, ShoppingBag, Lock, Unlock,
+  ChevronRight, ChevronDown, Plus, X, Check, Clock,
+  BarChart3, Sparkles, Gem, Music, Headphones,
+  GitBranch, BookOpen, Cpu,
+  Activity, ArrowUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -231,7 +231,7 @@ const difficultyStyle: Record<string, string> = {
   hard: 'bg-neon-pink/20 text-neon-pink',
 };
 
-function xpForLevel(lv: number) {
+function _xpForLevel(lv: number) {
   return lv * 1000 + (lv > 10 ? (lv - 10) * 500 : 0);
 }
 
@@ -256,13 +256,13 @@ export default function GameLensPage() {
   const [questFilter, setQuestFilter] = useState<'all' | 'daily' | 'weekly' | 'challenge'>('all');
 
   // API queries -- fall back to demo data when backend is unavailable
-  const { data: profileData } = useQuery({
+  const { data: _profileData } = useQuery({
     queryKey: ['game-profile'],
     queryFn: () => api.get('/api/game/profile').then((r) => r.data),
     retry: false,
   });
 
-  const { data: serverAchievements } = useQuery({
+  const { data: _serverAchievements } = useQuery({
     queryKey: ['game-achievements'],
     queryFn: () => api.get('/api/game/achievements').then((r) => r.data),
     retry: false,

@@ -28,20 +28,14 @@ import {
   MessageSquare,
   Check,
   XCircle,
-  ChevronRight,
   Crown,
-  Headphones,
-  Sliders,
   Radio,
   Hash,
   FileAudio,
   Paperclip,
-  CircleDot,
   Timer,
-  Star,
   Archive,
   Search,
-  Filter,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -343,7 +337,7 @@ function formatTimestamp(ts: number): string {
 
 export default function CollabLensPage() {
   useLensNav('collab');
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<MainTab>('active');
   const [filterPill, setFilterPill] = useState<FilterPill>('all');
@@ -352,14 +346,14 @@ export default function CollabLensPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Queries -- fall back to demo data
-  const { data: sessionsData } = useQuery({
+  const { data: _sessionsData } = useQuery({
     queryKey: ['artistry-collab-sessions'],
     queryFn: () => api.get('/api/artistry/collab/sessions').then(r => r.data),
     refetchInterval: 8000,
     retry: 1,
   });
 
-  const { data: collabData } = useQuery({
+  const { data: _collabData } = useQuery({
     queryKey: ['collab-sessions'],
     queryFn: () => api.get('/api/collab/sessions').then(r => r.data),
     refetchInterval: 8000,

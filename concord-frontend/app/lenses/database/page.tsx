@@ -7,9 +7,9 @@ import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Database, Server, HardDrive, Cpu, RefreshCw, Play, CheckCircle, XCircle,
-  AlertCircle, Table2, Search, Download, Clock, Columns, Eye, Trash2,
+  AlertCircle, Table2, Search, Clock, Columns, Eye, Trash2,
   Copy, ChevronLeft, ChevronRight, List, BarChart3, Link2, Key,
-  FileJson, FileSpreadsheet, Terminal, History, Layers, ArrowUpDown,
+  FileJson, FileSpreadsheet, Terminal, History, Layers,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------

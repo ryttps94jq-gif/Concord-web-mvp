@@ -9,8 +9,6 @@ import {
   Target,
   Plus,
   CheckCircle2,
-  XCircle,
-  Play,
   Clock,
   Sparkles,
   Flame,
@@ -287,7 +285,7 @@ export default function GoalsLensPage() {
   const [achievements] = useState<Achievement[]>(DEMO_ACHIEVEMENTS);
 
   // API integration (preserves original backend connectivity)
-  const { data: goalsData } = useQuery({
+  const { data: _goalsData } = useQuery({
     queryKey: ['goals'],
     queryFn: () => apiHelpers.goals.list().then((r) => r.data),
     refetchInterval: 10000,
