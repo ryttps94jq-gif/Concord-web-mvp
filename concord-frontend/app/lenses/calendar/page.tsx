@@ -79,7 +79,7 @@ const COLORS = [
   { name: 'Yellow', value: '#eab308' },
 ];
 
-const SEED_CATEGORIES: CalendarCategory[] = [
+const INITIAL_CATEGORIES: CalendarCategory[] = [
   { id: '1', name: 'Release Dates',   color: '#22c55e', visible: true, icon: 'release' },
   { id: '2', name: 'Studio Sessions', color: '#06b6d4', visible: true, icon: 'session' },
   { id: '3', name: 'Deadlines',       color: '#ef4444', visible: true, icon: 'deadline' },
@@ -90,7 +90,7 @@ const SEED_CATEGORIES: CalendarCategory[] = [
 
 const PLATFORMS = ['Spotify', 'Apple Music', 'SoundCloud', 'YouTube Music', 'Tidal', 'Bandcamp', 'Amazon Music'];
 
-const SEED_PROJECTS = [
+const INITIAL_PROJECTS = [
   'Night Vibes EP',
   'Summer Beat Pack',
   'Weekly Series',
@@ -290,13 +290,13 @@ export default function CalendarLensPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [categories, setCategories] = useState<CalendarCategory[]>(SEED_CATEGORIES);
+  const [categories, setCategories] = useState<CalendarCategory[]>(INITIAL_CATEGORIES);
 
   const { items: _eventItems, create: _createEvent } = useLensData<CalendarEvent>('calendar', 'event', {
     seed: [],
   });
   const { items: _catItems } = useLensData<CalendarCategory>('calendar', 'category', {
-    seed: SEED_CATEGORIES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
+    seed: INITIAL_CATEGORIES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
   });
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -1564,7 +1564,7 @@ export default function CalendarLensPage() {
                     className="w-full bg-lattice-deep rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neon-cyan"
                   >
                     <option value="">None</option>
-                    {SEED_PROJECTS.map((proj) => (
+                    {INITIAL_PROJECTS.map((proj) => (
                       <option key={proj} value={proj}>{proj}</option>
                     ))}
                   </select>

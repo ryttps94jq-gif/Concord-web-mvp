@@ -94,7 +94,7 @@ const PRESET_CONFIGS: Record<ProcessingPreset, Record<string, { enabled: boolean
 const generateWaveform = (count: number): number[] =>
   Array.from({ length: count }, () => Math.random() * 0.7 + 0.15);
 
-const SEED_TAKES: Take[] = [
+const INITIAL_TAKES: Take[] = [
   {
     id: 'take-1',
     number: 1,
@@ -149,7 +149,7 @@ const INITIAL_EFFECTS: EffectNode[] = [
   { id: 'reverb', name: 'Reverb', enabled: false, paramLabel: 'Mix', paramValue: 10, paramMin: 0, paramMax: 100, paramUnit: '%' },
 ];
 
-const SEED_INPUTS = [
+const INITIAL_INPUTS = [
   { id: 'default', label: 'Built-in Microphone' },
   { id: 'usb-1', label: 'Blue Yeti USB' },
   { id: 'interface-1', label: 'Focusrite Scarlett 2i2 - Input 1' },
@@ -167,9 +167,9 @@ export default function VoiceLensPage() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Takes
-  const [takes, setTakes] = useState<Take[]>(SEED_TAKES);
+  const [takes, setTakes] = useState<Take[]>(INITIAL_TAKES);
   const { items: _takeItems, create: _createTake } = useLensData<Take>('voice', 'take', {
-    seed: SEED_TAKES.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
+    seed: INITIAL_TAKES.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
   });
   const [activeTakeId, setActiveTakeId] = useState<string | null>('take-2');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -393,7 +393,7 @@ export default function VoiceLensPage() {
               onChange={(e) => setSelectedInput(e.target.value)}
               className="bg-white/5 border border-lattice-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-neon-cyan/50"
             >
-              {SEED_INPUTS.map((inp) => (
+              {INITIAL_INPUTS.map((inp) => (
                 <option key={inp.id} value={inp.id} className="bg-lattice-surface">
                   {inp.label}
                 </option>

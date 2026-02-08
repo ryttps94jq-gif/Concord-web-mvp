@@ -134,7 +134,7 @@ function makePart(idx: number, role: ParticipantRole, online = true): Participan
   };
 }
 
-const SEED_SESSIONS: CollabSession[] = [
+const INITIAL_SESSIONS: CollabSession[] = [
   {
     id: 'cs-1',
     name: 'Midnight Trap Session',
@@ -241,7 +241,7 @@ const SEED_SESSIONS: CollabSession[] = [
   },
 ];
 
-const SEED_CHAT: ChatMessage[] = [
+const INITIAL_CHAT: ChatMessage[] = [
   { id: 'm-1', senderId: 'p-0', senderName: 'ProdByVex', senderAvatar: AVATARS[0], text: 'Yo, session is live. Drop your stems in the shared folder.', timestamp: Date.now() - 3_300_000 },
   { id: 'm-2', senderId: 'system', senderName: 'System', senderAvatar: '', text: 'LunaBeatsmith joined the session', timestamp: Date.now() - 3_200_000, isSystem: true },
   { id: 'm-3', senderId: 'p-1', senderName: 'LunaBeatsmith', senderAvatar: AVATARS[1], text: 'Hey! Got some fire 808 patterns ready to go.', timestamp: Date.now() - 3_100_000 },
@@ -256,13 +256,13 @@ const SEED_CHAT: ChatMessage[] = [
   { id: 'm-12', senderId: 'system', senderName: 'System', senderAvatar: '', text: 'ProdByVex shared a file: rough_mix_v1.wav', timestamp: Date.now() - 200_000, isSystem: true },
 ];
 
-const SEED_INVITATIONS: Invitation[] = [
+const INITIAL_INVITATIONS: Invitation[] = [
   { id: 'inv-1', sessionName: 'Late Night Vibes', fromName: 'SynthLord', fromAvatar: AVATARS[5], projectType: 'beat', genre: 'Synthwave', sentAt: Date.now() - 1_800_000 },
   { id: 'inv-2', sessionName: 'Cover Art Sprint', fromName: 'PixelDrift', fromAvatar: AVATARS[3], projectType: 'art', genre: 'Design', sentAt: Date.now() - 7_200_000 },
   { id: 'inv-3', sessionName: 'Hook Writing Jam', fromName: 'VocalFire', fromAvatar: AVATARS[6], projectType: 'writing', genre: 'Pop', sentAt: Date.now() - 14_400_000 },
 ];
 
-const SEED_HISTORY: HistoryEntry[] = [
+const INITIAL_HISTORY: HistoryEntry[] = [
   { id: 'h-1', sessionName: 'Boom Bap Revival', projectType: 'beat', duration: 7_200_000, participantCount: 4, filesShared: 12, endedAt: Date.now() - 86_400_000 },
   { id: 'h-2', sessionName: 'EDM Drop Workshop', projectType: 'remix', duration: 5_400_000, participantCount: 3, filesShared: 8, endedAt: Date.now() - 172_800_000 },
   { id: 'h-3', sessionName: 'Acoustic Ballad', projectType: 'song', duration: 10_800_000, participantCount: 2, filesShared: 5, endedAt: Date.now() - 259_200_000 },
@@ -341,7 +341,7 @@ export default function CollabLensPage() {
   const _queryClient = useQueryClient();
 
   const { items: _sessionItems, create: _createSession } = useLensData('collab', 'session', {
-    seed: SEED_SESSIONS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
+    seed: INITIAL_SESSIONS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
 
   const [activeTab, setActiveTab] = useState<MainTab>('active');
@@ -365,7 +365,7 @@ export default function CollabLensPage() {
     retry: 1,
   });
 
-  const sessions: CollabSession[] = SEED_SESSIONS;
+  const sessions: CollabSession[] = INITIAL_SESSIONS;
   const onlineCount = sessions.reduce((n, s) => n + s.participants.filter(p => p.online).length, 0);
 
   // Filter sessions
@@ -380,7 +380,7 @@ export default function CollabLensPage() {
   const TABS: { key: MainTab; label: string; count?: number }[] = [
     { key: 'active', label: 'Active Sessions', count: sessions.length },
     { key: 'mine', label: 'My Sessions', count: mySessions.length },
-    { key: 'invitations', label: 'Invitations', count: SEED_INVITATIONS.length },
+    { key: 'invitations', label: 'Invitations', count: INITIAL_INVITATIONS.length },
     { key: 'history', label: 'Session History' },
   ];
 
@@ -556,7 +556,7 @@ export default function CollabLensPage() {
             transition={{ duration: 0.2 }}
             className="space-y-3"
           >
-            {SEED_INVITATIONS.map(inv => (
+            {INITIAL_INVITATIONS.map(inv => (
               <InvitationCard key={inv.id} invitation={inv} />
             ))}
           </motion.div>
@@ -571,7 +571,7 @@ export default function CollabLensPage() {
             transition={{ duration: 0.2 }}
             className="space-y-3"
           >
-            {SEED_HISTORY.map(entry => (
+            {INITIAL_HISTORY.map(entry => (
               <HistoryCard key={entry.id} entry={entry} />
             ))}
           </motion.div>
@@ -700,7 +700,7 @@ function SessionCard({ session, onJoin }: { session: CollabSession; onJoin: () =
 
 function ActiveSessionView({ session, onLeave }: { session: CollabSession; onLeave: () => void }) {
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(SEED_CHAT);
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [elapsed, setElapsed] = useState(Date.now() - session.startedAt);
 

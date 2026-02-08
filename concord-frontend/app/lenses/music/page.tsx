@@ -89,7 +89,7 @@ const EQ_PRESETS: { [key: string]: number[] } = {
 
 const FREQUENCIES = ['32Hz', '64Hz', '125Hz', '250Hz', '500Hz', '1kHz', '2kHz', '4kHz'];
 
-const SEED_TRACKS: Track[] = [
+const INITIAL_TRACKS: Track[] = [
   { id: '1', title: 'Neural Resonance', artist: 'Lattice Dreams', album: 'Cognitive Waves', duration: 234, resonanceScore: 0.92, bpm: 128, key: 'Am', genre: 'Electronic', playCount: 1542 },
   { id: '2', title: 'Quantum Harmonics', artist: 'DTU Protocol', album: 'Memory Palace', duration: 312, resonanceScore: 0.87, bpm: 140, key: 'Em', genre: 'Ambient', playCount: 892 },
   { id: '3', title: 'Synaptic Fire', artist: 'Cortex Theory', album: 'Brain Patterns', duration: 198, resonanceScore: 0.95, bpm: 174, key: 'Dm', genre: 'DnB', playCount: 2341 },
@@ -98,7 +98,7 @@ const SEED_TRACKS: Track[] = [
   { id: '6', title: 'Emergence', artist: 'DTU Protocol', album: 'Memory Palace', duration: 356, resonanceScore: 0.88, bpm: 110, key: 'G', genre: 'Ambient', playCount: 1234 },
 ];
 
-const SEED_PLAYLISTS: Playlist[] = [
+const INITIAL_PLAYLISTS: Playlist[] = [
   { id: '1', name: 'Focus Flow', description: 'Deep work concentration music', trackCount: 45, duration: 10800, isOwner: true, followers: 234, type: 'playlist' },
   { id: '2', name: 'Neural Beats', description: 'High-energy cognitive enhancement', trackCount: 32, duration: 7200, isOwner: true, followers: 567, type: 'playlist' },
   { id: '3', name: 'Dream State', description: 'Ambient soundscapes for creativity', trackCount: 28, duration: 9000, isOwner: false, followers: 1234, type: 'playlist' },
@@ -106,7 +106,7 @@ const SEED_PLAYLISTS: Playlist[] = [
   { id: '5', name: 'Tech Talk Podcast', trackCount: 156, duration: 360000, isOwner: false, type: 'podcast' },
 ];
 
-const _SEED_ARTISTS: Artist[] = [
+const _INITIAL_ARTISTS: Artist[] = [
   { id: '1', name: 'Lattice Dreams', monthlyListeners: 245000, genres: ['Electronic', 'Ambient'] },
   { id: '2', name: 'DTU Protocol', monthlyListeners: 189000, genres: ['Ambient', 'Experimental'] },
   { id: '3', name: 'Cortex Theory', monthlyListeners: 312000, genres: ['DnB', 'Electronic'] },
@@ -145,16 +145,16 @@ export default function MusicLensPage() {
 
   // Persistent lens data (replaces MOCK arrays)
   const { items: trackItems } = useLensData<Track>('music', 'track', {
-    seed: SEED_TRACKS.map(t => ({ title: t.title, data: t as unknown as Record<string, unknown> })),
+    seed: INITIAL_TRACKS.map(t => ({ title: t.title, data: t as unknown as Record<string, unknown> })),
   });
   const { items: playlistItems } = useLensData<Playlist>('music', 'playlist', {
-    seed: SEED_PLAYLISTS.map(p => ({ title: p.name, data: p as unknown as Record<string, unknown> })),
+    seed: INITIAL_PLAYLISTS.map(p => ({ title: p.name, data: p as unknown as Record<string, unknown> })),
   });
-  const allTracks: Track[] = trackItems.length > 0 ? trackItems.map(i => ({ ...(i.data as unknown as Track), id: i.id })) : SEED_TRACKS;
-  const playlists: Playlist[] = playlistItems.length > 0 ? playlistItems.map(i => ({ ...(i.data as unknown as Playlist), id: i.id })) : SEED_PLAYLISTS;
+  const allTracks: Track[] = trackItems.length > 0 ? trackItems.map(i => ({ ...(i.data as unknown as Track), id: i.id })) : INITIAL_TRACKS;
+  const playlists: Playlist[] = playlistItems.length > 0 ? playlistItems.map(i => ({ ...(i.data as unknown as Playlist), id: i.id })) : INITIAL_PLAYLISTS;
 
   // Queue
-  const [queue, setQueue] = useState<Track[]>(SEED_TRACKS);
+  const [queue, setQueue] = useState<Track[]>(INITIAL_TRACKS);
   const currentTrack = queue[currentTrackIndex] || allTracks[0];
 
   // Sync queue when tracks load from backend
@@ -469,7 +469,7 @@ export default function MusicLensPage() {
               <button className="text-sm text-gray-400 hover:text-white">Show all</button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {_SEED_ARTISTS.map((artist) => (
+              {_INITIAL_ARTISTS.map((artist) => (
                 <div key={artist.id} className="group cursor-pointer text-center">
                   <div className="relative aspect-square rounded-full overflow-hidden bg-gradient-to-br from-gray-700 to-gray-800 mb-3 mx-auto">
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -492,7 +492,7 @@ export default function MusicLensPage() {
               </h2>
             </div>
             <div className="space-y-2">
-              {SEED_TRACKS.slice(0, 5).map((track, index) => (
+              {INITIAL_TRACKS.slice(0, 5).map((track, index) => (
                 <button
                   key={track.id}
                   onClick={() => playTrack(track)}
@@ -556,7 +556,7 @@ export default function MusicLensPage() {
               <section>
                 <h3 className="text-xl font-bold mb-4">Songs</h3>
                 <div className="space-y-2">
-                  {SEED_TRACKS.filter((t) =>
+                  {INITIAL_TRACKS.filter((t) =>
                     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     t.artist.toLowerCase().includes(searchQuery.toLowerCase())
                   ).map((track) => (
@@ -694,7 +694,7 @@ export default function MusicLensPage() {
               </tr>
             </thead>
             <tbody>
-              {SEED_TRACKS.map((track, index) => (
+              {INITIAL_TRACKS.map((track, index) => (
                 <tr
                   key={track.id}
                   onClick={() => playTrack(track)}

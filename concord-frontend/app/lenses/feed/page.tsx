@@ -143,7 +143,7 @@ const generateWaveform = (len = 32): number[] =>
 
 // ── Demo Data ──────────────────────────────────────────────────────────────────
 
-const SEED_AUTHORS: PostAuthor[] = [
+const INITIAL_AUTHORS: PostAuthor[] = [
   { id: 'a1', name: 'Kira Soundscape', handle: 'kirasound', gradient: pickGrad(0), verified: true },
   { id: 'a2', name: 'Neon Drift', handle: 'neondrift', gradient: pickGrad(1), verified: true },
   { id: 'a3', name: 'Lattice Collective', handle: 'latticecollective', gradient: pickGrad(2), verified: true },
@@ -156,16 +156,16 @@ const SEED_AUTHORS: PostAuthor[] = [
   { id: 'a10', name: 'Ren Akira', handle: 'renakira', gradient: pickGrad(1), verified: false },
 ];
 
-const SEED_POSTS: FeedPost[] = [
+const INITIAL_POSTS: FeedPost[] = [
   {
-    id: 'p1', type: 'audio', author: SEED_AUTHORS[0],
+    id: 'p1', type: 'audio', author: INITIAL_AUTHORS[0],
     content: 'Just finished this ambient piece. Three weeks of layering field recordings with analog synth textures. Headphones recommended.',
     createdAt: '2026-02-07T09:15:00Z', likes: 842, comments: 67, reposts: 215, shares: 43, views: 12400,
     liked: false, reposted: false, bookmarked: false, tags: ['ambient', 'synth', 'fieldrecording'],
     audio: { title: 'Dissolving Horizons', duration: '4:32', bpm: 72, waveform: generateWaveform() },
   },
   {
-    id: 'p2', type: 'release', author: SEED_AUTHORS[1],
+    id: 'p2', type: 'release', author: INITIAL_AUTHORS[1],
     content: 'MIDNIGHT PROTOCOL is finally here. 12 tracks exploring the intersection of drum & bass and orchestral arrangements. Every DTU is on-chain.',
     createdAt: '2026-02-07T07:00:00Z', likes: 3247, comments: 389, reposts: 1102, shares: 567, views: 89300,
     liked: true, reposted: false, bookmarked: true, tags: ['dnb', 'orchestral', 'newrelease'],
@@ -176,13 +176,13 @@ const SEED_POSTS: FeedPost[] = [
     },
   },
   {
-    id: 'p3', type: 'text', author: SEED_AUTHORS[2],
+    id: 'p3', type: 'text', author: INITIAL_AUTHORS[2],
     content: 'We are building an open standard for collaborative music production metadata. If you are working on remix attribution or sample credit chains, reach out. The DTU spec draft is live on our forum.',
     createdAt: '2026-02-07T06:30:00Z', likes: 1567, comments: 234, reposts: 456, shares: 189, views: 34200,
     liked: false, reposted: true, bookmarked: false, tags: ['dtu', 'openstandard', 'metadata'],
   },
   {
-    id: 'p4', type: 'art', author: SEED_AUTHORS[4],
+    id: 'p4', type: 'art', author: INITIAL_AUTHORS[4],
     content: 'Album art concepts for the upcoming Lattice Sessions Vol. 3. Each piece is generated from the audio waveform of its corresponding track.',
     createdAt: '2026-02-06T22:00:00Z', likes: 2134, comments: 178, reposts: 567, shares: 234, views: 45600,
     liked: false, reposted: false, bookmarked: true, tags: ['albumart', 'generativeart', 'latticesessions'],
@@ -196,27 +196,27 @@ const SEED_POSTS: FeedPost[] = [
     },
   },
   {
-    id: 'p5', type: 'collab', author: SEED_AUTHORS[3],
+    id: 'p5', type: 'collab', author: INITIAL_AUTHORS[3],
     content: 'Starting a live beat-making session right now. Lo-fi hip hop vibes. Bring your Rhodes samples.',
     createdAt: '2026-02-07T10:00:00Z', likes: 423, comments: 89, reposts: 156, shares: 34, views: 6700,
     liked: false, reposted: false, bookmarked: false, tags: ['collab', 'lofi', 'hiphop', 'live'],
     collab: { sessionName: 'Late Night Lo-Fi Lab', participants: 4, maxParticipants: 8, genre: 'Lo-Fi Hip Hop' },
   },
   {
-    id: 'p6', type: 'audio', author: SEED_AUTHORS[5],
+    id: 'p6', type: 'audio', author: INITIAL_AUTHORS[5],
     content: 'Remix of @kirasound\'s "Dissolving Horizons" - took it in a breakbeat direction. Full sample credits linked via DTU.',
     createdAt: '2026-02-07T08:45:00Z', likes: 678, comments: 45, reposts: 123, shares: 56, views: 9800,
     liked: false, reposted: false, bookmarked: false, tags: ['remix', 'breakbeat', 'samplecredits'],
     audio: { title: 'Dissolving Horizons (Pulse Remix)', duration: '5:11', bpm: 138, waveform: generateWaveform() },
   },
   {
-    id: 'p7', type: 'text', author: SEED_AUTHORS[6],
+    id: 'p7', type: 'text', author: INITIAL_AUTHORS[6],
     content: 'Hot take: the future of music distribution is not streaming platforms. It is peer-to-peer DTU networks where every play, remix, and sample is tracked transparently. The creators own the graph.',
     createdAt: '2026-02-06T20:15:00Z', likes: 4521, comments: 567, reposts: 1234, shares: 456, views: 67800,
     liked: true, reposted: false, bookmarked: false, tags: ['opinion', 'dtu', 'distribution'],
   },
   {
-    id: 'p8', type: 'release', author: SEED_AUTHORS[7],
+    id: 'p8', type: 'release', author: INITIAL_AUTHORS[7],
     content: 'Surprise drop. "Glass Garden" EP - 5 tracks of ambient electronica recorded in a greenhouse at 3am. Physical DTU cards shipping next week.',
     createdAt: '2026-02-06T18:00:00Z', likes: 1893, comments: 267, reposts: 678, shares: 345, views: 54300,
     liked: false, reposted: false, bookmarked: false, tags: ['ep', 'ambient', 'electronica', 'surprise'],
@@ -227,14 +227,14 @@ const SEED_POSTS: FeedPost[] = [
     },
   },
   {
-    id: 'p9', type: 'audio', author: SEED_AUTHORS[8],
+    id: 'p9', type: 'audio', author: INITIAL_AUTHORS[8],
     content: 'Council approved stems pack vol. 7. 200+ one-shots and loops, all CC-BY-SA. Build something and tag us.',
     createdAt: '2026-02-06T15:30:00Z', likes: 2345, comments: 189, reposts: 890, shares: 234, views: 78900,
     liked: false, reposted: true, bookmarked: true, tags: ['stems', 'samples', 'creative-commons'],
     audio: { title: 'Council Stems Vol. 7 Preview', duration: '2:15', waveform: generateWaveform() },
   },
   {
-    id: 'p10', type: 'art', author: SEED_AUTHORS[9],
+    id: 'p10', type: 'art', author: INITIAL_AUTHORS[9],
     content: 'Visual experiments with spectral analysis. Each frame maps frequency data to color channels in real time.',
     createdAt: '2026-02-06T14:00:00Z', likes: 934, comments: 78, reposts: 234, shares: 89, views: 15600,
     liked: false, reposted: false, bookmarked: false, tags: ['visualart', 'spectral', 'audiovisual'],
@@ -247,33 +247,33 @@ const SEED_POSTS: FeedPost[] = [
     },
   },
   {
-    id: 'p11', type: 'collab', author: SEED_AUTHORS[0],
+    id: 'p11', type: 'collab', author: INITIAL_AUTHORS[0],
     content: 'Looking for a vocalist for a cyberpunk ballad. Track is 80% done, need ethereal vocals over the bridge. DM for stems.',
     createdAt: '2026-02-06T12:00:00Z', likes: 567, comments: 134, reposts: 89, shares: 45, views: 8900,
     liked: false, reposted: false, bookmarked: false, tags: ['collab', 'vocalist', 'cyberpunk'],
     collab: { sessionName: 'Cyberpunk Ballad Collab', participants: 1, maxParticipants: 3, genre: 'Cyberpunk / Synth' },
   },
   {
-    id: 'p12', type: 'text', author: SEED_AUTHORS[4],
+    id: 'p12', type: 'text', author: INITIAL_AUTHORS[4],
     content: 'Just minted my first generative album cover collection. Each one is seeded from the master audio file\'s spectral data. 1/1 editions tied to the DTU of each track. Link in bio.',
     createdAt: '2026-02-06T10:30:00Z', likes: 1234, comments: 156, reposts: 345, shares: 167, views: 23400,
     liked: false, reposted: false, bookmarked: false, tags: ['generative', 'albumart', 'dtu', 'nft'],
   },
   {
-    id: 'p13', type: 'audio', author: SEED_AUTHORS[1],
+    id: 'p13', type: 'audio', author: INITIAL_AUTHORS[1],
     content: 'Preview of "Cascade" from the new album. This one took the longest to produce - 47 layers of percussion alone.',
     createdAt: '2026-02-06T09:00:00Z', likes: 1567, comments: 213, reposts: 456, shares: 178, views: 34500,
     liked: false, reposted: false, bookmarked: false, tags: ['preview', 'midnightprotocol', 'dnb'],
     audio: { title: 'Cascade (Preview)', duration: '1:30', bpm: 174, waveform: generateWaveform() },
   },
   {
-    id: 'p14', type: 'text', author: SEED_AUTHORS[5],
+    id: 'p14', type: 'text', author: INITIAL_AUTHORS[5],
     content: 'PSA: If you use someone\'s sample in your track, credit them. It costs nothing and strengthens the entire community. DTU makes this automatic - there are no excuses anymore.',
     createdAt: '2026-02-06T07:45:00Z', likes: 6789, comments: 456, reposts: 2345, shares: 678, views: 112000,
     liked: true, reposted: true, bookmarked: false, tags: ['samplecredits', 'community', 'dtu'],
   },
   {
-    id: 'p15', type: 'release', author: SEED_AUTHORS[8],
+    id: 'p15', type: 'release', author: INITIAL_AUTHORS[8],
     content: 'The Synth Council Annual Compilation is out. 30 tracks from 30 different artists across the network. All royalties split equally via DTU smart contracts.',
     createdAt: '2026-02-05T20:00:00Z', likes: 4567, comments: 678, reposts: 1890, shares: 567, views: 156000,
     liked: false, reposted: false, bookmarked: true, tags: ['compilation', 'synthcouncil', 'annual'],
@@ -284,14 +284,14 @@ const SEED_POSTS: FeedPost[] = [
     },
   },
   {
-    id: 'p16', type: 'collab', author: SEED_AUTHORS[7],
+    id: 'p16', type: 'collab', author: INITIAL_AUTHORS[7],
     content: 'Open jam session tonight at 9pm UTC. Ambient + jazz fusion. All instruments welcome. Streaming live on the feed.',
     createdAt: '2026-02-07T11:00:00Z', likes: 345, comments: 67, reposts: 123, shares: 56, views: 5400,
     liked: false, reposted: false, bookmarked: false, tags: ['jam', 'ambient', 'jazz', 'live'],
     collab: { sessionName: 'Ambient Jazz Fusion Jam', participants: 6, maxParticipants: 12, genre: 'Ambient Jazz' },
   },
   {
-    id: 'p17', type: 'audio', author: SEED_AUTHORS[3],
+    id: 'p17', type: 'audio', author: INITIAL_AUTHORS[3],
     content: 'Flipped an old vinyl sample into something new. The original DTU chain goes back 4 remixes deep. This is what transparent attribution looks like.',
     createdAt: '2026-02-05T16:00:00Z', likes: 890, comments: 123, reposts: 234, shares: 89, views: 18700,
     liked: false, reposted: false, bookmarked: false, tags: ['vinyl', 'sample', 'attribution', 'remix'],
@@ -524,9 +524,9 @@ export default function FeedLensPage() {
           });
         }
 
-        return serverPosts.length > 0 ? serverPosts : SEED_POSTS;
+        return serverPosts.length > 0 ? serverPosts : INITIAL_POSTS;
       } catch {
-        return SEED_POSTS;
+        return INITIAL_POSTS;
       }
     },
   });

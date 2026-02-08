@@ -131,7 +131,7 @@ const GENRE_OPTIONS = ['All Genres', 'Hip-Hop', 'R&B', 'Pop', 'Electronic', 'Lo-
 // Demo Data
 // ---------------------------------------------------------------------------
 
-const SEED_ITEMS: MarketplaceItem[] = [
+const INITIAL_ITEMS: MarketplaceItem[] = [
   {
     id: 'beat-001', title: 'Midnight Cipher', description: 'Dark trap beat with haunting 808s and ethereal pads. Perfect for introspective rap.', type: 'beat', genre: 'Trap', bpm: 140, key: 'Dm', duration: '3:42',
     creator: { name: 'ProdByNova', avatar: undefined, verified: true },
@@ -204,9 +204,9 @@ const SEED_ITEMS: MarketplaceItem[] = [
   },
 ];
 
-const SEED_PURCHASES: Purchase[] = [
-  { id: 'p-1', item: SEED_ITEMS[0], license: 'premium', price: 79, purchasedAt: '2026-01-28' },
-  { id: 'p-2', item: SEED_ITEMS[3], license: 'basic', price: 19, purchasedAt: '2026-01-20' },
+const INITIAL_PURCHASES: Purchase[] = [
+  { id: 'p-1', item: INITIAL_ITEMS[0], license: 'premium', price: 79, purchasedAt: '2026-01-28' },
+  { id: 'p-2', item: INITIAL_ITEMS[3], license: 'basic', price: 19, purchasedAt: '2026-01-20' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -414,17 +414,17 @@ export default function MarketplaceLensPage() {
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>(SEED_PURCHASES);
+  const [purchases, setPurchases] = useState<Purchase[]>(INITIAL_PURCHASES);
   const [previewItem, setPreviewItem] = useState<MarketplaceItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [featuredIdx, setFeaturedIdx] = useState(0);
   const [showNewListing, setShowNewListing] = useState(false);
 
   const { items: _listingItems, create: _createListing } = useLensData('marketplace', 'listing', {
-    seed: SEED_ITEMS.map(i => ({ title: i.title, data: i as unknown as Record<string, unknown> })),
+    seed: INITIAL_ITEMS.map(i => ({ title: i.title, data: i as unknown as Record<string, unknown> })),
   });
   const { items: _purchaseItems } = useLensData('marketplace', 'purchase', {
-    seed: SEED_PURCHASES.map(p => ({ title: p.item?.title || p.id, data: p as unknown as Record<string, unknown> })),
+    seed: INITIAL_PURCHASES.map(p => ({ title: p.item?.title || p.id, data: p as unknown as Record<string, unknown> })),
   });
 
   // Queries (with demo fallback)
@@ -461,7 +461,7 @@ export default function MarketplaceLensPage() {
       ...(samplesData?.items ?? []),
       ...(artData?.items ?? []),
     ];
-    return apiItems.length > 0 ? apiItems : SEED_ITEMS;
+    return apiItems.length > 0 ? apiItems : INITIAL_ITEMS;
   }, [beatsData, stemsData, samplesData, artData]);
 
   const featuredItems = useMemo(() => allItems.filter(i => i.featured), [allItems]);
@@ -741,7 +741,7 @@ export default function MarketplaceLensPage() {
 
           {/* Existing listings (mock) */}
           <div className="space-y-2">
-            {SEED_ITEMS.slice(0, 3).map(item => (
+            {INITIAL_ITEMS.slice(0, 3).map(item => (
               <div key={item.id} className="panel p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-lattice-deep flex items-center justify-center">
                   {(() => { const I = typeIcon(item.type); return <I className="w-5 h-5 text-gray-500" />; })()}
@@ -934,7 +934,7 @@ export default function MarketplaceLensPage() {
           {/* Top Sellers */}
           <div className="panel p-5 space-y-3">
             <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-neon-green" /> Top Selling Items</h3>
-            {SEED_ITEMS.sort((a, b) => b.sales - a.sales).slice(0, 5).map((item, i) => (
+            {INITIAL_ITEMS.sort((a, b) => b.sales - a.sales).slice(0, 5).map((item, i) => (
               <div key={item.id} className="flex items-center gap-3 py-2 border-b border-lattice-border last:border-0">
                 <span className="text-xs text-gray-600 w-5 text-right font-mono">{i + 1}</span>
                 <div className="flex-1 min-w-0">

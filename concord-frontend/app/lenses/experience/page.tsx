@@ -79,7 +79,7 @@ const PROFILE = {
   ],
 };
 
-const SEED_PORTFOLIO: PortfolioItem[] = [
+const INITIAL_PORTFOLIO: PortfolioItem[] = [
   { id: 'p1', type: 'track', title: 'Midnight Protocol', subtitle: 'Original Mix', coverGradient: 'from-purple-600 to-blue-500', playCount: 2840, genre: 'Synthwave', date: '2025-12-15', featured: true },
   { id: 'p2', type: 'release', title: 'Neon Drift EP', subtitle: '5 tracks', coverGradient: 'from-cyan-500 to-teal-400', trackCount: 5, genre: 'Electronic', date: '2025-11-20', featured: true },
   { id: 'p3', type: 'art', title: 'Waveform Series #3', subtitle: 'Generative Art', coverGradient: 'from-pink-500 to-orange-400', medium: 'Digital / Processing', genre: 'Visual', date: '2025-10-08', featured: false },
@@ -90,7 +90,7 @@ const SEED_PORTFOLIO: PortfolioItem[] = [
   { id: 'p8', type: 'art', title: 'Spectral Bloom', subtitle: 'Album Cover', coverGradient: 'from-amber-500 to-yellow-300', medium: 'Digital / Photoshop', genre: 'Visual', date: '2025-05-10', featured: false },
 ];
 
-const SEED_SKILLS: SkillData[] = [
+const INITIAL_SKILLS: SkillData[] = [
   { id: 's1', name: 'Production', category: 'technical', level: 8, maxLevel: 10, xp: 720, xpToNext: 1000, endorsements: 24, linkedLens: 'voice' },
   { id: 's2', name: 'Mixing', category: 'technical', level: 7, maxLevel: 10, xp: 580, xpToNext: 800, endorsements: 18, linkedLens: 'collab' },
   { id: 's3', name: 'Mastering', category: 'technical', level: 5, maxLevel: 10, xp: 310, xpToNext: 600, endorsements: 9, linkedLens: 'invariant' },
@@ -99,7 +99,7 @@ const SEED_SKILLS: SkillData[] = [
   { id: 's6', name: 'Arrangement', category: 'creative', level: 7, maxLevel: 10, xp: 620, xpToNext: 800, endorsements: 12, linkedLens: 'voice' },
 ];
 
-const SEED_HISTORY: HistoryItem[] = [
+const INITIAL_HISTORY: HistoryItem[] = [
   { id: 'h1', type: 'track_created', title: 'Created "Midnight Protocol"', description: 'Synthwave track, 4:32 duration', timestamp: '2 hours ago', group: 'today' },
   { id: 'h2', type: 'skill_leveled', title: 'Sound Design leveled up!', description: 'Now level 9 - Expert tier', timestamp: '5 hours ago', group: 'today' },
   { id: 'h3', type: 'session_joined', title: 'Joined collab session', description: 'With Luna Wave - mixing session', timestamp: '8 hours ago', group: 'today' },
@@ -117,7 +117,7 @@ const SEED_HISTORY: HistoryItem[] = [
   { id: 'h15', type: 'goal_completed', title: 'Completed sound design course', description: 'Advanced synthesis techniques', timestamp: '4 months ago', group: 'earlier' },
 ];
 
-const SEED_INSIGHTS: InsightData = {
+const INITIAL_INSIGHTS: InsightData = {
   mostProductiveDay: 'Wednesday',
   favoriteGenre: 'Synthwave',
   collaborationScore: 78,
@@ -264,10 +264,10 @@ export default function ExperienceLensPage() {
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioFilter>('all');
 
   const { items: _portfolioItems } = useLensData('experience', 'portfolio', {
-    seed: SEED_PORTFOLIO.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
+    seed: INITIAL_PORTFOLIO.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
   const { items: _skillItems } = useLensData('experience', 'skill', {
-    seed: SEED_SKILLS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
+    seed: INITIAL_SKILLS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
 
   // Fetch real data in background for future use
@@ -280,14 +280,14 @@ export default function ExperienceLensPage() {
   // --- Derived data ---
 
   const filteredPortfolio = useMemo(() => {
-    if (portfolioFilter === 'all') return SEED_PORTFOLIO;
-    if (portfolioFilter === 'collaborations') return SEED_PORTFOLIO.filter((p) => p.type === 'collaboration');
-    return SEED_PORTFOLIO.filter((p) => p.type === portfolioFilter.slice(0, -1) as PortfolioItemType);
+    if (portfolioFilter === 'all') return INITIAL_PORTFOLIO;
+    if (portfolioFilter === 'collaborations') return INITIAL_PORTFOLIO.filter((p) => p.type === 'collaboration');
+    return INITIAL_PORTFOLIO.filter((p) => p.type === portfolioFilter.slice(0, -1) as PortfolioItemType);
   }, [portfolioFilter]);
 
   const groupedHistory = useMemo(() => {
     const groups: Record<string, HistoryItem[]> = {};
-    for (const item of SEED_HISTORY) {
+    for (const item of INITIAL_HISTORY) {
       if (!groups[item.group]) groups[item.group] = [];
       groups[item.group].push(item);
     }
@@ -296,7 +296,7 @@ export default function ExperienceLensPage() {
 
   const skillsByCategory = useMemo(() => {
     const cats: Record<string, SkillData[]> = { technical: [], creative: [], business: [] };
-    for (const s of SEED_SKILLS) {
+    for (const s of INITIAL_SKILLS) {
       cats[s.category].push(s);
     }
     return cats;
@@ -565,15 +565,15 @@ export default function ExperienceLensPage() {
                   {gridLevels.map((lv) => (
                     <polygon
                       key={lv}
-                      points={radarGridPoints(lv, 10, SEED_SKILLS.length, radarR, radarCx, radarCy)}
+                      points={radarGridPoints(lv, 10, INITIAL_SKILLS.length, radarR, radarCx, radarCy)}
                       fill="none"
                       stroke="rgba(255,255,255,0.08)"
                       strokeWidth="1"
                     />
                   ))}
                   {/* Axis lines */}
-                  {SEED_SKILLS.map((_, i) => {
-                    const angle = (Math.PI * 2 * i) / SEED_SKILLS.length - Math.PI / 2;
+                  {INITIAL_SKILLS.map((_, i) => {
+                    const angle = (Math.PI * 2 * i) / INITIAL_SKILLS.length - Math.PI / 2;
                     const ex = radarCx + radarR * Math.cos(angle);
                     const ey = radarCy + radarR * Math.sin(angle);
                     return (
@@ -594,14 +594,14 @@ export default function ExperienceLensPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.6, ease: 'easeOut' }}
                     style={{ transformOrigin: `${radarCx}px ${radarCy}px` }}
-                    points={radarPoints(SEED_SKILLS, radarR, radarCx, radarCy)}
+                    points={radarPoints(INITIAL_SKILLS, radarR, radarCx, radarCy)}
                     fill="rgba(168, 85, 247, 0.25)"
                     stroke="rgba(168, 85, 247, 0.8)"
                     strokeWidth="2"
                   />
                   {/* Dots at vertices */}
-                  {SEED_SKILLS.map((s, i) => {
-                    const angle = (Math.PI * 2 * i) / SEED_SKILLS.length - Math.PI / 2;
+                  {INITIAL_SKILLS.map((s, i) => {
+                    const angle = (Math.PI * 2 * i) / INITIAL_SKILLS.length - Math.PI / 2;
                     const r = (s.level / s.maxLevel) * radarR;
                     const dx = radarCx + r * Math.cos(angle);
                     const dy = radarCy + r * Math.sin(angle);
@@ -610,8 +610,8 @@ export default function ExperienceLensPage() {
                     );
                   })}
                   {/* Labels */}
-                  {SEED_SKILLS.map((s, i) => {
-                    const pos = radarLabelPos(i, SEED_SKILLS.length, radarR, radarCx, radarCy);
+                  {INITIAL_SKILLS.map((s, i) => {
+                    const pos = radarLabelPos(i, INITIAL_SKILLS.length, radarR, radarCx, radarCy);
                     return (
                       <text
                         key={s.id}
@@ -632,7 +632,7 @@ export default function ExperienceLensPage() {
               <div className="panel p-4 space-y-4">
                 <h3 className="text-sm font-semibold">Skill Levels</h3>
                 <motion.div className="space-y-3" variants={staggerParent} initial="hidden" animate="visible">
-                  {SEED_SKILLS.map((skill) => (
+                  {INITIAL_SKILLS.map((skill) => (
                     <motion.div key={skill.id} variants={staggerChild} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -785,17 +785,17 @@ export default function ExperienceLensPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="lens-card text-center py-4">
                 <Flame className="w-6 h-6 mx-auto mb-2 text-orange-400" />
-                <p className="text-lg font-bold">{SEED_INSIGHTS.mostProductiveDay}</p>
+                <p className="text-lg font-bold">{INITIAL_INSIGHTS.mostProductiveDay}</p>
                 <p className="text-xs text-gray-400">Most Productive Day</p>
               </div>
               <div className="lens-card text-center py-4">
                 <Music className="w-6 h-6 mx-auto mb-2 text-neon-purple" />
-                <p className="text-lg font-bold">{SEED_INSIGHTS.favoriteGenre}</p>
+                <p className="text-lg font-bold">{INITIAL_INSIGHTS.favoriteGenre}</p>
                 <p className="text-xs text-gray-400">Favorite Genre</p>
               </div>
               <div className="lens-card text-center py-4">
                 <Users className="w-6 h-6 mx-auto mb-2 text-neon-cyan" />
-                <p className="text-lg font-bold">{SEED_INSIGHTS.collaborationScore}%</p>
+                <p className="text-lg font-bold">{INITIAL_INSIGHTS.collaborationScore}%</p>
                 <p className="text-xs text-gray-400">Collaboration Score</p>
               </div>
             </div>
@@ -808,7 +808,7 @@ export default function ExperienceLensPage() {
                   Weekly Activity Heatmap
                 </h3>
                 <div className="space-y-1.5">
-                  {SEED_INSIGHTS.weeklyHeatmap.map((row, dayIdx) => (
+                  {INITIAL_INSIGHTS.weeklyHeatmap.map((row, dayIdx) => (
                     <div key={dayIdx} className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-500 w-7">{DAY_LABELS[dayIdx]}</span>
                       <div className="flex gap-1.5">
@@ -847,7 +847,7 @@ export default function ExperienceLensPage() {
                   initial="hidden"
                   animate="visible"
                 >
-                  {SEED_INSIGHTS.recommendations.map((rec, i) => (
+                  {INITIAL_INSIGHTS.recommendations.map((rec, i) => (
                     <motion.div
                       key={i}
                       variants={staggerChild}

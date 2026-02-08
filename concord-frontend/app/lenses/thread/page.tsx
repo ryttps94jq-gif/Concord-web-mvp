@@ -51,7 +51,7 @@ interface Thread {
   branchCount: number;
 }
 
-const SEED_THREADS: Thread[] = [
+const INITIAL_THREADS: Thread[] = [
   {
     id: 'thread-1',
     name: 'Project Architecture Discussion',
@@ -151,8 +151,8 @@ type ViewMode = 'tree' | 'timeline' | 'linear';
 export default function ThreadLensPage() {
   useLensNav('thread');
 
-  const [threads] = useState<Thread[]>(SEED_THREADS);
-  const [selectedThread, setSelectedThread] = useState<Thread | null>(SEED_THREADS[0]);
+  const [threads] = useState<Thread[]>(INITIAL_THREADS);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(INITIAL_THREADS[0]);
   const [selectedNode, setSelectedNode] = useState<ThreadNode | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
@@ -160,7 +160,7 @@ export default function ThreadLensPage() {
   const [_showArchived, _setShowArchived] = useState(false);
 
   const { items: _threadItems, create: _createThread } = useLensData('thread', 'thread', {
-    seed: SEED_THREADS.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
+    seed: INITIAL_THREADS.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
   });
 
   const { data: sessions } = useQuery({

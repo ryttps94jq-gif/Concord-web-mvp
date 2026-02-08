@@ -717,6 +717,372 @@ export const PRODUCTIZATION_PHASES: ProductionPhase[] = [
   },
 ];
 
+  // ── PHASE 11: Calendar ───────────────────────────────────────────
+  {
+    order: 11,
+    lensId: 'calendar',
+    name: 'Calendar',
+    rationale: 'Time management is universal. Calendar becomes the scheduling substrate for all other lenses.',
+    dependsOn: [1],
+    incumbents: ['Google Calendar', 'Outlook', 'Fantastical', 'Cal.com'],
+    artifacts: [
+      { name: 'Event', persistsWithoutDTU: true, storageDomain: 'calendar', requiredFields: ['id', 'title', 'start', 'end', 'category', 'status'] },
+      { name: 'Category', persistsWithoutDTU: true, storageDomain: 'calendar', requiredFields: ['id', 'name', 'color'] },
+      { name: 'Recurrence', persistsWithoutDTU: true, storageDomain: 'calendar', requiredFields: ['id', 'eventId', 'pattern', 'until'] },
+    ],
+    engines: [
+      { name: 'conflict-resolver', description: 'Detects and resolves overlapping events', trigger: 'automatic' },
+      { name: 'day-planner', description: 'Generates optimized daily schedules', trigger: 'on_demand' },
+      { name: 'week-planner', description: 'Plans weekly blocks for deep work', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'plan-resolve-notify', steps: ['gather-events', 'detect-conflicts', 'resolve', 'notify'], engines: ['conflict-resolver', 'day-planner'] },
+      { name: 'weekly-review', steps: ['load-week', 'analyze-utilization', 'suggest-optimizations', 'replan'], engines: ['week-planner', 'day-planner'] },
+    ],
+    acceptanceCriteria: ['Event artifact persists with full CRUD', 'Conflict detection is automatic', 'ICS export works', 'DTU exhaust for scheduling actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 12: Daily ─────────────────────────────────────────────
+  {
+    order: 12,
+    lensId: 'daily',
+    name: 'Daily',
+    rationale: 'Daily journaling is the personal knowledge capture layer. Feeds Research and Experience lenses.',
+    dependsOn: [1],
+    incumbents: ['Day One', 'Notion Daily', 'Logseq Daily', 'Obsidian Daily Notes'],
+    artifacts: [
+      { name: 'Entry', persistsWithoutDTU: true, storageDomain: 'daily', requiredFields: ['id', 'date', 'content', 'mood', 'tags'] },
+      { name: 'Session', persistsWithoutDTU: true, storageDomain: 'daily', requiredFields: ['id', 'type', 'startedAt', 'duration', 'summary'] },
+      { name: 'Insight', persistsWithoutDTU: true, storageDomain: 'daily', requiredFields: ['id', 'entryIds', 'pattern', 'confidence'] },
+    ],
+    engines: [
+      { name: 'pattern-detector', description: 'Detects recurring patterns across daily entries', trigger: 'automatic' },
+      { name: 'insight-generator', description: 'Generates insights from entry clusters', trigger: 'on_demand' },
+      { name: 'summarizer', description: 'Summarizes daily/weekly/monthly entries', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'capture-analyze-insight', steps: ['capture-entry', 'tag-and-categorize', 'detect-patterns', 'generate-insights'], engines: ['pattern-detector', 'insight-generator'] },
+      { name: 'periodic-review', steps: ['load-period', 'summarize', 'extract-themes', 'report'], engines: ['summarizer', 'pattern-detector'] },
+    ],
+    acceptanceCriteria: ['Entry artifact persists with full CRUD', 'Pattern detection runs automatically', 'Markdown export works', 'DTU exhaust for all mutations'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 13: Collab ────────────────────────────────────────────
+  {
+    order: 13,
+    lensId: 'collab',
+    name: 'Collaboration',
+    rationale: 'Real-time collaboration is essential for team productivity. Bridges all social lenses.',
+    dependsOn: [3],
+    incumbents: ['Google Docs', 'Notion', 'Linear', 'Figma'],
+    artifacts: [
+      { name: 'CollabSession', persistsWithoutDTU: true, storageDomain: 'collab', requiredFields: ['id', 'title', 'participants', 'status', 'createdAt'] },
+      { name: 'Change', persistsWithoutDTU: true, storageDomain: 'collab', requiredFields: ['id', 'sessionId', 'userId', 'operation', 'path', 'value'] },
+      { name: 'Decision', persistsWithoutDTU: true, storageDomain: 'collab', requiredFields: ['id', 'sessionId', 'summary', 'participants', 'decidedAt'] },
+    ],
+    engines: [
+      { name: 'thread-summarizer', description: 'Summarizes discussion threads', trigger: 'on_demand' },
+      { name: 'action-extractor', description: 'Extracts action items from discussions', trigger: 'on_demand' },
+      { name: 'council-runner', description: 'Runs council votes on contested changes', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'discuss-decide-act', steps: ['open-thread', 'discuss', 'summarize', 'extract-actions', 'decide'], engines: ['thread-summarizer', 'action-extractor'] },
+      { name: 'contested-merge', steps: ['propose-merge', 'run-council', 'vote', 'apply-or-reject'], engines: ['council-runner', 'thread-summarizer'] },
+    ],
+    acceptanceCriteria: ['Session artifact persists with full CRUD', 'Thread summarization works', 'Action extraction produces items', 'DTU exhaust for all mutations'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 14: Experience ────────────────────────────────────────
+  {
+    order: 14,
+    lensId: 'experience',
+    name: 'Experience',
+    rationale: 'Professional portfolio and skill tracking. Bridges social identity with verifiable achievements.',
+    dependsOn: [1],
+    incumbents: ['LinkedIn', 'GitHub Profile', 'Polywork', 'Read.cv'],
+    artifacts: [
+      { name: 'Portfolio', persistsWithoutDTU: true, storageDomain: 'experience', requiredFields: ['id', 'title', 'items', 'visibility', 'version'] },
+      { name: 'Skill', persistsWithoutDTU: true, storageDomain: 'experience', requiredFields: ['id', 'name', 'level', 'endorsements', 'evidence'] },
+      { name: 'Credential', persistsWithoutDTU: true, storageDomain: 'experience', requiredFields: ['id', 'type', 'issuer', 'verified', 'issuedAt'] },
+    ],
+    engines: [
+      { name: 'resume-generator', description: 'Generates formatted resumes from portfolio data', trigger: 'on_demand' },
+      { name: 'claim-validator', description: 'Validates skill claims against evidence', trigger: 'on_demand' },
+      { name: 'version-comparer', description: 'Compares portfolio versions over time', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'build-validate-publish', steps: ['add-items', 'validate-claims', 'generate-resume', 'publish'], engines: ['claim-validator', 'resume-generator'] },
+      { name: 'skill-growth', steps: ['track-skill', 'gather-evidence', 'validate', 'endorse', 'level-up'], engines: ['claim-validator', 'version-comparer'] },
+    ],
+    acceptanceCriteria: ['Portfolio artifact persists with full CRUD', 'Resume generation produces exportable output', 'Skill validation cross-references evidence', 'DTU exhaust for all mutations'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 15: Marketplace ───────────────────────────────────────
+  {
+    order: 15,
+    lensId: 'marketplace',
+    name: 'Marketplace',
+    rationale: 'Artifact exchange and licensing. Makes knowledge artifacts tradeable.',
+    dependsOn: [1],
+    incumbents: ['Gumroad', 'Shopify', 'Notion Templates', 'GitHub Marketplace'],
+    artifacts: [
+      { name: 'Listing', persistsWithoutDTU: true, storageDomain: 'marketplace', requiredFields: ['id', 'title', 'price', 'artifactHash', 'status'] },
+      { name: 'Purchase', persistsWithoutDTU: true, storageDomain: 'marketplace', requiredFields: ['id', 'listingId', 'buyerId', 'amount', 'purchasedAt'] },
+      { name: 'License', persistsWithoutDTU: true, storageDomain: 'marketplace', requiredFields: ['id', 'listingId', 'type', 'grantedTo', 'expiresAt'] },
+    ],
+    engines: [
+      { name: 'hash-verifier', description: 'Verifies artifact integrity via content hashing', trigger: 'automatic' },
+      { name: 'license-issuer', description: 'Issues licenses for purchased artifacts', trigger: 'automatic' },
+      { name: 'royalty-distributor', description: 'Calculates and distributes royalties', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'list-sell-license', steps: ['create-listing', 'verify-hash', 'publish', 'process-purchase', 'issue-license'], engines: ['hash-verifier', 'license-issuer'] },
+      { name: 'royalty-cycle', steps: ['aggregate-sales', 'calculate-royalties', 'distribute', 'report'], engines: ['royalty-distributor', 'hash-verifier'] },
+    ],
+    acceptanceCriteria: ['Listing artifact persists with full CRUD', 'Hash verification ensures integrity', 'License issuance is automatic', 'DTU exhaust for all transactions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 16: Forum ─────────────────────────────────────────────
+  {
+    order: 16,
+    lensId: 'forum',
+    name: 'Forum',
+    rationale: 'Community discourse and knowledge exchange. Structured discussion with voting and moderation.',
+    dependsOn: [3],
+    incumbents: ['Reddit', 'Discourse', 'Stack Overflow', 'Circle'],
+    artifacts: [
+      { name: 'Post', persistsWithoutDTU: true, storageDomain: 'forum', requiredFields: ['id', 'title', 'body', 'authorId', 'communityId', 'votes'] },
+      { name: 'Comment', persistsWithoutDTU: true, storageDomain: 'forum', requiredFields: ['id', 'postId', 'authorId', 'body', 'votes'] },
+      { name: 'Community', persistsWithoutDTU: true, storageDomain: 'forum', requiredFields: ['id', 'name', 'rules', 'memberCount'] },
+    ],
+    engines: [
+      { name: 'post-ranker', description: 'Ranks posts by quality, relevance, and recency', trigger: 'automatic' },
+      { name: 'thesis-extractor', description: 'Extracts core thesis from long posts', trigger: 'on_demand' },
+      { name: 'summary-generator', description: 'Generates discussion summaries as DTUs', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'post-rank-surface', steps: ['submit-post', 'rank', 'surface-to-feed', 'collect-votes', 're-rank'], engines: ['post-ranker', 'thesis-extractor'] },
+      { name: 'discussion-distill', steps: ['load-thread', 'extract-thesis', 'summarize', 'generate-dtu'], engines: ['thesis-extractor', 'summary-generator'] },
+    ],
+    acceptanceCriteria: ['Post artifact persists with full CRUD', 'Ranking algorithm surfaces quality content', 'Thesis extraction works on long posts', 'DTU exhaust for all forum actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 17: Feed ──────────────────────────────────────────────
+  {
+    order: 17,
+    lensId: 'feed',
+    name: 'Feed',
+    rationale: 'Personalized content stream. Aggregates and ranks content from all social lenses.',
+    dependsOn: [16],
+    incumbents: ['Twitter', 'Mastodon', 'Medium', 'Substack'],
+    artifacts: [
+      { name: 'FeedPost', persistsWithoutDTU: true, storageDomain: 'feed', requiredFields: ['id', 'content', 'authorId', 'type', 'createdAt'] },
+      { name: 'Interaction', persistsWithoutDTU: true, storageDomain: 'feed', requiredFields: ['id', 'postId', 'userId', 'type', 'createdAt'] },
+      { name: 'Topic', persistsWithoutDTU: true, storageDomain: 'feed', requiredFields: ['id', 'name', 'keywords', 'postCount'] },
+    ],
+    engines: [
+      { name: 'feed-ranker', description: 'Ranks feed items by relevance and engagement', trigger: 'automatic' },
+      { name: 'personalizer', description: 'Personalizes feed based on user interests', trigger: 'automatic' },
+      { name: 'topic-clusterer', description: 'Clusters posts into coherent topics', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'ingest-rank-serve', steps: ['ingest-post', 'rank', 'personalize', 'serve'], engines: ['feed-ranker', 'personalizer'] },
+      { name: 'topic-digest', steps: ['cluster-topics', 'summarize-clusters', 'generate-digest', 'notify'], engines: ['topic-clusterer', 'feed-ranker'] },
+    ],
+    acceptanceCriteria: ['Post artifact persists with full CRUD', 'Feed ranking personalizes content', 'Topic clustering groups related posts', 'DTU exhaust for all interactions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 18: Thread ────────────────────────────────────────────
+  {
+    order: 18,
+    lensId: 'thread',
+    name: 'Thread',
+    rationale: 'Branching conversation trees. Enables non-linear discourse with consensus detection.',
+    dependsOn: [1],
+    incumbents: ['Slack', 'Discord', 'Twist', 'Threads'],
+    artifacts: [
+      { name: 'Thread', persistsWithoutDTU: true, storageDomain: 'thread', requiredFields: ['id', 'title', 'rootNodeId', 'status', 'createdAt'] },
+      { name: 'Node', persistsWithoutDTU: true, storageDomain: 'thread', requiredFields: ['id', 'threadId', 'parentId', 'content', 'authorId'] },
+      { name: 'ThreadDecision', persistsWithoutDTU: true, storageDomain: 'thread', requiredFields: ['id', 'threadId', 'summary', 'confidence', 'decidedAt'] },
+    ],
+    engines: [
+      { name: 'consensus-detector', description: 'Detects emerging consensus in branching discussions', trigger: 'automatic' },
+      { name: 'decision-extractor', description: 'Extracts decisions from thread conclusions', trigger: 'on_demand' },
+      { name: 'branch-summarizer', description: 'Summarizes individual branches', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'discuss-detect-decide', steps: ['open-thread', 'branch', 'discuss', 'detect-consensus', 'extract-decision'], engines: ['consensus-detector', 'decision-extractor'] },
+      { name: 'thread-archive', steps: ['load-thread', 'summarize-branches', 'compile-decisions', 'archive'], engines: ['branch-summarizer', 'decision-extractor'] },
+    ],
+    acceptanceCriteria: ['Thread artifact persists with full CRUD', 'Branching and merging work', 'Consensus detection flags agreement', 'DTU exhaust for all thread actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 19: Music ─────────────────────────────────────────────
+  {
+    order: 19,
+    lensId: 'music',
+    name: 'Music',
+    rationale: 'Music creation and analysis. Creative expression meets structured knowledge.',
+    dependsOn: [5],
+    incumbents: ['Spotify', 'SoundCloud', 'Bandcamp', 'Apple Music'],
+    artifacts: [
+      { name: 'Track', persistsWithoutDTU: true, storageDomain: 'music', requiredFields: ['id', 'title', 'artist', 'duration', 'bpm', 'key'] },
+      { name: 'Playlist', persistsWithoutDTU: true, storageDomain: 'music', requiredFields: ['id', 'name', 'trackIds', 'description'] },
+      { name: 'Album', persistsWithoutDTU: true, storageDomain: 'music', requiredFields: ['id', 'title', 'artistId', 'trackIds', 'releaseDate'] },
+    ],
+    engines: [
+      { name: 'audio-analyzer', description: 'Analyzes audio features (BPM, key, energy)', trigger: 'on_demand' },
+      { name: 'arrangement-generator', description: 'Generates arrangements from stems', trigger: 'on_demand' },
+      { name: 'stem-exporter', description: 'Exports individual stems from tracks', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'create-analyze-publish', steps: ['create-track', 'analyze-audio', 'tag-features', 'add-to-playlist', 'publish'], engines: ['audio-analyzer', 'arrangement-generator'] },
+      { name: 'stem-remix', steps: ['load-track', 'export-stems', 'arrange', 'render', 'publish'], engines: ['stem-exporter', 'arrangement-generator'] },
+    ],
+    acceptanceCriteria: ['Track artifact persists with full CRUD', 'Audio analysis extracts features', 'Stem export works', 'DTU exhaust for all music actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 20: Finance ───────────────────────────────────────────
+  {
+    order: 20,
+    lensId: 'finance',
+    name: 'Finance',
+    rationale: 'Financial tracking and simulation. Makes economic decisions data-driven.',
+    dependsOn: [2],
+    incumbents: ['Mint', 'YNAB', 'Robinhood', 'Bloomberg Terminal'],
+    artifacts: [
+      { name: 'Asset', persistsWithoutDTU: true, storageDomain: 'finance', requiredFields: ['id', 'symbol', 'type', 'quantity', 'currentPrice'] },
+      { name: 'Transaction', persistsWithoutDTU: true, storageDomain: 'finance', requiredFields: ['id', 'assetId', 'type', 'amount', 'executedAt'] },
+      { name: 'Report', persistsWithoutDTU: true, storageDomain: 'finance', requiredFields: ['id', 'type', 'period', 'data', 'generatedAt'] },
+    ],
+    engines: [
+      { name: 'portfolio-simulator', description: 'Simulates portfolio performance under scenarios', trigger: 'on_demand' },
+      { name: 'report-generator', description: 'Generates financial reports', trigger: 'on_demand' },
+      { name: 'alert-engine', description: 'Monitors conditions and triggers alerts', trigger: 'automatic' },
+    ],
+    pipelines: [
+      { name: 'track-simulate-report', steps: ['record-transaction', 'update-portfolio', 'simulate', 'generate-report'], engines: ['portfolio-simulator', 'report-generator'] },
+      { name: 'monitor-alert', steps: ['load-conditions', 'evaluate', 'trigger-alerts', 'notify'], engines: ['alert-engine', 'portfolio-simulator'] },
+    ],
+    acceptanceCriteria: ['Asset artifact persists with full CRUD', 'Portfolio simulation works', 'Report generation produces CSV', 'DTU exhaust for all financial actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 21: ML ────────────────────────────────────────────────
+  {
+    order: 21,
+    lensId: 'ml',
+    name: 'ML',
+    rationale: 'Machine learning experiment tracking. Makes ML workflows reproducible and auditable.',
+    dependsOn: [1, 10],
+    incumbents: ['MLflow', 'Weights & Biases', 'Neptune', 'DVC'],
+    artifacts: [
+      { name: 'Model', persistsWithoutDTU: true, storageDomain: 'ml', requiredFields: ['id', 'name', 'framework', 'version', 'metrics'] },
+      { name: 'Experiment', persistsWithoutDTU: true, storageDomain: 'ml', requiredFields: ['id', 'modelId', 'config', 'status', 'results'] },
+      { name: 'RunLog', persistsWithoutDTU: true, storageDomain: 'ml', requiredFields: ['id', 'experimentId', 'epoch', 'metrics', 'timestamp'] },
+    ],
+    engines: [
+      { name: 'experiment-runner', description: 'Runs ML experiments with parameter tracking', trigger: 'on_demand' },
+      { name: 'run-comparer', description: 'Compares metrics across experiment runs', trigger: 'on_demand' },
+      { name: 'report-generator', description: 'Generates experiment reports', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'train-evaluate-deploy', steps: ['configure-experiment', 'train', 'evaluate', 'compare-runs', 'deploy'], engines: ['experiment-runner', 'run-comparer'] },
+      { name: 'experiment-report', steps: ['load-runs', 'compare-metrics', 'generate-charts', 'publish-report'], engines: ['run-comparer', 'report-generator'] },
+    ],
+    acceptanceCriteria: ['Model artifact persists with full CRUD', 'Experiment tracking is reproducible', 'Run comparison shows metric diffs', 'DTU exhaust for all ML actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 22: SRS ───────────────────────────────────────────────
+  {
+    order: 22,
+    lensId: 'srs',
+    name: 'SRS',
+    rationale: 'Spaced repetition for knowledge retention. Makes learning compounding.',
+    dependsOn: [1],
+    incumbents: ['Anki', 'SuperMemo', 'Mochi', 'RemNote'],
+    artifacts: [
+      { name: 'Deck', persistsWithoutDTU: true, storageDomain: 'srs', requiredFields: ['id', 'name', 'cardCount', 'lastReviewedAt'] },
+      { name: 'Card', persistsWithoutDTU: true, storageDomain: 'srs', requiredFields: ['id', 'deckId', 'front', 'back', 'interval', 'nextReviewAt'] },
+      { name: 'ReviewLog', persistsWithoutDTU: true, storageDomain: 'srs', requiredFields: ['id', 'cardId', 'rating', 'reviewedAt', 'interval'] },
+    ],
+    engines: [
+      { name: 'interval-optimizer', description: 'Optimizes review intervals using SM-2+ algorithm', trigger: 'automatic' },
+      { name: 'card-generator', description: 'Generates cards from DTU content', trigger: 'on_demand' },
+      { name: 'retention-analyzer', description: 'Analyzes retention curves and suggests improvements', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'review-optimize-schedule', steps: ['present-card', 'record-response', 'optimize-interval', 'schedule-next'], engines: ['interval-optimizer', 'retention-analyzer'] },
+      { name: 'dtu-to-cards', steps: ['select-dtus', 'extract-concepts', 'generate-cards', 'add-to-deck'], engines: ['card-generator', 'interval-optimizer'] },
+    ],
+    acceptanceCriteria: ['Deck artifact persists with full CRUD', 'Interval optimization adapts to performance', 'Card generation from DTUs works', 'DTU exhaust for all review actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 23: Voice ─────────────────────────────────────────────
+  {
+    order: 23,
+    lensId: 'voice',
+    name: 'Voice',
+    rationale: 'Voice capture and processing. Audio-first knowledge capture with transcription and analysis.',
+    dependsOn: [5],
+    incumbents: ['Otter.ai', 'Whisper', 'Rev', 'Descript'],
+    artifacts: [
+      { name: 'Take', persistsWithoutDTU: true, storageDomain: 'voice', requiredFields: ['id', 'title', 'duration', 'format', 'status'] },
+      { name: 'Transcript', persistsWithoutDTU: true, storageDomain: 'voice', requiredFields: ['id', 'takeId', 'text', 'segments', 'language'] },
+      { name: 'VoiceNote', persistsWithoutDTU: true, storageDomain: 'voice', requiredFields: ['id', 'takeId', 'summary', 'tasks', 'createdAt'] },
+    ],
+    engines: [
+      { name: 'transcriber', description: 'Transcribes audio to text with timestamps', trigger: 'on_demand' },
+      { name: 'summarizer', description: 'Summarizes transcripts into key points', trigger: 'on_demand' },
+      { name: 'task-extractor', description: 'Extracts action items from voice notes', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'record-transcribe-summarize', steps: ['record-take', 'transcribe', 'summarize', 'extract-tasks'], engines: ['transcriber', 'summarizer'] },
+      { name: 'voice-to-knowledge', steps: ['load-transcript', 'extract-concepts', 'link-to-graph', 'generate-dtu'], engines: ['task-extractor', 'summarizer'] },
+    ],
+    acceptanceCriteria: ['Take artifact persists with full CRUD', 'Transcription produces timestamped text', 'Task extraction finds action items', 'DTU exhaust for all voice actions'],
+    status: 'blocked',
+  },
+
+  // ── PHASE 24: Game ──────────────────────────────────────────────
+  {
+    order: 24,
+    lensId: 'game',
+    name: 'Game',
+    rationale: 'Gamification engine. Adds progression, achievements, and quests to all lenses.',
+    dependsOn: [1],
+    incumbents: ['Habitica', 'Duolingo', 'Forest', 'Level.fyi'],
+    artifacts: [
+      { name: 'Profile', persistsWithoutDTU: true, storageDomain: 'game', requiredFields: ['id', 'userId', 'level', 'xp', 'stats'] },
+      { name: 'Quest', persistsWithoutDTU: true, storageDomain: 'game', requiredFields: ['id', 'title', 'objectives', 'reward', 'status'] },
+      { name: 'GameState', persistsWithoutDTU: true, storageDomain: 'game', requiredFields: ['id', 'profileId', 'activeQuests', 'inventory', 'updatedAt'] },
+      { name: 'RewardEvent', persistsWithoutDTU: true, storageDomain: 'game', requiredFields: ['id', 'profileId', 'type', 'amount', 'source', 'awardedAt'] },
+    ],
+    engines: [
+      { name: 'turn-resolver', description: 'Resolves game turns and applies outcomes', trigger: 'on_demand' },
+      { name: 'balance-engine', description: 'Balances XP curves and reward rates', trigger: 'on_demand' },
+      { name: 'simulator', description: 'Simulates quest outcomes', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      { name: 'quest-complete-reward', steps: ['check-objectives', 'resolve-turn', 'award-xp', 'check-levelup', 'emit-reward'], engines: ['turn-resolver', 'balance-engine'] },
+      { name: 'balance-cycle', steps: ['analyze-progression', 'simulate-curves', 'adjust-rates', 'publish-config'], engines: ['balance-engine', 'simulator'] },
+    ],
+    acceptanceCriteria: ['Profile artifact persists with full CRUD', 'Quest completion awards XP', 'Turn resolution applies outcomes', 'DTU exhaust for all game actions'],
+    status: 'blocked',
+  },
+];
+
 // ── Derived helpers ─────────────────────────────────────────────
 
 /** Get all phases in execution order. */
