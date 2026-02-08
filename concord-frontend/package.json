@@ -12,7 +12,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "type-check": "tsc --noEmit",
-    "validate-routes": "npx tsx scripts/validate-routes.ts"
+    "validate-routes": "npx tsx scripts/validate-routes.ts",
+    "score-lenses": "npx tsx scripts/score-lenses.ts",
+    "validate-lens-quality": "npx tsx scripts/validate-lens-quality.ts",
+    "validate-lens-quality:strict": "npx tsx scripts/validate-lens-quality.ts --strict"
   },
   "dependencies": {
     "next": "^15.1.0",
