@@ -18503,7 +18503,11 @@ registerLensAction("game", "balance", async (ctx, artifact, params) => {
   return { ok: true, balance: xpCurve };
 });
 
-console.log("[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines)");
+// Load all super-lens domain action modules
+const domainModules = require('./domains');
+domainModules.forEach(mod => mod(registerLensAction));
+
+console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains)`);
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
