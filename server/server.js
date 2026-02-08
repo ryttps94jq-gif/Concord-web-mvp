@@ -2305,6 +2305,21 @@ function requireRole(...roles) {
   };
 }
 
+// Production write-auth: enforce authentication on all mutating requests in production
+// even when AUTH_ENABLED=false, to prevent accidental open-write deployments.
+const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics"];
+function productionWriteAuthMiddleware(req, res, next) {
+  if (NODE_ENV !== "production") return next();
+  const method = req.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
+  if (WRITE_AUTH_PUBLIC_PATHS.some(p => req.path.startsWith(p))) return next();
+  // In production, require at least an API key or authenticated session for writes
+  if (!req.user && !req.headers["x-api-key"] && !req.cookies?.concord_auth && !req.headers.authorization) {
+    return res.status(401).json({ ok: false, error: "Authentication required for write operations in production", code: "PROD_WRITE_AUTH" });
+  }
+  return next();
+}
+
 // ---- Validation Schemas (Zod) ----
 const schemas = {};
 if (z) {
@@ -3057,9 +3072,45 @@ try {
 
 
 
-const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null };
+const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null, source:"none" };
 
 async function tryLoadSeedDTUs() {
+  // 1. Try JSONL pack format first (preferred for large corpora)
+  const packDir = path.join(DATA_DIR, "dtu-packs");
+  const manifestPath = path.join(packDir, "manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const dtus = [];
+      let errors = 0;
+      for (const chunk of manifest.chunks) {
+        const chunkPath = path.join(packDir, chunk.file);
+        if (!fs.existsSync(chunkPath)) { errors++; continue; }
+        const content = fs.readFileSync(chunkPath, "utf-8");
+        const hash = crypto.createHash("sha256").update(content).digest("hex");
+        if (hash !== chunk.sha256) {
+          console.warn(`[DTU-Pack] Hash mismatch: ${chunk.file} (expected ${chunk.sha256.slice(0,12)}, got ${hash.slice(0,12)})`);
+          errors++;
+          continue;
+        }
+        for (const line of content.trim().split("\n")) {
+          if (!line.trim()) continue;
+          try { dtus.push(JSON.parse(line)); } catch { errors++; }
+        }
+      }
+      if (dtus.length > 0) {
+        SEED_INFO.ok = true; SEED_INFO.loaded = true;
+        SEED_INFO.count = dtus.length; SEED_INFO.source = "dtu-packs";
+        SEED_INFO.path = packDir;
+        if (errors) SEED_INFO.error = `${errors} pack error(s)`;
+        console.log(`[DTU-Pack] Loaded ${dtus.length} DTUs from ${manifest.chunks.length} chunks`);
+        return dtus;
+      }
+    } catch (e) {
+      console.warn(`[DTU-Pack] Failed to load packs: ${e.message}`);
+    }
+  }
+  // 2. Fallback to dtus.js monolithic import
   try {
     const mod = await import("./dtus.js");
     const seed = (mod?.dtus ?? mod?.default ?? mod?.DTUS ?? null);
@@ -3068,6 +3119,7 @@ async function tryLoadSeedDTUs() {
     SEED_INFO.ok = true;
     SEED_INFO.loaded = true;
     SEED_INFO.count = arr.length;
+    SEED_INFO.source = "dtus.js";
     return arr;
   } catch (e) {
     SEED_INFO.ok = false;
@@ -3354,7 +3406,17 @@ function inLatticeReality({ type="macro", domain="", name="", input=null, ctx=nu
 function _c2founderOverrideAllowed(ctx){
   const role = ctx?.actor?.role || "";
   const scopes = ctx?.actor?.scopes || [];
-  return role==="owner" || scopes.includes("*") || scopes.includes("founder");
+  const isFounder = role==="owner" || scopes.includes("*") || scopes.includes("founder");
+  if (!isFounder) return false;
+  // Production hardening: require FOUNDER_SECRET as second factor for override
+  if (NODE_ENV === "production" && process.env.FOUNDER_SECRET) {
+    const provided = ctx?.reqMeta?.founderSecret || "";
+    if (!provided || provided !== process.env.FOUNDER_SECRET) {
+      _c2log("c2.founder", "Override denied: missing/invalid FOUNDER_SECRET in production", { role });
+      return false;
+    }
+  }
+  return true;
 }
 async function governedCall(ctx, effectName, fn){
   const pre = inLatticeReality({ type:"governedCall", domain:"governed", name:effectName, ctx, input:{} });
@@ -5638,6 +5700,7 @@ function makeCtx(req=null) {
       method: req.method,
       path: req.path,
       override: (req.query && (req.query.override === "1" || req.query.override === "true")) ? true : false,
+      founderSecret: req.get("x-founder-secret") || "",
       at: nowISO()
     } : null,
     log,
@@ -12893,8 +12956,17 @@ if (helmet) {app.use(helmet({
       upgradeInsecureRequests: NODE_ENV === "production" ? [] : null,
     },
   },
-  crossOriginEmbedderPolicy: false, // Allow embedding for development
-  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
+  crossOriginEmbedderPolicy: NODE_ENV === "production",
+  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permissionsPolicy: {
+    features: {
+      camera: ["'none'"],
+      microphone: ["'self'"],
+      geolocation: ["'none'"],
+      payment: ["'none'"],
+    },
+  },
 }));} // Security headers
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
@@ -12947,6 +13019,7 @@ if (rateLimiter) app.use(rateLimiter);
 app.use(metricsMiddleware);
 app.use(cookieParserMiddleware); // Parse cookies before auth
 app.use(authMiddleware);
+app.use(productionWriteAuthMiddleware); // Enforce auth on all writes in production
 app.use(csrfMiddleware); // CSRF protection after auth
 
 // ---- Health & Readiness Endpoints ----
@@ -13586,18 +13659,90 @@ function getActorFromReq(req) {
   return { ok: true, actor: { userId: key.userId, orgId: key.orgId, role, scopes, keyId: key.id } };
 }
 
-// Macro ACL (domain.name → roles/scopes allowed). Defaults to allow local dev.
+// ---- Macro ACL v2: Domain defaults + per-macro overrides + production default-deny ----
 const MACRO_ACL = new Map(); // key = `${domain}.${name}` → { roles:[], scopes:[] }
+const MACRO_ACL_DOMAIN = new Map(); // domain → { roles:[], scopes:[] }
+
 function allowMacro(domain, name, { roles=["owner","admin","member"], scopes=["*"] } = {}) {
   MACRO_ACL.set(`${domain}.${name}`, { roles, scopes });
 }
-function _canRunMacro(actor, domain, name) {
-  const rule = MACRO_ACL.get(`${domain}.${name}`);
-  if (!rule) return true; // default open (local-first)
-  const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
-  const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
-  return roleOk && scopeOk;
+function allowDomain(domain, { roles=["owner","admin","member"], scopes=["*"] } = {}) {
+  MACRO_ACL_DOMAIN.set(domain, { roles, scopes });
 }
+
+function _canRunMacro(actor, domain, name) {
+  function _checkRule(rule) {
+    const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
+    const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
+    return roleOk && scopeOk;
+  }
+  // 1. Per-macro rule (highest priority)
+  const specific = MACRO_ACL.get(`${domain}.${name}`);
+  if (specific) return _checkRule(specific);
+  // 2. Domain-level default
+  const domRule = MACRO_ACL_DOMAIN.get(domain);
+  if (domRule) return _checkRule(domRule);
+  // 3. No rule: open in development, default-deny in production
+  if (NODE_ENV === "production") {
+    console.warn(`[MacroACL] DENY: no ACL rule for ${domain}.${name}`);
+    return false;
+  }
+  return true;
+}
+
+// ---- Populate Macro Permission Matrix ----
+// Tier shortcuts for role/scope combinations
+const _ACL_PUB    = { roles: ["viewer","member","admin","owner"], scopes: ["read","write","admin","*"] };
+const _ACL_MEMBER = { roles: ["member","admin","owner"], scopes: ["write","admin","*"] };
+const _ACL_ADMIN  = { roles: ["admin","owner"], scopes: ["admin","*"] };
+const _ACL_OWNER  = { roles: ["owner"], scopes: ["*"] };
+
+// Public read macros (viewer+): frontend boot path, status checks, DTU browsing
+for (const [d, n] of [
+  ["system","status"],["system","getStatus"],
+  ["dtu","list"],["dtu","get"],["dtu","search"],["dtu","recent"],["dtu","stats"],["dtu","count"],["dtu","export"],
+  ["settings","get"],["settings","status"],
+  ["chicken3","status"],
+]) allowMacro(d, n, _ACL_PUB);
+
+// Member-level domains (authenticated user operations)
+for (const d of [
+  "ask","chat","forge","swarm","sim","reasoning","hypothesis","inference",
+  "metacognition","metalearning","search","semantic","reflection","attention","experience",
+  "entity","voice","tools","multimodal","collab","whiteboard","persona","wrapper","layer",
+  "temporal","grounding","worldmodel","commonsense","explanation","transfer","materials",
+  "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
+  "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
+  "lattice","backpressure",
+]) allowDomain(d, _ACL_MEMBER);
+
+// Admin-level domains (system management)
+for (const d of [
+  "admin","automation","autotag","backup","cache","db","graph","schema",
+  "integration","webhook","jobs","perf","log","llm","plugin","source","abstraction",
+  "evolution","audit","verify","experiment","synth","harness","crawl","ingest",
+  "export","import","redis","sync","system",
+]) allowDomain(d, _ACL_ADMIN);
+
+// Owner-only domains (sensitive infrastructure)
+for (const d of [
+  "shard","governor","global","sovereign","council","org","auth",
+]) allowDomain(d, _ACL_OWNER);
+
+// Per-macro overrides for sensitive operations within member domains
+allowMacro("dtu", "delete", _ACL_ADMIN);
+allowMacro("dtu", "tier_change", _ACL_ADMIN);
+allowMacro("dtu", "shadow_access", _ACL_ADMIN);
+allowMacro("goals", "approve", _ACL_OWNER);
+allowMacro("goals", "activate", _ACL_OWNER);
+allowMacro("goals", "config", _ACL_OWNER);
+allowMacro("chicken3", "meta_propose", _ACL_OWNER);
+allowMacro("chicken3", "meta_commit_quiet", _ACL_OWNER);
+allowMacro("entity", "terminal_approve", _ACL_ADMIN);
+allowMacro("grounding", "approve_action", _ACL_ADMIN);
+
+// Activate macro ACL enforcement
+globalThis.canRunMacro = _canRunMacro;
 
 // Attach ctx.actor for every request
 app.use((req, res, next) => {
