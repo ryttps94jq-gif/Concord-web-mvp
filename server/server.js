@@ -1403,6 +1403,8 @@ const STATE = {
   papers: new Map(),      // paperId -> {id, orgId, topic, outline, sections, refs, status, createdAt, updatedAt}
   organs: new Map(),      // organId -> organState
   growth: null,          // growth OS state
+  // v3: Generic lens artifact store (domain.type → artifact)
+  lensArtifacts: new Map(), // artifactId → {id, domain, type, ownerId, title, data, meta, createdAt, updatedAt, version}
   __chicken2: {
     enabled: true,
     mode: "full_blast",
@@ -2305,6 +2307,21 @@ function requireRole(...roles) {
   };
 }
 
+// Production write-auth: enforce authentication on all mutating requests in production
+// even when AUTH_ENABLED=false, to prevent accidental open-write deployments.
+const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics"];
+function productionWriteAuthMiddleware(req, res, next) {
+  if (NODE_ENV !== "production") return next();
+  const method = req.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
+  if (WRITE_AUTH_PUBLIC_PATHS.some(p => req.path.startsWith(p))) return next();
+  // In production, require at least an API key or authenticated session for writes
+  if (!req.user && !req.headers["x-api-key"] && !req.cookies?.concord_auth && !req.headers.authorization) {
+    return res.status(401).json({ ok: false, error: "Authentication required for write operations in production", code: "PROD_WRITE_AUTH" });
+  }
+  return next();
+}
+
 // ---- Validation Schemas (Zod) ----
 const schemas = {};
 if (z) {
@@ -3057,9 +3074,45 @@ try {
 
 
 
-const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null };
+const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null, source:"none" };
 
 async function tryLoadSeedDTUs() {
+  // 1. Try JSONL pack format first (preferred for large corpora)
+  const packDir = path.join(DATA_DIR, "dtu-packs");
+  const manifestPath = path.join(packDir, "manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const dtus = [];
+      let errors = 0;
+      for (const chunk of manifest.chunks) {
+        const chunkPath = path.join(packDir, chunk.file);
+        if (!fs.existsSync(chunkPath)) { errors++; continue; }
+        const content = fs.readFileSync(chunkPath, "utf-8");
+        const hash = crypto.createHash("sha256").update(content).digest("hex");
+        if (hash !== chunk.sha256) {
+          console.warn(`[DTU-Pack] Hash mismatch: ${chunk.file} (expected ${chunk.sha256.slice(0,12)}, got ${hash.slice(0,12)})`);
+          errors++;
+          continue;
+        }
+        for (const line of content.trim().split("\n")) {
+          if (!line.trim()) continue;
+          try { dtus.push(JSON.parse(line)); } catch { errors++; }
+        }
+      }
+      if (dtus.length > 0) {
+        SEED_INFO.ok = true; SEED_INFO.loaded = true;
+        SEED_INFO.count = dtus.length; SEED_INFO.source = "dtu-packs";
+        SEED_INFO.path = packDir;
+        if (errors) SEED_INFO.error = `${errors} pack error(s)`;
+        console.log(`[DTU-Pack] Loaded ${dtus.length} DTUs from ${manifest.chunks.length} chunks`);
+        return dtus;
+      }
+    } catch (e) {
+      console.warn(`[DTU-Pack] Failed to load packs: ${e.message}`);
+    }
+  }
+  // 2. Fallback to dtus.js monolithic import
   try {
     const mod = await import("./dtus.js");
     const seed = (mod?.dtus ?? mod?.default ?? mod?.DTUS ?? null);
@@ -3068,6 +3121,7 @@ async function tryLoadSeedDTUs() {
     SEED_INFO.ok = true;
     SEED_INFO.loaded = true;
     SEED_INFO.count = arr.length;
+    SEED_INFO.source = "dtus.js";
     return arr;
   } catch (e) {
     SEED_INFO.ok = false;
@@ -3354,7 +3408,17 @@ function inLatticeReality({ type="macro", domain="", name="", input=null, ctx=nu
 function _c2founderOverrideAllowed(ctx){
   const role = ctx?.actor?.role || "";
   const scopes = ctx?.actor?.scopes || [];
-  return role==="owner" || scopes.includes("*") || scopes.includes("founder");
+  const isFounder = role==="owner" || scopes.includes("*") || scopes.includes("founder");
+  if (!isFounder) return false;
+  // Production hardening: require FOUNDER_SECRET as second factor for override
+  if (NODE_ENV === "production" && process.env.FOUNDER_SECRET) {
+    const provided = ctx?.reqMeta?.founderSecret || "";
+    if (!provided || provided !== process.env.FOUNDER_SECRET) {
+      _c2log("c2.founder", "Override denied: missing/invalid FOUNDER_SECRET in production", { role });
+      return false;
+    }
+  }
+  return true;
 }
 async function governedCall(ctx, effectName, fn){
   const pre = inLatticeReality({ type:"governedCall", domain:"governed", name:effectName, ctx, input:{} });
@@ -5638,6 +5702,7 @@ function makeCtx(req=null) {
       method: req.method,
       path: req.path,
       override: (req.query && (req.query.override === "1" || req.query.override === "true")) ? true : false,
+      founderSecret: req.get("x-founder-secret") || "",
       at: nowISO()
     } : null,
     log,
@@ -12893,8 +12958,17 @@ if (helmet) {app.use(helmet({
       upgradeInsecureRequests: NODE_ENV === "production" ? [] : null,
     },
   },
-  crossOriginEmbedderPolicy: false, // Allow embedding for development
-  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
+  crossOriginEmbedderPolicy: NODE_ENV === "production",
+  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permissionsPolicy: {
+    features: {
+      camera: ["'none'"],
+      microphone: ["'self'"],
+      geolocation: ["'none'"],
+      payment: ["'none'"],
+    },
+  },
 }));} // Security headers
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
@@ -12947,6 +13021,7 @@ if (rateLimiter) app.use(rateLimiter);
 app.use(metricsMiddleware);
 app.use(cookieParserMiddleware); // Parse cookies before auth
 app.use(authMiddleware);
+app.use(productionWriteAuthMiddleware); // Enforce auth on all writes in production
 app.use(csrfMiddleware); // CSRF protection after auth
 
 // ---- Health & Readiness Endpoints ----
@@ -13586,18 +13661,96 @@ function getActorFromReq(req) {
   return { ok: true, actor: { userId: key.userId, orgId: key.orgId, role, scopes, keyId: key.id } };
 }
 
-// Macro ACL (domain.name → roles/scopes allowed). Defaults to allow local dev.
+// ---- Macro ACL v2: Domain defaults + per-macro overrides + production default-deny ----
 const MACRO_ACL = new Map(); // key = `${domain}.${name}` → { roles:[], scopes:[] }
+const MACRO_ACL_DOMAIN = new Map(); // domain → { roles:[], scopes:[] }
+
 function allowMacro(domain, name, { roles=["owner","admin","member"], scopes=["*"] } = {}) {
   MACRO_ACL.set(`${domain}.${name}`, { roles, scopes });
 }
-function _canRunMacro(actor, domain, name) {
-  const rule = MACRO_ACL.get(`${domain}.${name}`);
-  if (!rule) return true; // default open (local-first)
-  const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
-  const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
-  return roleOk && scopeOk;
+function allowDomain(domain, { roles=["owner","admin","member"], scopes=["*"] } = {}) {
+  MACRO_ACL_DOMAIN.set(domain, { roles, scopes });
 }
+
+function _canRunMacro(actor, domain, name) {
+  function _checkRule(rule) {
+    const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
+    const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
+    return roleOk && scopeOk;
+  }
+  // 1. Per-macro rule (highest priority)
+  const specific = MACRO_ACL.get(`${domain}.${name}`);
+  if (specific) return _checkRule(specific);
+  // 2. Domain-level default
+  const domRule = MACRO_ACL_DOMAIN.get(domain);
+  if (domRule) return _checkRule(domRule);
+  // 3. No rule: open in development, default-deny in production
+  if (NODE_ENV === "production") {
+    console.warn(`[MacroACL] DENY: no ACL rule for ${domain}.${name}`);
+    return false;
+  }
+  return true;
+}
+
+// ---- Populate Macro Permission Matrix ----
+// Tier shortcuts for role/scope combinations
+const _ACL_PUB    = { roles: ["viewer","member","admin","owner"], scopes: ["read","write","admin","*"] };
+const _ACL_MEMBER = { roles: ["member","admin","owner"], scopes: ["write","admin","*"] };
+const _ACL_ADMIN  = { roles: ["admin","owner"], scopes: ["admin","*"] };
+const _ACL_OWNER  = { roles: ["owner"], scopes: ["*"] };
+
+// Public read macros (viewer+): frontend boot path, status checks, DTU browsing
+for (const [d, n] of [
+  ["system","status"],["system","getStatus"],
+  ["dtu","list"],["dtu","get"],["dtu","search"],["dtu","recent"],["dtu","stats"],["dtu","count"],["dtu","export"],
+  ["settings","get"],["settings","status"],
+  ["chicken3","status"],
+]) allowMacro(d, n, _ACL_PUB);
+
+// Member-level domains (authenticated user operations)
+for (const d of [
+  "ask","chat","forge","swarm","sim","reasoning","hypothesis","inference",
+  "metacognition","metalearning","search","semantic","reflection","attention","experience",
+  "entity","voice","tools","multimodal","collab","whiteboard","persona","wrapper","layer",
+  "temporal","grounding","worldmodel","commonsense","explanation","transfer","materials",
+  "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
+  "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
+  "lattice","backpressure",
+]) allowDomain(d, _ACL_MEMBER);
+
+// Admin-level domains (system management)
+for (const d of [
+  "admin","automation","autotag","backup","cache","db","graph","schema",
+  "integration","webhook","jobs","perf","log","llm","plugin","source","abstraction",
+  "evolution","audit","verify","experiment","synth","harness","crawl","ingest",
+  "export","import","redis","sync","system",
+]) allowDomain(d, _ACL_ADMIN);
+
+// Owner-only domains (sensitive infrastructure)
+for (const d of [
+  "shard","governor","global","sovereign","council","org","auth",
+]) allowDomain(d, _ACL_OWNER);
+
+// Per-macro overrides for sensitive operations within member domains
+allowMacro("dtu", "delete", _ACL_ADMIN);
+allowMacro("dtu", "tier_change", _ACL_ADMIN);
+allowMacro("dtu", "shadow_access", _ACL_ADMIN);
+allowMacro("goals", "approve", _ACL_OWNER);
+allowMacro("goals", "activate", _ACL_OWNER);
+allowMacro("goals", "config", _ACL_OWNER);
+allowMacro("chicken3", "meta_propose", _ACL_OWNER);
+allowMacro("chicken3", "meta_commit_quiet", _ACL_OWNER);
+allowMacro("entity", "terminal_approve", _ACL_ADMIN);
+allowMacro("grounding", "approve_action", _ACL_ADMIN);
+
+// Lens artifact macros: list/get/export = member, create/update/delete/run/bulkCreate = member
+allowDomain("lens", _ACL_MEMBER);
+allowMacro("lens", "list", _ACL_PUB);
+allowMacro("lens", "get", _ACL_PUB);
+allowMacro("lens", "export", _ACL_PUB);
+
+// Activate macro ACL enforcement
+globalThis.canRunMacro = _canRunMacro;
 
 // Attach ctx.actor for every request
 app.use((req, res, next) => {
@@ -17475,6 +17628,196 @@ app.get("/api/visual/sunburst", async (req, res) => res.json(await runMacro("vis
 app.get("/api/visual/timeline", async (req, res) => res.json(await runMacro("visual", "timeline", { startDate: req.query.startDate, endDate: req.query.endDate, limit: req.query.limit }, makeCtx(req))));
 
 console.log("[Concord] Wave 4: Auto-Tagging & Visuals loaded");
+
+// ============================================================================
+// GENERIC LENS ARTIFACT RUNTIME (No-Mock Upgrade Infrastructure)
+// ============================================================================
+// Every lens can persist artifacts via these generic macros. Structure:
+//   { id, domain, type, ownerId, title, data:{}, meta:{tags,status,visibility}, createdAt, updatedAt, version }
+// DTU exhaust is emitted automatically on every mutation.
+
+function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
+  try {
+    const dtuId = uid("dtu");
+    const dtu = {
+      id: dtuId,
+      title: `Lens:${domain} ${action} ${artifactType}`,
+      tier: "regular",
+      summary: `${action} ${artifactType} "${artifact.title || artifact.id}" in ${domain} lens`,
+      content: JSON.stringify({ domain, action, artifactType, artifactId: artifact.id, ...extra }),
+      tags: [`lens:${domain}`, `artifact:${artifactType}`, `action:${action}`],
+      createdAt: nowISO(),
+      updatedAt: nowISO(),
+      machine: { kind: "lens_exhaust", domain, action, artifactType, artifactId: artifact.id },
+      human: { summary: `${action} ${artifactType} in ${domain}` },
+      claims: extra.claims || [],
+    };
+    STATE.dtus.set(dtuId, dtu);
+    saveStateDebounced();
+    return dtuId;
+  } catch { return null; }
+}
+
+register("lens", "list", (ctx, input={}) => {
+  const { domain, type, search, tags, status, limit=100, offset=0 } = input;
+  if (!domain) return { ok: false, error: "domain required" };
+  let artifacts = Array.from(STATE.lensArtifacts.values())
+    .filter(a => a.domain === domain && (!type || a.type === type));
+  if (search) {
+    const q = String(search).toLowerCase();
+    artifacts = artifacts.filter(a => (a.title||"").toLowerCase().includes(q) || JSON.stringify(a.data||{}).toLowerCase().includes(q));
+  }
+  if (tags && tags.length) artifacts = artifacts.filter(a => tags.some(t => (a.meta?.tags||[]).includes(t)));
+  if (status) artifacts = artifacts.filter(a => a.meta?.status === status);
+  artifacts.sort((a,b) => (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
+  const total = artifacts.length;
+  artifacts = artifacts.slice(offset, offset + limit);
+  return { ok: true, artifacts, total, domain, type };
+});
+
+register("lens", "get", (ctx, input={}) => {
+  const { id, domain } = input;
+  if (!id) return { ok: false, error: "id required" };
+  const artifact = STATE.lensArtifacts.get(id);
+  if (!artifact) return { ok: false, error: "not found" };
+  if (domain && artifact.domain !== domain) return { ok: false, error: "domain mismatch" };
+  return { ok: true, artifact };
+});
+
+register("lens", "create", (ctx, input={}) => {
+  const { domain, type, title, data={}, meta={} } = input;
+  if (!domain || !type) return { ok: false, error: "domain and type required" };
+  const id = uid("lart");
+  const artifact = {
+    id, domain, type,
+    ownerId: ctx.actor?.userId || "anon",
+    title: title || `New ${type}`,
+    data,
+    meta: { tags: meta.tags || [], status: meta.status || "draft", visibility: meta.visibility || "private", ...meta },
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    version: 1,
+  };
+  STATE.lensArtifacts.set(id, artifact);
+  saveStateDebounced();
+  _lensEmitDTU(ctx, domain, "create", type, artifact);
+  return { ok: true, artifact };
+});
+
+register("lens", "update", (ctx, input={}) => {
+  const { id, title, data, meta } = input;
+  if (!id) return { ok: false, error: "id required" };
+  const artifact = STATE.lensArtifacts.get(id);
+  if (!artifact) return { ok: false, error: "not found" };
+  const before = { title: artifact.title, data: { ...artifact.data } };
+  if (title !== undefined) artifact.title = title;
+  if (data !== undefined) artifact.data = { ...artifact.data, ...data };
+  if (meta !== undefined) artifact.meta = { ...artifact.meta, ...meta };
+  artifact.updatedAt = nowISO();
+  artifact.version = (artifact.version || 1) + 1;
+  saveStateDebounced();
+  _lensEmitDTU(ctx, artifact.domain, "update", artifact.type, artifact, { claims: [`updated from v${artifact.version-1}`], before });
+  return { ok: true, artifact };
+});
+
+register("lens", "delete", (ctx, input={}) => {
+  const { id } = input;
+  if (!id) return { ok: false, error: "id required" };
+  const artifact = STATE.lensArtifacts.get(id);
+  if (!artifact) return { ok: false, error: "not found" };
+  STATE.lensArtifacts.delete(id);
+  saveStateDebounced();
+  _lensEmitDTU(ctx, artifact.domain, "delete", artifact.type, artifact);
+  return { ok: true, deleted: id };
+});
+
+register("lens", "run", async (ctx, input={}) => {
+  const { id, action, params={} } = input;
+  if (!id || !action) return { ok: false, error: "id and action required" };
+  const artifact = STATE.lensArtifacts.get(id);
+  if (!artifact) return { ok: false, error: "not found" };
+  // Domain-specific action handlers can be registered via lens.registerAction
+  const handler = LENS_ACTIONS.get(`${artifact.domain}.${action}`);
+  if (!handler) return { ok: false, error: `no handler for ${artifact.domain}.${action}` };
+  const result = await handler(ctx, artifact, params);
+  _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result?.ok });
+  return { ok: true, result };
+});
+
+register("lens", "export", (ctx, input={}) => {
+  const { id, format="json" } = input;
+  if (!id) return { ok: false, error: "id required" };
+  const artifact = STATE.lensArtifacts.get(id);
+  if (!artifact) return { ok: false, error: "not found" };
+  _lensEmitDTU(ctx, artifact.domain, "export", artifact.type, artifact, { format });
+  if (format === "json") return { ok: true, format: "json", data: artifact };
+  return { ok: false, error: `unsupported format: ${format}` };
+});
+
+register("lens", "bulkCreate", (ctx, input={}) => {
+  const { domain, type, items=[] } = input;
+  if (!domain || !type || !items.length) return { ok: false, error: "domain, type, and items required" };
+  const created = [];
+  for (const item of items) {
+    const id = uid("lart");
+    const artifact = {
+      id, domain, type,
+      ownerId: ctx.actor?.userId || "anon",
+      title: item.title || `New ${type}`,
+      data: item.data || {},
+      meta: { tags: item.tags || [], status: item.status || "active", visibility: "private", ...(item.meta||{}) },
+      createdAt: nowISO(), updatedAt: nowISO(), version: 1,
+    };
+    STATE.lensArtifacts.set(id, artifact);
+    created.push(artifact);
+  }
+  saveStateDebounced();
+  _lensEmitDTU(ctx, domain, "bulkCreate", type, { id: "bulk", title: `${created.length} ${type}s` }, { count: created.length });
+  return { ok: true, artifacts: created, count: created.length };
+});
+
+// Lens action registry for domain-specific engines
+const LENS_ACTIONS = new Map(); // `${domain}.${action}` → async (ctx, artifact, params) => result
+function registerLensAction(domain, action, handler) {
+  LENS_ACTIONS.set(`${domain}.${action}`, handler);
+}
+
+// REST routes for generic lens artifacts
+app.get("/api/lens/:domain", async (req, res) => {
+  const ctx = makeCtx(req);
+  const out = await runMacro("lens", "list", { domain: req.params.domain, type: req.query.type, search: req.query.search, tags: req.query.tags?.split(","), status: req.query.status, limit: Number(req.query.limit)||100, offset: Number(req.query.offset)||0 }, ctx);
+  res.json(out);
+});
+app.get("/api/lens/:domain/:id", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "get", { id: req.params.id, domain: req.params.domain }, ctx));
+});
+app.post("/api/lens/:domain", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "create", { domain: req.params.domain, ...req.body }, ctx));
+});
+app.put("/api/lens/:domain/:id", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "update", { id: req.params.id, ...req.body }, ctx));
+});
+app.delete("/api/lens/:domain/:id", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "delete", { id: req.params.id }, ctx));
+});
+app.post("/api/lens/:domain/:id/run", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "run", { id: req.params.id, ...req.body }, ctx));
+});
+app.get("/api/lens/:domain/:id/export", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "export", { id: req.params.id, format: req.query.format || "json" }, ctx));
+});
+app.post("/api/lens/:domain/bulk", async (req, res) => {
+  const ctx = makeCtx(req);
+  res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
+});
+
+console.log("[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust)");
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)

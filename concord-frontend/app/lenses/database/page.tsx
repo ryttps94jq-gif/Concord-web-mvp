@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -87,7 +88,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 // Demo / fallback data
 // ---------------------------------------------------------------------------
 
-const DEMO_TABLES: TableInfo[] = [
+const SEED_TABLES: TableInfo[] = [
   {
     name: 'dtus', schema: 'public', rowCount: 2847, sizeBytes: 4_521_984,
     columns: [
@@ -155,7 +156,7 @@ const DEMO_TABLES: TableInfo[] = [
   },
 ];
 
-const DEMO_INDEXES: IndexInfo[] = [
+const SEED_INDEXES: IndexInfo[] = [
   { name: 'dtus_pkey', table: 'dtus', columns: ['id'], unique: true, type: 'btree', sizeBytes: 245_760 },
   { name: 'idx_dtus_tier', table: 'dtus', columns: ['tier'], unique: false, type: 'btree', sizeBytes: 81_920 },
   { name: 'idx_dtus_tags', table: 'dtus', columns: ['tags'], unique: false, type: 'gin', sizeBytes: 163_840 },
@@ -184,7 +185,7 @@ function buildDemoPerfSnapshots(): PerfSnapshot[] {
   }));
 }
 
-const DEMO_QUERY_RESULT: QueryResult = {
+const SEED_QUERY_RESULT: QueryResult = {
   columns: ['id', 'title', 'tier', 'tags', 'created_at'],
   rows: [
     { id: 'a1b2c3d4', title: 'Cognitive Bootstrap Sequence', tier: 'mega', tags: '["core","bootstrap"]', created_at: '2025-12-01T08:30:00Z' },
@@ -309,6 +310,8 @@ export default function DatabaseLensPage() {
   useLensNav('database');
   const queryClient = useQueryClient();
 
+  const { items: _queryItems, create: _saveQuery } = useLensData('database', 'query', { seed: [] });
+
   // --- Tab state ---
   const [activeTab, setActiveTab] = useState<TabId>('query');
 
@@ -367,8 +370,8 @@ export default function DatabaseLensPage() {
   });
 
   // Merge live data with demo fallback
-  const tables: TableInfo[] = liveTables?.tables ?? DEMO_TABLES;
-  const indexes: IndexInfo[] = liveIndexes?.indexes ?? DEMO_INDEXES;
+  const tables: TableInfo[] = liveTables?.tables ?? SEED_TABLES;
+  const indexes: IndexInfo[] = liveIndexes?.indexes ?? SEED_INDEXES;
 
   // Accumulate perf snapshots for time-series charts
   useEffect(() => {
@@ -405,9 +408,9 @@ export default function DatabaseLensPage() {
     },
     onError: (_err: unknown, query: string) => {
       // Fallback to demo data when API is unavailable
-      setQueryResult({ ...DEMO_QUERY_RESULT, error: undefined });
+      setQueryResult({ ...SEED_QUERY_RESULT, error: undefined });
       setResultPage(0);
-      addToHistory(query, 12, DEMO_QUERY_RESULT.rowCount, true);
+      addToHistory(query, 12, SEED_QUERY_RESULT.rowCount, true);
     },
   });
 

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -50,7 +51,7 @@ interface Thread {
   branchCount: number;
 }
 
-const MOCK_THREADS: Thread[] = [
+const SEED_THREADS: Thread[] = [
   {
     id: 'thread-1',
     name: 'Project Architecture Discussion',
@@ -150,13 +151,17 @@ type ViewMode = 'tree' | 'timeline' | 'linear';
 export default function ThreadLensPage() {
   useLensNav('thread');
 
-  const [threads] = useState<Thread[]>(MOCK_THREADS);
-  const [selectedThread, setSelectedThread] = useState<Thread | null>(MOCK_THREADS[0]);
+  const [threads] = useState<Thread[]>(SEED_THREADS);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(SEED_THREADS[0]);
   const [selectedNode, setSelectedNode] = useState<ThreadNode | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [_showArchived, _setShowArchived] = useState(false);
+
+  const { items: _threadItems, create: _createThread } = useLensData('thread', 'thread', {
+    seed: SEED_THREADS.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
+  });
 
   const { data: sessions } = useQuery({
     queryKey: ['sessions'],

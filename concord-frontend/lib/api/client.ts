@@ -887,6 +887,26 @@ export const apiHelpers = {
         api.post('/api/artistry/ai/session', data),
     },
   },
+
+  // ---- Generic Lens Artifact API ----
+  lens: {
+    list: (domain: string, params?: { type?: string; search?: string; tags?: string; status?: string; limit?: number; offset?: number }) =>
+      api.get(`/api/lens/${domain}`, { params }),
+    get: (domain: string, id: string) =>
+      api.get(`/api/lens/${domain}/${id}`),
+    create: (domain: string, data: { type: string; title?: string; data?: Record<string, unknown>; meta?: Record<string, unknown> }) =>
+      api.post(`/api/lens/${domain}`, data),
+    update: (domain: string, id: string, data: { title?: string; data?: Record<string, unknown>; meta?: Record<string, unknown> }) =>
+      api.put(`/api/lens/${domain}/${id}`, data),
+    delete: (domain: string, id: string) =>
+      api.delete(`/api/lens/${domain}/${id}`),
+    run: (domain: string, id: string, data: { action: string; params?: Record<string, unknown> }) =>
+      api.post(`/api/lens/${domain}/${id}/run`, data),
+    export: (domain: string, id: string, format?: string) =>
+      api.get(`/api/lens/${domain}/${id}/export`, { params: { format: format || 'json' } }),
+    bulkCreate: (domain: string, data: { type: string; items: Array<{ title?: string; data?: Record<string, unknown>; meta?: Record<string, unknown> }> }) =>
+      api.post(`/api/lens/${domain}/bulk`, data),
+  },
 };
 
 // Initialize CSRF token on page load (browser only)

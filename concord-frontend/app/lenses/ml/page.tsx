@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -102,8 +103,8 @@ interface Deployment {
 type Tab = 'models' | 'experiments' | 'datasets' | 'deployments' | 'playground';
 type ViewMode = 'grid' | 'list';
 
-// Mock data
-const MOCK_MODELS: Model[] = [
+// Seed data
+const SEED_MODELS: Model[] = [
   {
     id: 'model-1',
     name: 'DTU Classifier v3',
@@ -177,7 +178,7 @@ const MOCK_MODELS: Model[] = [
   }
 ];
 
-const MOCK_EXPERIMENTS: Experiment[] = [
+const SEED_EXPERIMENTS: Experiment[] = [
   {
     id: 'exp-1',
     name: 'DTU Classifier Hypertuning',
@@ -227,20 +228,28 @@ const MOCK_EXPERIMENTS: Experiment[] = [
   }
 ];
 
-const MOCK_DATASETS: Dataset[] = [
+const SEED_DATASETS: Dataset[] = [
   { id: 'ds-1', name: 'DTU Training Set', size: 2.5, samples: 150000, features: 512, type: 'text', splits: { train: 0.8, val: 0.1, test: 0.1 }, createdAt: '2025-12-01' },
   { id: 'ds-2', name: 'Sentiment Corpus', size: 1.2, samples: 80000, features: 256, type: 'text', splits: { train: 0.7, val: 0.15, test: 0.15 }, createdAt: '2025-11-15' },
   { id: 'ds-3', name: 'Image Features', size: 5.8, samples: 50000, features: 2048, type: 'image', splits: { train: 0.85, val: 0.1, test: 0.05 }, createdAt: '2025-10-20' },
   { id: 'ds-4', name: 'Anomaly Samples', size: 0.3, samples: 10000, features: 64, type: 'tabular', splits: { train: 0.9, val: 0.05, test: 0.05 }, createdAt: '2026-01-10' }
 ];
 
-const MOCK_DEPLOYMENTS: Deployment[] = [
+const SEED_DEPLOYMENTS: Deployment[] = [
   { id: 'dep-1', modelId: 'model-1', modelName: 'DTU Classifier v3', version: '3.2.1', status: 'active', endpoint: '/api/ml/infer/dtu-classifier', replicas: 3, requestsPerSec: 245, avgLatency: 42, errorRate: 0.2, createdAt: '2026-01-29' }
 ];
 
 export default function MLLensPage() {
   useLensNav('ml');
   const queryClient = useQueryClient();
+  const { items: modelItems } = useLensData<Model>('ml', 'model', {
+    seed: SEED_MODELS.map(m => ({ title: m.name, data: m as unknown as Record<string, unknown> })),
+  });
+  const { items: expItems } = useLensData<Experiment>('ml', 'experiment', {
+    seed: SEED_EXPERIMENTS.map(e => ({ title: e.name, data: e as unknown as Record<string, unknown> })),
+  });
+  const models: Model[] = modelItems.length > 0 ? modelItems.map(i => ({ ...(i.data as unknown as Model), id: i.id })) : SEED_MODELS;
+  const experiments: Experiment[] = expItems.length > 0 ? expItems.map(i => ({ ...(i.data as unknown as Experiment), id: i.id })) : SEED_EXPERIMENTS;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // State
@@ -255,14 +264,14 @@ export default function MLLensPage() {
   const [playgroundModel, setPlaygroundModel] = useState<string>('');
 
   // Queries
-  const { data: modelsData } = useQuery({
+  const { data: _modelsData } = useQuery({
     queryKey: ['ml-models'],
-    queryFn: () => api.get('/api/ml/models').then(r => r.data).catch(() => ({ models: MOCK_MODELS })),
+    queryFn: () => api.get('/api/ml/models').then(r => r.data).catch(() => ({ models: SEED_MODELS })),
   });
 
-  const { data: experimentsData } = useQuery({
+  const { data: _experimentsData } = useQuery({
     queryKey: ['ml-experiments'],
-    queryFn: () => api.get('/api/ml/experiments').then(r => r.data).catch(() => ({ experiments: MOCK_EXPERIMENTS })),
+    queryFn: () => api.get('/api/ml/experiments').then(r => r.data).catch(() => ({ experiments: SEED_EXPERIMENTS })),
   });
 
   const { data: metricsData } = useQuery({
@@ -301,10 +310,8 @@ export default function MLLensPage() {
   });
 
   // Data
-  const models = modelsData?.models || MOCK_MODELS;
-  const experiments = experimentsData?.experiments || MOCK_EXPERIMENTS;
-  const datasets = MOCK_DATASETS;
-  const deployments = MOCK_DEPLOYMENTS;
+  const datasets = SEED_DATASETS;
+  const deployments = SEED_DEPLOYMENTS;
   const metrics = metricsData || { gpuUsage: 0, memoryUsage: 0, totalInferences: 0, avgLatency: 0 };
 
   // Filtered data

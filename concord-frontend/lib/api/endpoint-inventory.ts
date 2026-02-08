@@ -414,6 +414,16 @@ export const ENDPOINT_INVENTORY: EndpointEntry[] = [
   { method: 'GET', path: '/api/resonance/quick', usedBy: ['topbar'], helperKey: undefined },
   { method: 'GET', path: '/api/notifications/count', usedBy: ['topbar'], helperKey: undefined },
   { method: 'GET', path: '/api/events', usedBy: ['dashboard'], helperKey: 'events.list' },
+
+  // ── Generic Lens Artifact Runtime ──────────────────────────────
+  { method: 'GET', path: '/api/lens/:domain', usedBy: ['all-lenses'], helperKey: 'lens.list' },
+  { method: 'GET', path: '/api/lens/:domain/:id', usedBy: ['all-lenses'], helperKey: 'lens.get' },
+  { method: 'POST', path: '/api/lens/:domain', usedBy: ['all-lenses'], helperKey: 'lens.create' },
+  { method: 'PUT', path: '/api/lens/:domain/:id', usedBy: ['all-lenses'], helperKey: 'lens.update' },
+  { method: 'DELETE', path: '/api/lens/:domain/:id', usedBy: ['all-lenses'], helperKey: 'lens.delete' },
+  { method: 'POST', path: '/api/lens/:domain/:id/run', usedBy: ['all-lenses'], helperKey: 'lens.run' },
+  { method: 'GET', path: '/api/lens/:domain/:id/export', usedBy: ['all-lenses'], helperKey: 'lens.export' },
+  { method: 'POST', path: '/api/lens/:domain/bulk', usedBy: ['all-lenses'], helperKey: 'lens.bulkCreate' },
 ];
 
 /**

@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -85,7 +86,7 @@ interface Achievement {
 
 // --------------- Demo Data ---------------
 
-const DEMO_GOALS: DemoGoal[] = [
+const SEED_GOALS: DemoGoal[] = [
   { id: 'g1', title: 'Finish Lo-Fi EP', description: 'Complete 5-track lo-fi EP for streaming release', category: 'Production', progress: 0.72, priority: 'high', targetDate: '2026-02-10', subtasks: [{ id: 's1', label: 'Mix track 4', done: true }, { id: 's2', label: 'Master all tracks', done: false }, { id: 's3', label: 'Design cover art', done: true }], xp: 500, milestones: [25, 50, 75], status: 'active' },
   { id: 'g2', title: 'Learn Serum Synthesis', description: 'Complete advanced wavetable synthesis course', category: 'Learning', progress: 0.45, priority: 'medium', targetDate: '2026-02-28', subtasks: [{ id: 's4', label: 'Oscillator basics', done: true }, { id: 's5', label: 'FM synthesis module', done: false }], xp: 300, milestones: [50], status: 'active' },
   { id: 'g3', title: 'Collab with 3 Artists', description: 'Reach out and complete collaborative sessions', category: 'Collaboration', progress: 0.33, priority: 'medium', targetDate: '2026-03-15', subtasks: [{ id: 's6', label: 'Session with VoxLayer', done: true }, { id: 's7', label: 'Session with BeatNova', done: false }, { id: 's8', label: 'Session with Driftwave', done: false }], xp: 400, milestones: [33, 66], status: 'active' },
@@ -96,14 +97,14 @@ const DEMO_GOALS: DemoGoal[] = [
   { id: 'g8', title: 'Master EQ Techniques', description: 'Deep-dive into surgical and creative EQ usage', category: 'Learning', progress: 1.0, priority: 'low', targetDate: '2026-01-15', subtasks: [{ id: 's18', label: 'Subtractive EQ', done: true }, { id: 's19', label: 'Dynamic EQ', done: true }], xp: 250, milestones: [50, 100], status: 'completed' },
 ];
 
-const DEMO_CHALLENGES: Challenge[] = [
+const SEED_CHALLENGES: Challenge[] = [
   { id: 'c1', title: 'Produce a Beat in a New Genre', description: 'Step outside your comfort zone and create in a genre you have never tried', type: 'daily', difficulty: 'Medium', xp: 150, progress: 0, target: 1, endsIn: '8h 23m', accepted: false },
   { id: 'c2', title: 'Release 3 Tracks This Week', description: 'Finish and distribute three complete tracks before the week ends', type: 'weekly', difficulty: 'Hard', xp: 400, progress: 1, target: 3, endsIn: '4d 12h', accepted: true },
   { id: 'c3', title: '100 Beats Community Marathon', description: 'Join producers worldwide in a collective beat-making marathon', type: 'community', difficulty: 'Legendary', xp: 1000, progress: 42, target: 100, participants: 237, endsIn: '12d', accepted: true },
   { id: 'c4', title: 'Sound Design From Scratch', description: 'Create 5 unique patches using only a basic synthesizer', type: 'daily', difficulty: 'Easy', xp: 100, progress: 3, target: 5, endsIn: '16h 45m', accepted: true },
 ];
 
-const DEMO_MILESTONES: Milestone[] = [
+const SEED_MILESTONES: Milestone[] = [
   { id: 'm1', title: 'First Track Completed', description: 'Finished your very first production from start to finish', unlocked: true, date: '2025-06-15', icon: 'music', xpReward: 100 },
   { id: 'm2', title: '10 Beats Produced', description: 'Reached double digits in beat production output', unlocked: true, date: '2025-09-02', icon: 'zap', xpReward: 250 },
   { id: 'm3', title: 'First Collaboration', description: 'Completed a creative session with another artist', unlocked: true, date: '2025-11-20', icon: 'users', xpReward: 200 },
@@ -112,7 +113,7 @@ const DEMO_MILESTONES: Milestone[] = [
   { id: 'm6', title: 'Album Release', description: 'Release a full-length album project to streaming platforms', unlocked: false, icon: 'award', xpReward: 1000 },
 ];
 
-const DEMO_ACHIEVEMENTS: Achievement[] = [
+const SEED_ACHIEVEMENTS: Achievement[] = [
   { id: 'a1', name: 'Beat Machine', description: 'Produce 50 beats', category: 'Production', unlocked: false, icon: 'zap', rarity: 'epic' },
   { id: 'a2', name: 'Mixdown Master', description: 'Mix 25 tracks professionally', category: 'Production', unlocked: false, icon: 'music', rarity: 'rare' },
   { id: 'a3', name: 'Sound Designer', description: 'Create 100 original patches', category: 'Production', unlocked: false, icon: 'sparkles', rarity: 'legendary' },
@@ -278,11 +279,21 @@ export default function GoalsLensPage() {
   const [newXp, setNewXp] = useState(200);
   const [newPriority, setNewPriority] = useState<DemoGoal['priority']>('medium');
 
+  const { items: _goalItems, create: _createGoal, update: _updateGoal } = useLensData('goals', 'goal', {
+    seed: SEED_GOALS.map(g => ({ title: g.title, data: g as unknown as Record<string, unknown> })),
+  });
+  const { items: _challengeItems } = useLensData('goals', 'challenge', {
+    seed: SEED_CHALLENGES.map(c => ({ title: c.title, data: c as unknown as Record<string, unknown> })),
+  });
+  const { items: _milestoneItems } = useLensData('goals', 'milestone', {
+    seed: SEED_MILESTONES.map(m => ({ title: m.title, data: m as unknown as Record<string, unknown> })),
+  });
+
   // Demo state
-  const [goals, setGoals] = useState<DemoGoal[]>(DEMO_GOALS);
-  const [challenges, setChallenges] = useState<Challenge[]>(DEMO_CHALLENGES);
-  const [milestones] = useState<Milestone[]>(DEMO_MILESTONES);
-  const [achievements] = useState<Achievement[]>(DEMO_ACHIEVEMENTS);
+  const [goals, setGoals] = useState<DemoGoal[]>(SEED_GOALS);
+  const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
+  const [milestones] = useState<Milestone[]>(SEED_MILESTONES);
+  const [achievements] = useState<Achievement[]>(SEED_ACHIEVEMENTS);
 
   // API integration (preserves original backend connectivity)
   const { data: _goalsData } = useQuery({

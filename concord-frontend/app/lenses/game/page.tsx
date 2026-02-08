@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -85,7 +86,7 @@ interface ShopItem {
 // Demo Data  --  Music / Audio Production themed
 // ---------------------------------------------------------------------------
 
-const PLAYER_PROFILE = {
+const SEED_PROFILE = {
   name: 'Alex Resonance',
   title: 'Beat Architect',
   level: 14,
@@ -103,7 +104,7 @@ const PLAYER_PROFILE = {
   completionRate: 78,
 };
 
-const XP_HISTORY = [
+const SEED_XP_HISTORY = [
   { day: 'Mon', xp: 340, label: 'Monday' },
   { day: 'Tue', xp: 520, label: 'Tuesday' },
   { day: 'Wed', xp: 180, label: 'Wednesday' },
@@ -113,7 +114,7 @@ const XP_HISTORY = [
   { day: 'Sun', xp: 250, label: 'Sunday' },
 ];
 
-const DEMO_ACHIEVEMENTS: Achievement[] = [
+const SEED_ACHIEVEMENTS: Achievement[] = [
   { id: 'a1', name: 'First Beat', description: 'Complete your first production session', icon: '🥁', category: 'Production', unlocked: true, progress: 1, maxProgress: 1, xpReward: 100, rarity: 'common' },
   { id: 'a2', name: 'Mix Master', description: 'Mix 10 tracks to completion', icon: '🎛️', category: 'Production', unlocked: true, progress: 10, maxProgress: 10, xpReward: 500, rarity: 'rare' },
   { id: 'a3', name: 'Frequency Wizard', description: 'Master EQ across 25 sessions', icon: '🌊', category: 'Theory', unlocked: false, progress: 18, maxProgress: 25, xpReward: 750, rarity: 'epic' },
@@ -128,7 +129,7 @@ const DEMO_ACHIEVEMENTS: Achievement[] = [
   { id: 'a12', name: 'Sample Hoarder', description: 'Collect 500 samples', icon: '📦', category: 'Engineering', unlocked: true, progress: 500, maxProgress: 500, xpReward: 250, rarity: 'common' },
 ];
 
-const DEMO_QUESTS: Quest[] = [
+const SEED_QUESTS: Quest[] = [
   { id: 'q1', name: 'Daily Mix Session', description: 'Spend 30 min mixing any project', icon: '🎚️', xpReward: 120, difficulty: 'easy', type: 'daily', status: 'available', timeLeft: '18h' },
   { id: 'q2', name: 'EQ Challenge', description: 'Complete an EQ matching exercise', icon: '📊', xpReward: 80, difficulty: 'easy', type: 'daily', status: 'available', timeLeft: '18h' },
   { id: 'q3', name: 'Sound Design Sprint', description: 'Design 3 new patches from scratch', icon: '🎹', xpReward: 200, difficulty: 'medium', type: 'daily', status: 'available', timeLeft: '18h' },
@@ -139,7 +140,7 @@ const DEMO_QUESTS: Quest[] = [
   { id: 'q8', name: 'Beatmaker Showdown', description: 'Create a beat in under 30 minutes using only stock plugins', icon: '⚡', xpReward: 600, difficulty: 'hard', type: 'challenge', status: 'available' },
 ];
 
-const DEMO_LEADERBOARD: LeaderboardPlayer[] = [
+const SEED_LEADERBOARD: LeaderboardPlayer[] = [
   { id: 'l1', name: 'Nova Synth', title: 'Waveform Deity', level: 22, xp: 68400, achievements: 41 },
   { id: 'l2', name: 'BassQuake', title: 'Sub Commander', level: 19, xp: 52100, achievements: 36 },
   { id: 'l3', name: 'Echo Chamber', title: 'Reverb Queen', level: 17, xp: 45200, achievements: 33 },
@@ -245,15 +246,22 @@ export default function GameLensPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<MainTab>('dashboard');
   const [lbPeriod, setLbPeriod] = useState<LeaderboardPeriod>('alltime');
-  const [quests, setQuests] = useState<Quest[]>(DEMO_QUESTS);
+  const [quests, setQuests] = useState<Quest[]>(SEED_QUESTS);
   const [shopItems, setShopItems] = useState<ShopItem[]>(SHOP_ITEMS);
-  const [achievements, setAchievements] = useState<Achievement[]>(DEMO_ACHIEVEMENTS);
-  const [playerXp, setPlayerXp] = useState(PLAYER_PROFILE.xp);
+  const [achievements, setAchievements] = useState<Achievement[]>(SEED_ACHIEVEMENTS);
+  const [playerXp, setPlayerXp] = useState(SEED_PROFILE.xp);
   const [expandedBranch, setExpandedBranch] = useState<SkillBranch | null>('production');
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [newChallenge, setNewChallenge] = useState({ name: '', description: '', difficulty: 'medium' as Quest['difficulty'], xpReward: 300 });
   const [unlockAnim, setUnlockAnim] = useState<string | null>(null);
   const [questFilter, setQuestFilter] = useState<'all' | 'daily' | 'weekly' | 'challenge'>('all');
+
+  const { items: _achievementItems } = useLensData('game', 'achievement', {
+    seed: SEED_ACHIEVEMENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
+  });
+  const { items: _questItems } = useLensData('game', 'quest', {
+    seed: SEED_QUESTS.map(q => ({ title: q.name, data: q as unknown as Record<string, unknown> })),
+  });
 
   // API queries -- fall back to demo data when backend is unavailable
   const { data: _profileData } = useQuery({
@@ -319,12 +327,12 @@ export default function GameLensPage() {
   }, [quests, questFilter]);
 
   const sortedLeaderboard = useMemo(() => {
-    return [...DEMO_LEADERBOARD].sort((a, b) => b.xp - a.xp);
+    return [...SEED_LEADERBOARD].sort((a, b) => b.xp - a.xp);
   }, []);
 
-  const xpMax = Math.max(...XP_HISTORY.map((d) => d.xp));
-  const level = PLAYER_PROFILE.level;
-  const progressPct = ((playerXp) / PLAYER_PROFILE.nextLevelXp) * 100;
+  const xpMax = Math.max(...SEED_XP_HISTORY.map((d) => d.xp));
+  const level = SEED_PROFILE.level;
+  const progressPct = ((playerXp) / SEED_PROFILE.nextLevelXp) * 100;
 
   const TABS: { id: MainTab; label: string; icon: typeof Trophy }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -360,7 +368,7 @@ export default function GameLensPage() {
           </div>
           <div className="flex items-center gap-1 text-neon-pink font-mono text-sm">
             <Flame className="w-4 h-4" />
-            {PLAYER_PROFILE.streak}d streak
+            {SEED_PROFILE.streak}d streak
           </div>
           <div className="flex items-center gap-1 text-neon-cyan font-mono text-sm">
             <Star className="w-4 h-4" />
@@ -373,7 +381,7 @@ export default function GameLensPage() {
       <div className="panel p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-400">Progress to Level {level + 1}</span>
-          <span className="text-sm font-mono text-white">{playerXp.toLocaleString()} / {PLAYER_PROFILE.nextLevelXp.toLocaleString()} XP</span>
+          <span className="text-sm font-mono text-white">{playerXp.toLocaleString()} / {SEED_PROFILE.nextLevelXp.toLocaleString()} XP</span>
         </div>
         <div className="h-3 bg-lattice-bg rounded-full overflow-hidden">
           <motion.div
@@ -414,9 +422,9 @@ export default function GameLensPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Level', value: level, icon: Star, color: 'text-neon-purple' },
-              { label: 'Total XP', value: PLAYER_PROFILE.totalXpEarned.toLocaleString(), icon: Zap, color: 'text-neon-yellow' },
-              { label: 'Achievements', value: `${PLAYER_PROFILE.achievements}/${PLAYER_PROFILE.totalAchievements}`, icon: Trophy, color: 'text-neon-green' },
-              { label: 'Day Streak', value: PLAYER_PROFILE.streak, icon: Flame, color: 'text-neon-pink' },
+              { label: 'Total XP', value: SEED_PROFILE.totalXpEarned.toLocaleString(), icon: Zap, color: 'text-neon-yellow' },
+              { label: 'Achievements', value: `${SEED_PROFILE.achievements}/${SEED_PROFILE.totalAchievements}`, icon: Trophy, color: 'text-neon-green' },
+              { label: 'Day Streak', value: SEED_PROFILE.streak, icon: Flame, color: 'text-neon-pink' },
             ].map((s) => (
               <div key={s.label} className="lens-card text-center">
                 <s.icon className={cn('w-8 h-8 mx-auto mb-2', s.color)} />
@@ -429,10 +437,10 @@ export default function GameLensPage() {
           {/* Secondary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Quests Done', value: PLAYER_PROFILE.questsCompleted, icon: Target, color: 'text-neon-cyan' },
-              { label: 'Challenges Won', value: PLAYER_PROFILE.challengesWon, icon: Crown, color: 'text-neon-yellow' },
-              { label: 'Completion Rate', value: `${PLAYER_PROFILE.completionRate}%`, icon: Activity, color: 'text-neon-green' },
-              { label: 'Global Rank', value: `#${PLAYER_PROFILE.rank}`, icon: ArrowUp, color: 'text-neon-blue' },
+              { label: 'Quests Done', value: SEED_PROFILE.questsCompleted, icon: Target, color: 'text-neon-cyan' },
+              { label: 'Challenges Won', value: SEED_PROFILE.challengesWon, icon: Crown, color: 'text-neon-yellow' },
+              { label: 'Completion Rate', value: `${SEED_PROFILE.completionRate}%`, icon: Activity, color: 'text-neon-green' },
+              { label: 'Global Rank', value: `#${SEED_PROFILE.rank}`, icon: ArrowUp, color: 'text-neon-blue' },
             ].map((s) => (
               <div key={s.label} className="lens-card text-center">
                 <s.icon className={cn('w-6 h-6 mx-auto mb-1', s.color)} />
@@ -446,14 +454,14 @@ export default function GameLensPage() {
           <div className="panel p-4">
             <h3 className="text-sm font-semibold text-gray-300 mb-3">This Week&apos;s XP</h3>
             <div className="flex items-end gap-2 h-32">
-              {XP_HISTORY.map((d) => (
+              {SEED_XP_HISTORY.map((d) => (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-xs text-gray-500 font-mono">{d.xp}</span>
                   <motion.div
                     className="w-full rounded-t bg-gradient-to-t from-neon-purple to-neon-cyan"
                     initial={{ height: 0 }}
                     animate={{ height: `${(d.xp / xpMax) * 100}%` }}
-                    transition={{ duration: 0.6, delay: 0.05 * XP_HISTORY.indexOf(d) }}
+                    transition={{ duration: 0.6, delay: 0.05 * SEED_XP_HISTORY.indexOf(d) }}
                   />
                   <span className="text-xs text-gray-400">{d.day}</span>
                 </div>
@@ -788,9 +796,9 @@ export default function GameLensPage() {
           {/* Bar Chart */}
           <div className="panel p-6">
             <h3 className="font-semibold text-white mb-1">XP Earned This Week</h3>
-            <p className="text-xs text-gray-400 mb-6">Total: {XP_HISTORY.reduce((s, d) => s + d.xp, 0).toLocaleString()} XP</p>
+            <p className="text-xs text-gray-400 mb-6">Total: {SEED_XP_HISTORY.reduce((s, d) => s + d.xp, 0).toLocaleString()} XP</p>
             <div className="flex items-end gap-3 h-48">
-              {XP_HISTORY.map((d, i) => (
+              {SEED_XP_HISTORY.map((d, i) => (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
                   <span className="text-xs text-gray-400 font-mono">{d.xp}</span>
                   <motion.div
@@ -808,19 +816,19 @@ export default function GameLensPage() {
           {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-yellow">{PLAYER_PROFILE.totalXpEarned.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-neon-yellow">{SEED_PROFILE.totalXpEarned.toLocaleString()}</p>
               <p className="text-xs text-gray-400 mt-1">Lifetime XP</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-cyan">{Math.round(XP_HISTORY.reduce((s, d) => s + d.xp, 0) / 7)}</p>
+              <p className="text-2xl font-bold text-neon-cyan">{Math.round(SEED_XP_HISTORY.reduce((s, d) => s + d.xp, 0) / 7)}</p>
               <p className="text-xs text-gray-400 mt-1">Avg Daily XP</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-green">{Math.max(...XP_HISTORY.map((d) => d.xp))}</p>
+              <p className="text-2xl font-bold text-neon-green">{Math.max(...SEED_XP_HISTORY.map((d) => d.xp))}</p>
               <p className="text-xs text-gray-400 mt-1">Best Day</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-pink">{PLAYER_PROFILE.longestStreak}d</p>
+              <p className="text-2xl font-bold text-neon-pink">{SEED_PROFILE.longestStreak}d</p>
               <p className="text-xs text-gray-400 mt-1">Longest Streak</p>
             </div>
           </div>

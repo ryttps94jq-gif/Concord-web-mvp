@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,7 +66,7 @@ function _sm2(item: SRSItem, quality: number): { interval: number; easiness: num
 }
 
 // --- Demo Data ---
-const DEMO_DECKS: Deck[] = [
+const SEED_DECKS: Deck[] = [
   { id: 'music-theory', name: 'Music Theory', description: 'Scales, chords, intervals, and harmonic analysis', color: '#06b6d4', cardCount: 48, dueCount: 12, newCount: 5, learnCount: 3 },
   { id: 'production', name: 'Production Techniques', description: 'DAW workflows, mixing, mastering, sound design', color: '#a855f7', cardCount: 36, dueCount: 8, newCount: 3, learnCount: 2 },
   { id: 'audio-eng', name: 'Audio Engineering', description: 'Signal flow, EQ, compression, acoustics', color: '#f97316', cardCount: 24, dueCount: 5, newCount: 4, learnCount: 1 },
@@ -73,7 +74,7 @@ const DEMO_DECKS: Deck[] = [
   { id: 'synthesis', name: 'Synthesis & Sound Design', description: 'Oscillators, filters, modulation, FM/AM/wavetable', color: '#ec4899', cardCount: 20, dueCount: 4, newCount: 6, learnCount: 0 },
 ];
 
-const DEMO_CARDS: SRSItem[] = [
+const SEED_CARDS: SRSItem[] = [
   { dtuId: 'srs-001', front: 'What is the circle of fifths?', back: 'A visual representation of the relationships among the 12 tones of the chromatic scale. Moving clockwise adds a sharp; counterclockwise adds a flat. Adjacent keys differ by one accidental.', deck: 'music-theory', tags: ['harmony', 'fundamentals'], easiness: 2.5, repetitions: 3, interval: 15, streak: 3, lapses: 0, lastReview: '2026-02-05', nextReview: '2026-02-07' },
   { dtuId: 'srs-002', front: 'What is sidechain compression?', back: 'A technique where the compressor on one track is triggered by the signal of another track. Commonly used to duck bass/pads under the kick drum for a pumping effect.', deck: 'production', tags: ['mixing', 'compression'], easiness: 2.3, repetitions: 2, interval: 6, streak: 2, lapses: 1, lastReview: '2026-02-01', nextReview: '2026-02-07' },
   { dtuId: 'srs-003', front: 'Explain the Nyquist theorem.', back: 'A signal must be sampled at least twice its highest frequency to be accurately reconstructed. CD audio (44.1kHz) can reproduce frequencies up to 22.05kHz, covering the full human hearing range.', deck: 'audio-eng', tags: ['digital-audio', 'sampling'], easiness: 2.6, repetitions: 4, interval: 20, streak: 4, lapses: 0, lastReview: '2026-01-18', nextReview: '2026-02-07' },
@@ -128,6 +129,10 @@ export default function SRSLensPage() {
   useLensNav('srs');
 
   const queryClient = useQueryClient();
+  const { items: _cardItems, create: _createCard } = useLensData<SRSItem>('srs', 'card', {
+    seed: SEED_CARDS.map(c => ({ title: c.front, data: c as unknown as Record<string, unknown> })),
+  });
+  const _persistedCards: SRSItem[] = _cardItems.length > 0 ? _cardItems.map(i => ({ ...(i.data as unknown as SRSItem), id: i.id })) : SEED_CARDS;
   const [view, setView] = useState<ViewMode>('study');
   const [studyMode, setStudyMode] = useState<StudyMode>('normal');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -174,11 +179,11 @@ export default function SRSLensPage() {
   // Use API data or demo
   const allCards: SRSItem[] = useMemo(() => {
     const apiItems = dueData?.items || dueData?.due || (Array.isArray(dueData) ? dueData : []);
-    return apiItems.length > 0 ? apiItems : DEMO_CARDS;
+    return apiItems.length > 0 ? apiItems : SEED_CARDS;
   }, [dueData]);
 
   const decks: Deck[] = useMemo(() => {
-    return DEMO_DECKS.map(d => ({
+    return SEED_DECKS.map(d => ({
       ...d,
       cardCount: allCards.filter(c => c.deck === d.id).length || d.cardCount,
       dueCount: allCards.filter(c => c.deck === d.id && c.nextReview && new Date(c.nextReview) <= new Date()).length || d.dueCount,

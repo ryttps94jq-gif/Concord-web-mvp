@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,7 +42,7 @@ type ViewMode = 'dashboard' | 'detail' | 'builder' | 'logs' | 'workflows';
 type AgentFilter = 'all' | 'active' | 'dormant' | 'error';
 
 // --- Demo Data ---
-const DEMO_AGENTS: Agent[] = [
+const SEED_AGENTS: Agent[] = [
   {
     id: 'agent-001', name: 'Research Sentinel', type: 'research', enabled: true,
     description: 'Monitors external sources for new music theory research, production techniques, and industry trends. Synthesizes findings into DTUs.',
@@ -175,6 +176,9 @@ export default function AgentsLensPage() {
   useLensNav('agents');
 
   const queryClient = useQueryClient();
+  const { items: _agentItems } = useLensData('agents', 'agent', {
+    seed: SEED_AGENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
+  });
   const [_view, setView] = useState<ViewMode>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -221,7 +225,7 @@ export default function AgentsLensPage() {
 
   const agents: Agent[] = useMemo(() => {
     const apiAgents = agentsData?.agents || (Array.isArray(agentsData) ? agentsData : []);
-    return apiAgents.length > 0 ? apiAgents : DEMO_AGENTS;
+    return apiAgents.length > 0 ? apiAgents : SEED_AGENTS;
   }, [agentsData]);
 
   const filteredAgents = useMemo(() => {

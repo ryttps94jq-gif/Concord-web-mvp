@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { DailyNotes as _DailyNotes } from '@/components/daily/DailyNotes';
@@ -30,7 +31,7 @@ const QUOTES = [
   { text: 'Art is not what you see, but what you make others see.', author: 'Edgar Degas' },
 ];
 
-const DEMO_ENTRIES: JournalEntry[] = [
+const SEED_ENTRIES: JournalEntry[] = [
   { id: 'j1', date: '2026-02-07', mood: 4, notes: 'Incredible session today. Mixed down the verse section and it sounds massive.', workedOn: 'Verse mixdown for "Nightfall" EP track 3', learned: 'Parallel compression on vocals creates a much fuller presence without sacrificing dynamics.', goals: 'Finish the bridge arrangement and start layering synth pads.' },
   { id: 'j2', date: '2026-02-06', mood: 3, notes: 'Steady progress on sound design. Created a few usable patches.', workedOn: 'Synth patch design for ambient project', learned: 'Wavetable modulation with slow LFOs gives organic movement.', goals: 'Record vocal takes for track 3.' },
   { id: 'j3', date: '2026-02-05', mood: 2, notes: 'Struggled with the low-end balance all day. Nothing sounded right.', workedOn: 'Bass mixing on "Concrete" single', learned: 'Sometimes you need fresh ears. Take a break and come back.', goals: 'Revisit the bass mix with reference tracks.' },
@@ -38,21 +39,21 @@ const DEMO_ENTRIES: JournalEntry[] = [
   { id: 'j5', date: '2026-02-03', mood: 3, notes: 'Organized sample library and tagged everything. Productive day.', workedOn: 'Sample library management and tagging', learned: 'Consistent naming conventions save massive time later.', goals: 'Start the next production session with the cleaned-up library.' },
 ];
 
-const DEMO_SESSIONS: SessionLog[] = [
+const SEED_SESSIONS: SessionLog[] = [
   { id: 's1', project: 'Nightfall EP — Track 3', duration: 145, genre: 'Electronic / Ambient', startedAt: '2026-02-07T09:30:00' },
   { id: 's2', project: 'Concrete Single', duration: 90, genre: 'Hip-Hop / Trap', startedAt: '2026-02-07T13:00:00' },
   { id: 's3', project: 'R&B Demo Sketch', duration: 55, genre: 'R&B / Neo-Soul', startedAt: '2026-02-07T16:15:00' },
 ];
 
 const mkWave = (n: number): number[] => Array.from({ length: n }, () => 0.1 + Math.random() * 0.9);
-const DEMO_CLIPS: AudioClip[] = [
+const SEED_CLIPS: AudioClip[] = [
   { id: 'a1', name: 'Vocal melody idea — verse hook', duration: 34, waveform: mkWave(40), recordedAt: '2026-02-07T10:12:00' },
   { id: 'a2', name: 'Bass tone reference snap', duration: 12, waveform: mkWave(40), recordedAt: '2026-02-07T11:45:00' },
   { id: 'a3', name: 'Pad texture experiment', duration: 48, waveform: mkWave(40), recordedAt: '2026-02-07T14:22:00' },
   { id: 'a4', name: 'Quick note — remix arrangement', duration: 21, waveform: mkWave(40), recordedAt: '2026-02-07T17:05:00' },
 ];
 
-const DEMO_REMINDERS: Reminder[] = [
+const SEED_REMINDERS: Reminder[] = [
   { id: 'r1', title: 'Send stems to collaborator', dueAt: '2026-02-07T18:00:00', completed: false },
   { id: 'r2', title: 'Backup project files to cloud', dueAt: '2026-02-07T22:00:00', completed: false },
   { id: 'r3', title: 'Review mastering feedback', dueAt: '2026-02-08T10:00:00', completed: false },
@@ -115,16 +116,16 @@ export default function DailyLensPage() {
   const [reminderTitle, setReminderTitle] = useState('');
   const [reminderDue, setReminderDue] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(4);
-  const [journalNotes, setJournalNotes] = useState(DEMO_ENTRIES[0].notes);
-  const [workedOn, setWorkedOn] = useState(DEMO_ENTRIES[0].workedOn);
-  const [learned, setLearned] = useState(DEMO_ENTRIES[0].learned);
-  const [goals, setGoals] = useState(DEMO_ENTRIES[0].goals);
-  const [sessions, setSessions] = useState<SessionLog[]>(DEMO_SESSIONS);
+  const [journalNotes, setJournalNotes] = useState(SEED_ENTRIES[0].notes);
+  const [workedOn, setWorkedOn] = useState(SEED_ENTRIES[0].workedOn);
+  const [learned, setLearned] = useState(SEED_ENTRIES[0].learned);
+  const [goals, setGoals] = useState(SEED_ENTRIES[0].goals);
+  const [sessions, setSessions] = useState<SessionLog[]>(SEED_SESSIONS);
   const [newProject, setNewProject] = useState('');
   const [newGenre, setNewGenre] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [showSessionForm, setShowSessionForm] = useState(false);
-  const [clips] = useState<AudioClip[]>(DEMO_CLIPS);
+  const [clips] = useState<AudioClip[]>(SEED_CLIPS);
   const [playingClip, setPlayingClip] = useState<string | null>(null);
   const [timerDuration, setTimerDuration] = useState(15 * 60);
   const [timeLeft, setTimeLeft] = useState(15 * 60);
@@ -132,10 +133,20 @@ export default function DailyLensPage() {
   const [selectedSkill, setSelectedSkill] = useState(SKILLS[0]);
   const [practiceHistory, setPracticeHistory] = useState<PracticeSession[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [localReminders, setLocalReminders] = useState<Reminder[]>(DEMO_REMINDERS);
+  const [localReminders, setLocalReminders] = useState<Reminder[]>(SEED_REMINDERS);
   const [quote] = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)]);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  const { items: _entryItems, create: _createEntry } = useLensData('daily', 'entry', {
+    seed: SEED_ENTRIES.map(e => ({ title: e.date, data: e as unknown as Record<string, unknown> })),
+  });
+  const { items: _sessionItems, create: _createSession } = useLensData('daily', 'session', {
+    seed: SEED_SESSIONS.map(s => ({ title: s.project, data: s as unknown as Record<string, unknown> })),
+  });
+  const { items: _reminderItems, create: _createReminder } = useLensData('daily', 'reminder', {
+    seed: SEED_REMINDERS.map(r => ({ title: r.title, data: r as unknown as Record<string, unknown> })),
   });
 
   // -- API queries (preserved from original) --------------------------------
@@ -212,7 +223,7 @@ export default function DailyLensPage() {
     return cells;
   }, [calMonth]);
 
-  const entryDates = useMemo(() => new Set(DEMO_ENTRIES.map((e) => e.date)), []);
+  const entryDates = useMemo(() => new Set(SEED_ENTRIES.map((e) => e.date)), []);
 
   const recentDates = useMemo(() => {
     const dates: string[] = [];
@@ -220,7 +231,7 @@ export default function DailyLensPage() {
     return dates;
   }, []);
 
-  const entriesThisWeek = DEMO_ENTRIES.filter((e) => {
+  const entriesThisWeek = SEED_ENTRIES.filter((e) => {
     return (new Date().getTime() - new Date(e.date).getTime()) / 86400000 <= 7;
   }).length;
 
@@ -244,7 +255,7 @@ export default function DailyLensPage() {
   };
   const handleSelectDate = (dateStr: string) => {
     setSelectedDate(dateStr);
-    const entry = DEMO_ENTRIES.find((e) => e.date === dateStr);
+    const entry = SEED_ENTRIES.find((e) => e.date === dateStr);
     if (entry) { setSelectedMood(entry.mood); setJournalNotes(entry.notes); setWorkedOn(entry.workedOn); setLearned(entry.learned); setGoals(entry.goals); }
     else { setSelectedMood(null); setJournalNotes(''); setWorkedOn(''); setLearned(''); setGoals(''); }
   };
@@ -286,7 +297,7 @@ export default function DailyLensPage() {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 px-1">Recent Entries</p>
           {recentDates.map((ds) => {
-            const entry = DEMO_ENTRIES.find((e) => e.date === ds);
+            const entry = SEED_ENTRIES.find((e) => e.date === ds);
             return (
               <button key={ds} onClick={() => handleSelectDate(ds)}
                 className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors ${

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ResonanceEmpireGraph } from '@/components/graphs/ResonanceEmpireGraph';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -49,7 +50,7 @@ interface Alert {
   acknowledged: boolean;
 }
 
-const MOCK_ALERTS: Alert[] = [
+const SEED_ALERTS: Alert[] = [
   { id: 'a1', type: 'warning', message: 'Contradiction load approaching threshold', metric: 'contradictionLoad', value: 0.18, timestamp: new Date(Date.now() - 3600000), acknowledged: false },
   { id: 'a2', type: 'info', message: 'Homeostasis improved by 5%', metric: 'homeostasis', value: 0.85, timestamp: new Date(Date.now() - 7200000), acknowledged: true },
   { id: 'a3', type: 'critical', message: 'Acute stress spike detected', metric: 'stressAcute', value: 0.72, timestamp: new Date(Date.now() - 1800000), acknowledged: false },
@@ -60,10 +61,14 @@ export default function ResonanceLensPage() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
-  const [alerts, setAlerts] = useState<Alert[]>(MOCK_ALERTS);
+  const [alerts, setAlerts] = useState<Alert[]>(SEED_ALERTS);
   const [showAlerts, setShowAlerts] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const { items: _alertItems, update: _updateAlert } = useLensData('resonance', 'alert', {
+    seed: SEED_ALERTS.map(a => ({ title: a.type, data: a as unknown as Record<string, unknown> })),
+  });
 
   const { data: growth, refetch: _refetchGrowth } = useQuery({
     queryKey: ['growth'],
