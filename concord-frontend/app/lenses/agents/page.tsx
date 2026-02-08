@@ -42,7 +42,7 @@ type ViewMode = 'dashboard' | 'detail' | 'builder' | 'logs' | 'workflows';
 type AgentFilter = 'all' | 'active' | 'dormant' | 'error';
 
 // --- Demo Data ---
-const SEED_AGENTS: Agent[] = [
+const INITIAL_AGENTS: Agent[] = [
   {
     id: 'agent-001', name: 'Research Sentinel', type: 'research', enabled: true,
     description: 'Monitors external sources for new music theory research, production techniques, and industry trends. Synthesizes findings into DTUs.',
@@ -177,7 +177,7 @@ export default function AgentsLensPage() {
 
   const queryClient = useQueryClient();
   const { items: _agentItems } = useLensData('agents', 'agent', {
-    seed: SEED_AGENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
+    seed: INITIAL_AGENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
   });
   const [_view, setView] = useState<ViewMode>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -225,7 +225,7 @@ export default function AgentsLensPage() {
 
   const agents: Agent[] = useMemo(() => {
     const apiAgents = agentsData?.agents || (Array.isArray(agentsData) ? agentsData : []);
-    return apiAgents.length > 0 ? apiAgents : SEED_AGENTS;
+    return apiAgents.length > 0 ? apiAgents : INITIAL_AGENTS;
   }, [agentsData]);
 
   const filteredAgents = useMemo(() => {

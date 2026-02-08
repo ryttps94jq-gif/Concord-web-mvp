@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -130,6 +131,9 @@ export default function WhiteboardLensPage() {
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Lens artifact persistence layer
+  const { items: _boardArtifacts, create: _createBoardArtifact } = useLensData('whiteboard', 'board', { noSeed: true });
 
   /* board list state */
   const [showCreate, setShowCreate] = useState(false);

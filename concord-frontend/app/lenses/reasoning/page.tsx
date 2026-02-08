@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -78,6 +79,9 @@ export default function ReasoningLensPage() {
       queryClient.invalidateQueries({ queryKey: ['reasoning-trace', selectedChain] });
     },
   });
+
+  // Lens artifact persistence layer for scoring
+  const { items: _chainArtifacts, create: _createChainArtifact } = useLensData('reasoning', 'chain', { noSeed: true });
 
   const chains: Chain[] = chainsData?.chains || chainsData || [];
   const status: Record<string, unknown> = statusData?.status || statusData || {};

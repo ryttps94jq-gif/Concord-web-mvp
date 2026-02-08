@@ -1,37 +1,36 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { FileText, Plus, Search, Calendar } from 'lucide-react';
 
 export default function PaperLensPage() {
   useLensNav('paper');
 
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const { data: papers } = useQuery({
-    queryKey: ['papers', searchQuery, selectedTag],
-    queryFn: () =>
-      api
-        .get('/api/papers', { params: { q: searchQuery, tag: selectedTag } })
-        .then((r) => r.data),
+  const { items: paperItems, create: createPaperArtifact } = useLensData('paper', 'project', {
+    search: searchQuery || undefined,
+    tags: selectedTag ? [selectedTag] : undefined,
   });
 
-  const { data: tags } = useQuery({
-    queryKey: ['paper-tags'],
-    queryFn: () => api.get('/api/papers/tags').then((r) => r.data),
-  });
+  // Derive papers and tags from lens data
+  const papers = paperItems.map(item => ({
+    id: item.id,
+    title: item.title,
+    excerpt: (item.data as Record<string, unknown>)?.excerpt as string || '',
+    wordCount: (item.data as Record<string, unknown>)?.wordCount as number || 0,
+    tags: item.meta?.tags || [],
+    updatedAt: item.updatedAt,
+  }));
 
-  const createPaper = useMutation({
-    mutationFn: (title: string) => api.post('/api/papers', { title }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['papers'] });
-    },
-  });
+  const allTags = Array.from(new Set(paperItems.flatMap(item => item.meta?.tags || [])));
+
+  const handleCreatePaper = () => {
+    createPaperArtifact({ title: 'Untitled Paper', data: { wordCount: 0, excerpt: '' }, meta: { tags: [] } });
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -46,7 +45,7 @@ export default function PaperLensPage() {
           </div>
         </div>
         <button
-          onClick={() => createPaper.mutate('Untitled Paper')}
+          onClick={handleCreatePaper}
           className="btn-neon purple"
         >
           <Plus className="w-4 h-4 mr-2 inline" />
@@ -72,7 +71,7 @@ export default function PaperLensPage() {
           className="input-lattice w-auto"
         >
           <option value="">All Tags</option>
-          {tags?.tags?.map((tag: string) => (
+          {allTags.map((tag: string) => (
             <option key={tag} value={tag}>
               {tag}
             </option>
@@ -82,26 +81,26 @@ export default function PaperLensPage() {
 
       {/* Papers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {papers?.papers?.length === 0 ? (
+        {papers.length === 0 ? (
           <p className="col-span-full text-center py-12 text-gray-500">
             No papers found. Create your first paper!
           </p>
         ) : (
-          papers?.papers?.map((paper: Record<string, unknown>) => (
-            <div key={paper.id as string} className="lens-card hover:glow-purple cursor-pointer">
+          papers.map((paper) => (
+            <div key={paper.id} className="lens-card hover:glow-purple cursor-pointer">
               <div className="flex items-start justify-between mb-3">
                 <FileText className="w-8 h-8 text-neon-purple" />
                 <span className="text-xs text-gray-400">
-                  {(paper.wordCount as number) || 0} words
+                  {paper.wordCount || 0} words
                 </span>
               </div>
-              <h3 className="font-semibold mb-2 line-clamp-2">{paper.title as string}</h3>
+              <h3 className="font-semibold mb-2 line-clamp-2">{paper.title}</h3>
               <p className="text-sm text-gray-400 line-clamp-3 mb-3">
-                {(paper.excerpt as string) || 'No content yet...'}
+                {paper.excerpt || 'No content yet...'}
               </p>
               <div className="flex items-center justify-between">
                 <div className="flex gap-1">
-                  {(paper.tags as string[])?.slice(0, 3).map((tag: string) => (
+                  {paper.tags?.slice(0, 3).map((tag: string) => (
                     <span
                       key={tag}
                       className="text-xs px-2 py-0.5 rounded bg-neon-purple/20 text-neon-purple"
@@ -112,7 +111,7 @@ export default function PaperLensPage() {
                 </div>
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  {new Date(paper.updatedAt as string).toLocaleDateString()}
+                  {new Date(paper.updatedAt).toLocaleDateString()}
                 </span>
               </div>
             </div>

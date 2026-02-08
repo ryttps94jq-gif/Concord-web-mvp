@@ -429,6 +429,292 @@ export const PRODUCTIZATION_PHASES: ProductionPhase[] = [
     ],
     status: 'blocked',
   },
+
+  // ── PHASE 6: Reasoning / Argument ───────────────────────────────
+  {
+    order: 6,
+    lensId: 'reasoning',
+    name: 'Reasoning',
+    rationale: 'Logical argument construction and validation. Bridges Research and Governance with formal reasoning chains.',
+    dependsOn: [1],
+    incumbents: ['Roam Research', 'Logseq', 'Prolog IDEs', 'Argument mapping tools'],
+    artifacts: [
+      {
+        name: 'ArgumentTree',
+        persistsWithoutDTU: true,
+        storageDomain: 'reasoning',
+        requiredFields: ['id', 'premise', 'type', 'steps', 'conclusion', 'status', 'createdAt'],
+      },
+      {
+        name: 'Premise',
+        persistsWithoutDTU: true,
+        storageDomain: 'reasoning',
+        requiredFields: ['id', 'text', 'confidence', 'sources', 'chainId'],
+      },
+      {
+        name: 'Inference',
+        persistsWithoutDTU: true,
+        storageDomain: 'reasoning',
+        requiredFields: ['id', 'fromPremises', 'rule', 'conclusion', 'validity', 'chainId'],
+      },
+    ],
+    engines: [
+      { name: 'validity-checker', description: 'Validates logical structure of argument chains', trigger: 'automatic' },
+      { name: 'counterexample-generator', description: 'Generates counterexamples to test argument strength', trigger: 'on_demand' },
+      { name: 'argument-strength-scorer', description: 'Scores overall argument quality on multiple dimensions', trigger: 'automatic' },
+    ],
+    pipelines: [
+      {
+        name: 'premise-to-conclusion',
+        steps: ['state-premise', 'add-steps', 'validate-logic', 'check-counterexamples', 'conclude'],
+        engines: ['validity-checker', 'counterexample-generator'],
+      },
+      {
+        name: 'argument-audit',
+        steps: ['load-chain', 'score-strength', 'identify-weaknesses', 'suggest-improvements'],
+        engines: ['argument-strength-scorer', 'validity-checker'],
+      },
+    ],
+    acceptanceCriteria: [
+      'ArgumentTree artifact persists with full CRUD',
+      'Deductive, inductive, abductive, and analogical chains supported',
+      'Validity checker flags invalid inference steps automatically',
+      'Counterexample generator tests argument robustness',
+      'DTU exhaust generated for every chain mutation',
+      'Trace visualization shows full reasoning path',
+    ],
+    status: 'blocked',
+  },
+
+  // ── PHASE 7: Knowledge Graph ────────────────────────────────────
+  {
+    order: 7,
+    lensId: 'graph',
+    name: 'Knowledge Graph',
+    rationale: 'The connective tissue of all knowledge. Every lens produces entities and relations that the graph unifies.',
+    dependsOn: [1, 6],
+    incumbents: ['Neo4j', 'Obsidian Graph', 'Roam', 'Notion Relations'],
+    artifacts: [
+      {
+        name: 'Entity',
+        persistsWithoutDTU: true,
+        storageDomain: 'graph',
+        requiredFields: ['id', 'label', 'type', 'properties', 'tags', 'createdAt'],
+      },
+      {
+        name: 'Relation',
+        persistsWithoutDTU: true,
+        storageDomain: 'graph',
+        requiredFields: ['id', 'sourceId', 'targetId', 'type', 'weight', 'properties'],
+      },
+      {
+        name: 'Assertion',
+        persistsWithoutDTU: true,
+        storageDomain: 'graph',
+        requiredFields: ['id', 'subject', 'predicate', 'object', 'confidence', 'sources'],
+      },
+    ],
+    engines: [
+      { name: 'entity-resolution', description: 'Deduplicates and merges entities across sources', trigger: 'automatic' },
+      { name: 'cluster-detection', description: 'Identifies clusters and communities in the graph', trigger: 'on_demand' },
+      { name: 'path-analysis', description: 'Finds shortest/weighted paths between entities', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      {
+        name: 'ingest-resolve-cluster',
+        steps: ['ingest-entities', 'resolve-duplicates', 'compute-relations', 'detect-clusters', 'summarize'],
+        engines: ['entity-resolution', 'cluster-detection'],
+      },
+      {
+        name: 'graph-query',
+        steps: ['parse-query', 'traverse-graph', 'score-results', 'render-subgraph'],
+        engines: ['path-analysis', 'cluster-detection'],
+      },
+    ],
+    acceptanceCriteria: [
+      'Entity and Relation artifacts persist with full CRUD',
+      'Force-directed layout renders interactively',
+      'Entity resolution deduplicates on ingest',
+      'Cluster detection identifies knowledge communities',
+      'DTU exhaust generated for every graph mutation',
+      'Export to JSON and GraphML formats',
+    ],
+    status: 'blocked',
+  },
+
+  // ── PHASE 8: Collaboration / Whiteboard ─────────────────────────
+  {
+    order: 8,
+    lensId: 'whiteboard',
+    name: 'Collaboration',
+    rationale: 'Visual thinking and real-time collaboration. The shared workspace where ideas become visible.',
+    dependsOn: [1],
+    incumbents: ['Miro', 'FigJam', 'AFFiNE', 'Excalidraw'],
+    artifacts: [
+      {
+        name: 'Board',
+        persistsWithoutDTU: true,
+        storageDomain: 'whiteboard',
+        requiredFields: ['id', 'name', 'mode', 'elements', 'createdAt', 'updatedAt'],
+      },
+      {
+        name: 'Element',
+        persistsWithoutDTU: true,
+        storageDomain: 'whiteboard',
+        requiredFields: ['id', 'boardId', 'type', 'x', 'y', 'width', 'height', 'data'],
+      },
+      {
+        name: 'Connection',
+        persistsWithoutDTU: true,
+        storageDomain: 'whiteboard',
+        requiredFields: ['id', 'boardId', 'fromElementId', 'toElementId', 'type'],
+      },
+    ],
+    engines: [
+      { name: 'auto-layout', description: 'Automatically arranges elements for optimal readability', trigger: 'on_demand' },
+      { name: 'canvas-renderer', description: 'High-performance canvas rendering with zoom/pan', trigger: 'automatic' },
+      { name: 'export-renderer', description: 'Renders boards to PNG/SVG for export', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      {
+        name: 'create-arrange-export',
+        steps: ['create-board', 'add-elements', 'auto-layout', 'render', 'export'],
+        engines: ['auto-layout', 'canvas-renderer', 'export-renderer'],
+      },
+      {
+        name: 'moodboard-to-arrangement',
+        steps: ['collect-references', 'organize-moodboard', 'derive-structure', 'create-arrangement'],
+        engines: ['auto-layout', 'canvas-renderer'],
+      },
+    ],
+    acceptanceCriteria: [
+      'Board artifact persists with full CRUD',
+      'Canvas, moodboard, and arrangement modes all functional',
+      'Elements support shapes, text, images, audio pins, DTU links',
+      'Undo/redo with history',
+      'Export to PNG works',
+      'DTU exhaust generated for board mutations',
+    ],
+    status: 'blocked',
+  },
+
+  // ── PHASE 9: Legal / Policy ─────────────────────────────────────
+  {
+    order: 9,
+    lensId: 'law',
+    name: 'Legal',
+    rationale: 'Compliance and legal frameworks are required for enterprise adoption. Makes governance decisions legally defensible.',
+    dependsOn: [3],
+    incumbents: ['LexisNexis', 'Westlaw', 'Clio', 'Contract management tools'],
+    artifacts: [
+      {
+        name: 'CaseFile',
+        persistsWithoutDTU: true,
+        storageDomain: 'law',
+        requiredFields: ['id', 'title', 'jurisdiction', 'status', 'frameworks', 'createdAt'],
+      },
+      {
+        name: 'Clause',
+        persistsWithoutDTU: true,
+        storageDomain: 'law',
+        requiredFields: ['id', 'caseId', 'text', 'type', 'framework', 'status'],
+      },
+      {
+        name: 'Draft',
+        persistsWithoutDTU: true,
+        storageDomain: 'law',
+        requiredFields: ['id', 'caseId', 'title', 'body', 'version', 'status'],
+      },
+      {
+        name: 'PrecedentGraph',
+        persistsWithoutDTU: true,
+        storageDomain: 'law',
+        requiredFields: ['id', 'caseId', 'nodes', 'edges', 'jurisdiction'],
+      },
+    ],
+    engines: [
+      { name: 'compliance-checker', description: 'Checks proposals against legal frameworks (GDPR, DMCA, AI Act)', trigger: 'automatic' },
+      { name: 'precedent-search', description: 'Finds relevant legal precedents for a given case', trigger: 'on_demand' },
+      { name: 'risk-assessor', description: 'Assesses legal risk of proposed actions', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      {
+        name: 'compliance-review',
+        steps: ['ingest-proposal', 'identify-frameworks', 'check-compliance', 'assess-risk', 'generate-report'],
+        engines: ['compliance-checker', 'risk-assessor'],
+      },
+      {
+        name: 'draft-review',
+        steps: ['draft-clause', 'check-precedents', 'validate-compliance', 'finalize'],
+        engines: ['precedent-search', 'compliance-checker'],
+      },
+    ],
+    acceptanceCriteria: [
+      'CaseFile artifact persists with full CRUD',
+      'Compliance checker validates against GDPR, CCPA, DMCA, EU AI Act',
+      'Legality gate blocks non-compliant proposals',
+      'Precedent search returns relevant citations',
+      'DTU exhaust generated for every legal action',
+      'Risk assessment produces quantified risk scores',
+    ],
+    status: 'blocked',
+  },
+
+  // ── PHASE 10: Database / Structured Knowledge ───────────────────
+  {
+    order: 10,
+    lensId: 'database',
+    name: 'Database',
+    rationale: 'Structured data is the foundation for all analytics. Gives every lens a queryable substrate.',
+    dependsOn: [1],
+    incumbents: ['DBeaver', 'TablePlus', 'Retool', 'Airtable'],
+    artifacts: [
+      {
+        name: 'SavedQuery',
+        persistsWithoutDTU: true,
+        storageDomain: 'database',
+        requiredFields: ['id', 'title', 'sql', 'description', 'createdAt'],
+      },
+      {
+        name: 'Snapshot',
+        persistsWithoutDTU: true,
+        storageDomain: 'database',
+        requiredFields: ['id', 'queryId', 'results', 'rowCount', 'executionTime', 'createdAt'],
+      },
+      {
+        name: 'SchemaView',
+        persistsWithoutDTU: true,
+        storageDomain: 'database',
+        requiredFields: ['id', 'tables', 'indexes', 'relations', 'version'],
+      },
+    ],
+    engines: [
+      { name: 'query-optimizer', description: 'Analyzes and optimizes SQL queries', trigger: 'on_demand' },
+      { name: 'schema-inspector', description: 'Introspects database schema and detects issues', trigger: 'on_demand' },
+      { name: 'data-profiler', description: 'Profiles data quality and generates statistics', trigger: 'on_demand' },
+    ],
+    pipelines: [
+      {
+        name: 'query-optimize-export',
+        steps: ['write-query', 'analyze-plan', 'optimize', 'execute', 'export-results'],
+        engines: ['query-optimizer', 'data-profiler'],
+      },
+      {
+        name: 'schema-audit',
+        steps: ['inspect-schema', 'detect-issues', 'suggest-indexes', 'generate-report'],
+        engines: ['schema-inspector', 'query-optimizer'],
+      },
+    ],
+    acceptanceCriteria: [
+      'SavedQuery artifact persists with full CRUD',
+      'Query editor with syntax highlighting',
+      'Results displayed in paginated table',
+      'Schema browser shows tables, columns, indexes',
+      'Export to JSON and CSV',
+      'DTU exhaust generated for query execution',
+    ],
+    status: 'blocked',
+  },
 ];
 
 // ── Derived helpers ─────────────────────────────────────────────
