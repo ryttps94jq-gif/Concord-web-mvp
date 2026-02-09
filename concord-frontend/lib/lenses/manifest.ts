@@ -32,7 +32,8 @@ export interface LensManifest {
   /** Domain-specific actions available via run */
   actions: string[];
   /** Category for grouping in UI */
-  category: 'knowledge' | 'creative' | 'system' | 'social' | 'productivity' | 'finance';
+  category: 'knowledge' | 'creative' | 'system' | 'social' | 'productivity' | 'finance'
+          | 'healthcare' | 'trades' | 'operations' | 'agriculture' | 'government' | 'services';
 }
 
 // ---- Lens Manifests ----
@@ -298,6 +299,263 @@ export const LENS_MANIFESTS: LensManifest[] = [
     exports: ['json'],
     actions: ['acknowledge', 'dismiss'],
     category: 'system',
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // SUPER-LENSES — Universal coverage across all human work
+  // ═══════════════════════════════════════════════════════════════
+
+  // === HEALTHCARE ===
+  {
+    domain: 'healthcare',
+    label: 'Healthcare',
+    artifacts: ['Patient', 'Encounter', 'CareProtocol', 'Prescription', 'LabResult', 'Treatment'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['checkInteractions', 'protocolMatch', 'generateSummary'],
+    category: 'healthcare',
+  },
+
+  // === TRADES ===
+  {
+    domain: 'trades',
+    label: 'Trades & Construction',
+    artifacts: ['Job', 'Estimate', 'MaterialsList', 'Permit', 'Equipment', 'Client'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['calculateEstimate', 'scheduleInspection', 'materialsCost'],
+    category: 'trades',
+  },
+
+  // === FOOD ===
+  {
+    domain: 'food',
+    label: 'Food & Hospitality',
+    artifacts: ['Recipe', 'Menu', 'InventoryItem', 'Booking', 'Batch', 'Shift'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['scaleRecipe', 'costPlate', 'spoilageCheck', 'pourCost'],
+    category: 'operations',
+  },
+
+  // === RETAIL ===
+  {
+    domain: 'retail',
+    label: 'Retail & Commerce',
+    artifacts: ['Product', 'Order', 'Customer', 'Lead', 'Ticket', 'Display'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['reorderCheck', 'pipelineValue', 'customerLTV', 'slaStatus'],
+    category: 'operations',
+  },
+
+  // === HOUSEHOLD ===
+  {
+    domain: 'household',
+    label: 'Home & Family',
+    artifacts: ['FamilyMember', 'MealPlan', 'Chore', 'MaintenanceItem', 'Pet', 'MajorEvent'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['generateGroceryList', 'maintenanceDue', 'choreRotation'],
+    category: 'productivity',
+  },
+
+  // === ACCOUNTING ===
+  {
+    domain: 'accounting',
+    label: 'Accounting & Finance',
+    artifacts: ['Account', 'Transaction', 'Invoice', 'PayrollEntry', 'Budget', 'Property', 'TaxItem'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf', 'qbo'],
+    actions: ['trialBalance', 'profitLoss', 'invoiceAging', 'budgetVariance', 'rentRoll'],
+    category: 'finance',
+  },
+
+  // === AGRICULTURE ===
+  {
+    domain: 'agriculture',
+    label: 'Agriculture & Farming',
+    artifacts: ['Field', 'Crop', 'Animal', 'FarmEquipment', 'WaterSystem', 'Harvest', 'Certification'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['rotationPlan', 'yieldAnalysis', 'equipmentDue', 'waterSchedule'],
+    category: 'agriculture',
+  },
+
+  // === LOGISTICS ===
+  {
+    domain: 'logistics',
+    label: 'Transportation & Logistics',
+    artifacts: ['Vehicle', 'Driver', 'Shipment', 'WarehouseItem', 'Route', 'ComplianceLog'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['optimizeRoute', 'hosCheck', 'maintenanceDue', 'inventoryAudit'],
+    category: 'operations',
+  },
+
+  // === EDUCATION ===
+  {
+    domain: 'education',
+    label: 'Education',
+    artifacts: ['Student', 'Course', 'Assignment', 'Grade', 'LessonPlan', 'Certification'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['gradeCalculation', 'attendanceReport', 'progressTrack', 'scheduleConflict'],
+    category: 'services',
+  },
+
+  // === LEGAL ===
+  {
+    domain: 'legal',
+    label: 'Legal',
+    artifacts: ['Case', 'Contract', 'ComplianceItem', 'Filing', 'IPAsset'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['deadlineCheck', 'contractRenewal', 'conflictCheck', 'complianceScore'],
+    category: 'services',
+  },
+
+  // === NONPROFIT ===
+  {
+    domain: 'nonprofit',
+    label: 'Nonprofit & Community',
+    artifacts: ['Donor', 'Grant', 'Volunteer', 'Campaign', 'ImpactMetric', 'Member'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['donorRetention', 'grantReporting', 'volunteerMatch', 'campaignProgress'],
+    category: 'social',
+  },
+
+  // === REALESTATE ===
+  {
+    domain: 'realestate',
+    label: 'Real Estate',
+    artifacts: ['Listing', 'Showing', 'Transaction', 'RentalUnit', 'Deal'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['capRate', 'cashFlow', 'closingTimeline', 'vacancyRate'],
+    category: 'finance',
+  },
+
+  // === FITNESS ===
+  {
+    domain: 'fitness',
+    label: 'Fitness & Wellness',
+    artifacts: ['Client', 'Program', 'Workout', 'Class', 'Team', 'Athlete'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['progressionCalc', 'classUtilization', 'periodization', 'recruitProfile'],
+    category: 'services',
+  },
+
+  // === CREATIVE PRODUCTION ===
+  {
+    domain: 'creative',
+    label: 'Creative Production',
+    artifacts: ['Project', 'Shoot', 'Asset', 'Episode', 'Collection', 'ClientProof'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['shotListGenerate', 'assetOrganize', 'budgetTrack', 'distributionChecklist'],
+    category: 'creative',
+  },
+
+  // === MANUFACTURING ===
+  {
+    domain: 'manufacturing',
+    label: 'Manufacturing',
+    artifacts: ['WorkOrder', 'BOM', 'QCInspection', 'Machine', 'SafetyItem', 'Part'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['scheduleOptimize', 'bomCost', 'oeeCalculate', 'safetyRate'],
+    category: 'operations',
+  },
+
+  // === ENVIRONMENT ===
+  {
+    domain: 'environment',
+    label: 'Environmental & Outdoors',
+    artifacts: ['Site', 'Species', 'Survey', 'TrailAsset', 'EnvironmentalSample', 'WasteStream'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf', 'geojson'],
+    actions: ['populationTrend', 'complianceCheck', 'trailCondition', 'diversionRate'],
+    category: 'government',
+  },
+
+  // === GOVERNMENT ===
+  {
+    domain: 'government',
+    label: 'Government & Public Service',
+    artifacts: ['Permit', 'Project', 'Violation', 'EmergencyPlan', 'Record', 'CourtCase'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['permitTimeline', 'violationEscalation', 'resourceStaging', 'retentionCheck'],
+    category: 'government',
+  },
+
+  // === AVIATION ===
+  {
+    domain: 'aviation',
+    label: 'Aviation & Maritime',
+    artifacts: ['Flight', 'Aircraft', 'Vessel', 'Slip', 'Charter', 'CrewMember'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['currencyCheck', 'maintenanceDue', 'hobbsLog', 'slipUtilization'],
+    category: 'operations',
+  },
+
+  // === EVENTS ===
+  {
+    domain: 'events',
+    label: 'Events & Entertainment',
+    artifacts: ['Event', 'Venue', 'Performer', 'Tour', 'Production', 'Vendor'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['budgetReconcile', 'advanceSheet', 'techRiderMatch', 'settlementCalc'],
+    category: 'creative',
+  },
+
+  // === SCIENCE ===
+  {
+    domain: 'science',
+    label: 'Science & Field Work',
+    artifacts: ['Expedition', 'Observation', 'Sample', 'LabProtocol', 'Analysis', 'Equipment'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf', 'geojson'],
+    actions: ['chainOfCustody', 'calibrationCheck', 'dataExport', 'spatialCluster'],
+    category: 'knowledge',
+  },
+
+  // === SECURITY ===
+  {
+    domain: 'security',
+    label: 'Security',
+    artifacts: ['Post', 'Incident', 'Patrol', 'Threat', 'Investigation', 'Asset'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['incidentTrend', 'patrolCoverage', 'threatMatrix', 'evidenceChain'],
+    category: 'operations',
+  },
+
+  // === SERVICES ===
+  {
+    domain: 'services',
+    label: 'Personal Services',
+    artifacts: ['Client', 'Appointment', 'ServiceType', 'Provider', 'ChildProfile', 'PortfolioItem'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['scheduleOptimize', 'reminderGenerate', 'revenueByProvider', 'supplyCheck'],
+    category: 'services',
+  },
+
+  // === INSURANCE ===
+  {
+    domain: 'insurance',
+    label: 'Insurance & Risk',
+    artifacts: ['Policy', 'Claim', 'Risk', 'Benefit', 'Renewal'],
+    macros: { list: 'lens.list', get: 'lens.get', create: 'lens.create', update: 'lens.update', delete: 'lens.delete', run: 'lens.run', export: 'lens.export' },
+    exports: ['json', 'csv', 'pdf'],
+    actions: ['coverageGap', 'premiumHistory', 'claimStatus', 'riskScore'],
+    category: 'finance',
   },
 ];
 

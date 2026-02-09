@@ -17832,7 +17832,16 @@ registerLensAction("paper", "validate", async (ctx, artifact, params) => {
 });
 registerLensAction("paper", "synthesize", async (ctx, artifact, params) => {
   const claims = artifact.data?.claims || [];
-  const synthesis = { id: uid("syn"), claims: claims.map(c => c.id || c.text), narrative: `Synthesis of ${claims.length} claims`, confidence: 0.8, version: 1, createdAt: nowISO() };
+  const validatedCount = claims.filter(c => c.validated).length;
+  const withEvidence = claims.filter(c => (c.evidence || c.sources || []).length > 0).length;
+  const confidence = claims.length > 0 ? Math.round(((validatedCount / claims.length) * 0.6 + (withEvidence / claims.length) * 0.4) * 100) / 100 : 0;
+  const themes = {};
+  claims.forEach(c => { (c.tags || c.themes || []).forEach(t => { themes[t] = (themes[t] || 0) + 1; }); });
+  const topThemes = Object.entries(themes).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([theme]) => theme);
+  const narrative = claims.length > 0
+    ? `Across ${claims.length} claims (${validatedCount} validated, ${withEvidence} with evidence)${topThemes.length > 0 ? `, key themes: ${topThemes.join(", ")}` : ""}`
+    : "No claims available for synthesis";
+  const synthesis = { id: uid("syn"), claims: claims.map(c => c.id || c.text), narrative, confidence, validatedCount, withEvidence, topThemes, version: (artifact.data?.synthesis?.version || 0) + 1, createdAt: nowISO() };
   artifact.data = { ...artifact.data, synthesis };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
@@ -17866,11 +17875,21 @@ registerLensAction("reasoning", "trace", async (ctx, artifact, params) => {
 });
 registerLensAction("reasoning", "conclude", async (ctx, artifact, params) => {
   const steps = artifact.data?.steps || [];
-  const conclusion = params.conclusion || `Conclusion derived from ${steps.length} steps`;
-  artifact.data = { ...artifact.data, conclusion, concludedAt: nowISO() };
+  const type = artifact.data?.type || "deductive";
+  const premise = artifact.data?.premise || "";
+  let conclusion = params.conclusion;
+  if (!conclusion && steps.length > 0) {
+    const lastStep = steps[steps.length - 1];
+    const stepContents = steps.map(s => s.content || s.text || "").filter(Boolean);
+    conclusion = lastStep.conclusion || lastStep.content || stepContents[stepContents.length - 1] || "";
+  }
+  if (!conclusion) conclusion = premise || artifact.title || "";
+  const valid = steps.every(s => s.content && s.content.length > 0);
+  const strength = valid ? Math.min(1, 0.5 + steps.length * 0.1) : Math.max(0.1, 0.5 - steps.filter(s => !s.content).length * 0.15);
+  artifact.data = { ...artifact.data, conclusion, concludedAt: nowISO(), conclusionStrength: Math.round(strength * 100) / 100, reasoningType: type, stepCount: steps.length };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, conclusion };
+  return { ok: true, conclusion, strength: Math.round(strength * 100) / 100, type, stepCount: steps.length, valid };
 });
 registerLensAction("reasoning", "fork", async (ctx, artifact, params) => {
   const forkId = uid("lart");
@@ -17883,9 +17902,22 @@ registerLensAction("reasoning", "fork", async (ctx, artifact, params) => {
 
 // === Council (Governance) ===
 registerLensAction("council", "debate", async (ctx, artifact, params) => {
-  const turns = params.turns || [];
-  const synthesis = `Synthesis of ${turns.length} debate turns on: ${artifact.title}`;
-  artifact.data = { ...artifact.data, debate: { turns, synthesis, concludedAt: nowISO() } };
+  const existingTurns = artifact.data?.debate?.turns || [];
+  const newTurns = params.turns || [];
+  const allTurns = [...existingTurns, ...newTurns];
+  const participants = [...new Set(allTurns.map(t => t.speaker || t.participant || "unknown"))];
+  const positions = {};
+  allTurns.forEach(t => {
+    const speaker = t.speaker || t.participant || "unknown";
+    const stance = t.stance || t.position || "neutral";
+    if (!positions[stance]) positions[stance] = [];
+    if (!positions[stance].includes(speaker)) positions[stance].push(speaker);
+  });
+  const stanceSummary = Object.entries(positions).map(([stance, speakers]) => ({ stance, supporters: speakers.length, speakers }));
+  const dominantStance = stanceSummary.sort((a, b) => b.supporters - a.supporters)[0];
+  const consensus = participants.length > 0 && dominantStance ? dominantStance.supporters / participants.length : 0;
+  const synthesis = `${participants.length} participants across ${allTurns.length} turns. ${dominantStance ? `Leading position: "${dominantStance.stance}" (${dominantStance.supporters}/${participants.length}).` : ""} Consensus: ${Math.round(consensus * 100)}%`;
+  artifact.data = { ...artifact.data, debate: { turns: allTurns, synthesis, participants, stanceSummary, consensusLevel: Math.round(consensus * 100) / 100, concludedAt: nowISO() } };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
   return { ok: true, debate: artifact.data.debate };
@@ -17901,14 +17933,55 @@ registerLensAction("council", "vote", async (ctx, artifact, params) => {
 });
 registerLensAction("council", "simulate-budget", async (ctx, artifact, params) => {
   const budget = artifact.data?.budget || { total: 0, items: [] };
-  const simResult = { projected: budget.total * 1.1, confidence: 0.75, risks: ["cost overrun", "timeline slip"], simulatedAt: nowISO() };
+  const items = budget.items || [];
+  const itemBreakdown = items.map(item => {
+    const amount = item.amount || item.cost || 0;
+    const variance = item.variance || item.uncertainty || 0.15;
+    const low = amount * (1 - variance);
+    const high = amount * (1 + variance);
+    const expected = amount * (1 + variance * 0.1);
+    return { name: item.name || item.label, budgeted: amount, low: Math.round(low), high: Math.round(high), expected: Math.round(expected), variance };
+  });
+  const totalBudgeted = items.reduce((s, i) => s + (i.amount || i.cost || 0), 0) || budget.total || 0;
+  const totalExpected = itemBreakdown.reduce((s, i) => s + i.expected, 0) || totalBudgeted;
+  const totalLow = itemBreakdown.reduce((s, i) => s + i.low, 0) || Math.round(totalBudgeted * 0.85);
+  const totalHigh = itemBreakdown.reduce((s, i) => s + i.high, 0) || Math.round(totalBudgeted * 1.15);
+  const overBudgetRisk = totalBudgeted > 0 ? Math.round(((totalHigh - totalBudgeted) / totalBudgeted) * 100) / 100 : 0;
+  const risks = [];
+  if (overBudgetRisk > 0.2) risks.push("high_cost_overrun_risk");
+  if (items.some(i => (i.variance || 0.15) > 0.3)) risks.push("high_variance_items_present");
+  if (items.length === 0) risks.push("no_line_items_for_analysis");
+  const votes = artifact.data?.votes || [];
+  const approvalRate = votes.length > 0 ? votes.filter(v => v.choice === "approve" || v.choice === "yes").length / votes.length : null;
+  const confidence = items.length > 0 ? Math.round(Math.max(0.3, 1 - items.reduce((s, i) => s + (i.variance || 0.15), 0) / items.length) * 100) / 100 : 0.5;
+  const simResult = { projected: totalExpected, totalBudgeted, range: { low: totalLow, high: totalHigh }, confidence, overBudgetRisk, risks, approvalRate, itemBreakdown, simulatedAt: nowISO() };
   artifact.data = { ...artifact.data, budgetSimulation: simResult };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
   return { ok: true, simulation: simResult };
 });
 registerLensAction("council", "audit", async (ctx, artifact, params) => {
-  const trail = { entityType: "proposal", entityId: artifact.id, actions: artifact.data?.votes?.length || 0, lastAction: artifact.updatedAt, integrity: "verified" };
+  const votes = artifact.data?.votes || [];
+  const debate = artifact.data?.debate || {};
+  const uniqueVoters = [...new Set(votes.map(v => v.voterId))];
+  const voteTimeline = votes.map(v => ({ voterId: v.voterId, choice: v.choice, weight: v.weight || 1, timestamp: v.timestamp }));
+  const choiceTally = {};
+  let totalWeight = 0;
+  votes.forEach(v => { const c = v.choice || "abstain"; choiceTally[c] = (choiceTally[c] || 0) + (v.weight || 1); totalWeight += (v.weight || 1); });
+  const hasDebate = !!(debate.turns && debate.turns.length > 0);
+  const hasBudget = !!artifact.data?.budget;
+  const hasSimulation = !!artifact.data?.budgetSimulation;
+  const completeness = [votes.length > 0, hasDebate, hasBudget || !artifact.data?.requiresBudget].filter(Boolean).length / 3;
+  const trail = {
+    entityType: artifact.type || "proposal", entityId: artifact.id,
+    totalVotes: votes.length, uniqueVoters: uniqueVoters.length,
+    choiceTally, totalWeight,
+    debateTurns: debate.turns?.length || 0,
+    processCompleteness: Math.round(completeness * 100) / 100,
+    voteTimeline: voteTimeline.slice(-20),
+    lastAction: artifact.updatedAt, createdAt: artifact.createdAt,
+    auditedAt: nowISO()
+  };
   return { ok: true, audit: trail };
 });
 
@@ -17945,7 +18018,16 @@ registerLensAction("agents", "deliberate", async (ctx, artifact, params) => {
   return { ok: true, deliberation };
 });
 registerLensAction("agents", "arbitrate", async (ctx, artifact, params) => {
-  const decision = { id: uid("dec"), deliberationId: params.deliberationId, choice: params.choice || "proceed", rationale: params.rationale || "Arbitration complete", confidence: 0.85, approvedBy: ctx.actor?.userId || "system", decidedAt: nowISO() };
+  const delib = artifact.data?.lastDeliberation || {};
+  const args = delib.arguments || params.arguments || [];
+  const forArgs = args.filter(a => a.stance === "for" || a.support === true);
+  const againstArgs = args.filter(a => a.stance === "against" || a.support === false);
+  const totalArgs = forArgs.length + againstArgs.length;
+  const confidence = totalArgs > 0 ? Math.round((Math.abs(forArgs.length - againstArgs.length) / totalArgs * 0.5 + Math.min(1, totalArgs / 10) * 0.5) * 100) / 100 : 0.5;
+  const autoChoice = forArgs.length > againstArgs.length ? "proceed" : forArgs.length < againstArgs.length ? "reject" : "defer";
+  const choice = params.choice || autoChoice;
+  const rationale = params.rationale || (totalArgs > 0 ? `${forArgs.length} arguments for, ${againstArgs.length} against. Decision: ${choice}` : `No arguments provided. Default: ${choice}`);
+  const decision = { id: uid("dec"), deliberationId: params.deliberationId || delib.id, choice, rationale, confidence, forCount: forArgs.length, againstCount: againstArgs.length, approvedBy: ctx.actor?.userId || "system", decidedAt: nowISO() };
   artifact.data = { ...artifact.data, lastDecision: decision };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
@@ -17955,9 +18037,31 @@ registerLensAction("agents", "arbitrate", async (ctx, artifact, params) => {
 // === Sim (Simulation) ===
 registerLensAction("sim", "simulate", async (ctx, artifact, params) => {
   const assumptions = artifact.data?.assumptions || params.assumptions || [];
-  const outcomes = assumptions.map(a => ({ assumption: a, impact: Math.random(), confidence: 0.5 + Math.random() * 0.5 }));
-  const result = { id: uid("simrun"), outcomes, summary: `Simulated ${assumptions.length} assumptions`, risks: ["model uncertainty"], completedAt: nowISO() };
-  artifact.data = { ...artifact.data, lastRun: result, status: "completed" };
+  const variables = artifact.data?.variables || {};
+  let seed = 0;
+  for (let i = 0; i < artifact.id.length; i++) seed = ((seed << 5) - seed) + artifact.id.charCodeAt(i);
+  const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const rng = mulberry32(seed + (artifact.data?.runCount || 0));
+  const outcomes = assumptions.map(a => {
+    const name = typeof a === 'string' ? a : a.name || a.label || String(a);
+    const baseImpact = typeof a === 'object' ? (a.impact || a.weight || 0.5) : 0.5;
+    const uncertainty = typeof a === 'object' ? (a.uncertainty || 0.2) : 0.2;
+    const u1 = rng() || 0.0001;
+    const u2 = rng();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    const impact = Math.round(Math.max(0, Math.min(1, baseImpact + z * uncertainty)) * 1000) / 1000;
+    const confidence = Math.round(Math.max(0.1, 1 - uncertainty * 2) * 100) / 100;
+    return { assumption: name, impact, confidence, baseImpact, uncertainty };
+  });
+  const avgImpact = outcomes.length > 0 ? outcomes.reduce((s, o) => s + o.impact, 0) / outcomes.length : 0;
+  const risks = [];
+  const highImpact = outcomes.filter(o => o.impact > 0.7);
+  const lowConfidence = outcomes.filter(o => o.confidence < 0.5);
+  if (highImpact.length > 0) risks.push(`${highImpact.length} high-impact assumptions`);
+  if (lowConfidence.length > 0) risks.push(`${lowConfidence.length} low-confidence assumptions`);
+  if (outcomes.length < 3) risks.push("limited_assumptions_coverage");
+  const result = { id: uid("simrun"), outcomes, averageImpact: Math.round(avgImpact * 1000) / 1000, risks, runNumber: (artifact.data?.runCount || 0) + 1, completedAt: nowISO() };
+  artifact.data = { ...artifact.data, lastRun: result, status: "completed", runCount: (artifact.data?.runCount || 0) + 1, runs: [...(artifact.data?.runs || []).slice(-9), result] };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
   return { ok: true, result };
@@ -17965,11 +18069,30 @@ registerLensAction("sim", "simulate", async (ctx, artifact, params) => {
 registerLensAction("sim", "analyze", async (ctx, artifact, params) => {
   const lastRun = artifact.data?.lastRun;
   if (!lastRun) return { ok: false, error: "no simulation run to analyze" };
-  const analysis = { sensitivity: lastRun.outcomes?.map(o => ({ ...o, sensitivity: Math.abs(o.impact) })).sort((a, b) => b.sensitivity - a.sensitivity), analyzedAt: nowISO() };
-  return { ok: true, analysis };
+  const outcomes = lastRun.outcomes || [];
+  const sensitivity = outcomes.map(o => ({ ...o, sensitivity: Math.abs(o.impact) })).sort((a, b) => b.sensitivity - a.sensitivity);
+  const runs = artifact.data?.runs || [];
+  const crossRunAnalysis = outcomes.map(o => {
+    const name = o.assumption;
+    const pastImpacts = runs.map(r => (r.outcomes || []).find(ro => ro.assumption === name)?.impact).filter(Boolean);
+    const avg = pastImpacts.length > 0 ? pastImpacts.reduce((s, v) => s + v, 0) / pastImpacts.length : o.impact;
+    const variance = pastImpacts.length > 1 ? pastImpacts.reduce((s, v) => s + (v - avg) ** 2, 0) / pastImpacts.length : 0;
+    return { assumption: name, averageImpact: Math.round(avg * 1000) / 1000, variance: Math.round(variance * 10000) / 10000, samples: pastImpacts.length };
+  });
+  return { ok: true, analysis: { sensitivity, crossRunAnalysis, totalRuns: runs.length, analyzedAt: nowISO() } };
 });
 registerLensAction("sim", "compare", async (ctx, artifact, params) => {
-  return { ok: true, comparison: { artifactId: artifact.id, baseline: artifact.data?.lastRun, note: "comparison baseline set" } };
+  const runs = artifact.data?.runs || [];
+  const compareId = params.runId;
+  if (runs.length < 2 && !compareId) return { ok: true, comparison: { note: "Need at least 2 runs to compare", totalRuns: runs.length } };
+  const baseline = compareId ? runs.find(r => r.id === compareId) || runs[0] : runs[runs.length - 2];
+  const current = runs[runs.length - 1];
+  if (!baseline || !current) return { ok: true, comparison: { note: "insufficient_runs", totalRuns: runs.length } };
+  const diffs = (current.outcomes || []).map(co => {
+    const bo = (baseline.outcomes || []).find(o => o.assumption === co.assumption);
+    return { assumption: co.assumption, currentImpact: co.impact, baselineImpact: bo?.impact || null, delta: bo ? Math.round((co.impact - bo.impact) * 1000) / 1000 : null };
+  });
+  return { ok: true, comparison: { baselineRun: baseline.id, currentRun: current.id, diffs, avgDelta: diffs.filter(d => d.delta !== null).length > 0 ? Math.round(diffs.filter(d => d.delta !== null).reduce((s, d) => s + Math.abs(d.delta), 0) / diffs.filter(d => d.delta !== null).length * 1000) / 1000 : 0, comparedAt: nowISO() } };
 });
 registerLensAction("sim", "archive", async (ctx, artifact, params) => {
   artifact.data = { ...artifact.data, status: "archived", archivedAt: nowISO() };
@@ -17980,14 +18103,50 @@ registerLensAction("sim", "archive", async (ctx, artifact, params) => {
 
 // === Studio (Creative) ===
 registerLensAction("studio", "mix", async (ctx, artifact, params) => {
-  return { ok: true, mix: { projectId: artifact.id, status: "mixed", mixedAt: nowISO() } };
+  const tracks = artifact.data?.tracks || [];
+  const mixSettings = params.settings || artifact.data?.mixSettings || {};
+  const trackAnalysis = tracks.map(t => ({
+    name: t.name || t.label || "untitled",
+    volume: t.volume != null ? t.volume : 0.8,
+    pan: t.pan != null ? t.pan : 0,
+    muted: !!t.muted,
+    solo: !!t.solo,
+    effects: (t.effects || []).length
+  }));
+  const activeTracks = trackAnalysis.filter(t => !t.muted);
+  const soloTracks = trackAnalysis.filter(t => t.solo);
+  const effectiveTracksCount = soloTracks.length > 0 ? soloTracks.length : activeTracks.length;
+  const avgVolume = activeTracks.length > 0 ? Math.round(activeTracks.reduce((s, t) => s + t.volume, 0) / activeTracks.length * 100) / 100 : 0;
+  const peakWarning = activeTracks.some(t => t.volume > 0.95);
+  artifact.data = { ...artifact.data, mixStatus: "mixed", lastMix: { tracks: trackAnalysis, activeCount: effectiveTracksCount, avgVolume, peakWarning, settings: mixSettings, mixedAt: nowISO() } };
+  artifact.updatedAt = nowISO();
+  saveStateDebounced();
+  return { ok: true, mix: { projectId: artifact.id, trackCount: tracks.length, activeCount: effectiveTracksCount, avgVolume, peakWarning, mixedAt: nowISO() } };
 });
 registerLensAction("studio", "master", async (ctx, artifact, params) => {
-  return { ok: true, master: { projectId: artifact.id, status: "mastered", masteredAt: nowISO() } };
+  const mix = artifact.data?.lastMix || {};
+  const targetLoudness = params.targetLUFS || -14;
+  const avgVolume = mix.avgVolume || 0.7;
+  const gainAdjustment = Math.round((1 - avgVolume) * 6 * 100) / 100;
+  const limiterThreshold = Math.round(Math.min(-0.3, targetLoudness + 14 - 1) * 100) / 100;
+  const masterSettings = { targetLoudness, gainAdjustment, limiterThreshold, peakCeiling: -0.1, format: params.format || "wav", sampleRate: params.sampleRate || 44100, bitDepth: params.bitDepth || 24 };
+  artifact.data = { ...artifact.data, masterStatus: "mastered", lastMaster: { ...masterSettings, masteredAt: nowISO() } };
+  artifact.updatedAt = nowISO();
+  saveStateDebounced();
+  return { ok: true, master: { projectId: artifact.id, ...masterSettings, masteredAt: nowISO() } };
 });
 registerLensAction("studio", "bounce", async (ctx, artifact, params) => {
   const format = params.format || "wav";
-  return { ok: true, bounce: { projectId: artifact.id, format, bouncedAt: nowISO() } };
+  const master = artifact.data?.lastMaster || {};
+  const tracks = artifact.data?.tracks || [];
+  const duration = artifact.data?.duration || tracks.reduce((max, t) => Math.max(max, t.duration || 0), 0);
+  const sampleRate = master.sampleRate || params.sampleRate || 44100;
+  const bitDepth = master.bitDepth || params.bitDepth || (format === "mp3" ? 16 : 24);
+  const estimatedSizeKB = Math.round(duration * sampleRate * bitDepth / 8 / 1024 * (format === "mp3" ? 0.1 : 1));
+  artifact.data = { ...artifact.data, lastBounce: { format, sampleRate, bitDepth, duration, estimatedSizeKB, bouncedAt: nowISO() } };
+  artifact.updatedAt = nowISO();
+  saveStateDebounced();
+  return { ok: true, bounce: { projectId: artifact.id, format, duration, sampleRate, bitDepth, estimatedSizeKB, bouncedAt: nowISO() } };
 });
 registerLensAction("studio", "render", async (ctx, artifact, params) => {
   const render = { id: uid("render"), projectId: artifact.id, format: params.format || "wav", status: "complete", renderedAt: nowISO() };
@@ -18009,8 +18168,30 @@ registerLensAction("law", "check-compliance", async (ctx, artifact, params) => {
 });
 registerLensAction("law", "analyze", async (ctx, artifact, params) => {
   const frameworks = artifact.data?.frameworks || ["GDPR", "CCPA", "DMCA", "EU AI Act"];
-  const analysis = frameworks.map(f => ({ framework: f, status: "review", risk: "low", lastChecked: nowISO() }));
-  return { ok: true, analysis };
+  const text = (artifact.data?.body || artifact.title || "").toLowerCase();
+  const citations = artifact.data?.citations || [];
+  const drafts = artifact.data?.drafts || [];
+  const frameworkKeywords = {
+    "GDPR": ["personal data", "consent", "data subject", "processing", "controller", "processor", "transfer", "erasure", "portability"],
+    "CCPA": ["consumer", "personal information", "sale", "opt-out", "disclosure", "business purpose"],
+    "DMCA": ["copyright", "takedown", "safe harbor", "infringement", "notice", "counter-notice"],
+    "EU AI Act": ["artificial intelligence", "high-risk", "biometric", "prohibited", "transparency", "conformity"]
+  };
+  const analysis = frameworks.map(f => {
+    const keywords = frameworkKeywords[f] || [];
+    const matches = keywords.filter(k => text.includes(k));
+    const coverage = keywords.length > 0 ? matches.length / keywords.length : 0;
+    const relevantCitations = citations.filter(c => (c.source || "").includes(f) || (c.text || "").toLowerCase().includes(f.toLowerCase()));
+    let risk = "low";
+    if (coverage > 0.5) risk = "high";
+    else if (coverage > 0.2) risk = "medium";
+    let status = "no_issues";
+    if (coverage > 0 && relevantCitations.length === 0) status = "needs_review";
+    else if (coverage > 0 && relevantCitations.length > 0) status = "documented";
+    return { framework: f, status, risk, coverage: Math.round(coverage * 100) / 100, matchedKeywords: matches, citationCount: relevantCitations.length, lastChecked: nowISO() };
+  });
+  const overallRisk = analysis.some(a => a.risk === "high") ? "high" : analysis.some(a => a.risk === "medium") ? "medium" : "low";
+  return { ok: true, analysis, overallRisk, totalDrafts: drafts.length, totalCitations: citations.length };
 });
 registerLensAction("law", "draft", async (ctx, artifact, params) => {
   const draft = { id: uid("draft"), caseId: artifact.id, title: params.title || "New Draft", body: params.body || "", version: 1, status: "draft", createdAt: nowISO() };
@@ -18037,19 +18218,72 @@ registerLensAction("graph", "query", async (ctx, artifact, params) => {
 });
 registerLensAction("graph", "cluster", async (ctx, artifact, params) => {
   const nodes = artifact.data?.nodes || [];
-  const clusterCount = Math.min(params.k || 3, Math.max(1, nodes.length));
-  const clusters = Array.from({ length: clusterCount }, (_, i) => ({ id: i, members: nodes.filter((_, j) => j % clusterCount === i).map(n => n.id) }));
-  return { ok: true, clusters, k: clusterCount };
+  const edges = artifact.data?.edges || [];
+  const k = Math.min(params.k || 3, Math.max(1, nodes.length));
+  if (nodes.length === 0) return { ok: true, clusters: [], k: 0 };
+  const adjacency = {};
+  nodes.forEach(n => { adjacency[n.id] = new Set(); });
+  edges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].add(e.target);
+    if (adjacency[e.target]) adjacency[e.target].add(e.source);
+  });
+  const assignments = new Array(nodes.length).fill(0);
+  nodes.forEach((n, i) => { assignments[i] = i % k; });
+  for (let iter = 0; iter < 20; iter++) {
+    let changed = false;
+    nodes.forEach((node, i) => {
+      const neighbors = adjacency[node.id] || new Set();
+      const clusterCounts = new Array(k).fill(0);
+      neighbors.forEach(nId => {
+        const nIdx = nodes.findIndex(n => n.id === nId);
+        if (nIdx >= 0) clusterCounts[assignments[nIdx]]++;
+      });
+      const bestCluster = clusterCounts.indexOf(Math.max(...clusterCounts));
+      if (bestCluster >= 0 && bestCluster !== assignments[i]) { assignments[i] = bestCluster; changed = true; }
+    });
+    if (!changed) break;
+  }
+  const clusters = Array.from({ length: k }, (_, i) => {
+    const members = nodes.filter((_, j) => assignments[j] === i).map(n => n.id);
+    const internalEdges = edges.filter(e => members.includes(e.source) && members.includes(e.target)).length;
+    return { id: i, members, size: members.length, internalEdges };
+  }).filter(c => c.size > 0);
+  const modularity = edges.length > 0 ? clusters.reduce((s, c) => s + c.internalEdges, 0) / edges.length : 0;
+  return { ok: true, clusters, k: clusters.length, modularity: Math.round(modularity * 1000) / 1000 };
 });
 registerLensAction("graph", "analyze", async (ctx, artifact, params) => {
   const nodes = artifact.data?.nodes || [];
   const edges = artifact.data?.edges || [];
-  return { ok: true, stats: { nodeCount: nodes.length, edgeCount: edges.length, density: edges.length / Math.max(1, nodes.length * (nodes.length - 1) / 2), analyzedAt: nowISO() } };
+  const maxPossibleEdges = nodes.length * (nodes.length - 1) / 2;
+  const density = maxPossibleEdges > 0 ? edges.length / maxPossibleEdges : 0;
+  const degree = {};
+  nodes.forEach(n => { degree[n.id] = 0; });
+  edges.forEach(e => { degree[e.source] = (degree[e.source] || 0) + 1; degree[e.target] = (degree[e.target] || 0) + 1; });
+  const degrees = Object.values(degree);
+  const avgDegree = degrees.length > 0 ? degrees.reduce((s, d) => s + d, 0) / degrees.length : 0;
+  const maxDegree = degrees.length > 0 ? Math.max(...degrees) : 0;
+  const isolatedNodes = degrees.filter(d => d === 0).length;
+  const hubs = nodes.filter(n => (degree[n.id] || 0) > avgDegree * 2).map(n => ({ id: n.id, label: n.label, degree: degree[n.id] }));
+  return { ok: true, stats: { nodeCount: nodes.length, edgeCount: edges.length, density: Math.round(density * 10000) / 10000, avgDegree: Math.round(avgDegree * 100) / 100, maxDegree, isolatedNodes, hubs: hubs.slice(0, 10), analyzedAt: nowISO() } };
 });
 registerLensAction("graph", "merge", async (ctx, artifact, params) => {
   const { sourceId, targetId } = params;
   if (!sourceId || !targetId) return { ok: false, error: "sourceId and targetId required" };
-  return { ok: true, merged: { from: sourceId, into: targetId, mergedAt: nowISO() } };
+  const nodes = artifact.data?.nodes || [];
+  const edges = artifact.data?.edges || [];
+  const sourceNode = nodes.find(n => n.id === sourceId);
+  const targetNode = nodes.find(n => n.id === targetId);
+  if (!sourceNode || !targetNode) return { ok: false, error: "source or target node not found" };
+  const mergedNode = { ...targetNode, label: targetNode.label || sourceNode.label, mergedFrom: [...(targetNode.mergedFrom || []), sourceId], data: { ...(sourceNode.data || {}), ...(targetNode.data || {}) } };
+  const newNodes = nodes.filter(n => n.id !== sourceId).map(n => n.id === targetId ? mergedNode : n);
+  const newEdges = edges.map(e => ({ ...e, source: e.source === sourceId ? targetId : e.source, target: e.target === sourceId ? targetId : e.target })).filter(e => e.source !== e.target);
+  const uniqueEdges = [];
+  const seen = new Set();
+  newEdges.forEach(e => { const key = [e.source, e.target].sort().join("-"); if (!seen.has(key)) { seen.add(key); uniqueEdges.push(e); } });
+  artifact.data = { ...artifact.data, nodes: newNodes, edges: uniqueEdges };
+  artifact.updatedAt = nowISO();
+  saveStateDebounced();
+  return { ok: true, merged: { from: sourceId, into: targetId, resultingNodes: newNodes.length, resultingEdges: uniqueEdges.length, mergedAt: nowISO() } };
 });
 
 // === Whiteboard (Collaboration) ===
@@ -18082,16 +18316,88 @@ registerLensAction("whiteboard", "snapshot", async (ctx, artifact, params) => {
 
 // === Database ===
 registerLensAction("database", "query", async (ctx, artifact, params) => {
-  return { ok: true, result: { columns: [], rows: [], rowCount: 0, executionTime: 0, query: artifact.data?.sql || params.sql || "" } };
+  const sql = artifact.data?.sql || params.sql || "";
+  const tables = artifact.data?.tables || [];
+  const schema = artifact.data?.schema || {};
+  if (!sql) return { ok: true, result: { columns: [], rows: [], rowCount: 0, query: "", note: "no_query_provided" } };
+  const sqlUpper = sql.toUpperCase().trim();
+  const isSelect = sqlUpper.startsWith("SELECT");
+  const referencedTables = [];
+  const fromMatch = sql.match(/FROM\s+(\w+)/i);
+  if (fromMatch) referencedTables.push(fromMatch[1]);
+  const joinMatches = sql.match(/JOIN\s+(\w+)/gi);
+  if (joinMatches) joinMatches.forEach(j => { const m = j.match(/JOIN\s+(\w+)/i); if (m) referencedTables.push(m[1]); });
+  const tableData = {};
+  referencedTables.forEach(t => {
+    const tbl = tables.find(tb => tb.name === t) || schema[t];
+    if (tbl) tableData[t] = tbl;
+  });
+  const columns = referencedTables.length > 0 && tableData[referencedTables[0]]
+    ? (tableData[referencedTables[0]].columns || []).map(c => c.name || c) : [];
+  const rows = artifact.data?.rows || artifact.data?.sampleData || [];
+  return { ok: true, result: { columns, rows: rows.slice(0, params.limit || 100), rowCount: rows.length, query: sql, referencedTables, isSelect, queryType: isSelect ? "SELECT" : sqlUpper.split(/\s/)[0] } };
 });
 registerLensAction("database", "analyze", async (ctx, artifact, params) => {
-  return { ok: true, analysis: { query: artifact.data?.sql || "", suggestions: ["Consider adding an index"], analyzedAt: nowISO() } };
+  const sql = artifact.data?.sql || params.sql || "";
+  const tables = artifact.data?.tables || [];
+  const indexes = artifact.data?.indexes || [];
+  const suggestions = [];
+  const sqlUpper = sql.toUpperCase();
+  if (sqlUpper.includes("SELECT *")) suggestions.push("Avoid SELECT * — specify only needed columns");
+  if (!sqlUpper.includes("WHERE") && (sqlUpper.includes("UPDATE") || sqlUpper.includes("DELETE"))) suggestions.push("Missing WHERE clause on UPDATE/DELETE — risk of affecting all rows");
+  if (sqlUpper.includes("LIKE '%")) suggestions.push("Leading wildcard in LIKE prevents index usage");
+  if (!sqlUpper.includes("LIMIT") && sqlUpper.includes("SELECT")) suggestions.push("Consider adding LIMIT to prevent large result sets");
+  if (sqlUpper.includes("JOIN") && !sqlUpper.includes("ON")) suggestions.push("JOIN without ON clause — possible cartesian product");
+  const fromMatch = sql.match(/FROM\s+(\w+)/i);
+  if (fromMatch) {
+    const tableName = fromMatch[1];
+    const whereMatch = sql.match(/WHERE\s+(\w+)/i);
+    if (whereMatch) {
+      const whereCol = whereMatch[1];
+      const hasIndex = indexes.some(idx => idx.table === tableName && (idx.columns || []).includes(whereCol));
+      if (!hasIndex) suggestions.push(`Consider adding index on ${tableName}.${whereCol} (used in WHERE)`);
+    }
+  }
+  const complexity = (sql.match(/JOIN/gi) || []).length;
+  const risk = sqlUpper.includes("DROP") || sqlUpper.includes("TRUNCATE") ? "high" : (sqlUpper.includes("DELETE") || sqlUpper.includes("ALTER")) ? "medium" : "low";
+  return { ok: true, analysis: { query: sql, suggestions, joinCount: complexity, risk, tableCount: tables.length, indexCount: indexes.length, analyzedAt: nowISO() } };
 });
 registerLensAction("database", "optimize", async (ctx, artifact, params) => {
-  return { ok: true, optimized: { original: artifact.data?.sql || "", optimized: artifact.data?.sql || "", improvements: [], optimizedAt: nowISO() } };
+  const sql = artifact.data?.sql || params.sql || "";
+  let optimized = sql;
+  const improvements = [];
+  if (/SELECT\s+\*/i.test(optimized)) {
+    const tables = artifact.data?.tables || [];
+    const fromMatch = optimized.match(/FROM\s+(\w+)/i);
+    if (fromMatch && tables.length > 0) {
+      const tbl = tables.find(t => t.name === fromMatch[1]);
+      if (tbl && tbl.columns) {
+        optimized = optimized.replace(/SELECT\s+\*/i, `SELECT ${tbl.columns.map(c => c.name || c).join(", ")}`);
+        improvements.push("Replaced SELECT * with explicit columns");
+      }
+    }
+  }
+  if (/SELECT/i.test(optimized) && !/LIMIT/i.test(optimized)) {
+    optimized += " LIMIT 1000";
+    improvements.push("Added LIMIT 1000 as safety guard");
+  }
+  if (/ORDER BY/i.test(optimized) && !/INDEX/i.test(optimized)) {
+    improvements.push("Consider index on ORDER BY column for performance");
+  }
+  return { ok: true, optimized: { original: sql, optimized, improvements, optimizedAt: nowISO() } };
 });
 registerLensAction("database", "schema-inspect", async (ctx, artifact, params) => {
-  return { ok: true, schema: { tables: [], indexes: [], inspectedAt: nowISO() } };
+  const tables = artifact.data?.tables || [];
+  const indexes = artifact.data?.indexes || [];
+  const schema = artifact.data?.schema || {};
+  const tableDetails = tables.map(t => {
+    const tbl = typeof t === 'string' ? { name: t, columns: (schema[t]?.columns || []) } : t;
+    const tableIndexes = indexes.filter(idx => idx.table === tbl.name);
+    return { name: tbl.name, columns: (tbl.columns || []).map(c => typeof c === 'string' ? { name: c } : c), columnCount: (tbl.columns || []).length, indexes: tableIndexes, rowEstimate: tbl.rowCount || tbl.rows || null };
+  });
+  const totalColumns = tableDetails.reduce((s, t) => s + t.columnCount, 0);
+  const tablesWithoutIndexes = tableDetails.filter(t => t.indexes.length === 0).map(t => t.name);
+  return { ok: true, schema: { tables: tableDetails, indexes, tableCount: tableDetails.length, totalColumns, indexCount: indexes.length, tablesWithoutIndexes, inspectedAt: nowISO() } };
 });
 
 // === Calendar ===
@@ -18110,11 +18416,29 @@ registerLensAction("calendar", "remind", async (ctx, artifact, params) => {
 });
 registerLensAction("calendar", "plan_day", async (ctx, artifact, params) => {
   const events = artifact.data?.events || [];
-  const plan = { date: params.date || new Date().toISOString().slice(0, 10), slots: events.map((e, i) => ({ ...e, order: i })), generatedAt: nowISO() };
-  return { ok: true, plan };
+  const targetDate = params.date || new Date().toISOString().slice(0, 10);
+  const dayEvents = events.filter(e => (e.start || "").startsWith(targetDate) || (e.date || "").startsWith(targetDate));
+  const sorted = [...dayEvents].sort((a, b) => (a.start || a.time || "").localeCompare(b.start || b.time || ""));
+  const slots = sorted.map((e, i) => ({ ...e, order: i, duration: e.duration || (e.end && e.start ? (new Date(e.end) - new Date(e.start)) / 60000 : null) }));
+  const totalMinutes = slots.reduce((s, e) => s + (e.duration || 30), 0);
+  const busyHours = Math.round(totalMinutes / 60 * 10) / 10;
+  return { ok: true, plan: { date: targetDate, slots, eventCount: slots.length, totalMinutes, busyHours, freeHours: Math.round((24 - busyHours) * 10) / 10, generatedAt: nowISO() } };
 });
 registerLensAction("calendar", "plan_week", async (ctx, artifact, params) => {
-  return { ok: true, weekPlan: { startDate: params.startDate, days: 7, generatedAt: nowISO() } };
+  const events = artifact.data?.events || [];
+  const startDate = params.startDate || new Date().toISOString().slice(0, 10);
+  const start = new Date(startDate);
+  const days = [];
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(start.getTime() + d * 86400000).toISOString().slice(0, 10);
+    const dayEvents = events.filter(e => (e.start || "").startsWith(date) || (e.date || "").startsWith(date));
+    const sorted = [...dayEvents].sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+    const totalMinutes = sorted.reduce((s, e) => s + (e.duration || 30), 0);
+    days.push({ date, dayOfWeek: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(date).getDay()], events: sorted, eventCount: sorted.length, busyMinutes: totalMinutes });
+  }
+  const busiestDay = days.reduce((max, d) => d.busyMinutes > max.busyMinutes ? d : max, days[0]);
+  const totalEvents = days.reduce((s, d) => s + d.eventCount, 0);
+  return { ok: true, weekPlan: { startDate, days, totalEvents, busiestDay: busiestDay.date, generatedAt: nowISO() } };
 });
 registerLensAction("calendar", "resolve_conflicts", async (ctx, artifact, params) => {
   const events = artifact.data?.events || [];
@@ -18130,28 +18454,122 @@ registerLensAction("calendar", "resolve_conflicts", async (ctx, artifact, params
 // === Daily ===
 registerLensAction("daily", "summarize", async (ctx, artifact, params) => {
   const content = artifact.data?.content || artifact.data?.body || "";
-  return { ok: true, summary: { text: `Summary of: ${content.slice(0, 100)}`, wordCount: content.split(/\s+/).length, summarizedAt: nowISO() } };
+  const words = content.split(/\s+/).filter(Boolean);
+  const sentences = (content.match(/[^.!?]+[.!?]+/g) || [content]).filter(Boolean);
+  const mood = artifact.data?.mood || null;
+  const tags = artifact.data?.tags || [];
+  const wordFreq = {};
+  words.forEach(w => { const n = w.toLowerCase().replace(/[^a-z0-9]/g, ''); if (n.length > 3) wordFreq[n] = (wordFreq[n] || 0) + 1; });
+  const topWords = Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([word, count]) => ({ word, count }));
+  const keySentences = sentences.slice(0, 3).map(s => s.trim());
+  return { ok: true, summary: { keySentences, wordCount: words.length, sentenceCount: sentences.length, mood, tags, topWords, charCount: content.length, summarizedAt: nowISO() } };
 });
 registerLensAction("daily", "analyze", async (ctx, artifact, params) => {
-  const mood = artifact.data?.mood || "neutral";
-  return { ok: true, analysis: { mood, themes: artifact.data?.tags || [], analyzedAt: nowISO() } };
+  const content = artifact.data?.content || artifact.data?.body || "";
+  const mood = artifact.data?.mood || null;
+  const tags = artifact.data?.tags || [];
+  const words = content.toLowerCase().split(/\s+/).filter(Boolean);
+  const moodIndicators = { positive: ["happy", "great", "good", "amazing", "wonderful", "excited", "love", "grateful", "joy", "accomplished"], negative: ["sad", "bad", "terrible", "angry", "frustrated", "stressed", "worried", "anxious", "tired", "overwhelmed"], neutral: ["okay", "fine", "normal", "regular", "typical", "usual"] };
+  const moodScores = { positive: 0, negative: 0, neutral: 0 };
+  words.forEach(w => {
+    if (moodIndicators.positive.some(m => w.includes(m))) moodScores.positive++;
+    if (moodIndicators.negative.some(m => w.includes(m))) moodScores.negative++;
+    if (moodIndicators.neutral.some(m => w.includes(m))) moodScores.neutral++;
+  });
+  const detectedMood = moodScores.positive > moodScores.negative ? "positive" : moodScores.negative > moodScores.positive ? "negative" : "neutral";
+  const sentimentScore = words.length > 0 ? Math.round(((moodScores.positive - moodScores.negative) / Math.max(1, moodScores.positive + moodScores.negative + moodScores.neutral)) * 100) / 100 : 0;
+  return { ok: true, analysis: { mood: mood || detectedMood, detectedMood, sentimentScore, moodScores, themes: tags, wordCount: words.length, analyzedAt: nowISO() } };
 });
 registerLensAction("daily", "detect_patterns", async (ctx, artifact, params) => {
-  const tags = artifact.data?.tags || [];
-  return { ok: true, patterns: tags.map(t => ({ tag: t, frequency: 1, trend: "stable" })), detectedAt: nowISO() };
+  const allEntries = [];
+  for (const [, art] of STATE.lensArtifacts) { if (art.domain === "daily") allEntries.push(art); }
+  const tagFrequency = {};
+  const moodFrequency = {};
+  const tagCooccurrence = {};
+  const tagMoodCorrelation = {};
+  const tagsByDay = {};
+  allEntries.forEach(entry => {
+    const tags = entry.data?.tags || [];
+    const mood = entry.data?.mood || null;
+    const date = (entry.data?.date || entry.createdAt || "").substring(0, 10);
+    const dayOfWeek = date ? new Date(date).getDay() : null;
+    tags.forEach(t => {
+      tagFrequency[t] = (tagFrequency[t] || 0) + 1;
+      if (mood) { if (!tagMoodCorrelation[t]) tagMoodCorrelation[t] = {}; tagMoodCorrelation[t][mood] = (tagMoodCorrelation[t][mood] || 0) + 1; }
+      if (dayOfWeek !== null && !isNaN(dayOfWeek)) { if (!tagsByDay[t]) tagsByDay[t] = {}; tagsByDay[t][dayOfWeek] = (tagsByDay[t][dayOfWeek] || 0) + 1; }
+    });
+    if (mood) moodFrequency[mood] = (moodFrequency[mood] || 0) + 1;
+    for (let i = 0; i < tags.length; i++) {
+      for (let j = i + 1; j < tags.length; j++) {
+        const pair = [tags[i], tags[j]].sort().join("|");
+        tagCooccurrence[pair] = (tagCooccurrence[pair] || 0) + 1;
+      }
+    }
+  });
+  const sorted = [...allEntries].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+  const midpoint = Math.floor(sorted.length / 2);
+  const olderEntries = sorted.slice(0, midpoint);
+  const recentEntries = sorted.slice(midpoint);
+  const olderTagFreq = {};
+  const recentTagFreq = {};
+  olderEntries.forEach(e => (e.data?.tags || []).forEach(t => { olderTagFreq[t] = (olderTagFreq[t] || 0) + 1; }));
+  recentEntries.forEach(e => (e.data?.tags || []).forEach(t => { recentTagFreq[t] = (recentTagFreq[t] || 0) + 1; }));
+  const patterns = Object.entries(tagFrequency).sort((a, b) => b[1] - a[1]).map(([tag, frequency]) => {
+    const olderRate = olderEntries.length > 0 ? (olderTagFreq[tag] || 0) / olderEntries.length : 0;
+    const recentRate = recentEntries.length > 0 ? (recentTagFreq[tag] || 0) / recentEntries.length : 0;
+    let trend = "stable";
+    if (recentRate > olderRate * 1.3) trend = "increasing";
+    else if (recentRate < olderRate * 0.7) trend = "decreasing";
+    return { tag, frequency, trend, moodCorrelation: tagMoodCorrelation[tag] || {}, dayPatterns: tagsByDay[tag] || {} };
+  });
+  const cooccurrences = Object.entries(tagCooccurrence).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([pair, count]) => {
+    const [tag1, tag2] = pair.split("|");
+    return { tags: [tag1, tag2], count };
+  });
+  return { ok: true, patterns, cooccurrences, moodDistribution: moodFrequency, totalEntriesAnalyzed: allEntries.length, detectedAt: nowISO() };
 });
 registerLensAction("daily", "generate_insights", async (ctx, artifact, params) => {
-  const insight = { id: uid("ins"), entryId: artifact.id, pattern: "recurring theme", confidence: 0.7, generatedAt: nowISO() };
-  artifact.data = { ...artifact.data, insights: [...(artifact.data?.insights || []), insight] };
+  const allEntries = [];
+  for (const [, art] of STATE.lensArtifacts) { if (art.domain === "daily") allEntries.push(art); }
+  const currentTags = artifact.data?.tags || [];
+  const currentMood = artifact.data?.mood || null;
+  const insights = [];
+  const tagFreq = {};
+  allEntries.forEach(e => (e.data?.tags || []).forEach(t => { tagFreq[t] = (tagFreq[t] || 0) + 1; }));
+  currentTags.forEach(tag => {
+    if (tagFreq[tag] >= 3) insights.push({ id: uid("ins"), type: "recurring_theme", pattern: tag, frequency: tagFreq[tag], confidence: Math.round(Math.min(0.95, 0.3 + tagFreq[tag] * 0.1) * 100) / 100, generatedAt: nowISO() });
+  });
+  if (currentMood) {
+    const moodEntries = allEntries.filter(e => e.data?.mood === currentMood);
+    if (moodEntries.length >= 3) {
+      const moodTags = {};
+      moodEntries.forEach(e => (e.data?.tags || []).forEach(t => { moodTags[t] = (moodTags[t] || 0) + 1; }));
+      const correlated = Object.entries(moodTags).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      correlated.forEach(([tag, count]) => {
+        insights.push({ id: uid("ins"), type: "mood_correlation", pattern: `${currentMood} often with "${tag}"`, frequency: count, confidence: Math.round(Math.min(0.9, count / moodEntries.length) * 100) / 100, generatedAt: nowISO() });
+      });
+    }
+  }
+  const recentEntries = allEntries.filter(e => { const d = new Date(e.createdAt || 0); return Date.now() - d.getTime() < 7 * 86400000; });
+  if (recentEntries.length >= 5) insights.push({ id: uid("ins"), type: "streak", pattern: `${recentEntries.length} entries in last 7 days`, confidence: 0.95, generatedAt: nowISO() });
+  artifact.data = { ...artifact.data, insights: [...(artifact.data?.insights || []).slice(-20), ...insights] };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, insight };
+  return { ok: true, insights, totalInsights: artifact.data.insights.length };
 });
 
 // === Collab ===
 registerLensAction("collab", "summarize_thread", async (ctx, artifact, params) => {
   const changes = artifact.data?.changes || [];
-  return { ok: true, summary: { changeCount: changes.length, participants: artifact.data?.participants?.length || 0, summarizedAt: nowISO() } };
+  const participants = artifact.data?.participants || [];
+  const uniqueParticipants = [...new Set(changes.map(c => c.userId).filter(Boolean))];
+  const operationCounts = {};
+  changes.forEach(c => { const op = c.operation || "unknown"; operationCounts[op] = (operationCounts[op] || 0) + 1; });
+  const timeline = changes.length > 0 ? { firstChange: changes[0].timestamp || changes[0].createdAt, lastChange: changes[changes.length - 1].timestamp || changes[changes.length - 1].createdAt, durationMs: changes.length > 1 ? new Date(changes[changes.length - 1].timestamp || 0) - new Date(changes[0].timestamp || 0) : 0 } : null;
+  const participantActivity = {};
+  changes.forEach(c => { if (c.userId) participantActivity[c.userId] = (participantActivity[c.userId] || 0) + 1; });
+  const topContributors = Object.entries(participantActivity).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([userId, count]) => ({ userId, changes: count }));
+  return { ok: true, summary: { changeCount: changes.length, participantCount: Math.max(participants.length, uniqueParticipants.length), operationCounts, topContributors, timeline, summarizedAt: nowISO() } };
 });
 registerLensAction("collab", "run_council", async (ctx, artifact, params) => {
   const vote = { id: uid("cvote"), sessionId: artifact.id, topic: params.topic || artifact.title, status: "pending", initiatedAt: nowISO() };
@@ -18175,14 +18593,45 @@ registerLensAction("experience", "endorse", async (ctx, artifact, params) => {
 });
 registerLensAction("experience", "analyze", async (ctx, artifact, params) => {
   const skills = artifact.data?.skills || [];
-  return { ok: true, analysis: { skillCount: skills.length, topSkills: skills.slice(0, 5), analyzedAt: nowISO() } };
+  const endorsements = artifact.data?.endorsements || [];
+  const endorsementsBySkill = {};
+  endorsements.forEach(e => { endorsementsBySkill[e.skillId] = (endorsementsBySkill[e.skillId] || 0) + 1; });
+  const analyzed = skills.map(s => {
+    const id = s.id || s.name;
+    const endorseCount = endorsementsBySkill[id] || 0;
+    const evidenceCount = (s.evidence || []).length;
+    const strength = Math.round(Math.min(1, (endorseCount * 0.3 + evidenceCount * 0.4 + (s.yearsExperience || 0) * 0.05)) * 100) / 100;
+    return { skill: s.name || id, level: s.level || "intermediate", endorsements: endorseCount, evidenceCount, yearsExperience: s.yearsExperience || null, strength };
+  }).sort((a, b) => b.strength - a.strength);
+  const categories = {};
+  skills.forEach(s => { const cat = s.category || "general"; categories[cat] = (categories[cat] || 0) + 1; });
+  return { ok: true, analysis: { skillCount: skills.length, topSkills: analyzed.slice(0, 10), categories, totalEndorsements: endorsements.length, analyzedAt: nowISO() } };
 });
 registerLensAction("experience", "generate_resume", async (ctx, artifact, params) => {
-  const resume = { id: uid("res"), portfolioId: artifact.id, format: params.format || "json", sections: ["summary", "skills", "experience", "education"], generatedAt: nowISO() };
+  const skills = artifact.data?.skills || [];
+  const endorsements = artifact.data?.endorsements || [];
+  const experience = artifact.data?.experience || artifact.data?.positions || [];
+  const education = artifact.data?.education || [];
+  const topSkills = skills.sort((a, b) => ((b.evidence || []).length + (b.yearsExperience || 0)) - ((a.evidence || []).length + (a.yearsExperience || 0))).slice(0, 10);
+  const sections = {
+    summary: { name: artifact.data?.name || artifact.title, title: artifact.data?.title || "", totalSkills: skills.length, totalEndorsements: endorsements.length },
+    skills: topSkills.map(s => ({ name: s.name || s.id, level: s.level, category: s.category })),
+    experience: experience.map(e => ({ role: e.role || e.title, company: e.company || e.organization, startDate: e.startDate, endDate: e.endDate, current: !e.endDate })),
+    education: education.map(e => ({ institution: e.institution || e.school, degree: e.degree, field: e.field, year: e.year || e.endDate }))
+  };
+  const resume = { id: uid("res"), portfolioId: artifact.id, format: params.format || "json", sections, generatedAt: nowISO() };
   return { ok: true, resume };
 });
 registerLensAction("experience", "compare_versions", async (ctx, artifact, params) => {
-  return { ok: true, comparison: { currentVersion: artifact.version, changes: [], comparedAt: nowISO() } };
+  const snapshots = artifact.data?.snapshots || artifact.data?.versions || [];
+  const currentSkills = (artifact.data?.skills || []).map(s => s.name || s.id);
+  if (snapshots.length === 0) return { ok: true, comparison: { currentVersion: artifact.version, note: "no_previous_versions", currentSkillCount: currentSkills.length, comparedAt: nowISO() } };
+  const previous = snapshots[snapshots.length - 1];
+  const prevSkills = (previous.skills || []).map(s => s.name || s.id);
+  const added = currentSkills.filter(s => !prevSkills.includes(s));
+  const removed = prevSkills.filter(s => !currentSkills.includes(s));
+  const retained = currentSkills.filter(s => prevSkills.includes(s));
+  return { ok: true, comparison: { currentVersion: artifact.version, previousVersion: previous.version || snapshots.length, added, removed, retained: retained.length, growthRate: prevSkills.length > 0 ? Math.round(((currentSkills.length - prevSkills.length) / prevSkills.length) * 100) : null, comparedAt: nowISO() } };
 });
 registerLensAction("experience", "validate_claims", async (ctx, artifact, params) => {
   const skills = artifact.data?.skills || [];
@@ -18252,16 +18701,66 @@ registerLensAction("forum", "moderate", async (ctx, artifact, params) => {
   return { ok: true, moderation: { action, moderatedAt: nowISO() } };
 });
 registerLensAction("forum", "rank_posts", async (ctx, artifact, params) => {
-  const score = (artifact.data?.votes || 0) * 10 + (artifact.data?.commentCount || 0) * 5;
-  return { ok: true, rank: { postId: artifact.id, score, factors: { votes: artifact.data?.votes || 0, comments: artifact.data?.commentCount || 0 }, rankedAt: nowISO() } };
+  const upvotes = artifact.data?.upvotes || Math.max(0, artifact.data?.votes || 0);
+  const downvotes = artifact.data?.downvotes || 0;
+  const totalVotes = upvotes + downvotes;
+  let wilsonScore = 0;
+  if (totalVotes > 0) {
+    const p = upvotes / totalVotes;
+    const z = 1.96;
+    const denominator = 1 + z * z / totalVotes;
+    const centre = p + z * z / (2 * totalVotes);
+    const spread = z * Math.sqrt((p * (1 - p) + z * z / (4 * totalVotes)) / totalVotes);
+    wilsonScore = (centre - spread) / denominator;
+  }
+  const ageHours = (Date.now() - new Date(artifact.createdAt || 0).getTime()) / 3600000;
+  const gravity = params.gravity || 1.8;
+  const hotScore = totalVotes > 0 ? (upvotes - downvotes) / Math.pow(ageHours + 2, gravity) : 0;
+  const commentCount = artifact.data?.commentCount || 0;
+  const engagementFactor = Math.log2(1 + commentCount);
+  const compositeScore = Math.round((wilsonScore * 100 + hotScore * 10 + engagementFactor) * 100) / 100;
+  return {
+    ok: true,
+    rank: {
+      postId: artifact.id, wilsonScore: Math.round(wilsonScore * 10000) / 10000,
+      hotScore: Math.round(hotScore * 10000) / 10000, compositeScore,
+      factors: { upvotes, downvotes, totalVotes, commentCount,
+        engagementFactor: Math.round(engagementFactor * 100) / 100,
+        ageHours: Math.round(ageHours * 10) / 10, gravity },
+      rankedAt: nowISO()
+    }
+  };
 });
 registerLensAction("forum", "extract_thesis", async (ctx, artifact, params) => {
   const body = artifact.data?.body || artifact.title || "";
-  const thesis = body.split(".")[0] + ".";
-  return { ok: true, thesis: { text: thesis, confidence: 0.7, extractedAt: nowISO() } };
+  const sentences = (body.match(/[^.!?]+[.!?]+/g) || [body]).map(s => s.trim()).filter(Boolean);
+  const thesisIndicators = ["i believe", "i think", "i argue", "my thesis", "the point is", "in conclusion", "therefore", "thus", "hence", "the argument is", "we should", "it is clear"];
+  let thesis = sentences[0] || body;
+  let confidence = 0.3;
+  for (const s of sentences) {
+    const lower = s.toLowerCase();
+    if (thesisIndicators.some(ind => lower.includes(ind))) { thesis = s; confidence = 0.85; break; }
+  }
+  if (confidence < 0.5 && sentences.length > 2) {
+    const last = sentences[sentences.length - 1];
+    const lastLower = last.toLowerCase();
+    if (lastLower.includes("therefore") || lastLower.includes("in summary") || lastLower.includes("in conclusion")) { thesis = last; confidence = 0.75; }
+  }
+  if (confidence < 0.5 && sentences.length > 0) {
+    const longest = sentences.reduce((a, b) => a.length > b.length ? a : b, "");
+    thesis = longest;
+    confidence = Math.round(Math.min(0.6, 0.3 + sentences.length * 0.05) * 100) / 100;
+  }
+  return { ok: true, thesis: { text: thesis, confidence, sentenceCount: sentences.length, method: confidence >= 0.85 ? "indicator_match" : confidence >= 0.75 ? "conclusion_position" : "heuristic", extractedAt: nowISO() } };
 });
 registerLensAction("forum", "generate_summary_dtu", async (ctx, artifact, params) => {
-  return { ok: true, dtu: { type: "forum_summary", postId: artifact.id, title: artifact.title, generatedAt: nowISO() } };
+  const body = artifact.data?.body || "";
+  const votes = artifact.data?.votes || 0;
+  const commentCount = artifact.data?.commentCount || 0;
+  const tags = artifact.data?.tags || [];
+  const words = body.split(/\s+/).filter(Boolean);
+  const sentences = (body.match(/[^.!?]+[.!?]+/g) || []).map(s => s.trim());
+  return { ok: true, dtu: { type: "forum_summary", postId: artifact.id, title: artifact.title, excerpt: sentences.slice(0, 2).join(" ") || body.slice(0, 200), wordCount: words.length, votes, commentCount, tags, engagement: votes + commentCount, generatedAt: nowISO() } };
 });
 
 // === Feed ===
@@ -18286,15 +18785,94 @@ registerLensAction("feed", "bookmark", async (ctx, artifact, params) => {
   return { ok: true, bookmarked: true };
 });
 registerLensAction("feed", "rank", async (ctx, artifact, params) => {
-  const score = (artifact.data?.likes || 0) * 3 + (artifact.data?.reposts?.length || 0) * 5;
-  return { ok: true, rank: { postId: artifact.id, score, rankedAt: nowISO() } };
+  const likes = artifact.data?.likes || 0;
+  const reposts = (artifact.data?.reposts || []).length;
+  const bookmarks = artifact.data?.bookmarked ? 1 : 0;
+  const comments = artifact.data?.commentCount || 0;
+  const ageHours = (Date.now() - new Date(artifact.createdAt || 0).getTime()) / 3600000;
+  const decayFactor = 1 / (1 + ageHours / 48);
+  const engagementScore = likes * 1 + reposts * 3 + bookmarks * 2 + comments * 2;
+  const velocityScore = ageHours > 0 ? engagementScore / ageHours : engagementScore;
+  const finalScore = Math.round((engagementScore * 0.5 + velocityScore * 0.3 + decayFactor * 20 * 0.2) * 100) / 100;
+  return { ok: true, rank: { postId: artifact.id, score: finalScore, factors: { likes, reposts, bookmarks, comments, engagementScore, velocityScore: Math.round(velocityScore * 100) / 100, ageHours: Math.round(ageHours * 10) / 10, decayFactor: Math.round(decayFactor * 1000) / 1000 }, rankedAt: nowISO() } };
 });
 registerLensAction("feed", "personalize", async (ctx, artifact, params) => {
-  return { ok: true, personalized: { postId: artifact.id, relevanceScore: 0.8, personalizedAt: nowISO() } };
+  const userId = ctx.actor?.userId || "anon";
+  const postTags = artifact.data?.tags || [];
+  const postAuthor = artifact.data?.authorId || artifact.meta?.createdBy || "";
+  const tagFrequency = {};
+  const authorAffinity = {};
+  let totalInteractions = 0;
+  for (const [, art] of STATE.lensArtifacts) {
+    if (art.domain !== "feed") continue;
+    const artTags = art.data?.tags || [];
+    const author = art.data?.authorId || art.meta?.createdBy || "";
+    if (art.data?.likedBy?.includes(userId) || (art.data?.likes > 0 && art.meta?.lastLikedBy === userId)) {
+      artTags.forEach(t => { tagFrequency[t] = (tagFrequency[t] || 0) + 3; });
+      if (author) authorAffinity[author] = (authorAffinity[author] || 0) + 3;
+      totalInteractions += 3;
+    }
+    if (art.data?.reposts?.some(r => r.reposterId === userId)) {
+      artTags.forEach(t => { tagFrequency[t] = (tagFrequency[t] || 0) + 5; });
+      if (author) authorAffinity[author] = (authorAffinity[author] || 0) + 5;
+      totalInteractions += 5;
+    }
+    if (art.data?.bookmarked && art.meta?.lastBookmarkedBy === userId) {
+      artTags.forEach(t => { tagFrequency[t] = (tagFrequency[t] || 0) + 4; });
+      if (author) authorAffinity[author] = (authorAffinity[author] || 0) + 4;
+      totalInteractions += 4;
+    }
+  }
+  let relevanceScore = 0;
+  let tagMatchCount = 0;
+  if (totalInteractions > 0) {
+    postTags.forEach(t => {
+      if (tagFrequency[t]) { relevanceScore += tagFrequency[t] / totalInteractions; tagMatchCount++; }
+    });
+    if (postAuthor && authorAffinity[postAuthor]) relevanceScore += authorAffinity[postAuthor] / totalInteractions;
+    relevanceScore = Math.min(1, relevanceScore);
+  }
+  const ageHours = (Date.now() - new Date(artifact.createdAt || 0).getTime()) / 3600000;
+  const recencyBoost = 1 / (1 + ageHours / 24);
+  const finalScore = Math.round((relevanceScore * 0.7 + recencyBoost * 0.3) * 1000) / 1000;
+  return {
+    ok: true,
+    personalized: {
+      postId: artifact.id, relevanceScore: Math.round(relevanceScore * 1000) / 1000,
+      recencyBoost: Math.round(recencyBoost * 1000) / 1000, finalScore,
+      matchedTags: tagMatchCount, totalTagsAnalyzed: Object.keys(tagFrequency).length,
+      totalInteractionsAnalyzed: totalInteractions, personalizedAt: nowISO()
+    }
+  };
 });
 registerLensAction("feed", "cluster_topics", async (ctx, artifact, params) => {
-  const tags = artifact.data?.tags || [];
-  return { ok: true, clusters: tags.map(t => ({ topic: t, postCount: 1 })), clusteredAt: nowISO() };
+  const tagCounts = {};
+  const tagPosts = {};
+  for (const [, art] of STATE.lensArtifacts) {
+    if (art.domain !== "feed") continue;
+    (art.data?.tags || []).forEach(t => {
+      tagCounts[t] = (tagCounts[t] || 0) + 1;
+      if (!tagPosts[t]) tagPosts[t] = [];
+      tagPosts[t].push(art.id);
+    });
+  }
+  const tagCooccurrence = {};
+  for (const [, art] of STATE.lensArtifacts) {
+    if (art.domain !== "feed") continue;
+    const artTags = art.data?.tags || [];
+    for (let i = 0; i < artTags.length; i++) {
+      for (let j = i + 1; j < artTags.length; j++) {
+        const pair = [artTags[i], artTags[j]].sort().join("|");
+        tagCooccurrence[pair] = (tagCooccurrence[pair] || 0) + 1;
+      }
+    }
+  }
+  const clusters = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).map(([topic, postCount]) => {
+    const relatedPairs = Object.entries(tagCooccurrence).filter(([pair]) => pair.split("|").includes(topic)).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const related = relatedPairs.map(([pair, count]) => ({ tag: pair.split("|").find(t => t !== topic), cooccurrences: count }));
+    return { topic, postCount, related };
+  });
+  return { ok: true, clusters, totalTopics: clusters.length, clusteredAt: nowISO() };
 });
 
 // === Thread ===
@@ -18306,15 +18884,49 @@ registerLensAction("thread", "branch", async (ctx, artifact, params) => {
   return { ok: true, branch };
 });
 registerLensAction("thread", "merge", async (ctx, artifact, params) => {
-  return { ok: true, merged: { threadId: artifact.id, mergedBranches: params.branchIds || [], mergedAt: nowISO() } };
+  const branchIds = params.branchIds || [];
+  const nodes = artifact.data?.nodes || [];
+  if (branchIds.length === 0) return { ok: false, error: "branchIds required" };
+  const branchNodes = nodes.filter(n => branchIds.includes(n.id));
+  const mergedContent = branchNodes.map(n => n.content || "").filter(Boolean);
+  const mergedNode = { id: uid("merged"), threadId: artifact.id, type: "merge", content: mergedContent.join("\n---\n"), mergedFrom: branchIds, authorId: ctx.actor?.userId || "system", createdAt: nowISO() };
+  artifact.data = { ...artifact.data, nodes: [...nodes, mergedNode] };
+  artifact.updatedAt = nowISO();
+  saveStateDebounced();
+  return { ok: true, merged: { threadId: artifact.id, mergedBranches: branchIds, resultNode: mergedNode.id, mergedContentLength: mergedContent.length, mergedAt: nowISO() } };
 });
 registerLensAction("thread", "summarize", async (ctx, artifact, params) => {
   const nodes = artifact.data?.nodes || [];
-  return { ok: true, summary: { threadId: artifact.id, nodeCount: nodes.length, summarizedAt: nowISO() } };
+  const authors = [...new Set(nodes.map(n => n.authorId).filter(Boolean))];
+  const contentLengths = nodes.map(n => (n.content || "").length);
+  const totalWords = nodes.reduce((s, n) => s + (n.content || "").split(/\s+/).filter(Boolean).length, 0);
+  const branches = nodes.filter(n => n.parentNodeId);
+  const merges = nodes.filter(n => n.type === "merge");
+  const decisions = nodes.filter(n => n.type === "decision" || (n.content || "").toLowerCase().includes("decided"));
+  const timeline = nodes.length > 0 ? { first: nodes[0].createdAt, last: nodes[nodes.length - 1].createdAt } : null;
+  return { ok: true, summary: { threadId: artifact.id, nodeCount: nodes.length, authorCount: authors.length, totalWords, branchCount: branches.length, mergeCount: merges.length, decisionCount: decisions.length, avgNodeLength: contentLengths.length > 0 ? Math.round(contentLengths.reduce((s, l) => s + l, 0) / contentLengths.length) : 0, timeline, summarizedAt: nowISO() } };
 });
 registerLensAction("thread", "detect_consensus", async (ctx, artifact, params) => {
   const nodes = artifact.data?.nodes || [];
-  return { ok: true, consensus: { detected: nodes.length > 2, confidence: Math.min(0.9, nodes.length * 0.15), detectedAt: nowISO() } };
+  if (nodes.length < 2) return { ok: true, consensus: { detected: false, confidence: 0, reason: "insufficient_nodes", detectedAt: nowISO() } };
+  const stances = {};
+  const agreements = [];
+  nodes.forEach(n => {
+    const content = (n.content || "").toLowerCase();
+    const stance = n.stance || n.position || null;
+    if (stance) stances[stance] = (stances[stance] || 0) + 1;
+    if (content.includes("agree") || content.includes("support") || content.includes("+1") || content.includes("yes")) agreements.push({ nodeId: n.id, type: "agree" });
+    if (content.includes("disagree") || content.includes("oppose") || content.includes("-1") || content.includes("no")) agreements.push({ nodeId: n.id, type: "disagree" });
+  });
+  const agreeCount = agreements.filter(a => a.type === "agree").length;
+  const disagreeCount = agreements.filter(a => a.type === "disagree").length;
+  const totalSignals = agreeCount + disagreeCount;
+  const consensusRatio = totalSignals > 0 ? agreeCount / totalSignals : 0.5;
+  const dominantStance = Object.entries(stances).sort((a, b) => b[1] - a[1])[0];
+  const stanceAlignment = dominantStance ? dominantStance[1] / nodes.length : 0;
+  const confidence = Math.round(Math.max(consensusRatio, stanceAlignment) * 100) / 100;
+  const detected = confidence > 0.6 && nodes.length >= 3;
+  return { ok: true, consensus: { detected, confidence, agreeSignals: agreeCount, disagreeSignals: disagreeCount, dominantStance: dominantStance ? dominantStance[0] : null, stanceDistribution: stances, detectedAt: nowISO() } };
 });
 registerLensAction("thread", "extract_decisions", async (ctx, artifact, params) => {
   const decisions = (artifact.data?.nodes || []).filter(n => n.type === "decision" || (n.content || "").toLowerCase().includes("decided"));
@@ -18323,7 +18935,48 @@ registerLensAction("thread", "extract_decisions", async (ctx, artifact, params) 
 
 // === Music ===
 registerLensAction("music", "analyze", async (ctx, artifact, params) => {
-  return { ok: true, analysis: { bpm: artifact.data?.bpm || 120, key: artifact.data?.key || "C", energy: 0.7, danceability: 0.6, analyzedAt: nowISO() } };
+  const bpm = artifact.data?.bpm || null;
+  const key = artifact.data?.key || null;
+  const duration = artifact.data?.duration || 0;
+  const stems = artifact.data?.stems || [];
+  const sections = artifact.data?.sections || [];
+  const genre = artifact.data?.genre || null;
+  const stemTypes = stems.map(s => typeof s === 'string' ? s : s.name || '');
+  const hasPercussion = stemTypes.some(s => /drum|perc|beat/i.test(s));
+  const hasBass = stemTypes.some(s => /bass/i.test(s));
+  const hasVocals = stemTypes.some(s => /voc|voice|sing/i.test(s));
+  const hasGuitar = stemTypes.some(s => /guitar|gtr/i.test(s));
+  const hasSynth = stemTypes.some(s => /synth|pad|lead/i.test(s));
+  let energy = 0.5;
+  if (bpm) { energy = Math.min(1, Math.max(0, (bpm - 60) / 140)); }
+  if (hasPercussion) energy = Math.min(1, energy + 0.15);
+  if (hasBass) energy = Math.min(1, energy + 0.1);
+  let danceability = 0.5;
+  if (bpm) {
+    danceability = Math.max(0, 1 - Math.abs(bpm - 115) / 85);
+    if (hasPercussion) danceability = Math.min(1, danceability + 0.2);
+  }
+  let valence = 0.5;
+  if (key) { valence = /m(?:in)?$/i.test(key) ? 0.35 : 0.65; }
+  const acousticness = Math.min(1, Math.max(0, (hasSynth ? 0.2 : 0.6) + (hasGuitar ? 0.15 : 0) - (hasPercussion ? 0.1 : 0)));
+  const instrumentalness = hasVocals ? 0.15 : 0.85;
+  const uniqueSections = [...new Set(sections.map(s => typeof s === 'string' ? s : s.name || s.type || ''))];
+  const complexity = Math.min(1, uniqueSections.length / 6);
+  return {
+    ok: true,
+    analysis: {
+      bpm, key, duration,
+      energy: Math.round(energy * 100) / 100,
+      danceability: Math.round(danceability * 100) / 100,
+      valence: Math.round(valence * 100) / 100,
+      acousticness: Math.round(acousticness * 100) / 100,
+      instrumentalness: Math.round(instrumentalness * 100) / 100,
+      complexity: Math.round(complexity * 100) / 100,
+      stemCount: stems.length, sectionCount: sections.length, uniqueSections,
+      instrumentation: { hasPercussion, hasBass, hasVocals, hasGuitar, hasSynth },
+      genre, analyzedAt: nowISO()
+    }
+  };
 });
 registerLensAction("music", "render", async (ctx, artifact, params) => {
   const render = { id: uid("mrender"), trackId: artifact.id, format: params.format || "wav", status: "complete", renderedAt: nowISO() };
@@ -18343,7 +18996,27 @@ registerLensAction("music", "export_stems", async (ctx, artifact, params) => {
   return { ok: true, stems };
 });
 registerLensAction("music", "generate_arrangement", async (ctx, artifact, params) => {
-  const arrangement = { id: uid("arr"), trackId: artifact.id, sections: ["intro", "verse", "chorus", "bridge", "outro"], generatedAt: nowISO() };
+  const bpm = artifact.data?.bpm || 120;
+  const duration = artifact.data?.duration || 180;
+  const genre = artifact.data?.genre || "pop";
+  const existingSections = artifact.data?.sections || [];
+  const beatsPerBar = 4;
+  const barsPerSection = params.barsPerSection || 8;
+  const sectionDuration = (barsPerSection * beatsPerBar / bpm) * 60;
+  const totalSections = Math.max(4, Math.round(duration / sectionDuration));
+  const templates = {
+    pop: ["intro", "verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"],
+    rock: ["intro", "verse", "verse", "chorus", "verse", "chorus", "solo", "chorus", "outro"],
+    electronic: ["intro", "buildup", "drop", "breakdown", "buildup", "drop", "outro"],
+    jazz: ["intro", "head", "solo", "solo", "head", "outro"],
+    classical: ["exposition", "development", "recapitulation", "coda"]
+  };
+  const template = templates[genre.toLowerCase()] || templates.pop;
+  const sections = (existingSections.length > 0 ? existingSections : template).slice(0, totalSections).map((s, i) => {
+    const name = typeof s === 'string' ? s : s.name || s.type || `section_${i}`;
+    return { name, startTime: Math.round(i * sectionDuration * 100) / 100, duration: Math.round(sectionDuration * 100) / 100, bars: barsPerSection, order: i };
+  });
+  const arrangement = { id: uid("arr"), trackId: artifact.id, sections, sectionCount: sections.length, bpm, genre, estimatedDuration: Math.round(sections.length * sectionDuration * 100) / 100, generatedAt: nowISO() };
   return { ok: true, arrangement };
 });
 
@@ -18356,7 +19029,22 @@ registerLensAction("finance", "trade", async (ctx, artifact, params) => {
   return { ok: true, trade };
 });
 registerLensAction("finance", "analyze", async (ctx, artifact, params) => {
-  return { ok: true, analysis: { assetId: artifact.id, trend: "neutral", volatility: 0.15, analyzedAt: nowISO() } };
+  const trades = artifact.data?.trades || [];
+  const prices = trades.filter(t => t.price > 0).map(t => t.price);
+  if (prices.length < 2) return { ok: true, analysis: { assetId: artifact.id, trend: "insufficient_data", volatility: null, priceCount: prices.length, analyzedAt: nowISO() } };
+  const returns = [];
+  for (let i = 1; i < prices.length; i++) returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+  const meanReturn = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / returns.length;
+  const volatility = Math.sqrt(variance);
+  const trend = meanReturn > 0.01 ? "bullish" : meanReturn < -0.01 ? "bearish" : "neutral";
+  const currentPrice = prices[prices.length - 1];
+  const highPrice = Math.max(...prices);
+  const lowPrice = Math.min(...prices);
+  const sma5 = prices.length >= 5 ? prices.slice(-5).reduce((s, p) => s + p, 0) / 5 : currentPrice;
+  const sma20 = prices.length >= 20 ? prices.slice(-20).reduce((s, p) => s + p, 0) / 20 : currentPrice;
+  const momentum = sma5 > sma20 ? "positive" : sma5 < sma20 ? "negative" : "flat";
+  return { ok: true, analysis: { assetId: artifact.id, trend, volatility: Math.round(volatility * 10000) / 10000, meanReturn: Math.round(meanReturn * 10000) / 10000, currentPrice, highPrice, lowPrice, sma5: Math.round(sma5 * 100) / 100, sma20: Math.round(sma20 * 100) / 100, momentum, tradeCount: trades.length, analyzedAt: nowISO() } };
 });
 registerLensAction("finance", "alert", async (ctx, artifact, params) => {
   const alert = { id: uid("alert"), assetId: artifact.id, condition: params.condition || "price_above", threshold: params.threshold || 0, status: "active", createdAt: nowISO() };
@@ -18366,12 +19054,72 @@ registerLensAction("finance", "alert", async (ctx, artifact, params) => {
   return { ok: true, alert };
 });
 registerLensAction("finance", "simulate", async (ctx, artifact, params) => {
+  const trades = artifact.data?.trades || [];
+  const currentPrice = artifact.data?.currentPrice || 0;
   const scenarios = params.scenarios || 1000;
-  const results = { mean: artifact.data?.currentPrice || 100, stdDev: 15, worstCase: (artifact.data?.currentPrice || 100) * 0.7, bestCase: (artifact.data?.currentPrice || 100) * 1.5, scenarios, simulatedAt: nowISO() };
-  return { ok: true, simulation: results };
+  const prices = trades.filter(t => t.price > 0).map(t => t.price);
+  if (prices.length < 2) {
+    const base = currentPrice || 100;
+    return { ok: true, simulation: { mean: base, stdDev: 0, worstCase: base, bestCase: base, scenarios: 0, note: "insufficient_trade_history", simulatedAt: nowISO() } };
+  }
+  const returns = [];
+  for (let i = 1; i < prices.length; i++) returns.push(Math.log(prices[i] / prices[i - 1]));
+  const meanReturn = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / returns.length;
+  const stdReturn = Math.sqrt(variance);
+  const lastPrice = prices[prices.length - 1] || currentPrice;
+  const steps = params.steps || 30;
+  let seed = 0;
+  for (let i = 0; i < artifact.id.length; i++) seed = ((seed << 5) - seed) + artifact.id.charCodeAt(i);
+  const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const rng = mulberry32(seed);
+  const simulated = [];
+  for (let i = 0; i < scenarios; i++) {
+    let price = lastPrice;
+    for (let s = 0; s < steps; s++) {
+      const u1 = rng() || 0.0001;
+      const u2 = rng();
+      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      price = price * Math.exp(meanReturn + stdReturn * z);
+    }
+    simulated.push(price);
+  }
+  simulated.sort((a, b) => a - b);
+  const mean = simulated.reduce((s, p) => s + p, 0) / simulated.length;
+  const simVariance = simulated.reduce((s, p) => s + (p - mean) ** 2, 0) / simulated.length;
+  return {
+    ok: true,
+    simulation: {
+      mean: Math.round(mean * 100) / 100,
+      median: Math.round(simulated[Math.floor(simulated.length / 2)] * 100) / 100,
+      stdDev: Math.round(Math.sqrt(simVariance) * 100) / 100,
+      worstCase: Math.round(simulated[Math.floor(simulated.length * 0.05)] * 100) / 100,
+      bestCase: Math.round(simulated[Math.floor(simulated.length * 0.95)] * 100) / 100,
+      percentile5: Math.round(simulated[Math.floor(simulated.length * 0.05)] * 100) / 100,
+      percentile25: Math.round(simulated[Math.floor(simulated.length * 0.25)] * 100) / 100,
+      percentile75: Math.round(simulated[Math.floor(simulated.length * 0.75)] * 100) / 100,
+      percentile95: Math.round(simulated[Math.floor(simulated.length * 0.95)] * 100) / 100,
+      scenarios, steps,
+      historicalMeanReturn: Math.round(meanReturn * 10000) / 10000,
+      historicalVolatility: Math.round(stdReturn * 10000) / 10000,
+      startPrice: lastPrice,
+      simulatedAt: nowISO()
+    }
+  };
 });
 registerLensAction("finance", "generate_report", async (ctx, artifact, params) => {
-  const report = { id: uid("frep"), assetId: artifact.id, period: params.period || "monthly", type: params.type || "performance", generatedAt: nowISO() };
+  const trades = artifact.data?.trades || [];
+  const prices = trades.filter(t => t.price > 0).map(t => t.price);
+  const period = params.period || "monthly";
+  const buys = trades.filter(t => t.type === "buy");
+  const sells = trades.filter(t => t.type === "sell");
+  const totalBuyValue = buys.reduce((s, t) => s + (t.price || 0) * (t.quantity || 1), 0);
+  const totalSellValue = sells.reduce((s, t) => s + (t.price || 0) * (t.quantity || 1), 0);
+  const netPosition = buys.reduce((s, t) => s + (t.quantity || 1), 0) - sells.reduce((s, t) => s + (t.quantity || 1), 0);
+  const currentPrice = artifact.data?.currentPrice || (prices.length > 0 ? prices[prices.length - 1] : 0);
+  const unrealizedValue = netPosition * currentPrice;
+  const realizedPnL = totalSellValue - (buys.length > 0 ? totalBuyValue * (sells.length / Math.max(1, buys.length)) : 0);
+  const report = { id: uid("frep"), assetId: artifact.id, period, type: params.type || "performance", totalTrades: trades.length, buys: buys.length, sells: sells.length, totalBuyValue: Math.round(totalBuyValue * 100) / 100, totalSellValue: Math.round(totalSellValue * 100) / 100, netPosition, currentPrice, unrealizedValue: Math.round(unrealizedValue * 100) / 100, realizedPnL: Math.round(realizedPnL * 100) / 100, generatedAt: nowISO() };
   return { ok: true, report };
 });
 
@@ -18383,7 +19131,25 @@ registerLensAction("ml", "train", async (ctx, artifact, params) => {
   return { ok: true, status: "training" };
 });
 registerLensAction("ml", "infer", async (ctx, artifact, params) => {
-  return { ok: true, inference: { modelId: artifact.id, input: params.input, output: { prediction: "result", confidence: 0.85 }, inferredAt: nowISO() } };
+  const modelType = artifact.data?.modelType || "classifier";
+  const classes = artifact.data?.classes || artifact.data?.labels || [];
+  const predictions = artifact.data?.predictions || [];
+  const input = params.input;
+  if (modelType === "classifier" && classes.length > 0) {
+    const classCounts = {};
+    predictions.forEach(p => { const c = String(p.predicted || p.actual); classCounts[c] = (classCounts[c] || 0) + 1; });
+    const total = predictions.length || 1;
+    const probs = classes.map(c => ({ class: c, probability: Math.round(((classCounts[c] || 0) / total) * 10000) / 10000 })).sort((a, b) => b.probability - a.probability);
+    const topPrediction = probs[0] || { class: classes[0], probability: 1 / classes.length };
+    return { ok: true, inference: { modelId: artifact.id, input, output: { prediction: topPrediction.class, confidence: topPrediction.probability, probabilities: probs }, modelType, inferredAt: nowISO() } };
+  }
+  if (modelType === "regressor" && predictions.length > 0) {
+    const values = predictions.map(p => p.predicted).filter(v => typeof v === 'number');
+    const mean = values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+    const std = values.length > 1 ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length) : 0;
+    return { ok: true, inference: { modelId: artifact.id, input, output: { prediction: Math.round(mean * 10000) / 10000, confidence: std > 0 ? Math.round(Math.max(0, 1 - std / Math.abs(mean || 1)) * 10000) / 10000 : 0.5, mean: Math.round(mean * 10000) / 10000, std: Math.round(std * 10000) / 10000 }, modelType, inferredAt: nowISO() } };
+  }
+  return { ok: true, inference: { modelId: artifact.id, input, output: { prediction: null, confidence: 0, note: "no_training_data_available" }, modelType, inferredAt: nowISO() } };
 });
 registerLensAction("ml", "deploy", async (ctx, artifact, params) => {
   artifact.data = { ...artifact.data, status: "deployed", deployedAt: nowISO(), endpoint: params.endpoint || `/ml/${artifact.id}/predict` };
@@ -18392,7 +19158,67 @@ registerLensAction("ml", "deploy", async (ctx, artifact, params) => {
   return { ok: true, deployed: true, endpoint: artifact.data.endpoint };
 });
 registerLensAction("ml", "evaluate", async (ctx, artifact, params) => {
-  return { ok: true, evaluation: { modelId: artifact.id, accuracy: 0.92, precision: 0.89, recall: 0.94, f1: 0.91, evaluatedAt: nowISO() } };
+  const runs = artifact.data?.runs || [];
+  const predictions = artifact.data?.predictions || [];
+  if (predictions.length > 0 && predictions[0].actual != null) {
+    const isClassification = typeof predictions[0].actual === 'string' || typeof predictions[0].actual === 'boolean' || Number.isInteger(predictions[0].actual);
+    if (isClassification) {
+      const classes = [...new Set(predictions.map(p => String(p.actual)))];
+      let correct = 0;
+      const confusionMatrix = {};
+      predictions.forEach(p => {
+        const actual = String(p.actual);
+        const predicted = String(p.predicted);
+        if (!confusionMatrix[actual]) confusionMatrix[actual] = {};
+        confusionMatrix[actual][predicted] = (confusionMatrix[actual][predicted] || 0) + 1;
+        if (actual === predicted) correct++;
+      });
+      const accuracy = predictions.length > 0 ? correct / predictions.length : 0;
+      const perClass = classes.map(cls => {
+        const tp = (confusionMatrix[cls] || {})[cls] || 0;
+        let fp = 0, fn = 0;
+        classes.forEach(other => {
+          if (other !== cls) { fp += (confusionMatrix[other] || {})[cls] || 0; fn += (confusionMatrix[cls] || {})[other] || 0; }
+        });
+        const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
+        const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
+        const f1 = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+        return { class: cls, precision: Math.round(precision * 10000) / 10000, recall: Math.round(recall * 10000) / 10000, f1: Math.round(f1 * 10000) / 10000, support: predictions.filter(p => String(p.actual) === cls).length };
+      });
+      const macroPrecision = perClass.reduce((s, c) => s + c.precision, 0) / perClass.length;
+      const macroRecall = perClass.reduce((s, c) => s + c.recall, 0) / perClass.length;
+      const macroF1 = perClass.reduce((s, c) => s + c.f1, 0) / perClass.length;
+      return { ok: true, evaluation: { modelId: artifact.id, type: "classification", accuracy: Math.round(accuracy * 10000) / 10000, precision: Math.round(macroPrecision * 10000) / 10000, recall: Math.round(macroRecall * 10000) / 10000, f1: Math.round(macroF1 * 10000) / 10000, perClass, totalPredictions: predictions.length, confusionMatrix, evaluatedAt: nowISO() } };
+    } else {
+      const n = predictions.length;
+      const errors = predictions.map(p => p.actual - p.predicted);
+      const absErrors = errors.map(e => Math.abs(e));
+      const squaredErrors = errors.map(e => e * e);
+      const mae = absErrors.reduce((s, e) => s + e, 0) / n;
+      const mse = squaredErrors.reduce((s, e) => s + e, 0) / n;
+      const rmse = Math.sqrt(mse);
+      const meanActual = predictions.reduce((s, p) => s + p.actual, 0) / n;
+      const ssTot = predictions.reduce((s, p) => s + (p.actual - meanActual) ** 2, 0);
+      const r2 = ssTot > 0 ? 1 - squaredErrors.reduce((s, e) => s + e, 0) / ssTot : 0;
+      return { ok: true, evaluation: { modelId: artifact.id, type: "regression", mae: Math.round(mae * 10000) / 10000, mse: Math.round(mse * 10000) / 10000, rmse: Math.round(rmse * 10000) / 10000, r2: Math.round(r2 * 10000) / 10000, totalPredictions: n, evaluatedAt: nowISO() } };
+    }
+  }
+  if (runs.length > 0) {
+    const completedRuns = runs.filter(r => r.status === "completed" || r.metrics);
+    const metrics = completedRuns.map(r => r.metrics || {}).filter(m => Object.keys(m).length > 0);
+    if (metrics.length > 0) {
+      const aggregated = {};
+      const metricKeys = [...new Set(metrics.flatMap(m => Object.keys(m)))];
+      metricKeys.forEach(key => {
+        const values = metrics.map(m => m[key]).filter(v => typeof v === 'number');
+        if (values.length > 0) {
+          aggregated[key] = { mean: Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10000) / 10000, min: Math.round(Math.min(...values) * 10000) / 10000, max: Math.round(Math.max(...values) * 10000) / 10000, latest: Math.round(values[values.length - 1] * 10000) / 10000, samples: values.length };
+        }
+      });
+      return { ok: true, evaluation: { modelId: artifact.id, type: "run_aggregate", metrics: aggregated, totalRuns: runs.length, completedRuns: completedRuns.length, evaluatedAt: nowISO() } };
+    }
+  }
+  return { ok: true, evaluation: { modelId: artifact.id, type: "no_data", note: "No predictions or completed runs with metrics found", totalRuns: runs.length, evaluatedAt: nowISO() } };
 });
 registerLensAction("ml", "run_experiment", async (ctx, artifact, params) => {
   const run = { id: uid("mlrun"), experimentId: artifact.id, config: params.config || {}, status: "running", startedAt: nowISO() };
@@ -18403,43 +19229,174 @@ registerLensAction("ml", "run_experiment", async (ctx, artifact, params) => {
 });
 registerLensAction("ml", "compare_runs", async (ctx, artifact, params) => {
   const runs = artifact.data?.runs || [];
-  return { ok: true, comparison: { experimentId: artifact.id, runCount: runs.length, comparedAt: nowISO() } };
+  if (runs.length < 2) return { ok: true, comparison: { experimentId: artifact.id, note: "need_at_least_2_runs", runCount: runs.length, comparedAt: nowISO() } };
+  const runIds = params.runIds || [runs[runs.length - 2].id, runs[runs.length - 1].id];
+  const compared = runIds.map(id => runs.find(r => r.id === id)).filter(Boolean);
+  const metricsComparison = {};
+  compared.forEach((run, i) => {
+    const metrics = run.metrics || {};
+    Object.entries(metrics).forEach(([key, value]) => {
+      if (typeof value === 'number') {
+        if (!metricsComparison[key]) metricsComparison[key] = {};
+        metricsComparison[key][`run_${i}`] = { runId: run.id, value: Math.round(value * 10000) / 10000 };
+      }
+    });
+  });
+  Object.entries(metricsComparison).forEach(([key, vals]) => {
+    const values = Object.values(vals).map(v => v.value);
+    if (values.length >= 2) metricsComparison[key].delta = Math.round((values[values.length - 1] - values[0]) * 10000) / 10000;
+  });
+  const configDiffs = {};
+  if (compared.length >= 2) {
+    const c0 = compared[0].config || {};
+    const c1 = compared[compared.length - 1].config || {};
+    const allKeys = [...new Set([...Object.keys(c0), ...Object.keys(c1)])];
+    allKeys.forEach(k => { if (JSON.stringify(c0[k]) !== JSON.stringify(c1[k])) configDiffs[k] = { before: c0[k], after: c1[k] }; });
+  }
+  return { ok: true, comparison: { experimentId: artifact.id, runCount: runs.length, comparedRuns: runIds, metricsComparison, configDiffs, comparedAt: nowISO() } };
 });
 registerLensAction("ml", "generate_report", async (ctx, artifact, params) => {
-  return { ok: true, report: { experimentId: artifact.id, type: "experiment_summary", generatedAt: nowISO() } };
+  const runs = artifact.data?.runs || [];
+  const predictions = artifact.data?.predictions || [];
+  const completedRuns = runs.filter(r => r.status === "completed" || r.metrics);
+  const allMetrics = completedRuns.map(r => r.metrics || {}).filter(m => Object.keys(m).length > 0);
+  const metricSummary = {};
+  if (allMetrics.length > 0) {
+    const keys = [...new Set(allMetrics.flatMap(m => Object.keys(m)))];
+    keys.forEach(k => {
+      const vals = allMetrics.map(m => m[k]).filter(v => typeof v === 'number');
+      if (vals.length > 0) metricSummary[k] = { best: Math.round(Math.max(...vals) * 10000) / 10000, latest: Math.round(vals[vals.length - 1] * 10000) / 10000, trend: vals.length > 1 ? (vals[vals.length - 1] > vals[0] ? "improving" : "declining") : "insufficient_data" };
+    });
+  }
+  return { ok: true, report: { experimentId: artifact.id, type: "experiment_summary", totalRuns: runs.length, completedRuns: completedRuns.length, totalPredictions: predictions.length, metricSummary, modelType: artifact.data?.modelType || "unknown", status: artifact.data?.status || "unknown", generatedAt: nowISO() } };
 });
 
-// === SRS ===
+// === SRS (SM-2 Algorithm) ===
 registerLensAction("srs", "review", async (ctx, artifact, params) => {
-  const rating = params.rating || 3;
-  const interval = Math.max(1, (artifact.data?.interval || 1) * (rating >= 3 ? 2.5 : 0.5));
-  artifact.data = { ...artifact.data, interval, lastReviewedAt: nowISO(), nextReviewAt: new Date(Date.now() + interval * 86400000).toISOString(), reviewCount: (artifact.data?.reviewCount || 0) + 1 };
+  const rating = Math.max(0, Math.min(5, params.rating || 3));
+  const prevEF = artifact.data?.easeFactor || 2.5;
+  const prevInterval = artifact.data?.interval || 1;
+  const prevRepetitions = artifact.data?.repetitions || 0;
+  const reviewHistory = artifact.data?.reviewHistory || [];
+  // SM-2 ease factor update: EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+  let newEF = prevEF + (0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02));
+  newEF = Math.max(1.3, Math.round(newEF * 100) / 100);
+  let newInterval, newRepetitions;
+  if (rating < 3) {
+    // Failed: reset repetitions, short interval
+    newRepetitions = 0;
+    newInterval = 1;
+  } else {
+    newRepetitions = prevRepetitions + 1;
+    if (newRepetitions === 1) newInterval = 1;
+    else if (newRepetitions === 2) newInterval = 6;
+    else newInterval = Math.round(prevInterval * newEF);
+  }
+  const reviewEntry = { rating, easeFactor: newEF, interval: newInterval, reviewedAt: nowISO() };
+  const updatedHistory = [...reviewHistory.slice(-49), reviewEntry];
+  const avgRating = updatedHistory.length > 0 ? Math.round(updatedHistory.reduce((s, r) => s + r.rating, 0) / updatedHistory.length * 100) / 100 : rating;
+  const retention = updatedHistory.length > 0 ? Math.round(updatedHistory.filter(r => r.rating >= 3).length / updatedHistory.length * 100) / 100 : 1;
+  artifact.data = { ...artifact.data, easeFactor: newEF, interval: newInterval, repetitions: newRepetitions, lastReviewedAt: nowISO(), nextReviewAt: new Date(Date.now() + newInterval * 86400000).toISOString(), reviewCount: (artifact.data?.reviewCount || 0) + 1, reviewHistory: updatedHistory };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, interval, nextReviewAt: artifact.data.nextReviewAt };
+  return { ok: true, interval: newInterval, easeFactor: newEF, repetitions: newRepetitions, nextReviewAt: artifact.data.nextReviewAt, avgRating, retention };
 });
 registerLensAction("srs", "schedule", async (ctx, artifact, params) => {
   const cards = artifact.data?.cards || [];
-  const due = cards.filter(c => !c.nextReviewAt || new Date(c.nextReviewAt) <= new Date());
-  return { ok: true, scheduled: { deckId: artifact.id, dueCount: due.length, totalCards: cards.length } };
+  const now = new Date();
+  const due = cards.filter(c => !c.nextReviewAt || new Date(c.nextReviewAt) <= now);
+  const upcoming = cards.filter(c => {
+    if (!c.nextReviewAt) return false;
+    const d = new Date(c.nextReviewAt);
+    return d > now && d <= new Date(now.getTime() + 7 * 86400000);
+  });
+  const overdue = due.filter(c => c.nextReviewAt && new Date(c.nextReviewAt) < new Date(now.getTime() - 86400000));
+  const newCards = cards.filter(c => !c.lastReviewedAt && !c.reviewCount);
+  const mature = cards.filter(c => (c.interval || 0) >= 21);
+  return { ok: true, scheduled: { deckId: artifact.id, dueCount: due.length, overdueCount: overdue.length, upcomingCount: upcoming.length, newCount: newCards.length, matureCount: mature.length, totalCards: cards.length } };
 });
 registerLensAction("srs", "optimize_intervals", async (ctx, artifact, params) => {
-  const reviewCount = artifact.data?.reviewCount || 0;
-  const factor = Math.min(3.0, 2.5 + reviewCount * 0.01);
-  return { ok: true, optimized: { easeFactor: factor, reviewCount, optimizedAt: nowISO() } };
+  const cards = artifact.data?.cards || [];
+  const reviewHistory = artifact.data?.reviewHistory || [];
+  // Analyze retention rate and adjust ease factor
+  const retention = reviewHistory.length > 0 ? reviewHistory.filter(r => r.rating >= 3).length / reviewHistory.length : 1;
+  const targetRetention = params.targetRetention || 0.9;
+  // If retention is below target, decrease EF (harder cards reviewed more often)
+  // If retention is above target, increase EF (can space out more)
+  const currentEF = artifact.data?.easeFactor || 2.5;
+  let adjustedEF = currentEF;
+  if (reviewHistory.length >= 10) {
+    if (retention < targetRetention - 0.05) adjustedEF = Math.max(1.3, currentEF - 0.15);
+    else if (retention > targetRetention + 0.05) adjustedEF = Math.min(3.0, currentEF + 0.1);
+  }
+  // Per-card optimization
+  const cardStats = cards.map(c => {
+    const history = c.reviewHistory || [];
+    const cardRetention = history.length > 0 ? history.filter(r => r.rating >= 3).length / history.length : null;
+    const ef = c.easeFactor || 2.5;
+    let suggestedEF = ef;
+    if (history.length >= 5) {
+      if (cardRetention !== null && cardRetention < 0.7) suggestedEF = Math.max(1.3, ef - 0.2);
+      else if (cardRetention !== null && cardRetention > 0.95) suggestedEF = Math.min(3.0, ef + 0.15);
+    }
+    return { cardId: c.id, currentEF: ef, suggestedEF: Math.round(suggestedEF * 100) / 100, retention: cardRetention, reviews: history.length };
+  }).filter(c => c.suggestedEF !== c.currentEF);
+  return { ok: true, optimized: { easeFactor: Math.round(adjustedEF * 100) / 100, previousEF: currentEF, retention: Math.round(retention * 100) / 100, targetRetention, reviewCount: reviewHistory.length, cardsToAdjust: cardStats.length, cardAdjustments: cardStats.slice(0, 20), optimizedAt: nowISO() } };
 });
 registerLensAction("srs", "generate_cards_from_dtus", async (ctx, artifact, params) => {
-  const count = params.count || 5;
-  const cards = Array.from({ length: count }, (_, i) => ({ id: uid("card"), front: `Q${i + 1}`, back: `A${i + 1}`, interval: 1, createdAt: nowISO() }));
+  // Pull DTU data from STATE to generate meaningful cards
+  const dtus = [];
+  for (const [, art] of STATE.lensArtifacts) {
+    if (art.domain === "srs") continue;
+    if (art.data?.title || art.title) dtus.push(art);
+  }
+  const count = Math.min(params.count || 5, dtus.length || 5);
+  const sourceDtus = dtus.slice(-count);
+  const cards = sourceDtus.length > 0
+    ? sourceDtus.map(dtu => ({
+        id: uid("card"), front: dtu.title || dtu.data?.title || "Untitled",
+        back: dtu.data?.summary || dtu.data?.content?.slice(0, 200) || dtu.data?.body?.slice(0, 200) || `From ${dtu.domain}: ${dtu.type || "artifact"}`,
+        sourceDomain: dtu.domain, sourceId: dtu.id,
+        interval: 1, easeFactor: 2.5, repetitions: 0, createdAt: nowISO()
+      }))
+    : Array.from({ length: count }, (_, i) => ({
+        id: uid("card"), front: artifact.data?.topics?.[i] || `Topic ${i + 1}`,
+        back: artifact.data?.answers?.[i] || `Review content for topic ${i + 1}`,
+        interval: 1, easeFactor: 2.5, repetitions: 0, createdAt: nowISO()
+      }));
   artifact.data = { ...artifact.data, cards: [...(artifact.data?.cards || []), ...cards] };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, generated: cards.length };
+  return { ok: true, generated: cards.length, fromDtus: sourceDtus.length > 0 };
 });
 
 // === Voice ===
 registerLensAction("voice", "transcribe", async (ctx, artifact, params) => {
-  const transcript = { id: uid("tx"), takeId: artifact.id, text: params.text || "Transcription placeholder", language: params.language || "en", segments: [], transcribedAt: nowISO() };
+  const rawText = params.text || artifact.data?.rawText || artifact.data?.body || artifact.data?.content || "";
+  const language = params.language || artifact.data?.language || "en";
+  if (!rawText) {
+    const empty = { id: uid("tx"), takeId: artifact.id, text: "", language, segments: [], wordCount: 0, sentenceCount: 0, transcribedAt: nowISO() };
+    artifact.data = { ...artifact.data, transcript: empty };
+    artifact.updatedAt = nowISO();
+    saveStateDebounced();
+    return { ok: true, transcript: empty, note: "no_text_data_available" };
+  }
+  const sentences = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
+  const wpm = params.wpm || 150;
+  let currentTime = 0;
+  const segments = sentences.map((sentence, i) => {
+    const text = sentence.trim();
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const durationSec = (wordCount / wpm) * 60;
+    const seg = { index: i, text, startTime: Math.round(currentTime * 100) / 100, endTime: Math.round((currentTime + durationSec) * 100) / 100, wordCount };
+    currentTime += durationSec;
+    return seg;
+  });
+  const allWords = rawText.split(/\s+/).filter(Boolean);
+  const wordFreq = {};
+  allWords.forEach(w => { const n = w.toLowerCase().replace(/[^a-z0-9]/g, ''); if (n.length > 2) wordFreq[n] = (wordFreq[n] || 0) + 1; });
+  const topWords = Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([word, count]) => ({ word, count }));
+  const transcript = { id: uid("tx"), takeId: artifact.id, text: rawText, language, segments, wordCount: allWords.length, sentenceCount: segments.length, estimatedDuration: Math.round(currentTime * 100) / 100, topWords, transcribedAt: nowISO() };
   artifact.data = { ...artifact.data, transcript };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
@@ -18453,11 +19410,35 @@ registerLensAction("voice", "process", async (ctx, artifact, params) => {
   return { ok: true, processed: { effect, appliedAt: nowISO() } };
 });
 registerLensAction("voice", "analyze", async (ctx, artifact, params) => {
-  return { ok: true, analysis: { takeId: artifact.id, duration: artifact.data?.duration || 0, sampleRate: 44100, analyzedAt: nowISO() } };
+  const transcript = artifact.data?.transcript || {};
+  const duration = artifact.data?.duration || transcript.estimatedDuration || 0;
+  const segments = transcript.segments || [];
+  const wordCount = transcript.wordCount || 0;
+  const wpm = duration > 0 ? Math.round(wordCount / (duration / 60)) : 0;
+  const avgSegmentLength = segments.length > 0 ? Math.round(segments.reduce((s, seg) => s + (seg.wordCount || 0), 0) / segments.length) : 0;
+  const longestSegment = segments.length > 0 ? segments.reduce((max, seg) => (seg.wordCount || 0) > (max.wordCount || 0) ? seg : max, segments[0]) : null;
+  const processedEffects = (artifact.data?.processedWith || []).map(p => p.effect);
+  const silenceRatio = duration > 0 && transcript.estimatedDuration ? Math.round(Math.max(0, 1 - transcript.estimatedDuration / duration) * 100) / 100 : 0;
+  return { ok: true, analysis: { takeId: artifact.id, duration, wordCount, wordsPerMinute: wpm, segmentCount: segments.length, avgWordsPerSegment: avgSegmentLength, longestSegment: longestSegment ? { index: longestSegment.index, wordCount: longestSegment.wordCount } : null, silenceRatio, processedEffects, topWords: transcript.topWords || [], language: transcript.language || artifact.data?.language, analyzedAt: nowISO() } };
 });
 registerLensAction("voice", "summarize", async (ctx, artifact, params) => {
-  const text = artifact.data?.transcript?.text || "";
-  return { ok: true, summary: { takeId: artifact.id, text: text.slice(0, 200), keyPoints: [], summarizedAt: nowISO() } };
+  const transcript = artifact.data?.transcript || {};
+  const text = transcript.text || "";
+  const segments = transcript.segments || [];
+  if (!text) return { ok: true, summary: { takeId: artifact.id, note: "no_transcript_available", summarizedAt: nowISO() } };
+  const sentences = (text.match(/[^.!?]+[.!?]+/g) || [text]).map(s => s.trim());
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordFreq = {};
+  words.forEach(w => { const n = w.toLowerCase().replace(/[^a-z0-9]/g, ''); if (n.length > 3) wordFreq[n] = (wordFreq[n] || 0) + 1; });
+  // Score sentences by word frequency (extractive summary)
+  const scored = sentences.map((s, i) => {
+    const sWords = s.toLowerCase().split(/\s+/).filter(Boolean);
+    const score = sWords.reduce((sum, w) => { const n = w.replace(/[^a-z0-9]/g, ''); return sum + (wordFreq[n] || 0); }, 0) / Math.max(1, sWords.length);
+    return { text: s, score, index: i };
+  }).sort((a, b) => b.score - a.score);
+  const keyPoints = scored.slice(0, Math.min(5, Math.ceil(sentences.length * 0.3))).sort((a, b) => a.index - b.index).map(s => s.text);
+  const topKeywords = Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([word]) => word);
+  return { ok: true, summary: { takeId: artifact.id, keyPoints, topKeywords, wordCount: words.length, sentenceCount: sentences.length, compressionRatio: sentences.length > 0 ? Math.round(keyPoints.length / sentences.length * 100) / 100 : 0, duration: transcript.estimatedDuration || 0, summarizedAt: nowISO() } };
 });
 registerLensAction("voice", "extract_tasks", async (ctx, artifact, params) => {
   const text = artifact.data?.transcript?.text || "";
@@ -18487,23 +19468,93 @@ registerLensAction("game", "levelup", async (ctx, artifact, params) => {
   return { ok: true, newLevel: currentLevel + 1 };
 });
 registerLensAction("game", "simulate", async (ctx, artifact, params) => {
-  const outcomes = (params.scenarios || []).map(s => ({ scenario: s, result: Math.random() > 0.5 ? "success" : "failure", xpGained: Math.floor(Math.random() * 100) }));
-  return { ok: true, simulation: { outcomes, simulatedAt: nowISO() } };
+  const scenarios = params.scenarios || [];
+  const level = artifact.data?.level || 1;
+  const stats = artifact.data?.stats || {};
+  const turns = artifact.data?.turns || [];
+  const successRate = turns.length > 0 ? turns.filter(t => t.outcome === "success").length / turns.length : 0.5;
+  const avgXp = turns.length > 0 ? turns.reduce((s, t) => s + (t.xpGained || 0), 0) / turns.length : 25;
+  let seed = 0;
+  for (let i = 0; i < artifact.id.length; i++) seed = ((seed << 5) - seed) + artifact.id.charCodeAt(i);
+  const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const rng = mulberry32(seed);
+  const outcomes = scenarios.map((s, idx) => {
+    const difficulty = s.difficulty || 1;
+    const adjustedRate = Math.max(0.1, Math.min(0.95, successRate / difficulty));
+    const roll = rng();
+    const result = roll < adjustedRate ? "success" : "failure";
+    const xpGained = result === "success" ? Math.floor(avgXp * difficulty * (1 + level * 0.1)) : Math.floor(avgXp * 0.2);
+    return { scenario: s, result, probability: Math.round(adjustedRate * 100) / 100, xpGained };
+  });
+  return { ok: true, simulation: { outcomes, baseSuccessRate: Math.round(successRate * 100) / 100, historicalTurns: turns.length, simulatedAt: nowISO() } };
 });
 registerLensAction("game", "resolve_turn", async (ctx, artifact, params) => {
-  const turn = { id: uid("turn"), action: params.action || "default", outcome: Math.random() > 0.3 ? "success" : "failure", xpGained: Math.floor(Math.random() * 50), resolvedAt: nowISO() };
-  artifact.data = { ...artifact.data, turns: [...(artifact.data?.turns || []), turn] };
+  const turns = artifact.data?.turns || [];
+  const level = artifact.data?.level || 1;
+  const action = params.action || "default";
+  const difficulty = params.difficulty || 1;
+  const successRate = turns.length > 0 ? turns.filter(t => t.outcome === "success").length / turns.length : 0.5;
+  const skillBonus = Math.min(0.3, turns.length * 0.005);
+  const adjustedRate = Math.max(0.1, Math.min(0.95, (successRate + skillBonus) / difficulty));
+  let seed = turns.length;
+  for (let i = 0; i < artifact.id.length; i++) seed = ((seed << 5) - seed) + artifact.id.charCodeAt(i);
+  const mulberry32 = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const roll = mulberry32(seed)();
+  const outcome = roll < adjustedRate ? "success" : "failure";
+  const baseXp = Math.floor(10 * level * difficulty);
+  const xpGained = outcome === "success" ? baseXp : Math.floor(baseXp * 0.15);
+  const turn = { id: uid("turn"), action, outcome, xpGained, difficulty, successProbability: Math.round(adjustedRate * 100) / 100, resolvedAt: nowISO() };
+  artifact.data = { ...artifact.data, turns: [...turns, turn], xp: (artifact.data?.xp || 0) + xpGained };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
   return { ok: true, turn };
 });
 registerLensAction("game", "balance", async (ctx, artifact, params) => {
   const level = artifact.data?.level || 1;
-  const xpCurve = { currentLevel: level, xpToNext: Math.floor(100 * Math.pow(1.5, level)), totalXp: artifact.data?.xp || 0, balancedAt: nowISO() };
-  return { ok: true, balance: xpCurve };
+  const totalXp = artifact.data?.xp || 0;
+  const turns = artifact.data?.turns || [];
+  const xpHistory = turns.filter(t => t.xpGained != null).map(t => t.xpGained);
+  const avgXpPerAction = xpHistory.length > 0 ? xpHistory.reduce((s, x) => s + x, 0) / xpHistory.length : 50;
+  const maxXpGain = xpHistory.length > 0 ? Math.max(...xpHistory) : 100;
+  const base = params.base || 100;
+  const growthRate = params.growthRate || 1.5;
+  const maxLevel = params.maxLevel || Math.max(level + 10, 20);
+  const levelTable = [];
+  let cumulativeXp = 0;
+  for (let lvl = 1; lvl <= maxLevel; lvl++) {
+    const xpRequired = Math.floor(base * Math.pow(growthRate, lvl - 1));
+    cumulativeXp += xpRequired;
+    const actionsNeeded = avgXpPerAction > 0 ? Math.ceil(xpRequired / avgXpPerAction) : null;
+    levelTable.push({ level: lvl, xpRequired, cumulativeXp, actionsNeeded, isCurrent: lvl === level });
+  }
+  const currentLevelXp = Math.floor(base * Math.pow(growthRate, level - 1));
+  const xpBelowCurrent = levelTable.filter(l => l.level < level).reduce((s, l) => s + l.xpRequired, 0);
+  const xpInCurrentLevel = totalXp - xpBelowCurrent;
+  const progressPercent = currentLevelXp > 0 ? Math.min(100, Math.round((Math.max(0, xpInCurrentLevel) / currentLevelXp) * 100)) : 0;
+  const assessment = [];
+  if (avgXpPerAction > 0) {
+    const actionsToNext = Math.ceil(currentLevelXp / avgXpPerAction);
+    if (actionsToNext > 200) assessment.push("curve_too_steep");
+    if (actionsToNext < 5) assessment.push("curve_too_flat");
+    if (maxXpGain > currentLevelXp * 0.5) assessment.push("reward_too_generous");
+    if (maxXpGain < currentLevelXp * 0.01) assessment.push("reward_too_stingy");
+  }
+  return {
+    ok: true,
+    balance: {
+      currentLevel: level, totalXp, xpToNext: currentLevelXp, progressPercent,
+      avgXpPerAction: Math.round(avgXpPerAction * 10) / 10, totalActions: xpHistory.length,
+      growthRate, base, levelTable: levelTable.slice(Math.max(0, level - 3), level + 7),
+      assessment: assessment.length > 0 ? assessment : ["balanced"], balancedAt: nowISO()
+    }
+  };
 });
 
-console.log("[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines)");
+// Load all super-lens domain action modules
+const domainModules = require('./domains');
+domainModules.forEach(mod => mod(registerLensAction));
+
+console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains)`);
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
