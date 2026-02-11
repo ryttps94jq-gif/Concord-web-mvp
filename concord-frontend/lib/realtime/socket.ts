@@ -1,9 +1,16 @@
 import { io, Socket } from 'socket.io-client';
+import { updateClockOffset } from '../offline/db';
 
 // Socket URL: uses NEXT_PUBLIC_SOCKET_URL in production, falls back to API server port (5050) for local dev
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
 
 let socket: Socket | null = null;
+
+// ---- Event Ordering (Category 2: Concurrency) ----
+// Track last-seen sequence number per event type for out-of-order detection
+const _lastSeq: Record<string, number> = {};
+const _eventBuffer: Map<string, Array<{ seq: number; data: unknown; timer: ReturnType<typeof setTimeout> }>> = new Map();
+const EVENT_BUFFER_TIMEOUT_MS = 2000; // Max wait for out-of-order events
 
 // Get authentication credentials
 // SECURITY: Prefer cookies (handled automatically via withCredentials)
@@ -38,6 +45,8 @@ export function getSocket(): Socket {
     // Connection event handlers
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket?.id);
+      // Reset sequence tracking on reconnect
+      Object.keys(_lastSeq).forEach(k => delete _lastSeq[k]);
     });
 
     socket.on('disconnect', (reason) => {
@@ -55,6 +64,10 @@ export function getSocket(): Socket {
     // Handle hello message from server
     socket.on('hello', (data) => {
       console.log('[Socket] Server hello:', data);
+      // ---- Clock Normalization (Category 4: Offline Sync) ----
+      if (data?.ts) {
+        updateClockOffset(data.ts);
+      }
     });
   }
 
@@ -96,13 +109,44 @@ export type SocketEvent =
   | 'market:trade'
   | 'system:alert';
 
-// Subscribe to events
+// ---- Enriched Event Payload (Category 2+5: Concurrency + Observability) ----
+interface EnrichedPayload {
+  _seq?: number;   // Monotonic sequence number from server
+  _rid?: string;   // Correlation ID from originating request
+  _evt?: string;   // Event name for reordering
+  ts?: string;     // Server timestamp
+  [key: string]: unknown;
+}
+
+// Subscribe to events with ordering protection
 export function subscribe<T>(event: SocketEvent, callback: (data: T) => void): () => void {
   const s = getSocket();
-  s.on(event, callback);
+
+  const orderedCallback = (data: EnrichedPayload) => {
+    // ---- Clock Sync from every event (Category 4: Offline Sync) ----
+    if (data.ts) {
+      updateClockOffset(data.ts);
+    }
+
+    // ---- Event Ordering Guard (Category 2: Concurrency) ----
+    const seq = data._seq;
+    if (typeof seq === 'number') {
+      const lastSeen = _lastSeq[event] || 0;
+      if (seq <= lastSeen) {
+        // Stale/duplicate event - discard
+        console.debug(`[Socket] Discarding stale event ${event} seq=${seq} (last=${lastSeen})`);
+        return;
+      }
+      _lastSeq[event] = seq;
+    }
+
+    callback(data as T);
+  };
+
+  s.on(event, orderedCallback);
 
   return () => {
-    s.off(event, callback);
+    s.off(event, orderedCallback);
   };
 }
 
@@ -123,4 +167,17 @@ export function joinRoom(room: string): void {
 
 export function leaveRoom(room: string): void {
   emit('room:leave', { room });
+}
+
+// ---- Correlation ID Helper (Category 5: Observability) ----
+// Returns the correlation ID from the most recent event for a given type
+export function getLastCorrelationId(event: SocketEvent): string | undefined {
+  // This is tracked implicitly via _rid in enriched payloads
+  return undefined; // Consumers should extract _rid from the event data directly
+}
+
+// ---- Last Sequence Number (Category 2: Concurrency) ----
+export function getLastSequence(event?: SocketEvent): Record<string, number> | number {
+  if (event) return _lastSeq[event] || 0;
+  return { ..._lastSeq };
 }

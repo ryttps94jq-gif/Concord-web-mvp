@@ -12,6 +12,8 @@ interface DTURecord {
   resonance?: number;
   synced: boolean;
   localOnly?: boolean;
+  _version?: number;           // Category 2: Optimistic locking version
+  _serverTimestamp?: string;   // Category 4: Server-authoritative timestamp
 }
 
 // Pending action for sync
@@ -22,6 +24,8 @@ interface PendingAction {
   payload: unknown;
   timestamp: string;
   attempts: number;
+  fingerprint?: string;  // Category 4: Dedup fingerprint
+  quarantined?: boolean; // Category 4: Quarantine after max attempts
 }
 
 // Chat message for offline
@@ -33,15 +37,43 @@ interface ChatMessage {
   synced: boolean;
 }
 
+// ---- Conflict Resolution (Category 4: Offline Sync) ----
+export interface ConflictRecord {
+  id: string;
+  entityType: 'dtu' | 'chat' | 'market';
+  entityId: string;
+  localVersion: unknown;
+  serverVersion: unknown;
+  resolution: 'pending' | 'local_wins' | 'server_wins' | 'merged';
+  createdAt: string;
+}
+
 // Offline database using Dexie
 class ConcordDB extends Dexie {
   dtus!: Table<DTURecord, string>;
   pendingActions!: Table<PendingAction, string>;
   chatMessages!: Table<ChatMessage, string>;
+  conflicts!: Table<ConflictRecord, string>;
 
   constructor() {
     super('ConcordDB');
 
+    // Schema version 2: adds conflicts table, fingerprint+quarantine on pendingActions
+    this.version(2).stores({
+      dtus: 'id, tier, timestamp, parentId, synced',
+      pendingActions: 'id, type, entity, timestamp, fingerprint',
+      chatMessages: 'id, role, timestamp, synced',
+      conflicts: 'id, entityType, entityId, resolution, createdAt',
+    }).upgrade(tx => {
+      // Migration from v1: no data changes needed, just schema
+      return tx.table('pendingActions').toCollection().modify(action => {
+        if (!action.fingerprint) {
+          action.fingerprint = generateFingerprint(action.type, action.entity, action.payload);
+        }
+      });
+    });
+
+    // Keep v1 for existing databases that haven't upgraded
     this.version(1).stores({
       dtus: 'id, tier, timestamp, parentId, synced',
       pendingActions: 'id, type, entity, timestamp',
@@ -49,6 +81,38 @@ class ConcordDB extends Dexie {
     });
   }
 }
+
+// ---- Dedup Fingerprint (Category 4: Replay Prevention) ----
+function generateFingerprint(type: string, entity: string, payload: unknown): string {
+  // Create a deterministic hash of the action for dedup
+  const data = JSON.stringify({ type, entity, payload });
+  let hash = 0;
+  for (let i = 0; i < data.length; i++) {
+    const char = data.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return `fp_${Math.abs(hash).toString(36)}`;
+}
+
+// ---- Clock Normalization (Category 4: Offline Sync) ----
+// Track offset between local and server clocks
+let _serverClockOffset = 0;
+
+export function updateClockOffset(serverTimestamp: string): void {
+  const serverTime = new Date(serverTimestamp).getTime();
+  const localTime = Date.now();
+  if (!isNaN(serverTime)) {
+    _serverClockOffset = serverTime - localTime;
+  }
+}
+
+export function getNormalizedTimestamp(): string {
+  return new Date(Date.now() + _serverClockOffset).toISOString();
+}
+
+// ---- Max Attempts & Quarantine (Category 4: Offline Sync) ----
+const MAX_SYNC_ATTEMPTS = 5;
 
 // Singleton instance
 let db: ConcordDB | null = null;
@@ -89,22 +153,89 @@ export const dtuOffline = {
   async bulkPut(dtus: DTURecord[]): Promise<void> {
     await getDB().dtus.bulkPut(dtus);
   },
+
+  // ---- LWW Conflict Resolution (Category 4: Offline Sync) ----
+  async mergeFromServer(serverDtu: DTURecord): Promise<'updated' | 'conflict' | 'skipped'> {
+    const local = await getDB().dtus.get(serverDtu.id);
+    if (!local) {
+      // No local version, just save server version
+      await getDB().dtus.put({ ...serverDtu, synced: true });
+      return 'updated';
+    }
+
+    if (local.synced) {
+      // Local is already synced, server wins
+      await getDB().dtus.put({ ...serverDtu, synced: true });
+      return 'updated';
+    }
+
+    // Local has unsynced changes - conflict!
+    const localTime = new Date(local.timestamp).getTime();
+    const serverTime = new Date(serverDtu._serverTimestamp || serverDtu.timestamp).getTime();
+
+    if (serverTime > localTime) {
+      // Server is newer: save server version, record conflict for audit
+      await conflicts.record({
+        entityType: 'dtu',
+        entityId: serverDtu.id,
+        localVersion: local,
+        serverVersion: serverDtu,
+        resolution: 'server_wins',
+      });
+      await getDB().dtus.put({ ...serverDtu, synced: true });
+      return 'conflict';
+    }
+
+    // Local is newer: keep local, mark for sync
+    await conflicts.record({
+      entityType: 'dtu',
+      entityId: serverDtu.id,
+      localVersion: local,
+      serverVersion: serverDtu,
+      resolution: 'local_wins',
+    });
+    return 'skipped';
+  },
 };
 
 // Pending actions operations
 export const pendingActions = {
-  async add(action: Omit<PendingAction, 'id' | 'timestamp' | 'attempts'>): Promise<void> {
+  async add(action: Omit<PendingAction, 'id' | 'timestamp' | 'attempts' | 'fingerprint'>): Promise<void> {
+    const fingerprint = generateFingerprint(action.type, action.entity, action.payload);
+
+    // ---- Replay Dedup (Category 4: Offline Sync) ----
+    // Check if an identical action is already pending
+    const existing = await getDB().pendingActions
+      .where('fingerprint')
+      .equals(fingerprint)
+      .first();
+    if (existing && !existing.quarantined) {
+      // Duplicate action, skip
+      return;
+    }
+
     const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     await getDB().pendingActions.add({
       ...action,
       id,
-      timestamp: new Date().toISOString(),
+      timestamp: getNormalizedTimestamp(),
       attempts: 0,
+      fingerprint,
     });
   },
 
   async getAll(): Promise<PendingAction[]> {
-    return getDB().pendingActions.orderBy('timestamp').toArray();
+    // Exclude quarantined actions from normal sync flow
+    return getDB().pendingActions
+      .orderBy('timestamp')
+      .filter(a => !a.quarantined)
+      .toArray();
+  },
+
+  async getQuarantined(): Promise<PendingAction[]> {
+    return getDB().pendingActions
+      .filter(a => !!a.quarantined)
+      .toArray();
   },
 
   async remove(id: string): Promise<void> {
@@ -114,12 +245,56 @@ export const pendingActions = {
   async incrementAttempts(id: string): Promise<void> {
     const action = await getDB().pendingActions.get(id);
     if (action) {
-      await getDB().pendingActions.update(id, { attempts: action.attempts + 1 });
+      const newAttempts = action.attempts + 1;
+      if (newAttempts >= MAX_SYNC_ATTEMPTS) {
+        // ---- Quarantine (Category 4: Offline Sync) ----
+        await getDB().pendingActions.update(id, {
+          attempts: newAttempts,
+          quarantined: true,
+        });
+      } else {
+        await getDB().pendingActions.update(id, { attempts: newAttempts });
+      }
     }
   },
 
   async clear(): Promise<void> {
     await getDB().pendingActions.clear();
+  },
+};
+
+// ---- Conflict Records (Category 4: Offline Sync) ----
+export const conflicts = {
+  async record(conflict: Omit<ConflictRecord, 'id' | 'createdAt'>): Promise<void> {
+    const id = `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    await getDB().conflicts.add({
+      ...conflict,
+      id,
+      createdAt: getNormalizedTimestamp(),
+    });
+  },
+
+  async getPending(): Promise<ConflictRecord[]> {
+    return getDB().conflicts
+      .where('resolution')
+      .equals('pending')
+      .toArray();
+  },
+
+  async resolve(id: string, resolution: ConflictRecord['resolution']): Promise<void> {
+    await getDB().conflicts.update(id, { resolution });
+  },
+
+  async getRecent(limit = 20): Promise<ConflictRecord[]> {
+    return getDB().conflicts
+      .orderBy('createdAt')
+      .reverse()
+      .limit(limit)
+      .toArray();
+  },
+
+  async clear(): Promise<void> {
+    await getDB().conflicts.clear();
   },
 };
 
@@ -139,7 +314,7 @@ export const chatOffline = {
     await getDB().chatMessages.add({
       ...message,
       id,
-      timestamp: new Date().toISOString(),
+      timestamp: getNormalizedTimestamp(),
     });
   },
 

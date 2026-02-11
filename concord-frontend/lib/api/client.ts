@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { updateClockOffset } from '../offline/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
 
@@ -39,7 +40,14 @@ function getCsrfToken(): string | null {
   return match ? match[1] : null;
 }
 
-// Request interceptor for CSRF protection
+// ---- Idempotency Key Generation (Category 2: Concurrency) ----
+function generateIdempotencyKey(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 10);
+  return `idem_${timestamp}_${random}`;
+}
+
+// Request interceptor for CSRF protection + idempotency
 // SECURITY: API keys and session IDs are now handled via httpOnly cookies only
 // This prevents XSS attacks from stealing credentials
 api.interceptors.request.use(
@@ -53,6 +61,11 @@ api.interceptors.request.use(
         if (csrfToken) {
           config.headers['X-CSRF-Token'] = csrfToken;
         }
+        // ---- Idempotency Key (Category 2: Concurrency) ----
+        // Auto-generate for state-changing requests that don't already have one
+        if (!config.headers['Idempotency-Key']) {
+          config.headers['Idempotency-Key'] = generateIdempotencyKey();
+        }
       }
     }
     return config;
@@ -60,9 +73,23 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
+// Response interceptor for error handling + clock sync + observability
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // ---- Clock Normalization (Category 4: Offline Sync) ----
+    const serverDate = response.headers['date'];
+    if (serverDate) {
+      updateClockOffset(serverDate);
+    }
+
+    // ---- Observability (Category 5) ----
+    // Track if server replayed an idempotent response
+    if (response.headers['x-idempotent-replayed'] === 'true') {
+      console.debug('[API] Idempotent replay detected for:', response.config?.url);
+    }
+
+    return response;
+  },
   async (error: AxiosError) => {
     if (error.response) {
       const status = error.response.status;
@@ -87,6 +114,13 @@ api.interceptors.response.use(
         // Session is managed via httpOnly cookies, cleared by server
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login';
+        }
+      }
+      // ---- Version Conflict Detection (Category 2: Concurrency) ----
+      if (status === 409) {
+        const data = error.response.data as { code?: string; currentVersion?: number };
+        if (data?.code === 'VERSION_CONFLICT') {
+          console.warn('[API] Version conflict detected. Current server version:', data.currentVersion);
         }
       }
       if (status === 429) {
