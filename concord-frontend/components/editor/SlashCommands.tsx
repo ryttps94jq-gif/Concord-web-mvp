@@ -31,6 +31,18 @@ import {
 import { cn } from '@/lib/utils';
 import type { Editor } from '@tiptap/core';
 
+// Helper: extract selected text from editor for AI actions
+function getEditorSelectedText(editor: Editor): string {
+  const { from, to } = editor.state.selection;
+  if (from === to) return editor.state.selection.$anchor.parent.textContent;
+  return editor.state.doc.textBetween(from, to, ' ');
+}
+
+// Helper: dispatch typed CustomEvent for cross-component communication
+function dispatchEditorEvent(name: string, detail?: Record<string, unknown>) {
+  document.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
 export interface SlashCommand {
   id: string;
   icon: React.ElementType;
@@ -182,9 +194,10 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Link to another DTU',
     keywords: ['dtu', 'link', 'reference', 'connect'],
     category: 'dtu',
-    action: (_editor) => {
-      // This would open a DTU picker modal
-      console.log('Open DTU picker');
+    action: (editor) => {
+      dispatchEditorEvent('toggle-global-search', { mode: 'dtu-link', editorCallback: (id: string, title: string) => {
+        editor.chain().focus().insertContent(`[[${title}|dtu:${id}]]`).run();
+      }});
     }
   },
   {
@@ -194,8 +207,10 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Embed DTU content inline',
     keywords: ['dtu', 'embed', 'transclusion'],
     category: 'dtu',
-    action: (_editor) => {
-      console.log('Open DTU embed picker');
+    action: (editor) => {
+      dispatchEditorEvent('toggle-global-search', { mode: 'dtu-embed', editorCallback: (id: string, title: string) => {
+        editor.chain().focus().insertContent(`{{embed:${id}|${title}}}`).run();
+      }});
     }
   },
   {
@@ -205,8 +220,11 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Add a tag to this DTU',
     keywords: ['tag', 'label', 'category'],
     category: 'dtu',
-    action: (_editor) => {
-      console.log('Open tag picker');
+    action: (editor) => {
+      const tag = window.prompt('Enter tag name:');
+      if (tag) {
+        editor.chain().focus().insertContent(`#${tag.replace(/\s+/g, '-')}`).run();
+      }
     }
   },
   {
@@ -216,8 +234,10 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Mention a person or DTU',
     keywords: ['mention', 'at', 'person', 'user'],
     category: 'dtu',
-    action: (_editor) => {
-      console.log('Open mention picker');
+    action: (editor) => {
+      dispatchEditorEvent('toggle-global-search', { mode: 'mention', editorCallback: (id: string, name: string) => {
+        editor.chain().focus().insertContent(`@${name}`).run();
+      }});
     }
   },
   {
@@ -241,8 +261,9 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Expand on selected text with AI',
     keywords: ['ai', 'expand', 'elaborate', 'more'],
     category: 'ai',
-    action: (_editor) => {
-      console.log('AI expand');
+    action: (editor) => {
+      const selectedText = getEditorSelectedText(editor);
+      dispatchEditorEvent('toggle-ai-assist', { selectedText, action: 'expand' });
     }
   },
   {
@@ -252,8 +273,9 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Summarize selected text',
     keywords: ['ai', 'summarize', 'tldr', 'brief'],
     category: 'ai',
-    action: (_editor) => {
-      console.log('AI summarize');
+    action: (editor) => {
+      const selectedText = getEditorSelectedText(editor);
+      dispatchEditorEvent('toggle-ai-assist', { selectedText, action: 'summarize' });
     }
   },
   {
@@ -263,8 +285,9 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Ask AI about selected text',
     keywords: ['ai', 'question', 'ask', 'help'],
     category: 'ai',
-    action: (_editor) => {
-      console.log('AI question');
+    action: (editor) => {
+      const selectedText = getEditorSelectedText(editor);
+      dispatchEditorEvent('toggle-ai-assist', { selectedText, action: 'question' });
     }
   },
   {
@@ -274,8 +297,9 @@ export const defaultCommands: SlashCommand[] = [
     description: 'Find related DTUs',
     keywords: ['ai', 'connections', 'related', 'similar'],
     category: 'ai',
-    action: (_editor) => {
-      console.log('AI find connections');
+    action: (editor) => {
+      const selectedText = getEditorSelectedText(editor);
+      dispatchEditorEvent('toggle-ai-assist', { selectedText, action: 'connections' });
     }
   }
 ];
