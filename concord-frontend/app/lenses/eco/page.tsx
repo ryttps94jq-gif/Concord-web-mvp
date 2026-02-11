@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Leaf, Sun, Droplet, Wind, TreeDeciduous, TrendingUp, Loader2 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // Seed data — auto-created in backend if empty
 const SEED_METRICS = [
@@ -65,6 +66,14 @@ export default function EcoLensPage() {
     );
   }
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

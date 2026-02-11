@@ -25,6 +25,7 @@ import {
   PieChart,
   EyeOff
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type TimeRange = '1h' | '24h' | '7d' | '30d';
 type ViewMode = 'dashboard' | 'metrics' | 'graph' | 'alerts';
@@ -66,17 +67,17 @@ export default function ResonanceLensPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { items: _alertItems, update: _updateAlert } = useLensData('resonance', 'alert', {
+  const { isError: isError, error: error, refetch: refetch, items: _alertItems, update: _updateAlert } = useLensData('resonance', 'alert', {
     seed: SEED_ALERTS.map(a => ({ title: a.type, data: a as unknown as Record<string, unknown> })),
   });
 
-  const { data: growth, refetch: _refetchGrowth } = useQuery({
+  const { data: growth, refetch: _refetchGrowth, isError: isError2, error: error2,} = useQuery({
     queryKey: ['growth'],
     queryFn: () => api.get('/api/growth').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const { data: metrics, refetch: _refetchMetrics } = useQuery({
+  const { data: metrics, refetch: _refetchMetrics, isError: isError3, error: error3,} = useQuery({
     queryKey: ['metrics'],
     queryFn: () => api.get('/api/metrics').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
@@ -262,6 +263,14 @@ export default function ResonanceLensPage() {
     }
   };
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}

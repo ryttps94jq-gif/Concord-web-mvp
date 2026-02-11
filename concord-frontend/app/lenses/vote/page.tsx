@@ -7,6 +7,7 @@ import { Loading } from '@/components/common/Loading';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Check, X, Users, Scale } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ProposalData {
   title: string;
@@ -96,6 +97,14 @@ export default function VoteLensPage() {
     );
   }
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

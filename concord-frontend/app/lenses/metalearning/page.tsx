@@ -8,6 +8,7 @@ import {
   GraduationCap, Plus, TrendingUp, Award,
   ArrowRight, BarChart3, Zap, BookOpen
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Strategy {
   id: string;
@@ -26,18 +27,18 @@ export default function MetalearningLensPage() {
   const [curriculumTopic, setCurriculumTopic] = useState('');
   const [results, setResults] = useState<unknown>(null);
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['metalearning-status'],
     queryFn: () => apiHelpers.metalearning.status().then((r) => r.data),
     refetchInterval: 15000,
   });
 
-  const { data: strategies } = useQuery({
+  const { data: strategies, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['metalearning-strategies'],
     queryFn: () => apiHelpers.metalearning.strategies().then((r) => r.data),
   });
 
-  const { data: best } = useQuery({
+  const { data: best, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['metalearning-best'],
     queryFn: () => apiHelpers.metalearning.bestStrategy().then((r) => r.data),
   });
@@ -62,6 +63,14 @@ export default function MetalearningLensPage() {
   const statusInfo = status?.status || status || {};
   const bestStrategy = best?.strategy || best || null;
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

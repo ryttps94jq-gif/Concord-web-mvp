@@ -37,6 +37,7 @@ import {
   ChevronDown,
   GripVertical,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ---------- types ---------- */
 type BoardMode = 'canvas' | 'moodboard' | 'arrangement';
@@ -133,7 +134,7 @@ export default function WhiteboardLensPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Lens artifact persistence layer
-  const { items: _boardArtifacts, create: _createBoardArtifact } = useLensData('whiteboard', 'board', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _boardArtifacts, create: _createBoardArtifact } = useLensData('whiteboard', 'board', { noSeed: true });
 
   /* board list state */
   const [showCreate, setShowCreate] = useState(false);
@@ -188,18 +189,18 @@ export default function WhiteboardLensPage() {
   const [moodKind, setMoodKind] = useState<'text' | 'color' | 'audio' | 'image'>('text');
 
   /* ---------- queries / mutations ---------- */
-  const { data: whiteboards, isLoading } = useQuery({
+  const { data: whiteboards, isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['whiteboards'],
     queryFn: () => api.get('/api/whiteboards').then(r => r.data),
   });
 
-  const { data: selectedWb } = useQuery({
+  const { data: selectedWb, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['whiteboard', selectedWbId],
     queryFn: () => api.get(`/api/whiteboard/${selectedWbId}`).then(r => r.data),
     enabled: !!selectedWbId,
   });
 
-  const { data: dtus } = useQuery({
+  const { data: dtus, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['dtus-whiteboard'],
     queryFn: () => api.get('/api/dtus?limit=100').then(r => r.data),
   });
@@ -735,6 +736,14 @@ export default function WhiteboardLensPage() {
   /* ================================================================== */
   /*                             RENDER                                  */
   /* ================================================================== */
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-full flex bg-lattice-bg">
       {/* ===== Sidebar ===== */}

@@ -5,29 +5,38 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Terminal, Eye, RefreshCw, Play, Database } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function DebugLensPage() {
   useLensNav('debug');
   const [activeTab, setActiveTab] = useState<'status' | 'events' | 'test'>('status');
 
   // Backend: GET /api/status
-  const { data: status, refetch: refetchStatus } = useQuery({
+  const { data: status, refetch: refetchStatus, isError: isError, error: error,} = useQuery({
     queryKey: ['status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });
 
   // Backend: GET /api/events
-  const { data: events, refetch: refetchEvents } = useQuery({
+  const { data: events, refetch: refetchEvents, isError: isError2, error: error2,} = useQuery({
     queryKey: ['events'],
     queryFn: () => api.get('/api/events').then((r) => r.data),
   });
 
   // Backend: GET /api/jobs/status
-  const { data: jobs } = useQuery({
+  const { data: jobs, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['jobs-status'],
     queryFn: () => api.get('/api/jobs/status').then((r) => r.data),
   });
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Wifi, WifiOff, Database, RefreshCw, Upload, Download, Trash2, Loader2 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface SyncItem {
   id: string;
@@ -28,7 +29,7 @@ export default function OfflineLensPage() {
   const qc = useQueryClient();
 
   // Fetch cache stats from the real DB status endpoint
-  const { data: dbStatusResponse, isLoading: statsLoading } = useQuery({
+  const { data: dbStatusResponse, isLoading: statsLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['db', 'status'],
     queryFn: async () => {
       const { data } = await apiHelpers.db.status();
@@ -55,7 +56,7 @@ export default function OfflineLensPage() {
   // Fetch pending sync items via useLensData
   const {
     items: syncItems,
-    isLoading: syncLoading,
+    isLoading: syncLoading, isError: isError, error: error,
     remove: removeSyncItem,
     refetch: refetchSync,
   } = useLensData<SyncItem>('offline', 'sync-item', {
@@ -152,6 +153,14 @@ export default function OfflineLensPage() {
     );
   }
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetchSync(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

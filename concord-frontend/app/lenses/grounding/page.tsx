@@ -12,6 +12,7 @@ import {
   Eye,
   BarChart3
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function GroundingLensPage() {
   useLensNav('grounding');
@@ -22,24 +23,24 @@ export default function GroundingLensPage() {
   const [readingUnit, setReadingUnit] = useState('');
   const [groundDtuId, setGroundDtuId] = useState('');
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['grounding-status'],
     queryFn: () => apiHelpers.grounding.status().then((r) => r.data),
     refetchInterval: 10000,
   });
 
-  const { data: sensors } = useQuery({
+  const { data: sensors, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['grounding-sensors'],
     queryFn: () => apiHelpers.grounding.sensors().then((r) => r.data),
   });
 
-  const { data: readings } = useQuery({
+  const { data: readings, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['grounding-readings'],
     queryFn: () => apiHelpers.grounding.readings().then((r) => r.data),
     refetchInterval: 5000,
   });
 
-  const { data: context } = useQuery({
+  const { data: context, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['grounding-context'],
     queryFn: () => apiHelpers.grounding.context().then((r) => r.data),
   });
@@ -64,6 +65,14 @@ export default function GroundingLensPage() {
   const statusInfo = status?.status || status || {};
   const contextInfo = context?.context || context || {};
 
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

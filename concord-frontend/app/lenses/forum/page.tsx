@@ -36,6 +36,7 @@ import {
   Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -335,10 +336,10 @@ export default function ForumLensPage() {
   const [replyContent, setReplyContent] = useState('');
   const [postReplyContent, setPostReplyContent] = useState('');
 
-  const { items: _postItems, create: _createPost } = useLensData('forum', 'post', {
+  const { isError: isError, error: error, refetch: refetch, items: _postItems, create: _createPost } = useLensData('forum', 'post', {
     seed: INITIAL_POSTS.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
-  const { items: _communityItems } = useLensData('forum', 'community', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _communityItems } = useLensData('forum', 'community', {
     seed: INITIAL_COMMUNITIES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
   });
 
@@ -756,6 +757,14 @@ export default function ForumLensPage() {
   }
 
   // ===== RENDER =====
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-full bg-lattice-bg">
       {/* Header */}

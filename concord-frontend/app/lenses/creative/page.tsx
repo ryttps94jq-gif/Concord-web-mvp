@@ -11,6 +11,7 @@ import {
   Clock, Eye, Download, Share2, Star,
   BarChart3, TrendingUp, FileImage, Video, Aperture,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,7 +94,7 @@ export default function CreativeLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
-  const { items, isLoading, create, update, remove } = useLensData('creative', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('creative', currentType, {
     seed: SEED[currentType],
   });
 
@@ -178,6 +179,14 @@ export default function CreativeLensPage() {
     return <FileImage className="w-4 h-4 text-neon-blue" />;
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

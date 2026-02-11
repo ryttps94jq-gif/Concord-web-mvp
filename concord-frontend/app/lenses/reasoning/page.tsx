@@ -10,6 +10,7 @@ import {
   GitBranch, Plus, CheckCircle2, ArrowRight, Brain,
   Search, ListTree, Workflow
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Chain {
   id: string;
@@ -30,18 +31,18 @@ export default function ReasoningLensPage() {
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
   const [newStep, setNewStep] = useState('');
 
-  const { data: chainsData, isLoading: _isLoading } = useQuery({
+  const { data: chainsData, isLoading: _isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['reasoning-chains'],
     queryFn: () => apiHelpers.reasoning.list().then((r) => r.data),
     refetchInterval: 10000,
   });
 
-  const { data: statusData } = useQuery({
+  const { data: statusData, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['reasoning-status'],
     queryFn: () => apiHelpers.reasoning.status().then((r) => r.data),
   });
 
-  const { data: traceData } = useQuery({
+  const { data: traceData, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['reasoning-trace', selectedChain],
     queryFn: () => selectedChain ? apiHelpers.reasoning.trace(selectedChain).then((r) => r.data) : null,
     enabled: !!selectedChain,
@@ -81,12 +82,20 @@ export default function ReasoningLensPage() {
   });
 
   // Lens artifact persistence layer for scoring
-  const { items: _chainArtifacts, create: _createChainArtifact } = useLensData('reasoning', 'chain', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _chainArtifacts, create: _createChainArtifact } = useLensData('reasoning', 'chain', { noSeed: true });
 
   const chains: Chain[] = chainsData?.chains || chainsData || [];
   const status: Record<string, unknown> = statusData?.status || statusData || {};
   const trace: Record<string, unknown> = traceData?.trace || traceData || {};
 
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

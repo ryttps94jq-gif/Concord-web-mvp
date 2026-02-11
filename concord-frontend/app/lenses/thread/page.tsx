@@ -27,6 +27,7 @@ import {
   Maximize2,
   Link2
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ThreadNode {
   id: string;
@@ -159,11 +160,11 @@ export default function ThreadLensPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [_showArchived, _setShowArchived] = useState(false);
 
-  const { items: _threadItems, create: _createThread } = useLensData('thread', 'thread', {
+  const { isError: isError, error: error, refetch: refetch, items: _threadItems, create: _createThread } = useLensData('thread', 'thread', {
     seed: INITIAL_THREADS.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
   });
 
-  const { data: sessions } = useQuery({
+  const { data: sessions, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['sessions'],
     queryFn: () => api.get('/api/state/latest').then((r) => r.data),
   });
@@ -311,6 +312,14 @@ export default function ThreadLensPage() {
     );
   };
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       <header className="flex items-center justify-between p-4 border-b border-lattice-border">

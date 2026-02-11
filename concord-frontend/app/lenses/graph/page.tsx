@@ -14,6 +14,7 @@ import {
   TreePine, Users, Filter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // --- Types ---
 
@@ -180,7 +181,7 @@ export default function GraphLensPage() {
   const [clusterCount, setClusterCount] = useState(5);
 
   // Lens artifact persistence layer
-  const { items: _entityArtifacts, create: _createEntity } = useLensData('graph', 'entity', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _entityArtifacts, create: _createEntity } = useLensData('graph', 'entity', { noSeed: true });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const [showLegend, setShowLegend] = useState(true);
 
@@ -208,12 +209,12 @@ export default function GraphLensPage() {
 
   // --- Data fetching ---
 
-  const { data: dtus } = useQuery({
+  const { data: dtus, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['dtus-graph'],
     queryFn: () => api.get('/api/dtus?limit=500').then((r) => r.data),
   });
 
-  const { data: links } = useQuery({
+  const { data: links, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['links-graph'],
     queryFn: () => api.get('/api/links').then((r) => r.data).catch(() => ({ links: [] })),
   });
@@ -847,6 +848,14 @@ export default function GraphLensPage() {
 
   // --- Render ---
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-full flex bg-lattice-bg">
       <div ref={containerRef} className="flex-1 relative overflow-hidden">

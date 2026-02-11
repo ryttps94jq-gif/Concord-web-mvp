@@ -36,6 +36,7 @@ import {
   Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type StudioView = 'arrange' | 'mixer' | 'instruments' | 'effects' | 'ai-assistant' | 'learn';
 
@@ -109,7 +110,7 @@ export default function StudioLensPage() {
   const queryClient = useQueryClient();
 
   // Lens artifact persistence layer
-  const { items: _projectArtifacts, create: _createProjectArtifact } = useLensData('studio', 'project', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _projectArtifacts, create: _createProjectArtifact } = useLensData('studio', 'project', { noSeed: true });
 
   const [studioView, setStudioView] = useState<StudioView>('arrange');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -130,31 +131,31 @@ export default function StudioLensPage() {
   // AI assistant
   const [aiQuestion, setAiQuestion] = useState('');
 
-  const { data: projects } = useQuery({
+  const { data: projects, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['studio-projects'],
     queryFn: () => api.get('/api/artistry/studio/projects').then(r => r.data?.projects || []).catch(() => []),
     initialData: [],
   });
 
-  const { data: activeProject, refetch: refetchProject } = useQuery({
+  const { data: activeProject, refetch: refetchProject, isError: isError3, error: error3,} = useQuery({
     queryKey: ['studio-project', activeProjectId],
     queryFn: () => activeProjectId ? api.get(`/api/artistry/studio/projects/${activeProjectId}`).then(r => r.data?.project || null).catch(() => null) : null,
     enabled: !!activeProjectId,
   });
 
-  const { data: instruments } = useQuery({
+  const { data: instruments, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['studio-instruments'],
     queryFn: () => api.get('/api/artistry/studio/instruments').then(r => r.data?.instruments || {}).catch(() => ({})),
     initialData: {},
   });
 
-  const { data: effectsCatalog } = useQuery({
+  const { data: effectsCatalog, isError: isError5, error: error5, refetch: refetch5,} = useQuery({
     queryKey: ['studio-effects'],
     queryFn: () => api.get('/api/artistry/studio/effects').then(r => r.data?.effects || {}).catch(() => ({})),
     initialData: {},
   });
 
-  const { data: genres } = useQuery({
+  const { data: genres, isError: isError6, error: error6, refetch: refetch6,} = useQuery({
     queryKey: ['artistry-genres'],
     queryFn: () => api.get('/api/artistry/genres').then(r => r.data || {}).catch(() => ({})),
     initialData: {},
@@ -701,6 +702,14 @@ export default function StudioLensPage() {
     );
   }
 
+
+  if (isError || isError2 || isError3 || isError4 || isError5 || isError6) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message || error5?.message || error6?.message} onRetry={() => { refetch(); refetch2(); refetch4(); refetch5(); refetch6(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
       {renderTransportBar()}

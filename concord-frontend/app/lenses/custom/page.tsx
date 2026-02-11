@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Wand2, Plus, Code, Eye, Trash2, Copy, Settings } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface CustomLens {
   id: string;
@@ -24,12 +25,12 @@ export default function CustomLensPage() {
   const [newLensConfig, setNewLensConfig] = useState('{}');
   const [selectedLens, setSelectedLens] = useState<string | null>(null);
 
-  const { data: customLenses } = useQuery({
+  const { data: customLenses, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['custom-lenses'],
     queryFn: () => api.get('/api/lenses/custom').then((r) => r.data),
   });
 
-  const { data: templates } = useQuery({
+  const { data: templates, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['lens-templates'],
     queryFn: () => api.get('/api/lenses/templates').then((r) => r.data),
   });
@@ -63,6 +64,14 @@ export default function CustomLensPage() {
     },
   });
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

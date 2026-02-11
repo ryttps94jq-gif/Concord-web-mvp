@@ -30,6 +30,7 @@ import {
   Flag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Post {
   id: string;
@@ -88,7 +89,7 @@ export default function TimelineLensPage() {
   const [_newPost, setNewPost] = useState('');
   const [showReactions, setShowReactions] = useState<string | null>(null);
 
-  const { data: posts, isLoading } = useQuery({
+  const { data: posts, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['timeline-posts'],
     queryFn: () => api.get('/api/dtus', { params: { limit: 30 } }).then(r =>
       r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
@@ -114,7 +115,7 @@ export default function TimelineLensPage() {
     ),
   });
 
-  const { data: friends } = useQuery({
+  const { data: friends, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['friends'],
     queryFn: () => Promise.resolve([
       { id: '1', name: 'Alice Chen', mutualFriends: 12, online: true },
@@ -125,7 +126,7 @@ export default function TimelineLensPage() {
     ] as Friend[]),
   });
 
-  const { data: stories } = useQuery({
+  const { data: stories, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['stories'],
     queryFn: () => Promise.resolve([
       { id: '1', author: { name: 'Your Story' }, viewed: false },
@@ -168,6 +169,14 @@ export default function TimelineLensPage() {
       .map(([type]) => REACTIONS.find(r => r.id === type));
   };
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-full bg-[#18191a]">
       {/* Header */}

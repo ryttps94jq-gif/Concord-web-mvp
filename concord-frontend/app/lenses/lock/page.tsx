@@ -6,6 +6,7 @@ import { Lock, Shield, Eye, AlertTriangle, Check, Key, Loader2 } from 'lucide-re
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface LockEventData {
   event: string;
@@ -23,7 +24,7 @@ export default function LockLensPage() {
   useLensNav('lock');
   const { lockPercentage, invariants, isLocked, invariantSummary } = use70Lock();
 
-  const { items: historyItems, isLoading: historyLoading, create: addEvent } = useLensData<LockEventData>('lock', 'lock-event', {
+  const { items: historyItems, isLoading: historyLoading, isError: isError, error: error, refetch: refetch, create: addEvent } = useLensData<LockEventData>('lock', 'lock-event', {
     seed: SEED_LOCK_HISTORY,
   });
 
@@ -46,6 +47,14 @@ export default function LockLensPage() {
     },
   });
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

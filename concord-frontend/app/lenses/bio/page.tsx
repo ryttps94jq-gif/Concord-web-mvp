@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Dna, Activity, Heart, Brain, Microscope } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface BioMetric {
   name: string;
@@ -22,12 +23,12 @@ export default function BioLensPage() {
 
   const [selectedSystem, setSelectedSystem] = useState('homeostasis');
 
-  const { data: bioData } = useQuery({
+  const { data: bioData, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['bio-systems'],
     queryFn: () => api.get('/api/bio/systems').then((r) => r.data),
   });
 
-  const { data: growthData } = useQuery({
+  const { data: growthData, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['growth-status'],
     queryFn: () => api.get('/api/growth/status').then((r) => r.data),
   });
@@ -39,6 +40,14 @@ export default function BioLensPage() {
     { id: 'genetic', name: 'Genetic Memory', icon: Dna, color: 'text-neon-blue' },
   ];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

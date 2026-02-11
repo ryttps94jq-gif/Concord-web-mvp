@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Newspaper, Clock, Tag, TrendingUp, Bookmark, Share2 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface NewsArticle {
   id: string;
@@ -23,13 +24,13 @@ export default function NewsLensPage() {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const { data: news } = useQuery({
+  const { data: news, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['news', selectedCategory],
     queryFn: () =>
       api.get('/api/news', { params: { category: selectedCategory } }).then((r) => r.data),
   });
 
-  const { data: trending } = useQuery({
+  const { data: trending, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['news-trending'],
     queryFn: () => api.get('/api/news/trending').then((r) => r.data),
   });
@@ -43,6 +44,14 @@ export default function NewsLensPage() {
     { id: 'community', name: 'Community' },
   ];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

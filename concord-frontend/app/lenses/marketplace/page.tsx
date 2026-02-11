@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DEMO_PLUGINS as _DEMO_PLUGINS } from '@/lib/marketplace-demo';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -420,35 +421,35 @@ export default function MarketplaceLensPage() {
   const [featuredIdx, setFeaturedIdx] = useState(0);
   const [showNewListing, setShowNewListing] = useState(false);
 
-  const { items: _listingItems, create: _createListing } = useLensData('marketplace', 'listing', {
+  const { isError: isError, error: error, refetch: refetch, items: _listingItems, create: _createListing } = useLensData('marketplace', 'listing', {
     seed: INITIAL_ITEMS.map(i => ({ title: i.title, data: i as unknown as Record<string, unknown> })),
   });
-  const { items: _purchaseItems } = useLensData('marketplace', 'purchase', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _purchaseItems } = useLensData('marketplace', 'purchase', {
     seed: INITIAL_PURCHASES.map(p => ({ title: p.item?.title || p.id, data: p as unknown as Record<string, unknown> })),
   });
 
   // Queries (with demo fallback)
-  const { data: _browseData } = useQuery({
+  const { data: _browseData, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['marketplace-browse', search, category],
     queryFn: () => api.get(`/api/marketplace/browse?search=${search}&category=${category}`).then(r => r.data).catch(() => null),
   });
 
-  const { data: beatsData } = useQuery({
+  const { data: beatsData, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['artistry-beats'],
     queryFn: () => api.get('/api/artistry/marketplace/beats').then(r => r.data).catch(() => null),
   });
 
-  const { data: stemsData } = useQuery({
+  const { data: stemsData, isError: isError5, error: error5, refetch: refetch5,} = useQuery({
     queryKey: ['artistry-stems'],
     queryFn: () => api.get('/api/artistry/marketplace/stems').then(r => r.data).catch(() => null),
   });
 
-  const { data: samplesData } = useQuery({
+  const { data: samplesData, isError: isError6, error: error6, refetch: refetch6,} = useQuery({
     queryKey: ['artistry-samples'],
     queryFn: () => api.get('/api/artistry/marketplace/samples').then(r => r.data).catch(() => null),
   });
 
-  const { data: artData } = useQuery({
+  const { data: artData, isError: isError7, error: error7, refetch: refetch7,} = useQuery({
     queryKey: ['artistry-art'],
     queryFn: () => api.get('/api/artistry/marketplace/art').then(r => r.data).catch(() => null),
   });
@@ -552,6 +553,14 @@ export default function MarketplaceLensPage() {
   // RENDER
   // =========================================================================
 
+
+  if (isError || isError2 || isError3 || isError4 || isError5 || isError6 || isError7) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message || error5?.message || error6?.message || error7?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); refetch5(); refetch6(); refetch7(); }} />
+      </div>
+    );
+  }
   return (
     <div className="space-y-6 pb-24">
       {/* ---- Header ---- */}

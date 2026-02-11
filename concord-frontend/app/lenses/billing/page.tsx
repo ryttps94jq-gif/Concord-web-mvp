@@ -7,6 +7,7 @@ import {
   Coins, Check, Zap, Crown,
   ArrowRight, Sparkles, ShieldCheck, TrendingUp
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface TokenPackage {
   id: string;
@@ -20,13 +21,13 @@ export default function BillingPage() {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   // Get economic config
-  const { data: config } = useQuery({
+  const { data: config, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['economic-config'],
     queryFn: () => api.get('/api/economic/config').then(r => r.data),
   });
 
   // Get wallet
-  const { data: wallet, isLoading: walletLoading } = useQuery({
+  const { data: wallet, isLoading: walletLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['wallet'],
     queryFn: () => {
       const odId = localStorage.getItem('concord_od_id') || 'default';
@@ -65,6 +66,14 @@ export default function BillingPage() {
   const _tiers = config?.tiers || {};
   const tokenPackages = config?.tokenPackages || [];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
       {/* Header */}

@@ -30,6 +30,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -103,7 +104,7 @@ export default function HealthcareLensPage() {
   const [formPriority, setFormPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [formNotes, setFormNotes] = useState('');
 
-  const { items, isLoading, create, update, remove } = useLensData<HealthcareArtifact>('healthcare', 'artifact', {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<HealthcareArtifact>('healthcare', 'artifact', {
     seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
@@ -194,6 +195,14 @@ export default function HealthcareLensPage() {
 
   /* ---------- render ---------- */
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Compliance Banner */}

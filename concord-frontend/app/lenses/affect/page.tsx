@@ -10,6 +10,7 @@ import {
   Users, RefreshCw, Send, AlertTriangle,
   BarChart3
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type AffectDim = { key: string; label: string; icon: React.ReactNode; color: string };
 
@@ -38,24 +39,24 @@ export default function AffectLensPage() {
   const [intensity, setIntensity] = useState(0.5);
   const [polarity, setPolarity] = useState(0.0);
 
-  const { data: state, isLoading: _stateLoading } = useQuery({
+  const { data: state, isLoading: _stateLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['affect-state', sessionId],
     queryFn: () => apiHelpers.affect.state(sessionId).then((r) => r.data),
     refetchInterval: 3000,
   });
 
-  const { data: policy } = useQuery({
+  const { data: policy, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['affect-policy', sessionId],
     queryFn: () => apiHelpers.affect.policy(sessionId).then((r) => r.data),
     refetchInterval: 5000,
   });
 
-  const { data: health } = useQuery({
+  const { data: health, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['affect-health'],
     queryFn: () => apiHelpers.affect.health().then((r) => r.data),
   });
 
-  const { data: events } = useQuery({
+  const { data: events, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['affect-events', sessionId],
     queryFn: () => apiHelpers.affect.events(sessionId).then((r) => r.data),
     refetchInterval: 5000,
@@ -82,6 +83,14 @@ export default function AffectLensPage() {
   const affectState = state?.state || state?.E || state || {};
   const policyData = policy?.policy || policy || {};
 
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

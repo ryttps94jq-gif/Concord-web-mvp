@@ -33,6 +33,7 @@ import {
   Newspaper
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Asset {
   id: string;
@@ -142,10 +143,10 @@ const INITIAL_NEWS: NewsItem[] = [
 export default function FinanceLensPage() {
   useLensNav('finance');
   const _queryClient = useQueryClient();
-  const { items: assetItems } = useLensData<Asset>('finance', 'asset', {
+  const { isError: isError, error: error, refetch: refetch, items: assetItems } = useLensData<Asset>('finance', 'asset', {
     seed: INITIAL_ASSETS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
   });
-  const { items: txItems } = useLensData<Transaction>('finance', 'transaction', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: txItems } = useLensData<Transaction>('finance', 'transaction', {
     seed: INITIAL_TRANSACTIONS.map(t => ({ title: t.type, data: t as unknown as Record<string, unknown> })),
   });
   const _assets: Asset[] = assetItems.length > 0 ? assetItems.map(i => ({ ...(i.data as unknown as Asset), id: i.id })) : INITIAL_ASSETS;
@@ -1108,6 +1109,14 @@ export default function FinanceLensPage() {
     </div>
   );
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

@@ -27,6 +27,7 @@ import {
   Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Repository {
   id: string;
@@ -72,7 +73,7 @@ export default function ReposLensPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('code');
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
 
-  const { data: repos } = useQuery({
+  const { data: repos, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['repos-list'],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'repo' } }).then(r =>
       r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
@@ -92,7 +93,7 @@ export default function ReposLensPage() {
     ),
   });
 
-  const { data: issues } = useQuery({
+  const { data: issues, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['repos-issues', selectedRepo],
     queryFn: () => api.get('/api/dtus', { params: { tags: 'issue' } }).then(r =>
       r.data?.dtus?.map((dtu: Record<string, unknown>, i: number) => ({
@@ -112,7 +113,7 @@ export default function ReposLensPage() {
     enabled: activeTab === 'issues',
   });
 
-  const { data: commits } = useQuery({
+  const { data: commits, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['repos-commits', selectedRepo],
     queryFn: () => Promise.resolve(generateMockCommits()),
     enabled: activeTab === 'code',
@@ -149,6 +150,14 @@ export default function ReposLensPage() {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-full bg-[#0d1117]">
       {/* Header */}

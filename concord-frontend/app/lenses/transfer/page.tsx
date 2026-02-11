@@ -7,6 +7,7 @@ import { useState } from 'react';
 import {
   Shuffle, Search, ArrowRight, History, Layers, GitCompare
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function TransferLensPage() {
   useLensNav('transfer');
@@ -16,7 +17,7 @@ export default function TransferLensPage() {
   const [classifyText, setClassifyText] = useState('');
   const [results, setResults] = useState<unknown>(null);
 
-  const { data: history } = useQuery({
+  const { data: history, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['transfer-history'],
     queryFn: () => apiHelpers.transfer.history().then((r) => r.data),
   });
@@ -33,6 +34,14 @@ export default function TransferLensPage() {
 
   const transfers = history?.transfers || history || [];
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

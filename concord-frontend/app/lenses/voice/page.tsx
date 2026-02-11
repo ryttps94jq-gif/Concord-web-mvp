@@ -31,6 +31,7 @@ import {
   GitCompare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type RecordingStatus = 'ready' | 'recording' | 'processing';
 type ExportFormat = 'wav' | 'mp3' | 'flac';
@@ -168,7 +169,7 @@ export default function VoiceLensPage() {
 
   // Takes
   const [takes, setTakes] = useState<Take[]>(INITIAL_TAKES);
-  const { items: _takeItems, create: _createTake } = useLensData<Take>('voice', 'take', {
+  const { isError: isError, error: error, refetch: refetch, items: _takeItems, create: _createTake } = useLensData<Take>('voice', 'take', {
     seed: INITIAL_TAKES.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
   });
   const [activeTakeId, setActiveTakeId] = useState<string | null>('take-2');
@@ -371,6 +372,14 @@ export default function VoiceLensPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`;
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-purple-900/10 to-black">
       {/* Header */}

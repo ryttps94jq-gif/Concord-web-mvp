@@ -6,6 +6,7 @@ import { Atom, Zap, Waves, RotateCcw, Play, Shuffle, Loader2 } from 'lucide-reac
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface SimResultData {
   qubits: number;
@@ -25,7 +26,7 @@ export default function QuantumLensPage() {
   const [qubits, setQubits] = useState(4);
   const [result, setResult] = useState<string | null>(null);
 
-  const { items: circuitItems, isLoading: circuitsLoading, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
+  const { items: circuitItems, isLoading: circuitsLoading, isError: isError, error: error, refetch: refetch, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
     seed: [],
   });
 
@@ -66,6 +67,14 @@ export default function QuantumLensPage() {
 
   const recentSims = circuitItems.slice(0, 5);
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

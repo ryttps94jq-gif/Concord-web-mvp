@@ -36,6 +36,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -139,7 +140,7 @@ export default function RetailLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.types[0];
 
-  const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('retail', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('retail', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
 
@@ -463,6 +464,14 @@ export default function RetailLensPage() {
   /*  Main render                                                      */
   /* ================================================================ */
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

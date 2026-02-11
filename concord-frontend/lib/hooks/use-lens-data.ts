@@ -55,7 +55,7 @@ export function useLensData<T = Record<string, unknown>>(
   const seeded = useRef(false);
 
   // Fetch artifacts from backend
-  const { data: response, isLoading, refetch } = useQuery({
+  const { data: response, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['lens', domain, 'list', { type, search, tags, status, limit }],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -131,6 +131,8 @@ export function useLensData<T = Record<string, unknown>>(
     items,
     total: response?.total || 0,
     isLoading,
+    isError,
+    error,
     isSeeding: createMut.isPending,
     refetch,
     create,

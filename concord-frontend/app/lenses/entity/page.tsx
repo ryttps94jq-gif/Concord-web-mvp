@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Users, Plus, Terminal, GitFork, Activity, Play } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Entity {
   id: string;
@@ -28,7 +29,7 @@ export default function EntityLensPage() {
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
 
   // Fetch entities from backend
-  const { data: entitiesData, isLoading } = useQuery({
+  const { data: entitiesData, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['entities'],
     queryFn: async () => {
       const res = await api.get('/api/entities');
@@ -95,6 +96,14 @@ export default function EntityLensPage() {
     suspended: 'bg-neon-pink',
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

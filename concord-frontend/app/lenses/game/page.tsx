@@ -15,6 +15,7 @@ import {
   Activity, ArrowUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -256,21 +257,21 @@ export default function GameLensPage() {
   const [unlockAnim, setUnlockAnim] = useState<string | null>(null);
   const [questFilter, setQuestFilter] = useState<'all' | 'daily' | 'weekly' | 'challenge'>('all');
 
-  const { items: _achievementItems } = useLensData('game', 'achievement', {
+  const { isError: isError, error: error, refetch: refetch, items: _achievementItems } = useLensData('game', 'achievement', {
     seed: INITIAL_ACHIEVEMENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
   });
-  const { items: _questItems } = useLensData('game', 'quest', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _questItems } = useLensData('game', 'quest', {
     seed: INITIAL_QUESTS.map(q => ({ title: q.name, data: q as unknown as Record<string, unknown> })),
   });
 
   // API queries -- fall back to demo data when backend is unavailable
-  const { data: _profileData } = useQuery({
+  const { data: _profileData, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['game-profile'],
     queryFn: () => api.get('/api/game/profile').then((r) => r.data),
     retry: false,
   });
 
-  const { data: _serverAchievements } = useQuery({
+  const { data: _serverAchievements, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['game-achievements'],
     queryFn: () => api.get('/api/game/achievements').then((r) => r.data),
     retry: false,
@@ -348,6 +349,14 @@ export default function GameLensPage() {
   // Render
   // ---------------------------------------------------------------------------
 
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6 min-h-screen">
       {/* Header */}

@@ -37,6 +37,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,7 +199,7 @@ export default function ServicesLensPage() {
 
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Client';
 
-  const { items, isLoading, create, update, remove } = useLensData<ServicesArtifact>('services', activeArtifactType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ServicesArtifact>('services', activeArtifactType, {
     seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
   const runAction = useRunArtifact('services');
@@ -686,6 +687,14 @@ export default function ServicesLensPage() {
   // Main render
   // ---------------------------------------------------------------------------
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       <header className={ds.sectionHeader}>

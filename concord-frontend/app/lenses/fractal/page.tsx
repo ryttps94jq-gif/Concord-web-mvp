@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FractalEmpireExplorer } from '@/components/graphs/FractalEmpireExplorer';
 import { Layers, ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function FractalLensPage() {
   useLensNav('fractal');
@@ -13,17 +14,25 @@ export default function FractalLensPage() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  const { data: fractalData } = useQuery({
+  const { data: fractalData, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['fractal-structure'],
     queryFn: () => api.get('/api/lattice/fractal').then((r) => r.data),
   });
 
-  const { data: nodeDetail } = useQuery({
+  const { data: nodeDetail, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['fractal-node', selectedNode],
     queryFn: () => api.get(`/api/lattice/fractal/${selectedNode}`).then((r) => r.data),
     enabled: !!selectedNode,
   });
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6 h-full flex flex-col">
       <header className="flex items-center justify-between">

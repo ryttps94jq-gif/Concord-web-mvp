@@ -36,6 +36,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Track {
   id: string;
@@ -144,10 +145,10 @@ export default function MusicLensPage() {
   const [crossfade, setCrossfade] = useState(0);
 
   // Persistent lens data (replaces MOCK arrays)
-  const { items: trackItems } = useLensData<Track>('music', 'track', {
+  const { isError: isError, error: error, refetch: refetch, items: trackItems } = useLensData<Track>('music', 'track', {
     seed: INITIAL_TRACKS.map(t => ({ title: t.title, data: t as unknown as Record<string, unknown> })),
   });
-  const { items: playlistItems } = useLensData<Playlist>('music', 'playlist', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: playlistItems } = useLensData<Playlist>('music', 'playlist', {
     seed: INITIAL_PLAYLISTS.map(p => ({ title: p.name, data: p as unknown as Record<string, unknown> })),
   });
   const allTracks: Track[] = trackItems.length > 0 ? trackItems.map(i => ({ ...(i.data as unknown as Track), id: i.id })) : INITIAL_TRACKS;
@@ -992,6 +993,14 @@ export default function MusicLensPage() {
     </AnimatePresence>
   );
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-purple-900/20 to-black">
       <div className="flex-1 flex overflow-hidden">

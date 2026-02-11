@@ -10,6 +10,7 @@ import {
   Target, FileSearch, Cpu, MapPin, Clock, Users,
   ChevronDown, X, Filter, BarChart3
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type ModeTab = 'posts' | 'incidents' | 'patrols' | 'threats' | 'investigations' | 'assets';
 
@@ -57,7 +58,7 @@ export default function SecurityLensPage() {
 
   const activeTab = MODE_TABS.find(t => t.key === activeMode)!;
 
-  const { items, create, update, remove } = useLensData('security', activeTab.type, {
+  const { isError: isError, error: error, refetch: refetch, items, create, update, remove } = useLensData('security', activeTab.type, {
     search: searchQuery || undefined,
     status: statusFilter || undefined,
   });
@@ -136,6 +137,14 @@ export default function SecurityLensPage() {
 
   const statuses = getStatusesForMode(activeMode);
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

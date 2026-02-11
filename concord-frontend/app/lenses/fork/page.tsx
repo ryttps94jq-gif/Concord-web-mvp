@@ -4,6 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useState, useCallback } from 'react';
 import { GitFork, GitBranch, GitMerge, Layers, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ForkData {
   parentId: string | null;
@@ -30,7 +31,7 @@ export default function ForkLensPage() {
   const [selectedFork, setSelectedFork] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
 
-  const { items: forkItems, isLoading, create, update } = useLensData<ForkData>('fork', 'fork', {
+  const { items: forkItems, isLoading, isError: isError, error: error, refetch: refetch, create, update } = useLensData<ForkData>('fork', 'fork', {
     seed: SEED_FORKS,
   });
 
@@ -124,6 +125,14 @@ export default function ForkLensPage() {
     );
   }
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

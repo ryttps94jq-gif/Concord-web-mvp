@@ -31,6 +31,7 @@ import {
   Mountain,
   Globe,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -121,7 +122,7 @@ export default function EnvironmentLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.artifactType;
 
-  const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('environment', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('environment', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
 
@@ -374,6 +375,14 @@ export default function EnvironmentLensPage() {
   /*  Main render                                                      */
   /* ================================================================ */
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       <header className={ds.sectionHeader}>

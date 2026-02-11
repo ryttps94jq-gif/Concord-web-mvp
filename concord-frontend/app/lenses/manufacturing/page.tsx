@@ -11,6 +11,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Wrench,
   BarChart3, TrendingUp, TrendingDown, Gauge,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,7 +96,7 @@ export default function ManufacturingLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
-  const { items, isLoading, create, update, remove } = useLensData('manufacturing', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('manufacturing', currentType, {
     seed: SEED[currentType],
   });
 
@@ -176,6 +177,14 @@ export default function ManufacturingLensPage() {
   const avgOee = Math.round(SEED.Machine.reduce((s, m) => s + (m.data.oee as number), 0) / SEED.Machine.length);
   const openSafetyItems = SEED.SafetyItem.filter(s => s.meta.status !== 'closed').length;
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

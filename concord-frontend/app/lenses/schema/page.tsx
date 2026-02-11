@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FileCode, Plus, Check, X } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function SchemaLensPage() {
   useLensNav('schema');
@@ -13,7 +14,7 @@ export default function SchemaLensPage() {
   const [validateData, setValidateData] = useState({ schemaName: '', data: '' });
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors?: { field: string; error: string }[] } | null>(null);
 
-  const { data: schemas, isLoading } = useQuery({
+  const { data: schemas, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['schemas'],
     queryFn: () => api.get('/api/schema').then(r => r.data),
   });
@@ -41,6 +42,14 @@ export default function SchemaLensPage() {
     }
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

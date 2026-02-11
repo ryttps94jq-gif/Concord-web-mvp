@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Shield, Send, RefreshCw, Eye, EyeOff, Lock } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface AnonMessage {
   id: string;
@@ -23,12 +24,12 @@ export default function AnonLensPage() {
   const [showMessages, setShowMessages] = useState(true);
   const [ephemeral, setEphemeral] = useState(false);
 
-  const { data: messages } = useQuery({
+  const { data: messages, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['anon-messages'],
     queryFn: () => api.get('/api/anon/messages').then((r) => r.data),
   });
 
-  const { data: identity } = useQuery({
+  const { data: identity, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['anon-identity'],
     queryFn: () => api.get('/api/anon/identity').then((r) => r.data),
   });
@@ -50,6 +51,14 @@ export default function AnonLensPage() {
     },
   });
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

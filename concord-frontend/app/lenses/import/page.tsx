@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Upload, FileJson, Database, Check, AlertTriangle, Loader2, FileText, Archive, RefreshCw } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ImportJob {
   id: string;
@@ -34,7 +35,7 @@ export default function ImportLens() {
   // Fetch import job history from the backend via lens data API
   const {
     items: importJobItems,
-    isLoading: jobsLoading,
+    isLoading: jobsLoading, isError: isError, error: error, refetch: refetch,
     create: createJob,
     update: updateJob,
   } = useLensData<ImportJob>('import', 'import-job', { seed: [] });
@@ -276,6 +277,14 @@ export default function ImportLens() {
     }
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="lens-container">
       <div className="lens-header">

@@ -31,6 +31,7 @@ import {
   Users,
   FileText,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -146,7 +147,7 @@ export default function GovernmentLensPage() {
   const currentType = MODE_TABS.find(t => t.id === mode)!.artifactType;
   const availableStatuses = STATUSES_BY_TYPE[currentType];
 
-  const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('government', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('government', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
 
@@ -379,6 +380,14 @@ export default function GovernmentLensPage() {
   /*  Main render                                                      */
   /* ================================================================ */
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       <header className={ds.sectionHeader}>

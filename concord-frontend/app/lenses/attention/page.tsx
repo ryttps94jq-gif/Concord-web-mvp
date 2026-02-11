@@ -8,6 +8,7 @@ import {
   Eye, Plus, Play, CheckCircle2,
   Layers, Clock, BarChart3
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Thread {
   id: string;
@@ -26,19 +27,19 @@ export default function AttentionLensPage() {
   const [newPriority, setNewPriority] = useState('0.5');
   const [newDesc, setNewDesc] = useState('');
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['attention-status'],
     queryFn: () => apiHelpers.attention.status().then((r) => r.data),
     refetchInterval: 5000,
   });
 
-  const { data: threads } = useQuery({
+  const { data: threads, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['attention-threads'],
     queryFn: () => apiHelpers.attention.threads().then((r) => r.data),
     refetchInterval: 5000,
   });
 
-  const { data: queue } = useQuery({
+  const { data: queue, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['attention-queue'],
     queryFn: () => apiHelpers.attention.queue().then((r) => r.data),
   });
@@ -70,6 +71,14 @@ export default function AttentionLensPage() {
   const queueData = queue?.queue || [];
   const completedData = queue?.completed || [];
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

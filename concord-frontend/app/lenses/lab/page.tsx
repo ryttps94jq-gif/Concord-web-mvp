@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FlaskConical, Play, Square, History, Zap } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function LabLensPage() {
   useLensNav('lab');
@@ -13,12 +14,12 @@ export default function LabLensPage() {
   const [code, setCode] = useState('');
   const [selectedOrgan, setSelectedOrgan] = useState('abstraction_governor');
 
-  const { data: organs } = useQuery({
+  const { data: organs, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['growth-organs'],
     queryFn: () => api.get('/api/growth/organs').then((r) => r.data),
   });
 
-  const { data: experiments } = useQuery({
+  const { data: experiments, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['lab-experiments'],
     queryFn: () => api.get('/api/lab/experiments').then((r) => r.data),
   });
@@ -31,6 +32,14 @@ export default function LabLensPage() {
     },
   });
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

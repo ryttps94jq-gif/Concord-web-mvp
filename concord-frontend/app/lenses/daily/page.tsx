@@ -12,6 +12,7 @@ import {
   Mic, Music, BookOpen, Target, TrendingUp, Flame, ChevronLeft,
   ChevronRight, FileText, Headphones, Pause,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // -- Types ------------------------------------------------------------------
 interface JournalEntry { id: string; date: string; mood: number | null; notes: string; workedOn: string; learned: string; goals: string }
@@ -139,26 +140,26 @@ export default function DailyLensPage() {
     const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  const { items: _entryItems, create: _createEntry } = useLensData('daily', 'entry', {
+  const { isError: isError, error: error, refetch: refetch, items: _entryItems, create: _createEntry } = useLensData('daily', 'entry', {
     seed: INITIAL_ENTRIES.map(e => ({ title: e.date, data: e as unknown as Record<string, unknown> })),
   });
-  const { items: _sessionItems, create: _createSession } = useLensData('daily', 'session', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _sessionItems, create: _createSession } = useLensData('daily', 'session', {
     seed: INITIAL_SESSIONS.map(s => ({ title: s.project, data: s as unknown as Record<string, unknown> })),
   });
-  const { items: _reminderItems, create: _createReminder } = useLensData('daily', 'reminder', {
+  const { isError: isError3, error: error3, refetch: refetch3, items: _reminderItems, create: _createReminder } = useLensData('daily', 'reminder', {
     seed: INITIAL_REMINDERS.map(r => ({ title: r.title, data: r as unknown as Record<string, unknown> })),
   });
 
   // -- API queries (preserved from original) --------------------------------
-  const { data: dailyData } = useQuery({
+  const { data: dailyData, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['daily-notes'],
     queryFn: () => apiHelpers.daily.list().then((r) => r.data),
   });
-  const { data: _currentData } = useQuery({
+  const { data: _currentData, isError: isError5, error: error5, refetch: refetch5,} = useQuery({
     queryKey: ['daily-current'],
     queryFn: () => apiHelpers.daily.get().then((r) => r.data),
   });
-  const { data: _dueReminders } = useQuery({
+  const { data: _dueReminders, isError: isError6, error: error6, refetch: refetch6,} = useQuery({
     queryKey: ['reminders-due'],
     queryFn: () => apiHelpers.daily.dueReminders().then((r) => r.data),
     refetchInterval: 60000,
@@ -261,6 +262,14 @@ export default function DailyLensPage() {
   };
 
   // -- Render ---------------------------------------------------------------
+
+  if (isError || isError2 || isError3 || isError4 || isError5 || isError6) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message || error5?.message || error6?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); refetch5(); refetch6(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex bg-lattice-deep text-white overflow-hidden">
       {/* =================== LEFT SIDEBAR =================== */}

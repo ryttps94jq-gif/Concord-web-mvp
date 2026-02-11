@@ -33,6 +33,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,7 +140,7 @@ export default function TradesLensPage() {
 
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Job';
 
-  const { items, isLoading, create, update, remove } = useLensData<TradesArtifact>('trades', activeArtifactType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<TradesArtifact>('trades', activeArtifactType, {
     seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
 
@@ -558,6 +559,14 @@ export default function TradesLensPage() {
   // Main render
   // ---------------------------------------------------------------------------
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

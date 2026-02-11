@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Scale, Users, MessageSquare, Sparkles } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Persona {
   id: string;
@@ -30,13 +31,13 @@ export default function CouncilLensPage() {
   const [debateResult, setDebateResult] = useState<Record<string, unknown> | null>(null);
 
   // Fetch personas from backend: GET /api/personas
-  const { data: personasData } = useQuery({
+  const { data: personasData, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['personas'],
     queryFn: () => api.get('/api/personas').then((r) => r.data),
   });
 
   // Fetch DTUs for selection: GET /api/dtus
-  const { data: dtusData } = useQuery({
+  const { data: dtusData, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['dtus'],
     queryFn: () => api.get('/api/dtus').then((r) => r.data),
   });
@@ -60,7 +61,7 @@ export default function CouncilLensPage() {
   });
 
   // Lens artifact persistence layer
-  const { items: _proposalArtifacts, create: _createProposal } = useLensData('council', 'proposal', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _proposalArtifacts, create: _createProposal } = useLensData('council', 'proposal', { noSeed: true });
 
   const personas: Persona[] = personasData?.personas || [];
   const dtus: DTU[] = dtusData?.dtus?.slice(0, 50) || [];
@@ -74,6 +75,14 @@ export default function CouncilLensPage() {
     });
   };
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

@@ -6,6 +6,7 @@ import { apiHelpers } from '@/lib/api/client';
 import { Loading } from '@/components/common/Loading';
 import { useState } from 'react';
 import { Heart, Scale, Brain, MessageSquare, Shield } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface FrameworkData {
   name: string;
@@ -113,6 +114,14 @@ export default function EthicsLensPage() {
     );
   }
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -292,10 +293,10 @@ export default function CalendarLensPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [categories, setCategories] = useState<CalendarCategory[]>(INITIAL_CATEGORIES);
 
-  const { items: _eventItems, create: _createEvent } = useLensData<CalendarEvent>('calendar', 'event', {
+  const { isError: isError, error: error, refetch: refetch, items: _eventItems, create: _createEvent } = useLensData<CalendarEvent>('calendar', 'event', {
     seed: [],
   });
-  const { items: _catItems } = useLensData<CalendarCategory>('calendar', 'category', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _catItems } = useLensData<CalendarCategory>('calendar', 'category', {
     seed: INITIAL_CATEGORIES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
   });
 
@@ -1205,6 +1206,14 @@ export default function CalendarLensPage() {
   // Main render
   // ---------------------------------------------------------------------------
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}

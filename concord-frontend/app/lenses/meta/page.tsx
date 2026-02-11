@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Wand2, Layout, Code, Eye, Palette, Settings, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface LensTemplateData {
   name: string;
@@ -60,7 +61,7 @@ export default function MetaLensPage() {
   // Templates from backend
   const {
     items: templateItems,
-    isLoading: templatesLoading,
+    isLoading: templatesLoading, isError: isError, error: error, refetch: refetch,
   } = useLensData<LensTemplateData>('meta', 'template', {
     seed: SEED_TEMPLATES,
   });
@@ -68,7 +69,7 @@ export default function MetaLensPage() {
   // Component library from backend
   const {
     items: componentItems,
-    isLoading: componentsLoading,
+    isLoading: componentsLoading, isError: isError2, error: error2, refetch: refetch2,
   } = useLensData<ComponentData>('meta', 'component', {
     seed: SEED_COMPONENTS,
   });
@@ -76,7 +77,7 @@ export default function MetaLensPage() {
   // Generated lenses history
   const {
     items: generatedItems,
-    isLoading: generatedLoading,
+    isLoading: generatedLoading, isError: isError3, error: error3, refetch: refetch3,
     create: createGeneratedLens,
   } = useLensData<GeneratedLensData>('meta', 'generated-lens', { seed: [] });
 
@@ -146,6 +147,14 @@ export default function MetaLensPage() {
 
   const isLoading = templatesLoading || componentsLoading || generatedLoading;
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

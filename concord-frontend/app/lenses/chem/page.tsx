@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Atom, Beaker, FlaskConical, Sparkles, Zap } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Compound {
   id: string;
@@ -28,12 +29,12 @@ export default function ChemLensPage() {
   const [selectedCompound, setSelectedCompound] = useState<string | null>(null);
   const [reactionInput, setReactionInput] = useState('');
 
-  const { data: compounds } = useQuery({
+  const { data: compounds, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['chem-compounds'],
     queryFn: () => api.get('/api/chem/compounds').then((r) => r.data),
   });
 
-  const { data: reactions } = useQuery({
+  const { data: reactions, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['chem-reactions'],
     queryFn: () => api.get('/api/chem/reactions').then((r) => r.data),
   });
@@ -53,6 +54,14 @@ export default function ChemLensPage() {
     product: 'bg-neon-green/20 text-neon-green border-neon-green/30',
   };
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

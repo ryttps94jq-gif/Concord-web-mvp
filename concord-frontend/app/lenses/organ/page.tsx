@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Heart, Activity, Zap, TrendingUp, TrendingDown } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Organ {
   id: string;
@@ -21,7 +22,7 @@ export default function OrganLensPage() {
   const [selectedOrgan, setSelectedOrgan] = useState<string | null>(null);
 
   // Backend: GET /api/status for organ registry
-  const { data: _status } = useQuery({
+  const { data: _status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });
@@ -38,6 +39,14 @@ export default function OrganLensPage() {
 
   const avgHealth = organs.reduce((sum, o) => sum + (o.maturity - o.wear), 0) / organs.length;
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

@@ -21,6 +21,7 @@ import {
   Brain,
   Box
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface DashboardData {
   ok: boolean;
@@ -208,20 +209,19 @@ export default function AdminDashboardPage() {
   const {
     data: dashboard,
     refetch: refetchDashboard,
-    isLoading: dashboardLoading,
-  } = useQuery<DashboardData>({
+    isLoading: dashboardLoading, isError: isError, error: error,} = useQuery<DashboardData>({
     queryKey: ['admin-dashboard'],
     queryFn: () => api.get('/api/admin/dashboard').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const { data: metrics, refetch: refetchMetrics } = useQuery<MetricsData>({
+  const { data: metrics, refetch: refetchMetrics, isError: isError2, error: error2,} = useQuery<MetricsData>({
     queryKey: ['admin-metrics'],
     queryFn: () => api.get('/api/admin/metrics').then((r) => r.data),
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const { data: logs } = useQuery({
+  const { data: logs, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['admin-logs'],
     queryFn: () => api.get('/api/admin/logs?limit=20').then((r) => r.data),
     refetchInterval: autoRefresh ? 10000 : false,
@@ -241,6 +241,14 @@ export default function AdminDashboardPage() {
       ? 'healthy'
       : 'warning';
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       {/* Header */}

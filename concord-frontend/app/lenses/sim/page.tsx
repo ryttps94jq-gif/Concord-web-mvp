@@ -6,6 +6,7 @@ import { api } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Play, Sliders, Zap, Clock, Target } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function SimLensPage() {
   useLensNav('sim');
@@ -14,7 +15,7 @@ export default function SimLensPage() {
   const [assumptions, setAssumptions] = useState('');
 
   // Backend: GET /api/simulations
-  const { data: simulations } = useQuery({
+  const { data: simulations, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['simulations'],
     queryFn: () => api.get('/api/simulations').then((r) => r.data),
   });
@@ -36,10 +37,18 @@ export default function SimLensPage() {
   });
 
   // Lens artifact persistence layer
-  const { items: _scenarioArtifacts, create: _createScenario } = useLensData('sim', 'scenario', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: _scenarioArtifacts, create: _createScenario } = useLensData('sim', 'scenario', { noSeed: true });
 
   const sims = simulations?.simulations || [];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

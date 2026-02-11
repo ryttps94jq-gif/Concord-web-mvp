@@ -10,6 +10,7 @@ import {
   Heart, RefreshCw, Clock, DollarSign, Users,
   ChevronDown, X, BarChart3, TrendingUp
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type ModeTab = 'policies' | 'claims' | 'risks' | 'benefits' | 'renewals';
 
@@ -54,7 +55,7 @@ export default function InsuranceLensPage() {
 
   const activeTab = MODE_TABS.find(t => t.key === activeMode)!;
 
-  const { items, create, update, remove } = useLensData('insurance', activeTab.type, {
+  const { isError: isError, error: error, refetch: refetch, items, create, update, remove } = useLensData('insurance', activeTab.type, {
     search: searchQuery || undefined,
     status: statusFilter || undefined,
   });
@@ -146,6 +147,14 @@ export default function InsuranceLensPage() {
 
   const statuses = getStatusesForMode(activeMode);
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

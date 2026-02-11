@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Book, ChevronRight, Search } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function DocsLensPage() {
   useLensNav('docs');
@@ -12,7 +13,7 @@ export default function DocsLensPage() {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: docs } = useQuery({
+  const { data: docs, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['documentation'],
     queryFn: () => api.get('/api/docs').then((r) => r.data),
   });
@@ -28,6 +29,14 @@ export default function DocsLensPage() {
     { id: 'market', name: 'Market & Economy', icon: '💰' },
   ];
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

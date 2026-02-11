@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Target, Trophy, Coins, Clock, Users } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Quest {
   id: string;
@@ -23,13 +24,13 @@ export default function QuestmarketLensPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>('all');
 
-  const { data: quests } = useQuery({
+  const { data: quests, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['quests', filter],
     queryFn: () =>
       api.get('/api/quests', { params: { status: filter } }).then((r) => r.data),
   });
 
-  const { data: myQuests } = useQuery({
+  const { data: myQuests, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['my-quests'],
     queryFn: () => api.get('/api/quests/mine').then((r) => r.data),
   });
@@ -49,6 +50,14 @@ export default function QuestmarketLensPage() {
     legendary: 'bg-neon-pink/20 text-neon-pink border-neon-pink/30 animate-pulse',
   };
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

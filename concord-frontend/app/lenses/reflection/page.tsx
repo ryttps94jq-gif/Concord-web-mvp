@@ -7,6 +7,7 @@ import {
   TrendingUp, AlertTriangle, CheckCircle2,
   Brain, Eye, Shield, BarChart3
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // Mirror icon alias
 const Mirror = Eye;
@@ -23,18 +24,18 @@ interface Reflection {
 export default function ReflectionLensPage() {
   useLensNav('reflection');
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['reflection-status'],
     queryFn: () => apiHelpers.reflection.status().then((r) => r.data),
     refetchInterval: 15000,
   });
 
-  const { data: recent } = useQuery({
+  const { data: recent, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['reflection-recent'],
     queryFn: () => apiHelpers.reflection.recent(20).then((r) => r.data),
   });
 
-  const { data: selfModel } = useQuery({
+  const { data: selfModel, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['reflection-self-model'],
     queryFn: () => apiHelpers.reflection.selfModel().then((r) => r.data),
   });
@@ -55,6 +56,14 @@ export default function ReflectionLensPage() {
     selfConsistency: 'Self-Consistency',
   };
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

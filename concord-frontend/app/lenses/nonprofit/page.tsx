@@ -11,6 +11,7 @@ import {
   DollarSign, TrendingUp, Target, Calendar,
   Globe, Award, Clock, CheckCircle,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -103,7 +104,7 @@ export default function NonprofitLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
-  const { items, isLoading, create, update, remove } = useLensData('nonprofit', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('nonprofit', currentType, {
     seed: SEED[currentType],
   });
 
@@ -185,6 +186,14 @@ export default function NonprofitLensPage() {
   const volunteerHours = SEED.Volunteer.reduce((s, v) => s + (v.data.hoursThisYear as number), 0);
   const activeDonors = SEED.Donor.filter(d => d.meta.status === 'active').length;
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

@@ -4,6 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { FileText, Plus, Search, Calendar } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function PaperLensPage() {
   useLensNav('paper');
@@ -11,7 +12,7 @@ export default function PaperLensPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const { items: paperItems, create: createPaperArtifact } = useLensData('paper', 'project', {
+  const { isError: isError, error: error, refetch: refetch, items: paperItems, create: createPaperArtifact } = useLensData('paper', 'project', {
     search: searchQuery || undefined,
     tags: selectedTag ? [selectedTag] : undefined,
   });
@@ -32,6 +33,14 @@ export default function PaperLensPage() {
     createPaperArtifact({ title: 'Untitled Paper', data: { wordCount: 0, excerpt: '' }, meta: { tags: [] } });
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

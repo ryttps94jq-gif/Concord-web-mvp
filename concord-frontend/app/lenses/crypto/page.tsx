@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Coins, TrendingUp, Lock, RefreshCw, ArrowRightLeft, Wallet, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ChainData {
   chainId: string;
@@ -41,7 +42,7 @@ export default function CryptoLensPage() {
 
   const {
     items: chainItems,
-    isLoading: chainsLoading,
+    isLoading: chainsLoading, isError: isError, error: error, refetch: refetch,
     update: updateChain,
   } = useLensData<ChainData>('crypto', 'chain', {
     seed: SEED_CHAINS,
@@ -49,7 +50,7 @@ export default function CryptoLensPage() {
 
   const {
     items: txItems,
-    isLoading: txLoading,
+    isLoading: txLoading, isError: isError2, error: error2, refetch: refetch2,
     create: createTransaction,
   } = useLensData<TransactionData>('crypto', 'transaction', {
     seed: SEED_TRANSACTIONS,
@@ -108,6 +109,14 @@ export default function CryptoLensPage() {
     }
   };
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

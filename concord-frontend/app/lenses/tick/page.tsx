@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState, useEffect } from 'react';
 import { Clock, Zap, Activity, Play, Pause, RefreshCw } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface TickEvent {
   id: string;
@@ -21,7 +22,7 @@ export default function TickLensPage() {
   const [tickHistory, setTickHistory] = useState<TickEvent[]>([]);
 
   // Backend: GET /api/events for tick history
-  const { data: events } = useQuery({
+  const { data: events, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['events'],
     queryFn: () => api.get('/api/events').then((r) => r.data),
     refetchInterval: isLive ? 2000 : false,
@@ -50,6 +51,14 @@ export default function TickLensPage() {
     ? tickHistory.reduce((s, t) => s + t.stress, 0) / tickHistory.length
     : 0;
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Glasses, Camera, Scan, Settings } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function ARLensPage() {
   useLensNav('ar');
@@ -12,12 +13,12 @@ export default function ARLensPage() {
   const [arEnabled, setArEnabled] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
 
-  const { data: _arStatus } = useQuery({
+  const { data: _arStatus, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['ar-status'],
     queryFn: () => api.get('/api/ar/status').then((r) => r.data),
   });
 
-  const { data: arLayers } = useQuery({
+  const { data: arLayers, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['ar-layers'],
     queryFn: () => api.get('/api/ar/layers').then((r) => r.data),
   });
@@ -29,6 +30,14 @@ export default function ARLensPage() {
     { id: 'temporal-markers', name: 'Temporal Markers', description: 'Time-based annotations', icon: '⏰' },
   ];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

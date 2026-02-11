@@ -38,6 +38,7 @@ import {
   Save,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type ViewMode = 'gallery' | 'canvas' | 'marketplace' | 'my-art';
 type CanvasTool = 'brush' | 'eraser' | 'fill' | 'text' | 'shape-rect' | 'shape-circle' | 'eyedropper' | 'move' | 'pen';
@@ -107,7 +108,7 @@ export default function ArtLensPage() {
   const [listingPrice, setListingPrice] = useState('50');
   const [listingTags, setListingTags] = useState('');
 
-  const { data: artAssets, isLoading: _assetsLoading } = useQuery({
+  const { data: artAssets, isLoading: _assetsLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['art-assets', selectedStyle, searchQuery],
     queryFn: () => api.get('/api/artistry/assets', {
       params: { type: 'artwork', search: searchQuery || undefined }
@@ -115,7 +116,7 @@ export default function ArtLensPage() {
     initialData: [],
   });
 
-  const { data: artListings } = useQuery({
+  const { data: artListings, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['art-marketplace'],
     queryFn: () => api.get('/api/artistry/marketplace/art').then(r => r.data?.artworks || []).catch(() => []),
     initialData: [],
@@ -528,6 +529,14 @@ export default function ArtLensPage() {
     </div>
   );
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-pink-900/10 to-black">
       {renderNav()}

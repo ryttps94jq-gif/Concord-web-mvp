@@ -11,6 +11,7 @@ import {
   Clock, Users, DollarSign, Ticket, Star,
   BarChart3, TrendingUp, Music, Sparkles,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,7 +93,7 @@ export default function EventsLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
-  const { items, isLoading, create, update, remove } = useLensData('events', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('events', currentType, {
     seed: SEED[currentType],
   });
 
@@ -170,6 +171,14 @@ export default function EventsLensPage() {
   const confirmedVendors = SEED.Vendor.filter(v => v.meta.status === 'confirmed').length;
   const liveShows = SEED.Event.filter(e => e.meta.status === 'live').length;
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import {
   GitMerge, Plus, ArrowRight, Database, Search, Zap
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function InferenceLensPage() {
   useLensNav('inference');
@@ -19,7 +20,7 @@ export default function InferenceLensPage() {
   const [results, setResults] = useState<unknown>(null);
   const [tab, setTab] = useState<'facts' | 'query' | 'syllogism' | 'forward'>('facts');
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['inference-status'],
     queryFn: () => apiHelpers.inference.status().then((r) => r.data),
     refetchInterval: 15000,
@@ -51,6 +52,14 @@ export default function InferenceLensPage() {
 
   const statusInfo = status?.status || status || {};
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

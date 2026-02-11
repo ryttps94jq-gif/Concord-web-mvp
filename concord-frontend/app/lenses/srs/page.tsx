@@ -13,6 +13,7 @@ import {
   Zap, Target, Award, Layers, Tag, Calendar, ArrowRight,
   Play, XCircle,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // --- Types ---
 interface SRSItem {
@@ -129,7 +130,7 @@ export default function SRSLensPage() {
   useLensNav('srs');
 
   const queryClient = useQueryClient();
-  const { items: _cardItems, create: _createCard } = useLensData<SRSItem>('srs', 'card', {
+  const { isError: isError, error: error, refetch: refetch, items: _cardItems, create: _createCard } = useLensData<SRSItem>('srs', 'card', {
     seed: INITIAL_CARDS.map(c => ({ title: c.front, data: c as unknown as Record<string, unknown> })),
   });
   const _persistedCards: SRSItem[] = _cardItems.length > 0 ? _cardItems.map(i => ({ ...(i.data as unknown as SRSItem), id: i.id })) : INITIAL_CARDS;
@@ -159,7 +160,7 @@ export default function SRSLensPage() {
   const [deckColor, setDeckColor] = useState('#06b6d4');
 
   // API with fallback
-  const { data: dueData, isLoading } = useQuery({
+  const { data: dueData, isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['srs-due'],
     queryFn: () => apiHelpers.srs.due().then((r) => r.data).catch(() => null),
     refetchInterval: 30000,
@@ -274,6 +275,14 @@ export default function SRSLensPage() {
     { id: 'stats' as ViewMode, icon: BarChart3, label: 'Statistics' },
   ];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-full bg-lattice-bg">
       {/* Header */}

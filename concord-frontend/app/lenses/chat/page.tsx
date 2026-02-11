@@ -33,6 +33,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface Message {
   id: string;
@@ -85,13 +86,13 @@ export default function ChatLensPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Cognitive status — shows experience/attention/reflection state
-  const { data: cogStatus } = useQuery({
+  const { data: cogStatus, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['cognitive-status'],
     queryFn: () => apiHelpers.cognitive.status().then(r => r.data),
     refetchInterval: 10000,
   });
 
-  const { data: conversations } = useQuery({
+  const { data: conversations, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['conversations'],
     queryFn: () => api.get('/api/state/sessions').then(r =>
       r.data?.sessions?.map((s: Record<string, unknown>) => ({
@@ -104,7 +105,7 @@ export default function ChatLensPage() {
     ),
   });
 
-  const { data: serverMessages } = useQuery({
+  const { data: serverMessages, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['messages', selectedConversation],
     queryFn: () => api.get('/api/state/latest', {
       params: { sessionId: selectedConversation }
@@ -212,6 +213,14 @@ export default function ChatLensPage() {
   const attn = cogStatus?.attention;
   const refl = cogStatus?.reflection;
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="h-full flex bg-lattice-bg">
       {/* Sidebar */}

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Plug, Webhook, Zap, Code, FileText, Plus, Trash2, Play, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function IntegrationsLensPage() {
   useLensNav('integrations');
@@ -12,17 +13,17 @@ export default function IntegrationsLensPage() {
   const [activeTab, setActiveTab] = useState<'webhooks' | 'automations' | 'services'>('webhooks');
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: webhooks } = useQuery({
+  const { data: webhooks, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['webhooks'],
     queryFn: () => api.get('/api/webhooks').then(r => r.data),
   });
 
-  const { data: automations } = useQuery({
+  const { data: automations, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['automations'],
     queryFn: () => api.get('/api/automations').then(r => r.data),
   });
 
-  const { data: integrations } = useQuery({
+  const { data: integrations, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['integrations'],
     queryFn: () => api.get('/api/integrations').then(r => r.data),
   });
@@ -50,6 +51,14 @@ export default function IntegrationsLensPage() {
     mutationFn: (id: string) => api.post(`/api/automations/${id}/run`, {}),
   });
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

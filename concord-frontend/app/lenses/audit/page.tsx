@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FileSearch, AlertTriangle, Check, X, Eye } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface RawEvent {
   id: string;
@@ -29,7 +30,7 @@ export default function AuditLensPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Backend: GET /api/events
-  const { data: events } = useQuery({
+  const { data: events, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['events'],
     queryFn: () => api.get('/api/events').then((r) => r.data),
   });
@@ -74,6 +75,14 @@ export default function AuditLensPage() {
     dtu: 'text-neon-pink',
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Download, FileJson, FileText, Database, Check, Package } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function ExportLensPage() {
   useLensNav('export');
@@ -13,7 +14,7 @@ export default function ExportLensPage() {
   const [exporting, setExporting] = useState(false);
 
   // Backend: GET /api/dtus
-  const { data: dtusData } = useQuery({
+  const { data: dtusData, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['dtus'],
     queryFn: () => api.get('/api/dtus').then((r) => r.data),
   });
@@ -51,6 +52,14 @@ export default function ExportLensPage() {
     );
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

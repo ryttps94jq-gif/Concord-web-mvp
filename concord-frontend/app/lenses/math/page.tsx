@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Calculator, Play, CheckCircle, XCircle, Sigma, Pi, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface ExpressionRecord {
   expression: string;
@@ -34,7 +35,7 @@ export default function MathLensPage() {
   // Fetch stats from backend via lens data
   const {
     items: statsItems,
-    isLoading: statsLoading,
+    isLoading: statsLoading, isError: isError, error: error, refetch: refetch,
     update: updateStat,
   } = useLensData<MathStatsData>('math', 'stats', {
     seed: SEED_STATS,
@@ -43,7 +44,7 @@ export default function MathLensPage() {
   // Fetch expression history from backend
   const {
     items: expressionItems,
-    isLoading: expLoading,
+    isLoading: expLoading, isError: isError2, error: error2, refetch: refetch2,
     create: createExpression,
   } = useLensData<ExpressionRecord>('math', 'expression', { seed: [] });
 
@@ -126,6 +127,14 @@ export default function MathLensPage() {
 
   const isLoading = statsLoading || expLoading;
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

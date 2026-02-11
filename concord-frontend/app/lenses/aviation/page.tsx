@@ -10,6 +10,7 @@ import {
   Clock, Users, Wrench, Calendar, ChevronDown, X,
   Navigation, Award, Gauge
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 type ModeTab = 'flights' | 'aircraft' | 'vessels' | 'slips' | 'charters' | 'crew';
 
@@ -40,7 +41,7 @@ export default function AviationLensPage() {
 
   const activeTab = MODE_TABS.find(t => t.key === activeMode)!;
 
-  const { items, create, update, remove } = useLensData('aviation', activeTab.type, {
+  const { isError: isError, error: error, refetch: refetch, items, create, update, remove } = useLensData('aviation', activeTab.type, {
     search: searchQuery || undefined,
     status: statusFilter || undefined,
   });
@@ -124,6 +125,14 @@ export default function AviationLensPage() {
   const maintenanceItems = items.filter(i => i.meta?.status === 'maintenance').length;
   const totalHours = items.reduce((sum, i) => sum + ((i.data as Record<string, unknown>)?.hours as number || 0), 0);
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

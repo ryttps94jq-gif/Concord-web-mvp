@@ -13,6 +13,7 @@ import {
   MapPin, ExternalLink, Filter, GripVertical,
   Lightbulb, BarChart3, Flame, ChevronRight
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // --- Types ---
 
@@ -263,10 +264,10 @@ export default function ExperienceLensPage() {
   const [activeTab, setActiveTab] = useState<TabId>('portfolio');
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioFilter>('all');
 
-  const { items: _portfolioItems } = useLensData('experience', 'portfolio', {
+  const { isError: isError, error: error, refetch: refetch, items: _portfolioItems } = useLensData('experience', 'portfolio', {
     seed: INITIAL_PORTFOLIO.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
-  const { items: _skillItems } = useLensData('experience', 'skill', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: _skillItems } = useLensData('experience', 'skill', {
     seed: INITIAL_SKILLS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
 
@@ -323,6 +324,14 @@ export default function ExperienceLensPage() {
   const radarR = 100;
   const gridLevels = [2, 4, 6, 8, 10];
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* ========== Header ========== */}

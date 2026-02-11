@@ -11,6 +11,7 @@ import {
   Play,
   Layers
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function TemporalLensPage() {
   useLensNav('temporal');
@@ -22,7 +23,7 @@ export default function TemporalLensPage() {
   const [frameEnd, setFrameEnd] = useState('');
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
 
-  const { data: frames } = useQuery({
+  const { data: frames, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['temporal-frames'],
     queryFn: () => apiHelpers.temporal.frames().then((r) => r.data),
   });
@@ -43,6 +44,14 @@ export default function TemporalLensPage() {
 
   const framesList = frames?.frames || frames || [];
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

@@ -37,6 +37,7 @@ import {
   ListMusic,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -484,12 +485,12 @@ export default function FeedLensPage() {
   const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { items: _postLensItems, create: _createLensPost } = useLensData('feed', 'post', {
+  const { isError: isError, error: error, refetch: refetch, items: _postLensItems, create: _createLensPost } = useLensData('feed', 'post', {
     seed: [],
   });
 
   // Fetch real DTU data with fallback to demo
-  const { data: feedPosts, isLoading } = useQuery<FeedPost[]>({
+  const { data: feedPosts, isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery<FeedPost[]>({
     queryKey: ['feed-posts', activeTab],
     queryFn: async () => {
       try {
@@ -531,7 +532,7 @@ export default function FeedLensPage() {
     },
   });
 
-  const { data: trending } = useQuery<TrendingTopic[]>({
+  const { data: trending, isError: isError3, error: error3, refetch: refetch3,} = useQuery<TrendingTopic[]>({
     queryKey: ['trending-topics'],
     queryFn: async () => {
       try {
@@ -608,6 +609,14 @@ export default function FeedLensPage() {
     { icon: Music, label: 'Studio', active: false },
   ];
 
+
+  if (isError || isError2 || isError3) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); refetch2(); refetch3(); }} />
+      </div>
+    );
+  }
   return (
     <div className="min-h-full bg-lattice-bg flex">
       {/* ── Left Sidebar ──────────────────────────────────────────────────── */}

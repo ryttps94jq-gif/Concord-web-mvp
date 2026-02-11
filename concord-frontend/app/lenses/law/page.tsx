@@ -4,6 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Scale, Gavel, FileText, CheckCircle, XCircle, AlertTriangle, Plus } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function LawLensPage() {
   useLensNav('law');
@@ -12,7 +13,7 @@ export default function LawLensPage() {
   const [newCaseTitle, setNewCaseTitle] = useState('');
 
   // Lens artifact persistence layer
-  const { items: caseItems, create: createCase } = useLensData('law', 'case', { noSeed: true });
+  const { isError: isError, error: error, refetch: refetch, items: caseItems, create: createCase } = useLensData('law', 'case', { noSeed: true });
 
   const legalFrameworks = [
     { id: 'gdpr', name: 'GDPR', status: 'compliant', description: 'EU data protection' },
@@ -47,6 +48,14 @@ export default function LawLensPage() {
     });
   };
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

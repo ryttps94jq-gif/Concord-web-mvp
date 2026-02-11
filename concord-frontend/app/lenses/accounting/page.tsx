@@ -34,6 +34,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
+import { ErrorState } from '@/components/common/EmptyState';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -148,7 +149,7 @@ export default function AccountingLensPage() {
 
   const currentType: ArtifactType = mode === 'Ledger' ? ledgerSubType : MODE_TABS.find(t => t.id === mode)!.types[0];
 
-  const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('accounting', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('accounting', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
 
@@ -536,6 +537,14 @@ export default function AccountingLensPage() {
   /*  Main render                                                      */
   /* ================================================================ */
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

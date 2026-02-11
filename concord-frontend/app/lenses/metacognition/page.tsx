@@ -14,6 +14,7 @@ import {
   Lightbulb,
   Send
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 export default function MetacognitionLensPage() {
   useLensNav('metacognition');
@@ -23,23 +24,23 @@ export default function MetacognitionLensPage() {
   const [predictionConfidence, setPredictionConfidence] = useState(0.7);
   const [introspectFocus, setIntrospectFocus] = useState('');
 
-  const { data: status } = useQuery({
+  const { data: status, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['metacognition-status'],
     queryFn: () => apiHelpers.metacognition.status().then((r) => r.data),
     refetchInterval: 15000,
   });
 
-  const { data: blindspots } = useQuery({
+  const { data: blindspots, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['metacognition-blindspots'],
     queryFn: () => apiHelpers.metacognition.blindspots().then((r) => r.data),
   });
 
-  const { data: calibration } = useQuery({
+  const { data: calibration, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['metacognition-calibration'],
     queryFn: () => apiHelpers.metacognition.calibration().then((r) => r.data),
   });
 
-  const { data: introspectionStatus } = useQuery({
+  const { data: introspectionStatus, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['metacognition-introspection'],
     queryFn: () => apiHelpers.metacognition.introspection().then((r) => r.data),
   });
@@ -67,6 +68,14 @@ export default function MetacognitionLensPage() {
   const cal = calibration?.calibration || calibration || {};
   const statusInfo = status?.status || status || {};
 
+
+  if (isError || isError2 || isError3 || isError4) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center gap-3">

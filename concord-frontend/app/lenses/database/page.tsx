@@ -12,6 +12,7 @@ import {
   Copy, ChevronLeft, ChevronRight, List, BarChart3, Link2, Key,
   FileJson, FileSpreadsheet, Terminal, History, Layers,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -310,7 +311,7 @@ export default function DatabaseLensPage() {
   useLensNav('database');
   const queryClient = useQueryClient();
 
-  const { items: _queryItems, create: _saveQuery } = useLensData('database', 'query', { seed: [] });
+  const { isError: isError, error: error, refetch: refetch, items: _queryItems, create: _saveQuery } = useLensData('database', 'query', { seed: [] });
 
   // --- Tab state ---
   const [activeTab, setActiveTab] = useState<TabId>('query');
@@ -334,36 +335,36 @@ export default function DatabaseLensPage() {
   const [perfHistory, setPerfHistory] = useState<PerfSnapshot[]>(buildDemoPerfSnapshots);
 
   // --- API queries (existing monitoring) ---
-  const { data: dbStatus, refetch: refetchDb } = useQuery({
+  const { data: dbStatus, refetch: refetchDb, isError: isError2, error: error2,} = useQuery({
     queryKey: ['db-status'],
     queryFn: () => api.get('/api/db/status').then(r => r.data),
     refetchInterval: 10000,
   });
 
-  const { data: redisStats, refetch: refetchRedis } = useQuery({
+  const { data: redisStats, refetch: refetchRedis, isError: isError3, error: error3,} = useQuery({
     queryKey: ['redis-stats'],
     queryFn: () => api.get('/api/redis/stats').then(r => r.data),
     refetchInterval: 10000,
   });
 
-  const { data: perfMetrics, refetch: refetchPerf } = useQuery({
+  const { data: perfMetrics, refetch: refetchPerf, isError: isError4, error: error4,} = useQuery({
     queryKey: ['perf-metrics'],
     queryFn: () => api.get('/api/perf/metrics').then(r => r.data),
     refetchInterval: 5000,
   });
 
-  const { data: backpressure } = useQuery({
+  const { data: backpressure, isError: isError5, error: error5, refetch: refetch5,} = useQuery({
     queryKey: ['backpressure'],
     queryFn: () => api.get('/api/backpressure/status').then(r => r.data),
   });
 
-  const { data: liveTables } = useQuery({
+  const { data: liveTables, isError: isError6, error: error6, refetch: refetch6,} = useQuery({
     queryKey: ['db-tables'],
     queryFn: () => api.get('/api/db/tables').then(r => r.data),
     retry: false,
   });
 
-  const { data: liveIndexes } = useQuery({
+  const { data: liveIndexes, isError: isError7, error: error7, refetch: refetch7,} = useQuery({
     queryKey: ['db-indexes'],
     queryFn: () => api.get('/api/db/indexes').then(r => r.data),
     retry: false,
@@ -482,6 +483,14 @@ export default function DatabaseLensPage() {
   // Render
   // =========================================================================
 
+
+  if (isError || isError2 || isError3 || isError4 || isError5 || isError6 || isError7) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message || error5?.message || error6?.message || error7?.message} onRetry={() => { refetch(); refetch5(); refetch6(); refetch7(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6 bg-lattice-bg min-h-screen">
       {/* Header */}

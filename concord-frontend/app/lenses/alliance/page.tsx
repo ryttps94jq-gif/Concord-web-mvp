@@ -5,6 +5,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Loading } from '@/components/common/Loading';
 import { useState } from 'react';
 import { Users, Plus, MessageSquare, Target, Shield, Zap } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface AllianceData {
   name: string;
@@ -61,7 +62,7 @@ export default function AllianceLensPage() {
 
   const {
     items: allianceItems,
-    isLoading: alliancesLoading,
+    isLoading: alliancesLoading, isError: isError, error: error, refetch: refetch,
     create: createAlliance,
     createMut: createAllianceMut,
   } = useLensData<AllianceData>('alliance', 'alliance', {
@@ -70,7 +71,7 @@ export default function AllianceLensPage() {
 
   const {
     items: messageItems,
-    isLoading: messagesLoading,
+    isLoading: messagesLoading, isError: isError2, error: error2, refetch: refetch2,
     create: createMessage,
     createMut: createMessageMut,
   } = useLensData<MessageData>('alliance', 'message', {
@@ -152,6 +153,14 @@ export default function AllianceLensPage() {
     );
   }
 
+
+  if (isError || isError2) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

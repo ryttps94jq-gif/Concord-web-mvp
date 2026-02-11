@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { MarketEmpireListing } from '@/components/market/MarketEmpireListing';
 import { Store, TrendingUp, Package, Coins } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 interface MarketListingItem {
   id: string;
@@ -21,11 +22,19 @@ export default function MarketLensPage() {
   useLensNav('market');
 
   // Backend: GET /api/marketplace/listings
-  const { data: listings } = useQuery({
+  const { data: listings, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['marketplace-listings'],
     queryFn: () => api.get('/api/marketplace/listings').then((r) => r.data),
   });
 
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">

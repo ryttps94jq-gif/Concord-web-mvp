@@ -11,6 +11,7 @@ import {
   Clock, AlertTriangle, CheckCircle, ChevronDown,
   BarChart3, TrendingUp, Fuel, ThermometerSun,
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,7 +95,7 @@ export default function LogisticsLensPage() {
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
-  const { items, isLoading, create, update, remove } = useLensData('logistics', currentType, {
+  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('logistics', currentType, {
     seed: SEED[currentType],
   });
 
@@ -182,6 +183,14 @@ export default function LogisticsLensPage() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message} onRetry={refetch} />
+      </div>
+    );
+  }
   return (
     <div className={ds.pageContainer}>
       {/* Header */}

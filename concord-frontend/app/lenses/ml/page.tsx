@@ -36,6 +36,7 @@ import {
   Beaker,
   LineChart
 } from 'lucide-react';
+import { ErrorState } from '@/components/common/EmptyState';
 
 // Types
 interface Model {
@@ -242,10 +243,10 @@ const INITIAL_DEPLOYMENTS: Deployment[] = [
 export default function MLLensPage() {
   useLensNav('ml');
   const queryClient = useQueryClient();
-  const { items: modelItems } = useLensData<Model>('ml', 'model', {
+  const { isError: isError, error: error, refetch: refetch, items: modelItems } = useLensData<Model>('ml', 'model', {
     seed: INITIAL_MODELS.map(m => ({ title: m.name, data: m as unknown as Record<string, unknown> })),
   });
-  const { items: expItems } = useLensData<Experiment>('ml', 'experiment', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: expItems } = useLensData<Experiment>('ml', 'experiment', {
     seed: INITIAL_EXPERIMENTS.map(e => ({ title: e.name, data: e as unknown as Record<string, unknown> })),
   });
   const models: Model[] = modelItems.length > 0 ? modelItems.map(i => ({ ...(i.data as unknown as Model), id: i.id })) : INITIAL_MODELS;
@@ -264,17 +265,17 @@ export default function MLLensPage() {
   const [playgroundModel, setPlaygroundModel] = useState<string>('');
 
   // Queries
-  const { data: _modelsData } = useQuery({
+  const { data: _modelsData, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['ml-models'],
     queryFn: () => api.get('/api/ml/models').then(r => r.data),
   });
 
-  const { data: _experimentsData } = useQuery({
+  const { data: _experimentsData, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
     queryKey: ['ml-experiments'],
     queryFn: () => api.get('/api/ml/experiments').then(r => r.data),
   });
 
-  const { data: metricsData } = useQuery({
+  const { data: metricsData, isError: isError5, error: error5, refetch: refetch5,} = useQuery({
     queryKey: ['ml-metrics'],
     queryFn: () => api.get('/api/ml/metrics').then(r => r.data),
     refetchInterval: 5000
@@ -426,6 +427,14 @@ export default function MLLensPage() {
     transformer: { color: 'text-yellow-400', icon: Brain }
   };
 
+
+  if (isError || isError2 || isError3 || isError4 || isError5) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <ErrorState error={error?.message || error2?.message || error3?.message || error4?.message || error5?.message} onRetry={() => { refetch(); refetch2(); refetch3(); refetch4(); refetch5(); }} />
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
