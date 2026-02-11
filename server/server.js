@@ -149,6 +149,112 @@ const _SANITIZE_PATTERNS = {
   sqlKeywords: /\b(union|select|insert|update|delete|drop|truncate|exec|execute)\b.*\b(from|into|table|database)\b/gi,
 };
 
+// ---- DTU Content Injection Detection ----
+// Detects prompt injection / jailbreak patterns in DTU content that could manipulate LLM reasoning
+const _INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)/i,
+  /you\s+are\s+now\s+(a|an|in)\s+/i,
+  /system\s*:\s*you\s+(are|must|should|will)/i,
+  /\bDAN\b.*\bjailbreak/i,
+  /forget\s+(everything|all|your)\s+(you|instructions?|rules?)/i,
+  /act\s+as\s+(if|though)\s+you\s+(have\s+no|don't\s+have)/i,
+  /override\s+(your|the|all)\s+(safety|content|system)/i,
+  /\[\s*SYSTEM\s*\]/i,
+  /<<\s*SYS\s*>>/i,
+];
+
+function detectContentInjection(text) {
+  if (typeof text !== "string" || text.length < 10) return { injected: false, patterns: [] };
+  const matched = [];
+  for (const pat of _INJECTION_PATTERNS) {
+    if (pat.test(text)) matched.push(pat.source.slice(0, 40));
+  }
+  return { injected: matched.length > 0, patterns: matched };
+}
+
+// ---- Marketplace Abuse Detection ----
+const _MARKETPLACE_ABUSE = {
+  // Per-seller rate tracking: sellerId -> { listCount, lastListAt, buyCount, lastBuyAt }
+  sellerActivity: new Map(),
+  // Wash trade detection: track buyer-seller pairs
+  tradeGraph: new Map(), // `${buyer}:${seller}` -> { count, lastAt }
+
+  MAX_LISTINGS_PER_HOUR: 20,
+  MAX_BUYS_PER_HOUR: 30,
+  WASH_TRADE_THRESHOLD: 5, // same pair in 24h triggers flag
+  PRICE_FLOOR: 1,
+  PRICE_CEILING: 1000000,
+
+  trackListing(sellerId) {
+    const now = Date.now();
+    let entry = this.sellerActivity.get(sellerId);
+    if (!entry || now - entry.windowStart > 3600000) {
+      entry = { listCount: 0, buyCount: 0, windowStart: now };
+      this.sellerActivity.set(sellerId, entry);
+    }
+    entry.listCount++;
+    return entry.listCount <= this.MAX_LISTINGS_PER_HOUR;
+  },
+
+  trackPurchase(buyerId) {
+    const now = Date.now();
+    let entry = this.sellerActivity.get(buyerId);
+    if (!entry || now - entry.windowStart > 3600000) {
+      entry = { listCount: 0, buyCount: 0, windowStart: now };
+      this.sellerActivity.set(buyerId, entry);
+    }
+    entry.buyCount++;
+    return entry.buyCount <= this.MAX_BUYS_PER_HOUR;
+  },
+
+  checkWashTrade(buyerId, sellerId) {
+    const key = `${buyerId}:${sellerId}`;
+    const reverseKey = `${sellerId}:${buyerId}`;
+    const now = Date.now();
+    const DAY_MS = 86400000;
+
+    for (const k of [key, reverseKey]) {
+      const entry = this.tradeGraph.get(k);
+      if (entry && now - entry.lastAt < DAY_MS && entry.count >= this.WASH_TRADE_THRESHOLD) {
+        return { flagged: true, reason: "wash_trade_pattern", pair: k, count: entry.count };
+      }
+    }
+
+    // Record this trade
+    const existing = this.tradeGraph.get(key) || { count: 0, lastAt: 0 };
+    if (now - existing.lastAt > DAY_MS) existing.count = 0;
+    existing.count++;
+    existing.lastAt = now;
+    this.tradeGraph.set(key, existing);
+
+    return { flagged: false };
+  },
+
+  validatePrice(price) {
+    const n = Number(price);
+    if (isNaN(n) || n < this.PRICE_FLOOR || n > this.PRICE_CEILING) {
+      return { valid: false, reason: `Price must be between ${this.PRICE_FLOOR} and ${this.PRICE_CEILING}` };
+    }
+    return { valid: true };
+  },
+
+  // Periodic cleanup of stale tracking data (every hour)
+  cleanup() {
+    const now = Date.now();
+    const HOUR = 3600000;
+    const DAY = 86400000;
+    for (const [k, v] of this.sellerActivity) {
+      if (now - v.windowStart > HOUR) this.sellerActivity.delete(k);
+    }
+    for (const [k, v] of this.tradeGraph) {
+      if (now - v.lastAt > DAY) this.tradeGraph.delete(k);
+    }
+  }
+};
+
+// Cleanup marketplace abuse tracking hourly
+setInterval(() => _MARKETPLACE_ABUSE.cleanup(), 3600000);
+
 function sanitizeString(str, options = {}) {
   if (typeof str !== "string") return str;
   let result = str;
@@ -308,6 +414,9 @@ function requestLoggerMiddleware(req, res, next) {
   res.send = function(body) {
     res.send = originalSend;
     const duration = Date.now() - startTime;
+
+    // ---- P95 Tracking (Category 5: Observability) ----
+    _LATENCY.record(duration, req.path, req.method);
 
     // Log response (skip health checks to reduce noise)
     if (!req.path.startsWith("/health") && !req.path.startsWith("/ready")) {
@@ -2175,6 +2284,59 @@ function cleanupShadowDTUs() {
 setInterval(() => cleanupShadowDTUs(), 6 * 60 * 60 * 1000);
 setTimeout(() => cleanupShadowDTUs(), 60000); // Initial cleanup after 1 min
 
+// ---- Index Reconciliation (Category 3: Data Integrity) ----
+// Ensures lens domain index stays consistent with artifact store
+function reconcileIndices() {
+  let fixed = 0;
+  try {
+    // 1. Reconcile lensDomainIndex vs lensArtifacts
+    for (const [domain, idSet] of STATE.lensDomainIndex) {
+      for (const id of idSet) {
+        if (!STATE.lensArtifacts.has(id)) {
+          idSet.delete(id);
+          fixed++;
+        }
+      }
+      if (idSet.size === 0) STATE.lensDomainIndex.delete(domain);
+    }
+
+    // 2. Ensure every artifact is indexed
+    for (const [id, artifact] of STATE.lensArtifacts) {
+      if (!artifact.domain) continue;
+      if (!STATE.lensDomainIndex.has(artifact.domain)) {
+        STATE.lensDomainIndex.set(artifact.domain, new Set());
+      }
+      const domainSet = STATE.lensDomainIndex.get(artifact.domain);
+      if (!domainSet.has(id)) {
+        domainSet.add(id);
+        fixed++;
+      }
+    }
+
+    // 3. Detect orphaned DTU references (parentId -> nonexistent DTU)
+    let orphanedRefs = 0;
+    for (const dtu of STATE.dtus.values()) {
+      if (dtu.parentId && !STATE.dtus.has(dtu.parentId)) {
+        orphanedRefs++;
+      }
+    }
+
+    if (fixed > 0 || orphanedRefs > 0) {
+      saveStateDebounced();
+      structuredLog("info", "index_reconciliation", { fixed, orphanedRefs, dtuCount: STATE.dtus.size, artifactCount: STATE.lensArtifacts.size });
+    }
+
+    return { ok: true, fixed, orphanedRefs };
+  } catch (e) {
+    structuredLog("error", "index_reconciliation_failed", { error: String(e?.message || e) });
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// Run index reconciliation every 4 hours
+setInterval(() => reconcileIndices(), 4 * 60 * 60 * 1000);
+setTimeout(() => reconcileIndices(), 120000); // 2 min after startup
+
 // ---- End semantic query expansion ----
 
 function cretiPack({ title, purpose, context, procedure, outputs, tests, notes }) {
@@ -3427,6 +3589,196 @@ if (rateLimit) {
 // END WAVE 1: PRODUCTION READINESS
 // ============================================================================
 
+// ============================================================================
+// FAILURE MODE DEFENSES (Categories 2-6)
+// ============================================================================
+
+// ---- HTTP Idempotency Middleware (Category 2: Concurrency) ----
+// Prevents double-submit via Idempotency-Key header
+const _IDEMPOTENCY = {
+  store: new Map(), // key -> { response, status, createdAt }
+  TTL_MS: 24 * 60 * 60 * 1000, // 24 hours
+  MAX_ENTRIES: 10000,
+
+  cleanup() {
+    const now = Date.now();
+    for (const [key, entry] of this.store) {
+      if (now - entry.createdAt > this.TTL_MS) this.store.delete(key);
+    }
+    if (this.store.size > this.MAX_ENTRIES) {
+      const sorted = [...this.store.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+      const toRemove = sorted.slice(0, this.store.size - this.MAX_ENTRIES);
+      for (const [key] of toRemove) this.store.delete(key);
+    }
+  }
+};
+
+setInterval(() => _IDEMPOTENCY.cleanup(), 3600000);
+
+function idempotencyMiddleware(req, res, next) {
+  const key = req.headers["idempotency-key"];
+  if (!key || req.method === "GET") return next();
+
+  const existing = _IDEMPOTENCY.store.get(key);
+  if (existing) {
+    // Return cached response for duplicate request
+    res.setHeader("X-Idempotent-Replayed", "true");
+    return res.status(existing.status).json(existing.response);
+  }
+
+  // Intercept response to cache it
+  const originalJson = res.json.bind(res);
+  res.json = function(body) {
+    _IDEMPOTENCY.store.set(key, {
+      response: body,
+      status: res.statusCode,
+      createdAt: Date.now(),
+    });
+    return originalJson(body);
+  };
+  next();
+}
+
+// ---- P95 Latency Tracking (Category 5: Observability) ----
+const _LATENCY = {
+  // Sliding window of recent request durations (last 1000 requests)
+  window: [],
+  MAX_WINDOW: 1000,
+  slowThresholdMs: Number(process.env.SLOW_REQUEST_MS || 2000),
+
+  record(durationMs, path, method) {
+    this.window.push({ durationMs, path, method, ts: Date.now() });
+    if (this.window.length > this.MAX_WINDOW) this.window.shift();
+
+    // Alert on slow requests
+    if (durationMs > this.slowThresholdMs) {
+      structuredLog("warn", "slow_request", { durationMs, path, method, threshold: this.slowThresholdMs });
+    }
+  },
+
+  percentile(p) {
+    if (this.window.length === 0) return 0;
+    const sorted = this.window.map(w => w.durationMs).sort((a, b) => a - b);
+    const idx = Math.ceil((p / 100) * sorted.length) - 1;
+    return sorted[Math.max(0, idx)];
+  },
+
+  stats() {
+    return {
+      count: this.window.length,
+      p50: this.percentile(50),
+      p95: this.percentile(95),
+      p99: this.percentile(99),
+      slowCount: this.window.filter(w => w.durationMs > this.slowThresholdMs).length,
+    };
+  }
+};
+
+// ---- LLM Cost & Budget Tracking (Category 6: Cost Controls) ----
+const _LLM_BUDGET = {
+  // Token usage tracking
+  totalTokensUsed: 0,
+  totalRequestCount: 0,
+  windowStart: Date.now(),
+  perUser: new Map(), // userId -> { tokens, requests, windowStart }
+
+  // Budget limits (configurable via env)
+  globalBudgetTokens: Number(process.env.LLM_BUDGET_TOKENS || 1000000),   // 1M tokens/day
+  perUserBudgetTokens: Number(process.env.LLM_USER_BUDGET_TOKENS || 50000), // 50K tokens/user/day
+  maxRetries: Number(process.env.LLM_MAX_RETRIES || 3),
+
+  // Circuit breaker
+  consecutiveFailures: 0,
+  circuitOpen: false,
+  circuitOpenedAt: 0,
+  CIRCUIT_THRESHOLD: 5,    // failures before opening
+  CIRCUIT_RESET_MS: 60000, // 1 min cooldown
+
+  recordUsage(userId, tokensIn, tokensOut) {
+    const tokens = (tokensIn || 0) + (tokensOut || 0);
+    this.totalTokensUsed += tokens;
+    this.totalRequestCount++;
+
+    if (userId) {
+      const entry = this.perUser.get(userId) || { tokens: 0, requests: 0, windowStart: Date.now() };
+      // Reset window if over 24h
+      if (Date.now() - entry.windowStart > 86400000) {
+        entry.tokens = 0;
+        entry.requests = 0;
+        entry.windowStart = Date.now();
+      }
+      entry.tokens += tokens;
+      entry.requests++;
+      this.perUser.set(userId, entry);
+    }
+  },
+
+  checkBudget(userId) {
+    // Reset global window if over 24h
+    if (Date.now() - this.windowStart > 86400000) {
+      this.totalTokensUsed = 0;
+      this.totalRequestCount = 0;
+      this.windowStart = Date.now();
+    }
+
+    // Check circuit breaker
+    if (this.circuitOpen) {
+      if (Date.now() - this.circuitOpenedAt > this.CIRCUIT_RESET_MS) {
+        this.circuitOpen = false;
+        this.consecutiveFailures = 0;
+      } else {
+        return { allowed: false, reason: "circuit_open", resetIn: this.CIRCUIT_RESET_MS - (Date.now() - this.circuitOpenedAt) };
+      }
+    }
+
+    // Check global budget
+    if (this.totalTokensUsed >= this.globalBudgetTokens) {
+      return { allowed: false, reason: "global_budget_exceeded", used: this.totalTokensUsed, limit: this.globalBudgetTokens };
+    }
+
+    // Check per-user budget
+    if (userId) {
+      const entry = this.perUser.get(userId);
+      if (entry && entry.tokens >= this.perUserBudgetTokens) {
+        return { allowed: false, reason: "user_budget_exceeded", used: entry.tokens, limit: this.perUserBudgetTokens };
+      }
+    }
+
+    return { allowed: true };
+  },
+
+  recordFailure() {
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= this.CIRCUIT_THRESHOLD) {
+      this.circuitOpen = true;
+      this.circuitOpenedAt = Date.now();
+      structuredLog("error", "llm_circuit_open", {
+        failures: this.consecutiveFailures,
+        resetMs: this.CIRCUIT_RESET_MS,
+      });
+    }
+  },
+
+  recordSuccess() {
+    this.consecutiveFailures = 0;
+  },
+
+  stats() {
+    return {
+      totalTokensUsed: this.totalTokensUsed,
+      totalRequests: this.totalRequestCount,
+      globalBudget: this.globalBudgetTokens,
+      globalUtilization: (this.totalTokensUsed / this.globalBudgetTokens * 100).toFixed(1) + "%",
+      circuitOpen: this.circuitOpen,
+      consecutiveFailures: this.consecutiveFailures,
+      activeUsers: this.perUser.size,
+    };
+  }
+};
+
+// ---- Correlation ID Propagation (Category 5: Observability) ----
+let _eventSeqCounter = 0;
+
 // ---- realtime (Socket.IO for frontend compatibility) ----
 // Thin transport only: mirrors state changes (no new logic).
 const REALTIME = {
@@ -3435,18 +3787,27 @@ const REALTIME = {
   clients: new Map(), // socketId -> { socket, sessionId, orgId, userId, createdAt }
 };
 
-function realtimeEmit(event, payload, { sessionId = "", orgId = "" } = {}) {
+function realtimeEmit(event, payload, { sessionId = "", orgId = "", requestId = "" } = {}) {
   if (!REALTIME.ready || !REALTIME.io) return { ok: false, reason: "socket_not_ready" };
+
+  // ---- Event Ordering & Correlation (Category 2+5: Concurrency + Observability) ----
+  const enrichedPayload = {
+    ...payload,
+    ts: nowISO(),
+    _seq: ++_eventSeqCounter,           // Monotonic sequence number for ordering
+    _rid: requestId || undefined,        // Correlation ID from originating HTTP request
+    _evt: event,                         // Event name for client-side reordering
+  };
 
   // Emit to specific rooms or broadcast
   if (sessionId) {
-    REALTIME.io.to(`session:${sessionId}`).emit(event, { ...payload, ts: nowISO() });
+    REALTIME.io.to(`session:${sessionId}`).emit(event, enrichedPayload);
   } else if (orgId) {
-    REALTIME.io.to(`org:${orgId}`).emit(event, { ...payload, ts: nowISO() });
+    REALTIME.io.to(`org:${orgId}`).emit(event, enrichedPayload);
   } else {
-    REALTIME.io.emit(event, { ...payload, ts: nowISO() });
+    REALTIME.io.emit(event, enrichedPayload);
   }
-  return { ok: true };
+  return { ok: true, seq: enrichedPayload._seq };
 }
 
 function enqueueNotification(item, { sessionId = "", orgId = "" } = {}) {
@@ -3874,9 +4235,16 @@ function saveStateDebounced() {
     clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        fs.writeFileSync(STATE_PATH, JSON.stringify(_serializeState(), null, 2), "utf-8");
+        // ---- Atomic Write (Category 3: Data Integrity) ----
+        // Write to temp file then rename to prevent corrupt partial writes on crash
+        const tmpPath = STATE_PATH + ".tmp";
+        const data = JSON.stringify(_serializeState(), null, 2);
+        fs.writeFileSync(tmpPath, data, "utf-8");
+        fs.renameSync(tmpPath, STATE_PATH); // Atomic on POSIX
       } catch (e) {
         console.error("STATE save failed:", e);
+        // Attempt cleanup of temp file
+        try { fs.unlinkSync(STATE_PATH + ".tmp"); } catch {}
       }
     }, 250);
   } catch {}
@@ -6535,6 +6903,15 @@ function makeCtx(req=null) {
       enabled: LLM_READY,
       async chat({ system, messages, temperature=0.3, maxTokens=800, model=null, timeoutMs=12000 }) {
         if (!LLM_READY) return { ok: false, reason: "LLM not configured (OPENAI_API_KEY missing)." };
+
+        // ---- Budget & Circuit Breaker Check (Category 6: Cost Controls) ----
+        const userId = req?.user?.id || req?.actor?.id || null;
+        const budgetCheck = _LLM_BUDGET.checkBudget(userId);
+        if (!budgetCheck.allowed) {
+          structuredLog("warn", "llm_budget_blocked", { reason: budgetCheck.reason, userId });
+          return { ok: false, reason: `LLM request blocked: ${budgetCheck.reason}` };
+        }
+
         const chosen = model || OPENAI_MODEL_FAST;
         const payload = {
           model: chosen,
@@ -6547,22 +6924,33 @@ function makeCtx(req=null) {
         };
         const ac = new AbortController();
         const t = setTimeout(() => ac.abort(), timeoutMs);
-        const res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${OPENAI_API_KEY}`
-          },
-          body: JSON.stringify(payload),
-          signal: ac.signal
-        }).finally(() => clearTimeout(t));
-        const text = await res.text().catch(()=> "");
-        const json = safeJson(text, null);
-        if (!res.ok) {
-          return { ok: false, status: res.status, error: json || text };
+        try {
+          const res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${OPENAI_API_KEY}`
+            },
+            body: JSON.stringify(payload),
+            signal: ac.signal
+          }).finally(() => clearTimeout(t));
+          const text = await res.text().catch(()=> "");
+          const json = safeJson(text, null);
+          if (!res.ok) {
+            _LLM_BUDGET.recordFailure();
+            return { ok: false, status: res.status, error: json || text };
+          }
+          // ---- Track Token Usage (Category 6: Cost Controls) ----
+          const usage = json?.usage;
+          _LLM_BUDGET.recordUsage(userId, usage?.prompt_tokens, usage?.completion_tokens);
+          _LLM_BUDGET.recordSuccess();
+
+          const content = json?.choices?.[0]?.message?.content ?? "";
+          return { ok: true, content, raw: json };
+        } catch (llmErr) {
+          _LLM_BUDGET.recordFailure();
+          throw llmErr;
         }
-        const content = json?.choices?.[0]?.message?.content ?? "";
-        return { ok: true, content, raw: json };
       }
     }
   };
@@ -9870,6 +10258,19 @@ register("dtu", "create", async (ctx, input) => {
   const machineIn = (input.machine && typeof input.machine === "object") ? input.machine : {};
   const rawText = String(input.creti ?? input.content ?? "");
 
+  // ---- Injection Detection (Category 1: Adversarial) ----
+  const injScan = detectContentInjection(rawText + " " + title);
+  if (injScan.injected) {
+    structuredLog("warn", "dtu_injection_detected", {
+      patterns: injScan.patterns,
+      source,
+      userId: ctx?.actor?.id,
+      titlePrefix: title.slice(0, 50),
+    });
+    // Tag for quarantine review rather than hard-block (reduces false positives)
+    if (!tags.includes("quarantine:injection-review")) tags.push("quarantine:injection-review");
+  }
+
   const dtu = {
     id: uid("dtu"),
     title,
@@ -9933,6 +10334,21 @@ register("dtu", "update", (ctx, input) => {
   const existing = STATE.dtus.get(id);
   if (!existing) return { ok: false, error: "DTU not found" };
 
+  // ---- Optimistic Locking (Category 2: Concurrency) ----
+  // If client sends expectedVersion, reject if stale
+  if (input.expectedVersion !== undefined) {
+    const currentVersion = existing._version || 1;
+    if (Number(input.expectedVersion) !== currentVersion) {
+      return {
+        ok: false,
+        error: "Version conflict: DTU was modified by another request",
+        code: "VERSION_CONFLICT",
+        currentVersion,
+        expectedVersion: Number(input.expectedVersion),
+      };
+    }
+  }
+
   // Update allowed fields
   const updated = { ...existing };
   if (input.title !== undefined) updated.title = String(input.title || existing.title);
@@ -9948,9 +10364,10 @@ register("dtu", "update", (ctx, input) => {
     updated.tier = input.tier;
   }
   updated.updatedAt = nowISO();
+  updated._version = (existing._version || 1) + 1;
 
   upsertDTU(updated, { broadcast: true });
-  ctx.log("dtu.update", `Updated DTU: ${updated.title}`, { id });
+  ctx.log("dtu.update", `Updated DTU: ${updated.title}`, { id, version: updated._version });
   return { ok: true, dtu: updated };
 }, { description: "Update an existing DTU" });
 
@@ -13893,6 +14310,7 @@ if (helmet) {app.use(helmet({
 if (compression) app.use(compression()); // Gzip compression
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(idempotencyMiddleware); // Category 2: Double-submit prevention via Idempotency-Key header
 
 // CORS configuration - uses ALLOWED_ORIGINS env var
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -17700,10 +18118,27 @@ register("council", "vote", (ctx, input) => {
   if (!dtuId || !vote) return { ok: false, error: "dtuId and vote required" };
   if (!["approve", "reject", "abstain"].includes(vote)) return { ok: false, error: "Invalid vote" };
 
+  // ---- Duplicate Vote Prevention (Category 2: Concurrency) ----
+  const voterId = ctx?.actor?.id || ctx?.actor?.odId || persona || "anonymous";
+  if (STATE.councilVotes.has(dtuId)) {
+    const existingVotes = STATE.councilVotes.get(dtuId);
+    const duplicateVote = existingVotes.find(v => v.voterId === voterId);
+    if (duplicateVote) {
+      return {
+        ok: false,
+        error: "Already voted on this DTU",
+        code: "DUPLICATE_VOTE",
+        existingVote: duplicateVote.vote,
+        votedAt: duplicateVote.timestamp,
+      };
+    }
+  }
+
   const voteRecord = {
     id: uid("vote"),
     dtuId,
     vote,
+    voterId,
     persona: persona || "anonymous",
     reason: reason || "",
     timestamp: nowISO(),
@@ -21362,6 +21797,38 @@ app.get("/api/governor/check", async (req, res) => res.json(await runMacro("gove
 app.get("/api/perf/metrics", async (req, res) => res.json(await runMacro("perf", "metrics", {}, makeCtx(req))));
 app.post("/api/perf/gc", async (req, res) => res.json(await runMacro("perf", "gc", {}, makeCtx(req))));
 app.get("/api/backpressure/status", async (req, res) => res.json(await runMacro("backpressure", "status", {}, makeCtx(req))));
+
+// ---- Observability & Cost Endpoints (Categories 5+6) ----
+app.get("/api/observability/latency", (req, res) => {
+  res.json({ ok: true, latency: _LATENCY.stats() });
+});
+
+app.get("/api/observability/llm-budget", (req, res) => {
+  res.json({ ok: true, budget: _LLM_BUDGET.stats() });
+});
+
+app.get("/api/observability/health", (req, res) => {
+  const latency = _LATENCY.stats();
+  const budget = _LLM_BUDGET.stats();
+  const issues = [];
+  if (latency.p95 > _LATENCY.slowThresholdMs) issues.push(`p95 latency ${latency.p95}ms exceeds ${_LATENCY.slowThresholdMs}ms threshold`);
+  if (_LLM_BUDGET.circuitOpen) issues.push("LLM circuit breaker is OPEN");
+  if (_LLM_BUDGET.totalTokensUsed > _LLM_BUDGET.globalBudgetTokens * 0.8) issues.push("LLM budget >80% utilized");
+
+  res.json({
+    ok: issues.length === 0,
+    status: issues.length === 0 ? "healthy" : "degraded",
+    issues,
+    latency,
+    budget,
+    dtuCount: STATE.dtus.size,
+    shadowDtuCount: STATE.shadowDtus.size,
+    artifactCount: STATE.lensArtifacts.size,
+    wsConnections: REALTIME.clients?.size || 0,
+    eventSeq: _eventSeqCounter,
+    idempotencyEntries: _IDEMPOTENCY.store.size,
+  });
+});
 
 console.log("[Concord] Wave 7: Scalability & Performance loaded");
 
@@ -30709,6 +31176,16 @@ app.post('/api/economic/marketplace/list', (req, res) => {
       });
     }
 
+    // ---- Marketplace Abuse Guards (Category 1: Adversarial) ----
+    const priceCheck = _MARKETPLACE_ABUSE.validatePrice(price);
+    if (!priceCheck.valid) {
+      return res.status(400).json({ error: priceCheck.reason });
+    }
+    if (!_MARKETPLACE_ABUSE.trackListing(odId)) {
+      structuredLog("warn", "marketplace_rate_limit", { sellerId: odId, action: "list" });
+      return res.status(429).json({ error: "Listing rate limit exceeded. Try again later." });
+    }
+
     ensureEconomicState();
     const listingId = `listing_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -30789,6 +31266,20 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
 
     if (listing.seller === odId) {
       return res.status(400).json({ error: 'Cannot buy your own listing' });
+    }
+
+    // ---- Marketplace Abuse Guards (Category 1: Adversarial) ----
+    if (!_MARKETPLACE_ABUSE.trackPurchase(odId)) {
+      structuredLog("warn", "marketplace_rate_limit", { buyerId: odId, action: "buy" });
+      return res.status(429).json({ error: "Purchase rate limit exceeded. Try again later." });
+    }
+    const washCheck = _MARKETPLACE_ABUSE.checkWashTrade(odId, listing.seller);
+    if (washCheck.flagged) {
+      structuredLog("warn", "wash_trade_detected", {
+        buyerId: odId, sellerId: listing.seller,
+        count: washCheck.count, listingId,
+      });
+      return res.status(403).json({ error: "Transaction flagged for review. Repeated trades between same parties detected." });
     }
 
     const buyerWallet = getWallet(odId);
