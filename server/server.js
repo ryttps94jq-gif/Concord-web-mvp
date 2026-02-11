@@ -17134,6 +17134,97 @@ app.get("/api/emergent/reality/belonging/:emergentId", async (req, res) => {
   return res.json(out);
 });
 
+// Cognition scheduler
+app.post("/api/emergent/scheduler/item", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.createItem", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/scan", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.scan", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/queue", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.queue", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/dequeue", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.dequeue", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/expire", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.expire", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/rescore", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.rescore", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/weights", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.updateWeights", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/budget", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.budget", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/budget/check", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.checkBudget", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/budget/update", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.updateBudget", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/allocate", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.allocate", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/allocation/:id", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.allocation", { allocationId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/active", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.active", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/turn", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.recordTurn", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/proposal", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.recordProposal", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/scheduler/complete", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.complete", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/completed", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.completed", { limit: req.query.limit ? parseInt(req.query.limit) : undefined }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/scheduler/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "scheduler.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
 // ===== END EMERGENT API =====
 
 app.post("/api/papers", async (req, res) => {

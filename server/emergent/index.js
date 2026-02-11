@@ -117,7 +117,22 @@ import {
   getBelonging,
 } from "./reality.js";
 
-const EMERGENT_VERSION = "2.0.0";
+// ── Cognition Scheduler imports ─────────────────────────────────────────────
+
+import {
+  WORK_ITEM_TYPES, ALL_WORK_ITEM_TYPES, STOP_REASONS,
+  DEFAULT_WEIGHTS, DEFAULT_BUDGET,
+  createWorkItem, scanAndCreateWorkItems,
+  computePriority, rescoreQueue, updateWeights,
+  checkBudget, getBudgetStatus, updateBudget,
+  allocate, getAllocation, recordTurn, recordProposal,
+  completeAllocation,
+  getQueue, getActiveAllocations, getCompletedWork,
+  dequeueItem, expireItems,
+  getSchedulerMetrics,
+} from "./scheduler.js";
+
+const EMERGENT_VERSION = "3.0.0";
 
 /**
  * Initialize the Emergent Agent Governance system.
@@ -450,6 +465,94 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get emergent belonging context", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // COGNITION SCHEDULER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // -- Work item management --
+
+  register("emergent", "scheduler.createItem", (_ctx, input = {}) => {
+    return createWorkItem(STATE, input);
+  }, { description: "Create a work item and enqueue it", public: false });
+
+  register("emergent", "scheduler.scan", (_ctx) => {
+    return scanAndCreateWorkItems(STATE);
+  }, { description: "Scan lattice and auto-create work items", public: false });
+
+  register("emergent", "scheduler.queue", (_ctx) => {
+    return getQueue(STATE);
+  }, { description: "Get the current work queue", public: true });
+
+  register("emergent", "scheduler.dequeue", (_ctx, input = {}) => {
+    return dequeueItem(STATE, input.itemId);
+  }, { description: "Remove a work item from the queue", public: false });
+
+  register("emergent", "scheduler.expire", (_ctx) => {
+    return expireItems(STATE);
+  }, { description: "Expire old work items past deadline", public: false });
+
+  // -- Priority scoring --
+
+  register("emergent", "scheduler.rescore", (_ctx) => {
+    return rescoreQueue(STATE);
+  }, { description: "Re-score all queued items", public: false });
+
+  register("emergent", "scheduler.updateWeights", (_ctx, input = {}) => {
+    return updateWeights(STATE, input.weights || {});
+  }, { description: "Update priority signal weights", public: false });
+
+  // -- Attention budget --
+
+  register("emergent", "scheduler.budget", (_ctx) => {
+    return getBudgetStatus(STATE);
+  }, { description: "Get current attention budget status", public: true });
+
+  register("emergent", "scheduler.checkBudget", (_ctx, input = {}) => {
+    return checkBudget(STATE, input.userId);
+  }, { description: "Check if budget allows new work", public: true });
+
+  register("emergent", "scheduler.updateBudget", (_ctx, input = {}) => {
+    return updateBudget(STATE, input);
+  }, { description: "Override budget parameters", public: false });
+
+  // -- Allocator --
+
+  register("emergent", "scheduler.allocate", (_ctx, input = {}) => {
+    return allocate(STATE, input);
+  }, { description: "Allocate top-K work items to emergents", public: false });
+
+  register("emergent", "scheduler.allocation", (_ctx, input = {}) => {
+    return getAllocation(STATE, input.allocationId);
+  }, { description: "Get a specific allocation", public: true });
+
+  register("emergent", "scheduler.active", (_ctx) => {
+    return getActiveAllocations(STATE);
+  }, { description: "Get active allocations", public: true });
+
+  register("emergent", "scheduler.recordTurn", (_ctx, input = {}) => {
+    return recordTurn(STATE, input.allocationId);
+  }, { description: "Record a turn used by an allocation", public: false });
+
+  register("emergent", "scheduler.recordProposal", (_ctx, input = {}) => {
+    return recordProposal(STATE, input.allocationId, input.proposalId);
+  }, { description: "Record a proposal emitted by an allocation", public: false });
+
+  // -- Completion --
+
+  register("emergent", "scheduler.complete", (_ctx, input = {}) => {
+    return completeAllocation(STATE, input.allocationId, input);
+  }, { description: "Complete an allocation with summary", public: false });
+
+  register("emergent", "scheduler.completed", (_ctx, input = {}) => {
+    return getCompletedWork(STATE, input.limit);
+  }, { description: "Get completed work history", public: true });
+
+  // -- Metrics --
+
+  register("emergent", "scheduler.metrics", (_ctx) => {
+    return getSchedulerMetrics(STATE);
+  }, { description: "Get scheduler metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // AUDIT / STATUS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -498,6 +601,10 @@ function init({ register, STATE, helpers }) {
       sessionLimits: SESSION_LIMITS,
       edgeTypes: ALL_EDGE_TYPES,
       journalEventTypes: Object.values(JOURNAL_EVENTS),
+      workItemTypes: ALL_WORK_ITEM_TYPES,
+      stopReasons: Object.values(STOP_REASONS),
+      defaultWeights: DEFAULT_WEIGHTS,
+      defaultBudget: DEFAULT_BUDGET,
     };
   }, { description: "Get emergent system schema", public: true });
 
@@ -508,7 +615,7 @@ function init({ register, STATE, helpers }) {
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 62,
+    macroCount: 80,
   };
 }
 

@@ -1213,3 +1213,186 @@ export interface BelongingContext {
   /** Session count */
   sessionCount: number;
 }
+
+// ============================================================================
+// Cognition Scheduler Types
+// ============================================================================
+
+/**
+ * Work item types — what the lattice can spend cognition on
+ */
+export type WorkItemType =
+  | 'contradiction'
+  | 'low_confidence'
+  | 'user_prompt'
+  | 'proposal_critique'
+  | 'missing_edges'
+  | 'artifact_validation'
+  | 'hot_node'
+  | 'synthesis_needed'
+  | 'pattern_refresh'
+  | 'governance_backlog';
+
+/**
+ * Stop reasons — why an allocation was terminated
+ */
+export type StopReason =
+  | 'budget_exhausted'
+  | 'novelty_plateau'
+  | 'contradiction_unresolved'
+  | 'fatal_flaw_found'
+  | 'max_turns_reached'
+  | 'all_gates_blocked'
+  | 'consensus_reached';
+
+/**
+ * Priority signals tracked for each work item
+ */
+export interface PrioritySignals {
+  /** How many users/touches/lenses depend on it (0-1) */
+  impact: number;
+  /** Chance of harm/confusion if wrong (0-1) */
+  risk: number;
+  /** Low confidence but widely used (0-1) */
+  uncertainty: number;
+  /** How unique vs repetitive (0-1) */
+  novelty: number;
+  /** Conflicting DTUs in same region (0-1) */
+  contradictionPressure: number;
+  /** Backlog, pending votes (0-1) */
+  governancePressure: number;
+  /** Estimated effort — cheap wins get bonus (0-1) */
+  effort: number;
+}
+
+/**
+ * Priority signal weights (tunable)
+ */
+export interface PriorityWeights {
+  impact: number;
+  risk: number;
+  uncertainty: number;
+  novelty: number;
+  contradictionPressure: number;
+  governancePressure: number;
+  effort: number;
+}
+
+/**
+ * Attention budget — hard caps per cycle
+ */
+export interface AttentionBudget {
+  maxItemsPerCycle: number;
+  maxTurnsPerItem: number;
+  maxParallelSessions: number;
+  maxDeepSynthesisPerUser: number;
+  maxProposalsPerCycle: number;
+  cycleDurationMs: number;
+}
+
+/**
+ * Work item — something the system could spend cognition on
+ */
+export interface WorkItem {
+  /** Work item ID (format: wi_<hex>) */
+  itemId: string;
+  /** Type of work */
+  type: WorkItemType;
+  /** Lens/domain scope */
+  scope: string;
+  /** Input DTU IDs / artifact IDs / edge IDs */
+  inputs: string[];
+  /** Who created this (user/system/emergentId) */
+  createdBy: string;
+  /** Human-readable description */
+  description: string;
+  /** Optional deadline timestamp */
+  deadline: number | null;
+  /** Current status */
+  status: 'queued' | 'assigned' | 'deferred' | 'expired';
+  /** Priority signals */
+  signals: PrioritySignals;
+  /** Computed priority score (0-1) */
+  priority: number;
+  /** ISO timestamp of creation */
+  createdAt: string;
+  /** ISO timestamp of assignment */
+  assignedAt: string | null;
+  /** ISO timestamp of completion */
+  completedAt: string | null;
+}
+
+/**
+ * Allocation — a work item assigned to an emergent team
+ */
+export interface Allocation {
+  /** Allocation ID (format: alloc_<hex>) */
+  allocationId: string;
+  /** Source work item ID */
+  itemId: string;
+  /** Work type */
+  type: WorkItemType;
+  /** Scope */
+  scope: string;
+  /** Input IDs */
+  inputs: string[];
+  /** Description */
+  description: string;
+  /** Computed priority */
+  priority: number;
+  /** Assigned emergent team IDs */
+  team: string[];
+  /** Team details */
+  teamRoles: Array<{ id: string; role: EmergentRole; name: string }>;
+  /** Max turns allowed */
+  maxTurns: number;
+  /** Turns used so far */
+  turnsUsed: number;
+  /** Current status */
+  status: 'active' | 'completed';
+  /** Proposal IDs emitted during work */
+  proposals: string[];
+  /** Priority signals */
+  signals: PrioritySignals;
+  /** ISO timestamp of start */
+  startedAt: string;
+  /** ISO timestamp of completion */
+  completedAt: string | null;
+  /** Why the allocation was stopped */
+  stopReason: StopReason | null;
+  /** Structured summary (set on completion) */
+  summary: AllocationSummary | null;
+}
+
+/**
+ * Allocation summary — emitted when work completes
+ */
+export interface AllocationSummary {
+  /** What changed (proposals emitted) */
+  whatChanged: string;
+  /** Proposal IDs */
+  proposalIds: string[];
+  /** Turns used */
+  turnsUsed: number;
+  /** Unresolved items */
+  unresolved: string[];
+  /** Confidence label distribution */
+  confidenceLabels: Record<string, number>;
+  /** Human-readable description */
+  description: string;
+}
+
+/**
+ * Scheduler metrics
+ */
+export interface SchedulerMetrics {
+  totalItemsQueued: number;
+  totalItemsCompleted: number;
+  totalItemsDeferred: number;
+  totalItemsExpired: number;
+  totalCycles: number;
+  totalTurnsUsed: number;
+  avgPriority: number;
+  avgCompletionTurns: number;
+  budgetExhaustions: number;
+}
