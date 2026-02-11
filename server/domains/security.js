@@ -1,4 +1,4 @@
-module.exports = function registerSecurityActions(registerLensAction) {
+export default function registerSecurityActions(registerLensAction) {
   registerLensAction("security", "incidentTrend", async (ctx, artifact, params) => {
     const incidents = artifact.data?.incidents || [artifact.data];
     const byType = {};

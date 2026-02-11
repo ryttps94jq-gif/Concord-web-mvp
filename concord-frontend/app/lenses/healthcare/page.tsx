@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Heart,
@@ -90,6 +91,7 @@ export default function HealthcareLensPage() {
   const [filterType, setFilterType] = useState<ArtifactType | 'all'>('all');
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState<LensItem<HealthcareArtifact> | null>(null);
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   // Editor form state
   const [formTitle, setFormTitle] = useState('');
@@ -104,6 +106,8 @@ export default function HealthcareLensPage() {
   const { items, isLoading, create, update, remove } = useLensData<HealthcareArtifact>('healthcare', 'artifact', {
     seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
+
+  const runAction = useRunArtifact('healthcare');
 
   /* ---------- derived data ---------- */
 
@@ -177,9 +181,15 @@ export default function HealthcareLensPage() {
     await remove(id);
   };
 
-  const handleAction = (action: string) => {
-    // Placeholder for domain actions
-    alert(`Action triggered: ${action}. In production this would call the backend.`);
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
   };
 
   /* ---------- render ---------- */
@@ -257,7 +267,18 @@ export default function HealthcareLensPage() {
         <button onClick={() => handleAction('generateSummary')} className={ds.btnSecondary}>
           <FileText className="w-4 h-4" /> Generate Summary
         </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Artifact Library */}
       <section className={ds.panel}>

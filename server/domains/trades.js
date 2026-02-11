@@ -1,7 +1,7 @@
 // server/domains/trades.js
 // Domain actions for trades/contracting: estimates, inspections, materials costs.
 
-module.exports = function registerTradesActions(registerLensAction) {
+export default function registerTradesActions(registerLensAction) {
   /**
    * calculateEstimate
    * Sum line items with markup and tax to produce a customer-facing estimate.

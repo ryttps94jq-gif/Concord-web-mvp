@@ -1,4 +1,4 @@
-module.exports = function registerServicesActions(registerLensAction) {
+export default function registerServicesActions(registerLensAction) {
   registerLensAction("services", "scheduleOptimize", async (ctx, artifact, params) => {
     const appointments = artifact.data?.appointments || [artifact.data];
     const sorted = [...appointments].sort((a, b) => {

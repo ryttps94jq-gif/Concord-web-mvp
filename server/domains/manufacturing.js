@@ -1,4 +1,4 @@
-module.exports = function registerManufacturingActions(registerLensAction) {
+export default function registerManufacturingActions(registerLensAction) {
   registerLensAction("manufacturing", "scheduleOptimize", async (ctx, artifact, params) => {
     const workOrders = artifact.data?.workOrders || [artifact];
     const sorted = [...workOrders].sort((a, b) => {

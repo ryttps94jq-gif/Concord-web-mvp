@@ -1,4 +1,4 @@
-module.exports = function registerInsuranceActions(registerLensAction) {
+export default function registerInsuranceActions(registerLensAction) {
   registerLensAction("insurance", "coverageGap", async (ctx, artifact, params) => {
     const policies = artifact.data?.policies || [artifact.data];
     const coverageTypes = ['health', 'auto', 'home', 'life', 'liability', 'umbrella'];

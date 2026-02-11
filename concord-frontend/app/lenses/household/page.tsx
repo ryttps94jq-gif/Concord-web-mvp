@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Home,
@@ -110,6 +111,7 @@ export default function HouseholdLensPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formStatus, setFormStatus] = useState<Status>('planned');
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const currentTypes = MODE_TABS.find(t => t.id === mode)!.types;
   const currentType = currentTypes[0];
@@ -117,6 +119,8 @@ export default function HouseholdLensPage() {
   const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('household', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
+
+  const runAction = useRunArtifact('household');
 
   /* ---- filtering ---- */
   const filtered = useMemo(() => {
@@ -160,6 +164,17 @@ export default function HouseholdLensPage() {
 
   const handleDelete = async (id: string) => {
     await remove(id);
+  };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingId || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
   };
 
   /* ---- actions ---- */
@@ -443,6 +458,30 @@ export default function HouseholdLensPage() {
           );
         })}
       </nav>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('generateGroceryList')} className={ds.btnSecondary}>
+          <ShoppingCart className="w-4 h-4" /> Generate Grocery List
+        </button>
+        <button onClick={() => handleAction('assignChores')} className={ds.btnSecondary}>
+          <RotateCcw className="w-4 h-4" /> Assign Chores
+        </button>
+        <button onClick={() => handleAction('scheduleReminder')} className={ds.btnSecondary}>
+          <Calendar className="w-4 h-4" /> Schedule Reminder
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+      </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Content */}
       {view === 'dashboard' ? renderDashboard() : (

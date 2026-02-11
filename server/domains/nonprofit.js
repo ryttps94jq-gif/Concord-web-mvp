@@ -1,4 +1,4 @@
-module.exports = function registerNonprofitActions(registerLensAction) {
+export default function registerNonprofitActions(registerLensAction) {
   registerLensAction("nonprofit", "donorRetention", async (ctx, artifact, params) => {
     const givingHistory = artifact.data?.givingHistory || [];
     const currentYear = params.year || new Date().getFullYear();

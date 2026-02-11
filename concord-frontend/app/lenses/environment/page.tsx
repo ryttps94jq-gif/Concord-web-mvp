@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   TreePine,
@@ -116,12 +117,16 @@ export default function EnvironmentLensPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formStatus, setFormStatus] = useState<Status>('active');
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.artifactType;
 
   const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('environment', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
+
+  const runAction = useRunArtifact('environment');
+  const editingItem = items.find(i => i.id === editingId) || null;
 
   /* ---- filtering ---- */
   const filtered = useMemo(() => {
@@ -136,6 +141,17 @@ export default function EnvironmentLensPage() {
   const openEdit = (item: LensItem<ArtifactData>) => { setEditingId(item.id); setFormTitle(item.title); setFormStatus((item.meta.status as Status) || 'active'); setFormData(item.data as Record<string, unknown>); setShowEditor(true); };
   const handleSave = async () => { const payload = { title: formTitle, data: formData, meta: { status: formStatus } }; if (editingId) { await update(editingId, payload); } else { await create(payload); } setShowEditor(false); };
   const handleDelete = async (id: string) => { await remove(id); };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
 
   /* ---- stats ---- */
   const statusCounts = useMemo(() => {
@@ -400,6 +416,7 @@ export default function EnvironmentLensPage() {
               <ChevronDown className="w-4 h-4 text-gray-400 -ml-8 pointer-events-none" />
             </div>
             <button className={ds.btnPrimary} onClick={openNew}><Plus className="w-4 h-4" /> New {currentType}</button>
+            {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
           </div>
 
           {isLoading ? (
@@ -415,6 +432,16 @@ export default function EnvironmentLensPage() {
             <div className={ds.grid3}>{filtered.map(renderCard)}</div>
           )}
         </>
+      )}
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
       )}
 
       {showEditor && (

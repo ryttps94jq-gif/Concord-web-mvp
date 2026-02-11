@@ -1,4 +1,4 @@
-module.exports = function registerCreativeActions(registerLensAction) {
+export default function registerCreativeActions(registerLensAction) {
   registerLensAction("creative", "shotListGenerate", async (ctx, artifact, params) => {
     const brief = artifact.data?.brief || params.brief || artifact.title;
     const type = artifact.data?.type || 'photo';

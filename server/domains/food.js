@@ -1,7 +1,7 @@
 // server/domains/food.js
 // Domain actions for food service: recipe scaling, plate costing, spoilage, pour cost.
 
-module.exports = function registerFoodActions(registerLensAction) {
+export default function registerFoodActions(registerLensAction) {
   /**
    * scaleRecipe
    * Recalculate ingredients for a different yield.

@@ -1,7 +1,7 @@
 // server/domains/agriculture.js
 // Domain actions for agriculture: crop rotation, yield analysis, equipment, irrigation.
 
-module.exports = function registerAgricultureActions(registerLensAction) {
+export default function registerAgricultureActions(registerLensAction) {
   /**
    * rotationPlan
    * Suggest the next crop based on rotation history and agronomic compatibility.

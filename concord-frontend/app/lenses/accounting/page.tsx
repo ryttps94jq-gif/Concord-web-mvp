@@ -33,6 +33,7 @@ import {
   Landmark,
   CreditCard,
 } from 'lucide-react';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -143,12 +144,15 @@ export default function AccountingLensPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formStatus, setFormStatus] = useState<string>('active');
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const currentType: ArtifactType = mode === 'Ledger' ? ledgerSubType : MODE_TABS.find(t => t.id === mode)!.types[0];
 
   const { items, isLoading, create, update, remove } = useLensData<ArtifactData>('accounting', currentType, {
     seed: SEED_DATA[currentType] || [],
   });
+
+  const runAction = useRunArtifact('accounting');
 
   /* ---- filtering ---- */
   const filtered = useMemo(() => {
@@ -188,6 +192,17 @@ export default function AccountingLensPage() {
   };
 
   const handleDelete = async (id: string) => { await remove(id); };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingId || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
 
   /* ---- computed metrics ---- */
   const totalAssets = useMemo(() => {
@@ -608,7 +623,18 @@ export default function AccountingLensPage() {
             <button className={ds.btnPrimary} onClick={openNew}>
               <Plus className="w-4 h-4" /> New {currentType}
             </button>
+            {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
           </div>
+
+          {actionResult && (
+            <div className={ds.panel}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className={ds.heading3}>Action Result</h3>
+                <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+              </div>
+              <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+            </div>
+          )}
 
           {/* Artifact library */}
           {isLoading ? (

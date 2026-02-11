@@ -1,7 +1,7 @@
 // server/domains/household.js
 // Domain actions for household management: grocery lists, maintenance, chore rotation.
 
-module.exports = function registerHouseholdActions(registerLensAction) {
+export default function registerHouseholdActions(registerLensAction) {
   /**
    * generateGroceryList
    * Aggregate ingredients from a meal plan into a consolidated grocery list,

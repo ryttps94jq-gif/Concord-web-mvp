@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Hammer,
@@ -134,12 +135,15 @@ export default function TradesLensPage() {
   const [formStartDate, setFormStartDate] = useState('');
   const [formEndDate, setFormEndDate] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Job';
 
   const { items, isLoading, create, update, remove } = useLensData<TradesArtifact>('trades', activeArtifactType, {
     seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
+
+  const runAction = useRunArtifact('trades');
 
   const filtered = useMemo(() => {
     let result = items;
@@ -223,6 +227,17 @@ export default function TradesLensPage() {
 
   const handleDelete = async (id: string) => {
     await remove(id);
+  };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -579,6 +594,30 @@ export default function TradesLensPage() {
           </button>
         ))}
       </nav>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('generateEstimate')} className={ds.btnSecondary}>
+          <FileText className="w-4 h-4" /> Generate Estimate
+        </button>
+        <button onClick={() => handleAction('checkPermits')} className={ds.btnSecondary}>
+          <ShieldCheck className="w-4 h-4" /> Check Permits
+        </button>
+        <button onClick={() => handleAction('scheduleInspection')} className={ds.btnSecondary}>
+          <ClipboardCheck className="w-4 h-4" /> Schedule Inspection
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+      </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Content */}
       {showDashboard ? renderDashboard() : renderLibrary()}

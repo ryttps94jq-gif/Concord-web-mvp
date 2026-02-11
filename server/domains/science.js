@@ -1,4 +1,4 @@
-module.exports = function registerScienceActions(registerLensAction) {
+export default function registerScienceActions(registerLensAction) {
   registerLensAction("science", "chainOfCustody", async (ctx, artifact, params) => {
     const custodyLog = artifact.data?.chainOfCustody || [];
     let intact = true;

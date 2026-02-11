@@ -1,4 +1,4 @@
-module.exports = function registerEventsActions(registerLensAction) {
+export default function registerEventsActions(registerLensAction) {
   registerLensAction("events", "budgetReconcile", async (ctx, artifact, params) => {
     const projectedBudget = artifact.data?.budget || 0;
     const expenses = artifact.data?.expenses || [];

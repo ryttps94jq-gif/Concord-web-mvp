@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Truck, Users, Package, Warehouse, Route, ShieldCheck,
@@ -89,12 +90,15 @@ export default function LogisticsLensPage() {
   const [formField1, setFormField1] = useState('');
   const [formField2, setFormField2] = useState('');
   const [formField3, setFormField3] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
   const { items, isLoading, create, update, remove } = useLensData('logistics', currentType, {
     seed: SEED[currentType],
   });
+
+  const runAction = useRunArtifact('logistics');
 
   // Derived data
   const filtered = useMemo(() => {
@@ -146,6 +150,17 @@ export default function LogisticsLensPage() {
       await create({ title: formTitle, data, meta: { status: formStatus } });
     }
     resetForm();
+  };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editing || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
   };
 
   const fieldLabels: Record<ModeTab, [string, string, string]> = {
@@ -241,6 +256,30 @@ export default function LogisticsLensPage() {
           </select>
         </div>
       </div>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('optimizeRoute')} className={ds.btnSecondary}>
+          <Route className="w-4 h-4" /> Optimize Route
+        </button>
+        <button onClick={() => handleAction('trackShipment')} className={ds.btnSecondary}>
+          <Package className="w-4 h-4" /> Track Shipment
+        </button>
+        <button onClick={() => handleAction('complianceCheck')} className={ds.btnSecondary}>
+          <ShieldCheck className="w-4 h-4" /> Compliance Check
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+      </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Artifact library */}
       {isLoading ? (

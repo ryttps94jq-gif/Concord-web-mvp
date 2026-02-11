@@ -1,7 +1,7 @@
 // server/domains/healthcare.js
 // Domain actions for healthcare: drug interaction checks, protocol matching, patient summaries.
 
-module.exports = function registerHealthcareActions(registerLensAction) {
+export default function registerHealthcareActions(registerLensAction) {
   /**
    * checkInteractions
    * Cross-reference the patient's current prescriptions for known drug-drug

@@ -1,4 +1,4 @@
-module.exports = function registerRealEstateActions(registerLensAction) {
+export default function registerRealEstateActions(registerLensAction) {
   registerLensAction("realestate", "capRate", async (ctx, artifact, params) => {
     const noi = artifact.data?.netOperatingIncome || params.noi || 0;
     const purchasePrice = artifact.data?.purchasePrice || params.purchasePrice || 0;

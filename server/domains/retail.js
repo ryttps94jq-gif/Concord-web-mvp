@@ -1,7 +1,7 @@
 // server/domains/retail.js
 // Domain actions for retail/CRM: reorder, pipeline, LTV, SLA checks.
 
-module.exports = function registerRetailActions(registerLensAction) {
+export default function registerRetailActions(registerLensAction) {
   /**
    * reorderCheck
    * Flag products that have fallen below their reorder point.

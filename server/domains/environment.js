@@ -1,4 +1,4 @@
-module.exports = function registerEnvironmentActions(registerLensAction) {
+export default function registerEnvironmentActions(registerLensAction) {
   registerLensAction("environment", "populationTrend", async (ctx, artifact, params) => {
     const surveys = artifact.data?.surveyData || [];
     if (surveys.length < 2) return { ok: true, trend: 'insufficient_data', surveys: surveys.length };

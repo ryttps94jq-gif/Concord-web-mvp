@@ -1405,6 +1405,7 @@ const STATE = {
   growth: null,          // growth OS state
   // v3: Generic lens artifact store (domain.type → artifact)
   lensArtifacts: new Map(), // artifactId → {id, domain, type, ownerId, title, data, meta, createdAt, updatedAt, version}
+  lensDomainIndex: new Map(), // domain → Set<artifactId> — O(1) domain lookup
   __chicken2: {
     enabled: true,
     mode: "full_blast",
@@ -2911,7 +2912,8 @@ function _serializeState() {
     listings: Array.from(STATE.listings.values()),
     entitlements: Array.from(STATE.entitlements.values()),
     transactions: Array.from(STATE.transactions.values()),
-    papers: Array.from(STATE.papers.values())
+    papers: Array.from(STATE.papers.values()),
+    lensArtifacts: Array.from(STATE.lensArtifacts.values()),
   };
 }
 
@@ -3019,6 +3021,12 @@ function _hydrateState(obj) {
 
   STATE.papers.clear();
   if (Array.isArray(obj.papers)) for (const p of obj.papers) if (p && p.id) STATE.papers.set(p.id, p);
+
+  // Lens artifacts
+  STATE.lensArtifacts.clear();
+  if (Array.isArray(obj.lensArtifacts)) for (const a of obj.lensArtifacts) if (a && a.id) STATE.lensArtifacts.set(a.id, a);
+  // Rebuild domain index
+  _rebuildLensDomainIndex();
 }
 
 
@@ -17636,6 +17644,34 @@ console.log("[Concord] Wave 4: Auto-Tagging & Visuals loaded");
 //   { id, domain, type, ownerId, title, data:{}, meta:{tags,status,visibility}, createdAt, updatedAt, version }
 // DTU exhaust is emitted automatically on every mutation.
 
+// ── Lens Domain Index Helpers ──────────────────────────────────────────────────
+// Maintain a secondary index: domain → Set<artifactId> for O(1) domain lookup
+function _rebuildLensDomainIndex() {
+  STATE.lensDomainIndex.clear();
+  for (const [id, art] of STATE.lensArtifacts) {
+    if (!STATE.lensDomainIndex.has(art.domain)) STATE.lensDomainIndex.set(art.domain, new Set());
+    STATE.lensDomainIndex.get(art.domain).add(id);
+  }
+}
+function _lensDomainIndexAdd(domain, id) {
+  if (!STATE.lensDomainIndex.has(domain)) STATE.lensDomainIndex.set(domain, new Set());
+  STATE.lensDomainIndex.get(domain).add(id);
+}
+function _lensDomainIndexRemove(domain, id) {
+  const set = STATE.lensDomainIndex.get(domain);
+  if (set) { set.delete(id); if (set.size === 0) STATE.lensDomainIndex.delete(domain); }
+}
+function _lensDomainArtifacts(domain) {
+  const ids = STATE.lensDomainIndex.get(domain);
+  if (!ids || ids.size === 0) return [];
+  const result = [];
+  for (const id of ids) {
+    const art = STATE.lensArtifacts.get(id);
+    if (art) result.push(art);
+  }
+  return result;
+}
+
 function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
   try {
     const dtuId = uid("dtu");
@@ -17661,8 +17697,8 @@ function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
 register("lens", "list", (ctx, input={}) => {
   const { domain, type, search, tags, status, limit=100, offset=0 } = input;
   if (!domain) return { ok: false, error: "domain required" };
-  let artifacts = Array.from(STATE.lensArtifacts.values())
-    .filter(a => a.domain === domain && (!type || a.type === type));
+  let artifacts = _lensDomainArtifacts(domain);
+  if (type) artifacts = artifacts.filter(a => a.type === type);
   if (search) {
     const q = String(search).toLowerCase();
     artifacts = artifacts.filter(a => (a.title||"").toLowerCase().includes(q) || JSON.stringify(a.data||{}).toLowerCase().includes(q));
@@ -17699,6 +17735,7 @@ register("lens", "create", (ctx, input={}) => {
     version: 1,
   };
   STATE.lensArtifacts.set(id, artifact);
+  _lensDomainIndexAdd(domain, id);
   saveStateDebounced();
   _lensEmitDTU(ctx, domain, "create", type, artifact);
   return { ok: true, artifact };
@@ -17726,6 +17763,7 @@ register("lens", "delete", (ctx, input={}) => {
   const artifact = STATE.lensArtifacts.get(id);
   if (!artifact) return { ok: false, error: "not found" };
   STATE.lensArtifacts.delete(id);
+  _lensDomainIndexRemove(artifact.domain, id);
   saveStateDebounced();
   _lensEmitDTU(ctx, artifact.domain, "delete", artifact.type, artifact);
   return { ok: true, deleted: id };
@@ -17741,7 +17779,9 @@ register("lens", "run", async (ctx, input={}) => {
   if (!handler) return { ok: false, error: `no handler for ${artifact.domain}.${action}` };
   const result = await handler(ctx, artifact, params);
   _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result?.ok });
-  return { ok: true, result };
+  // Run cross-lens pipelines (fire-and-forget)
+  const pipelineResults = _runLensPipelines(ctx, artifact.domain, action, artifact, result);
+  return { ok: true, result, pipelines: pipelineResults.length > 0 ? pipelineResults : undefined };
 });
 
 register("lens", "export", (ctx, input={}) => {
@@ -17751,7 +17791,321 @@ register("lens", "export", (ctx, input={}) => {
   if (!artifact) return { ok: false, error: "not found" };
   _lensEmitDTU(ctx, artifact.domain, "export", artifact.type, artifact, { format });
   if (format === "json") return { ok: true, format: "json", data: artifact };
+  if (format === "csv") return { ok: true, format: "csv", data: _lensExportCSV(artifact) };
+  if (format === "pdf") return { ok: true, format: "pdf", data: _lensExportPDFMarkup(artifact) };
+  if (format === "markdown" || format === "md") return { ok: true, format: "markdown", data: _lensExportMarkdown(artifact) };
   return { ok: false, error: `unsupported format: ${format}` };
+});
+
+// ── Export Formatters ──────────────────────────────────────────────────────────
+
+function _lensExportCSV(artifact) {
+  const rows = [];
+  // Header row with metadata fields
+  const metaFields = ["id", "domain", "type", "title", "status", "version", "createdAt", "updatedAt"];
+  const dataObj = artifact.data || {};
+  const dataKeys = Object.keys(dataObj).filter(k => {
+    const v = dataObj[k];
+    return v !== null && v !== undefined && typeof v !== "object";
+  });
+  const arrayKeys = Object.keys(dataObj).filter(k => Array.isArray(dataObj[k]));
+
+  // If the artifact has a primary array field (items, entries, cards, events, etc.), export that as rows
+  const primaryArrayKey = arrayKeys.find(k =>
+    ["items", "entries", "cards", "events", "records", "rows", "transactions", "posts", "tasks", "members", "claims", "stems", "sections", "nodes", "edges"].includes(k)
+  ) || arrayKeys[0];
+
+  if (primaryArrayKey && Array.isArray(dataObj[primaryArrayKey]) && dataObj[primaryArrayKey].length > 0) {
+    const items = dataObj[primaryArrayKey];
+    const itemKeys = new Set();
+    items.forEach(item => { if (item && typeof item === "object") Object.keys(item).forEach(k => itemKeys.add(k)); });
+    const cols = Array.from(itemKeys);
+    rows.push(cols.map(c => _csvEscape(c)).join(","));
+    items.forEach(item => {
+      if (!item || typeof item !== "object") return;
+      rows.push(cols.map(c => _csvEscape(item[c])).join(","));
+    });
+  } else {
+    // Flat export of all scalar fields
+    const allKeys = [...metaFields, ...dataKeys];
+    rows.push(allKeys.map(c => _csvEscape(c)).join(","));
+    const vals = allKeys.map(k => {
+      if (metaFields.includes(k)) {
+        if (k === "status") return _csvEscape(artifact.meta?.status);
+        return _csvEscape(artifact[k]);
+      }
+      return _csvEscape(dataObj[k]);
+    });
+    rows.push(vals.join(","));
+  }
+
+  return { csv: rows.join("\n"), rowCount: rows.length - 1, arrayField: primaryArrayKey || null };
+}
+
+function _csvEscape(val) {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function _lensExportPDFMarkup(artifact) {
+  // Generate a structured markup that a client-side PDF renderer can consume
+  const sections = [];
+  sections.push({ type: "title", text: artifact.title || "Untitled" });
+  sections.push({ type: "subtitle", text: `${artifact.domain} / ${artifact.type} — v${artifact.version || 1}` });
+  sections.push({ type: "meta", fields: [
+    { label: "ID", value: artifact.id },
+    { label: "Status", value: artifact.meta?.status || "draft" },
+    { label: "Created", value: artifact.createdAt },
+    { label: "Updated", value: artifact.updatedAt },
+    { label: "Tags", value: (artifact.meta?.tags || []).join(", ") || "none" },
+  ]});
+
+  const dataObj = artifact.data || {};
+  const scalarEntries = Object.entries(dataObj).filter(([, v]) => v !== null && v !== undefined && typeof v !== "object");
+  if (scalarEntries.length) {
+    sections.push({ type: "heading", text: "Properties" });
+    sections.push({ type: "table", headers: ["Field", "Value"], rows: scalarEntries.map(([k, v]) => [k, String(v)]) });
+  }
+
+  const arrayEntries = Object.entries(dataObj).filter(([, v]) => Array.isArray(v) && v.length > 0);
+  for (const [key, arr] of arrayEntries) {
+    sections.push({ type: "heading", text: key.charAt(0).toUpperCase() + key.slice(1) });
+    if (arr.length > 0 && typeof arr[0] === "object" && arr[0] !== null) {
+      const cols = [...new Set(arr.flatMap(item => Object.keys(item)))];
+      sections.push({
+        type: "table",
+        headers: cols,
+        rows: arr.slice(0, 100).map(item => cols.map(c => String(item[c] ?? "")))
+      });
+      if (arr.length > 100) sections.push({ type: "note", text: `... and ${arr.length - 100} more rows` });
+    } else {
+      sections.push({ type: "list", items: arr.slice(0, 100).map(String) });
+    }
+  }
+
+  const objectEntries = Object.entries(dataObj).filter(([, v]) => v && typeof v === "object" && !Array.isArray(v));
+  for (const [key, obj] of objectEntries) {
+    sections.push({ type: "heading", text: key.charAt(0).toUpperCase() + key.slice(1) });
+    const entries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined);
+    sections.push({ type: "table", headers: ["Field", "Value"], rows: entries.map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]) });
+  }
+
+  return { sections, pageInfo: { title: artifact.title, domain: artifact.domain, generatedAt: nowISO() } };
+}
+
+function _lensExportMarkdown(artifact) {
+  const lines = [];
+  lines.push(`# ${artifact.title || "Untitled"}`);
+  lines.push(`**Domain:** ${artifact.domain} | **Type:** ${artifact.type} | **Version:** ${artifact.version || 1}`);
+  lines.push(`**Status:** ${artifact.meta?.status || "draft"} | **Created:** ${artifact.createdAt} | **Updated:** ${artifact.updatedAt}`);
+  if (artifact.meta?.tags?.length) lines.push(`**Tags:** ${artifact.meta.tags.join(", ")}`);
+  lines.push("");
+
+  const dataObj = artifact.data || {};
+  const scalarEntries = Object.entries(dataObj).filter(([, v]) => v !== null && v !== undefined && typeof v !== "object");
+  if (scalarEntries.length) {
+    lines.push("## Properties");
+    lines.push("| Field | Value |");
+    lines.push("|-------|-------|");
+    scalarEntries.forEach(([k, v]) => lines.push(`| ${k} | ${String(v)} |`));
+    lines.push("");
+  }
+
+  const arrayEntries = Object.entries(dataObj).filter(([, v]) => Array.isArray(v) && v.length > 0);
+  for (const [key, arr] of arrayEntries) {
+    lines.push(`## ${key.charAt(0).toUpperCase() + key.slice(1)}`);
+    if (arr.length > 0 && typeof arr[0] === "object" && arr[0] !== null) {
+      const cols = [...new Set(arr.flatMap(item => Object.keys(item)))];
+      lines.push("| " + cols.join(" | ") + " |");
+      lines.push("| " + cols.map(() => "---").join(" | ") + " |");
+      arr.slice(0, 50).forEach(item => {
+        lines.push("| " + cols.map(c => String(item[c] ?? "").replace(/\|/g, "\\|")).join(" | ") + " |");
+      });
+      if (arr.length > 50) lines.push(`*... and ${arr.length - 50} more rows*`);
+    } else {
+      arr.slice(0, 50).forEach(item => lines.push(`- ${String(item)}`));
+    }
+    lines.push("");
+  }
+
+  return { markdown: lines.join("\n"), charCount: lines.join("\n").length };
+}
+
+// ── Cross-Lens DTU Integration Pipelines ──────────────────────────────────────
+// Pipeline registry: sourceDomain.event → [{targetDomain, transform, action}]
+const LENS_PIPELINES = new Map(); // key → handler[]
+
+function registerLensPipeline(sourceDomain, event, targetDomain, transform) {
+  const key = `${sourceDomain}.${event}`;
+  if (!LENS_PIPELINES.has(key)) LENS_PIPELINES.set(key, []);
+  LENS_PIPELINES.get(key).push({ targetDomain, transform });
+}
+
+function _runLensPipelines(ctx, sourceDomain, event, sourceArtifact, actionResult) {
+  const key = `${sourceDomain}.${event}`;
+  const pipelines = LENS_PIPELINES.get(key);
+  if (!pipelines || pipelines.length === 0) return [];
+  const emitted = [];
+  for (const { targetDomain, transform } of pipelines) {
+    try {
+      const output = transform(sourceArtifact, actionResult, ctx);
+      if (!output) continue;
+      // Output can be: { type, title, data, meta } to create an artifact,
+      // or { action, artifactId, params } to run an action on existing artifact
+      if (output.action && output.artifactId) {
+        // Run action on existing artifact in target domain
+        const targetArt = STATE.lensArtifacts.get(output.artifactId);
+        if (targetArt) {
+          const handler = LENS_ACTIONS.get(`${targetDomain}.${output.action}`);
+          if (handler) {
+            handler(ctx, targetArt, output.params || {}).catch(() => {});
+            emitted.push({ type: "action", targetDomain, action: output.action, artifactId: output.artifactId });
+          }
+        }
+      } else if (output.type) {
+        // Create new artifact in target domain
+        const id = uid("lart");
+        const artifact = {
+          id, domain: targetDomain, type: output.type,
+          ownerId: ctx.actor?.userId || "pipeline",
+          title: output.title || `Pipeline: ${sourceDomain} → ${targetDomain}`,
+          data: output.data || {},
+          meta: {
+            tags: [...(output.meta?.tags || []), `pipeline:${sourceDomain}`, `source:${sourceArtifact.id}`],
+            status: output.meta?.status || "active",
+            visibility: output.meta?.visibility || "private",
+            pipelineSource: { domain: sourceDomain, event, artifactId: sourceArtifact.id },
+          },
+          createdAt: nowISO(), updatedAt: nowISO(), version: 1,
+        };
+        STATE.lensArtifacts.set(id, artifact);
+        _lensDomainIndexAdd(targetDomain, id);
+        saveStateDebounced();
+        _lensEmitDTU(ctx, targetDomain, "pipeline_create", output.type, artifact, { sourceDomain, event });
+        emitted.push({ type: "create", targetDomain, artifactId: id, artifactType: output.type });
+      }
+    } catch (e) {
+      emitted.push({ type: "error", targetDomain, error: e.message });
+    }
+  }
+  return emitted;
+}
+
+// Register cross-lens pipelines
+
+// Healthcare → Insurance: When a healthcare artifact is analyzed, create an insurance claim draft
+registerLensPipeline("healthcare", "checkInteractions", "insurance", (src, result) => {
+  if (!result?.ok || !result?.interactions?.length) return null;
+  return {
+    type: "claim",
+    title: `Drug Interaction Alert: ${src.title}`,
+    data: { relatedMedications: src.data?.medications || [], interactions: result.interactions, severity: result.highestSeverity || "moderate", patientRef: src.data?.patientId },
+    meta: { status: "pending_review", tags: ["auto-generated", "drug-interaction"] }
+  };
+});
+
+// Finance → Accounting: When a finance simulation completes, create an accounting journal entry
+registerLensPipeline("finance", "simulate", "accounting", (src, result) => {
+  if (!result?.ok || !result?.simulation) return null;
+  const sim = result.simulation;
+  return {
+    type: "entry",
+    title: `Sim Result: ${src.title} (${sim.finalReturn > 0 ? "+" : ""}${(sim.finalReturn * 100).toFixed(1)}%)`,
+    data: { type: "simulation_record", amount: sim.finalValue, initialAmount: sim.initialValue, returnPct: sim.finalReturn, volatility: sim.annualizedVol, sharpeRatio: sim.sharpeRatio, simulatedAt: nowISO() },
+    meta: { status: "draft", tags: ["simulation", "auto-generated"] }
+  };
+});
+
+// Education → SRS: When education content is created, generate flashcards
+registerLensPipeline("education", "generate_quiz", "srs", (src, result) => {
+  if (!result?.ok || !result?.quiz?.questions?.length) return null;
+  return {
+    type: "deck",
+    title: `Study Deck: ${src.title}`,
+    data: { cards: result.quiz.questions.map((q, i) => ({ id: uid("card"), front: q.question || q.text, back: q.answer || q.correctAnswer || "", tags: [src.data?.subject || "general"], difficulty: q.difficulty || 0.5, interval: 1, repetitions: 0 })) },
+    meta: { status: "active", tags: ["education-pipeline", src.data?.subject || "general"] }
+  };
+});
+
+// Science → Paper: When a science experiment is analyzed, create a paper draft
+registerLensPipeline("science", "analyze_results", "paper", (src, result) => {
+  if (!result?.ok) return null;
+  return {
+    type: "research",
+    title: `Analysis: ${src.title}`,
+    data: { abstract: result.summary || `Analysis of ${src.title}`, claims: (result.findings || []).map(f => ({ text: f, validated: false })), methodology: src.data?.methodology, results: result },
+    meta: { status: "draft", tags: ["auto-generated", "science-pipeline"] }
+  };
+});
+
+// Events → Calendar: When an event is scheduled, create a calendar entry
+registerLensPipeline("events", "schedule", "calendar", (src, result) => {
+  if (!result?.ok) return null;
+  return {
+    type: "calendar",
+    title: `Event: ${src.title}`,
+    data: { events: [{ id: uid("evt"), title: src.title, start: src.data?.startDate || src.data?.date, end: src.data?.endDate, location: src.data?.venue || src.data?.location, notes: src.data?.description }] },
+    meta: { status: "active", tags: ["event-pipeline"] }
+  };
+});
+
+// Food → Healthcare: When a meal plan is analyzed, create a nutrition health record
+registerLensPipeline("food", "analyze_nutrition", "healthcare", (src, result) => {
+  if (!result?.ok || !result?.analysis) return null;
+  return {
+    type: "artifact",
+    title: `Nutrition Report: ${src.title}`,
+    data: { type: "nutrition_report", calories: result.analysis.totalCalories, macros: result.analysis.macroBreakdown, recommendations: result.analysis.recommendations, source: "food-pipeline" },
+    meta: { status: "active", tags: ["nutrition", "auto-generated"] }
+  };
+});
+
+// Manufacturing → Logistics: When inventory is updated, create a logistics shipment request
+registerLensPipeline("manufacturing", "update_inventory", "logistics", (src, result) => {
+  if (!result?.ok) return null;
+  const lowStock = (result.inventoryAlerts || []).filter(a => a.type === "low_stock");
+  if (lowStock.length === 0) return null;
+  return {
+    type: "shipment",
+    title: `Restock Request: ${lowStock.length} items`,
+    data: { items: lowStock.map(a => ({ sku: a.sku, name: a.name, currentQty: a.currentQty, reorderQty: a.reorderQty })), priority: "normal", source: "manufacturing-pipeline" },
+    meta: { status: "pending", tags: ["restock", "auto-generated"] }
+  };
+});
+
+// Fitness → Daily: When a workout is logged, create a daily journal entry
+registerLensPipeline("fitness", "log_workout", "daily", (src, result) => {
+  if (!result?.ok) return null;
+  return {
+    type: "entry",
+    title: `Workout: ${src.title}`,
+    data: { content: `Completed workout: ${src.title}. Duration: ${result.duration || "N/A"}. Calories: ${result.caloriesBurned || "N/A"}.`, mood: "energized", tags: ["fitness", "workout"], date: nowISO().substring(0, 10) },
+    meta: { status: "active", tags: ["fitness-pipeline"] }
+  };
+});
+
+// Legal → Government: When a legal document is filed, create a government compliance record
+registerLensPipeline("legal", "file_document", "government", (src, result) => {
+  if (!result?.ok) return null;
+  return {
+    type: "record",
+    title: `Filing: ${src.title}`,
+    data: { documentType: src.data?.documentType, filingDate: nowISO(), status: "filed", referenceId: src.id, jurisdiction: src.data?.jurisdiction },
+    meta: { status: "active", tags: ["legal-filing", "compliance"] }
+  };
+});
+
+// Security → Aviation: When a security scan completes, update aviation safety records
+registerLensPipeline("security", "run_scan", "aviation", (src, result) => {
+  if (!result?.ok || !result?.vulnerabilities?.length) return null;
+  return {
+    type: "record",
+    title: `Security Alert: ${result.vulnerabilities.length} findings`,
+    data: { scanDate: nowISO(), findings: result.vulnerabilities, severity: result.highestSeverity, source: "security-scan", affectedSystems: result.affectedSystems },
+    meta: { status: "review_required", tags: ["security-pipeline", "safety"] }
+  };
 });
 
 register("lens", "bulkCreate", (ctx, input={}) => {
@@ -17769,6 +18123,7 @@ register("lens", "bulkCreate", (ctx, input={}) => {
       createdAt: nowISO(), updatedAt: nowISO(), version: 1,
     };
     STATE.lensArtifacts.set(id, artifact);
+    _lensDomainIndexAdd(domain, id);
     created.push(artifact);
   }
   saveStateDebounced();
@@ -17815,6 +18170,27 @@ app.get("/api/lens/:domain/:id/export", async (req, res) => {
 app.post("/api/lens/:domain/bulk", async (req, res) => {
   const ctx = makeCtx(req);
   res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
+});
+
+// Pipeline introspection endpoint
+app.get("/api/lens/pipelines", (req, res) => {
+  const pipelines = [];
+  for (const [key, handlers] of LENS_PIPELINES) {
+    const [sourceDomain, event] = key.split(".");
+    for (const h of handlers) {
+      pipelines.push({ sourceDomain, event, targetDomain: h.targetDomain });
+    }
+  }
+  res.json({ ok: true, pipelines, count: pipelines.length });
+});
+
+// Domain index stats endpoint
+app.get("/api/lens/stats", (req, res) => {
+  const domains = {};
+  for (const [domain, ids] of STATE.lensDomainIndex) {
+    domains[domain] = ids.size;
+  }
+  res.json({ ok: true, domains, totalArtifacts: STATE.lensArtifacts.size, domainCount: STATE.lensDomainIndex.size });
 });
 
 // ── Domain-Specific Lens Action Engines ──────────────────────────────────────
@@ -17896,6 +18272,7 @@ registerLensAction("reasoning", "fork", async (ctx, artifact, params) => {
   const fork = { ...JSON.parse(JSON.stringify(artifact)), id: forkId, title: `${artifact.title} (fork)`, createdAt: nowISO(), updatedAt: nowISO(), version: 1 };
   fork.data.forkedFrom = artifact.id;
   STATE.lensArtifacts.set(forkId, fork);
+  _lensDomainIndexAdd(fork.domain, forkId);
   saveStateDebounced();
   return { ok: true, fork };
 });
@@ -18481,8 +18858,7 @@ registerLensAction("daily", "analyze", async (ctx, artifact, params) => {
   return { ok: true, analysis: { mood: mood || detectedMood, detectedMood, sentimentScore, moodScores, themes: tags, wordCount: words.length, analyzedAt: nowISO() } };
 });
 registerLensAction("daily", "detect_patterns", async (ctx, artifact, params) => {
-  const allEntries = [];
-  for (const [, art] of STATE.lensArtifacts) { if (art.domain === "daily") allEntries.push(art); }
+  const allEntries = _lensDomainArtifacts("daily");
   const tagFrequency = {};
   const moodFrequency = {};
   const tagCooccurrence = {};
@@ -18529,8 +18905,7 @@ registerLensAction("daily", "detect_patterns", async (ctx, artifact, params) => 
   return { ok: true, patterns, cooccurrences, moodDistribution: moodFrequency, totalEntriesAnalyzed: allEntries.length, detectedAt: nowISO() };
 });
 registerLensAction("daily", "generate_insights", async (ctx, artifact, params) => {
-  const allEntries = [];
-  for (const [, art] of STATE.lensArtifacts) { if (art.domain === "daily") allEntries.push(art); }
+  const allEntries = _lensDomainArtifacts("daily");
   const currentTags = artifact.data?.tags || [];
   const currentMood = artifact.data?.mood || null;
   const insights = [];
@@ -18803,8 +19178,7 @@ registerLensAction("feed", "personalize", async (ctx, artifact, params) => {
   const tagFrequency = {};
   const authorAffinity = {};
   let totalInteractions = 0;
-  for (const [, art] of STATE.lensArtifacts) {
-    if (art.domain !== "feed") continue;
+  for (const art of _lensDomainArtifacts("feed")) {
     const artTags = art.data?.tags || [];
     const author = art.data?.authorId || art.meta?.createdBy || "";
     if (art.data?.likedBy?.includes(userId) || (art.data?.likes > 0 && art.meta?.lastLikedBy === userId)) {
@@ -18848,8 +19222,7 @@ registerLensAction("feed", "personalize", async (ctx, artifact, params) => {
 registerLensAction("feed", "cluster_topics", async (ctx, artifact, params) => {
   const tagCounts = {};
   const tagPosts = {};
-  for (const [, art] of STATE.lensArtifacts) {
-    if (art.domain !== "feed") continue;
+  for (const art of _lensDomainArtifacts("feed")) {
     (art.data?.tags || []).forEach(t => {
       tagCounts[t] = (tagCounts[t] || 0) + 1;
       if (!tagPosts[t]) tagPosts[t] = [];
@@ -18857,8 +19230,7 @@ registerLensAction("feed", "cluster_topics", async (ctx, artifact, params) => {
     });
   }
   const tagCooccurrence = {};
-  for (const [, art] of STATE.lensArtifacts) {
-    if (art.domain !== "feed") continue;
+  for (const art of _lensDomainArtifacts("feed")) {
     const artTags = art.data?.tags || [];
     for (let i = 0; i < artTags.length; i++) {
       for (let j = i + 1; j < artTags.length; j++) {
@@ -19346,9 +19718,12 @@ registerLensAction("srs", "optimize_intervals", async (ctx, artifact, params) =>
 registerLensAction("srs", "generate_cards_from_dtus", async (ctx, artifact, params) => {
   // Pull DTU data from STATE to generate meaningful cards
   const dtus = [];
-  for (const [, art] of STATE.lensArtifacts) {
-    if (art.domain === "srs") continue;
-    if (art.data?.title || art.title) dtus.push(art);
+  for (const [domain, ids] of STATE.lensDomainIndex) {
+    if (domain === "srs") continue;
+    for (const id of ids) {
+      const art = STATE.lensArtifacts.get(id);
+      if (art && (art.data?.title || art.title)) dtus.push(art);
+    }
   }
   const count = Math.min(params.count || 5, dtus.length || 5);
   const sourceDtus = dtus.slice(-count);
@@ -19551,7 +19926,7 @@ registerLensAction("game", "balance", async (ctx, artifact, params) => {
 });
 
 // Load all super-lens domain action modules
-const domainModules = require('./domains');
+const { default: domainModules } = await import('./domains/index.js');
 domainModules.forEach(mod => mod(registerLensAction));
 
 console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains)`);

@@ -26,6 +26,7 @@ import {
   User,
   Layers,
 } from 'lucide-react';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -106,10 +107,13 @@ export default function EducationLensPage() {
   const [formSemester, setFormSemester] = useState('');
   const [formCredits, setFormCredits] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, create, update, remove } = useLensData<EducationArtifact>('education', 'artifact', {
     seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
+
+  const runAction = useRunArtifact('education');
 
   /* ---------- derived ---------- */
 
@@ -192,6 +196,17 @@ export default function EducationLensPage() {
     setShowEditor(false);
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   /* ---------- render ---------- */
 
   return (
@@ -261,8 +276,19 @@ export default function EducationLensPage() {
               <option value="all">All statuses</option>
               {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
           </div>
         </div>
+
+        {actionResult && (
+          <div className={ds.panel}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className={ds.heading3}>Action Result</h3>
+              <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+            </div>
+            <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+          </div>
+        )}
 
         {isLoading ? (
           <p className={`${ds.textMuted} text-center py-12`}>Loading records...</p>

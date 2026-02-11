@@ -1,4 +1,4 @@
-module.exports = function registerFitnessActions(registerLensAction) {
+export default function registerFitnessActions(registerLensAction) {
   registerLensAction("fitness", "progressionCalc", async (ctx, artifact, params) => {
     const exercises = artifact.data?.exercises || [];
     const recommendations = exercises.map(ex => {

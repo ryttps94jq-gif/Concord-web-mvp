@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Scale,
@@ -111,10 +112,13 @@ export default function LegalLensPage() {
   const [formDueDate, setFormDueDate] = useState('');
   const [formValue, setFormValue] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, create, update, remove } = useLensData<LegalArtifact>('legal', 'artifact', {
     seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
+
+  const runAction = useRunArtifact('legal');
 
   /* ---------- derived ---------- */
 
@@ -190,6 +194,17 @@ export default function LegalLensPage() {
 
   const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   /* ---------- render ---------- */
 
   return (
@@ -253,6 +268,30 @@ export default function LegalLensPage() {
           <p className={ds.textMuted}>Total Value at Stake</p>
         </div>
       </div>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('conflictCheck')} className={ds.btnSecondary}>
+          <ShieldCheck className="w-4 h-4" /> Conflict Check
+        </button>
+        <button onClick={() => handleAction('deadlineAudit')} className={ds.btnSecondary}>
+          <Clock className="w-4 h-4" /> Deadline Audit
+        </button>
+        <button onClick={() => handleAction('generateBrief')} className={ds.btnSecondary}>
+          <BookOpen className="w-4 h-4" /> Generate Brief
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+      </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Artifact Library */}
       <section className={ds.panel}>

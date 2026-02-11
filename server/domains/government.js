@@ -1,4 +1,4 @@
-module.exports = function registerGovernmentActions(registerLensAction) {
+export default function registerGovernmentActions(registerLensAction) {
   registerLensAction("government", "permitTimeline", async (ctx, artifact, params) => {
     const applicationDate = artifact.data?.applicationDate ? new Date(artifact.data.applicationDate) : null;
     const approvalDate = artifact.data?.approvalDate ? new Date(artifact.data.approvalDate) : null;

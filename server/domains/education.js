@@ -1,7 +1,7 @@
 // server/domains/education.js
 // Domain actions for education: grading, attendance, progress tracking, schedule conflicts.
 
-module.exports = function registerEducationActions(registerLensAction) {
+export default function registerEducationActions(registerLensAction) {
   /**
    * gradeCalculation
    * Compute weighted grades from assignment categories and scores.

@@ -1,4 +1,4 @@
-module.exports = function registerAviationActions(registerLensAction) {
+export default function registerAviationActions(registerLensAction) {
   registerLensAction("aviation", "currencyCheck", async (ctx, artifact, params) => {
     const certifications = artifact.data?.certifications || [];
     const medicalExpiry = artifact.data?.medicalExpiry ? new Date(artifact.data.medicalExpiry) : null;

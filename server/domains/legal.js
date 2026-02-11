@@ -1,4 +1,4 @@
-module.exports = function registerLegalActions(registerLensAction) {
+export default function registerLegalActions(registerLensAction) {
   registerLensAction("legal", "deadlineCheck", async (ctx, artifact, params) => {
     const now = new Date();
     const items = artifact.data?.items || [];

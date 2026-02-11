@@ -34,6 +34,7 @@ import {
   Leaf,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -167,12 +168,15 @@ export default function FoodLensPage() {
   const [formShiftStart, setFormShiftStart] = useState('');
   const [formShiftEnd, setFormShiftEnd] = useState('');
   const [formStation, setFormStation] = useState('Grill');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Recipe';
 
   const { items, isLoading, create, update, remove } = useLensData<FoodArtifact>('food', activeArtifactType, {
     seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
+
+  const runAction = useRunArtifact('food');
 
   const filtered = useMemo(() => {
     let result = items;
@@ -243,6 +247,17 @@ export default function FoodLensPage() {
     setEditorOpen(false);
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // Domain actions
   // ---------------------------------------------------------------------------
@@ -301,7 +316,18 @@ export default function FoodLensPage() {
         </select>
         <button onClick={() => { setSearchQuery(''); setFilterStatus('all'); }} className={ds.btnGhost}><Filter className="w-4 h-4" /> Clear</button>
         <button onClick={openCreate} className={ds.btnPrimary}><Plus className="w-4 h-4" /> New {activeArtifactType}</button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {isLoading ? (
         <div className={cn(ds.panel, 'text-center py-12')}><p className={ds.textMuted}>Loading {activeTab}...</p></div>

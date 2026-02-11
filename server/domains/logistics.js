@@ -1,7 +1,7 @@
 // server/domains/logistics.js
 // Domain actions for logistics: route optimization, HOS compliance, vehicle maintenance, inventory audit.
 
-module.exports = function registerLogisticsActions(registerLensAction) {
+export default function registerLogisticsActions(registerLensAction) {
   /**
    * optimizeRoute
    * Reorder delivery stops for shortest total distance using nearest-neighbor heuristic.

@@ -30,6 +30,7 @@ import {
   ArrowUpRight,
   Briefcase,
 } from 'lucide-react';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -124,10 +125,13 @@ export default function RealEstateLensPage() {
   const [formDate, setFormDate] = useState('');
   const [formRoi, setFormRoi] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, create, update, remove } = useLensData<RealEstateArtifact>('realestate', 'artifact', {
     seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
+
+  const runAction = useRunArtifact('realestate');
 
   /* ---------- derived ---------- */
 
@@ -224,6 +228,17 @@ export default function RealEstateLensPage() {
     setShowEditor(false);
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   const formatCurrency = (v: number) => {
     if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
     if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
@@ -299,8 +314,19 @@ export default function RealEstateLensPage() {
               <option value="all">All statuses</option>
               {currentStatuses.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
             </select>
+            {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
           </div>
         </div>
+
+        {actionResult && (
+          <div className={ds.panel}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className={ds.heading3}>Action Result</h3>
+              <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+            </div>
+            <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+          </div>
+        )}
 
         {isLoading ? (
           <p className={`${ds.textMuted} text-center py-12`}>Loading...</p>

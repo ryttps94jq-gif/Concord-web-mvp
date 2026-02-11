@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Heart, FileText, HandHelping, Megaphone, BarChart3, Users,
@@ -98,12 +99,15 @@ export default function NonprofitLensPage() {
   const [formField2, setFormField2] = useState('');
   const [formField3, setFormField3] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const currentType = MODE_TABS.find(t => t.id === mode)!.type;
 
   const { items, isLoading, create, update, remove } = useLensData('nonprofit', currentType, {
     seed: SEED[currentType],
   });
+
+  const runAction = useRunArtifact('nonprofit');
 
   const filtered = useMemo(() => {
     let list = items;
@@ -155,6 +159,17 @@ export default function NonprofitLensPage() {
     resetForm();
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editing || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   const fieldLabels: Record<ModeTab, [string, string, string, string]> = {
     donors: ['Donor Type', 'Total Given ($)', 'Frequency', 'Notes'],
     grants: ['Funder', 'Amount ($)', 'Program Area', 'Notes'],
@@ -184,6 +199,7 @@ export default function NonprofitLensPage() {
         <button onClick={openCreate} className={ds.btnPrimary}>
           <Plus className="w-4 h-4" /> New {currentType}
         </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </header>
 
       {/* Mode Tabs */}
@@ -308,6 +324,16 @@ export default function NonprofitLensPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
         </div>
       )}
 

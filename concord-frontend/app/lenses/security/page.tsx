@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState } from 'react';
 import {
@@ -52,6 +53,7 @@ export default function SecurityLensPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const activeTab = MODE_TABS.find(t => t.key === activeMode)!;
 
@@ -59,6 +61,7 @@ export default function SecurityLensPage() {
     search: searchQuery || undefined,
     status: statusFilter || undefined,
   });
+  const runAction = useRunArtifact('security');
 
   // Form state
   const [formTitle, setFormTitle] = useState('');
@@ -114,6 +117,17 @@ export default function SecurityLensPage() {
     resetForm();
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingId || items[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   // Dashboard metrics
   const totalItems = items.length;
   const activeItems = items.filter(i => ['active', 'responding', 'investigating', 'open', 'monitoring', 'identified'].includes(i.meta?.status)).length;
@@ -136,6 +150,7 @@ export default function SecurityLensPage() {
         <button onClick={() => { resetForm(); setShowEditor(true); }} className={ds.btnPrimary}>
           <Plus className="w-4 h-4" /> New {activeTab.type}
         </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </header>
 
       {/* Mode Tabs */}
@@ -235,6 +250,16 @@ export default function SecurityLensPage() {
           })
         )}
       </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Editor Modal */}
       {showEditor && (

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
   Wheat,
@@ -169,6 +170,7 @@ export default function AgricultureLensPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LensItem<AgricultureArtifact> | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   // Editor form state
   const [formName, setFormName] = useState('');
@@ -223,6 +225,8 @@ export default function AgricultureLensPage() {
   const { items, isLoading, create, update, remove } = useLensData<AgricultureArtifact>('agriculture', activeArtifactType, {
     seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
+
+  const runAction = useRunArtifact('agriculture');
 
   const filtered = useMemo(() => {
     let result = items;
@@ -306,6 +310,17 @@ export default function AgricultureLensPage() {
     const payload = { title: formName, data: base as Partial<AgricultureArtifact>, meta: { status: formStatus, tags: [activeArtifactType] } };
     if (editingItem) { await update(editingItem.id, payload); } else { await create(payload); }
     setEditorOpen(false);
+  };
+
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -668,6 +683,7 @@ export default function AgricultureLensPage() {
           <button onClick={() => setShowDashboard(!showDashboard)} className={cn(showDashboard ? ds.btnPrimary : ds.btnSecondary)}>
             <BarChart3 className="w-4 h-4" /> Dashboard
           </button>
+          {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
         </div>
       </header>
 
@@ -690,6 +706,17 @@ export default function AgricultureLensPage() {
       </nav>
 
       {showDashboard ? renderDashboard() : renderLibrary()}
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
+
       {renderEditor()}
     </div>
   );

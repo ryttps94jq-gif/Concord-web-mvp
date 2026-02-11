@@ -1,7 +1,7 @@
 // server/domains/accounting.js
 // Domain actions for accounting: trial balance, P&L, invoice aging, budget variance, rent roll.
 
-module.exports = function registerAccountingActions(registerLensAction) {
+export default function registerAccountingActions(registerLensAction) {
   /**
    * trialBalance
    * Generate a trial balance from the chart of accounts.

@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState } from 'react';
 import {
@@ -44,6 +45,10 @@ export default function AviationLensPage() {
     status: statusFilter || undefined,
   });
 
+  const runAction = useRunArtifact('aviation');
+  const editingItem = items.find(i => i.id === editingId) || null;
+  const filtered = items;
+
   // Form state
   const [formTitle, setFormTitle] = useState('');
   const [formDate, setFormDate] = useState('');
@@ -53,6 +58,7 @@ export default function AviationLensPage() {
   const [formHours, setFormHours] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formStatus, setFormStatus] = useState('');
+  const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const resetForm = () => {
     setFormTitle(''); setFormDate(''); setFormDeparture(''); setFormArrival('');
@@ -101,6 +107,17 @@ export default function AviationLensPage() {
     resetForm();
   };
 
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+    if (!targetId) return;
+    try {
+      const result = await runAction.mutateAsync({ id: targetId, action });
+      setActionResult(result.result as Record<string, unknown>);
+    } catch (err) {
+      console.error('Action failed:', err);
+    }
+  };
+
   // Dashboard
   const totalItems = items.length;
   const activeItems = items.filter(i => i.meta?.status === 'active').length;
@@ -121,6 +138,7 @@ export default function AviationLensPage() {
         <button onClick={() => { resetForm(); setShowEditor(true); }} className={ds.btnPrimary}>
           <Plus className="w-4 h-4" /> New {activeTab.type}
         </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </header>
 
       {/* Mode Tabs */}
@@ -220,6 +238,16 @@ export default function AviationLensPage() {
           })
         )}
       </div>
+
+      {actionResult && (
+        <div className={ds.panel}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={ds.heading3}>Action Result</h3>
+            <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
+          </div>
+          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Editor Modal */}
       {showEditor && (
