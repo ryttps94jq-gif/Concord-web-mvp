@@ -88,6 +88,24 @@ function validateEnvironment() {
     }
   }
 
+  // ---- Security dependencies mandatory in production ----
+  if (isProduction) {
+    const securityDeps = [
+      { name: "helmet", ref: helmet, pkg: "helmet" },
+      { name: "rateLimit", ref: rateLimit, pkg: "express-rate-limit" },
+      { name: "bcrypt", ref: bcrypt, pkg: "bcryptjs" },
+      { name: "jwt", ref: jwt, pkg: "jsonwebtoken" },
+    ];
+    for (const dep of securityDeps) {
+      if (!dep.ref) {
+        errors.push(`Security dependency '${dep.name}' (${dep.pkg}) is required in production but failed to load. Run: npm install ${dep.pkg}`);
+      }
+    }
+    if (!Database) {
+      warnings.push("better-sqlite3 not available in production — falling back to JSON persistence. Install better-sqlite3 for production-grade storage.");
+    }
+  }
+
   // Check recommended vars
   for (const envVar of RECOMMENDED_ENV) {
     if (!process.env[envVar]) {
@@ -4200,10 +4218,30 @@ async function tryInitNativeWebSockets(server) {
 // ---- end realtime ----
 
 
-// ---- persistence (optional but recommended) ----
+// ---- persistence ----
+// Production: SQLite (if available). Dev fallback: JSON file.
 // This prevents "DTUs disappeared" when server restarts or hot-reloads.
 const STATE_PATH = process.env.STATE_PATH || path.join(process.cwd(), "concord_state.json");
+const IS_PRODUCTION = (process.env.NODE_ENV || "").toLowerCase() === "production";
+const USE_SQLITE_STATE = db && (IS_PRODUCTION || process.env.STATE_BACKEND === "sqlite");
 let _saveTimer = null;
+
+// Create state table in SQLite if available
+if (USE_SQLITE_STATE) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS state_snapshots (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        data TEXT NOT NULL,
+        version TEXT,
+        saved_at TEXT NOT NULL
+      );
+    `);
+    console.log("[Persistence] SQLite state backend enabled (production mode)");
+  } catch (e) {
+    console.error("[Persistence] Failed to create state table:", e.message);
+  }
+}
 
 function _serializeState() {
   const toArr = (m) => Array.from(m.values());
@@ -4351,31 +4389,59 @@ function _hydrateState(obj) {
 }
 
 
-function loadStateFromDisk() {
+function _normalizeSettingsDefaults() {
   try {
-    if (!fs.existsSync(STATE_PATH)) return { ok: true, loaded: false, path: STATE_PATH };
+    if (STATE && STATE.settings) {
+      if (typeof STATE.settings.llmDefault !== "boolean") STATE.settings.llmDefault = DEFAULT_LLM_ON;
+      if (typeof STATE.settings.interpretiveTruthMin !== "number") STATE.settings.interpretiveTruthMin = 0.35;
+      if (typeof STATE.settings.interpretiveTruthMax !== "number") STATE.settings.interpretiveTruthMax = 0.85;
+      if (typeof STATE.settings.speculativeGateEnabled !== "boolean") STATE.settings.speculativeGateEnabled = false;
+      if (typeof STATE.settings.canonicalOnly !== "boolean") STATE.settings.canonicalOnly = true;
+    }
+  } catch {}
+}
+
+function loadStateFromDisk() {
+  // Try SQLite first in production
+  if (USE_SQLITE_STATE) {
+    try {
+      const row = db.prepare("SELECT data, saved_at FROM state_snapshots WHERE id = 1").get();
+      if (row) {
+        const obj = JSON.parse(row.data);
+        _hydrateState(obj);
+        _normalizeSettingsDefaults();
+        console.log("[Persistence] State loaded from SQLite");
+        return { ok: true, loaded: true, backend: "sqlite", savedAt: row.saved_at };
+      }
+      // No snapshot yet — fall through to JSON check for migration
+      console.log("[Persistence] No SQLite snapshot yet, checking JSON for migration...");
+    } catch (e) {
+      console.error("[Persistence] SQLite state load failed:", e.message);
+    }
+  }
+
+  // JSON file fallback (dev mode or migration source)
+  try {
+    if (!fs.existsSync(STATE_PATH)) return { ok: true, loaded: false, path: STATE_PATH, backend: "json" };
     const raw = fs.readFileSync(STATE_PATH, "utf-8");
     const obj = JSON.parse(raw);
     _hydrateState(obj);
-    // Normalize settings defaults that depend on environment
-    try {
-      if (STATE && STATE.settings) {
-        // If not explicitly set, default LLM usage based on env key presence / LLM_DEFAULT override
-        if (typeof STATE.settings.llmDefault !== "boolean") STATE.settings.llmDefault = DEFAULT_LLM_ON;
+    _normalizeSettingsDefaults();
 
-        // Truth calibration defaults
-        if (typeof STATE.settings.interpretiveTruthMin !== "number") STATE.settings.interpretiveTruthMin = 0.35;
-        if (typeof STATE.settings.interpretiveTruthMax !== "number") STATE.settings.interpretiveTruthMax = 0.85;
-        if (typeof STATE.settings.speculativeGateEnabled !== "boolean") STATE.settings.speculativeGateEnabled = false;
-
-        // Canonical-only is a safe default; keep it true unless explicitly set false
-        if (typeof STATE.settings.canonicalOnly !== "boolean") STATE.settings.canonicalOnly = true;
+    // If SQLite is available and we loaded from JSON, migrate data to SQLite
+    if (USE_SQLITE_STATE) {
+      try {
+        const stmt = db.prepare("INSERT OR REPLACE INTO state_snapshots (id, data, version, saved_at) VALUES (1, ?, ?, ?)");
+        stmt.run(raw, obj.version || VERSION, nowISO());
+        console.log("[Persistence] Migrated JSON state to SQLite");
+      } catch (migErr) {
+        console.error("[Persistence] Migration to SQLite failed:", migErr.message);
       }
-    } catch {}
+    }
 
-    return { ok: true, loaded: true, path: STATE_PATH, savedAt: obj.savedAt || null };
+    return { ok: true, loaded: true, path: STATE_PATH, backend: USE_SQLITE_STATE ? "sqlite (migrated)" : "json", savedAt: obj.savedAt || null };
   } catch (e) {
-    return { ok: false, loaded: false, path: STATE_PATH, error: String(e?.message || e) };
+    return { ok: false, loaded: false, path: STATE_PATH, backend: "json", error: String(e?.message || e) };
   }
 }
 
@@ -4384,16 +4450,23 @@ function saveStateDebounced() {
     clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       try {
-        // ---- Atomic Write (Category 3: Data Integrity) ----
-        // Write to temp file then rename to prevent corrupt partial writes on crash
-        const tmpPath = STATE_PATH + ".tmp";
-        const data = JSON.stringify(_serializeState(), null, 2);
-        fs.writeFileSync(tmpPath, data, "utf-8");
-        fs.renameSync(tmpPath, STATE_PATH); // Atomic on POSIX
+        const data = JSON.stringify(_serializeState(), null, USE_SQLITE_STATE ? 0 : 2);
+
+        if (USE_SQLITE_STATE) {
+          // SQLite: single-row upsert inside WAL transaction — crash-safe
+          const stmt = db.prepare("INSERT OR REPLACE INTO state_snapshots (id, data, version, saved_at) VALUES (1, ?, ?, ?)");
+          stmt.run(data, VERSION, nowISO());
+        } else {
+          // JSON: atomic write via temp file + rename
+          const tmpPath = STATE_PATH + ".tmp";
+          fs.writeFileSync(tmpPath, data, "utf-8");
+          fs.renameSync(tmpPath, STATE_PATH);
+        }
       } catch (e) {
         console.error("STATE save failed:", e);
-        // Attempt cleanup of temp file
-        try { fs.unlinkSync(STATE_PATH + ".tmp"); } catch {}
+        if (!USE_SQLITE_STATE) {
+          try { fs.unlinkSync(STATE_PATH + ".tmp"); } catch {}
+        }
       }
     }, 250);
   } catch {}
@@ -15508,6 +15581,10 @@ app.get("/api/status", (req, res) => {
         type: db ? "sqlite" : "json",
         ready: db ? true : false,
         path: db ? DB_PATH : AUTH_PATH
+      },
+      stateBackend: {
+        type: USE_SQLITE_STATE ? "sqlite" : "json",
+        path: USE_SQLITE_STATE ? DB_PATH : STATE_PATH,
       },
       auth: {
         enabled: AUTH_ENABLED,
