@@ -205,7 +205,59 @@ import {
   getAmendmentHistory, getViolationHistory, getConstitutionMetrics,
 } from "./constitution.js";
 
-const EMERGENT_VERSION = "4.0.0";
+// ── Threat Surface Hardening (Risk Category 1) ──────────────────────────────
+
+import {
+  COST_TIERS, ALL_COST_TIERS,
+  registerRouteCost, registerRouteCosts, getRouteCost,
+  checkRateLimit, checkCostBudget,
+  auditEndpoints, analyzeUserActivity,
+  blockUser, unblockUser, updateThreatConfig, getThreatMetrics,
+} from "./threat-surface.js";
+
+// ── Injection Defense (Risk Category 2) ─────────────────────────────────────
+
+import {
+  INJECTION_TYPES, ALL_INJECTION_TYPES, THREAT_LEVELS,
+  scanContent, scanDtu, checkCrossLensLeak,
+  addCustomPattern, getInjectionMetrics, getInjectionIncidents,
+} from "./injection-defense.js";
+
+// ── Drift Monitor (Risk Category 3) ─────────────────────────────────────────
+
+import {
+  DRIFT_TYPES, ALL_DRIFT_TYPES, DRIFT_SEVERITY,
+  runDriftScan, getDriftAlerts, updateDriftThresholds,
+  getDriftMetrics, getSnapshots,
+} from "./drift-monitor.js";
+
+// ── Schema Guard (Risk Category 4) ──────────────────────────────────────────
+
+import {
+  CURRENT_DTU_SCHEMA_VERSION,
+  validateDtuSchema, migrateDtu, scanForMigrations,
+  validateMergeResult, recordTimestamp, verifyEventOrdering,
+  getSchemaGuardMetrics,
+} from "./schema-guard.js";
+
+// ── Deep Health (Risk Category 5) ───────────────────────────────────────────
+
+import {
+  HEALTH_STATUS,
+  runDeepHealthCheck, getHealthHistory, getDegradationHistory,
+  updateHealthThresholds, getDeepHealthMetrics,
+} from "./deep-health.js";
+
+// ── Content Shield (Risk Category 6) ────────────────────────────────────────
+
+import {
+  PII_TYPES, ALL_PII_TYPES, ADVICE_DOMAINS, ALL_ADVICE_DOMAINS, CONTENT_RISK,
+  detectPii, detectCopyrightSignals, checkAdviceFraming, scanContentFull,
+  setDisclaimer, getDisclaimer, getAllDisclaimers,
+  updateContentShieldConfig, getContentShieldMetrics,
+} from "./content-shield.js";
+
+const EMERGENT_VERSION = "5.0.0";
 
 /**
  * Initialize the Emergent Agent Governance system.
@@ -963,6 +1015,194 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get constitution metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // THREAT SURFACE HARDENING (Risk Category 1)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "threat.registerCost", (_ctx, input = {}) => {
+    return registerRouteCost(STATE, input.macroName, input.tier, input);
+  }, { description: "Register route cost tier", public: false });
+
+  register("emergent", "threat.registerCosts", (_ctx, input = {}) => {
+    return registerRouteCosts(STATE, input.costMap || {});
+  }, { description: "Bulk register route cost tiers", public: false });
+
+  register("emergent", "threat.checkRate", (_ctx, input = {}) => {
+    return checkRateLimit(STATE, input.userId, input.macroName);
+  }, { description: "Check tiered rate limit", public: true });
+
+  register("emergent", "threat.checkCost", (_ctx, input = {}) => {
+    return checkCostBudget(STATE, input.userId, input.macroName);
+  }, { description: "Check cost budget", public: true });
+
+  register("emergent", "threat.audit", (_ctx) => {
+    return auditEndpoints(STATE);
+  }, { description: "Audit endpoint protection", public: true });
+
+  register("emergent", "threat.analyze", (_ctx, input = {}) => {
+    return analyzeUserActivity(STATE, input.userId);
+  }, { description: "Analyze user for suspicious patterns", public: false });
+
+  register("emergent", "threat.block", (_ctx, input = {}) => {
+    return blockUser(STATE, input.userId, input.reason);
+  }, { description: "Temporarily block a user", public: false });
+
+  register("emergent", "threat.unblock", (_ctx, input = {}) => {
+    return unblockUser(STATE, input.userId);
+  }, { description: "Unblock a user", public: false });
+
+  register("emergent", "threat.config", (_ctx, input = {}) => {
+    return updateThreatConfig(STATE, input);
+  }, { description: "Update threat surface configuration", public: false });
+
+  register("emergent", "threat.metrics", (_ctx) => {
+    return getThreatMetrics(STATE);
+  }, { description: "Get threat surface metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INJECTION DEFENSE (Risk Category 2)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "injection.scan", (_ctx, input = {}) => {
+    return scanContent(STATE, input.content, input);
+  }, { description: "Scan content for injection attempts", public: false });
+
+  register("emergent", "injection.scanDtu", (_ctx, input = {}) => {
+    return scanDtu(STATE, input.dtu || input, input);
+  }, { description: "Scan DTU fields for injection", public: false });
+
+  register("emergent", "injection.crossLens", (_ctx, input = {}) => {
+    return checkCrossLensLeak(STATE, input.content, input.currentLens, input.allLenses || []);
+  }, { description: "Check cross-lens contamination", public: false });
+
+  register("emergent", "injection.addPattern", (_ctx, input = {}) => {
+    return addCustomPattern(STATE, input.pattern, input);
+  }, { description: "Add custom injection pattern", public: false });
+
+  register("emergent", "injection.incidents", (_ctx, input = {}) => {
+    return getInjectionIncidents(STATE, input);
+  }, { description: "Get injection incidents", public: true });
+
+  register("emergent", "injection.metrics", (_ctx) => {
+    return getInjectionMetrics(STATE);
+  }, { description: "Get injection defense metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DRIFT MONITOR (Risk Category 3)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "drift.scan", (_ctx) => {
+    return runDriftScan(STATE);
+  }, { description: "Run comprehensive drift scan", public: false });
+
+  register("emergent", "drift.alerts", (_ctx, input = {}) => {
+    return getDriftAlerts(STATE, input);
+  }, { description: "Get drift alerts", public: true });
+
+  register("emergent", "drift.thresholds", (_ctx, input = {}) => {
+    return updateDriftThresholds(STATE, input);
+  }, { description: "Update drift thresholds", public: false });
+
+  register("emergent", "drift.snapshots", (_ctx, input = {}) => {
+    return getSnapshots(STATE, input.count);
+  }, { description: "Get system snapshots", public: true });
+
+  register("emergent", "drift.metrics", (_ctx) => {
+    return getDriftMetrics(STATE);
+  }, { description: "Get drift monitor metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SCHEMA GUARD (Risk Category 4)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "schema.validate", (_ctx, input = {}) => {
+    return validateDtuSchema(STATE, input.dtu || input);
+  }, { description: "Validate DTU against schema", public: true });
+
+  register("emergent", "schema.migrate", (_ctx, input = {}) => {
+    return migrateDtu(STATE, input.dtu || input);
+  }, { description: "Migrate DTU to latest schema", public: false });
+
+  register("emergent", "schema.scanMigrations", (_ctx) => {
+    return scanForMigrations(STATE);
+  }, { description: "Scan for DTUs needing migration", public: true });
+
+  register("emergent", "schema.validateMerge", (_ctx, input = {}) => {
+    return validateMergeResult(STATE, input.before, input.after);
+  }, { description: "Validate merge result integrity", public: false });
+
+  register("emergent", "schema.recordTimestamp", (_ctx, input = {}) => {
+    return recordTimestamp(STATE, input.source, input.timestamp);
+  }, { description: "Record timestamp for skew detection", public: false });
+
+  register("emergent", "schema.verifyOrdering", (_ctx, input = {}) => {
+    return verifyEventOrdering(STATE, input.entityId);
+  }, { description: "Verify event ordering for entity", public: true });
+
+  register("emergent", "schema.metrics", (_ctx) => {
+    return getSchemaGuardMetrics(STATE);
+  }, { description: "Get schema guard metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DEEP HEALTH (Risk Category 5)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "health.deep", (_ctx) => {
+    return runDeepHealthCheck(STATE);
+  }, { description: "Run deep health check", public: true });
+
+  register("emergent", "health.history", (_ctx, input = {}) => {
+    return getHealthHistory(STATE, input.count);
+  }, { description: "Get health check history", public: true });
+
+  register("emergent", "health.degradations", (_ctx) => {
+    return getDegradationHistory(STATE);
+  }, { description: "Get degradation history", public: true });
+
+  register("emergent", "health.thresholds", (_ctx, input = {}) => {
+    return updateHealthThresholds(STATE, input);
+  }, { description: "Update health thresholds", public: false });
+
+  register("emergent", "health.metrics", (_ctx) => {
+    return getDeepHealthMetrics(STATE);
+  }, { description: "Get deep health metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTENT SHIELD (Risk Category 6)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "content.scan", (_ctx, input = {}) => {
+    return scanContentFull(STATE, input.content, input);
+  }, { description: "Full content scan (PII + copyright + advice)", public: false });
+
+  register("emergent", "content.pii", (_ctx, input = {}) => {
+    return detectPii(STATE, input.content, input);
+  }, { description: "Detect PII in content", public: false });
+
+  register("emergent", "content.copyright", (_ctx, input = {}) => {
+    return detectCopyrightSignals(STATE, input.content, input);
+  }, { description: "Detect copyright signals", public: false });
+
+  register("emergent", "content.advice", (_ctx, input = {}) => {
+    return checkAdviceFraming(STATE, input.content, input);
+  }, { description: "Check advice framing", public: false });
+
+  register("emergent", "content.setDisclaimer", (_ctx, input = {}) => {
+    return setDisclaimer(STATE, input.domain, input.text);
+  }, { description: "Set disclaimer for advice domain", public: false });
+
+  register("emergent", "content.disclaimers", (_ctx) => {
+    return getAllDisclaimers(STATE);
+  }, { description: "Get all disclaimers", public: true });
+
+  register("emergent", "content.config", (_ctx, input = {}) => {
+    return updateContentShieldConfig(STATE, input);
+  }, { description: "Update content shield config", public: false });
+
+  register("emergent", "content.metrics", (_ctx) => {
+    return getContentShieldMetrics(STATE);
+  }, { description: "Get content shield metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // AUDIT / STATUS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1030,6 +1270,17 @@ function init({ register, STATE, helpers }) {
       ruleTiers: ALL_RULE_TIERS,
       ruleCategories: Object.values(RULE_CATEGORIES),
       violationSeverities: Object.values(VIOLATION_SEVERITY),
+      // Hardening additions (risk categories 1-6)
+      costTiers: ALL_COST_TIERS,
+      injectionTypes: ALL_INJECTION_TYPES,
+      threatLevels: Object.values(THREAT_LEVELS),
+      driftTypes: ALL_DRIFT_TYPES,
+      driftSeverities: Object.values(DRIFT_SEVERITY),
+      dtuSchemaVersion: CURRENT_DTU_SCHEMA_VERSION,
+      healthStatuses: Object.values(HEALTH_STATUS),
+      piiTypes: ALL_PII_TYPES,
+      adviceDomains: ALL_ADVICE_DOMAINS,
+      contentRiskLevels: Object.values(CONTENT_RISK),
     };
   }, { description: "Get emergent system schema", public: true });
 
@@ -1037,13 +1288,13 @@ function init({ register, STATE, helpers }) {
   getConstitutionStore(STATE);
 
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 160,
+    macroCount: 210,
   };
 }
 
