@@ -1091,6 +1091,817 @@ function formatCrispResponse({ prompt: _prompt, mode: _mode, microDTUs, macroDTU
 
   return lines.join("\n").trim();
 }
+
+// ============================================================================
+// QUALITY PIPELINE PATTERNS (P1-P6) + Pattern Router
+// ============================================================================
+// These patterns run deterministically between DTU Context Selection and the
+// LLM call. They cost zero API tokens and compound quality downstream.
+// Pipeline: DTU Context → [Pattern Router → P1..P6] → Fused Context → LLM
+// ============================================================================
+
+// --- Session pattern history tracking (for variety mechanism) ---
+const _PATTERN_HISTORY = new Map(); // sessionId → [last 3 pattern names]
+
+function _trackPatternUsage(sessionId, patternNames) {
+  const history = _PATTERN_HISTORY.get(sessionId) || [];
+  history.push(...patternNames);
+  // Keep only last 3
+  while (history.length > 3) history.shift();
+  _PATTERN_HISTORY.set(sessionId, history);
+}
+
+function _getPatternHistory(sessionId) {
+  return _PATTERN_HISTORY.get(sessionId) || [];
+}
+
+// --- CRETI field projection rules by query intent (P2) ---
+const CRETI_PROJECTION_RULES = {
+  factual:      { context: true, reasoning: false, evidence: true,  tests: false, impact: false },
+  causal:       { context: true, reasoning: true,  evidence: true,  tests: false, impact: false },
+  procedural:   { context: false, reasoning: true,  evidence: false, tests: true,  impact: true  },
+  creative:     { context: true, reasoning: false, evidence: false, tests: false, impact: true  },
+  evaluative:   { context: true, reasoning: true,  evidence: true,  tests: true,  impact: true  },
+  exploratory:  { context: true, reasoning: true,  evidence: false, tests: false, impact: true  },
+  debug:        { context: true, reasoning: true,  evidence: true,  tests: true,  impact: false },
+  default:      { context: true, reasoning: true,  evidence: true,  tests: false, impact: false },
+};
+
+function _inferQueryIntent(prompt, mode) {
+  const p = String(prompt || "").toLowerCase();
+  if (mode === "debug") return "debug";
+  if (mode === "design") return "procedural";
+  if (/\b(why|cause|because|reason|led to|result of)\b/.test(p)) return "causal";
+  if (/\b(how to|steps|process|procedure|guide|method)\b/.test(p)) return "procedural";
+  if (/\b(create|imagine|story|design|brainstorm|invent)\b/.test(p)) return "creative";
+  if (/\b(compare|evaluate|pros|cons|trade-?off|better|worse|rank)\b/.test(p)) return "evaluative";
+  if (/\b(what is|define|explain|describe|who is|when did)\b/.test(p)) return "factual";
+  if (/\b(explore|consider|think about|wonder|curious)\b/.test(p)) return "exploratory";
+  return "default";
+}
+
+// ============================================================================
+// P1: Shadow DTU Distillation
+// ============================================================================
+// Cross-reference selected DTU context against STATE.shadowDtus to find hidden
+// reasoning anchors. Inject matched shadow DTU invariants as pre-resolved premises.
+
+function patternShadowDistillation(microSet, query) {
+  if (!STATE.shadowDtus || STATE.shadowDtus.size === 0) return { applied: false, premises: [], removedIds: new Set() };
+
+  const queryTokens = new Set(simpleTokens(String(query || "")).map(stemLite).filter(Boolean));
+  const microTags = new Set();
+  const microInvariants = new Set();
+
+  for (const d of microSet) {
+    if (Array.isArray(d?.tags)) d.tags.forEach(t => microTags.add(String(t).toLowerCase()));
+    if (Array.isArray(d?.core?.invariants)) d.core.invariants.forEach(i => microInvariants.add(_normAtom(i)));
+  }
+
+  const premises = [];
+  const removedIds = new Set();
+
+  for (const shadow of STATE.shadowDtus.values()) {
+    if (!shadow || shadow.machine?.kind === "session_context" || shadow.machine?.kind === "linguistic_map") continue;
+
+    // Match by tag overlap
+    const shadowTags = new Set(Array.isArray(shadow.tags) ? shadow.tags.map(t => String(t).toLowerCase()) : []);
+    shadowTags.delete("shadow"); // Don't count the shadow tag itself
+    let tagOverlap = 0;
+    for (const t of shadowTags) { if (microTags.has(t)) tagOverlap++; }
+
+    // Match by invariant similarity
+    const shadowInvariants = Array.isArray(shadow.core?.invariants) ? shadow.core.invariants : [];
+    const shadowClaims = Array.isArray(shadow.core?.claims) ? shadow.core.claims : [];
+    const shadowAtoms = [...shadowInvariants, ...shadowClaims].map(_normAtom).filter(Boolean);
+
+    let invariantOverlap = 0;
+    for (const a of shadowAtoms) { if (microInvariants.has(a)) invariantOverlap++; }
+
+    // Query relevance check
+    const shadowText = simpleTokens([shadow.title || "", ...(shadow.tags || []), shadow.human?.summary || ""].join(" ")).map(stemLite);
+    let queryOverlap = 0;
+    for (const t of shadowText) { if (queryTokens.has(t)) queryOverlap++; }
+
+    const matchScore = (tagOverlap * 0.4 + invariantOverlap * 0.4 + Math.min(queryOverlap, 3) * 0.2);
+
+    if (matchScore >= 0.8) {
+      // Inject shadow DTU invariants as pre-resolved premises
+      for (const inv of shadowInvariants.slice(0, 3)) {
+        premises.push(`[PRE-RESOLVED] ${inv}`);
+      }
+      for (const claim of shadowClaims.slice(0, 2)) {
+        premises.push(`[SHADOW PREMISE] ${claim}`);
+      }
+
+      // Mark micro DTUs that this shadow already covers for potential removal
+      for (const d of microSet) {
+        if (!d?.core?.invariants) continue;
+        const dAtoms = d.core.invariants.map(_normAtom).filter(Boolean);
+        const covered = dAtoms.every(a => shadowAtoms.includes(a));
+        if (covered && dAtoms.length > 0) removedIds.add(d.id);
+      }
+    }
+  }
+
+  return { applied: premises.length > 0, premises: premises.slice(0, 8), removedIds };
+}
+
+// ============================================================================
+// P2: CRETI Projection
+// ============================================================================
+// Project only the CRETI fields relevant to query type, reducing token noise.
+
+function patternCRETIProjection(dtu, queryIntent) {
+  const rules = CRETI_PROJECTION_RULES[queryIntent] || CRETI_PROJECTION_RULES.default;
+
+  const parts = [];
+
+  // Context field (definitions + summary)
+  if (rules.context) {
+    const summary = (typeof dtu?.human?.summary === "string" && dtu.human.summary) ? dtu.human.summary : "";
+    const defs = Array.isArray(dtu?.core?.definitions) ? dtu.core.definitions : [];
+    if (summary) parts.push(`C: ${summary}`);
+    else if (defs.length) parts.push(`C: ${defs.slice(0, 3).join("; ")}`);
+  }
+
+  // Reasoning field (invariants)
+  if (rules.reasoning) {
+    const inv = Array.isArray(dtu?.core?.invariants) ? dtu.core.invariants : [];
+    if (inv.length) parts.push(`R: ${inv.slice(0, 4).join("; ")}`);
+  }
+
+  // Evidence field (sources)
+  if (rules.evidence) {
+    const sources = Array.isArray(dtu?.core?.sources) ? dtu.core.sources : [];
+    const claims = Array.isArray(dtu?.core?.claims) ? dtu.core.claims : [];
+    const evidence = sources.length ? sources : claims;
+    if (evidence.length) parts.push(`E: ${evidence.slice(0, 3).join("; ")}`);
+  }
+
+  // Tests field
+  if (rules.tests) {
+    const tests = Array.isArray(dtu?.core?.tests) ? dtu.core.tests : [];
+    if (tests.length) parts.push(`T: ${tests.slice(0, 3).join("; ")}`);
+  }
+
+  // Impact field (nextActions + risks)
+  if (rules.impact) {
+    const nextA = Array.isArray(dtu?.core?.nextActions) ? dtu.core.nextActions : [];
+    const risks = Array.isArray(dtu?.core?.risks) ? dtu.core.risks : [];
+    const impact = [...nextA.slice(0, 2), ...risks.slice(0, 1)];
+    if (impact.length) parts.push(`I: ${impact.join("; ")}`);
+  }
+
+  return parts.join("\n") || buildCretiText(dtu);
+}
+
+// ============================================================================
+// P3: Linguistic Spine Rewrite
+// ============================================================================
+// Use affect policy + session style vector to reshape DTU content from storage
+// format into optimal prompt format before the LLM sees it.
+
+function patternLinguisticRewrite(dtuContext, styleVector, affectPolicy) {
+  if (!dtuContext) return dtuContext;
+
+  const sv = styleVector || {};
+  const ap = affectPolicy || {};
+  const style = ap.style || {};
+
+  // Determine output format based on style vector
+  const useFlowingProse = (sv.bulletiness || 0.45) < 0.35;
+  const isHighVerbosity = (sv.verbosity || 0.55) > 0.7;
+  const isFormal = (sv.formality || 0.35) > 0.6;
+
+  let rewritten = dtuContext;
+
+  // Convert bullet format to flowing prose if style demands it
+  if (useFlowingProse) {
+    rewritten = rewritten.replace(/^- (.+)$/gm, "$1.");
+    rewritten = rewritten.replace(/\n\n+/g, " ");
+    rewritten = rewritten.replace(/\n/g, " ");
+    rewritten = rewritten.replace(/\s+/g, " ").trim();
+  }
+
+  // Adjust verbosity: trim low-value content for low-verbosity sessions
+  if (!isHighVerbosity) {
+    // Remove empty section headers and placeholder content
+    rewritten = rewritten.replace(/^(Context|Reasoning|Evidence|Tests|Risks|Impact \/ Next)\n- \(add[^)]*\)\n?/gm, "");
+  }
+
+  // Apply formality adjustment
+  if (!isFormal && style.warmth > 0.6) {
+    // Strip overly formal section headers for warm/casual sessions
+    rewritten = rewritten.replace(/^(Context|Reasoning|Evidence|Tests|Risks|Impact \/ Next)\n/gm, "");
+  }
+
+  // Apply affect-driven tone shaping
+  if (style.caution > 0.7) {
+    // Prefix uncertain content with hedging
+    rewritten = rewritten.replace(/\[CONTESTED\]/g, "[UNCERTAIN — multiple perspectives exist]");
+  }
+
+  return rewritten.trim();
+}
+
+// ============================================================================
+// P4: Multi-Lens Convergence
+// ============================================================================
+// When a query touches multiple domains, fuse perspectives from each lens.
+
+function patternMultiLensConvergence(query, microSet, lensArtifacts) {
+  // Detect multi-domain intent
+  const pseudoDtu = { title: String(query).slice(0, 100), human: { summary: String(query).slice(0, 300) }, tags: [] };
+  const primaryDomain = classifyDomain(pseudoDtu);
+
+  // Check if micro-set DTUs span multiple domains
+  const domainCounts = {};
+  for (const d of microSet) {
+    const dom = classifyDomain(d);
+    domainCounts[dom] = (domainCounts[dom] || 0) + 1;
+  }
+
+  const domains = Object.entries(domainCounts)
+    .filter(([, count]) => count >= 1)
+    .sort((a, b) => b[1] - a[1])
+    .map(([domain]) => domain);
+
+  // Only apply when genuinely multi-domain (2+ distinct domains with substance)
+  if (domains.length < 2) return { applied: false, convergenceBlock: "" };
+
+  const perspectives = [];
+
+  for (const domain of domains.slice(0, 3)) {
+    const domainDTUs = microSet.filter(d => classifyDomain(d) === domain);
+    if (!domainDTUs.length) continue;
+
+    const domainLabel = domain.toUpperCase();
+    const keyPoints = domainDTUs.slice(0, 2).map(d => {
+      const summary = d.human?.summary || d.title || "";
+      const inv = Array.isArray(d?.core?.invariants) ? d.core.invariants.slice(0, 2) : [];
+      return inv.length ? inv.join("; ") : summary.slice(0, 150);
+    }).filter(Boolean);
+
+    if (keyPoints.length) {
+      perspectives.push(`[${domainLabel} PERSPECTIVE]: ${keyPoints.join(". ")}`);
+    }
+
+    // Check for lens artifacts in this domain
+    if (lensArtifacts && STATE.lensDomainIndex) {
+      const artifactIds = STATE.lensDomainIndex.get(domain);
+      if (artifactIds && artifactIds.size > 0) {
+        const firstId = artifactIds.values().next().value;
+        const artifact = STATE.lensArtifacts.get(firstId);
+        if (artifact?.data) {
+          perspectives.push(`[${domainLabel} LENS]: ${artifact.title || artifact.type || "artifact"}`);
+        }
+      }
+    }
+  }
+
+  // Build convergence block
+  if (perspectives.length < 2) return { applied: false, convergenceBlock: "" };
+
+  // Find convergence points (shared invariants across domains)
+  const allInvariants = microSet.flatMap(d => (Array.isArray(d?.core?.invariants) ? d.core.invariants : []).map(_normAtom));
+  const invCounts = {};
+  for (const inv of allInvariants) {
+    if (!inv) continue;
+    invCounts[inv] = (invCounts[inv] || 0) + 1;
+  }
+  const shared = Object.entries(invCounts).filter(([, c]) => c >= 2).map(([inv]) => inv).slice(0, 2);
+
+  if (shared.length) {
+    perspectives.push(`[CONVERGENCE]: Shared across domains: ${shared.join("; ")}`);
+  }
+
+  return { applied: true, convergenceBlock: perspectives.join("\n") };
+}
+
+// ============================================================================
+// P5: Contradiction Pre-Resolution
+// ============================================================================
+// Detect and resolve contradictions in the micro-set before the LLM sees them.
+
+function patternContradictionPreResolution(microSet) {
+  if (!microSet || microSet.length < 2) return { applied: false, resolved: [], contested: [], removedIds: new Set() };
+
+  const resolved = [];
+  const contested = [];
+  const removedIds = new Set();
+  const oppose = (a) => a.startsWith("not ") ? a.slice(4) : ("not " + a);
+
+  // Build atom map per DTU
+  const dtuAtoms = microSet.map(d => {
+    const inv = Array.isArray(d?.core?.invariants) ? d.core.invariants : [];
+    const clm = Array.isArray(d?.core?.claims) ? d.core.claims : [];
+    return {
+      dtu: d,
+      atoms: new Set([...inv, ...clm].map(_normAtom).filter(Boolean))
+    };
+  });
+
+  // Check all pairs for contradictions
+  for (let i = 0; i < dtuAtoms.length; i++) {
+    for (let j = i + 1; j < dtuAtoms.length; j++) {
+      const a = dtuAtoms[i];
+      const b = dtuAtoms[j];
+
+      for (const atomA of a.atoms) {
+        const negA = oppose(atomA);
+        if (b.atoms.has(negA)) {
+          // Found a contradiction — resolve it
+          const winner = _resolveContradiction(a.dtu, b.dtu, atomA, negA);
+          if (winner.clear) {
+            resolved.push(`[RESOLVED] "${atomA}" — ${winner.reason}`);
+            removedIds.add(winner.loserId);
+          } else {
+            contested.push(`[CONTESTED] "${atomA}" vs "${negA}" — both DTUs retained, no clear winner`);
+          }
+          break; // One contradiction per pair is enough
+        }
+      }
+    }
+  }
+
+  return {
+    applied: resolved.length > 0 || contested.length > 0,
+    resolved: resolved.slice(0, 5),
+    contested: contested.slice(0, 3),
+    removedIds
+  };
+}
+
+function _resolveContradiction(dtuA, dtuB, atomA, atomB) {
+  // 1. Timestamp: prefer newer DTU
+  const tsA = dtuA.updatedAt || dtuA.createdAt || "";
+  const tsB = dtuB.updatedAt || dtuB.createdAt || "";
+  if (tsA && tsB && tsA !== tsB) {
+    const newer = tsA > tsB ? dtuA : dtuB;
+    const loser = newer === dtuA ? dtuB : dtuA;
+    return { clear: true, winnerId: newer.id, loserId: loser.id, reason: `Newer DTU (${newer.title || newer.id}) preferred` };
+  }
+
+  // 2. Authority score: prefer higher council-scored DTU
+  const scoreA = dtuA.authority?.score || 0;
+  const scoreB = dtuB.authority?.score || 0;
+  if (scoreA !== scoreB) {
+    const winner = scoreA > scoreB ? dtuA : dtuB;
+    const loser = winner === dtuA ? dtuB : dtuA;
+    return { clear: true, winnerId: winner.id, loserId: loser.id, reason: `Higher authority (score ${Math.max(scoreA, scoreB)})` };
+  }
+
+  // 3. Stability: prefer higher crispness score
+  const crispA = crispnessScore(dtuA);
+  const crispB = crispnessScore(dtuB);
+  if (Math.abs(crispA - crispB) > 0.1) {
+    const winner = crispA > crispB ? dtuA : dtuB;
+    const loser = winner === dtuA ? dtuB : dtuA;
+    return { clear: true, winnerId: winner.id, loserId: loser.id, reason: `Higher crispness (${Math.max(crispA, crispB).toFixed(2)})` };
+  }
+
+  // 4. Shadow DTU precedent
+  if (STATE.shadowDtus) {
+    for (const shadow of STATE.shadowDtus.values()) {
+      if (!shadow?.core?.invariants) continue;
+      const shadowAtoms = shadow.core.invariants.map(_normAtom);
+      if (shadowAtoms.includes(atomA)) {
+        return { clear: true, winnerId: dtuA.id, loserId: dtuB.id, reason: `Shadow DTU precedent supports "${atomA}"` };
+      }
+      if (shadowAtoms.includes(atomB)) {
+        return { clear: true, winnerId: dtuB.id, loserId: dtuA.id, reason: `Shadow DTU precedent supports "${atomB}"` };
+      }
+    }
+  }
+
+  // No clear winner
+  return { clear: false };
+}
+
+// ============================================================================
+// P6: Resonance-Weighted Micro-Prompt
+// ============================================================================
+// Allocate token budget per DTU based on resonance score.
+
+function patternResonanceWeightedPrompt(microSet, queryIntent, tokenBudget) {
+  const budget = tokenBudget || 2000;
+  if (!microSet || !microSet.length) return [];
+
+  // Calculate resonance for each DTU in context
+  const scored = microSet.map(d => {
+    // Use crispness as proxy for resonance (existing system metric)
+    const crisp = crispnessScore(d);
+    const authorityBoost = Math.min((d.authority?.score || 0) / 10, 0.2);
+    const tierBoost = d.tier === "hyper" ? 0.15 : d.tier === "mega" ? 0.1 : 0;
+    const resonance = clamp(crisp + authorityBoost + tierBoost, 0, 1);
+    return { dtu: d, resonance };
+  }).sort((a, b) => b.resonance - a.resonance);
+
+  const result = [];
+
+  for (const { dtu, resonance } of scored) {
+    let representation;
+
+    if (resonance > 0.8) {
+      // Full CRETI representation
+      representation = patternCRETIProjection(dtu, queryIntent);
+    } else if (resonance > 0.5) {
+      // Summary + key invariants only
+      const summary = dtu.human?.summary || dtu.title || "";
+      const inv = Array.isArray(dtu?.core?.invariants) ? dtu.core.invariants.slice(0, 2) : [];
+      representation = summary.slice(0, 120) + (inv.length ? "\nKey: " + inv.join("; ") : "");
+    } else if (resonance > 0.25) {
+      // Single-line summary only
+      representation = dtu.human?.summary || dtu.title || String(dtu.id).slice(0, 20);
+      representation = representation.slice(0, 80);
+    } else {
+      // Tag mention only
+      const tags = Array.isArray(dtu.tags) ? dtu.tags.slice(0, 3).join(", ") : "";
+      representation = `[${dtu.title || dtu.id}]${tags ? " (" + tags + ")" : ""}`;
+      representation = representation.slice(0, 50);
+    }
+
+    result.push({
+      dtu,
+      resonance,
+      representation,
+      tier: resonance > 0.8 ? "full" : resonance > 0.5 ? "summary" : resonance > 0.25 ? "single" : "tag"
+    });
+  }
+
+  return result;
+}
+
+// ============================================================================
+// PATTERN ROUTER
+// ============================================================================
+// Evaluates the query and selects a pattern stack. Always runs P2 + P6 as
+// baseline. Selects 0-1 conditional patterns (or all for complex queries).
+// Tracks last-3-patterns-used per session for variety.
+
+function qualityPipelineRouter(query, microSet, focus, sessionId, opts = {}) {
+  const mode = opts.mode || "explore";
+  const styleVector = opts.styleVector || null;
+  const affectPolicy = opts.affectPolicy || null;
+
+  const queryIntent = _inferQueryIntent(query, mode);
+  const history = _getPatternHistory(sessionId);
+
+  // --- Detect which conditional patterns qualify ---
+  const candidates = [];
+
+  // P1: Shadow Distillation — if shadow DTU matches exist
+  if (STATE.shadowDtus && STATE.shadowDtus.size > 0) {
+    const shadowMatches = _quickShadowMatchCheck(microSet);
+    if (shadowMatches) candidates.push("P1");
+  }
+
+  // P3: Linguistic Rewrite — if non-default style/affect
+  if (styleVector) {
+    const isNonDefault = (
+      Math.abs((styleVector.verbosity || 0.55) - 0.55) > 0.1 ||
+      Math.abs((styleVector.formality || 0.35) - 0.35) > 0.1 ||
+      Math.abs((styleVector.bulletiness || 0.45) - 0.45) > 0.1
+    );
+    if (isNonDefault || (affectPolicy?.style && Object.keys(affectPolicy.style).length > 0)) {
+      candidates.push("P3");
+    }
+  }
+
+  // P4: Multi-Lens — if multi-domain query
+  if (microSet.length >= 2) {
+    const domains = new Set(microSet.map(d => classifyDomain(d)));
+    if (domains.size >= 2) candidates.push("P4");
+  }
+
+  // P5: Contradiction Pre-Res — if potential conflicts in set
+  if (microSet.length >= 2) {
+    const hasAtoms = microSet.some(d =>
+      (Array.isArray(d?.core?.invariants) && d.core.invariants.length > 0) ||
+      (Array.isArray(d?.core?.claims) && d.core.claims.length > 0)
+    );
+    if (hasAtoms) candidates.push("P5");
+  }
+
+  // --- Select conditional pattern(s) ---
+  // MAX CONCURRENT: P2 + P6 + 1 conditional (normally)
+  // Exception: complex multi-domain queries can run more
+  const isComplex = candidates.length >= 3;
+  let selected = [];
+
+  if (isComplex) {
+    // Complex: run all qualified patterns
+    selected = [...candidates];
+  } else if (candidates.length > 0) {
+    // Rotate selection: deprioritize recently-used patterns
+    const sorted = candidates.sort((a, b) => {
+      const aRecent = history.filter(h => h === a).length;
+      const bRecent = history.filter(h => h === b).length;
+      return aRecent - bRecent;
+    });
+    selected = [sorted[0]]; // Pick least-recently-used
+  }
+
+  // Always run P2 + P6
+  const patterns = ["P2", "P6", ...selected];
+
+  // Track for variety
+  _trackPatternUsage(sessionId, selected);
+
+  return {
+    patterns,
+    queryIntent,
+    isComplex,
+    conditional: selected
+  };
+}
+
+// Quick check: do any shadow DTUs have tag overlap with the micro-set?
+function _quickShadowMatchCheck(microSet) {
+  const microTags = new Set();
+  for (const d of microSet) {
+    if (Array.isArray(d?.tags)) d.tags.forEach(t => microTags.add(String(t).toLowerCase()));
+  }
+  if (microTags.size === 0) return false;
+
+  for (const shadow of STATE.shadowDtus.values()) {
+    if (!shadow || shadow.machine?.kind === "session_context" || shadow.machine?.kind === "linguistic_map") continue;
+    const sTags = Array.isArray(shadow.tags) ? shadow.tags.map(t => String(t).toLowerCase()) : [];
+    for (const t of sTags) {
+      if (t !== "shadow" && microTags.has(t)) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================================
+// FUSED CONTEXT BUILDER
+// ============================================================================
+// Runs the selected patterns and produces a unified context block for the LLM.
+
+function buildFusedContext(query, focus, micro, sessionId, routerResult, opts = {}) {
+  const { patterns, queryIntent } = routerResult;
+  const styleVector = opts.styleVector || null;
+  const affectPolicy = opts.affectPolicy || null;
+
+  let workingMicro = [...micro];
+  const contextParts = [];
+  const meta = { patternsApplied: [], tokenEstimate: 0 };
+
+  // --- P5: Contradiction Pre-Resolution (run first to remove losers) ---
+  if (patterns.includes("P5")) {
+    const p5 = patternContradictionPreResolution(workingMicro);
+    if (p5.applied) {
+      meta.patternsApplied.push("P5");
+      // Remove losing DTUs from working set
+      if (p5.removedIds.size > 0) {
+        workingMicro = workingMicro.filter(d => !p5.removedIds.has(d.id));
+      }
+      // Add resolution annotations
+      if (p5.resolved.length) contextParts.push(p5.resolved.join("\n"));
+      if (p5.contested.length) contextParts.push(p5.contested.join("\n"));
+    }
+  }
+
+  // --- P1: Shadow DTU Distillation (run second to inject premises and remove covered DTUs) ---
+  if (patterns.includes("P1")) {
+    const p1 = patternShadowDistillation(workingMicro, query);
+    if (p1.applied) {
+      meta.patternsApplied.push("P1");
+      // Inject pre-resolved premises at the top
+      if (p1.premises.length) contextParts.unshift(p1.premises.join("\n"));
+      // Remove covered DTUs
+      if (p1.removedIds.size > 0) {
+        workingMicro = workingMicro.filter(d => !p1.removedIds.has(d.id));
+      }
+    }
+  }
+
+  // --- P6: Resonance-Weighted Micro-Prompt (determines representation depth per DTU) ---
+  let resonanceMap = null;
+  if (patterns.includes("P6")) {
+    const p6 = patternResonanceWeightedPrompt(workingMicro, queryIntent, 2000);
+    if (p6.length > 0) {
+      meta.patternsApplied.push("P6");
+      resonanceMap = new Map(p6.map(item => [item.dtu.id, item]));
+    }
+  }
+
+  // --- P2: CRETI Projection + P6 Resonance (build DTU context entries) ---
+  const dtuEntries = [];
+  for (const d of workingMicro) {
+    const resonanceItem = resonanceMap?.get(d.id);
+    let entry;
+
+    if (resonanceItem && resonanceItem.tier !== "full") {
+      // P6 says use reduced representation
+      entry = `[${d.title}] (${d.tier || "regular"}) ${resonanceItem.representation}`;
+    } else if (patterns.includes("P2")) {
+      // P2: CRETI Projection — project only relevant fields
+      meta.patternsApplied.push("P2");
+      const projected = patternCRETIProjection(d, queryIntent);
+      entry = `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags || []).join(", ")}\n${projected}`;
+    } else {
+      // Fallback: full CRETI
+      entry = `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags || []).join(", ")}\nCRETI:\n${buildCretiText(d)}`;
+    }
+
+    dtuEntries.push(entry);
+  }
+
+  // Deduplicate P2 in meta
+  meta.patternsApplied = [...new Set(meta.patternsApplied)];
+
+  // --- P4: Multi-Lens Convergence ---
+  if (patterns.includes("P4")) {
+    const p4 = patternMultiLensConvergence(query, workingMicro, STATE.lensArtifacts);
+    if (p4.applied) {
+      meta.patternsApplied.push("P4");
+      contextParts.push(p4.convergenceBlock);
+    }
+  }
+
+  // Assemble final context
+  const dtuBlock = dtuEntries.join("\n---\n");
+
+  // --- P3: Linguistic Spine Rewrite (run last to reshape the assembled context) ---
+  let finalDtuBlock = dtuBlock;
+  if (patterns.includes("P3")) {
+    const rewritten = patternLinguisticRewrite(dtuBlock, styleVector, affectPolicy);
+    if (rewritten !== dtuBlock) {
+      meta.patternsApplied.push("P3");
+      finalDtuBlock = rewritten;
+    }
+  }
+
+  // Combine all parts
+  const allParts = [...contextParts, finalDtuBlock].filter(Boolean);
+  const fusedContext = allParts.join("\n\n");
+
+  // Estimate token count (rough: ~4 chars per token)
+  meta.tokenEstimate = Math.round(fusedContext.length / 4);
+
+  return {
+    fusedContext,
+    meta,
+    workingMicro
+  };
+}
+
+// ============================================================================
+// BACKEND ENHANCEMENTS: Coherence Audit, Shadow Promotion, Crispness Decay
+// ============================================================================
+
+// Coherence Audit: cross-check claims vs invariants internally within a DTU
+function coherenceAudit(dtu) {
+  if (!dtu?.core) return { ok: true, issues: [] };
+
+  const invariants = Array.isArray(dtu.core.invariants) ? dtu.core.invariants.map(_normAtom) : [];
+  const claims = Array.isArray(dtu.core.claims) ? dtu.core.claims.map(_normAtom) : [];
+  const oppose = (a) => a.startsWith("not ") ? a.slice(4) : ("not " + a);
+  const issues = [];
+
+  // Check internal contradictions (claim vs invariant within same DTU)
+  for (const inv of invariants) {
+    if (!inv) continue;
+    for (const claim of claims) {
+      if (!claim) continue;
+      if (claim === oppose(inv)) {
+        issues.push({ type: "internal_contradiction", invariant: inv, claim });
+      }
+    }
+  }
+
+  // Check for duplicate assertions
+  const allAtoms = [...invariants, ...claims];
+  const seen = new Set();
+  for (const a of allAtoms) {
+    if (seen.has(a)) issues.push({ type: "duplicate_assertion", atom: a });
+    seen.add(a);
+  }
+
+  return { ok: issues.length === 0, issues };
+}
+
+// Shadow Promotion: if pattern seen 3+ times, auto-create shadow DTU
+function maybeShadowPromotion(dtu) {
+  if (!dtu?.core?.invariants || dtu.core.invariants.length === 0) return { promoted: false };
+
+  const invariants = dtu.core.invariants.map(_normAtom).filter(Boolean);
+  if (invariants.length === 0) return { promoted: false };
+
+  // Count how many existing DTUs share the same invariants
+  const matchCounts = {};
+  for (const inv of invariants) matchCounts[inv] = 0;
+
+  for (const existing of STATE.dtus.values()) {
+    if (!existing || existing.id === dtu.id) continue;
+    const eInv = Array.isArray(existing.core?.invariants) ? existing.core.invariants.map(_normAtom) : [];
+    for (const inv of invariants) {
+      if (eInv.includes(inv)) matchCounts[inv]++;
+    }
+  }
+
+  // Find invariants with 3+ matches (the pattern threshold)
+  const promotable = Object.entries(matchCounts).filter(([, c]) => c >= 3).map(([inv]) => inv);
+  if (promotable.length === 0) return { promoted: false };
+
+  // Check if a shadow DTU for this pattern already exists
+  for (const shadow of STATE.shadowDtus.values()) {
+    if (shadow.machine?.kind !== "pattern_shadow") continue;
+    const sInv = Array.isArray(shadow.core?.invariants) ? shadow.core.invariants.map(_normAtom) : [];
+    const overlap = promotable.filter(p => sInv.includes(p));
+    if (overlap.length >= promotable.length * 0.7) {
+      // Already have a shadow for this pattern
+      return { promoted: false, existing: shadow.id };
+    }
+  }
+
+  // Create new shadow DTU encoding the pattern
+  const shadowId = uid("shadow");
+  const shadowDtu = {
+    id: shadowId,
+    title: `PATTERN SHADOW — ${promotable[0].slice(0, 48)}`,
+    tier: "shadow",
+    tags: ["shadow", "pattern", "auto-promoted", ...(dtu.tags || []).slice(0, 5)],
+    human: { summary: `Auto-promoted pattern: ${promotable.slice(0, 3).join("; ")}`, bullets: [] },
+    core: {
+      definitions: [],
+      invariants: promotable.slice(0, 8),
+      claims: Array.isArray(dtu.core.claims) ? dtu.core.claims.slice(0, 4) : [],
+      examples: [],
+      nextActions: []
+    },
+    machine: {
+      kind: "pattern_shadow",
+      sourceId: dtu.id,
+      matchCount: promotable.reduce((s, p) => s + (matchCounts[p] || 0), 0),
+      promotedAt: nowISO()
+    },
+    lineage: { parents: [dtu.id], children: [] },
+    source: "shadow",
+    meta: { hidden: true, autoPromoted: true },
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    authority: { model: "shadow", score: 0 },
+    hash: ""
+  };
+
+  STATE.shadowDtus.set(shadowId, shadowDtu);
+  return { promoted: true, shadowId, invariants: promotable };
+}
+
+// Crispness Decay: reduce crispness of older DTUs on the same topic
+function applyCrispnessDecay(newDtu) {
+  if (!newDtu?.tags || !Array.isArray(newDtu.tags) || newDtu.tags.length === 0) return { decayed: 0 };
+
+  const newTags = new Set(newDtu.tags.map(t => String(t).toLowerCase()));
+  const newTitle = tokenish(newDtu.title || "");
+  let decayed = 0;
+
+  for (const existing of STATE.dtus.values()) {
+    if (!existing || existing.id === newDtu.id) continue;
+    if (isShadowDTU(existing)) continue;
+
+    // Check topic overlap via tags
+    const eTags = Array.isArray(existing.tags) ? existing.tags.map(t => String(t).toLowerCase()) : [];
+    const tagOverlap = eTags.filter(t => newTags.has(t)).length;
+    const eTitle = tokenish(existing.title || "");
+
+    // Only decay if significant topic overlap (shared tags or similar titles)
+    const titleSim = jaccard(newTitle.split(/\s+/), eTitle.split(/\s+/));
+    if (tagOverlap < 2 && titleSim < 0.3) continue;
+
+    // Check if existing is older
+    const existingTime = existing.updatedAt || existing.createdAt || "";
+    const newTime = newDtu.createdAt || nowISO();
+    if (existingTime >= newTime) continue;
+
+    // Apply crispness decay of 0.05
+    // We simulate crispness decay by slightly reducing the existing DTU's authority score
+    // and adding a meta marker. The crispnessScore() function is computed dynamically,
+    // so we degrade it by removing low-value fields.
+    if (!existing.meta) existing.meta = {};
+    existing.meta.crispnessDecayApplied = (existing.meta.crispnessDecayApplied || 0) + 0.05;
+    existing.meta.lastDecayAt = nowISO();
+    existing.meta.decaySource = newDtu.id;
+
+    // Reduce authority score slightly
+    if (existing.authority && typeof existing.authority.score === "number") {
+      existing.authority.score = Math.max(0, existing.authority.score - 0.5);
+    }
+
+    decayed++;
+  }
+
+  return { decayed };
+}
+
+// ============================================================================
+// END QUALITY PIPELINE PATTERNS
+// ============================================================================
+
 function ensureModeTag(d) {
   // normalize mode to tags only (keep provenance)
   const t = new Set(Array.isArray(d?.tags) ? d.tags.filter(Boolean).map(String) : []);
@@ -8884,6 +9695,43 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
   }
   p.status = "approved";
 
+  // ===== QUALITY PIPELINE BACKEND ENHANCEMENTS =====
+  // [NEW] Coherence Audit — cross-check claims vs invariants internally
+  try {
+    const _coherence = coherenceAudit(dtu);
+    if (!_coherence.ok) {
+      pipeAudit("dtu.coherence_warning", "Internal coherence issues detected", {
+        proposalId: p.id,
+        issues: _coherence.issues.slice(0, 5)
+      });
+      // Don't reject — just warn. The DTU may still be valuable.
+    }
+  } catch {}
+
+  // [NEW] Shadow Promotion — if pattern seen 3+ times, auto-create shadow DTU
+  try {
+    const _promo = maybeShadowPromotion(dtu);
+    if (_promo.promoted) {
+      pipeAudit("dtu.shadow_promotion", "Auto-promoted pattern to shadow DTU", {
+        proposalId: p.id,
+        shadowId: _promo.shadowId,
+        invariants: _promo.invariants
+      });
+    }
+  } catch {}
+
+  // [NEW] Crispness Decay — reduce crispness of older DTUs on same topic
+  try {
+    const _decay = applyCrispnessDecay(dtu);
+    if (_decay.decayed > 0) {
+      pipeAudit("dtu.crispness_decay", `Decayed ${_decay.decayed} older DTUs on overlapping topic`, {
+        proposalId: p.id,
+        decayed: _decay.decayed
+      });
+    }
+  } catch {}
+  // ===== END QUALITY PIPELINE BACKEND ENHANCEMENTS =====
+
   const snap = pipeSnapshot();
   try {
     // Human projection firewall: always render human-safe DTU view
@@ -9741,6 +10589,39 @@ try {
   for (const d of macro) markDTUUsed(d, `chat:${sessionId}`);
 } catch {}
 
+// ===== QUALITY PIPELINE: Pattern Router + Fused Context =====
+// Run deterministic quality patterns between DTU context selection and LLM call.
+// Costs zero API tokens; compounds quality downstream.
+let _qualityPipelineResult = null;
+let _fusedContext = null;
+try {
+  const routerResult = qualityPipelineRouter(prompt, micro, focus, sessionId, {
+    mode,
+    styleVector: styleVec,
+    affectPolicy: _aff.policy || null
+  });
+
+  const fusedResult = buildFusedContext(prompt, focus, micro, sessionId, routerResult, {
+    styleVector: styleVec,
+    affectPolicy: _aff.policy || null
+  });
+
+  _qualityPipelineResult = routerResult;
+  _fusedContext = fusedResult;
+
+  ctx.log("quality_pipeline", "Patterns applied", {
+    sessionId,
+    patterns: routerResult.patterns,
+    applied: fusedResult.meta.patternsApplied,
+    queryIntent: routerResult.queryIntent,
+    tokenEstimate: fusedResult.meta.tokenEstimate
+  });
+} catch (e) {
+  // Quality pipeline is enhancement-only; failures fall through to original logic
+  ctx.log("quality_pipeline.error", "Quality pipeline failed, using fallback", { error: String(e?.message || e) });
+}
+// ===== END QUALITY PIPELINE =====
+
 const wants = /\?$/.test(prompt.trim()) || /\b(why|how|what|when|where|who|can you|should i|help|explain)\b/i.test(prompt);
 const bestScore = scored?.[0]?.score ?? 0;
 
@@ -9905,14 +10786,15 @@ let localReply = formatCrispResponse({
 `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.
 Mode: ${mode}.${_affectGuidance ? `\nTone: ${_affectGuidance}` : ""}
 When helpful, reference DTU titles in plain language (do not dump ids unless asked).`;
-    const dtuContext = focus.map(d => `TITLE: ${d.title}
-TIER: ${d.tier}
-TAGS: ${(d.tags||[]).join(", ")}
-CRETI:
-${buildCretiText(d)}
----`).join("\n");
+    // Use fused context from quality pipeline if available; otherwise fall back to original assembly
+    const dtuContext = (_fusedContext && _fusedContext.fusedContext)
+      ? _fusedContext.fusedContext
+      : focus.map(d => `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags||[]).join(", ")}\nCRETI:\n${buildCretiText(d)}\n---`).join("\n");
+    const _pipelineMeta = (_qualityPipelineResult && _fusedContext)
+      ? `\n[Pipeline: ${_fusedContext.meta.patternsApplied.join("+")} | intent=${_qualityPipelineResult.queryIntent}]`
+      : "";
     const messages = [
-      { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${dtuContext}\n\nRespond naturally and propose next actions.` }
+      { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${dtuContext}${_pipelineMeta}\n\nRespond naturally and propose next actions.` }
     ];
     const r = await ctx.llm.chat({ system, messages, temperature: _llmTemp, maxTokens: _llmMaxTokens });
     if (r.ok) {
@@ -9923,8 +10805,9 @@ ${buildCretiText(d)}
     }
   }
 
-  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id) } });
-  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id) });
+  const _qpMeta = _fusedContext ? { patternsApplied: _fusedContext.meta.patternsApplied, queryIntent: _qualityPipelineResult?.queryIntent, tokenEstimate: _fusedContext.meta.tokenEstimate } : null;
+  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta } });
+  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta });
 
   // ===== REFLECTIVE LOOP + EXPERIENCE RECORDING =====
   // Post-response: self-critique the response, record experience, complete attention thread
@@ -10530,6 +11413,35 @@ register("ingest", "processQueueOnce", async (ctx, _input) => {
     return { ok:false, processed:true, item: next, error: next.error };
   }
 });
+
+// Quality Pipeline domain
+register("quality", "status", (_ctx, input) => {
+  const sessionId = input.sessionId || "";
+  const shadowCount = STATE.shadowDtus ? STATE.shadowDtus.size : 0;
+  const patternShadows = Array.from(STATE.shadowDtus?.values() || []).filter(s => s?.machine?.kind === "pattern_shadow").length;
+  return {
+    ok: true,
+    shadowDtus: { total: shadowCount, patternShadows },
+    sessionHistory: sessionId ? _getPatternHistory(sessionId) : [],
+    patterns: ["P1:ShadowDistillation", "P2:CRETIProjection", "P3:LinguisticRewrite", "P4:MultiLens", "P5:ContradictionPreRes", "P6:ResonanceWeighted"],
+    backendEnhancements: ["coherenceAudit", "shadowPromotion", "crispnessDecay"]
+  };
+}, { description: "Get quality pipeline status and pattern history" });
+
+register("quality", "preview", (_ctx, input) => {
+  const query = String(input.query || "");
+  if (!query) return { ok: false, error: "Missing query" };
+  const mode = input.mode || "explore";
+  const intent = _inferQueryIntent(query, mode);
+  const pseudoDtu = { title: query.slice(0, 100), human: { summary: query.slice(0, 300) }, tags: [] };
+  const domain = classifyDomain(pseudoDtu);
+  return {
+    ok: true,
+    queryIntent: intent,
+    domain,
+    projectionRules: CRETI_PROJECTION_RULES[intent] || CRETI_PROJECTION_RULES.default
+  };
+}, { description: "Preview which quality pipeline patterns would apply to a query" });
 
 // System domain (dream/autogen/evolution/synthesize)
 register("system", "dream", async (ctx, input) => {
@@ -13928,6 +14840,59 @@ app.post("/api/llm/mode", requireRole("owner", "admin"), (req, res) => {
   const { mode } = req.body || {};
   const result = setLLMPipelineMode(mode);
   res.json(result);
+});
+
+// Quality Pipeline status endpoint
+app.get("/api/quality-pipeline/status", (req, res) => {
+  const sessionId = req.query.sessionId || "";
+  const shadowCount = STATE.shadowDtus ? STATE.shadowDtus.size : 0;
+  const patternShadows = Array.from(STATE.shadowDtus?.values() || []).filter(s => s?.machine?.kind === "pattern_shadow").length;
+  const history = sessionId ? _getPatternHistory(sessionId) : [];
+
+  res.json({
+    ok: true,
+    pipeline: {
+      version: "1.0.0",
+      patterns: {
+        P1: { name: "Shadow DTU Distillation", alwaysRun: false, condition: "shadow DTU matches exist" },
+        P2: { name: "CRETI Projection", alwaysRun: true, condition: "always" },
+        P3: { name: "Linguistic Spine Rewrite", alwaysRun: false, condition: "non-default style/affect" },
+        P4: { name: "Multi-Lens Convergence", alwaysRun: false, condition: "multi-domain query" },
+        P5: { name: "Contradiction Pre-Resolution", alwaysRun: false, condition: "conflict detected in set" },
+        P6: { name: "Resonance-Weighted Micro-Prompt", alwaysRun: true, condition: "always" }
+      },
+      shadowDtus: { total: shadowCount, patternShadows },
+      sessionHistory: history,
+      maxConcurrent: 3,
+      backendEnhancements: ["coherenceAudit", "shadowPromotion", "crispnessDecay"]
+    }
+  });
+});
+
+// Quality Pipeline dry-run: preview what patterns would be selected for a query
+app.post("/api/quality-pipeline/preview", (req, res) => {
+  try {
+    const { query, sessionId, mode } = req.body || {};
+    if (!query) return res.json({ ok: false, error: "Missing query" });
+
+    const sid = sessionId || "preview";
+    const pseudoDtu = { title: String(query).slice(0, 100), human: { summary: String(query).slice(0, 300) }, tags: [] };
+    const domain = classifyDomain(pseudoDtu);
+    const intent = _inferQueryIntent(query, mode || "explore");
+    const history = _getPatternHistory(sid);
+
+    res.json({
+      ok: true,
+      preview: {
+        queryIntent: intent,
+        domain,
+        recentPatterns: history,
+        projectionRules: CRETI_PROJECTION_RULES[intent] || CRETI_PROJECTION_RULES.default
+      }
+    });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e) });
+  }
 });
 
 // Force reseed DTUs from dtus.js (useful for debugging empty state)
