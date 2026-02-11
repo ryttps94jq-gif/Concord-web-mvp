@@ -154,8 +154,10 @@ export const dtuOffline = {
     await getDB().dtus.bulkPut(dtus);
   },
 
-  // ---- LWW Conflict Resolution (Category 4: Offline Sync) ----
-  async mergeFromServer(serverDtu: DTURecord): Promise<'updated' | 'conflict' | 'skipped'> {
+  // ---- Field-Level Merge (Tier 2: Offline Sync Upgrade) ----
+  // Per-field LWW: if Device A edits `title` and Device B edits `tags`,
+  // both changes are preserved instead of one overwriting the other.
+  async mergeFromServer(serverDtu: DTURecord): Promise<'updated' | 'conflict' | 'merged' | 'skipped'> {
     const local = await getDB().dtus.get(serverDtu.id);
     if (!local) {
       // No local version, just save server version
@@ -169,32 +171,70 @@ export const dtuOffline = {
       return 'updated';
     }
 
-    // Local has unsynced changes - conflict!
-    const localTime = new Date(local.timestamp).getTime();
-    const serverTime = new Date(serverDtu._serverTimestamp || serverDtu.timestamp).getTime();
+    // Local has unsynced changes - attempt field-level merge
+    const mergeableFields: (keyof DTURecord)[] = ['content', 'summary', 'tags', 'resonance', 'parentId', 'tier'];
+    const localFieldTs = (local as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
+    const serverFieldTs = (serverDtu as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
 
-    if (serverTime > localTime) {
-      // Server is newer: save server version, record conflict for audit
+    const merged: Record<string, unknown> = { ...local };
+    let hadConflict = false;
+    const conflictDetails: Array<{ field: string; localValue: unknown; serverValue: unknown }> = [];
+
+    for (const field of mergeableFields) {
+      const localVal = local[field];
+      const serverVal = serverDtu[field];
+
+      // If values are identical, skip
+      if (JSON.stringify(localVal) === JSON.stringify(serverVal)) continue;
+
+      // Both changed the same field - use per-field timestamp if available
+      const localFieldTime = localFieldTs[field] ? new Date(localFieldTs[field]).getTime() : new Date(local.timestamp).getTime();
+      const serverFieldTime = serverFieldTs[field] ? new Date(serverFieldTs[field]).getTime() : new Date(serverDtu._serverTimestamp || serverDtu.timestamp).getTime();
+
+      if (serverFieldTime > localFieldTime) {
+        // Server's version of this field is newer
+        merged[field] = serverVal;
+        hadConflict = true;
+      } else {
+        // Local version of this field is newer, keep it
+        conflictDetails.push({ field, localValue: localVal, serverValue: serverVal });
+      }
+    }
+
+    // Record the merge
+    if (hadConflict || conflictDetails.length > 0) {
       await conflicts.record({
         entityType: 'dtu',
         entityId: serverDtu.id,
         localVersion: local,
         serverVersion: serverDtu,
-        resolution: 'server_wins',
+        resolution: 'merged',
       });
-      await getDB().dtus.put({ ...serverDtu, synced: true });
-      return 'conflict';
     }
 
-    // Local is newer: keep local, mark for sync
-    await conflicts.record({
-      entityType: 'dtu',
-      entityId: serverDtu.id,
-      localVersion: local,
-      serverVersion: serverDtu,
-      resolution: 'local_wins',
-    });
-    return 'skipped';
+    // Apply merged result
+    merged.synced = conflictDetails.length === 0; // Fully synced only if no local-wins fields remain
+    merged._version = Math.max(local._version || 1, serverDtu._version || 1) + 1;
+    await getDB().dtus.put(merged as DTURecord);
+
+    return hadConflict ? 'merged' : 'skipped';
+  },
+
+  // Track field-level timestamps for per-field LWW
+  async updateField(id: string, field: keyof DTURecord, value: unknown): Promise<void> {
+    const dtu = await getDB().dtus.get(id);
+    if (!dtu) return;
+
+    const record = dtu as Record<string, unknown>;
+    record[field] = value;
+    record.synced = false;
+
+    // Track when this specific field was last modified
+    const fieldTs = (record._fieldTimestamps as Record<string, string>) || {};
+    fieldTs[field] = getNormalizedTimestamp();
+    record._fieldTimestamps = fieldTs;
+
+    await getDB().dtus.put(record as DTURecord);
   },
 };
 
