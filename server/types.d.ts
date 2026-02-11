@@ -734,3 +734,482 @@ export interface EmergentOutreach {
   /** ISO timestamp */
   createdAt: string;
 }
+
+// ============================================================================
+// Lattice Operations Types (READ / PROPOSE / COMMIT)
+// ============================================================================
+
+/**
+ * Operation class — the execution boundary for lattice mutations
+ */
+export type OperationClass = 'READ' | 'PROPOSE' | 'COMMIT';
+
+/**
+ * Proposal status
+ */
+export type ProposalStatus = 'pending' | 'committed' | 'rejected';
+
+/**
+ * Proposal type
+ */
+export type ProposalType = 'new_dtu' | 'edit' | 'new_edge';
+
+/**
+ * Lattice proposal — a proposed change to the canonical lattice.
+ * All emergent mutations go through staging first.
+ */
+export interface LatticeProposal {
+  /** Proposal ID (format: prop_<hex>) */
+  proposalId: string;
+  /** Type of proposal */
+  type: ProposalType;
+  /** Current status */
+  status: ProposalStatus;
+  /** Who proposed this */
+  proposedBy: string;
+  /** Session context (if from a dialogue) */
+  sessionId: string | null;
+  /** The staged data */
+  data: Record<string, unknown>;
+  /** Gate trace ID (required for commit) */
+  gateTraceId: string | null;
+  /** Who committed this (null until committed) */
+  committedBy: string | null;
+  /** Rejection reason (null unless rejected) */
+  rejectionReason: string | null;
+  /** ISO timestamp of creation */
+  createdAt: string;
+  /** ISO timestamp of resolution */
+  resolvedAt: string | null;
+}
+
+/**
+ * Lattice operations metrics
+ */
+export interface LatticeMetrics {
+  proposalsCreated: number;
+  proposalsCommitted: number;
+  proposalsRejected: number;
+  reads: number;
+  stagingReads: number;
+}
+
+// ============================================================================
+// Edge Semantics Types
+// ============================================================================
+
+/**
+ * Typed edge types with semantic meaning
+ */
+export type EdgeType =
+  | 'supports'
+  | 'contradicts'
+  | 'derives'
+  | 'references'
+  | 'similar'
+  | 'parentOf'
+  | 'causes'
+  | 'enables'
+  | 'requires';
+
+/**
+ * Semantic edge between DTUs with provenance
+ */
+export interface SemanticEdge {
+  /** Edge ID (format: edge_<hex>) */
+  edgeId: string;
+  /** Source DTU ID */
+  sourceId: string;
+  /** Target DTU ID */
+  targetId: string;
+  /** Edge type */
+  edgeType: EdgeType;
+  /** Edge weight (0-1) */
+  weight: number;
+  /** Confidence in this relationship (0-1) */
+  confidence: number;
+  /** Who created this edge */
+  createdBy: string;
+  /** Evidence references supporting this edge */
+  evidenceRefs: string[];
+  /** Arbitrary metadata */
+  meta: Record<string, unknown>;
+  /** ISO timestamp of creation */
+  createdAt: string;
+  /** ISO timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * Edge query parameters
+ */
+export interface EdgeQuery {
+  sourceId?: string;
+  targetId?: string;
+  edgeType?: EdgeType;
+  minWeight?: number;
+  minConfidence?: number;
+  createdBy?: string;
+  limit?: number;
+}
+
+/**
+ * Node neighborhood — all edges connected to a node
+ */
+export interface Neighborhood {
+  nodeId: string;
+  incoming: SemanticEdge[];
+  outgoing: SemanticEdge[];
+  totalEdges: number;
+}
+
+/**
+ * Path between two nodes
+ */
+export interface LatticeEdgePath {
+  from: string;
+  to: string;
+  edges: SemanticEdge[];
+  length: number;
+}
+
+// ============================================================================
+// Activation / Attention Types
+// ============================================================================
+
+/**
+ * Activation entry for a DTU in a session
+ */
+export interface ActivationEntry {
+  /** DTU ID */
+  dtuId: string;
+  /** Current activation score */
+  score: number;
+  /** Reason for last activation */
+  reason: string;
+  /** ISO timestamp of last activation */
+  lastActivated: string;
+  /** Number of times activated */
+  activationCount: number;
+}
+
+/**
+ * Working set entry (activation with time decay applied)
+ */
+export interface WorkingSetEntry {
+  dtuId: string;
+  rawScore: number;
+  decayedScore: number;
+  reason: string;
+  lastActivated: string;
+}
+
+/**
+ * Activation spread result
+ */
+export interface SpreadResult {
+  /** Source DTU that triggered the spread */
+  sourceDtuId: string;
+  /** Nodes that were activated by the spread */
+  activated: Array<{
+    dtuId: string;
+    addedScore: number;
+    viaEdge: string;
+    hop: number;
+  }>;
+  /** Total nodes activated */
+  nodesActivated: number;
+}
+
+/**
+ * Activation system metrics
+ */
+export interface ActivationMetrics {
+  activeSessions: number;
+  totalActivations: number;
+  spreadsPerformed: number;
+  globalTrackedDtus: number;
+}
+
+// ============================================================================
+// Conflict-Safe Merge Types
+// ============================================================================
+
+/**
+ * Field classification for merge strategy
+ */
+export type FieldClass = 'scalar' | 'additive' | 'immutable';
+
+/**
+ * Per-field timestamp tracking for merge conflict detection
+ */
+export interface FieldTimestamp {
+  value: unknown;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+/**
+ * Merge conflict — detected when concurrent edits clash
+ */
+export interface MergeConflict {
+  /** Conflicted field */
+  field: string;
+  /** Conflict type */
+  type: 'immutable' | 'concurrent_scalar';
+  /** Human-readable message */
+  message: string;
+  /** Current value in the DTU */
+  currentValue: unknown;
+  /** Proposed new value */
+  proposedValue: unknown;
+  /** Who made the conflicting edit (if applicable) */
+  existingWriter?: string;
+  /** When the conflicting edit was made (if applicable) */
+  existingTimestamp?: string;
+}
+
+/**
+ * Merge result from a field-level merge attempt
+ */
+export interface MergeResult {
+  ok: boolean;
+  /** Merged DTU state */
+  merged: Record<string, unknown>;
+  /** Any conflicts detected */
+  conflicts: MergeConflict[];
+  /** Fields that were successfully applied */
+  applied: string[];
+}
+
+/**
+ * Merge system metrics
+ */
+export interface MergeMetrics {
+  mergesAttempted: number;
+  mergesSucceeded: number;
+  conflictsDetected: number;
+  conflictsResolved: number;
+  trackedDtus: number;
+  pendingConflicts: number;
+}
+
+// ============================================================================
+// Lattice Journal Types (Event-Sourced Log)
+// ============================================================================
+
+/**
+ * Journal event types
+ */
+export type JournalEventType =
+  | 'DTU_CREATED' | 'DTU_UPDATED' | 'DTU_PROMOTED' | 'DTU_DEMOTED' | 'DTU_DELETED'
+  | 'EDGE_ADDED' | 'EDGE_UPDATED' | 'EDGE_REMOVED'
+  | 'PROPOSAL_CREATED' | 'PROPOSAL_COMMITTED' | 'PROPOSAL_REJECTED'
+  | 'EMERGENT_REGISTERED' | 'EMERGENT_DEACTIVATED' | 'EMERGENT_SPECIALIZED'
+  | 'SESSION_CREATED' | 'SESSION_COMPLETED' | 'TURN_ACCEPTED' | 'TURN_REJECTED'
+  | 'PATTERN_LEARNED' | 'REPUTATION_CHANGED'
+  | 'MERGE_APPLIED' | 'MERGE_CONFLICT' | 'CONFLICT_RESOLVED'
+  | 'ACTIVATION_SPREAD'
+  | 'SYSTEM_INIT';
+
+/**
+ * Journal event — append-only record of a lattice mutation
+ */
+export interface JournalEvent {
+  /** Monotonically increasing sequence number */
+  seq: number;
+  /** Event type */
+  type: JournalEventType;
+  /** Event payload */
+  payload: Record<string, unknown>;
+  /** Primary entity affected */
+  entityId: string | null;
+  /** Session context (if applicable) */
+  sessionId: string | null;
+  /** Who performed this action */
+  actorId: string | null;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Additional metadata */
+  meta: Record<string, unknown>;
+}
+
+/**
+ * Journal compaction snapshot — summary of compacted events
+ */
+export interface JournalSnapshot {
+  /** ISO timestamp of compaction */
+  timestamp: string;
+  /** Sequence range covered */
+  eventRange: { from: number; to: number };
+  /** Number of events compacted */
+  eventCount: number;
+  /** Summary by event type */
+  typeSummary: Record<JournalEventType, number>;
+}
+
+/**
+ * Journal metrics
+ */
+export interface JournalMetrics {
+  totalEvents: number;
+  eventsByType: Record<string, number>;
+  trackedEntities: number;
+  trackedSessions: number;
+  compacted: number;
+  snapshots: number;
+}
+
+// ============================================================================
+// Livable Reality Types
+// ============================================================================
+
+/**
+ * Continuity record — an emergent's persistent history
+ */
+export interface ContinuityRecord {
+  emergentId: string;
+  /** All sessions this emergent participated in */
+  sessions: string[];
+  /** Reputation history */
+  reputation: ReputationVector | null;
+  /** Patterns learned by this emergent */
+  patterns: LearnedPattern[];
+  /** DTU contributions linked to this emergent */
+  contributions: Array<{
+    entityId: string;
+    eventType: JournalEventType;
+    timestamp: string;
+  }>;
+}
+
+/**
+ * Proposal cost — computed cost for an emergent to submit a proposal
+ */
+export interface ProposalCost {
+  emergentId: string;
+  /** Base cost */
+  baseCost: number;
+  /** Credibility modifier (lower credibility = higher cost) */
+  credibilityModifier: number;
+  /** Repetition penalty (frequent proposers pay more) */
+  repetitionPenalty: number;
+  /** Scope modifier (proposals outside home domain cost more) */
+  scopeModifier: number;
+  /** Final computed cost */
+  totalCost: number;
+}
+
+/**
+ * Consequence — feedback loop result from an action
+ */
+export interface ConsequenceResult {
+  emergentId: string;
+  /** Reputation delta applied */
+  reputationDelta: number;
+  /** Activation changes */
+  activationChanges: Array<{ dtuId: string; delta: number }>;
+  /** Trust shifts */
+  trustShifts: Array<{ field: string; delta: number }>;
+  /** Summary message */
+  summary: string;
+}
+
+/**
+ * Lattice needs — what the lattice currently requires
+ */
+export interface LatticeNeeds {
+  /** Contradictions that need resolution */
+  contradictions: Array<{ edgeId: string; sourceId: string; targetId: string }>;
+  /** Low-confidence DTUs needing investigation */
+  lowConfidence: Array<{ dtuId: string; coherence: number }>;
+  /** Isolated DTUs needing connections */
+  isolated: Array<{ dtuId: string }>;
+  /** Suggested synthesis opportunities */
+  synthesisNeeded: Array<{ tagCluster: string; dtuCount: number }>;
+}
+
+/**
+ * Suggested work item for an emergent
+ */
+export interface SuggestedWork {
+  /** Work type */
+  type: 'resolve_contradiction' | 'investigate' | 'connect' | 'synthesize';
+  /** Priority score (higher = more needed) */
+  priority: number;
+  /** Description of the work */
+  description: string;
+  /** Related entity IDs */
+  targets: string[];
+}
+
+/**
+ * Sociality score — alignment between two emergents
+ */
+export interface SocialityScore {
+  emergentA: string;
+  emergentB: string;
+  /** Overall alignment score (0-1) */
+  alignment: number;
+  /** Number of shared sessions */
+  sharedSessions: number;
+  /** Number of times they supported each other */
+  mutualSupports: number;
+  /** Number of times they contradicted each other */
+  contradictions: number;
+}
+
+/**
+ * Proposal explanation — legibility layer
+ */
+export interface ProposalExplanation {
+  proposalId: string;
+  /** Who proposed it */
+  proposedBy: string;
+  /** Proposal type and data */
+  type: ProposalType;
+  /** Current status */
+  status: ProposalStatus;
+  /** Gate trace (if committed) */
+  gateTrace: GateTrace | null;
+  /** Why it was rejected (if rejected) */
+  rejectionReason: string | null;
+  /** Timeline of events */
+  timeline: Array<{ event: string; timestamp: string }>;
+}
+
+/**
+ * Trust explanation — why a DTU is trusted
+ */
+export interface TrustExplanation {
+  dtuId: string;
+  /** DTU tier */
+  tier: DTUTier;
+  /** Supporting edges */
+  supportingEdges: SemanticEdge[];
+  /** Contradicting edges */
+  contradictingEdges: SemanticEdge[];
+  /** Journal history */
+  history: JournalEvent[];
+  /** Trust score summary */
+  trustScore: {
+    support: number;
+    contradiction: number;
+    net: number;
+  };
+}
+
+/**
+ * Belonging context — where an emergent "lives" in the lattice
+ */
+export interface BelongingContext {
+  emergentId: string;
+  /** Preferred domains (from scope + patterns) */
+  preferredDomains: string[];
+  /** Recurring collaborators */
+  collaborators: Array<{ emergentId: string; sharedSessions: number }>;
+  /** Home region DTU IDs (most contributed to) */
+  homeRegion: string[];
+  /** Session count */
+  sessionCount: number;
+}

@@ -16898,6 +16898,242 @@ app.get("/api/emergent/schema", async (req, res) => {
   return res.json(out);
 });
 
+// Lattice operations (READ / PROPOSE / COMMIT)
+app.get("/api/emergent/lattice/read/:id", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.read", { dtuId: req.params.id, readerId: req.query.readerId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/lattice/staging/:id", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.readStaging", { proposalId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/lattice/query", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.query", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/lattice/propose/dtu", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.proposeDTU", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/lattice/propose/edit", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.proposeEdit", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/lattice/propose/edge", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.proposeEdge", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/lattice/commit", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.commit", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/lattice/reject", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.reject", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/lattice/proposals", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.proposals", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/lattice/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "lattice.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// Edge semantics
+app.post("/api/emergent/edge/create", async (req, res) => {
+  const out = await runMacro("emergent", "edge.create", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/edge/:id", async (req, res) => {
+  const out = await runMacro("emergent", "edge.get", { edgeId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/edge/query", async (req, res) => {
+  const out = await runMacro("emergent", "edge.query", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/edge/:id/update", async (req, res) => {
+  const out = await runMacro("emergent", "edge.update", { edgeId: req.params.id, ...req.body }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/edge/:id/remove", async (req, res) => {
+  const out = await runMacro("emergent", "edge.remove", { edgeId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/edge/neighborhood/:nodeId", async (req, res) => {
+  const out = await runMacro("emergent", "edge.neighborhood", { nodeId: req.params.nodeId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/edge/paths", async (req, res) => {
+  const out = await runMacro("emergent", "edge.paths", { fromId: req.query.fromId, toId: req.query.toId, maxDepth: req.query.maxDepth ? parseInt(req.query.maxDepth) : undefined }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/edge/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "edge.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// Activation / attention
+app.post("/api/emergent/activation/activate", async (req, res) => {
+  const out = await runMacro("emergent", "activation.activate", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/activation/spread", async (req, res) => {
+  const out = await runMacro("emergent", "activation.spread", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/activation/working-set/:sessionId", async (req, res) => {
+  const out = await runMacro("emergent", "activation.workingSet", { sessionId: req.params.sessionId, k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/activation/global", async (req, res) => {
+  const out = await runMacro("emergent", "activation.global", { k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/activation/decay", async (req, res) => {
+  const out = await runMacro("emergent", "activation.decay", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/activation/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "activation.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// Conflict-safe merge
+app.post("/api/emergent/merge/apply", async (req, res) => {
+  const out = await runMacro("emergent", "merge.apply", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/merge/resolve", async (req, res) => {
+  const out = await runMacro("emergent", "merge.resolve", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/merge/conflicts/:dtuId", async (req, res) => {
+  const out = await runMacro("emergent", "merge.conflicts", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/merge/timestamps/:dtuId", async (req, res) => {
+  const out = await runMacro("emergent", "merge.timestamps", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/merge/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "merge.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// Lattice journal
+app.post("/api/emergent/journal/append", async (req, res) => {
+  const out = await runMacro("emergent", "journal.append", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/by-type/:eventType", async (req, res) => {
+  const out = await runMacro("emergent", "journal.byType", { eventType: req.params.eventType, ...req.query }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/by-entity/:entityId", async (req, res) => {
+  const out = await runMacro("emergent", "journal.byEntity", { entityId: req.params.entityId, ...req.query }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/by-session/:sessionId", async (req, res) => {
+  const out = await runMacro("emergent", "journal.bySession", { sessionId: req.params.sessionId, ...req.query }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/recent", async (req, res) => {
+  const out = await runMacro("emergent", "journal.recent", { count: req.query.count ? parseInt(req.query.count) : undefined }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/explain/:dtuId", async (req, res) => {
+  const out = await runMacro("emergent", "journal.explain", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/journal/metrics", async (req, res) => {
+  const out = await runMacro("emergent", "journal.metrics", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/journal/compact", async (req, res) => {
+  const out = await runMacro("emergent", "journal.compact", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// Livable reality
+app.get("/api/emergent/reality/continuity/:emergentId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.continuity", { emergentId: req.params.emergentId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/cost/:emergentId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.cost", { emergentId: req.params.emergentId, domain: req.query.domain }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/reality/consequences", async (req, res) => {
+  const out = await runMacro("emergent", "reality.consequences", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/needs", async (req, res) => {
+  const out = await runMacro("emergent", "reality.needs", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/suggest/:emergentId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.suggest", { emergentId: req.params.emergentId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/sociality", async (req, res) => {
+  const out = await runMacro("emergent", "reality.sociality", { emergentA: req.query.emergentA, emergentB: req.query.emergentB }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/explain/proposal/:proposalId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.explainProposal", { proposalId: req.params.proposalId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/explain/trust/:dtuId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.explainTrust", { dtuId: req.params.dtuId }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reality/belonging/:emergentId", async (req, res) => {
+  const out = await runMacro("emergent", "reality.belonging", { emergentId: req.params.emergentId }, makeCtx(req));
+  return res.json(out);
+});
+
 // ===== END EMERGENT API =====
 
 app.post("/api/papers", async (req, res) => {
