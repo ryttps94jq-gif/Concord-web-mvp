@@ -132,7 +132,80 @@ import {
   getSchedulerMetrics,
 } from "./scheduler.js";
 
-const EMERGENT_VERSION = "3.0.0";
+// ── Outcome Signals + Scheduler Learning (Stage 1-2) ────────────────────────
+
+import {
+  OUTCOME_SIGNALS, ALL_OUTCOME_SIGNALS,
+  recordOutcome, getOutcomesForWorkItem, getOutcomesForAllocation,
+  getOutcomesForEmergent, getOutcomeStats,
+  runWeightLearning, getAssignmentRecommendations, getWeightHistory,
+} from "./outcomes.js";
+
+// ── Skill Formation (Stage 3) ───────────────────────────────────────────────
+
+import {
+  SKILL_TYPES, ALL_SKILL_TYPES, SKILL_MATURITY,
+  createReasoningTemplate, createMacroPlaybook, createTestBundle,
+  recordSkillApplication, getSkill, querySkills, findMatchingSkills,
+  distillPatternsToSkills, deprecateSkill, getSkillMetrics,
+} from "./skills.js";
+
+// ── Long-Horizon Projects (Stage 4) ─────────────────────────────────────────
+
+import {
+  PROJECT_STATUS, NODE_STATUS,
+  createProject, addNode, startProject,
+  getReadyNodes, scheduleReadyNodes, completeNode, failNode,
+  pauseProject, resumeProject, cancelProject,
+  getProject, listProjects, getProjectMetrics,
+} from "./projects.js";
+
+// ── Institutional Memory (Stage 5) ──────────────────────────────────────────
+
+import {
+  MEMORY_CATEGORIES, ALL_MEMORY_CATEGORIES,
+  recordObservation, recordFailure, recordSuccess,
+  createAdvisory, getActiveAdvisories, acknowledgeAdvisory, dismissAdvisory,
+  queryObservations, getFailureRates, getRecurrences, getStabilityMap,
+  getInstitutionalMemoryMetrics,
+} from "./institutional-memory.js";
+
+// ── Evidence Objects + Truth Maintenance (Stage 6) ──────────────────────────
+
+import {
+  EPISTEMIC_STATUS, ALL_EPISTEMIC_STATUSES, EVIDENCE_TYPES, ALL_EVIDENCE_TYPES,
+  attachEvidence, getEvidenceForDtu, supersedeEvidence,
+  recomputeEpistemicStatus, deprecateDtu, retractDtu,
+  getMaintenanceHistory, getDtusByStatus, getConfidenceMap, getEvidenceMetrics,
+} from "./evidence.js";
+
+// ── Verification Pipelines (Stage 6) ────────────────────────────────────────
+
+import {
+  CHECK_TYPES, ALL_CHECK_TYPES, CHECK_RESULTS,
+  createPipeline, getPipeline, listPipelines,
+  runPipeline, verifyDtu, getVerificationHistory, getVerificationMetrics,
+} from "./verification-pipeline.js";
+
+// ── Goal Formation (Stage 8) ────────────────────────────────────────────────
+
+import {
+  GOAL_TYPES, ALL_GOAL_TYPES,
+  scanForGoals, scheduleGoal, completeGoal, dismissGoal,
+  getActiveGoals, updateThresholds, getGoalMetrics,
+} from "./goals.js";
+
+// ── Constitution / Norms & Invariants (Stage 9) ─────────────────────────────
+
+import {
+  RULE_TIERS, ALL_RULE_TIERS, RULE_CATEGORIES, VIOLATION_SEVERITY,
+  getConstitutionStore,
+  addRule, amendRule, deactivateRule,
+  checkRules, getRules, getRule,
+  getAmendmentHistory, getViolationHistory, getConstitutionMetrics,
+} from "./constitution.js";
+
+const EMERGENT_VERSION = "4.0.0";
 
 /**
  * Initialize the Emergent Agent Governance system.
@@ -553,6 +626,343 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get scheduler metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // OUTCOME SIGNALS + SCHEDULER LEARNING (Stage 1-2)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "outcome.record", (_ctx, input = {}) => {
+    return recordOutcome(STATE, input);
+  }, { description: "Record an outcome signal for a work item", public: false });
+
+  register("emergent", "outcome.forWorkItem", (_ctx, input = {}) => {
+    return getOutcomesForWorkItem(STATE, input.workItemId);
+  }, { description: "Get outcomes for a work item", public: true });
+
+  register("emergent", "outcome.forAllocation", (_ctx, input = {}) => {
+    return getOutcomesForAllocation(STATE, input.allocationId);
+  }, { description: "Get outcomes for an allocation", public: true });
+
+  register("emergent", "outcome.forEmergent", (_ctx, input = {}) => {
+    return getOutcomesForEmergent(STATE, input.emergentId);
+  }, { description: "Get outcomes for an emergent", public: true });
+
+  register("emergent", "outcome.stats", (_ctx) => {
+    return getOutcomeStats(STATE);
+  }, { description: "Get outcome statistics", public: true });
+
+  register("emergent", "outcome.learn", (_ctx, input = {}) => {
+    return runWeightLearning(STATE, input);
+  }, { description: "Run scheduler weight learning cycle", public: false });
+
+  register("emergent", "outcome.recommendations", (_ctx, input = {}) => {
+    return getAssignmentRecommendations(STATE, input.minSamples);
+  }, { description: "Get role assignment recommendations", public: true });
+
+  register("emergent", "outcome.weightHistory", (_ctx) => {
+    return getWeightHistory(STATE);
+  }, { description: "Get weight learning history", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SKILL FORMATION (Stage 3)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "skill.createTemplate", (_ctx, input = {}) => {
+    return createReasoningTemplate(STATE, input);
+  }, { description: "Create a reasoning template skill", public: false });
+
+  register("emergent", "skill.createPlaybook", (_ctx, input = {}) => {
+    return createMacroPlaybook(STATE, input);
+  }, { description: "Create a macro playbook skill", public: false });
+
+  register("emergent", "skill.createTestBundle", (_ctx, input = {}) => {
+    return createTestBundle(STATE, input);
+  }, { description: "Create a test bundle skill", public: false });
+
+  register("emergent", "skill.recordApplication", (_ctx, input = {}) => {
+    return recordSkillApplication(STATE, input.skillId, input.succeeded, input.context || {});
+  }, { description: "Record skill application outcome", public: false });
+
+  register("emergent", "skill.get", (_ctx, input = {}) => {
+    return getSkill(STATE, input.skillId);
+  }, { description: "Get a specific skill", public: true });
+
+  register("emergent", "skill.query", (_ctx, input = {}) => {
+    return querySkills(STATE, input);
+  }, { description: "Query skills with filters", public: true });
+
+  register("emergent", "skill.findMatching", (_ctx, input = {}) => {
+    return findMatchingSkills(STATE, input);
+  }, { description: "Find skills matching a work context", public: true });
+
+  register("emergent", "skill.distill", (_ctx, input = {}) => {
+    return distillPatternsToSkills(STATE, input);
+  }, { description: "Distill patterns into reusable skills", public: false });
+
+  register("emergent", "skill.deprecate", (_ctx, input = {}) => {
+    return deprecateSkill(STATE, input.skillId, input.reason);
+  }, { description: "Deprecate a skill", public: false });
+
+  register("emergent", "skill.metrics", (_ctx) => {
+    return getSkillMetrics(STATE);
+  }, { description: "Get skill formation metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LONG-HORIZON PROJECTS (Stage 4)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "project.create", (_ctx, input = {}) => {
+    return createProject(STATE, input);
+  }, { description: "Create a new project", public: false });
+
+  register("emergent", "project.addNode", (_ctx, input = {}) => {
+    return addNode(STATE, input.projectId, input);
+  }, { description: "Add a node to project DAG", public: false });
+
+  register("emergent", "project.start", (_ctx, input = {}) => {
+    return startProject(STATE, input.projectId);
+  }, { description: "Start a draft project", public: false });
+
+  register("emergent", "project.readyNodes", (_ctx, input = {}) => {
+    return getReadyNodes(STATE, input.projectId);
+  }, { description: "Get schedulable nodes", public: true });
+
+  register("emergent", "project.schedule", (_ctx, input = {}) => {
+    return scheduleReadyNodes(STATE, input.projectId, input.maxItems);
+  }, { description: "Schedule ready nodes as work items", public: false });
+
+  register("emergent", "project.completeNode", (_ctx, input = {}) => {
+    return completeNode(STATE, input.projectId, input.nodeId, input.result);
+  }, { description: "Complete a project node", public: false });
+
+  register("emergent", "project.failNode", (_ctx, input = {}) => {
+    return failNode(STATE, input.projectId, input.nodeId, input.reason);
+  }, { description: "Mark a project node as failed", public: false });
+
+  register("emergent", "project.pause", (_ctx, input = {}) => {
+    return pauseProject(STATE, input.projectId);
+  }, { description: "Pause a project", public: false });
+
+  register("emergent", "project.resume", (_ctx, input = {}) => {
+    return resumeProject(STATE, input.projectId);
+  }, { description: "Resume a paused project", public: false });
+
+  register("emergent", "project.cancel", (_ctx, input = {}) => {
+    return cancelProject(STATE, input.projectId, input.reason);
+  }, { description: "Cancel a project", public: false });
+
+  register("emergent", "project.get", (_ctx, input = {}) => {
+    return getProject(STATE, input.projectId);
+  }, { description: "Get a project", public: true });
+
+  register("emergent", "project.list", (_ctx, input = {}) => {
+    return listProjects(STATE, input);
+  }, { description: "List projects", public: true });
+
+  register("emergent", "project.metrics", (_ctx) => {
+    return getProjectMetrics(STATE);
+  }, { description: "Get project metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INSTITUTIONAL MEMORY (Stage 5)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "memory.record", (_ctx, input = {}) => {
+    return recordObservation(STATE, input);
+  }, { description: "Record an institutional memory observation", public: false });
+
+  register("emergent", "memory.recordFailure", (_ctx, input = {}) => {
+    return recordFailure(STATE, input);
+  }, { description: "Record a failure for tracking", public: false });
+
+  register("emergent", "memory.recordSuccess", (_ctx, input = {}) => {
+    return recordSuccess(STATE, input);
+  }, { description: "Record a success for tracking", public: false });
+
+  register("emergent", "memory.advisory.create", (_ctx, input = {}) => {
+    return createAdvisory(STATE, input);
+  }, { description: "Create an operational advisory", public: false });
+
+  register("emergent", "memory.advisory.active", (_ctx, input = {}) => {
+    return getActiveAdvisories(STATE, input);
+  }, { description: "Get active advisories", public: true });
+
+  register("emergent", "memory.advisory.acknowledge", (_ctx, input = {}) => {
+    return acknowledgeAdvisory(STATE, input.advisoryId);
+  }, { description: "Acknowledge an advisory", public: false });
+
+  register("emergent", "memory.advisory.dismiss", (_ctx, input = {}) => {
+    return dismissAdvisory(STATE, input.advisoryId);
+  }, { description: "Dismiss an advisory", public: false });
+
+  register("emergent", "memory.query", (_ctx, input = {}) => {
+    return queryObservations(STATE, input);
+  }, { description: "Query institutional memory observations", public: true });
+
+  register("emergent", "memory.failureRates", (_ctx) => {
+    return getFailureRates(STATE);
+  }, { description: "Get failure rates", public: true });
+
+  register("emergent", "memory.recurrences", (_ctx, input = {}) => {
+    return getRecurrences(STATE, input.minCount);
+  }, { description: "Get recurring issues", public: true });
+
+  register("emergent", "memory.stability", (_ctx) => {
+    return getStabilityMap(STATE);
+  }, { description: "Get lattice stability map", public: true });
+
+  register("emergent", "memory.metrics", (_ctx) => {
+    return getInstitutionalMemoryMetrics(STATE);
+  }, { description: "Get institutional memory metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // EVIDENCE + TRUTH MAINTENANCE (Stage 6)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "evidence.attach", (_ctx, input = {}) => {
+    return attachEvidence(STATE, input);
+  }, { description: "Attach evidence to a DTU", public: false });
+
+  register("emergent", "evidence.forDtu", (_ctx, input = {}) => {
+    return getEvidenceForDtu(STATE, input.dtuId);
+  }, { description: "Get evidence for a DTU", public: true });
+
+  register("emergent", "evidence.supersede", (_ctx, input = {}) => {
+    return supersedeEvidence(STATE, input.oldEvidenceId, input.newEvidenceId);
+  }, { description: "Supersede old evidence with new", public: false });
+
+  register("emergent", "evidence.recompute", (_ctx, input = {}) => {
+    const changed = recomputeEpistemicStatus(STATE, input.dtuId);
+    return { ok: true, changed };
+  }, { description: "Recompute epistemic status for a DTU", public: false });
+
+  register("emergent", "evidence.deprecate", (_ctx, input = {}) => {
+    return deprecateDtu(STATE, input.dtuId, input.reason, input.supersededBy);
+  }, { description: "Deprecate a DTU's epistemic status", public: false });
+
+  register("emergent", "evidence.retract", (_ctx, input = {}) => {
+    return retractDtu(STATE, input.dtuId, input.reason, input.evidenceId);
+  }, { description: "Retract a DTU (evidence proved it wrong)", public: false });
+
+  register("emergent", "evidence.history", (_ctx, input = {}) => {
+    return getMaintenanceHistory(STATE, input.dtuId);
+  }, { description: "Get truth maintenance history for DTU", public: true });
+
+  register("emergent", "evidence.byStatus", (_ctx, input = {}) => {
+    return getDtusByStatus(STATE, input.status);
+  }, { description: "Get DTUs by epistemic status", public: true });
+
+  register("emergent", "evidence.confidence", (_ctx, input = {}) => {
+    return getConfidenceMap(STATE, input);
+  }, { description: "Get confidence scores across lattice", public: true });
+
+  register("emergent", "evidence.metrics", (_ctx) => {
+    return getEvidenceMetrics(STATE);
+  }, { description: "Get evidence system metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VERIFICATION PIPELINES (Stage 6)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "verify.createPipeline", (_ctx, input = {}) => {
+    return createPipeline(STATE, input);
+  }, { description: "Create a verification pipeline", public: false });
+
+  register("emergent", "verify.getPipeline", (_ctx, input = {}) => {
+    return getPipeline(STATE, input.pipelineId);
+  }, { description: "Get a verification pipeline", public: true });
+
+  register("emergent", "verify.listPipelines", (_ctx, input = {}) => {
+    return listPipelines(STATE, input);
+  }, { description: "List verification pipelines", public: true });
+
+  register("emergent", "verify.run", (_ctx, input = {}) => {
+    return runPipeline(STATE, input.pipelineId, input.dtuId, input);
+  }, { description: "Run a verification pipeline against a DTU", public: false });
+
+  register("emergent", "verify.dtu", (_ctx, input = {}) => {
+    return verifyDtu(STATE, input.dtuId, input);
+  }, { description: "Run all applicable pipelines against a DTU", public: false });
+
+  register("emergent", "verify.history", (_ctx, input = {}) => {
+    return getVerificationHistory(STATE, input.dtuId);
+  }, { description: "Get verification history for a DTU", public: true });
+
+  register("emergent", "verify.metrics", (_ctx) => {
+    return getVerificationMetrics(STATE);
+  }, { description: "Get verification pipeline metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GOAL FORMATION (Stage 8)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "goal.scan", (_ctx) => {
+    return scanForGoals(STATE);
+  }, { description: "Scan for system-generated goals", public: false });
+
+  register("emergent", "goal.schedule", (_ctx, input = {}) => {
+    return scheduleGoal(STATE, input.goalId);
+  }, { description: "Schedule a goal as a work item", public: false });
+
+  register("emergent", "goal.complete", (_ctx, input = {}) => {
+    return completeGoal(STATE, input.goalId, input.outcome);
+  }, { description: "Mark a goal as completed", public: false });
+
+  register("emergent", "goal.dismiss", (_ctx, input = {}) => {
+    return dismissGoal(STATE, input.goalId, input.reason);
+  }, { description: "Dismiss a goal", public: false });
+
+  register("emergent", "goal.active", (_ctx, input = {}) => {
+    return getActiveGoals(STATE, input);
+  }, { description: "Get active goals", public: true });
+
+  register("emergent", "goal.thresholds", (_ctx, input = {}) => {
+    return updateThresholds(STATE, input);
+  }, { description: "Update goal detection thresholds", public: false });
+
+  register("emergent", "goal.metrics", (_ctx) => {
+    return getGoalMetrics(STATE);
+  }, { description: "Get goal formation metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONSTITUTION / NORMS & INVARIANTS (Stage 9)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "constitution.addRule", (_ctx, input = {}) => {
+    return addRule(STATE, input);
+  }, { description: "Add a constitutional or policy rule", public: false });
+
+  register("emergent", "constitution.amend", (_ctx, input = {}) => {
+    return amendRule(STATE, input.ruleId, input);
+  }, { description: "Amend a constitutional rule", public: false });
+
+  register("emergent", "constitution.deactivate", (_ctx, input = {}) => {
+    return deactivateRule(STATE, input.ruleId);
+  }, { description: "Deactivate a policy rule", public: false });
+
+  register("emergent", "constitution.check", (_ctx, input = {}) => {
+    return checkRules(STATE, input);
+  }, { description: "Check action against constitutional rules", public: true });
+
+  register("emergent", "constitution.rules", (_ctx, input = {}) => {
+    return getRules(STATE, input);
+  }, { description: "List constitutional rules", public: true });
+
+  register("emergent", "constitution.rule", (_ctx, input = {}) => {
+    return getRule(STATE, input.ruleId);
+  }, { description: "Get a specific rule", public: true });
+
+  register("emergent", "constitution.amendments", (_ctx, input = {}) => {
+    return getAmendmentHistory(STATE, input.ruleId);
+  }, { description: "Get amendment history", public: true });
+
+  register("emergent", "constitution.violations", (_ctx, input = {}) => {
+    return getViolationHistory(STATE, input);
+  }, { description: "Get violation history", public: true });
+
+  register("emergent", "constitution.metrics", (_ctx) => {
+    return getConstitutionMetrics(STATE);
+  }, { description: "Get constitution metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // AUDIT / STATUS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -605,17 +1015,35 @@ function init({ register, STATE, helpers }) {
       stopReasons: Object.values(STOP_REASONS),
       defaultWeights: DEFAULT_WEIGHTS,
       defaultBudget: DEFAULT_BUDGET,
+      // Stage 1-9 additions
+      outcomeSignals: ALL_OUTCOME_SIGNALS,
+      skillTypes: ALL_SKILL_TYPES,
+      skillMaturity: Object.values(SKILL_MATURITY),
+      projectStatuses: Object.values(PROJECT_STATUS),
+      nodeStatuses: Object.values(NODE_STATUS),
+      memoryCategories: ALL_MEMORY_CATEGORIES,
+      epistemicStatuses: ALL_EPISTEMIC_STATUSES,
+      evidenceTypes: ALL_EVIDENCE_TYPES,
+      checkTypes: ALL_CHECK_TYPES,
+      checkResults: Object.values(CHECK_RESULTS),
+      goalTypes: ALL_GOAL_TYPES,
+      ruleTiers: ALL_RULE_TIERS,
+      ruleCategories: Object.values(RULE_CATEGORIES),
+      violationSeverities: Object.values(VIOLATION_SEVERITY),
     };
   }, { description: "Get emergent system schema", public: true });
 
+  // Initialize constitution (seeds immutable rules)
+  getConstitutionStore(STATE);
+
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 80,
+    macroCount: 160,
   };
 }
 
