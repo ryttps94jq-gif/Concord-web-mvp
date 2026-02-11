@@ -369,3 +369,368 @@ export interface EthosInvariants {
   ALIGNMENT_PHYSICS_BASED: true;
   FOUNDER_INTENT_STRUCTURAL: true;
 }
+
+// ============================================================================
+// Emergent Agent Governance Types
+// ============================================================================
+
+/**
+ * Emergent role types
+ */
+export type EmergentRole =
+  | 'builder'
+  | 'critic'
+  | 'historian'
+  | 'economist'
+  | 'ethicist'
+  | 'engineer'
+  | 'synthesizer'
+  | 'auditor'
+  | 'adversary';
+
+/**
+ * Emergent capability types
+ */
+export type EmergentCapability =
+  | 'talk'
+  | 'critique'
+  | 'propose'
+  | 'summarize'
+  | 'test'
+  | 'warn'
+  | 'ask';
+
+/**
+ * Confidence labels — mandatory on every claim
+ */
+export type ConfidenceLabel = 'fact' | 'derived' | 'hypothesis' | 'speculative';
+
+/**
+ * Intent classification for turns
+ */
+export type IntentType =
+  | 'question'
+  | 'suggestion'
+  | 'hypothesis'
+  | 'notification'
+  | 'critique'
+  | 'synthesis'
+  | 'warning';
+
+/**
+ * Memory retention policy
+ */
+export type MemoryPolicy = 'session_only' | 'distilled' | 'full_transcript';
+
+/**
+ * Emergent agent definition
+ *
+ * Non-negotiable: Emergents may speak; they may not decide.
+ */
+export interface Emergent {
+  /** Unique identifier (format: em_<hex>) */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Assigned role */
+  role: EmergentRole;
+  /** Optional specialization (subrole) */
+  specialization?: string;
+  /** Allowed lenses/domains/DTU tags */
+  scope: string[];
+  /** Allowed capabilities */
+  capabilities: EmergentCapability[];
+  /** Memory retention policy */
+  memoryPolicy: MemoryPolicy;
+  /** Whether this emergent is active */
+  active: boolean;
+  /** Parent emergent ID (if specialized fork) */
+  parentId?: string;
+  /** ISO timestamp of creation */
+  createdAt: string;
+}
+
+/**
+ * Dialogue session turn — mandatory structure
+ */
+export interface DialogueTurn {
+  /** Turn index in session */
+  turnIndex: number;
+  /** Speaker emergent ID */
+  speakerId: string;
+  /** Speaker's role */
+  speakerRole: EmergentRole;
+  /** The claim being made */
+  claim: string;
+  /** Supporting evidence (DTU IDs, citations, or null for "no cite") */
+  support: (string | { domain: string; tag?: string })[] | null;
+  /** Confidence label (mandatory) */
+  confidenceLabel: ConfidenceLabel;
+  /** Counterpoint or challenge (recommended) */
+  counterpoint?: string;
+  /** Question raised (recommended) */
+  question?: string;
+  /** Classified intent */
+  intent: IntentType;
+  /** Content hash for dedup */
+  contentHash: string;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Gate trace IDs for this turn */
+  gateTraceIds: string[];
+}
+
+/**
+ * Dialogue session between emergents
+ */
+export interface DialogueSession {
+  /** Session ID (format: es_<hex>) */
+  sessionId: string;
+  /** Participant emergent IDs */
+  participants: string[];
+  /** Session topic */
+  topic: string;
+  /** Input data */
+  inputs: {
+    dtuIds: string[];
+    artifacts: unknown[];
+    userPrompt: string | null;
+  };
+  /** Submitted turns */
+  turns: DialogueTurn[];
+  /** Session signals (coherence, contradiction, novelty, risk) */
+  signals: SessionSignal[];
+  /** Output bundle ID (set on completion) */
+  outputBundle: string | null;
+  /** Session status */
+  status: 'active' | 'completed';
+  /** Memory policy */
+  memoryPolicy: MemoryPolicy;
+  /** ISO timestamp of creation */
+  createdAt: string;
+  /** ISO timestamp of completion */
+  completedAt: string | null;
+}
+
+/**
+ * Session signal for tracking dialogue health
+ */
+export interface SessionSignal {
+  /** Signal type */
+  type: 'coherence_trend' | 'contradiction' | 'novelty' | 'risk_flag' | 'echo_warning' | 'stagnation';
+  /** Description */
+  description: string;
+  /** Related turn indices */
+  turnIndices: number[];
+  /** Severity level */
+  severity?: 'low' | 'medium' | 'high';
+  /** Whether this signal has been resolved */
+  resolved?: boolean;
+  /** ISO timestamp */
+  timestamp: string;
+}
+
+/**
+ * Output bundle — the growth payload from a dialogue session
+ */
+export interface OutputBundle {
+  /** Bundle ID */
+  bundleId: string;
+  /** Source session ID */
+  sessionId: string;
+  /** Session topic */
+  topic: string;
+  /** New DTU candidates */
+  candidateDTUs: CandidateDTU[];
+  /** Edits to existing DTUs */
+  candidateEdits: CandidateEdit[];
+  /** Falsifiability / verification tests */
+  tests: ProposedTest[];
+  /** Unresolved contradictions */
+  conflicts: Conflict[];
+  /** DTU/artifact references */
+  citations: Citation[];
+  /** Confidence label distribution */
+  confidenceLabels: Record<ConfidenceLabel, number>;
+  /** Tier promotion requests */
+  promotionRequests: PromotionRequest[];
+  /** Provenance metadata */
+  provenance: BundleProvenance;
+  /** ISO timestamp */
+  createdAt: string;
+}
+
+export interface CandidateDTU {
+  claim: string;
+  support: unknown;
+  confidenceLabel: ConfidenceLabel;
+  proposedBy: string;
+  turnIndex: number;
+}
+
+export interface CandidateEdit {
+  claim: string;
+  targetDtuIds: string[];
+  proposedBy: string;
+  confidenceLabel: ConfidenceLabel;
+  turnIndex: number;
+}
+
+export interface ProposedTest {
+  test: string;
+  targetClaim: string | null;
+  proposedBy: string;
+  turnIndex: number;
+}
+
+export interface Conflict {
+  description: string;
+  involvedTurns: number[];
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface Citation {
+  ref: string;
+  turnIndex: number;
+  speakerId: string;
+}
+
+export interface PromotionRequest {
+  claim: string;
+  requestedTier: DTUTier;
+  reason: string;
+  proposedBy: string;
+  turnIndex: number;
+}
+
+export interface BundleProvenance {
+  sessionId: string;
+  participants: string[];
+  participantRoles: Record<string, EmergentRole>;
+  turnCount: number;
+  createdAt: string;
+  completedAt: string;
+}
+
+/**
+ * Gate trace — deterministic audit log for every gate check
+ */
+export interface GateTrace {
+  /** Trace ID */
+  traceId: string;
+  /** Gate rule that was checked */
+  ruleId: string;
+  /** Session ID (if applicable) */
+  sessionId: string | null;
+  /** Emergent ID (if applicable) */
+  emergentId: string | null;
+  /** Whether the gate passed */
+  passed: boolean;
+  /** Reason for the decision */
+  reason: string;
+  /** Supporting evidence */
+  evidence: Record<string, unknown>;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Final disposition */
+  finalDisposition: 'allowed' | 'blocked';
+}
+
+/**
+ * Reputation vector for an emergent
+ */
+export interface ReputationVector {
+  /** Emergent ID */
+  emergentId: string;
+  /** Number of accepted proposals */
+  accepted: number;
+  /** Number of rejected proposals */
+  rejected: number;
+  /** Number of contradictions caught */
+  contradictionsCaught: number;
+  /** Number of predictions validated */
+  predictionsValidated: number;
+  /** Current credibility score (0-1) */
+  credibility: number;
+  /** Reputation event history */
+  history: ReputationEvent[];
+}
+
+export interface ReputationEvent {
+  /** Event type */
+  type: 'accepted' | 'rejected' | 'contradiction_caught' | 'prediction_validated';
+  /** ISO timestamp */
+  timestamp: string;
+  /** Credibility after this event */
+  credibilityAfter: number;
+  /** Additional context */
+  [key: string]: unknown;
+}
+
+/**
+ * Learned reasoning pattern
+ */
+export interface LearnedPattern {
+  /** Pattern ID */
+  patternId: string;
+  /** Source session */
+  sessionId: string;
+  /** Emergent who produced it */
+  emergentId: string;
+  /** Role this pattern applies to */
+  role: EmergentRole;
+  /** Human-readable description */
+  description: string;
+  /** Pattern template */
+  template: {
+    roleSequence: EmergentRole[];
+    intentSequence: IntentType[];
+    requiresCounterpoint: boolean;
+    requiresQuestion: boolean;
+    confidenceProgression: ConfidenceLabel[];
+  };
+  /** Learned constraints */
+  constraints: string[];
+  /** Quality indicator */
+  quality: 'promoted' | 'session_complete';
+  /** ISO timestamp */
+  createdAt: string;
+}
+
+/**
+ * Outreach message from emergent to user
+ */
+export interface EmergentOutreach {
+  /** Outreach ID */
+  outreachId: string;
+  /** Sender emergent ID */
+  emergentId: string;
+  /** Sender name */
+  emergentName: string;
+  /** Sender role */
+  emergentRole: EmergentRole;
+  /** Target user ID */
+  targetUserId: string;
+  /** Identity string (always visible) */
+  identity: string;
+  /** Why the user is being contacted */
+  intent: string;
+  /** Message content */
+  message: string;
+  /** Confidence level */
+  confidenceLabel: ConfidenceLabel;
+  /** Requested action (if any) */
+  actionRequested: string | null;
+  /** Lens scope */
+  lens: string | null;
+  /** Mandatory disclosure fields */
+  disclosure: {
+    isEmergent: true;
+    speakerIdentity: string;
+    speakerRole: EmergentRole;
+    confidenceLevel: ConfidenceLabel;
+    reason: string;
+  };
+  /** ISO timestamp */
+  createdAt: string;
+}

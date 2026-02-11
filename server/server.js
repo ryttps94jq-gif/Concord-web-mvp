@@ -31,6 +31,7 @@ import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 import { initAll as initLoaf } from "./loaf/index.js";
+import { init as initEmergent } from "./emergent/index.js";
 
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
@@ -14419,6 +14420,20 @@ try {
 }
 // ===== END LOAF =====
 
+// ===== EMERGENT AGENT GOVERNANCE =====
+try {
+  const emergentResult = initEmergent(loafCtx);
+  if (emergentResult.ok) {
+    log("emergent.init", `Emergent Agent Governance v${emergentResult.version} initialized: ${emergentResult.macroCount} macros`);
+  } else {
+    log("emergent.init", `Emergent initialization failed`, { error: emergentResult.error });
+  }
+} catch (e) {
+  console.error("[Emergent] Initialization failed:", e);
+  log("emergent.init", "Emergent initialization failed", { error: String(e?.message || e) });
+}
+// ===== END EMERGENT =====
+
 const app = express();
 
 // ---- Production Middleware ----
@@ -16770,6 +16785,120 @@ app.post("/api/agents/:id/tick", async (req, res) => {
   const out = await runMacro("agent", "tick", { id: req.params.id, prompt: req.body.prompt }, makeCtx(req));
   return res.json(out);
 });
+
+// ===== EMERGENT AGENT GOVERNANCE API =====
+
+// Emergent management
+app.post("/api/emergent/register", async (req, res) => {
+  const out = await runMacro("emergent", "register", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/list", async (req, res) => {
+  const out = await runMacro("emergent", "list", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/:id", async (req, res) => {
+  const out = await runMacro("emergent", "get", { id: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/:id/deactivate", async (req, res) => {
+  const out = await runMacro("emergent", "deactivate", { id: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+// Dialogue sessions
+app.post("/api/emergent/session/create", async (req, res) => {
+  const out = await runMacro("emergent", "session.create", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/session/turn", async (req, res) => {
+  const out = await runMacro("emergent", "session.turn", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/session/complete", async (req, res) => {
+  const out = await runMacro("emergent", "session.complete", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/session/:id", async (req, res) => {
+  const out = await runMacro("emergent", "session.get", { sessionId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/session/run", async (req, res) => {
+  const out = await runMacro("emergent", "session.run", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// Governance / promotion
+app.post("/api/emergent/review", async (req, res) => {
+  const out = await runMacro("emergent", "review", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/specialize", async (req, res) => {
+  const out = await runMacro("emergent", "specialize", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/outreach", async (req, res) => {
+  const out = await runMacro("emergent", "outreach", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/consent/check", async (req, res) => {
+  const out = await runMacro("emergent", "consent.check", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// Growth
+app.post("/api/emergent/growth/patterns", async (req, res) => {
+  const out = await runMacro("emergent", "growth.patterns", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+app.post("/api/emergent/growth/distill", async (req, res) => {
+  const out = await runMacro("emergent", "growth.distill", req.body, makeCtx(req));
+  return res.json(out);
+});
+
+// Audit / status
+app.get("/api/emergent/status", async (req, res) => {
+  const out = await runMacro("emergent", "status", {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/gate/trace", async (req, res) => {
+  const out = await runMacro("emergent", "gate.trace", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/bundle/:id", async (req, res) => {
+  const out = await runMacro("emergent", "bundle.get", { bundleId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/patterns", async (req, res) => {
+  const out = await runMacro("emergent", "patterns", req.query || {}, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/reputation/:id", async (req, res) => {
+  const out = await runMacro("emergent", "reputation", { emergentId: req.params.id }, makeCtx(req));
+  return res.json(out);
+});
+
+app.get("/api/emergent/schema", async (req, res) => {
+  const out = await runMacro("emergent", "schema", {}, makeCtx(req));
+  return res.json(out);
+});
+
+// ===== END EMERGENT API =====
 
 app.post("/api/papers", async (req, res) => {
   const out = await runMacro("paper", "create", req.body, makeCtx(req));
