@@ -8,8 +8,7 @@ import { ds } from '@/lib/design-system';
 import {
   ClipboardList, Layers, ShieldCheck, Cog, HardHat, Box,
   Plus, Search, Filter, X, Edit2, Trash2,
-  AlertTriangle, CheckCircle, Clock, Wrench,
-  BarChart3, TrendingUp, TrendingDown, Gauge,
+  AlertTriangle, Gauge,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -254,6 +253,20 @@ export default function ManufacturingLensPage() {
             {statusOptions.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('qualityCheck')} className={ds.btnSecondary}>
+          <ShieldCheck className="w-4 h-4" /> Quality Check
+        </button>
+        <button onClick={() => handleAction('scheduleMaintenance')} className={ds.btnSecondary}>
+          <Cog className="w-4 h-4" /> Schedule Maintenance
+        </button>
+        <button onClick={() => handleAction('safetyAudit')} className={ds.btnSecondary}>
+          <HardHat className="w-4 h-4" /> Safety Audit
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
       </div>
 
       {/* Artifact library */}

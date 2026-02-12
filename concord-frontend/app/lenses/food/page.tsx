@@ -17,7 +17,6 @@ import {
   X,
   Edit2,
   Trash2,
-  DollarSign,
   Users,
   AlertTriangle,
   CheckCircle2,
@@ -25,11 +24,9 @@ import {
   ArrowUpRight,
   Thermometer,
   Timer,
-  Scale,
   ShoppingCart,
   Percent,
   TrendingUp,
-  TrendingDown,
   Flame,
   Leaf,
 } from 'lucide-react';
@@ -114,8 +111,6 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
 };
 
 const MENU_SECTIONS = ['Appetizers', 'Mains', 'Sides', 'Desserts', 'Beverages', 'Specials', 'Kids'];
-const ALLERGENS = ['Gluten', 'Dairy', 'Nuts', 'Shellfish', 'Soy', 'Eggs', 'Fish', 'Sesame'];
-const DIETARY_FLAGS = ['Vegan', 'Vegetarian', 'GF', 'DF', 'Keto', 'Halal', 'Kosher'];
 const STATIONS = ['Grill', 'Saute', 'Cold/Garde Manger', 'Pastry', 'Prep', 'Expo', 'Dish', 'Bar', 'FOH'];
 const ROLES = ['Head Chef', 'Sous Chef', 'Line Cook', 'Prep Cook', 'Pastry Chef', 'Bartender', 'Server', 'Host', 'Dishwasher', 'Manager'];
 
@@ -248,7 +243,7 @@ export default function FoodLensPage() {
     setEditorOpen(false);
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {
@@ -271,7 +266,7 @@ export default function FoodLensPage() {
     return { foodCost, price: d.price, margin };
   };
 
-  const pourCostCalc = (cost: number, price: number) => price > 0 ? (cost / price) * 100 : 0;
+  const _pourCostCalc = (cost: number, price: number) => price > 0 ? (cost / price) * 100 : 0;
 
   // ---------------------------------------------------------------------------
   // Dashboard

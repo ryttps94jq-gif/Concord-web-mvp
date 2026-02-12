@@ -10,9 +10,6 @@ import {
   Tractor,
   Bug,
   Droplets,
-  Sun,
-  CloudRain,
-  TreePine,
   Plus,
   Search,
   Filter,
@@ -22,13 +19,10 @@ import {
   CheckCircle2,
   BarChart3,
   ArrowUpRight,
-  AlertTriangle,
   Calendar,
   MapPin,
   TrendingUp,
-  Thermometer,
   Beef,
-  Leaf,
   ShieldCheck,
   Scale,
   Clock,
@@ -313,7 +307,7 @@ export default function AgricultureLensPage() {
     setEditorOpen(false);
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

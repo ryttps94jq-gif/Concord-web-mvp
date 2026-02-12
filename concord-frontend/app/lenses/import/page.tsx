@@ -37,7 +37,7 @@ export default function ImportLens() {
     items: importJobItems,
     isLoading: jobsLoading, isError: isError, error: error, refetch: refetch,
     create: createJob,
-    update: updateJob,
+    update: _updateJob,
   } = useLensData<ImportJob>('import', 'import-job', { seed: [] });
 
   const importJobs: ImportJob[] = importJobItems.map(item => ({

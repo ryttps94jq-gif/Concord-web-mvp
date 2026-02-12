@@ -8,8 +8,7 @@ import { ds } from '@/lib/design-system';
 import {
   Heart, FileText, HeartHandshake, Megaphone, BarChart3, Users,
   Plus, Search, Filter, X, Edit2, Trash2,
-  DollarSign, TrendingUp, Target, Calendar,
-  Globe, Award, Clock, CheckCircle,
+  DollarSign, Award, Clock,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -160,7 +159,7 @@ export default function NonprofitLensPage() {
     resetForm();
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editing || filtered[0]?.id;
     if (!targetId) return;
     try {

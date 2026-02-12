@@ -143,7 +143,7 @@ export default function EnvironmentLensPage() {
   const handleSave = async () => { const payload = { title: formTitle, data: formData, meta: { status: formStatus } }; if (editingId) { await update(editingId, payload); } else { await create(payload); } setShowEditor(false); };
   const handleDelete = async (id: string) => { await remove(id); };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

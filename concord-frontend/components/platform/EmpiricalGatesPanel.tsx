@@ -5,21 +5,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import {
   Calculator, Ruler, Atom, FlaskConical, CheckCircle,
-  XCircle, AlertTriangle, ArrowRight, Info
+  XCircle, ArrowRight, Info
 } from 'lucide-react';
-
-type GateIssue = {
-  gate: string;
-  rule: string;
-  severity: string;
-  detail: string;
-};
-
-type ScanResult = {
-  numericClaims: Array<{ value: number; unit?: string; context: string }>;
-  mathExpressions: Array<{ expression: string; result?: number }>;
-  constantReferences: Array<{ key: string; citedValue?: number; constant?: { value: number; unit: string } }>;
-};
 
 export default function EmpiricalGatesPanel() {
   const [mathInput, setMathInput] = useState('');

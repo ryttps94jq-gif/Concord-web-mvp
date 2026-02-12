@@ -17,13 +17,8 @@ import {
   Search,
   X,
   Trash2,
-  Clock,
   Target,
-  TrendingUp,
-  Activity,
-  Heart,
   Timer,
-  Repeat,
   Zap,
   User,
   Calendar,
@@ -197,7 +192,7 @@ export default function FitnessLensPage() {
     setShowEditor(false);
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

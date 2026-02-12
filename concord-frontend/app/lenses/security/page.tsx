@@ -6,9 +6,9 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState } from 'react';
 import {
-  Shield, Plus, Search, AlertTriangle, Eye, Route,
+  Shield, Plus, Search, AlertTriangle, Route,
   Target, FileSearch, Cpu, MapPin, Clock, Users,
-  ChevronDown, X, Filter, BarChart3
+  X
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -118,7 +118,7 @@ export default function SecurityLensPage() {
     resetForm();
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingId || items[0]?.id;
     if (!targetId) return;
     try {

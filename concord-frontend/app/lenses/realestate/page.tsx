@@ -21,14 +21,8 @@ import {
   User,
   Bed,
   Bath,
-  Square,
   Ruler,
-  Tag,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
   ArrowUpRight,
-  Briefcase,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -229,7 +223,7 @@ export default function RealEstateLensPage() {
     setShowEditor(false);
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

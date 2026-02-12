@@ -8,8 +8,8 @@ import { ds } from '@/lib/design-system';
 import {
   Truck, Users, Package, Warehouse, Route, ShieldCheck,
   Plus, Search, Filter, X, Edit2, Trash2, MapPin,
-  Clock, AlertTriangle, CheckCircle, ChevronDown,
-  BarChart3, TrendingUp, Fuel, ThermometerSun,
+  AlertTriangle, CheckCircle,
+  Fuel,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 

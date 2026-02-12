@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Shield, ShieldCheck, ShieldAlert, ShieldX, Archive, Ban,
+  Shield, ShieldCheck, ShieldAlert, Archive, Ban,
   Lock, Globe, Quote, Store, Settings,
 } from 'lucide-react';
 import {

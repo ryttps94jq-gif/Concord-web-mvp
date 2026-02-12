@@ -25,14 +25,11 @@ import {
   AlertCircle,
   ChevronDown,
   Truck,
-  RotateCcw,
   CheckCircle2,
-  XCircle,
   Phone,
   Mail,
   Star,
   ArrowUpRight,
-  ArrowDownRight,
   ListChecks,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
@@ -49,8 +46,6 @@ type ArtifactType = 'Product' | 'Order' | 'Customer' | 'Lead' | 'Ticket' | 'Disp
 type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'returned';
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
 type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed';
-type GeneralStatus = string;
-
 interface Product { name: string; sku: string; category: string; price: number; stock: number; reorderPoint: number; supplier: string; }
 interface Order { orderNumber: string; customer: string; items: number; total: number; shippingMethod: string; trackingNumber: string; }
 interface Customer { name: string; email: string; phone: string; totalOrders: number; totalSpent: number; tier: string; }
@@ -185,7 +180,7 @@ export default function RetailLensPage() {
 
   const handleDelete = async (id: string) => { await remove(id); };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingId || filtered[0]?.id;
     if (!targetId) return;
     try {
@@ -197,7 +192,7 @@ export default function RetailLensPage() {
   };
 
   /* ---- computed metrics ---- */
-  const pipelineValue = useMemo(() => {
+  const _pipelineValue = useMemo(() => {
     if (currentType !== 'Lead') return 0;
     return items.reduce((sum, i) => {
       const d = i.data as unknown as Lead;
@@ -206,13 +201,13 @@ export default function RetailLensPage() {
     }, 0);
   }, [items, currentType]);
 
-  const customerLTV = useMemo(() => {
+  const _customerLTV = useMemo(() => {
     if (currentType !== 'Customer') return 0;
     const customers = items.length || 1;
     return items.reduce((sum, i) => sum + ((i.data as unknown as Customer).totalSpent || 0), 0) / customers;
   }, [items, currentType]);
 
-  const lowStockProducts = useMemo(() => {
+  const _lowStockProducts = useMemo(() => {
     if (currentType !== 'Product') return [];
     return items.filter(i => {
       const d = i.data as unknown as Product;
@@ -220,7 +215,7 @@ export default function RetailLensPage() {
     });
   }, [items, currentType]);
 
-  const openTicketCount = useMemo(() => {
+  const _openTicketCount = useMemo(() => {
     if (currentType !== 'Ticket') return 0;
     return items.filter(i => i.meta.status === 'open' || i.meta.status === 'in_progress').length;
   }, [items, currentType]);

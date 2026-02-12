@@ -8,8 +8,8 @@ import { ds } from '@/lib/design-system';
 import {
   CalendarDays, MapPin, Mic2, Bus, Film, Store,
   Plus, Search, Filter, X, Edit2, Trash2,
-  Clock, Users, DollarSign, Ticket, Star,
-  BarChart3, TrendingUp, Music, Sparkles,
+  Ticket, Star,
+  Music, Sparkles,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -145,7 +145,7 @@ export default function EventsLensPage() {
     resetForm();
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

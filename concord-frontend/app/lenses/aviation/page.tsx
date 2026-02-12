@@ -6,9 +6,9 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState } from 'react';
 import {
-  Plane, Plus, Search, Anchor, Ship, MapPin,
-  Clock, Users, Wrench, Calendar, ChevronDown, X,
-  Navigation, Award, Gauge
+  Plane, Plus, Search, Anchor, Ship,
+  Clock, Users, Calendar, X,
+  Navigation, Gauge
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -108,7 +108,7 @@ export default function AviationLensPage() {
     resetForm();
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

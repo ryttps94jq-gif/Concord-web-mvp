@@ -1038,7 +1038,7 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
     linkedProjectId: '',
   });
 
-  const { data: projectsData, isError: isError4, error: error4, refetch: refetch4,} = useQuery({
+  const { data: projectsData, isError: _isError4, error: _error4, refetch: _refetch4,} = useQuery({
     queryKey: ['studio-projects-for-link'],
     queryFn: () => api.get('/api/artistry/studio/projects').then(r => r.data),
     retry: 1,

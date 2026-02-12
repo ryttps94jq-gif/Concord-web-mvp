@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Shield, ShieldCheck, Eye, Quote, GitBranch, Share2,
+  Shield, Eye, Quote, GitBranch, Share2,
   DollarSign, Store, ArrowRightLeft, Lock, Fingerprint,
   CheckCircle, XCircle,
 } from 'lucide-react';
@@ -10,10 +10,7 @@ import type {
   OriginRecord,
   LicenseProfile,
   RightsAction,
-  LicenseType,
-  AtlasScope,
 } from '../../lib/types/atlas';
-import { LICENSE_CONFIG, SCOPE_LABEL_CONFIG } from '../../lib/types/atlas';
 import { LicenseBadge, AtlasScopeBadge } from './AtlasStatusBadge';
 
 // ── Rights Display Panel ────────────────────────────────────────────────

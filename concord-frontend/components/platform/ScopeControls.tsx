@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import {
   Globe, Store, User, ArrowUpCircle, Layers,
-  CheckCircle, XCircle, Filter, BarChart3
+  Filter, BarChart3
 } from 'lucide-react';
 
 type ScopeFilter = 'all' | 'global' | 'marketplace' | 'local';

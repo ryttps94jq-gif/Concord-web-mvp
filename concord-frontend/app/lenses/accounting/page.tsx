@@ -18,13 +18,10 @@ import {
   Edit3,
   Trash2,
   TrendingUp,
-  TrendingDown,
   DollarSign,
-  Clock,
   BarChart3,
   AlertCircle,
   ChevronDown,
-  CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
   ListChecks,
@@ -46,7 +43,6 @@ type ArtifactType = 'Account' | 'Transaction' | 'Invoice' | 'PayrollEntry' | 'Bu
 
 type InvoiceStatus = 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'void';
 type TransactionStatus = 'pending' | 'cleared' | 'reconciled';
-type GeneralStatus = string;
 
 interface Account { name: string; accountNumber: string; type: string; balance: number; currency: string; institution: string; }
 interface Transaction { description: string; account: string; debit: number; credit: number; category: string; reference: string; date: string; }
@@ -194,7 +190,7 @@ export default function AccountingLensPage() {
 
   const handleDelete = async (id: string) => { await remove(id); };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingId || filtered[0]?.id;
     if (!targetId) return;
     try {

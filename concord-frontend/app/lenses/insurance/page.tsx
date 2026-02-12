@@ -7,8 +7,8 @@ import { ds } from '@/lib/design-system';
 import { useState } from 'react';
 import {
   Shield, Plus, Search, FileText, AlertTriangle,
-  Heart, RefreshCw, Clock, DollarSign, Users,
-  ChevronDown, X, BarChart3, TrendingUp
+  Heart, RefreshCw, Clock, DollarSign,
+  X, BarChart3
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -223,6 +223,19 @@ export default function InsuranceLensPage() {
           <option value="">All Statuses</option>
           {statuses.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </select>
+      </div>
+
+      {/* Domain Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('riskAssessment')} className={ds.btnSecondary}>
+          <BarChart3 className="w-4 h-4" /> Risk Assessment
+        </button>
+        <button onClick={() => handleAction('claimReview')} className={ds.btnSecondary}>
+          <AlertTriangle className="w-4 h-4" /> Claim Review
+        </button>
+        <button onClick={() => handleAction('renewalCheck')} className={ds.btnSecondary}>
+          <RefreshCw className="w-4 h-4" /> Renewal Check
+        </button>
       </div>
 
       {/* Artifact List */}

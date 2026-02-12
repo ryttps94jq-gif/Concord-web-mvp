@@ -17,8 +17,6 @@ import {
   X,
   Trash2,
   Calendar,
-  Clock,
-  CheckCircle,
   Star,
   Target,
   TrendingUp,
@@ -197,7 +195,7 @@ export default function EducationLensPage() {
     setShowEditor(false);
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

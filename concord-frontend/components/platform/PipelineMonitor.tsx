@@ -74,7 +74,7 @@ export default function PipelineMonitor() {
     refetchInterval: 15000,
   });
 
-  const { data: intentRes, isLoading: intentLoading } = useQuery({
+  const { data: intentRes } = useQuery({
     queryKey: ['pipeline-intent'],
     queryFn: () => apiHelpers.pipeline.selectIntent(),
     refetchInterval: 30000,

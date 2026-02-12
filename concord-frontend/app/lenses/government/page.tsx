@@ -27,8 +27,6 @@ import {
   AlertTriangle,
   ChevronDown,
   MapPin,
-  CalendarDays,
-  Users,
   FileText,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -41,11 +39,6 @@ type ModeTab = 'Permits' | 'Public Works' | 'Code Enforcement' | 'Emergency' | '
 
 type ArtifactType = 'Permit' | 'Project' | 'Violation' | 'EmergencyPlan' | 'Record' | 'CourtCase';
 
-type PermitStatus = 'submitted' | 'under_review' | 'approved' | 'denied' | 'expired' | 'revoked';
-type ViolationStatus = 'observed' | 'noticed' | 'compliance_period' | 'resolved' | 'escalated' | 'hearing';
-type EmergencyStatus = 'standby' | 'watch' | 'warning' | 'activated' | 'recovery' | 'deactivated';
-type GeneralStatus = 'active' | 'pending' | 'closed' | 'archived';
-type Status = PermitStatus | ViolationStatus | EmergencyStatus | GeneralStatus;
 
 interface Permit { applicant: string; type: string; address: string; description: string; fee: number; submittedDate: string; }
 interface Project { name: string; department: string; budget: number; startDate: string; endDate: string; contractor: string; location: string; }
@@ -173,7 +166,7 @@ export default function GovernmentLensPage() {
   const handleSave = async () => { const payload = { title: formTitle, data: formData, meta: { status: formStatus } }; if (editingId) { await update(editingId, payload); } else { await create(payload); } setShowEditor(false); };
   const handleDelete = async (id: string) => { await remove(id); };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editingItem?.id || filtered[0]?.id;
     if (!targetId) return;
     try {

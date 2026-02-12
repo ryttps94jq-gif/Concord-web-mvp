@@ -2,8 +2,7 @@
 
 import { Copy, ExternalLink, ShieldCheck, FileText } from 'lucide-react';
 import { useState } from 'react';
-import type { Citation, LicenseType } from '../../lib/types/atlas';
-import { LICENSE_CONFIG } from '../../lib/types/atlas';
+import type { Citation } from '../../lib/types/atlas';
 import { LicenseBadge } from './AtlasStatusBadge';
 
 // ── Citation Card ───────────────────────────────────────────────────────

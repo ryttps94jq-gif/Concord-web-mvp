@@ -14,9 +14,7 @@ import {
   Brain,
   Plus,
   Search,
-  Filter,
   X,
-  Edit3,
   Trash2,
   AlertTriangle,
   Activity,
@@ -24,10 +22,8 @@ import {
   Calendar,
   ShieldCheck,
   FileText,
-  BarChart2,
   Clock,
   CheckCircle,
-  XCircle,
   Zap,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';

@@ -10,7 +10,7 @@ let socket: Socket | null = null;
 // Track last-seen sequence number per event type for out-of-order detection
 const _lastSeq: Record<string, number> = {};
 const _eventBuffer: Map<string, Array<{ seq: number; data: unknown; timer: ReturnType<typeof setTimeout> }>> = new Map();
-const EVENT_BUFFER_TIMEOUT_MS = 2000; // Max wait for out-of-order events
+const _EVENT_BUFFER_TIMEOUT_MS = 2000; // Max wait for out-of-order events
 
 // Get authentication credentials
 // SECURITY: Prefer cookies (handled automatically via withCredentials)
@@ -171,7 +171,7 @@ export function leaveRoom(room: string): void {
 
 // ---- Correlation ID Helper (Category 5: Observability) ----
 // Returns the correlation ID from the most recent event for a given type
-export function getLastCorrelationId(event: SocketEvent): string | undefined {
+export function getLastCorrelationId(_event: SocketEvent): string | undefined {
   // This is tracked implicitly via _rid in enriched payloads
   return undefined; // Consumers should extract _rid from the event data directly
 }

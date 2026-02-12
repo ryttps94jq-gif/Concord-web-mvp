@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import {
   Heart, Brain, Shield, Eye, Gauge, CheckCircle,
-  XCircle, AlertTriangle, Lightbulb, BookOpen, Layers
+  XCircle, Lightbulb, BookOpen, Layers
 } from 'lucide-react';
 
 type BeaconCheck = {

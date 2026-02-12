@@ -452,7 +452,7 @@ export default function MarketplaceLensPage() {
   });
 
   // Purchases from API
-  const { data: purchaseData } = useQuery({
+  const { data: _purchaseData } = useQuery({
     queryKey: ['artistry-purchases'],
     queryFn: () => api.get('/api/artistry/marketplace/licenses').then(r => r.data).catch(() => ({ licenseTypes: {} })),
   });

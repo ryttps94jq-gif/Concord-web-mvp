@@ -6,10 +6,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
-  Palette, Camera, Image, Tv, LayoutGrid, FileCheck,
+  Palette, Camera, Image as ImageIcon, Tv, LayoutGrid, FileCheck,
   Plus, Search, Filter, X, Edit2, Trash2,
-  Clock, Eye, Download, Share2, Star,
-  BarChart3, TrendingUp, FileImage, Video, Aperture,
+  Clock, Eye,
+  TrendingUp, FileImage, Video, Aperture,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -29,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 const MODE_TABS: { id: ModeTab; label: string; icon: typeof Palette; type: ArtifactType }[] = [
   { id: 'projects', label: 'Projects', icon: Palette, type: 'Project' },
   { id: 'shoots', label: 'Shoots', icon: Camera, type: 'Shoot' },
-  { id: 'assets', label: 'Assets', icon: Image, type: 'Asset' },
+  { id: 'assets', label: 'Assets', icon: ImageIcon, type: 'Asset' },
   { id: 'episodes', label: 'Episodes', icon: Tv, type: 'Episode' },
   { id: 'collections', label: 'Collections', icon: LayoutGrid, type: 'Collection' },
   { id: 'proofs', label: 'Proofs', icon: FileCheck, type: 'ClientProof' },
@@ -146,7 +146,7 @@ export default function CreativeLensPage() {
     resetForm();
   };
 
-  const handleAction = async (action: string, artifactId?: string) => {
+  const _handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editing || filtered[0]?.id;
     if (!targetId) return;
     try {
@@ -263,7 +263,7 @@ export default function CreativeLensPage() {
         <div className="text-center py-12"><p className={ds.textMuted}>Loading...</p></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
-          <Image className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <ImageIcon className="w-10 h-10 text-gray-600 mx-auto mb-3" />
           <p className={ds.textMuted}>No {currentType.toLowerCase()}s found</p>
           <button onClick={openCreate} className={`${ds.btnGhost} mt-3`}><Plus className="w-4 h-4" /> Create one</button>
         </div>

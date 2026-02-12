@@ -9,10 +9,6 @@
  *   const { recs, debug } = recommendLenses(message, sessionCtx);
  */
 
-import { LENS_MANIFESTS, getLensManifest } from './manifest';
-import { getLensStatus, type LensStatusEntry } from './lens-status';
-import { getLensById } from '../lens-registry';
-
 // ── Intent Classes ────────────────────────────────────────────────
 
 export type IntentClass =

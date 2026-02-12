@@ -32,8 +32,6 @@ import {
   TrendingUp,
   Star,
   Bell,
-  MessageSquare,
-  Palette,
   Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -366,6 +364,7 @@ export default function ServicesLensPage() {
                   <div className="mt-2 space-y-1 text-sm">
                     {d.phone && <p className="flex items-center gap-1 text-gray-400"><Phone className="w-3 h-3" /> {d.phone}</p>}
                     {d.email && <p className="flex items-center gap-1 text-gray-400"><Mail className="w-3 h-3" /> {d.email}</p>}
+                    {d.address && <p className="flex items-center gap-1 text-gray-400"><MapPin className="w-3 h-3" /> {d.address}</p>}
                     {d.preferredProvider && <p className="flex items-center gap-1 text-gray-400"><Heart className="w-3 h-3" /> Prefers: {d.preferredProvider}</p>}
                     <div className="flex items-center gap-3 mt-2">
                       {d.visitCount && <span className={ds.badge('blue-400')}>{d.visitCount} visits</span>}
@@ -730,6 +729,16 @@ export default function ServicesLensPage() {
           </button>
         ))}
       </nav>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => handleAction('sendReminder')} className={ds.btnSecondary}>
+          <Bell className="w-4 h-4" /> Send Reminder
+        </button>
+        <button onClick={() => handleAction('checkAvailability')} className={ds.btnSecondary}>
+          <Calendar className="w-4 h-4" /> Check Availability
+        </button>
+        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+      </div>
 
       {showDashboard ? renderDashboard() : renderLibrary()}
 

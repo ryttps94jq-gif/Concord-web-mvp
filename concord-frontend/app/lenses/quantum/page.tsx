@@ -14,19 +14,12 @@ interface SimResultData {
   gates: string[];
 }
 
-const SEED_CIRCUITS = [
-  { title: 'Hadamard', data: { name: 'Hadamard', desc: 'Superposition gate', icon: '|H>' } },
-  { title: 'CNOT', data: { name: 'CNOT', desc: 'Entanglement gate', icon: '+' } },
-  { title: 'Phase', data: { name: 'Phase', desc: 'Rotation gate', icon: 'eith' } },
-  { title: 'Measure', data: { name: 'Measure', desc: 'Collapse state', icon: 'M' } },
-];
-
 export default function QuantumLensPage() {
   useLensNav('quantum');
   const [qubits, setQubits] = useState(4);
   const [result, setResult] = useState<string | null>(null);
 
-  const { items: circuitItems, isLoading: circuitsLoading, isError: isError, error: error, refetch: refetch, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
+  const { items: circuitItems, isLoading: _circuitsLoading, isError: isError, error: error, refetch: refetch, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
     seed: [],
   });
 
