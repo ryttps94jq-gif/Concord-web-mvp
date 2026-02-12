@@ -4274,6 +4274,7 @@ function _serializeState() {
     papers: Array.from(STATE.papers.values()),
     lensArtifacts: Array.from(STATE.lensArtifacts.values()),
     _scopeSeparation: STATE._scopeSeparation || null,
+    _autogenPipeline: STATE._autogenPipeline || null,
   };
 }
 
@@ -4391,6 +4392,11 @@ function _hydrateState(obj) {
   // Scope Separation state
   if (obj._scopeSeparation && typeof obj._scopeSeparation === "object") {
     STATE._scopeSeparation = obj._scopeSeparation;
+  }
+
+  // Autogen Pipeline state
+  if (obj._autogenPipeline && typeof obj._autogenPipeline === "object") {
+    STATE._autogenPipeline = obj._autogenPipeline;
   }
 }
 
@@ -12094,179 +12100,125 @@ register("quality", "preview", (_ctx, input) => {
   };
 }, { description: "Preview which quality pipeline patterns would apply to a query" });
 
-// System domain (dream/autogen/evolution/synthesize)
+// System domain (dream/autogen/evolution/synthesize) — powered by 6-stage autogen pipeline
 register("system", "dream", async (ctx, input) => {
-  // Dream (Council Synthesis): DTU-first, produces 2 high-value DTUs (human-readable), machine notes kept internal.
-  const seed = normalizeText(input.seed || "Dream");
-  const pool = dtusArray().slice(-20);
-  if (!pool.length) return { ok:false, error:"No DTUs to dream from. Seed dtus.js first." };
+  // Dream: gap-filling + creative hypotheses via 6-stage pipeline
+  if (!STATE.dtus.size) return { ok: false, error: "No DTUs to dream from. Seed dtus.js first." };
 
-  const freq = new Map();
-  for (const d of pool) for (const t of (d.tags||[])) freq.set(t, (freq.get(t)||0)+1);
-  const tagHints = Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]).filter(Boolean);
-  const parents = pool.slice(-8).map(d=>d.id);
+  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
+    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    : null;
 
-  function synthDTU(kind) {
-    const definitions = [];
-    const invariants = [];
-    const examples = [];
-    const claims = [];
-    const nextActions = [];
+  const result = await ctx.macro.run("emergent", "pipeline.run", {
+    variant: "dream",
+    callOllama: ollamaCallback,
+    seed: input.seed,
+  });
 
-    for (const d of pool.slice(-8)) {
-      const c = d.core || {};
-      for (const x of (c.definitions||[])) if (definitions.length<4) definitions.push(x);
-      for (const x of (c.invariants||[])) if (invariants.length<4) invariants.push(x);
-      for (const x of (c.examples||[])) if (examples.length<4) examples.push(x);
-      for (const x of (c.claims||[])) if (claims.length<4) claims.push(x);
-      for (const x of (c.nextActions||[])) if (nextActions.length<4) nextActions.push(x);
-    }
-
-    if (definitions.length<2) definitions.push(`Definition: ${seed} — a working lens built from your current DTUs and tags (${tagHints.join(", ") || "none"}).`);
-    if (invariants.length<1) invariants.push("Invariant: Separate facts, inferences, and hypotheses before committing any DTU.");
-    if (examples.length<1) examples.push(`Example: Use ${seed} to synthesize the last 8 DTUs into one actionable plan.`);
-    if (nextActions.length<1) nextActions.push("Run: synthesize → merge duplicates → promote to mega when cluster is stable.");
-
-    const title = kind === "synthesis" ? `Council Synthesis: ${seed}` : `Dream Insight: ${seed}`;
-    const summary = kind === "synthesis"
-      ? `Synthesis built from recent DTUs (tags: ${tagHints.join(", ") || "none"}).`
-      : `Insight derived from your DTU substrate; structured for action and clarity.`;
-
-    return {
-      title,
-      tags: Array.from(new Set(["dream","council", ...tagHints])).slice(0,20),
-      tier: "regular",
-      lineage: parents,
-      core: { definitions, invariants, examples, claims, nextActions },
-      human: { summary, bullets: [
-        `Parents: ${parents.length} DTUs`,
-        `Tag hints: ${tagHints.join(", ") || "none"}`,
-        "Output is human projection; raw notes remain internal."
-      ]},
-      machine: { notes: `DREAM seed=${seed}; parents=${parents.join(",")}` }
-    };
+  if (!result?.ok || !result.candidate) {
+    return { ok: false, error: result?.error || "Pipeline produced no candidate", trace: result?.trace };
   }
 
-  const out = [];
-  for (const kind of ["synthesis","insight"]) {
-    const spec = synthDTU(kind);
-    const r = await ctx.macro.run("dtu","create",{ ...spec, source:"system.dream", allowRewrite:true });
-    if (r?.ok) out.push(r.dtu);
-  }
+  // Commit the pipeline candidate as a DTU
+  const spec = {
+    ...result.candidate,
+    source: "system.dream",
+    allowRewrite: true,
+    scope: "local",
+  };
+  const r = await ctx.macro.run("dtu", "create", spec);
 
-  return { ok:true, dtus: out };
+  return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
-register("system", "autogen", (_ctx, _input) => {
-  // Autogen: DTU-first continuity, produces 2 structured DTUs every run (no blob templates).
-  const pool = dtusArray().slice(-30);
-  if (!pool.length) return { ok:false, error:"No DTUs to autogen from." };
+register("system", "autogen", async (ctx, input) => {
+  // Autogen: signal-driven 6-stage pipeline (no longer "last 8 DTUs")
+  if (!STATE.dtus.size) return { ok: false, error: "No DTUs to autogen from." };
 
-  // QUEUE_AUTOGEN: system autogen proposes DTUs into queues.notifications (or maintenance) to avoid flooding the library
-  ensureQueues();
-  const _enqueueAutogen = (spec, why) => {
-    const item = { id: uid('q_autogen'), type: 'dtu_proposal', payload: spec, why: why||'', createdAt: nowISO(), status:'queued' };
-    // Knowledge proposals go to notifications by default; maintenance can be reviewed separately
-    enqueueNotification(item);
-    return item.id;
-  };
+  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
+    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    : null;
 
+  // Run pipeline without a variant — picks best intent from lattice signals
+  const result = await ctx.macro.run("emergent", "pipeline.run", {
+    callOllama: ollamaCallback,
+  });
 
-  const recentTitles = pool.slice(-10).map(d=>d.title);
-  const allTags = pool.flatMap(d=>d.tags||[]);
-  const tagFreq = new Map();
-  for (const t of allTags) tagFreq.set(t, (tagFreq.get(t)||0)+1);
-  const topTags = Array.from(tagFreq.entries()).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
-
-  const parents = pool.slice(-10).map(d=>d.id);
-
-  const continuity = {
-    title: `Continuity: ${new Date().toISOString().slice(0,10)}`,
-    tags: ["autogen","continuity", ...topTags].slice(0,20),
-    tier: "regular",
-    lineage: parents,
-    core: {
-      definitions: ["Definition: Continuity DTU — captures what changed recently so Concord stays coherent over time."],
-      invariants: ["Invariant: No invented claims; only summarize state/logs/DTUs that exist."],
-      examples: [`Example: Recent DTUs include: ${recentTitles.slice(0,5).join(" | ")}`],
-      claims: ["Claim: The DTU library is the substrate; generators must cite parent DTUs."],
-      nextActions: ["Next: Run evolution on top clusters; promote to mega when stable; keep humans seeing only human projections."]
-    },
-    human: {
-      summary: "A compact continuity snapshot derived from recent DTUs.",
-      bullets: [
-        `Recent titles: ${recentTitles.slice(0,6).join(" | ")}`,
-        `Top tags: ${topTags.join(", ") || "none"}`,
-        `Parents: ${parents.length}`
-      ]
-    },
-    machine: { notes: `AUTOGEN continuity parents=${parents.join(",")}` }
-  };
-
-  const gaps = {
-    title: `Missing Pieces: ${new Date().toISOString().slice(0,10)}`,
-    tags: ["autogen","gaps", ...topTags].slice(0,20),
-    tier: "regular",
-    lineage: parents,
-    core: {
-      definitions: ["Definition: Gap DTU — describes what is missing for completeness and what to generate next."],
-      invariants: ["Invariant: Prefer creating DTUs that add definitions, invariants, examples, or actionable steps."],
-      examples: ["Example: If a cluster has many claims but few invariants, generate invariants DTUs."],
-      claims: ["Claim: Low-value blobs are rejected by council gate (value threshold)."],
-      nextActions: [
-        "Create 1–2 DTUs filling missing definitions for the top tag.",
-        "Create 1 DTU that reconciles contradictions between the last 8 DTUs."
-      ]
-    },
-    human: {
-      summary: "Actionable gaps detected from current DTU substrate.",
-      bullets: [
-        "Focus: definitions/invariants/examples over prose.",
-        "If duplicates appear, merge lineage instead of creating new DTUs."
-      ]
-    },
-    machine: { notes: `AUTOGEN gaps topTags=${topTags.join(",")}` }
-  };
-
-  const created = [];
-  for (const spec of [continuity, gaps]) {
-    const r = (function(){ _enqueueAutogen({ ...spec, source:"system.autogen", allowRewrite:true }, 'system.autogen'); return { ok:true }; })();
-    if (r?.ok) created.push(r.dtu);
+  if (!result?.ok || !result.candidate) {
+    return { ok: false, error: result?.error || "Pipeline produced no candidate", trace: result?.trace };
   }
-  return { ok:true, dtus: created };
+
+  // Queue proposal instead of direct commit (preserves old queue behavior)
+  ensureQueues();
+  const proposal = {
+    id: uid("q_autogen"),
+    type: "dtu_proposal",
+    payload: { ...result.candidate, source: "system.autogen", scope: "local" },
+    why: `pipeline:${result.candidate.meta?.autogenIntent || "auto"}`,
+    createdAt: nowISO(),
+    status: "queued",
+    writePolicy: result.writePolicy,
+    trace: result.trace,
+  };
+  enqueueNotification(proposal);
+
+  return { ok: true, dtus: [], queued: true, proposal, trace: result.trace, writePolicy: result.writePolicy };
 });
 
 register("system", "evolution", async (ctx, input) => {
-  // Evolution: cluster DTUs and promote biggest cluster into a MEGA DTU
-  const clusters = await ctx.macro.run("dtu","cluster",{ threshold: input.threshold ?? 0.38 });
-  const best = clusters.clusters?.[0];
-  const minCluster = Number(input.minCluster ?? 100);
-  if (!best || !best.ids?.length) return { ok:false, error:"No cluster found to evolve." };
-  if ((best.ids?.length||0) < minCluster) {
-    ensureQueues();
-    const proposal = { id: uid("mega_candidate"), type:"mega_candidate", cluster: best, minCluster, createdAt: nowISO(), status:"queued" };
-    STATE.queues.synthesis.push(proposal);
-    ctx.log("system.evolution", "Cluster below minCluster; queued candidate", { size: best.ids?.length||0, minCluster });
-    return { ok:true, queued:true, proposal };
-  }
+  // Evolution: cluster compression + mega DTU rollup via 6-stage pipeline
+  if (!STATE.dtus.size) return { ok: false, error: "No DTUs to evolve." };
 
-  const inner = dtusByIds(best.ids);
-  const sigTags = (best.tagHints||[]).slice(0,8).join("|") || (best.titles||[])[0] || "cluster";
-  const existing = dtusArray().find(d=>d.tier==="mega" && (d.meta?.clusterSig===sigTags) && (d.meta?.clusterSize===best.ids.length));
-  if (existing) return { ok:true, mega: existing, reused:true, cluster: best };
-  const megaTitle = normalizeText(input.title || `MEGA: ${best.titles?.[0] || "Topic Cluster"}`.slice(0,120));
-  const creti = cretiPack({
-    title: megaTitle,
-    purpose: "MEGA DTU: compress a topic range into a single navigable node (with lineage).",
-    context: `Cluster size: ${inner.length}\nTag hints: ${(best.tagHints||[]).join(", ")}\n\nInner DTUs:\n${inner.map(d=>`- ${d.title} (${d.id})`).join("\n")}`,
-    procedure: "Synthesize shared core, keep lineage, avoid clutter.",
-    outputs: "Mega DTU with lineage referencing inner DTUs.",
-    tests: "Must not lose lineage; must remain readable.",
-    notes: "Mega DTUs can later be merged into Hyper DTUs."
+  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
+    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    : null;
+
+  const result = await ctx.macro.run("emergent", "pipeline.run", {
+    variant: "evolution",
+    callOllama: ollamaCallback,
   });
 
-  const r = await ctx.macro.run("dtu","create",{ title: megaTitle, creti, tags: best.tagHints || ["mega"], tier:"mega", lineage: best.ids, source:"system.evolution", meta:{ ...(input.meta||{}), clusterSig: sigTags, clusterSize: best.ids.length } });
-  return { ok:true, mega: r.dtu, cluster: best };
+  if (!result?.ok || !result.candidate) {
+    return { ok: false, error: result?.error || "Pipeline produced no candidate", trace: result?.trace };
+  }
+
+  // Evolution still uses cluster-based MEGA promotion for large clusters
+  const clusters = await ctx.macro.run("dtu", "cluster", { threshold: input.threshold ?? 0.38 });
+  const best = clusters.clusters?.[0];
+  const minCluster = Number(input.minCluster ?? 100);
+
+  if (best?.ids?.length >= minCluster) {
+    // Large cluster → MEGA DTU from cluster (original evolution path)
+    const inner = dtusByIds(best.ids);
+    const sigTags = (best.tagHints || []).slice(0, 8).join("|") || (best.titles || [])[0] || "cluster";
+    const existing = dtusArray().find(d => d.tier === "mega" && d.meta?.clusterSig === sigTags && d.meta?.clusterSize === best.ids.length);
+    if (existing) return { ok: true, mega: existing, reused: true, cluster: best, pipelineTrace: result.trace };
+
+    const megaTitle = normalizeText(input.title || `MEGA: ${best.titles?.[0] || "Topic Cluster"}`.slice(0, 120));
+    const creti = cretiPack({
+      title: megaTitle,
+      purpose: "MEGA DTU: compress a topic range into a single navigable node (with lineage).",
+      context: `Cluster size: ${inner.length}\nTag hints: ${(best.tagHints || []).join(", ")}\n\nInner DTUs:\n${inner.map(d => `- ${d.title} (${d.id})`).join("\n")}`,
+      procedure: "Synthesize shared core, keep lineage, avoid clutter.",
+      outputs: "Mega DTU with lineage referencing inner DTUs.",
+      tests: "Must not lose lineage; must remain readable.",
+      notes: "Mega DTUs can later be merged into Hyper DTUs."
+    });
+
+    const r = await ctx.macro.run("dtu", "create", { title: megaTitle, creti, tags: best.tagHints || ["mega"], tier: "mega", lineage: best.ids, source: "system.evolution", meta: { ...(input.meta || {}), clusterSig: sigTags, clusterSize: best.ids.length } });
+    return { ok: true, mega: r.dtu, cluster: best, pipelineTrace: result.trace };
+  }
+
+  // Small/no cluster → commit pipeline candidate as regular DTU
+  const spec = {
+    ...result.candidate,
+    source: "system.evolution",
+    allowRewrite: true,
+    scope: "local",
+  };
+  const r = await ctx.macro.run("dtu", "create", spec);
+
+  return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
 
@@ -12372,28 +12324,56 @@ return { ok:true, simulation:true, createdCandidates: created.length, created, m
 }, { summary:"Automatic MEGA promotion pipeline tick (candidate->probation->MEGA) (v3)." });
 
 register("system", "synthesize", async (ctx, input) => {
-  // Synthesize: build a HYPER DTU from selected megas or from top megas
+  // Synthesize: conflict resolution + patch proposals via pipeline, or HYPER DTU from megas
   let megaIds = Array.isArray(input.megaIds) ? input.megaIds : [];
   if (megaIds.length === 0) {
-    megaIds = dtusArray().filter(d=>d.tier==="mega").slice(0, 6).map(d=>d.id);
+    megaIds = dtusArray().filter(d => d.tier === "mega").slice(0, 6).map(d => d.id);
   }
-  const megas = dtusByIds(megaIds).filter(d=>d.tier==="mega");
-  if (megas.length < 2) return { ok:false, error:"Need at least 2 mega DTUs to synthesize a hyper DTU." };
+  const megas = dtusByIds(megaIds).filter(d => d.tier === "mega");
 
-  const hyperTitle = normalizeText(input.title || `HYPER: ${megas[0].title} + ${megas[1].title}`.slice(0, 120));
-  const allLineage = Array.from(new Set(megas.flatMap(m => m.lineage || [])));
-  const creti = cretiPack({
-    title: hyperTitle,
-    purpose: "HYPER DTU: integrate multiple mega DTUs into a higher-order framework.",
-    context: `Megas:\n${megas.map(m=>`- ${m.title} (${m.id})`).join("\n")}\n\nTotal lineage DTUs: ${allLineage.length}`,
-    procedure: "Identify shared invariants, conflicts, and a unified map.",
-    outputs: "Hyper DTU with mega lineage and inner lineage.",
-    tests: "Must preserve lineage; label hypotheses; propose measurements.",
-    notes: "This is the top-level node for a domain."
+  // If we have enough megas, build a HYPER DTU
+  if (megas.length >= 2) {
+    const hyperTitle = normalizeText(input.title || `HYPER: ${megas[0].title} + ${megas[1].title}`.slice(0, 120));
+    const allLineage = Array.from(new Set(megas.flatMap(m => m.lineage || [])));
+    const creti = cretiPack({
+      title: hyperTitle,
+      purpose: "HYPER DTU: integrate multiple mega DTUs into a higher-order framework.",
+      context: `Megas:\n${megas.map(m => `- ${m.title} (${m.id})`).join("\n")}\n\nTotal lineage DTUs: ${allLineage.length}`,
+      procedure: "Identify shared invariants, conflicts, and a unified map.",
+      outputs: "Hyper DTU with mega lineage and inner lineage.",
+      tests: "Must preserve lineage; label hypotheses; propose measurements.",
+      notes: "This is the top-level node for a domain."
+    });
+
+    const r = await ctx.macro.run("dtu", "create", { title: hyperTitle, creti, tags: ["hyper"], tier: "hyper", lineage: megaIds, source: "system.synthesize", meta: { innerLineageCount: allLineage.length } });
+    return { ok: true, hyper: r.dtu, usedMegas: megas.map(m => ({ id: m.id, title: m.title })) };
+  }
+
+  // Otherwise, run synth variant of pipeline (conflict resolution + fill gaps)
+  if (!STATE.dtus.size) return { ok: false, error: "Need at least 2 mega DTUs to synthesize a hyper DTU, or DTUs for conflict resolution." };
+
+  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
+    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    : null;
+
+  const result = await ctx.macro.run("emergent", "pipeline.run", {
+    variant: "synth",
+    callOllama: ollamaCallback,
   });
 
-  const r = await ctx.macro.run("dtu","create",{ title: hyperTitle, creti, tags:["hyper"], tier:"hyper", lineage: megaIds, source:"system.synthesize", meta:{ innerLineageCount: allLineage.length } });
-  return { ok:true, hyper: r.dtu, usedMegas: megas.map(m=>({id:m.id,title:m.title})) };
+  if (!result?.ok || !result.candidate) {
+    return { ok: false, error: result?.error || "Pipeline produced no candidate", trace: result?.trace };
+  }
+
+  const spec = {
+    ...result.candidate,
+    source: "system.synthesize",
+    allowRewrite: true,
+    scope: "local",
+  };
+  const r = await ctx.macro.run("dtu", "create", spec);
+
+  return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
 

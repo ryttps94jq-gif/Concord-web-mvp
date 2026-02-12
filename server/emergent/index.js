@@ -267,6 +267,19 @@ import {
   getFailureRates, getActionSlotMetrics,
 } from "./action-slots.js";
 
+// ── Autogen Pipeline (6-Stage Knowledge Synthesis) ───────────────────────────
+
+import {
+  INTENTS, ALL_INTENTS, VARIANT_INTENTS, ESCALATION_REASONS,
+  ensurePipelineState,
+  selectIntent, buildRetrievalPack,
+  builderPhase, criticPhase, synthesizerPhase,
+  buildOllamaPrompt, applyOllamaShaping,
+  noveltyCheck, determineWritePolicy,
+  runPipeline as runAutogenPipeline,
+  getPipelineMetrics,
+} from "./autogen-pipeline.js";
+
 // ── Scope Separation (Global / Marketplace / Local) ─────────────────────────
 
 import {
@@ -282,7 +295,7 @@ import {
   getMarketplaceAnalytics, getScopeMetrics,
 } from "./scope-separation.js";
 
-const EMERGENT_VERSION = "5.2.0";
+const EMERGENT_VERSION = "5.3.0";
 
 /**
  * Initialize the Emergent Agent Governance system.
@@ -1374,6 +1387,56 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get scope separation metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // AUTOGEN PIPELINE (6-Stage Knowledge Synthesis)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Initialize pipeline state
+  ensurePipelineState(STATE);
+
+  register("emergent", "pipeline.selectIntent", (_ctx, input = {}) => {
+    return { ok: true, ...selectIntent(STATE, input) };
+  }, { description: "Select autogen intent based on lattice signals", public: true });
+
+  register("emergent", "pipeline.retrievalPack", (_ctx, input = {}) => {
+    const intent = input.intent || selectIntent(STATE, input);
+    return { ok: true, ...buildRetrievalPack(STATE, intent) };
+  }, { description: "Build scored retrieval pack for synthesis", public: true });
+
+  register("emergent", "pipeline.builder", (_ctx, input = {}) => {
+    const intent = input.intent || selectIntent(STATE, input);
+    const pack = input.pack || buildRetrievalPack(STATE, intent);
+    return builderPhase(intent, pack);
+  }, { description: "Run builder phase (structured extraction + merge)", public: false });
+
+  register("emergent", "pipeline.critic", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return { ok: true, ...criticPhase(input.candidate, input.pack || {}) };
+  }, { description: "Run critic phase (rule-based checks)", public: true });
+
+  register("emergent", "pipeline.synthesizer", (_ctx, input = {}) => {
+    if (!input.candidate || !input.criticResult) return { ok: false, error: "candidate_and_criticResult_required" };
+    return synthesizerPhase(input.candidate, input.criticResult);
+  }, { description: "Run synthesizer phase (canonicalize + deduplicate)", public: false });
+
+  register("emergent", "pipeline.noveltyCheck", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return noveltyCheck(STATE, input.candidate, input);
+  }, { description: "Check candidate novelty against existing DTUs", public: true });
+
+  register("emergent", "pipeline.writePolicy", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return { ok: true, ...determineWritePolicy(input.candidate, input.criticResult, input.noveltyResult) };
+  }, { description: "Determine write policy for candidate (shadow-first)", public: true });
+
+  register("emergent", "pipeline.run", async (_ctx, input = {}) => {
+    return runAutogenPipeline(STATE, input);
+  }, { description: "Run full 6-stage autogen pipeline", public: false });
+
+  register("emergent", "pipeline.metrics", (_ctx) => {
+    return getPipelineMetrics(STATE);
+  }, { description: "Get autogen pipeline metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // AUDIT / STATUS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1455,6 +1518,10 @@ function init({ register, STATE, helpers }) {
       // Action Slots additions
       slotPositions: ALL_SLOT_POSITIONS,
       resultStates: ALL_RESULT_STATES,
+      // Autogen Pipeline additions
+      autogenIntents: ALL_INTENTS,
+      autogenVariants: VARIANT_INTENTS,
+      escalationReasons: Object.values(ESCALATION_REASONS),
       // Scope Separation additions
       scopes: ALL_SCOPES,
       dtuClasses: ALL_DTU_CLASSES,
@@ -1466,13 +1533,13 @@ function init({ register, STATE, helpers }) {
   getConstitutionStore(STATE);
 
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 241,
+    macroCount: 250,
   };
 }
 
