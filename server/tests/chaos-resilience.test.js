@@ -346,7 +346,7 @@ describe('Circuit breaker state machine', () => {
     assert.strictEqual(cb.state, CircuitBreaker.OPEN);
 
     // Wait for the reset timeout to elapse.
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => { setTimeout(r, 80); });
 
     // The next execute call should detect elapsed time and move to HALF_OPEN,
     // then run the probe.
@@ -362,7 +362,7 @@ describe('Circuit breaker state machine', () => {
     await cb.execute(() => { throw new Error('initial'); });
     assert.strictEqual(cb.state, CircuitBreaker.OPEN);
 
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => { setTimeout(r, 80); });
 
     // Probe fails.
     const result = await cb.execute(() => { throw new Error('still broken'); });
@@ -388,7 +388,7 @@ describe('Circuit breaker state machine', () => {
     assert.strictEqual(r.blocked, true);
 
     // Phase 4: Wait for half-open window.
-    await new Promise(res => setTimeout(res, 80));
+    await new Promise(res => { setTimeout(res, 80); });
 
     // Phase 5: Successful probe closes the breaker.
     r = await cb.execute(() => 'healed');
@@ -662,7 +662,7 @@ describe('Replay attack simulation', () => {
     assert.strictEqual(tracker.size, 20);
 
     // Wait for TTL to expire.
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => { setTimeout(r, 150); });
 
     // Next tryAccept triggers purge.
     tracker.tryAccept('trigger-purge');
@@ -677,7 +677,7 @@ describe('Replay attack simulation', () => {
     assert.strictEqual(tracker.tryAccept(nonce), true, 'First use accepted');
     assert.strictEqual(tracker.tryAccept(nonce), false, 'Replay rejected');
 
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => { setTimeout(r, 120); });
 
     // After TTL the nonce should have been purged, so it is fresh again.
     assert.strictEqual(tracker.tryAccept(nonce), true,
@@ -756,7 +756,7 @@ describe('Budget exhaustion', () => {
     assert.strictEqual(budget.tryConsume(1), false);
 
     // Wait for the window to reset.
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => { setTimeout(r, 120); });
 
     assert.strictEqual(budget.tryConsume(50), true, 'Should be allowed after window reset');
     assert.strictEqual(budget.remaining(), 50);
@@ -789,7 +789,7 @@ describe('Budget exhaustion', () => {
     budget.tryConsume(50);
     assert.strictEqual(budget.remaining(), 0);
 
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => { setTimeout(r, 100); });
 
     // After window elapses, full budget should be available again.
     assert.strictEqual(budget.remaining(), 50, 'Full budget available after reset');

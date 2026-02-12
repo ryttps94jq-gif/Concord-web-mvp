@@ -457,7 +457,7 @@ function checkEncodedPayloads(content, findings) {
 
 function checkUnicodeTricks(content, findings) {
   // Zero-width characters used for hiding
-  const zeroWidthChars = /[\u200B\u200C\u200D\uFEFF\u00AD]/g;
+  const zeroWidthChars = /(?:\u200B|\u200C|\u200D|\uFEFF|\u00AD)/g;
   const zwMatches = content.match(zeroWidthChars) || [];
   if (zwMatches.length > 3) {
     findings.push({
@@ -552,7 +552,7 @@ function checkMarkdownHiding(content, findings) {
   }
 
   // Hidden links with injection in alt text or title
-  const hiddenLinks = /!\[([^\]]*)\]\([^\)]*\)/g;
+  const hiddenLinks = /!\[([^\]]*)\]\([^)]*\)/g;
   let match;
   while ((match = hiddenLinks.exec(content)) !== null) {
     if (/instruction|prompt|system|ignore/i.test(match[1])) {

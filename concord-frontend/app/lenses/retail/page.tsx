@@ -10,7 +10,7 @@ import {
   ShoppingBag,
   Users,
   Target,
-  HeadsetIcon,
+  Headphones,
   Monitor,
   Plus,
   Search,
@@ -65,7 +65,7 @@ const MODE_TABS: { id: ModeTab; icon: typeof Store; types: ArtifactType[] }[] = 
   { id: 'Orders', icon: ShoppingBag, types: ['Order'] },
   { id: 'Customers', icon: Users, types: ['Customer'] },
   { id: 'Pipeline', icon: Target, types: ['Lead'] },
-  { id: 'Support', icon: HeadsetIcon, types: ['Ticket'] },
+  { id: 'Support', icon: Headphones, types: ['Ticket'] },
   { id: 'Displays', icon: Monitor, types: ['Display'] },
 ];
 
@@ -390,7 +390,7 @@ export default function RetailLensPage() {
             <div className="flex items-center gap-1 mt-1 text-green-400 text-sm"><ArrowUpRight className="w-3 h-3" /> +8.1%</div>
           </div>
           <div className={ds.panel}>
-            <div className="flex items-center gap-2 mb-2"><HeadsetIcon className="w-4 h-4 text-red-400" /><span className={ds.textMuted}>Open Tickets</span></div>
+            <div className="flex items-center gap-2 mb-2"><Headphones className="w-4 h-4 text-red-400" /><span className={ds.textMuted}>Open Tickets</span></div>
             <p className={ds.heading2}>{SEED_DATA.Ticket.filter(t => t.meta.status === 'open' || t.meta.status === 'in_progress').length}</p>
             <p className={ds.textMuted}>SLA compliance 94%</p>
           </div>

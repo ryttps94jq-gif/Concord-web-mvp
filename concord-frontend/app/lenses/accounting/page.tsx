@@ -181,7 +181,7 @@ export default function AccountingLensPage() {
     setEditingId(item.id);
     setFormTitle(item.title);
     setFormStatus(item.meta.status || 'active');
-    setFormData(item.data as Record<string, unknown>);
+    setFormData(item.data as unknown as Record<string, unknown>);
     setShowEditor(true);
   };
 

@@ -364,12 +364,12 @@ export const PHYS_CONSTANTS = Object.freeze({
 
 // Named constant patterns for text scanning
 const CONSTANT_PATTERNS = [
-  { key: "c",  patterns: [/speed\s+of\s+light/i, /\bc\s*=\s*([\d.e+\-]+)/] },
-  { key: "g0", patterns: [/standard\s+gravity/i, /\bg0?\s*=\s*([\d.e+\-]+)/i, /gravitational\s+acceleration/i] },
-  { key: "G",  patterns: [/gravitational\s+constant/i, /\bG\s*=\s*([\d.e+\-]+)/] },
-  { key: "h",  patterns: [/planck\s+constant/i, /\bh\s*=\s*([\d.e+\-]+)/] },
-  { key: "kB", patterns: [/boltzmann\s+constant/i, /\bkB?\s*=\s*([\d.e+\-]+)/i] },
-  { key: "NA", patterns: [/avogadro/i, /\bNA\s*=\s*([\d.e+\-]+)/i] },
+  { key: "c",  patterns: [/speed\s+of\s+light/i, /\bc\s*=\s*([\d.e+-]+)/] },
+  { key: "g0", patterns: [/standard\s+gravity/i, /\bg0?\s*=\s*([\d.e+-]+)/i, /gravitational\s+acceleration/i] },
+  { key: "G",  patterns: [/gravitational\s+constant/i, /\bG\s*=\s*([\d.e+-]+)/] },
+  { key: "h",  patterns: [/planck\s+constant/i, /\bh\s*=\s*([\d.e+-]+)/] },
+  { key: "kB", patterns: [/boltzmann\s+constant/i, /\bkB?\s*=\s*([\d.e+-]+)/i] },
+  { key: "NA", patterns: [/avogadro/i, /\bNA\s*=\s*([\d.e+-]+)/i] },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -380,7 +380,7 @@ const CONSTANT_PATTERNS = [
 const NUMERIC_UNIT_RE = /(?<!\w)([-+]?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*(m\/s\^2|m\/s|kg\/m\^3|kg\/s\^2|m\^3\/kg\/s\^2|m\^2\/s\^2|m\^2|m\^3|J\*s|J\/K|J\/mol|J|N|Pa|W|Hz|V|A|ohm|F|T|K|kg|km\/s|km\/h|km|cm|mm|nm|µm|mg|µg|g|mol|cd|s|m)\b/gi;
 
 // Regex: inline math expression (e.g., "2*pi*r", "sqrt(9.81*2)")
-const MATH_EXPR_RE = /(?:^|[=:]\s*)((?:\d[\d.e+\-]*\s*[+\-*/^]\s*)+[\d.e+\-piePIE]+|(?:sqrt|sin|cos|tan|log|ln|exp|abs|pow|min|max)\s*\([\d.e+\-,piePIE\s*/^()+\-]+\))/g;
+const MATH_EXPR_RE = /(?:^|[=:]\s*)((?:\d[\d.e+-]*\s*[+\-*/^]\s*)+[\d.e+\-piePIE]+|(?:sqrt|sin|cos|tan|log|ln|exp|abs|pow|min|max)\s*\([\d.e+\-,piePIE\s*/^()+-]+\))/g;
 
 /**
  * Scan a text string for numeric+unit claims.
