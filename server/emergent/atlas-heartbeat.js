@@ -30,6 +30,11 @@ const _tickState = {
   market: { lastRun: 0, runCount: 0, errors: 0, integrityScans: 0, fraudChecks: 0 },
 };
 
+// ── Per-lane mutex: prevents overlapping ticks ──────────────────────────────
+// If a lane tick is running, the next tick skips.
+// Tick failures don't wedge the system (always cleared in finally).
+const _locks = { local: false, global: false, market: false };
+
 // ── Local Heartbeat ─────────────────────────────────────────────────────────
 
 /**
@@ -38,6 +43,9 @@ const _tickState = {
  * NEVER writes to global or market.
  */
 export function tickLocal(STATE) {
+  if (_locks.local) return { skipped: true, reason: "previous tick still running" };
+  _locks.local = true;
+
   const ts = Date.now();
   _tickState.local.lastRun = ts;
   _tickState.local.runCount++;
@@ -61,6 +69,8 @@ export function tickLocal(STATE) {
 
   } catch (err) {
     _tickState.local.errors++;
+  } finally {
+    _locks.local = false;
   }
 
   return results;
@@ -77,6 +87,9 @@ export function tickLocal(STATE) {
  *   - Auto-promote eligible PROPOSED DTUs
  */
 export function tickGlobal(STATE) {
+  if (_locks.global) return { skipped: true, reason: "previous tick still running" };
+  _locks.global = true;
+
   const ts = Date.now();
   _tickState.global.lastRun = ts;
   _tickState.global.runCount++;
@@ -116,12 +129,9 @@ export function tickGlobal(STATE) {
       if (dtu.status !== "VERIFIED") continue;
       const highContras = (dtu.links?.contradicts || []).filter(l => l.severity === "HIGH");
       if (highContras.length > 0) {
-        // Auto-dispute: VERIFIED with HIGH contradiction should become DISPUTED
-        dtu.status = "DISPUTED";
-        if (atlas.byStatus.get("VERIFIED")) atlas.byStatus.get("VERIFIED").delete(dtu.id);
-        if (!atlas.byStatus.has("DISPUTED")) atlas.byStatus.set("DISPUTED", new Set());
-        atlas.byStatus.get("DISPUTED").add(dtu.id);
-        results.autoDisputed++;
+        // Auto-dispute: VERIFIED with HIGH contradiction → DISPUTED (via CAS)
+        const disputeRes = promoteAtlasDtu(STATE, dtu.id, "DISPUTED", "heartbeat_contradiction_check", "VERIFIED");
+        if (disputeRes.ok && !disputeRes.noop) results.autoDisputed++;
       }
     }
     _tickState.global.contradictionsUpdated += results.contradictionsUpdated;
@@ -154,8 +164,9 @@ export function tickGlobal(STATE) {
 
       const gate = runAutoPromoteGate(STATE, dtu, SCOPES.GLOBAL);
       if (gate.pass) {
-        const res = promoteAtlasDtu(STATE, dtu.id, gate.label || "VERIFIED", "auto_promote_gate");
-        if (res.ok) {
+        // CAS: only promote if still PROPOSED (prevents double-promote)
+        const res = promoteAtlasDtu(STATE, dtu.id, gate.label || "VERIFIED", "auto_promote_gate", "PROPOSED");
+        if (res.ok && !res.noop) {
           results.autoPromoted++;
           promoteCount++;
         }
@@ -164,6 +175,8 @@ export function tickGlobal(STATE) {
 
   } catch (err) {
     _tickState.global.errors++;
+  } finally {
+    _locks.global = false;
   }
 
   return results;
@@ -176,6 +189,9 @@ export function tickGlobal(STATE) {
  * Handles listing integrity scans, fraud detection, royalty accounting.
  */
 export function tickMarketplace(STATE) {
+  if (_locks.market) return { skipped: true, reason: "previous tick still running" };
+  _locks.market = true;
+
   const ts = Date.now();
   _tickState.market.lastRun = ts;
   _tickState.market.runCount++;
@@ -252,6 +268,8 @@ export function tickMarketplace(STATE) {
 
   } catch (err) {
     _tickState.market.errors++;
+  } finally {
+    _locks.market = false;
   }
 
   return results;
