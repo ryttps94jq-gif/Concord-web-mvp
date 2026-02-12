@@ -941,6 +941,80 @@ export const apiHelpers = {
     bulkCreate: (domain: string, data: { type: string; items: Array<{ title?: string; data?: Record<string, unknown>; meta?: Record<string, unknown> }> }) =>
       api.post(`/api/lens/${domain}/bulk`, data),
   },
+
+  // ---- Autogen Pipeline (v5.3.0+) ----
+  pipeline: {
+    run: (data?: { variant?: string; seed?: string; dryRun?: boolean }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'pipeline.run', input: data }),
+    metrics: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'pipeline.metrics', input: {} }),
+    selectIntent: (data?: { variant?: string }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'pipeline.selectIntent', input: data }),
+    dream: (seed?: string) => api.post('/api/dream', { seed }),
+    autogen: () => api.post('/api/autogen', {}),
+    evolution: (data?: { threshold?: number; minCluster?: number }) =>
+      api.post('/api/evolution', data),
+    synthesize: (data?: { megaIds?: string[] }) =>
+      api.post('/api/synthesize', data),
+  },
+
+  // ---- Empirical Gates (v5.4.0+) ----
+  empirical: {
+    info: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.info', input: {} }),
+    math: (expression: string) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.math', input: { expression } }),
+    parseUnits: (expr: string) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.parseUnits', input: { expr } }),
+    convertUnits: (data: { value: number; from: string; to: string }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.convertUnits', input: data }),
+    checkUnits: (data: { lhs: string; rhs: string }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.checkUnits', input: data }),
+    constants: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.constants', input: {} }),
+    scanText: (text: string | string[]) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'empirical.scanText', input: { text } }),
+  },
+
+  // ---- Capability Bridge (v5.5.0+) ----
+  bridge: {
+    info: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.info', input: {} }),
+    beacon: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.beacon', input: {} }),
+    dedupGate: (candidate: { title: string; tags?: string[]; claims?: string[] }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.dedupGate', input: { candidate } }),
+    dedupScan: (data?: { threshold?: number; windowSize?: number }) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.dedupScan', input: data }),
+    lensScope: (artifact: Record<string, unknown>, operation: string) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.lensScope', input: { artifact, operation } }),
+    lensValidate: (artifact: Record<string, unknown>) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.lensValidate', input: { artifact } }),
+    strategyHints: (domain?: string) =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.strategyHints', input: { domain } }),
+    heartbeatTick: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'bridge.heartbeatTick', input: {} }),
+  },
+
+  // ---- Scope Operations (v5.2.0+) ----
+  scope: {
+    metrics: () => api.get('/api/scope/metrics'),
+    dtus: (scope: string) => api.get(`/api/scope/dtus/${scope}`),
+    promote: (data: { dtuId: string; targetScope: string; reason?: string }) =>
+      api.post('/api/scope/promote', data),
+    validateGlobal: (data: { dtuId: string }) =>
+      api.post('/api/scope/validate-global', data),
+    overrides: () => api.get('/api/scope/overrides'),
+  },
+
+  // ---- Emergent Schema & System ----
+  emergent: {
+    schema: () =>
+      api.post('/api/macros/run', { domain: 'emergent', name: 'schema', input: {} }),
+    status: () => api.get('/api/emergent/status'),
+    latticeBeacon: () => api.get('/api/lattice/beacon'),
+    resonance: () => api.get('/api/lattice/resonance'),
+  },
 };
 
 // Initialize CSRF token on page load (browser only)

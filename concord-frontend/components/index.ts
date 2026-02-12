@@ -92,3 +92,10 @@ export * from './reminders/ReminderList';
 
 // Theme Components
 export * from './themes/ThemeSelector';
+
+// Platform Components (v5.5.0)
+export { default as PipelineMonitor } from './platform/PipelineMonitor';
+export { default as NerveCenter } from './platform/NerveCenter';
+export { default as EmpiricalGatesPanel } from './platform/EmpiricalGatesPanel';
+export { default as ScopeControls, ScopeBadge } from './platform/ScopeControls';
+export { usePlatformEvents } from './platform/usePlatformEvents';

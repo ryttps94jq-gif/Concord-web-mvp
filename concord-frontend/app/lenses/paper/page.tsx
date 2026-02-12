@@ -3,8 +3,10 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { FileText, Plus, Search, Calendar } from 'lucide-react';
+import { FileText, Plus, Search, Calendar, FlaskConical, CheckCircle, AlertTriangle } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useMutation } from '@tanstack/react-query';
+import { apiHelpers } from '@/lib/api/client';
 
 export default function PaperLensPage() {
   useLensNav('paper');
@@ -28,6 +30,31 @@ export default function PaperLensPage() {
   }));
 
   const allTags = Array.from(new Set(paperItems.flatMap(item => item.meta?.tags || [])));
+
+  // v5.5.0: Empirical validation for paper claims
+  const [validationResults, setValidationResults] = useState<Record<string, { passRate: number; issueCount: number; claimsChecked: number }>>({});
+  const validateMutation = useMutation({
+    mutationFn: async (artifact: { id: string; title: string; data: Record<string, unknown> }) => {
+      const res = await apiHelpers.bridge.lensValidate(artifact);
+      return { id: artifact.id, result: res.data };
+    },
+    onSuccess: (data) => {
+      if (data.result?.ok) {
+        setValidationResults(prev => ({
+          ...prev,
+          [data.id]: {
+            passRate: data.result.passRate ?? 1,
+            issueCount: data.result.issueCount ?? 0,
+            claimsChecked: data.result.claimsChecked ?? 0,
+          },
+        }));
+      }
+    },
+  });
+
+  const handleValidatePaper = (item: { id: string; title: string; data: Record<string, unknown> }) => {
+    validateMutation.mutate({ id: item.id, title: item.title, data: item.data as Record<string, unknown> });
+  };
 
   const handleCreatePaper = () => {
     createPaperArtifact({ title: 'Untitled Paper', data: { wordCount: 0, excerpt: '' }, meta: { tags: [] } });
@@ -107,6 +134,21 @@ export default function PaperLensPage() {
               <p className="text-sm text-gray-400 line-clamp-3 mb-3">
                 {paper.excerpt || 'No content yet...'}
               </p>
+              {/* Empirical validation results */}
+              {validationResults[paper.id] && (
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md mb-2 ${
+                  validationResults[paper.id].passRate >= 0.8 ? 'bg-neon-green/10' : 'bg-neon-orange/10'
+                }`}>
+                  {validationResults[paper.id].passRate >= 0.8
+                    ? <CheckCircle className="w-3 h-3 text-neon-green" />
+                    : <AlertTriangle className="w-3 h-3 text-neon-orange" />
+                  }
+                  <span className="text-[10px] text-gray-300">
+                    {Math.round(validationResults[paper.id].passRate * 100)}% pass
+                    ({validationResults[paper.id].claimsChecked} claims, {validationResults[paper.id].issueCount} issues)
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex gap-1">
                   {paper.tags?.slice(0, 3).map((tag: string) => (
@@ -118,10 +160,24 @@ export default function PaperLensPage() {
                     </span>
                   ))}
                 </div>
-                <span className="text-xs text-gray-500 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {new Date(paper.updatedAt).toLocaleDateString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const item = paperItems.find(p => p.id === paper.id);
+                      if (item) handleValidatePaper({ id: item.id, title: item.title, data: item.data as Record<string, unknown> });
+                    }}
+                    className="text-xs px-2 py-0.5 rounded bg-neon-green/10 text-neon-green hover:bg-neon-green/20 transition-colors flex items-center gap-1"
+                    title="Validate claims with empirical gates"
+                  >
+                    <FlaskConical className="w-3 h-3" />
+                    Validate
+                  </button>
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(paper.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
             </div>
           ))
