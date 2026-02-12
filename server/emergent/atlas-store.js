@@ -158,6 +158,10 @@ export function createAtlasDtu(STATE, input) {
     proofVerified: input.proofVerified || false,
     replicationCount: input.replicationCount || 0,
 
+    // Rights metadata (persisted at DTU level for license resolution)
+    license_type: input.license_type || null,
+    license_custom: input.license_custom || null,
+
     // Lane identity (defense in depth — set at creation, never changed directly)
     _lane: input._scope || input._lane || "local",
   };

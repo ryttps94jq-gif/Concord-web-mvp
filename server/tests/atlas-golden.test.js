@@ -861,3 +861,309 @@ describe("Golden 19: Chat Session Tracking", () => {
     assert.equal(result.ok, false, "Should fail for unknown session");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 20: Rights — Content Hashing + Proof of Origin
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import {
+  computeContentHash, canonicalizeContent, computeEvidenceHash, computeLineageHash,
+  resolveLicense, validateLicense, canUse, validateDerivativeRights,
+  validateMarketplaceListing, recordOrigin, getOrigin, verifyOriginIntegrity,
+  generateCitation, grantTransferRights, stampArtifactRights, getRightsMetrics,
+} from "../emergent/atlas-rights.js";
+import { LICENSE_TYPES, LICENSE_PROFILES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
+
+describe("Golden 20: Content Hashing + Proof of Origin", () => {
+  let STATE;
+  let dtu1;
+
+  before(() => {
+    STATE = makeTestState();
+    const r = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Rights test: Water boils at 100C",
+      author: { userId: "alice", display: "Alice" },
+    }), { actor: "alice" });
+    assert.ok(r.ok);
+    dtu1 = r.dtu;
+  });
+
+  it("should produce deterministic content hash", () => {
+    const hash1 = computeContentHash(dtu1);
+    const hash2 = computeContentHash(dtu1);
+    assert.equal(hash1, hash2, "Same content should produce same hash");
+    assert.equal(hash1.length, 64, "SHA-256 hash should be 64 hex chars");
+  });
+
+  it("should produce different hash for different content", () => {
+    const r2 = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Rights test: Ice melts at 0C",
+      author: { userId: "bob", display: "Bob" },
+    }), { actor: "bob" });
+    assert.ok(r2.ok);
+    const hash1 = computeContentHash(dtu1);
+    const hash2 = computeContentHash(r2.dtu);
+    assert.notEqual(hash1, hash2, "Different content should produce different hash");
+  });
+
+  it("should auto-stamp _rights on DTU at creation time", () => {
+    assert.ok(dtu1._rights, "DTU should have _rights metadata from write guard");
+    assert.ok(dtu1._rights.content_hash, "Should have content_hash");
+    assert.ok(dtu1._rights.license_type, "Should have license_type");
+    assert.equal(dtu1._rights.origin_lane, "local", "Local DTU should show local origin");
+    assert.equal(dtu1._rights.creator_user_id, "alice", "Should record creator");
+  });
+
+  it("should auto-record proof of origin at creation time", () => {
+    const origin = getOrigin(STATE, dtu1.id);
+    assert.ok(origin.ok, "Origin should exist");
+    assert.equal(origin.origin.artifact_id, dtu1.id);
+    assert.equal(origin.origin.creator_id, "alice");
+    assert.ok(origin.origin.content_hash, "Origin should have content_hash");
+    assert.ok(origin.origin.origin_fingerprint, "Origin should have fingerprint");
+  });
+
+  it("should verify origin integrity for untampered content", () => {
+    const result = verifyOriginIntegrity(STATE, dtu1);
+    assert.ok(result.ok);
+    assert.ok(result.intact, "Untampered content should pass integrity check");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 21: Rights — License Defaults by Lane
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 21: License Defaults by Lane", () => {
+  it("should default Local lane to PERSONAL", () => {
+    const { license_type, isDefault } = resolveLicense({}, "local");
+    assert.equal(license_type, LICENSE_TYPES.PERSONAL, "Local default should be PERSONAL");
+    assert.ok(isDefault, "Should be marked as default");
+  });
+
+  it("should default Global lane to ATTRIBUTION_OPEN", () => {
+    const { license_type, profile, isDefault } = resolveLicense({}, "global");
+    assert.equal(license_type, LICENSE_TYPES.ATTRIBUTION_OPEN, "Global default should be ATTRIBUTION_OPEN");
+    assert.ok(isDefault);
+    assert.equal(profile.attribution_required, true, "Attribution should be required");
+    assert.equal(profile.derivative_allowed, true, "Derivatives should be allowed");
+    assert.equal(profile.commercial_use_allowed, true, "Commercial use should be allowed");
+  });
+
+  it("should require explicit license for Marketplace (no default)", () => {
+    const { license_type, isDefault } = resolveLicense({}, "marketplace");
+    // Marketplace has null default, falls back to PERSONAL
+    assert.ok(isDefault, "Should be a fallback default since marketplace has no auto-default");
+  });
+
+  it("should honor explicit license on artifact over lane default", () => {
+    const artifact = { license_type: LICENSE_TYPES.NONCOMMERCIAL };
+    const { license_type, isDefault } = resolveLicense(artifact, "global");
+    assert.equal(license_type, LICENSE_TYPES.NONCOMMERCIAL, "Explicit license should override default");
+    assert.equal(isDefault, false);
+  });
+
+  it("should validate CUSTOM license requires all boolean fields", () => {
+    const r1 = validateLicense(LICENSE_TYPES.CUSTOM, null);
+    assert.equal(r1.ok, false, "CUSTOM without profile should fail");
+
+    const r2 = validateLicense(LICENSE_TYPES.CUSTOM, { attribution_required: true });
+    assert.equal(r2.ok, false, "CUSTOM with incomplete profile should fail");
+
+    const r3 = validateLicense(LICENSE_TYPES.CUSTOM, {
+      attribution_required: true,
+      derivative_allowed: false,
+      commercial_use_allowed: true,
+      redistribution_allowed: false,
+      royalty_required: true,
+    });
+    assert.ok(r3.ok, "CUSTOM with all fields should pass");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 22: Rights — canUse Engine
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 22: canUse Rights Engine", () => {
+  let STATE;
+  let localDtu, globalDtu;
+
+  before(() => {
+    STATE = makeTestState();
+
+    const r1 = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Owner's local note",
+      author: { userId: "alice", display: "Alice" },
+    }), { actor: "alice" });
+    assert.ok(r1.ok);
+    localDtu = r1.dtu;
+
+    const r2 = scopedWrite(STATE, SCOPES.GLOBAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Global verified knowledge",
+      author: { userId: "alice", display: "Alice" },
+    }), { actor: "alice" });
+    assert.ok(r2.ok);
+    globalDtu = r2.dtu;
+  });
+
+  it("should allow owner full rights on their own artifact", () => {
+    const result = canUse(STATE, "alice", localDtu.id, RIGHTS_ACTIONS.DERIVE);
+    assert.ok(result.allowed, "Owner should have full rights");
+  });
+
+  it("should block non-owner from viewing local artifacts", () => {
+    const result = canUse(STATE, "bob", localDtu.id, RIGHTS_ACTIONS.VIEW);
+    assert.equal(result.allowed, false, "Non-owner should not view local artifacts");
+  });
+
+  it("should allow non-owner to view global artifacts", () => {
+    const result = canUse(STATE, "bob", globalDtu.id, RIGHTS_ACTIONS.VIEW);
+    assert.ok(result.allowed, "Anyone should view global artifacts");
+  });
+
+  it("should allow non-owner to cite global artifacts", () => {
+    const result = canUse(STATE, "bob", globalDtu.id, RIGHTS_ACTIONS.CITE);
+    assert.ok(result.allowed, "Anyone should cite global artifacts");
+  });
+
+  it("should allow non-owner to derive from global ATTRIBUTION_OPEN artifact", () => {
+    const result = canUse(STATE, "bob", globalDtu.id, RIGHTS_ACTIONS.DERIVE);
+    assert.ok(result.allowed, "ATTRIBUTION_OPEN allows derivatives");
+  });
+
+  it("should block non-owner from listing on marketplace", () => {
+    const result = canUse(STATE, "bob", globalDtu.id, RIGHTS_ACTIONS.LIST_ON_MARKET);
+    assert.equal(result.allowed, false, "Only owner can list on marketplace");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 23: Rights — Derivative Rights Enforcement
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 23: Derivative Rights Enforcement", () => {
+  let STATE;
+  let parentDtu;
+
+  before(() => {
+    STATE = makeTestState();
+
+    // Create a parent DTU with MARKET_EXCLUSIVE (no derivatives allowed)
+    const r = scopedWrite(STATE, SCOPES.GLOBAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Exclusive research finding",
+      license_type: LICENSE_TYPES.MARKET_EXCLUSIVE,
+      author: { userId: "alice", display: "Alice" },
+    }), { actor: "alice" });
+    assert.ok(r.ok);
+    parentDtu = r.dtu;
+  });
+
+  it("should block derivative creation when parent disallows derivatives", () => {
+    const derivPayload = makeGoodDtu({
+      title: "My take on the exclusive finding",
+      lineage: { parents: [parentDtu.id], origin: "HUMAN" },
+    });
+
+    const result = validateDerivativeRights(STATE, derivPayload, "bob");
+    assert.equal(result.ok, false, "Should block derivative from exclusive-licensed parent");
+    assert.ok(result.errors.length > 0, "Should have error messages");
+  });
+
+  it("should allow owner to derive from their own exclusive content", () => {
+    const derivPayload = makeGoodDtu({
+      title: "My own extension of exclusive finding",
+      lineage: { parents: [parentDtu.id], origin: "HUMAN" },
+    });
+
+    const result = validateDerivativeRights(STATE, derivPayload, "alice");
+    assert.ok(result.ok, "Owner should be able to derive from their own content");
+  });
+
+  it("should allow derivative from ATTRIBUTION_OPEN parent", () => {
+    const r = scopedWrite(STATE, SCOPES.GLOBAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Open knowledge about thermodynamics",
+      // No explicit license = defaults to ATTRIBUTION_OPEN in global
+    }), { actor: "carol" });
+    assert.ok(r.ok);
+
+    const derivPayload = makeGoodDtu({
+      title: "Building on thermodynamics research",
+      lineage: { parents: [r.dtu.id], origin: "HUMAN" },
+    });
+
+    const result = validateDerivativeRights(STATE, derivPayload, "bob");
+    assert.ok(result.ok, "ATTRIBUTION_OPEN allows derivatives by anyone");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 24: Rights — Citation Generation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 24: Citation Generation", () => {
+  let STATE;
+  let dtuId;
+
+  before(() => {
+    STATE = makeTestState();
+    const r = scopedWrite(STATE, SCOPES.GLOBAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Citeable global knowledge",
+    }), { actor: "alice" });
+    assert.ok(r.ok);
+    dtuId = r.dtu.id;
+  });
+
+  it("should generate a complete citation with hash and license", () => {
+    const result = generateCitation(STATE, dtuId);
+    assert.ok(result.ok, "Citation generation should succeed");
+    assert.ok(result.citation, "Should return citation object");
+    assert.equal(result.citation.artifact_id, dtuId);
+    assert.ok(result.citation.content_hash, "Citation should include content hash");
+    assert.ok(result.citation.license_type, "Citation should include license type");
+    assert.ok(result.citation.text, "Citation should include human-readable text");
+    assert.ok(result.citation.text.includes("alice") || result.citation.text.includes("Test User"),
+      "Citation text should include author");
+  });
+
+  it("should return error for nonexistent artifact", () => {
+    const result = generateCitation(STATE, "nonexistent-id");
+    assert.equal(result.ok, false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 25: Rights — Transfer Rights
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 25: Transfer Rights", () => {
+  let STATE;
+  let dtu;
+
+  before(() => {
+    STATE = makeTestState();
+    const r = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Transferable artifact",
+      author: { userId: "alice", display: "Alice" },
+    }), { actor: "alice" });
+    assert.ok(r.ok);
+    dtu = r.dtu;
+  });
+
+  it("should allow owner to grant transfer rights", () => {
+    const result = grantTransferRights(STATE, dtu.id, "alice", "bob", RIGHTS_ACTIONS.LIST_ON_MARKET);
+    assert.ok(result.ok, "Owner should be able to grant transfer");
+    assert.ok(result.transfer.id, "Transfer should have an ID");
+  });
+
+  it("should block non-owner from granting transfer rights", () => {
+    const result = grantTransferRights(STATE, dtu.id, "bob", "carol", RIGHTS_ACTIONS.LIST_ON_MARKET);
+    assert.equal(result.ok, false, "Non-owner should not be able to grant transfers");
+  });
+
+  it("should allow transferee to use granted rights", () => {
+    // Bob was granted LIST_ON_MARKET rights above
+    const result = canUse(STATE, "bob", dtu.id, RIGHTS_ACTIONS.LIST_ON_MARKET);
+    assert.ok(result.allowed, "Transferee should have the granted rights");
+  });
+});

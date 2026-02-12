@@ -27,6 +27,7 @@ import { getAtlasState } from "./atlas-epistemic.js";
 import { searchAtlasDtus, getAtlasDtu, contentHash } from "./atlas-store.js";
 import crypto from "crypto";
 import { assertInvariant } from "./atlas-invariants.js";
+import { validateMarketplaceListing, resolveLicense } from "./atlas-rights.js";
 
 // ── Scope State Initialization ──────────────────────────────────────────────
 
@@ -227,6 +228,21 @@ export function createSubmission(STATE, sourceDtuId, targetScope, submitter, opt
     }
   }
 
+  // ── Marketplace rights validation ──────────────────────────────────────
+  if (targetScope === SCOPES.MARKETPLACE) {
+    const marketCheck = validateMarketplaceListing(STATE, dtu, submitter, {
+      license_type: opts.licenseTerms,
+      license_custom: opts.licenseCustom,
+      royaltySplits: opts.royaltySplits,
+    });
+    if (!marketCheck.ok) {
+      return { ok: false, error: `Marketplace rights check failed: ${marketCheck.errors.join("; ")}` };
+    }
+  }
+
+  // ── Resolve license for submission ──────────────────────────────────────
+  const { license_type, profile: licenseProfile } = resolveLicense(dtu, targetScope);
+
   const submissionId = `sub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
   const submission = {
@@ -252,6 +268,10 @@ export function createSubmission(STATE, sourceDtuId, targetScope, submitter, opt
       claimLaneSeparation: _analyzeClaimLanes(dtu),
       lineage: dtu.lineage || {},
       author: dtu.author || {},
+      // Rights metadata
+      license_type,
+      license_profile: licenseProfile,
+      rights: dtu._rights || null,
     },
 
     // Marketplace-specific (if applicable)

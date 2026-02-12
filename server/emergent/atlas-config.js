@@ -291,6 +291,96 @@ export const CHAT_PROFILE = Object.freeze({
   showScopeLabels:            true,              // always label source scope
 });
 
+// ── License Types ────────────────────────────────────────────────────────────
+// Predefined license profiles. No free-form logic in v1.
+
+export const LICENSE_TYPES = Object.freeze({
+  PERSONAL:              "CONCORD_PERSONAL",           // local only, no sharing
+  OPEN:                  "CONCORD_OPEN",               // share freely, no attribution needed
+  ATTRIBUTION_OPEN:      "CONCORD_ATTRIBUTION_OPEN",   // default for Global — credit required
+  NONCOMMERCIAL:         "CONCORD_NONCOMMERCIAL",      // share with credit, no commercial use
+  MARKET_EXCLUSIVE:      "CONCORD_MARKET_EXCLUSIVE",   // marketplace only, no redistribution
+  CUSTOM:                "CUSTOM",                     // must define all fields manually
+});
+
+export const LICENSE_TYPE_SET = new Set(Object.values(LICENSE_TYPES));
+
+// ── License Profiles (what each type allows) ─────────────────────────────────
+
+export const LICENSE_PROFILES = Object.freeze({
+  [LICENSE_TYPES.PERSONAL]: {
+    attribution_required:     false,
+    derivative_allowed:       false,
+    commercial_use_allowed:   false,
+    redistribution_allowed:   false,
+    royalty_required:         false,
+    exclusive:               false,
+  },
+  [LICENSE_TYPES.OPEN]: {
+    attribution_required:     false,
+    derivative_allowed:       true,
+    commercial_use_allowed:   true,
+    redistribution_allowed:   true,
+    royalty_required:         false,
+    exclusive:               false,
+  },
+  [LICENSE_TYPES.ATTRIBUTION_OPEN]: {
+    attribution_required:     true,
+    derivative_allowed:       true,
+    commercial_use_allowed:   true,
+    redistribution_allowed:   true,
+    royalty_required:         false,
+    exclusive:               false,
+  },
+  [LICENSE_TYPES.NONCOMMERCIAL]: {
+    attribution_required:     true,
+    derivative_allowed:       true,
+    commercial_use_allowed:   false,
+    redistribution_allowed:   true,
+    royalty_required:         false,
+    exclusive:               false,
+  },
+  [LICENSE_TYPES.MARKET_EXCLUSIVE]: {
+    attribution_required:     true,
+    derivative_allowed:       false,
+    commercial_use_allowed:   true,
+    redistribution_allowed:   false,
+    royalty_required:         true,
+    exclusive:               true,
+  },
+  [LICENSE_TYPES.CUSTOM]: null,  // must be defined per-artifact
+});
+
+// ── Lane-Aware License Defaults ──────────────────────────────────────────────
+
+export const DEFAULT_LICENSE_BY_LANE = Object.freeze({
+  [SCOPES.LOCAL]:       LICENSE_TYPES.PERSONAL,
+  [SCOPES.GLOBAL]:      LICENSE_TYPES.ATTRIBUTION_OPEN,
+  [SCOPES.MARKETPLACE]: null,  // creator must explicitly choose
+});
+
+// ── Rights Actions ───────────────────────────────────────────────────────────
+
+export const RIGHTS_ACTIONS = Object.freeze({
+  VIEW:           "VIEW",
+  CITE:           "CITE",
+  DERIVE:         "DERIVE",
+  REDISTRIBUTE:   "REDISTRIBUTE",
+  COMMERCIAL_USE: "COMMERCIAL_USE",
+  LIST_ON_MARKET: "LIST_ON_MARKET",
+  TRANSFER:       "TRANSFER",
+});
+
+// ── Derivation Types ─────────────────────────────────────────────────────────
+
+export const DERIVATION_TYPES = Object.freeze({
+  EXTENSION:    "EXTENSION",     // adds new claims to parent
+  REVISION:     "REVISION",      // corrects/updates parent
+  TRANSLATION:  "TRANSLATION",   // language or format change
+  SYNTHESIS:    "SYNTHESIS",     // combines multiple parents
+  CRITIQUE:     "CRITIQUE",      // analyzes/responds to parent
+});
+
 // ── Retrieval Policies ──────────────────────────────────────────────────────
 
 export const RETRIEVAL_POLICY = Object.freeze({

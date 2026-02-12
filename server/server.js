@@ -56,6 +56,7 @@ import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processS
 import { tickLocal, tickGlobal, tickMarketplace, tickAll, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
 import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
+import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransferRights, getRightsMetrics, computeContentHash as rightsContentHash } from "./emergent/atlas-rights.js";
 
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
@@ -26922,6 +26923,56 @@ app.get("/api/atlas/chat/session/:id", (req, res) => {
 
 app.get("/api/atlas/chat/metrics", (req, res) => {
   try { res.json(getChatMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Rights & Citation Endpoints ───────────────────────────────────
+
+app.get("/api/atlas/rights/check", (req, res) => {
+  try {
+    const { userId, artifactId, action } = req.query;
+    if (!userId || !artifactId || !action) return res.status(400).json({ ok: false, error: "userId, artifactId, and action required" });
+    res.json(canUse(STATE, userId, artifactId, action));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/rights/citation/:id", (req, res) => {
+  try { res.json(generateCitation(STATE, req.params.id)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/rights/origin/:id", (req, res) => {
+  try { res.json(getOrigin(STATE, req.params.id)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/rights/verify/:id", (req, res) => {
+  try {
+    const atlas = getAtlasState(STATE);
+    const dtu = atlas.dtus.get(req.params.id);
+    if (!dtu) return res.status(404).json({ ok: false, error: "Artifact not found" });
+    res.json(verifyOriginIntegrity(STATE, dtu));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/rights/transfer", (req, res) => {
+  try {
+    const { artifactId, fromUserId, toUserId, action, expiresAt } = req.body;
+    if (!artifactId || !fromUserId || !toUserId || !action) {
+      return res.status(400).json({ ok: false, error: "artifactId, fromUserId, toUserId, and action required" });
+    }
+    res.json(grantTransferRights(STATE, artifactId, fromUserId, toUserId, action, { expiresAt }));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/rights/hash/:id", (req, res) => {
+  try {
+    const atlas = getAtlasState(STATE);
+    const dtu = atlas.dtus.get(req.params.id);
+    if (!dtu) return res.status(404).json({ ok: false, error: "Artifact not found" });
+    res.json({ ok: true, artifact_id: req.params.id, content_hash: rightsContentHash(dtu) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/rights/metrics", (req, res) => {
+  try { res.json(getRightsMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery, Heartbeats) ----

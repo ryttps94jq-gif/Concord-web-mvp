@@ -36,6 +36,7 @@ import {
 } from "./atlas-epistemic.js";
 import { createAtlasDtu, promoteAtlasDtu, recomputeScores, contentHash } from "./atlas-store.js";
 import { runAntiGamingScan, findNearDuplicates, detectLineageCycle } from "./atlas-antigaming.js";
+import { stampArtifactRights, recordOrigin, validateDerivativeRights } from "./atlas-rights.js";
 import {
   assertInvariant,
   assertTyped,
@@ -211,6 +212,23 @@ function _guardedCreate(STATE, op, payload, ctx, profile, isHard) {
       }
     }
   }
+
+  // ── Derivative rights check ──────────────────────────────────────────
+  if (dtu.lineage?.parents?.length > 0) {
+    const derivCheck = validateDerivativeRights(STATE, dtu, ctx.actor || dtu.author?.userId);
+    if (!derivCheck.ok) {
+      if (isHard) {
+        logGuard(op, scope, dtu.id, "BLOCKED", `derivative rights: ${derivCheck.errors.join("; ")}`);
+        return { ok: false, error: `Derivative rights violation: ${derivCheck.errors.join("; ")}`, dtu };
+      }
+      warnings.push(...(derivCheck.errors || []));
+    }
+    if (derivCheck.warnings) warnings.push(...derivCheck.warnings);
+  }
+
+  // ── Rights stamping + proof of origin ──────────────────────────────
+  stampArtifactRights(dtu, scope);
+  recordOrigin(STATE, dtu);
 
   // ── Override initial status based on scope ─────────────────────────────
   if (scope === SCOPES.LOCAL && dtu.status === "DRAFT") {
