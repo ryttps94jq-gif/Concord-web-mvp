@@ -66,7 +66,7 @@ const STATUS_COLORS: Record<Status, string> = {
   completed: 'gray-400',
 };
 
-const SEED_DATA: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   FamilyMember: [
     { title: 'Alex Chen', data: { name: 'Alex Chen', role: 'Parent', birthday: '1988-03-15', allergies: ['peanuts'], notes: 'Works from home Tues/Thu' }, meta: { status: 'active', tags: ['parent'] } },
     { title: 'Jamie Chen', data: { name: 'Jamie Chen', role: 'Parent', birthday: '1990-07-22', allergies: [], notes: 'Coaches soccer Saturdays' }, meta: { status: 'active', tags: ['parent'] } },
@@ -118,7 +118,7 @@ export default function HouseholdLensPage() {
   const currentType = currentTypes[0];
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('household', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('household');
@@ -396,17 +396,17 @@ export default function HouseholdLensPage() {
         <div className={`${ds.grid3} mt-4`}>
           <div className="text-center p-3 rounded-lg bg-lattice-elevated/30">
             <Users className="w-6 h-6 text-neon-blue mx-auto mb-1" />
-            <p className={ds.heading3}>{SEED_DATA.FamilyMember.length}</p>
+            <p className={ds.heading3}>{seedData.FamilyMember.length}</p>
             <p className={ds.textMuted}>Family Members</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-lattice-elevated/30">
             <PawPrint className="w-6 h-6 text-neon-purple mx-auto mb-1" />
-            <p className={ds.heading3}>{SEED_DATA.Pet.length}</p>
+            <p className={ds.heading3}>{seedData.Pet.length}</p>
             <p className={ds.textMuted}>Pets</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-lattice-elevated/30">
             <Calendar className="w-6 h-6 text-neon-cyan mx-auto mb-1" />
-            <p className={ds.heading3}>{SEED_DATA.MajorEvent.length}</p>
+            <p className={ds.heading3}>{seedData.MajorEvent.length}</p>
             <p className={ds.textMuted}>Upcoming Events</p>
           </div>
         </div>

@@ -510,6 +510,14 @@ export const LENS_STATUS_MAP: LensStatusEntry[] = [
     rationale: 'Custom lens builder. Infrastructure.',
   },
 
+  {
+    id: 'platform',
+    status: 'system',
+    mergeTarget: null,
+    postMergeRole: 'standalone',
+    rationale: 'Mega platform dashboard. Infrastructure.',
+  },
+
   // ═══════════════════════════════════════════════════════════════
   // REMAINING LENSES — classified for merge or standalone
   // ═══════════════════════════════════════════════════════════════

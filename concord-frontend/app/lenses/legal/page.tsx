@@ -81,7 +81,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'amber-400', registered: 'neon-green', contested: 'red-400',
 };
 
-const SEED_ITEMS: { title: string; data: LegalArtifact }[] = [
+const seedItems: { title: string; data: LegalArtifact }[] = [
   { title: 'Smith v. Acme Corp', data: { artifactType: 'Case', status: 'discovery', description: 'Product liability dispute, class action potential', jurisdiction: 'US Federal', assignee: 'J. Whitfield', dueDate: '2025-08-01', value: 2500000 } },
   { title: 'SaaS License Agreement - TechCo', data: { artifactType: 'Contract', status: 'review', description: 'Enterprise SaaS license with 3-year term', jurisdiction: 'Delaware', assignee: 'M. Torres', dueDate: '2025-07-15', value: 480000 } },
   { title: 'GDPR Annual Audit', data: { artifactType: 'ComplianceItem', status: 'due_soon', description: 'Annual GDPR compliance audit for EU operations', jurisdiction: 'EU', assignee: 'L. Fischer', dueDate: '2025-07-01' } },
@@ -116,7 +116,7 @@ export default function LegalLensPage() {
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<LegalArtifact>('legal', 'artifact', {
-    seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
+    seed: seedItems.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
   const runAction = useRunArtifact('legal');

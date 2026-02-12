@@ -40,6 +40,26 @@ export interface LensManifest {
 // Each manifest declares the runtime contract for one lens domain.
 
 export const LENS_MANIFESTS: LensManifest[] = [
+  // === CORE ===
+  {
+    domain: 'chat',
+    label: 'Chat',
+    artifacts: ['conversation', 'message', 'session'],
+    macros: { list: 'lens.chat.list', get: 'lens.chat.get', create: 'lens.chat.create', update: 'lens.chat.update', delete: 'lens.chat.delete', run: 'lens.chat.run', export: 'lens.chat.export' },
+    exports: ['json', 'md', 'txt'],
+    actions: ['send', 'summarize', 'branch', 'export_transcript'],
+    category: 'knowledge',
+  },
+  {
+    domain: 'code',
+    label: 'Code',
+    artifacts: ['file', 'snippet', 'project', 'workspace'],
+    macros: { list: 'lens.code.list', get: 'lens.code.get', create: 'lens.code.create', update: 'lens.code.update', delete: 'lens.code.delete', run: 'lens.code.run', export: 'lens.code.export' },
+    exports: ['json', 'zip', 'tar'],
+    actions: ['execute', 'lint', 'format', 'refactor', 'diff'],
+    category: 'knowledge',
+  },
+
   // === CREATIVE ===
   {
     domain: 'music',

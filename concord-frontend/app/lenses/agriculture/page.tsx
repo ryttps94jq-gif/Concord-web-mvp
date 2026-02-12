@@ -146,7 +146,7 @@ const WATER_SYSTEMS = ['Center Pivot', 'Drip', 'Flood', 'Sprinkler', 'Subsurface
 const CERT_TYPES = ['USDA Organic', 'Non-GMO Verified', 'GAP (Good Agricultural Practices)', 'Animal Welfare Approved', 'Rainforest Alliance', 'Fair Trade', 'Certified Naturally Grown'];
 const QUALITY_GRADES = ['Premium', 'Grade A', 'Grade B', 'Standard', 'Processing'];
 
-const SEED_DATA: { title: string; data: Record<string, unknown> }[] = [
+const seedData: { title: string; data: Record<string, unknown> }[] = [
   { title: 'North Quarter - Section 12', data: { name: 'North Quarter - Section 12', type: 'Field', status: 'growing', description: '160-acre field, center-pivot irrigated', acreage: 160, soilType: 'Sandy Loam', location: 'N40.82 W96.71', currentCrop: 'Corn (Pioneer P1185)', lastTested: '2025-02-15', phLevel: 6.8, nitrogenPpm: 42, notes: 'Applied lime fall 2024' } },
   { title: 'South Pasture', data: { name: 'South Pasture', type: 'Field', status: 'growing', description: '80-acre rotational grazing pasture', acreage: 80, soilType: 'Loam', location: 'N40.80 W96.72', currentCrop: 'Mixed grass/clover', lastTested: '2024-11-01', phLevel: 6.5, nitrogenPpm: 38, notes: 'Rotational paddock system, 8 paddocks' } },
   { title: 'Corn - Pioneer P1185', data: { name: 'Corn - Pioneer P1185', type: 'Crop', status: 'growing', description: '160 acres of field corn, 113-day maturity', variety: 'Pioneer P1185', fieldName: 'North Quarter', plantDate: '2025-04-20', expectedHarvest: '2025-10-15', seedSource: 'Pioneer Seeds', rowSpacing: '30"', estimatedYield: 210, yieldUnit: 'bu/ac', pestPressure: 'Low', notes: 'Pre-emerge herbicide applied May 1' } },
@@ -224,7 +224,7 @@ export default function AgricultureLensPage() {
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Field';
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<AgricultureArtifact>('agriculture', activeArtifactType, {
-    seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
+    seed: seedData.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
 
   const runAction = useRunArtifact('agriculture');

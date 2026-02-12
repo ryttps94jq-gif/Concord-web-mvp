@@ -87,7 +87,7 @@ function statusOptionsFor(type: ArtifactType): string[] {
   return ['active'];
 }
 
-const SEED_DATA: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   Product: [
     { title: 'Wireless Headphones Pro', data: { name: 'Wireless Headphones Pro', sku: 'WHP-001', category: 'Electronics', price: 149.99, stock: 234, reorderPoint: 50, supplier: 'AudioTech Inc' }, meta: { status: 'active', tags: ['electronics', 'featured'] } },
     { title: 'Ergonomic Office Chair', data: { name: 'Ergonomic Office Chair', sku: 'EOC-042', category: 'Furniture', price: 399.00, stock: 18, reorderPoint: 20, supplier: 'ComfortWorks' }, meta: { status: 'active', tags: ['furniture', 'low-stock'] } },
@@ -141,7 +141,7 @@ export default function RetailLensPage() {
   const currentType = MODE_TABS.find(t => t.id === mode)!.types[0];
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('retail', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('retail');
@@ -363,13 +363,13 @@ export default function RetailLensPage() {
 
   /* ---- dashboard ---- */
   const renderDashboard = () => {
-    const totalRevenue = SEED_DATA.Order.reduce((s, o) => s + ((o.data.total as number) || 0), 0);
-    const totalPipelineVal = SEED_DATA.Lead.reduce((s, l) => {
+    const totalRevenue = seedData.Order.reduce((s, o) => s + ((o.data.total as number) || 0), 0);
+    const totalPipelineVal = seedData.Lead.reduce((s, l) => {
       const st = l.meta.status as string;
       if (st !== 'won' && st !== 'lost') return s + ((l.data.value as number) || 0);
       return s;
     }, 0);
-    const avgLTV = SEED_DATA.Customer.reduce((s, c) => s + ((c.data.totalSpent as number) || 0), 0) / (SEED_DATA.Customer.length || 1);
+    const avgLTV = seedData.Customer.reduce((s, c) => s + ((c.data.totalSpent as number) || 0), 0) / (seedData.Customer.length || 1);
 
     return (
       <div className="space-y-6">
@@ -382,7 +382,7 @@ export default function RetailLensPage() {
           <div className={ds.panel}>
             <div className="flex items-center gap-2 mb-2"><Target className="w-4 h-4 text-neon-purple" /><span className={ds.textMuted}>Pipeline Value</span></div>
             <p className={ds.heading2}>${totalPipelineVal.toLocaleString()}</p>
-            <p className={ds.textMuted}>{SEED_DATA.Lead.length} active deals</p>
+            <p className={ds.textMuted}>{seedData.Lead.length} active deals</p>
           </div>
           <div className={ds.panel}>
             <div className="flex items-center gap-2 mb-2"><Users className="w-4 h-4 text-neon-cyan" /><span className={ds.textMuted}>Avg Customer LTV</span></div>
@@ -391,7 +391,7 @@ export default function RetailLensPage() {
           </div>
           <div className={ds.panel}>
             <div className="flex items-center gap-2 mb-2"><Headphones className="w-4 h-4 text-red-400" /><span className={ds.textMuted}>Open Tickets</span></div>
-            <p className={ds.heading2}>{SEED_DATA.Ticket.filter(t => t.meta.status === 'open' || t.meta.status === 'in_progress').length}</p>
+            <p className={ds.heading2}>{seedData.Ticket.filter(t => t.meta.status === 'open' || t.meta.status === 'in_progress').length}</p>
             <p className={ds.textMuted}>SLA compliance 94%</p>
           </div>
         </div>
@@ -399,11 +399,11 @@ export default function RetailLensPage() {
         {/* Reorder check */}
         <div className={ds.panel}>
           <h3 className={`${ds.heading3} mb-3`}>Reorder Check</h3>
-          {SEED_DATA.Product.filter(p => (p.data.stock as number) <= (p.data.reorderPoint as number)).length === 0 ? (
+          {seedData.Product.filter(p => (p.data.stock as number) <= (p.data.reorderPoint as number)).length === 0 ? (
             <div className="flex items-center gap-2 text-green-400"><CheckCircle2 className="w-5 h-5" /> All products above reorder point.</div>
           ) : (
             <div className="space-y-2">
-              {SEED_DATA.Product.filter(p => (p.data.stock as number) <= (p.data.reorderPoint as number)).map((p, i) => (
+              {seedData.Product.filter(p => (p.data.stock as number) <= (p.data.reorderPoint as number)).map((p, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 border border-red-500/20">
                   <div>
                     <p className="text-sm font-medium text-white">{p.title}</p>
@@ -421,7 +421,7 @@ export default function RetailLensPage() {
           <h3 className={`${ds.heading3} mb-4`}>Sales Pipeline</h3>
           <div className="flex items-end gap-2">
             {(['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won'] as LeadStatus[]).map(stage => {
-              const count = SEED_DATA.Lead.filter(l => l.meta.status === stage).length;
+              const count = seedData.Lead.filter(l => l.meta.status === stage).length;
               const maxCount = 3;
               const height = Math.max(20, (count / maxCount) * 120);
               return (

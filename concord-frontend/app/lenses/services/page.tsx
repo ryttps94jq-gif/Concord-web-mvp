@@ -127,7 +127,7 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
 const SERVICE_CATEGORIES = ['Hair', 'Nails', 'Skin/Facial', 'Massage', 'Waxing', 'Lashes/Brows', 'Makeup', 'Childcare', 'Tutoring', 'Photography', 'Personal Training', 'Pet Grooming', 'Cleaning', 'Other'];
 const PROVIDER_ROLES = ['Stylist', 'Barber', 'Nail Tech', 'Esthetician', 'Massage Therapist', 'Lash Tech', 'Makeup Artist', 'Childcare Provider', 'Tutor', 'Photographer', 'Trainer', 'Groomer', 'Cleaner'];
 
-const SEED_DATA: { title: string; data: Record<string, unknown> }[] = [
+const seedData: { title: string; data: Record<string, unknown> }[] = [
   { title: 'Jessica Rivera', data: { name: 'Jessica Rivera', type: 'Client', status: 'completed', description: 'Regular client - hair and nails', phone: '555-0201', email: 'jessica.r@email.com', address: '88 Willow Creek Dr', preferredProvider: 'Aisha K.', visitCount: 24, totalSpend: 3840, lastVisit: '2025-03-01', allergies: 'Latex sensitivity', preferences: 'Prefers warm tones, no ammonia color', notes: 'Always books Saturdays' } },
   { title: 'Marcus Chen', data: { name: 'Marcus Chen', type: 'Client', status: 'booked', description: 'Monthly haircut client', phone: '555-0202', email: 'mchen@email.com', address: '42 Pine Ridge', preferredProvider: 'Tony M.', visitCount: 12, totalSpend: 720, lastVisit: '2025-02-15', allergies: '', preferences: 'Fade, 2 on sides, scissors on top', notes: '' } },
   { title: 'Color & Cut - Jessica R.', data: { name: 'Color & Cut - Jessica R.', type: 'Appointment', status: 'confirmed', description: 'Full color refresh + trim', clientName: 'Jessica Rivera', providerName: 'Aisha K.', serviceName: 'Color & Cut', dateTime: '2025-03-22T10:00', duration: 120, price: 185, reminderSent: true, specialRequests: 'Wants to go slightly warmer this time', notes: '' } },
@@ -200,7 +200,7 @@ export default function ServicesLensPage() {
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Client';
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ServicesArtifact>('services', activeArtifactType, {
-    seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
+    seed: seedData.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
   const runAction = useRunArtifact('services');
 

@@ -72,7 +72,7 @@ const STATUS_COLORS: Record<Status, string> = {
   graduated: 'neon-purple',
 };
 
-const SEED_ITEMS: { title: string; data: FitnessArtifact }[] = [
+const seedItems: { title: string; data: FitnessArtifact }[] = [
   { title: 'Sarah Mitchell', data: { artifactType: 'Client', status: 'active', description: 'Weight loss program, 3x/week, targeting 15lb reduction in 12 weeks', coach: 'Coach Davis', goal: 'Lose 15 lbs', category: 'Weight Loss' } },
   { title: 'Marathon Prep 16-Week', data: { artifactType: 'Program', status: 'active', description: '16-week marathon preparation plan with progressive distance increases', coach: 'Coach Hernandez', duration: 112, category: 'Endurance', goal: 'Complete marathon under 4:00' } },
   { title: 'HIIT Circuit Alpha', data: { artifactType: 'Workout', status: 'active', description: 'High-intensity interval circuit: burpees, box jumps, kettlebell swings, battle ropes', duration: 45, intensity: 'high', category: 'HIIT' } },
@@ -112,7 +112,7 @@ export default function FitnessLensPage() {
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<FitnessArtifact>('fitness', 'artifact', {
-    seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
+    seed: seedItems.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
   const runAction = useRunArtifact('fitness');

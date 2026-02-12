@@ -70,7 +70,7 @@ const STATUS_COLORS: Record<Status, string> = {
   archived: 'gray-400',
 };
 
-const SEED_ITEMS: { title: string; data: HealthcareArtifact }[] = [
+const seedItems: { title: string; data: HealthcareArtifact }[] = [
   { title: 'Jane Doe - Annual Physical', data: { artifactType: 'Patient', status: 'active', description: 'Annual wellness exam due', provider: 'Dr. Smith', date: '2025-06-15', priority: 'medium' } },
   { title: 'Post-Op Follow-Up #412', data: { artifactType: 'Encounter', status: 'scheduled', description: 'Knee replacement follow-up at 6 weeks', provider: 'Dr. Chen', date: '2025-06-20', priority: 'high' } },
   { title: 'Diabetes Management Protocol', data: { artifactType: 'CareProtocol', status: 'active', description: 'Type 2 diabetes standard management pathway', provider: 'Endocrinology', priority: 'high' } },
@@ -105,7 +105,7 @@ export default function HealthcareLensPage() {
   const [formNotes, setFormNotes] = useState('');
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<HealthcareArtifact>('healthcare', 'artifact', {
-    seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
+    seed: seedItems.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
   const runAction = useRunArtifact('healthcare');

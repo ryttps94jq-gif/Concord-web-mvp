@@ -119,7 +119,7 @@ const DIETARY_FLAGS = ['Vegan', 'Vegetarian', 'GF', 'DF', 'Keto', 'Halal', 'Kosh
 const STATIONS = ['Grill', 'Saute', 'Cold/Garde Manger', 'Pastry', 'Prep', 'Expo', 'Dish', 'Bar', 'FOH'];
 const ROLES = ['Head Chef', 'Sous Chef', 'Line Cook', 'Prep Cook', 'Pastry Chef', 'Bartender', 'Server', 'Host', 'Dishwasher', 'Manager'];
 
-const SEED_DATA: { title: string; data: Record<string, unknown> }[] = [
+const seedData: { title: string; data: Record<string, unknown> }[] = [
   { title: 'Pan-Seared Salmon', data: { name: 'Pan-Seared Salmon', type: 'Recipe', status: 'active', description: 'Atlantic salmon with lemon-dill beurre blanc, roasted fingerlings, and haricots verts', category: 'Mains', cost: 8.50, price: 32.00, servings: 1, prepTime: 15, cookTime: 12, ingredients: [{ item: 'Salmon fillet', qty: '8', unit: 'oz', cost: 4.50 }, { item: 'Fingerling potatoes', qty: '6', unit: 'oz', cost: 1.20 }, { item: 'Haricots verts', qty: '4', unit: 'oz', cost: 0.80 }, { item: 'Butter', qty: '2', unit: 'tbsp', cost: 0.40 }, { item: 'Lemon', qty: '1', unit: 'ea', cost: 0.30 }, { item: 'Fresh dill', qty: '1', unit: 'tbsp', cost: 0.15 }], allergens: ['Fish', 'Dairy'], dietary: [], notes: 'Skin-on, score before searing' } },
   { title: 'Mushroom Risotto', data: { name: 'Mushroom Risotto', type: 'Recipe', status: 'active', description: 'Arborio rice with mixed wild mushrooms, parmesan, truffle oil', category: 'Mains', cost: 5.20, price: 26.00, servings: 1, prepTime: 10, cookTime: 25, ingredients: [{ item: 'Arborio rice', qty: '6', unit: 'oz', cost: 0.90 }, { item: 'Mixed mushrooms', qty: '5', unit: 'oz', cost: 2.40 }, { item: 'Parmesan', qty: '2', unit: 'oz', cost: 0.80 }, { item: 'Truffle oil', qty: '1', unit: 'tsp', cost: 0.60 }], allergens: ['Dairy'], dietary: ['Vegetarian', 'GF'], notes: 'Stir constantly, add stock gradually' } },
   { title: 'Chocolate Lava Cake', data: { name: 'Chocolate Lava Cake', type: 'Recipe', status: 'active', description: 'Individual dark chocolate fondant with vanilla bean ice cream', category: 'Desserts', cost: 3.10, price: 14.00, servings: 1, prepTime: 20, cookTime: 14, ingredients: [{ item: 'Dark chocolate (70%)', qty: '4', unit: 'oz', cost: 1.60 }, { item: 'Butter', qty: '3', unit: 'tbsp', cost: 0.60 }, { item: 'Eggs', qty: '2', unit: 'ea', cost: 0.50 }, { item: 'Sugar', qty: '3', unit: 'tbsp', cost: 0.10 }], allergens: ['Dairy', 'Eggs', 'Gluten'], dietary: [], notes: 'Bake to order, 14 min at 425F' } },
@@ -174,7 +174,7 @@ export default function FoodLensPage() {
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Recipe';
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<FoodArtifact>('food', activeArtifactType, {
-    seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
+    seed: seedData.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
 
   const runAction = useRunArtifact('food');

@@ -71,7 +71,7 @@ const STATUS_COLORS: Record<Status, string> = {
   seasonal: 'neon-purple',
 };
 
-const SEED_DATA: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   Site: [
     { title: 'Cedar Creek Wetland Reserve', data: { name: 'Cedar Creek Wetland Reserve', type: 'Wetland', lat: 45.123, lon: -93.456, acreage: 340, manager: 'DNR District 7', designation: 'State Natural Area' }, meta: { status: 'active', tags: ['wetland', 'protected'] } },
     { title: 'Quarry Bluff Remediation Site', data: { name: 'Quarry Bluff Remediation Site', type: 'Brownfield', lat: 44.987, lon: -93.221, acreage: 28, manager: 'EPA Region 5', designation: 'Superfund' }, meta: { status: 'remediation', tags: ['brownfield', 'superfund'] } },
@@ -123,7 +123,7 @@ export default function EnvironmentLensPage() {
   const currentType = MODE_TABS.find(t => t.id === mode)!.artifactType;
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('environment', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('environment');
@@ -347,9 +347,9 @@ export default function EnvironmentLensPage() {
       <div className={ds.panel}>
         <div className={ds.sectionHeader}><h3 className={ds.heading3}>Environmental Summary</h3><BarChart3 className="w-5 h-5 text-gray-400" /></div>
         <div className={`${ds.grid3} mt-4`}>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Mountain className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Site.length}</p><p className={ds.textMuted}>Managed Sites</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Bug className="w-6 h-6 text-neon-purple mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Species.length}</p><p className={ds.textMuted}>Tracked Species</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Droplets className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.EnvironmentalSample.length}</p><p className={ds.textMuted}>Active Samples</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Mountain className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.Site.length}</p><p className={ds.textMuted}>Managed Sites</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Bug className="w-6 h-6 text-neon-purple mx-auto mb-1" /><p className={ds.heading3}>{seedData.Species.length}</p><p className={ds.textMuted}>Tracked Species</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Droplets className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{seedData.EnvironmentalSample.length}</p><p className={ds.textMuted}>Active Samples</p></div>
         </div>
       </div>
 
