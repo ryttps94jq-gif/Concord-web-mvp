@@ -24,7 +24,8 @@ import {
 } from "./atlas-config.js";
 import { applyWrite, WRITE_OPS, runAutoPromoteGate, guardedDtuWrite, ingestAutogenCandidate } from "./atlas-write-guard.js";
 import { getAtlasState } from "./atlas-epistemic.js";
-import { searchAtlasDtus, getAtlasDtu } from "./atlas-store.js";
+import { searchAtlasDtus, getAtlasDtu, contentHash } from "./atlas-store.js";
+import crypto from "crypto";
 import { assertInvariant } from "./atlas-invariants.js";
 
 // ── Scope State Initialization ──────────────────────────────────────────────
@@ -283,6 +284,15 @@ export function createSubmission(STATE, sourceDtuId, targetScope, submitter, opt
     }],
   };
 
+  // ── Immutability: hash and freeze payload at creation ─────────────────
+  // Prevents "quiet edits" after council review starts.
+  const payloadJson = JSON.stringify(submission.payload);
+  submission.payloadHash = crypto.createHash("sha256").update(payloadJson).digest("hex").slice(0, 32);
+  submission.sourceSnapshotHash = contentHash(dtu);
+  Object.freeze(submission.payload);
+  if (submission.marketplace) Object.freeze(submission.marketplace);
+  submission._sealed = true;
+
   scopeState.submissions.set(submissionId, submission);
   scopeState.metrics.submissionsCreated++;
 
@@ -299,6 +309,14 @@ export function processSubmission(STATE, submissionId, step, actor, result = {})
   if (!submission) return { ok: false, error: `Submission not found: ${submissionId}` };
   if (submission.status === "APPROVED" || submission.status === "REJECTED") {
     return { ok: false, error: `Submission already ${submission.status}` };
+  }
+
+  // ── Immutability check: verify payload hasn't been tampered with ─────
+  if (submission._sealed) {
+    const currentHash = crypto.createHash("sha256").update(JSON.stringify(submission.payload)).digest("hex").slice(0, 32);
+    if (currentHash !== submission.payloadHash) {
+      return { ok: false, error: "Submission payload integrity violation — payload hash mismatch" };
+    }
   }
 
   submission.status = "REVIEWING";

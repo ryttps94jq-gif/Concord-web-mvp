@@ -24,9 +24,11 @@ import { initAtlasState, getAtlasState, ATLAS_STATUS, CLAIM_TYPES, EPISTEMIC_CLA
 import { createAtlasDtu, promoteAtlasDtu, addAtlasLink, recomputeScores, getContradictions } from "../emergent/atlas-store.js";
 import { detectLineageCycle } from "../emergent/atlas-antigaming.js";
 import { runAutoPromoteGate, applyWrite, WRITE_OPS, ingestAutogenCandidate } from "../emergent/atlas-write-guard.js";
-import { initScopeState, scopedWrite, getDtuScope, createSubmission } from "../emergent/atlas-scope-router.js";
+import { initScopeState, scopedWrite, getDtuScope, createSubmission, getScopeMetrics } from "../emergent/atlas-scope-router.js";
 import { assertInvariant, assertClaimLanes, assertNoCitedFactGaps, resetInvariantMetrics } from "../emergent/atlas-invariants.js";
 import { SCOPES, AUTO_PROMOTE_THRESHOLDS, LOCAL_STATUS, GLOBAL_STATUS } from "../emergent/atlas-config.js";
+import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "../emergent/atlas-heartbeat.js";
+import { retrieve as atlasRetrieve } from "../emergent/atlas-retrieval.js";
 
 // ── Test STATE factory ──────────────────────────────────────────────────────
 
@@ -468,5 +470,183 @@ describe("Golden 9: Claim Lane Invariant", () => {
     // RECEPTION is interpretation-lane, PROVEN is factual-tier — should fail
     const result = assertClaimLanes(dtu, false);
     assert.equal(result.ok, false, "RECEPTION with PROVEN tier should violate claim lane invariant");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 10: Empty World Boot
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 10: Empty World Boot", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should survive heartbeat on empty state (no DTUs, no null derefs)", () => {
+    const localResult = tickLocal(STATE);
+    assert.ok(localResult, "Local heartbeat should return a result");
+    assert.equal(localResult.recomputed, 0, "Nothing to recompute");
+
+    const globalResult = tickGlobal(STATE);
+    assert.ok(globalResult, "Global heartbeat should return a result");
+    assert.equal(globalResult.recomputed, 0);
+    assert.equal(globalResult.autoPromoted, 0);
+    assert.equal(globalResult.autoDisputed, 0);
+
+    const marketResult = tickMarketplace(STATE);
+    assert.ok(marketResult, "Marketplace heartbeat should return a result");
+    assert.equal(marketResult.integrityScans, 0);
+    assert.equal(marketResult.fraudDetected, 0);
+  });
+
+  it("should survive retrieval on empty state", () => {
+    const result = atlasRetrieve(STATE, "LOCAL_THEN_GLOBAL", "anything", { limit: 10 });
+    assert.ok(result.ok, "Retrieval should succeed on empty state");
+    assert.equal(result.results.length, 0, "No results expected");
+    assert.equal(result.total, 0);
+  });
+
+  it("should survive scoped write and scope metrics on empty state", () => {
+    const metrics = getScopeMetrics(STATE);
+    assert.ok(metrics.ok, "Scope metrics should succeed on empty state");
+    assert.equal(metrics.dtusByScope.local, 0);
+    assert.equal(metrics.dtusByScope.global, 0);
+    assert.equal(metrics.dtusByScope.marketplace, 0);
+    assert.equal(metrics.totalSubmissions, 0);
+  });
+
+  it("should survive heartbeat metrics on empty state", () => {
+    const metrics = getHeartbeatMetrics();
+    assert.ok(metrics.ok, "Heartbeat metrics should succeed");
+    assert.equal(typeof metrics.local.runCount, "number");
+    assert.equal(typeof metrics.global.runCount, "number");
+    assert.equal(typeof metrics.marketplace.runCount, "number");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 11: Submission Immutability
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 11: Submission Immutability", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should create submission with payload hash and sealed flag", () => {
+    // Create a local DTU first
+    const dtu = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Submission immutability test",
+    }), { actor: "user-1" });
+    assert.ok(dtu.ok);
+
+    const sub = createSubmission(STATE, dtu.dtu.id, SCOPES.GLOBAL, "user-1");
+    assert.ok(sub.ok);
+    assert.ok(sub.submission.payloadHash, "Submission should have payload hash");
+    assert.ok(sub.submission.sourceSnapshotHash, "Submission should have source snapshot hash");
+    assert.equal(sub.submission._sealed, true, "Submission should be sealed");
+    assert.equal(sub.submission.payloadHash.length, 32, "Hash should be 32 hex chars");
+  });
+
+  it("should reject frozen payload mutation", () => {
+    const dtu = scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Frozen payload test",
+    }), { actor: "user-1" });
+    assert.ok(dtu.ok);
+
+    const sub = createSubmission(STATE, dtu.dtu.id, SCOPES.GLOBAL, "user-1");
+    assert.ok(sub.ok);
+
+    // Attempting to mutate frozen payload should throw
+    assert.throws(() => {
+      sub.submission.payload.title = "Tampered title";
+    }, "Mutating frozen payload should throw");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 12: Promotion Idempotency
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 12: Promotion Idempotency", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should return noop when promoting to current status", () => {
+    const result = createAtlasDtu(STATE, makeGoodDtu());
+    assert.ok(result.ok);
+
+    // DTU starts as DRAFT; try to promote to DRAFT → noop
+    const promote = promoteAtlasDtu(STATE, result.dtu.id, "DRAFT", "test");
+    assert.ok(promote.ok, "Idempotent promote should succeed");
+    assert.equal(promote.noop, true, "Should be a noop");
+  });
+
+  it("should fail CAS when expected status doesn't match", () => {
+    const result = createAtlasDtu(STATE, makeGoodDtu());
+    assert.ok(result.ok);
+
+    // DTU is DRAFT but we expect PROPOSED → CAS fail
+    const promote = promoteAtlasDtu(STATE, result.dtu.id, "VERIFIED", "test", "PROPOSED");
+    assert.equal(promote.ok, false, "CAS should fail");
+    assert.ok(promote.error?.includes("CAS failed"), "Error should mention CAS");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 13: Heartbeat Overlap Lock
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 13: Heartbeat Overlap Lock", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should not crash on rapid successive heartbeat calls", () => {
+    // Rapid fire — should not throw even if called in tight succession
+    for (let i = 0; i < 5; i++) {
+      const r1 = tickLocal(STATE);
+      const r2 = tickGlobal(STATE);
+      const r3 = tickMarketplace(STATE);
+      assert.ok(r1, `Local tick ${i} should return`);
+      assert.ok(r2, `Global tick ${i} should return`);
+      assert.ok(r3, `Market tick ${i} should return`);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 14: Store-Level Lane Field
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 14: Store-Level Lane", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should set _lane field on DTU at creation time", () => {
+    const result = createAtlasDtu(STATE, {
+      ...makeGoodDtu(),
+      _scope: "global",
+    });
+    assert.ok(result.ok);
+    assert.equal(result.dtu._lane, "global", "DTU should have _lane set from _scope");
+  });
+
+  it("should default _lane to local when no scope specified", () => {
+    const result = createAtlasDtu(STATE, makeGoodDtu());
+    assert.ok(result.ok);
+    assert.equal(result.dtu._lane, "local", "DTU should default to local lane");
   });
 });

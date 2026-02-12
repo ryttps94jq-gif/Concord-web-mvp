@@ -157,6 +157,9 @@ export function createAtlasDtu(STATE, input) {
     // Domain-specific flags
     proofVerified: input.proofVerified || false,
     replicationCount: input.replicationCount || 0,
+
+    // Lane identity (defense in depth — set at creation, never changed directly)
+    _lane: input._scope || input._lane || "local",
   };
 
   // Compute hash
@@ -229,6 +232,12 @@ function indexAtlasDtu(atlas, dtu) {
       atlas.about.get(dtu.id).add(aboutLink.entityId);
     }
   }
+
+  // Lane index (defense in depth)
+  const lane = dtu._lane || "local";
+  if (!atlas.byLane) atlas.byLane = new Map();
+  if (!atlas.byLane.has(lane)) atlas.byLane.set(lane, new Set());
+  atlas.byLane.get(lane).add(dtu.id);
 }
 
 // ── Get Atlas DTU ────────────────────────────────────────────────────────
@@ -286,6 +295,22 @@ export function searchAtlasDtus(STATE, query = {}) {
     }
   }
 
+  // Filter by lane (defense in depth — every query can include lane predicate)
+  if (query.lane || query._lane) {
+    const lane = query.lane || query._lane;
+    const laneSet = atlas.byLane?.get(lane);
+    if (filtered) {
+      const intersection = new Set();
+      for (const id of candidates) {
+        if (laneSet?.has(id)) intersection.add(id);
+      }
+      candidates = intersection;
+    } else if (laneSet) {
+      for (const id of laneSet) candidates.add(id);
+      filtered = true;
+    }
+  }
+
   // If no filters, start with all
   if (!filtered) {
     for (const id of atlas.dtus.keys()) candidates.add(id);
@@ -325,12 +350,28 @@ export function searchAtlasDtus(STATE, query = {}) {
 
 // ── Promote Atlas DTU (status transition with gates) ─────────────────────
 
-export function promoteAtlasDtu(STATE, dtuId, targetStatus, actor = "system") {
+export function promoteAtlasDtu(STATE, dtuId, targetStatus, actor = "system", expectedStatus = null) {
   const atlas = getAtlasState(STATE);
   const dtu = atlas.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "Atlas DTU not found" };
 
   const currentStatus = dtu.status;
+
+  // ── Idempotency: already at target status → noop success ──────────────
+  if (currentStatus === targetStatus) {
+    return { ok: true, dtu, transition: { from: currentStatus, to: targetStatus }, noop: true };
+  }
+
+  // ── Compare-and-swap: if expectedStatus is given, verify it matches ───
+  // Prevents double-promote races (heartbeat + API both try at once)
+  if (expectedStatus && currentStatus !== expectedStatus) {
+    return {
+      ok: false,
+      error: `CAS failed: expected status ${expectedStatus}, actual ${currentStatus}`,
+      currentStatus,
+    };
+  }
+
   if (!canTransition(currentStatus, targetStatus)) {
     return {
       ok: false,
