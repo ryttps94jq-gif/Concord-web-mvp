@@ -14536,7 +14536,19 @@ try {
 
 // ===== EMERGENT AGENT GOVERNANCE =====
 try {
-  const emergentResult = initEmergent(loafCtx);
+  const emergentCtx = {
+    register,
+    STATE,
+    helpers: {
+      uid, nowISO, clamp, normalizeText, log,
+      enforceEthosInvariant,
+      councilGate,
+      upsertDTU,
+      realtimeEmit,
+      saveStateDebounced,
+    },
+  };
+  const emergentResult = initEmergent(emergentCtx);
   if (emergentResult.ok) {
     log("emergent.init", `Emergent Agent Governance v${emergentResult.version} initialized: ${emergentResult.macroCount} macros`);
   } else {

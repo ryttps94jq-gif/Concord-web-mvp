@@ -35,7 +35,7 @@ async function startServer() {
         const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(5_000) });
         if (res.ok) return;
       } catch { /* wait */ }
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => { setTimeout(r, 500); });
     }
     throw new Error('External server did not become ready');
   }
@@ -70,7 +70,7 @@ async function startServer() {
       const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2_000) });
       if (res.ok) return;
     } catch { /* starting */ }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => { setTimeout(r, 500); });
   }
   throw new Error('Test server did not start');
 }

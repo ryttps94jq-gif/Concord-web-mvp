@@ -6,7 +6,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import {
-  Heart, FileText, HandHelping, Megaphone, BarChart3, Users,
+  Heart, FileText, HeartHandshake, Megaphone, BarChart3, Users,
   Plus, Search, Filter, X, Edit2, Trash2,
   DollarSign, TrendingUp, Target, Calendar,
   Globe, Award, Clock, CheckCircle,
@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 const MODE_TABS: { id: ModeTab; label: string; icon: typeof Heart; type: ArtifactType }[] = [
   { id: 'donors', label: 'Donors', icon: Heart, type: 'Donor' },
   { id: 'grants', label: 'Grants', icon: FileText, type: 'Grant' },
-  { id: 'volunteers', label: 'Volunteers', icon: HandHelping, type: 'Volunteer' },
+  { id: 'volunteers', label: 'Volunteers', icon: HeartHandshake, type: 'Volunteer' },
   { id: 'campaigns', label: 'Campaigns', icon: Megaphone, type: 'Campaign' },
   { id: 'impact', label: 'Impact', icon: BarChart3, type: 'ImpactMetric' },
   { id: 'members', label: 'Members', icon: Users, type: 'Member' },
