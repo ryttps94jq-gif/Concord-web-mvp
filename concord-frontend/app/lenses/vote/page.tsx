@@ -46,7 +46,7 @@ export default function VoteLensPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'passed' | 'rejected'>('all');
 
-  const { items: proposalItems, isLoading } = useLensData<ProposalData>('vote', 'proposal', {
+  const { items: proposalItems, isLoading, isError, error, refetch } = useLensData<ProposalData>('vote', 'proposal', {
     seed: SEED_PROPOSALS,
   });
 

@@ -39,7 +39,7 @@ export default function InvariantLensPage() {
   const [testResult, setTestResult] = useState<{ passed: boolean; message: string } | null>(null);
 
   // Fetch invariants from backend via useLensData with auto-seeding
-  const { items: invariantItems, isLoading } = useLensData<Invariant>('invariant', 'invariant', {
+  const { items: invariantItems, isLoading, isError, error, refetch } = useLensData<Invariant>('invariant', 'invariant', {
     seed: SEED_INVARIANTS,
   });
 

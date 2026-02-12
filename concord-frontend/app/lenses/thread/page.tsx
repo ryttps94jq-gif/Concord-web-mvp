@@ -157,10 +157,11 @@ export default function ThreadLensPage() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: sessions } = useQuery({
+  const { data: sessions, isError, error, refetch } = useQuery({
     queryKey: ['sessions'],
     queryFn: () => api.get('/api/state/latest').then((r) => r.data),
   });
+  const isError2 = isError; const error2 = error; const refetch2 = refetch;
 
   const toggleNode = (nodeId: string) => {
     setExpandedNodes((prev) => {

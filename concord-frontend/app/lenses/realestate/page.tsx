@@ -8,7 +8,7 @@ import {
   Building2,
   Home,
   Eye,
-  Handshake,
+  ArrowLeftRight,
   KeyRound,
   TrendingUp,
   Plus,
@@ -65,7 +65,7 @@ interface RealEstateArtifact {
 const MODE_TABS: { id: ModeTab; icon: React.ElementType; defaultType: ArtifactType }[] = [
   { id: 'Listings', icon: Home, defaultType: 'Listing' },
   { id: 'Showings', icon: Eye, defaultType: 'Showing' },
-  { id: 'Transactions', icon: Handshake, defaultType: 'Transaction' },
+  { id: 'Transactions', icon: ArrowLeftRight, defaultType: 'Transaction' },
   { id: 'Rentals', icon: KeyRound, defaultType: 'RentalUnit' },
   { id: 'Investing', icon: TrendingUp, defaultType: 'Deal' },
 ];
@@ -299,7 +299,7 @@ export default function RealEstateLensPage() {
           <p className={ds.textMuted}>Listing Volume</p>
         </div>
         <div className={ds.panel}>
-          <Handshake className="w-5 h-5 text-amber-400 mb-2" />
+          <ArrowLeftRight className="w-5 h-5 text-amber-400 mb-2" />
           <p className="text-2xl font-bold">{stats.pendingTransactions}</p>
           <p className={ds.textMuted}>Pending Transactions</p>
         </div>

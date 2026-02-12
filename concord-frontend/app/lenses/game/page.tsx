@@ -263,6 +263,8 @@ export default function GameLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: _questItems } = useLensData('game', 'quest', {
     seed: INITIAL_QUESTS.map(q => ({ title: q.name, data: q as unknown as Record<string, unknown> })),
   });
+  const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
+  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
 
   // API queries -- fall back to demo data when backend is unavailable
   const completeQuestMutation = useMutation({

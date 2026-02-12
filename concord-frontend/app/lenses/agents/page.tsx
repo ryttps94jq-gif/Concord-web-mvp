@@ -194,11 +194,12 @@ export default function AgentsLensPage() {
   const [newMaxTokens, setNewMaxTokens] = useState(4096);
 
   // API with fallback
-  const { data: agentsData, isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
+  const { data: agentsData, isLoading, isError, error, refetch,} = useQuery({
     queryKey: ['agents'],
     queryFn: () => apiHelpers.agents.list().then((r) => r.data).catch(() => null),
     refetchInterval: 5000,
   });
+  const isError2 = isError; const error2 = error; const refetch2 = refetch;
 
   const createAgent = useMutation({
     mutationFn: () => apiHelpers.agents.create({ name: newName, type: newType }),

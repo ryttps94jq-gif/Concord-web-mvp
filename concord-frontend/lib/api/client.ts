@@ -365,18 +365,6 @@ export const apiHelpers = {
       api.get('/api/visual/timeline', { params }),
   },
 
-  // Collaboration
-  collab: {
-    sessions: () => api.get('/api/collab/sessions'),
-    createSession: (data: { dtuId: string; mode?: string }) =>
-      api.post('/api/collab/session', data),
-    join: (data: { sessionId: string; userId?: string }) =>
-      api.post('/api/collab/join', data),
-    edit: (data: { sessionId: string; path: string; value: unknown }) =>
-      api.post('/api/collab/edit', data),
-    merge: (sessionId: string) => api.post('/api/collab/merge', { sessionId }),
-  },
-
   // Whiteboard
   whiteboard: {
     list: () => api.get('/api/whiteboards'),
@@ -387,16 +375,7 @@ export const apiHelpers = {
       api.put(`/api/whiteboard/${id}`, data),
   },
 
-  // Webhooks & Automations
-  webhooks: {
-    list: () => api.get('/api/webhooks'),
-    create: (data: { name: string; url: string; events: string[] }) =>
-      api.post('/api/webhooks', data),
-    delete: (id: string) => api.delete(`/api/webhooks/${id}`),
-    toggle: (id: string, enabled: boolean) =>
-      api.post(`/api/webhooks/${id}/toggle`, { enabled }),
-  },
-
+  // Automations
   automations: {
     list: () => api.get('/api/automations'),
     create: (data: { name: string; trigger: unknown; actions: unknown[] }) =>

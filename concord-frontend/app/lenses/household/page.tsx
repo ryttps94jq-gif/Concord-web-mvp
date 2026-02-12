@@ -149,7 +149,7 @@ export default function HouseholdLensPage() {
     setEditingId(item.id);
     setFormTitle(item.title);
     setFormStatus((item.meta.status as Status) || 'planned');
-    setFormData(item.data as Record<string, unknown>);
+    setFormData(item.data as unknown as Record<string, unknown>);
     setShowEditor(true);
   };
 
@@ -291,7 +291,7 @@ export default function HouseholdLensPage() {
 
   /* ---- artifact card ---- */
   const renderCard = (item: LensItem<ArtifactData>) => {
-    const d = item.data as Record<string, unknown>;
+    const d = item.data as unknown as Record<string, unknown>;
     return (
       <div key={item.id} className={ds.panelHover}>
         <div className={ds.sectionHeader}>

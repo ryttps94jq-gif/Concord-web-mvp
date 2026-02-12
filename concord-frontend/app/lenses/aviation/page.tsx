@@ -225,21 +225,21 @@ export default function AviationLensPage() {
                   </span>
                 </div>
                 <h3 className="font-semibold text-white mb-1 line-clamp-1">{item.title}</h3>
-                {(d.departure || d.arrival) && (
+                {!!(d.departure || d.arrival) && (
                   <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
                     <Navigation className="w-3 h-3" /> {d.departure as string} → {d.arrival as string}
                   </p>
                 )}
-                {d.registration && (
+                {!!d.registration && (
                   <p className="text-xs text-gray-400 mb-1">Reg: {d.registration as string}</p>
                 )}
-                {d.hours && (
+                {!!d.hours && (
                   <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
                     <Gauge className="w-3 h-3" /> {d.hours as number} hours
                   </p>
                 )}
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                  {d.date && <span><Calendar className="w-3 h-3 inline mr-1" />{d.date as string}</span>}
+                  {!!d.date && <span><Calendar className="w-3 h-3 inline mr-1" />{String(d.date)}</span>}
                   <span><Clock className="w-3 h-3 inline mr-1" />{new Date(item.updatedAt).toLocaleDateString()}</span>
                 </div>
               </div>

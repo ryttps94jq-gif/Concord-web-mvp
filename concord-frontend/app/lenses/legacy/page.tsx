@@ -24,7 +24,7 @@ const SEED_MILESTONES = [
 export default function LegacyLensPage() {
   useLensNav('legacy');
 
-  const { items: milestoneItems, isLoading } = useLensData<MilestoneData>('legacy', 'milestone', {
+  const { items: milestoneItems, isLoading, isError, error, refetch } = useLensData<MilestoneData>('legacy', 'milestone', {
     seed: SEED_MILESTONES,
   });
 

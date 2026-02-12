@@ -242,16 +242,16 @@ export default function SecurityLensPage() {
                   <span className={`text-xs ${severityColor}`}>{severity}</span>
                 </div>
                 <h3 className="font-semibold text-white mb-1 line-clamp-1">{item.title}</h3>
-                {d.location && (
+                {!!d.location && (
                   <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
                     <MapPin className="w-3 h-3" /> {d.location as string}
                   </p>
                 )}
-                {d.description && (
+                {!!d.description && (
                   <p className="text-sm text-gray-400 line-clamp-2 mb-2">{d.description as string}</p>
                 )}
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  {d.assignee && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{d.assignee as string}</span>}
+                  {!!d.assignee && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{String(d.assignee)}</span>}
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.updatedAt).toLocaleDateString()}</span>
                 </div>
               </div>

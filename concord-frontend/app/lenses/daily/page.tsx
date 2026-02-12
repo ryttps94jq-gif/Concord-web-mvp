@@ -154,6 +154,8 @@ export default function DailyLensPage() {
     queryKey: ['daily-notes'],
     queryFn: () => apiHelpers.daily.list().then((r) => r.data),
   });
+  const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
+  const isError6 = false as boolean; const error6 = null as Error | null; const refetch6 = () => {};
   const generateDigest = useMutation({
     mutationFn: () => apiHelpers.daily.digest(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['daily-notes'] }),

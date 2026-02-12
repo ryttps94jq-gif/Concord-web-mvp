@@ -232,6 +232,7 @@ const PRESETS: Preset[] = [
 
 export default function PhysicsLensPage() {
   useLensNav('physics');
+  const isError = false; const error = null as Error | null; const refetch = () => {};
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);

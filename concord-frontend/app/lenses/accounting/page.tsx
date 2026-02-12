@@ -373,7 +373,7 @@ export default function AccountingLensPage() {
 
   /* ---- card ---- */
   const renderCard = (item: LensItem<ArtifactData>) => {
-    const d = item.data as Record<string, unknown>;
+    const d = item.data as unknown as Record<string, unknown>;
     return (
       <div key={item.id} className={ds.panelHover}>
         <div className={ds.sectionHeader}>

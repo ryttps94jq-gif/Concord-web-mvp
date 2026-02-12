@@ -249,6 +249,9 @@ export default function MLLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: expItems } = useLensData<Experiment>('ml', 'experiment', {
     seed: INITIAL_EXPERIMENTS.map(e => ({ title: e.name, data: e as unknown as Record<string, unknown> })),
   });
+  const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
+  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
+  const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
   const models: Model[] = modelItems.length > 0 ? modelItems.map(i => ({ ...(i.data as unknown as Model), id: i.id })) : INITIAL_MODELS;
   const experiments: Experiment[] = expItems.length > 0 ? expItems.map(i => ({ ...(i.data as unknown as Experiment), id: i.id })) : INITIAL_EXPERIMENTS;
   const canvasRef = useRef<HTMLCanvasElement>(null);

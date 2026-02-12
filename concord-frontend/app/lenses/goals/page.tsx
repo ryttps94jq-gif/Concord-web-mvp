@@ -289,6 +289,8 @@ export default function GoalsLensPage() {
   const { isError: isError3, error: error3, refetch: refetch3, items: _milestoneItems } = useLensData('goals', 'milestone', {
     seed: SEED_MILESTONES.map(m => ({ title: m.title, data: m as unknown as Record<string, unknown> })),
   });
+  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
+  const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
 
   // Demo state
   const [goals, setGoals] = useState<DemoGoal[]>(SEED_GOALS);

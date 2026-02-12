@@ -137,7 +137,7 @@ export default function ScienceLensPage() {
 
   /* ---- editor helpers ---- */
   const openNew = () => { setEditingId(null); setFormTitle(''); setFormStatus('planned'); setFormData({}); setShowEditor(true); };
-  const openEdit = (item: LensItem<ArtifactDataUnion>) => { setEditingId(item.id); setFormTitle(item.title); setFormStatus((item.meta.status as Status) || 'planned'); setFormData(item.data as Record<string, unknown>); setShowEditor(true); };
+  const openEdit = (item: LensItem<ArtifactDataUnion>) => { setEditingId(item.id); setFormTitle(item.title); setFormStatus((item.meta.status as Status) || 'planned'); setFormData(item.data as unknown as Record<string, unknown>); setShowEditor(true); };
   const handleSave = async () => { const payload = { title: formTitle, data: formData, meta: { status: formStatus } }; if (editingId) { await update(editingId, payload); } else { await create(payload); } setShowEditor(false); };
   const handleDelete = async (id: string) => { await remove(id); };
 
@@ -146,7 +146,7 @@ export default function ScienceLensPage() {
     if (!targetId) return;
     try {
       const result = await runAction.mutateAsync({ id: targetId, action });
-      setActionResult(result.result as Record<string, unknown>);
+      setActionResult(result.result as unknown as Record<string, unknown>);
     } catch (err) {
       console.error('Action failed:', err);
     }
@@ -162,8 +162,8 @@ export default function ScienceLensPage() {
 
   /* ---- export geojson ---- */
   const exportGeoJSON = () => {
-    const features = items.filter(i => { const d = i.data as Record<string, unknown>; return d.lat && d.lon; }).map(i => {
-      const d = i.data as Record<string, unknown>;
+    const features = items.filter(i => { const d = i.data as unknown as Record<string, unknown>; return d.lat && d.lon; }).map(i => {
+      const d = i.data as unknown as Record<string, unknown>;
       return { type: 'Feature' as const, properties: { title: i.title, status: i.meta.status, type: currentType }, geometry: { type: 'Point' as const, coordinates: [d.lon as number, d.lat as number] } };
     });
     const geojson = { type: 'FeatureCollection', features };
@@ -300,7 +300,7 @@ export default function ScienceLensPage() {
 
   /* ---- artifact card ---- */
   const renderCard = (item: LensItem<ArtifactDataUnion>) => {
-    const d = item.data as Record<string, unknown>;
+    const d = item.data as unknown as Record<string, unknown>;
     return (
       <div key={item.id} className={ds.panelHover}>
         <div className={ds.sectionHeader}>

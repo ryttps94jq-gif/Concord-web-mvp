@@ -173,8 +173,8 @@ export const dtuOffline = {
 
     // Local has unsynced changes - attempt field-level merge
     const mergeableFields: (keyof DTURecord)[] = ['content', 'summary', 'tags', 'resonance', 'parentId', 'tier'];
-    const localFieldTs = (local as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
-    const serverFieldTs = (serverDtu as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
+    const localFieldTs = (local as unknown as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
+    const serverFieldTs = (serverDtu as unknown as Record<string, unknown>)._fieldTimestamps as Record<string, string> | undefined || {};
 
     const merged: Record<string, unknown> = { ...local };
     let hadConflict = false;
@@ -215,7 +215,7 @@ export const dtuOffline = {
     // Apply merged result
     merged.synced = conflictDetails.length === 0; // Fully synced only if no local-wins fields remain
     merged._version = Math.max(local._version || 1, serverDtu._version || 1) + 1;
-    await getDB().dtus.put(merged as DTURecord);
+    await getDB().dtus.put(merged as unknown as DTURecord);
 
     return hadConflict ? 'merged' : 'skipped';
   },
@@ -225,7 +225,7 @@ export const dtuOffline = {
     const dtu = await getDB().dtus.get(id);
     if (!dtu) return;
 
-    const record = dtu as Record<string, unknown>;
+    const record = dtu as unknown as Record<string, unknown>;
     record[field] = value;
     record.synced = false;
 
@@ -234,7 +234,7 @@ export const dtuOffline = {
     fieldTs[field] = getNormalizedTimestamp();
     record._fieldTimestamps = fieldTs;
 
-    await getDB().dtus.put(record as DTURecord);
+    await getDB().dtus.put(record as unknown as DTURecord);
   },
 };
 

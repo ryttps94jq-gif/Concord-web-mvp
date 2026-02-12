@@ -316,11 +316,11 @@ export default function NonprofitLensPage() {
                   </div>
                 )}
                 {/* Donor giving level badge */}
-                {currentType === 'Donor' && d.level && (
+                {currentType === 'Donor' && !!d.level && (
                   <div className="flex items-center gap-1 mb-2">
                     <Award className="w-3.5 h-3.5 text-amber-400" />
                     <span className="text-xs text-amber-400">{String(d.level)} Donor</span>
-                    {d.totalGiven && <span className={ds.textMuted + ' ml-auto'}>${Number(d.totalGiven).toLocaleString()}</span>}
+                    {!!d.totalGiven && <span className={ds.textMuted + ' ml-auto'}>${Number(d.totalGiven).toLocaleString()}</span>}
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-2 border-t border-lattice-border">

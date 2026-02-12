@@ -36,10 +36,10 @@ export default function NeuroLensPage() {
   useLensNav('neuro');
   const [networkType, setNetworkType] = useState('Feedforward');
 
-  const { items: networkItems, isLoading: networksLoading } = useLensData<NetworkData>('neuro', 'network', {
+  const { items: networkItems, isLoading: networksLoading, isError, error, refetch } = useLensData<NetworkData>('neuro', 'network', {
     seed: SEED_NETWORKS,
   });
-  const { items: neuronItems, isLoading: neuronsLoading } = useLensData<NeuronData>('neuro', 'neuron', {
+  const { items: neuronItems, isLoading: neuronsLoading, isError: isError2, error: error2, refetch: refetch2 } = useLensData<NeuronData>('neuro', 'neuron', {
     seed: SEED_NEURONS,
   });
 

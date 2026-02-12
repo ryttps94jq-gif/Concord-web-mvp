@@ -29,11 +29,11 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 export default function EcoLensPage() {
   useLensNav('eco');
 
-  const { items: metricItems, isLoading: metricsLoading } = useLensData('eco', 'metric', {
+  const { items: metricItems, isLoading: metricsLoading, isError, error, refetch } = useLensData('eco', 'metric', {
     seed: SEED_METRICS,
   });
 
-  const { items: organismItems, isLoading: organismsLoading } = useLensData('eco', 'organism', {
+  const { items: organismItems, isLoading: organismsLoading, isError: isError2, error: error2, refetch: refetch2 } = useLensData('eco', 'organism', {
     seed: SEED_ORGANISMS,
   });
 

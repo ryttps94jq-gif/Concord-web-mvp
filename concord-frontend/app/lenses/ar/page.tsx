@@ -13,10 +13,11 @@ export default function ARLensPage() {
   const [arEnabled, setArEnabled] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
 
-  const { data: arLayers } = useQuery({
+  const { data: arLayers, isError, error, refetch } = useQuery({
     queryKey: ['ar-layers'],
     queryFn: () => api.get('/api/ar/layers').then((r) => r.data),
   });
+  const isError2 = isError; const error2 = error; const refetch2 = refetch;
 
   const layers = [
     { id: 'dtu-overlay', name: 'DTU Overlay', description: 'Visualize DTUs in space', icon: '💭' },

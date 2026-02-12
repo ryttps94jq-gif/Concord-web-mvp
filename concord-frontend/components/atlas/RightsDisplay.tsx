@@ -30,7 +30,7 @@ export function RightsDisplay({ rights, origin, compact = false }: RightsDisplay
       <div className="flex items-center gap-2 text-xs">
         <LicenseBadge licenseType={rights.license_type} size="sm" />
         <AtlasScopeBadge scope={rights.origin_lane} size="sm" />
-        {origin && <Fingerprint className="w-3 h-3 text-gray-500" title="Origin verified" />}
+        {origin && <span title="Origin verified"><Fingerprint className="w-3 h-3 text-gray-500" /></span>}
       </div>
     );
   }

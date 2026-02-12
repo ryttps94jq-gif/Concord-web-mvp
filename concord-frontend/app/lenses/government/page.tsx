@@ -169,7 +169,7 @@ export default function GovernmentLensPage() {
 
   /* ---- editor helpers ---- */
   const openNew = () => { setEditingId(null); setFormTitle(''); setFormStatus(availableStatuses[0]); setFormData({}); setShowEditor(true); };
-  const openEdit = (item: LensItem<ArtifactData>) => { setEditingId(item.id); setFormTitle(item.title); setFormStatus(item.meta.status || availableStatuses[0]); setFormData(item.data as Record<string, unknown>); setShowEditor(true); };
+  const openEdit = (item: LensItem<ArtifactData>) => { setEditingId(item.id); setFormTitle(item.title); setFormStatus(item.meta.status || availableStatuses[0]); setFormData(item.data as unknown as Record<string, unknown>); setShowEditor(true); };
   const handleSave = async () => { const payload = { title: formTitle, data: formData, meta: { status: formStatus } }; if (editingId) { await update(editingId, payload); } else { await create(payload); } setShowEditor(false); };
   const handleDelete = async (id: string) => { await remove(id); };
 
@@ -303,7 +303,7 @@ export default function GovernmentLensPage() {
 
   /* ---- artifact card ---- */
   const renderCard = (item: LensItem<ArtifactData>) => {
-    const d = item.data as Record<string, unknown>;
+    const d = item.data as unknown as Record<string, unknown>;
     return (
       <div key={item.id} className={ds.panelHover}>
         <div className={ds.sectionHeader}>
@@ -328,7 +328,7 @@ export default function GovernmentLensPage() {
 
   /* ---- dashboard ---- */
   const renderDashboard = () => {
-    const totalBudget = items.reduce((sum, i) => { const d = i.data as Record<string, unknown>; return sum + ((d.budget as number) || (d.fee as number) || 0); }, 0);
+    const totalBudget = items.reduce((sum, i) => { const d = i.data as unknown as Record<string, unknown>; return sum + ((d.budget as number) || (d.fee as number) || 0); }, 0);
     return (
       <div className="space-y-6">
         <div className={ds.grid4}>

@@ -243,19 +243,19 @@ export default function InsuranceLensPage() {
                   </span>
                 </div>
                 <h3 className="font-semibold text-white mb-1 line-clamp-1">{item.title}</h3>
-                {d.carrier && <p className="text-xs text-gray-400 mb-1">Carrier: {d.carrier as string}</p>}
-                {d.policyNumber && <p className="text-xs text-gray-400 mb-1">Policy #: {d.policyNumber as string}</p>}
+                {!!d.carrier && <p className="text-xs text-gray-400 mb-1">Carrier: {String(d.carrier)}</p>}
+                {!!d.policyNumber && <p className="text-xs text-gray-400 mb-1">Policy #: {String(d.policyNumber)}</p>}
                 <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                  {d.premium && (
+                  {!!d.premium && (
                     <span className="flex items-center gap-1">
                       <DollarSign className="w-3 h-3" />${(d.premium as number).toLocaleString()}/mo
                     </span>
                   )}
-                  {d.deductible && (
+                  {!!d.deductible && (
                     <span>Ded: ${(d.deductible as number).toLocaleString()}</span>
                   )}
                 </div>
-                {(d.effectiveDate || d.expiryDate) && (
+                {!!(d.effectiveDate || d.expiryDate) && (
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {d.effectiveDate as string} - {d.expiryDate as string}
                   </p>

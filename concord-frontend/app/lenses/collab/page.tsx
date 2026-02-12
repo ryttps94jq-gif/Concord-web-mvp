@@ -344,6 +344,9 @@ export default function CollabLensPage() {
   const { isError: isError, error: error, refetch: refetch, items: _sessionItems, create: _createSession } = useLensData('collab', 'session', {
     seed: INITIAL_SESSIONS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
+  const isError2 = isError; const error2 = error; const refetch2 = refetch;
+  const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = refetch;
+  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = refetch;
 
   const [activeTab, setActiveTab] = useState<MainTab>('active');
   const [filterPill, setFilterPill] = useState<FilterPill>('all');

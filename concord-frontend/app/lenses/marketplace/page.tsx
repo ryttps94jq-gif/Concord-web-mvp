@@ -427,6 +427,8 @@ export default function MarketplaceLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: _purchaseItems } = useLensData('marketplace', 'purchase', {
     noSeed: true,
   });
+  const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
+  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
 
   // Real API queries — no demo fallback
   const { data: beatsData } = useQuery({

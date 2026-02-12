@@ -60,13 +60,13 @@ export default function EthicsLensPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
 
-  const { items: frameworkItems, isLoading: frameworksLoading } = useLensData<FrameworkData>(
+  const { items: frameworkItems, isLoading: frameworksLoading, isError, error, refetch } = useLensData<FrameworkData>(
     'ethics',
     'framework',
     { seed: SEED_FRAMEWORKS }
   );
 
-  const { items: moralDTUItems, isLoading: moralDTUsLoading } = useLensData<MoralDTUData>(
+  const { items: moralDTUItems, isLoading: moralDTUsLoading, isError: isError2, error: error2, refetch: refetch2 } = useLensData<MoralDTUData>(
     'ethics',
     'moral-dtu',
     { seed: SEED_MORAL_DTUS }
