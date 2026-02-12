@@ -48,6 +48,14 @@ import { tagDataRegion, getDataRegion, checkRegionAccess, setExportControls, che
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
 import { recordSubstrateReuse, recordLlmCall, recordCacheEvent, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
 
+// ---- Atlas v2 Default-On + 3-Lane Separation Imports ----
+import { SCOPES, RETRIEVAL_POLICY, AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig, getStrictnessProfile } from "./emergent/atlas-config.js";
+import { assertInvariant, assertSoft, getInvariantMetrics, getInvariantLog } from "./emergent/atlas-invariants.js";
+import { applyWrite, WRITE_OPS, runAutoPromoteGate, ingestAutogenCandidate, guardedDtuWrite, getWriteGuardLog, getWriteGuardMetrics } from "./emergent/atlas-write-guard.js";
+import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "./emergent/atlas-scope-router.js";
+import { tickLocal, tickGlobal, tickMarketplace, tickAll, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
+import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
+
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
 
@@ -26216,6 +26224,7 @@ console.log("[Concord] ATS: Affect API endpoints registered");
 
 // ---- Initialize Atlas State ----
 try { initAtlasState(STATE); console.log("[Concord] Atlas: Epistemic engine initialized"); } catch (e) { console.warn("[Atlas] Init skipped:", e.message); }
+try { initScopeState(STATE); console.log("[Concord] Atlas: 3-Lane scope router initialized"); } catch (e) { console.warn("[Atlas] Scope init skipped:", e.message); }
 
 // ---- Atlas: Core DTU Endpoints ----
 app.post("/api/atlas/dtu", async (req, res) => {
@@ -26708,15 +26717,160 @@ app.post("/api/efficiency/record-llm-call", (req, res) => {
   try { res.json(recordLlmCall(STATE, req.body?.operation, req.body?.details)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery) ----
+// ── Atlas v2: Scoped Write Guard Endpoints ──────────────────────────────────
+
+app.post("/api/atlas/write", (req, res) => {
+  try {
+    const { scope, op, payload } = req.body || {};
+    const ctx = { scope: scope || "local", actor: req.user?.id || req.body?.actor || "api", userId: req.user?.id };
+    res.json(scopedWrite(STATE, ctx.scope, op || "CREATE", payload || {}, ctx));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/write/promote", (req, res) => {
+  try {
+    const { dtuId, targetStatus, scope } = req.body || {};
+    const ctx = { scope: scope || "global", actor: req.user?.id || "api" };
+    res.json(applyWrite(STATE, "PROMOTE", { dtuId, targetStatus }, ctx));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/auto-promote-gate/:id", (req, res) => {
+  try {
+    const atlas = getAtlasState(STATE);
+    const dtu = atlas.dtus.get(req.params.id);
+    if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+    res.json({ ok: true, ...runAutoPromoteGate(STATE, dtu, req.query.scope || "global") });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/write-guard/log", (req, res) => {
+  try { res.json({ ok: true, log: getWriteGuardLog(Number(req.query.limit || 100)) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/write-guard/metrics", (req, res) => {
+  try { res.json({ ok: true, ...getWriteGuardMetrics() }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Scope Router Endpoints ────────────────────────────────────────
+
+app.get("/api/atlas/scope/:dtuId", (req, res) => {
+  try { res.json({ ok: true, dtuId: req.params.dtuId, scope: getDtuScope(STATE, req.params.dtuId) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/scope-metrics", (req, res) => {
+  try { res.json(getScopeMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/local-hints/:dtuId", (req, res) => {
+  try { res.json(getLocalQualityHints(STATE, req.params.dtuId)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/config/thresholds", (req, res) => {
+  res.json({ ok: true, autoPromote: AUTO_PROMOTE_THRESHOLDS, strictness: STRICTNESS_PROFILES });
+});
+
+app.get("/api/atlas/config/thresholds/:epistemicClass", (req, res) => {
+  res.json({ ok: true, config: getAutoPromoteConfig(req.params.epistemicClass) });
+});
+
+// ── Atlas v2: Submission Pipeline Endpoints ─────────────────────────────────
+
+app.post("/api/atlas/submission", (req, res) => {
+  try {
+    const { sourceDtuId, targetScope, licenseTerms, royaltySplits, price } = req.body || {};
+    const submitter = req.user?.id || req.body?.submitter || "api";
+    res.json(createSubmission(STATE, sourceDtuId, targetScope, submitter, { licenseTerms, royaltySplits, price }));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/submission/:id", (req, res) => {
+  try { res.json(getSubmission(STATE, req.params.id)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/submissions", (req, res) => {
+  try { res.json(listSubmissions(STATE, { status: req.query.status, targetScope: req.query.targetScope, submitter: req.query.submitter, limit: Number(req.query.limit || 50), offset: Number(req.query.offset || 0) })); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/submission/:id/process", (req, res) => {
+  try {
+    const { step, result: stepResult } = req.body || {};
+    const actor = req.user?.id || req.body?.actor || "council";
+    res.json(processSubmission(STATE, req.params.id, step, actor, stepResult || {}));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/submission/:id/approve", (req, res) => {
+  try { res.json(approveSubmission(STATE, req.params.id, req.user?.id || req.body?.actor || "council")); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/submission/:id/reject", (req, res) => {
+  try { res.json(rejectSubmission(STATE, req.params.id, req.user?.id || req.body?.actor || "council", req.body?.reason)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Retrieval Endpoints ───────────────────────────────────────────
+
+app.get("/api/atlas/retrieve", (req, res) => {
+  try {
+    const { policy, q, limit, minConfidence, domainType, epistemicClass, status } = req.query;
+    res.json(atlasRetrieve(STATE, policy || "LOCAL_THEN_GLOBAL", q, { limit: Number(limit || 20), minConfidence: minConfidence ? Number(minConfidence) : undefined, domainType, epistemicClass, status }));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/retrieve/chat", (req, res) => {
+  try { res.json(retrieveForChat(STATE, req.query.q, { limit: Number(req.query.limit || 10) })); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/retrieve/labeled", (req, res) => {
+  try { res.json(retrieveLabeled(STATE, req.query.policy, req.query.q, { limit: Number(req.query.limit || 20) })); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/retrieve/scope/:scope", (req, res) => {
+  try { res.json(retrieveFromScope(STATE, req.params.scope, req.query.q, { limit: Number(req.query.limit || 20) })); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Heartbeat Endpoints ───────────────────────────────────────────
+
+app.post("/api/atlas/heartbeat/:scope", (req, res) => {
+  try {
+    const scope = req.params.scope;
+    if (scope === "local") res.json({ ok: true, results: tickLocal(STATE) });
+    else if (scope === "global") res.json({ ok: true, results: tickGlobal(STATE) });
+    else if (scope === "marketplace") res.json({ ok: true, results: tickMarketplace(STATE) });
+    else res.status(400).json({ ok: false, error: `Unknown scope: ${scope}` });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/heartbeat/metrics", (req, res) => {
+  try { res.json(getHeartbeatMetrics()); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Invariant Monitor Endpoints ───────────────────────────────────
+
+app.get("/api/atlas/invariants/metrics", (req, res) => {
+  try { res.json({ ok: true, ...getInvariantMetrics() }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/invariants/log", (req, res) => {
+  try { res.json({ ok: true, log: getInvariantLog(Number(req.query.limit || 100)) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery, Heartbeats) ----
 setInterval(() => {
   try { takeAnalyticsSnapshot(STATE); } catch {}
   try { takeEfficiencySnapshot(STATE); } catch {}
   try { processPendingDeliveries(STATE); } catch {}
 }, 300000); // Every 5 minutes
 
+// Global + Marketplace heartbeats on separate cadence (every 10 minutes)
+setInterval(() => {
+  try { tickGlobal(STATE); } catch {}
+  try { tickMarketplace(STATE); } catch {}
+}, 600000);
+
 console.log("[Concord] Atlas Global + Platform v2: All endpoints registered");
 console.log("[Concord] New modules: Atlas Epistemic Engine, Autogen v2, Council Protocol, Social Layer, Collaboration, RBAC, Analytics, Webhooks, Compliance, Onboarding, Compute Efficiency");
+console.log("[Concord] Atlas v2 Default-On: Write Guard, Scope Router, 3-Lane Separation, Invariant Monitor, Heartbeats, Auto-Promote Gate");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
