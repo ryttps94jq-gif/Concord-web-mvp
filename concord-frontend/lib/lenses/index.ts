@@ -72,3 +72,26 @@ export {
   scoreLens,
   CI_HARD_RULES,
 } from './product-lens-gate';
+
+// Chat Lens Recommender (chat → actionable)
+export {
+  type IntentClass,
+  type LensRecommenderEntry,
+  type SessionContext,
+  type LensRecommendation,
+  type RecommendationResult,
+  type SessionTelemetry,
+  type ScoredLens,
+  LENS_RECOMMENDER_REGISTRY,
+  recommendLenses,
+  extractSignals,
+  classifyIntent,
+  checkTriggers,
+  scoreLenses as scoreLensesForRecommendation,
+  createSessionContext,
+  createSessionTelemetry,
+  recordRecommendationShown,
+  recordLensOpened,
+  recordDismissal,
+  recordTimeToAction,
+} from './chat-lens-recommender';

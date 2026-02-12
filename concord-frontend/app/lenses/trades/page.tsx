@@ -99,7 +99,7 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
 
 const TRADES_LIST = ['Plumbing', 'Electrical', 'HVAC', 'Carpentry', 'Roofing', 'Painting', 'Concrete', 'Landscaping', 'General'];
 
-const SEED_DATA: { title: string; data: Record<string, unknown> }[] = [
+const seedData: { title: string; data: Record<string, unknown> }[] = [
   { title: 'Kitchen Renovation - Miller', data: { name: 'Kitchen Renovation - Miller', type: 'Job', status: 'in_progress', description: 'Full kitchen remodel including cabinets, countertops, plumbing, and electrical', client: 'Sarah Miller', address: '142 Oak Lane', phone: '555-0142', value: 28500, startDate: '2025-03-01', endDate: '2025-04-15', trade: 'General', foremanAssigned: 'Mike Torres', notes: '' } },
   { title: 'Bathroom Plumbing - Chen', data: { name: 'Bathroom Plumbing - Chen', type: 'Job', status: 'quoted', description: 'Master bathroom re-pipe and fixture install', client: 'David Chen', address: '89 Maple Dr', phone: '555-0189', value: 6200, startDate: '2025-04-01', endDate: '2025-04-10', trade: 'Plumbing', foremanAssigned: '', notes: '' } },
   { title: 'Roof Repair Est. - Johnson', data: { name: 'Roof Repair Estimate - Johnson', type: 'Estimate', status: 'quoted', description: 'Repair damaged shingles and flashing', client: 'Tom Johnson', address: '310 Pine St', phone: '555-0310', value: 4800, startDate: '', endDate: '', lineItems: [{ description: 'Shingle replacement (200 sqft)', qty: 1, unitCost: 3200 }, { description: 'Flashing repair', qty: 1, unitCost: 800 }, { description: 'Labor', qty: 16, unitCost: 50 }], notes: '' } },
@@ -141,7 +141,7 @@ export default function TradesLensPage() {
   const activeArtifactType = MODE_TABS.find(t => t.id === activeTab)?.artifactType || 'Job';
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<TradesArtifact>('trades', activeArtifactType, {
-    seed: SEED_DATA.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
+    seed: seedData.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
 
   const runAction = useRunArtifact('trades');

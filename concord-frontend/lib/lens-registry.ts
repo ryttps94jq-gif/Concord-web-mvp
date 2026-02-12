@@ -17,6 +17,11 @@ import {
   Compass, Terminal, Wallet, Eye, Workflow, BookOpen,
   Network, Headphones, Vote, PenTool, Boxes, Clock, Zap,
   Upload, Download, AlertTriangle, Rocket, Puzzle,
+  Stethoscope, Wrench, UtensilsCrossed, ShoppingCart, Home,
+  Calculator, Wheat, Truck, GraduationCap, Briefcase,
+  HandHeart, Building2, Dumbbell, Palette, Factory,
+  TreePine, Landmark, Plane, PartyPopper, FlaskRound,
+  ShieldCheck, Scissors, Umbrella,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -28,7 +33,8 @@ export type LensCategory =
   | 'governance'
   | 'ai'
   | 'system'
-  | 'specialized';
+  | 'specialized'
+  | 'superlens';
 
 export interface LensEntry {
   /** Unique identifier matching the route directory name */
@@ -61,31 +67,31 @@ export interface LensEntry {
 export const LENS_REGISTRY: LensEntry[] = [
   // ── Core ──────────────────────────────────────────────────────
   { id: 'chat', name: 'Chat', icon: MessageSquare, description: 'Conversational AI interface', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/chat', order: 1, keywords: ['message', 'talk', 'ai'] },
-  { id: 'thread', name: 'Thread', icon: MessageCircle, description: 'Threaded conversations', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/thread', order: 2, keywords: ['conversation', 'discussion'] },
+  { id: 'thread', name: 'Thread', icon: MessageCircle, description: 'Threaded conversations', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/thread', order: 2, keywords: ['conversation', 'discussion'] },
   { id: 'code', name: 'Code', icon: Code, description: 'Code editor and execution', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/code', order: 3, keywords: ['editor', 'programming', 'dev'] },
   { id: 'graph', name: 'Graph', icon: Share2, description: 'Knowledge graph visualization', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/graph', order: 4, keywords: ['network', 'nodes', 'edges', 'knowledge'] },
   { id: 'resonance', name: 'Resonance', icon: Activity, description: 'System health dashboard', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/resonance', order: 5, keywords: ['health', 'metrics', 'status'] },
-  { id: 'docs', name: 'Docs', icon: Book, description: 'Documentation viewer', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/docs', order: 6, keywords: ['documentation', 'reference', 'help'] },
+  { id: 'docs', name: 'Docs', icon: Book, description: 'Documentation viewer', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/docs', order: 6, keywords: ['documentation', 'reference', 'help'] },
   { id: 'paper', name: 'Paper', icon: FileText, description: 'Research paper editor', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/paper', order: 7, keywords: ['research', 'writing', 'academic'] },
 
   // ── Knowledge ─────────────────────────────────────────────────
-  { id: 'forum', name: 'Forum', icon: Hash, description: 'Discussion forum', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/forum', order: 10, keywords: ['discuss', 'community'] },
-  { id: 'feed', name: 'Feed', icon: Rss, description: 'RSS and content feed', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/feed', order: 11, keywords: ['rss', 'news', 'content'] },
+  { id: 'forum', name: 'Forum', icon: Hash, description: 'Discussion forum', category: 'knowledge', showInSidebar: false, showInCommandPalette: true, path: '/lenses/forum', order: 10, keywords: ['discuss', 'community'] },
+  { id: 'feed', name: 'Feed', icon: Rss, description: 'RSS and content feed', category: 'knowledge', showInSidebar: false, showInCommandPalette: true, path: '/lenses/feed', order: 11, keywords: ['rss', 'news', 'content'] },
   { id: 'repos', name: 'Repos', icon: FolderGit2, description: 'Repository browser', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/repos', order: 12, keywords: ['git', 'repository', 'source'] },
   { id: 'timeline', name: 'Timeline', icon: Heart, description: 'Chronological timeline', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/timeline', order: 13, keywords: ['history', 'chronological'] },
   { id: 'board', name: 'Board', icon: Layout, description: 'Kanban board', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/board', order: 14, keywords: ['kanban', 'tasks', 'project'] },
   { id: 'calendar', name: 'Calendar', icon: Calendar, description: 'Calendar and scheduling', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/calendar', order: 15, keywords: ['schedule', 'events', 'dates'] },
-  { id: 'daily', name: 'Daily', icon: BookOpen, description: 'Daily notes and journal', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/daily', order: 16, keywords: ['journal', 'notes', 'diary'] },
+  { id: 'daily', name: 'Daily', icon: BookOpen, description: 'Daily notes and journal', category: 'knowledge', showInSidebar: false, showInCommandPalette: true, path: '/lenses/daily', order: 16, keywords: ['journal', 'notes', 'diary'] },
   { id: 'goals', name: 'Goals', icon: Target, description: 'Goal tracking and planning', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/goals', order: 17, keywords: ['objectives', 'planning', 'targets'] },
   { id: 'srs', name: 'SRS', icon: Layers, description: 'Spaced repetition study', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/srs', order: 18, keywords: ['study', 'flashcards', 'memory'] },
   { id: 'whiteboard', name: 'Whiteboard', icon: PenTool, description: 'Freeform whiteboard', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/whiteboard', order: 19, keywords: ['draw', 'diagram', 'sketch'] },
-  { id: 'news', name: 'News', icon: Newspaper, description: 'News aggregation', category: 'knowledge', showInSidebar: true, showInCommandPalette: true, path: '/lenses/news', order: 20, keywords: ['articles', 'headlines'] },
+  { id: 'news', name: 'News', icon: Newspaper, description: 'News aggregation', category: 'knowledge', showInSidebar: false, showInCommandPalette: true, path: '/lenses/news', order: 20, keywords: ['articles', 'headlines'] },
 
   // ── Science ───────────────────────────────────────────────────
-  { id: 'bio', name: 'Bio', icon: Dna, description: 'Biology tools', category: 'science', showInSidebar: true, showInCommandPalette: true, path: '/lenses/bio', order: 30, keywords: ['biology', 'genetics', 'life'] },
-  { id: 'chem', name: 'Chem', icon: Atom, description: 'Chemistry tools', category: 'science', showInSidebar: true, showInCommandPalette: true, path: '/lenses/chem', order: 31, keywords: ['chemistry', 'molecules', 'elements'] },
-  { id: 'physics', name: 'Physics', icon: Orbit, description: 'Physics simulations', category: 'science', showInSidebar: true, showInCommandPalette: true, path: '/lenses/physics', order: 32, keywords: ['simulation', 'mechanics', 'quantum'] },
-  { id: 'math', name: 'Math', icon: Compass, description: 'Mathematics tools', category: 'science', showInSidebar: true, showInCommandPalette: true, path: '/lenses/math', order: 33, keywords: ['calculation', 'algebra', 'geometry'] },
+  { id: 'bio', name: 'Bio', icon: Dna, description: 'Biology tools', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/bio', order: 30, keywords: ['biology', 'genetics', 'life'] },
+  { id: 'chem', name: 'Chem', icon: Atom, description: 'Chemistry tools', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/chem', order: 31, keywords: ['chemistry', 'molecules', 'elements'] },
+  { id: 'physics', name: 'Physics', icon: Orbit, description: 'Physics simulations', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/physics', order: 32, keywords: ['simulation', 'mechanics', 'quantum'] },
+  { id: 'math', name: 'Math', icon: Compass, description: 'Mathematics tools', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/math', order: 33, keywords: ['calculation', 'algebra', 'geometry'] },
   { id: 'quantum', name: 'Quantum', icon: Cpu, description: 'Quantum computing explorer', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/quantum', order: 34, keywords: ['qubit', 'quantum computing'] },
   { id: 'neuro', name: 'Neuro', icon: Network, description: 'Neuroscience tools', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/neuro', order: 35, keywords: ['brain', 'neuroscience', 'neural'] },
 
@@ -155,6 +161,31 @@ export const LENS_REGISTRY: LensEntry[] = [
   { id: 'export', name: 'Export', icon: Upload, description: 'Data export', category: 'specialized', showInSidebar: false, showInCommandPalette: true, path: '/lenses/export', order: 104, keywords: ['download', 'backup'] },
   { id: 'import', name: 'Import', icon: Download, description: 'Data import', category: 'specialized', showInSidebar: false, showInCommandPalette: true, path: '/lenses/import', order: 105, keywords: ['upload', 'ingest'] },
   { id: 'custom', name: 'Custom', icon: Wand2, description: 'Custom lens builder', category: 'specialized', showInSidebar: true, showInCommandPalette: true, path: '/lenses/custom', order: 999, keywords: ['build', 'create', 'configure'] },
+
+  // ── Super-Lenses (universal coverage) ───────────────────────
+  { id: 'healthcare', name: 'Healthcare', icon: Stethoscope, description: 'Healthcare & clinical management', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/healthcare', order: 200, keywords: ['medical', 'clinical', 'patient', 'health'] },
+  { id: 'trades', name: 'Trades', icon: Wrench, description: 'Trades & construction', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/trades', order: 201, keywords: ['construction', 'plumbing', 'electrical', 'contractor'] },
+  { id: 'food', name: 'Food', icon: UtensilsCrossed, description: 'Food & hospitality', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/food', order: 202, keywords: ['restaurant', 'recipe', 'catering', 'kitchen'] },
+  { id: 'retail', name: 'Retail', icon: ShoppingCart, description: 'Retail & commerce', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/retail', order: 203, keywords: ['store', 'inventory', 'pos', 'ecommerce'] },
+  { id: 'household', name: 'Household', icon: Home, description: 'Home & family management', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/household', order: 204, keywords: ['family', 'home', 'chores', 'maintenance'] },
+  { id: 'accounting', name: 'Accounting', icon: Calculator, description: 'Accounting & finance', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/accounting', order: 205, keywords: ['bookkeeping', 'invoicing', 'tax', 'payroll'] },
+  { id: 'agriculture', name: 'Agriculture', icon: Wheat, description: 'Agriculture & farming', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/agriculture', order: 206, keywords: ['farming', 'crops', 'livestock', 'harvest'] },
+  { id: 'logistics', name: 'Logistics', icon: Truck, description: 'Transportation & logistics', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/logistics', order: 207, keywords: ['shipping', 'fleet', 'warehouse', 'route'] },
+  { id: 'education', name: 'Education', icon: GraduationCap, description: 'Education & learning', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/education', order: 208, keywords: ['school', 'student', 'course', 'teaching'] },
+  { id: 'legal', name: 'Legal', icon: Briefcase, description: 'Legal & compliance', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/legal', order: 209, keywords: ['case', 'contract', 'compliance', 'filing'] },
+  { id: 'nonprofit', name: 'Nonprofit', icon: HandHeart, description: 'Nonprofit & community', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/nonprofit', order: 210, keywords: ['donor', 'grant', 'volunteer', 'charity'] },
+  { id: 'realestate', name: 'Real Estate', icon: Building2, description: 'Real estate management', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/realestate', order: 211, keywords: ['property', 'listing', 'tenant', 'mortgage'] },
+  { id: 'fitness', name: 'Fitness', icon: Dumbbell, description: 'Fitness & wellness', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/fitness', order: 212, keywords: ['training', 'workout', 'gym', 'wellness'] },
+  { id: 'creative', name: 'Creative Production', icon: Palette, description: 'Creative production', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/creative', order: 213, keywords: ['photography', 'video', 'design', 'production'] },
+  { id: 'manufacturing', name: 'Manufacturing', icon: Factory, description: 'Manufacturing & production', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/manufacturing', order: 214, keywords: ['factory', 'assembly', 'quality', 'bom'] },
+  { id: 'environment', name: 'Environment', icon: TreePine, description: 'Environmental & outdoors', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/environment', order: 215, keywords: ['ecology', 'wildlife', 'conservation', 'sustainability'] },
+  { id: 'government', name: 'Government', icon: Landmark, description: 'Government & public service', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/government', order: 216, keywords: ['permit', 'public', 'emergency', 'records'] },
+  { id: 'aviation', name: 'Aviation', icon: Plane, description: 'Aviation & maritime', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/aviation', order: 217, keywords: ['flight', 'pilot', 'vessel', 'charter'] },
+  { id: 'events', name: 'Events', icon: PartyPopper, description: 'Events & entertainment', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/events', order: 218, keywords: ['venue', 'festival', 'concert', 'production'] },
+  { id: 'science', name: 'Science', icon: FlaskRound, description: 'Science & field work', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/science', order: 219, keywords: ['expedition', 'lab', 'sample', 'research'] },
+  { id: 'security', name: 'Security', icon: ShieldCheck, description: 'Security operations', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/security', order: 220, keywords: ['patrol', 'incident', 'surveillance', 'investigation'] },
+  { id: 'services', name: 'Services', icon: Scissors, description: 'Personal services', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/services', order: 221, keywords: ['salon', 'cleaning', 'daycare', 'appointment'] },
+  { id: 'insurance', name: 'Insurance', icon: Umbrella, description: 'Insurance & risk management', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/insurance', order: 222, keywords: ['policy', 'claim', 'premium', 'coverage'] },
 ];
 
 /** Category display configuration */
@@ -167,6 +198,7 @@ export const LENS_CATEGORIES: Record<LensCategory, { label: string; color: strin
   ai: { label: 'AI & Cognition', color: 'text-yellow-400' },
   system: { label: 'System', color: 'text-gray-400' },
   specialized: { label: 'Specialized', color: 'text-neon-cyan' },
+  superlens: { label: 'Super-Lenses', color: 'text-orange-400' },
 };
 
 // ── Derived accessors ──────────────────────────────────────────

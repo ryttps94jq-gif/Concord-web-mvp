@@ -88,7 +88,7 @@ const STATUS_COLORS: Record<string, string> = {
   prospecting: 'gray-400', analysis: 'neon-blue', due_diligence: 'amber-400', under_contract: 'neon-purple', passed: 'gray-400',
 };
 
-const SEED_ITEMS: { title: string; data: RealEstateArtifact }[] = [
+const seedItems: { title: string; data: RealEstateArtifact }[] = [
   { title: '742 Evergreen Terrace', data: { artifactType: 'Listing', status: 'active', description: 'Charming 3BR/2BA colonial with updated kitchen and landscaped yard', address: '742 Evergreen Terrace, Springfield, IL', price: 425000, agent: 'Lisa Realty', propertyType: 'Single Family', bedrooms: 3, bathrooms: 2, sqft: 1850 } },
   { title: '1600 Pennsylvania Ave NW', data: { artifactType: 'Listing', status: 'coming_soon', description: 'Luxury estate with historic significance, extensive grounds', address: '1600 Pennsylvania Ave NW, Washington, DC', price: 12500000, agent: 'Lisa Realty', propertyType: 'Estate', bedrooms: 16, bathrooms: 35, sqft: 55000 } },
   { title: 'Showing - 742 Evergreen', data: { artifactType: 'Showing', status: 'scheduled', description: 'First showing for the Garcia family', client: 'Garcia Family', agent: 'Lisa Realty', date: '2025-07-10', address: '742 Evergreen Terrace' } },
@@ -129,7 +129,7 @@ export default function RealEstateLensPage() {
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<RealEstateArtifact>('realestate', 'artifact', {
-    seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
+    seed: seedItems.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
   const runAction = useRunArtifact('realestate');

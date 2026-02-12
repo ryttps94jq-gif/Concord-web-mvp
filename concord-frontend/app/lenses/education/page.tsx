@@ -71,7 +71,7 @@ const STATUS_COLORS: Record<Status, string> = {
   graduated: 'amber-400',
 };
 
-const SEED_ITEMS: { title: string; data: EducationArtifact }[] = [
+const seedItems: { title: string; data: EducationArtifact }[] = [
   { title: 'Alex Johnson', data: { artifactType: 'Student', status: 'enrolled', description: 'Computer Science major, sophomore year', subject: 'Computer Science', semester: 'Fall 2025', credits: 15 } },
   { title: 'CS 301 - Data Structures', data: { artifactType: 'Course', status: 'active', description: 'Advanced data structures and algorithms', instructor: 'Prof. Williams', subject: 'Computer Science', semester: 'Fall 2025', credits: 4 } },
   { title: 'Midterm Project - Binary Trees', data: { artifactType: 'Assignment', status: 'active', description: 'Implement AVL tree with balancing, include unit tests', instructor: 'Prof. Williams', subject: 'CS 301', dueDate: '2025-10-15' } },
@@ -111,7 +111,7 @@ export default function EducationLensPage() {
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<EducationArtifact>('education', 'artifact', {
-    seed: SEED_ITEMS.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
+    seed: seedItems.map(s => ({ title: s.title, data: s.data as unknown as Record<string, unknown>, meta: { status: s.data.status, tags: [s.data.artifactType] } })),
   });
 
   const runAction = useRunArtifact('education');

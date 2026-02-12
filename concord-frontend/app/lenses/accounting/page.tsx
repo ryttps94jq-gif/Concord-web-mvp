@@ -86,7 +86,7 @@ function statusOptionsFor(type: ArtifactType): string[] {
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
 
-const SEED_DATA: Record<string, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<string, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   Account: [
     { title: 'Operating Checking', data: { name: 'Operating Checking', accountNumber: '****4521', type: 'Asset', balance: 84250.00, currency: 'USD', institution: 'First National Bank' }, meta: { status: 'active', tags: ['checking'] } },
     { title: 'Business Savings', data: { name: 'Business Savings', accountNumber: '****7833', type: 'Asset', balance: 150000.00, currency: 'USD', institution: 'First National Bank' }, meta: { status: 'active', tags: ['savings'] } },
@@ -150,7 +150,7 @@ export default function AccountingLensPage() {
   const currentType: ArtifactType = mode === 'Ledger' ? ledgerSubType : MODE_TABS.find(t => t.id === mode)!.types[0];
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('accounting', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('accounting');
@@ -207,20 +207,20 @@ export default function AccountingLensPage() {
 
   /* ---- computed metrics ---- */
   const totalAssets = useMemo(() => {
-    return SEED_DATA.Account.filter(a => a.data.type === 'Asset').reduce((s, a) => s + (a.data.balance as number), 0);
+    return seedData.Account.filter(a => a.data.type === 'Asset').reduce((s, a) => s + (a.data.balance as number), 0);
   }, []);
 
   const totalLiabilities = useMemo(() => {
-    return SEED_DATA.Account.filter(a => a.data.type === 'Liability').reduce((s, a) => s + (a.data.balance as number), 0);
+    return seedData.Account.filter(a => a.data.type === 'Liability').reduce((s, a) => s + (a.data.balance as number), 0);
   }, []);
 
   const totalRevenue = useMemo(() => {
-    return SEED_DATA.Account.filter(a => a.data.type === 'Revenue').reduce((s, a) => s + (a.data.balance as number), 0);
+    return seedData.Account.filter(a => a.data.type === 'Revenue').reduce((s, a) => s + (a.data.balance as number), 0);
   }, []);
 
   const invoiceAging = useMemo(() => {
     const aging = { current: 0, thirtyDay: 0, sixtyDay: 0, ninetyPlus: 0 };
-    SEED_DATA.Invoice.forEach(inv => {
+    seedData.Invoice.forEach(inv => {
       if (inv.meta.status === 'paid' || inv.meta.status === 'void') return;
       const due = new Date(inv.data.dueDate as string);
       const now = new Date();
@@ -235,7 +235,7 @@ export default function AccountingLensPage() {
   }, []);
 
   const budgetVariance = useMemo(() => {
-    return SEED_DATA.Budget.map(b => ({
+    return seedData.Budget.map(b => ({
       name: b.data.name as string,
       allocated: b.data.allocated as number,
       spent: b.data.spent as number,
@@ -245,7 +245,7 @@ export default function AccountingLensPage() {
   }, []);
 
   const rentRoll = useMemo(() => {
-    return SEED_DATA.Property.reduce((s, p) => s + (p.data.monthlyRent as number), 0);
+    return seedData.Property.reduce((s, p) => s + (p.data.monthlyRent as number), 0);
   }, []);
 
   /* ---- badge ---- */
@@ -420,7 +420,7 @@ export default function AccountingLensPage() {
         <div className={ds.panel}>
           <div className="flex items-center gap-2 mb-2"><Building2 className="w-4 h-4 text-neon-purple" /><span className={ds.textMuted}>Rent Roll (Monthly)</span></div>
           <p className={ds.heading2}>{fmt(rentRoll)}</p>
-          <p className={ds.textMuted}>{SEED_DATA.Property.length} properties</p>
+          <p className={ds.textMuted}>{seedData.Property.length} properties</p>
         </div>
       </div>
 
@@ -433,7 +433,7 @@ export default function AccountingLensPage() {
         <div className={`${ds.grid2} mt-4`}>
           <div>
             <h4 className={`${ds.textMuted} mb-3`}>DEBITS</h4>
-            {SEED_DATA.Account.filter(a => a.data.type === 'Asset' || a.data.type === 'Expense').map((a, i) => (
+            {seedData.Account.filter(a => a.data.type === 'Asset' || a.data.type === 'Expense').map((a, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-lattice-border/30">
                 <span className="text-sm text-white">{a.data.name as string}</span>
                 <span className={`${ds.textMono} text-green-400`}>{fmt(a.data.balance as number)}</span>
@@ -446,7 +446,7 @@ export default function AccountingLensPage() {
           </div>
           <div>
             <h4 className={`${ds.textMuted} mb-3`}>CREDITS</h4>
-            {SEED_DATA.Account.filter(a => a.data.type === 'Liability' || a.data.type === 'Revenue' || a.data.type === 'Equity').map((a, i) => (
+            {seedData.Account.filter(a => a.data.type === 'Liability' || a.data.type === 'Revenue' || a.data.type === 'Equity').map((a, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-lattice-border/30">
                 <span className="text-sm text-white">{a.data.name as string}</span>
                 <span className={`${ds.textMono} text-neon-cyan`}>{fmt(a.data.balance as number)}</span>

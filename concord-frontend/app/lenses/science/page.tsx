@@ -71,7 +71,7 @@ const STATUS_COLORS: Record<Status, string> = {
   archived: 'gray-400',
 };
 
-const SEED_DATA: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   Expedition: [
     { title: 'Atacama Extremophile Survey', data: { name: 'Atacama Extremophile Survey', region: 'Atacama Desert, Chile', lat: -23.865, lon: -69.140, pi: 'Dr. Elena Vasquez', startDate: '2026-03-01', endDate: '2026-04-15', teamSize: 8, fundingSource: 'NSF Grant #2026-BIO-4401' }, meta: { status: 'planned', tags: ['astrobiology', 'extremophile'] } },
     { title: 'Arctic Sea Ice Monitoring 2026', data: { name: 'Arctic Sea Ice Monitoring 2026', region: 'Svalbard, Norway', lat: 78.230, lon: 15.635, pi: 'Dr. Lars Eriksen', startDate: '2026-06-01', endDate: '2026-08-30', teamSize: 12, fundingSource: 'EU Horizon Europe' }, meta: { status: 'planned', tags: ['climate', 'arctic'] } },
@@ -121,7 +121,7 @@ export default function ScienceLensPage() {
   const currentType = MODE_TABS.find(t => t.id === mode)!.artifactType;
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactDataUnion>('science', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('science');
@@ -348,9 +348,9 @@ export default function ScienceLensPage() {
       <div className={ds.panel}>
         <div className={ds.sectionHeader}><h3 className={ds.heading3}>Research Overview</h3><BarChart3 className="w-5 h-5 text-gray-400" /></div>
         <div className={`${ds.grid3} mt-4`}>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Compass className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Expedition.length}</p><p className={ds.textMuted}>Expeditions</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><TestTubes className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Sample.length}</p><p className={ds.textMuted}>Samples</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Wrench className="w-6 h-6 text-yellow-400 mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Equipment.length}</p><p className={ds.textMuted}>Equipment</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Compass className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{seedData.Expedition.length}</p><p className={ds.textMuted}>Expeditions</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><TestTubes className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.Sample.length}</p><p className={ds.textMuted}>Samples</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Wrench className="w-6 h-6 text-yellow-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.Equipment.length}</p><p className={ds.textMuted}>Equipment</p></div>
         </div>
       </div>
 

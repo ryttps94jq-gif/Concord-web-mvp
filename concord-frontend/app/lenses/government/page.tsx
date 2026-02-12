@@ -99,7 +99,7 @@ const STATUSES_BY_TYPE: Record<ArtifactType, string[]> = {
   CourtCase: ['active', 'pending', 'closed', 'archived'],
 };
 
-const SEED_DATA: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
+const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
   Permit: [
     { title: 'Building Permit - 142 Elm St', data: { applicant: 'Sarah Mitchell', type: 'Building', address: '142 Elm St', description: 'Two-story residential addition', fee: 1250, submittedDate: '2026-01-10' }, meta: { status: 'under_review', tags: ['residential'] } },
     { title: 'Electrical Permit - 300 Main Ave', data: { applicant: 'Mike Torres', type: 'Electrical', address: '300 Main Ave', description: 'Commercial panel upgrade 200A', fee: 450, submittedDate: '2026-01-15' }, meta: { status: 'approved', tags: ['commercial'] } },
@@ -148,7 +148,7 @@ export default function GovernmentLensPage() {
   const availableStatuses = STATUSES_BY_TYPE[currentType];
 
   const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData<ArtifactData>('government', currentType, {
-    seed: SEED_DATA[currentType] || [],
+    seed: seedData[currentType] || [],
   });
 
   const runAction = useRunArtifact('government');
@@ -353,9 +353,9 @@ export default function GovernmentLensPage() {
         <div className={ds.panel}>
           <div className={ds.sectionHeader}><h3 className={ds.heading3}>Department Overview</h3><BarChart3 className="w-5 h-5 text-gray-400" /></div>
           <div className={`${ds.grid3} mt-4`}>
-            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><FileCheck className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Permit.length}</p><p className={ds.textMuted}>Active Permits</p></div>
-            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><HardHat className="w-6 h-6 text-yellow-400 mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.Project.length}</p><p className={ds.textMuted}>Public Works</p></div>
-            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Siren className="w-6 h-6 text-red-400 mx-auto mb-1" /><p className={ds.heading3}>{SEED_DATA.EmergencyPlan.length}</p><p className={ds.textMuted}>Emergency Plans</p></div>
+            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><FileCheck className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{seedData.Permit.length}</p><p className={ds.textMuted}>Active Permits</p></div>
+            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><HardHat className="w-6 h-6 text-yellow-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.Project.length}</p><p className={ds.textMuted}>Public Works</p></div>
+            <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Siren className="w-6 h-6 text-red-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.EmergencyPlan.length}</p><p className={ds.textMuted}>Emergency Plans</p></div>
           </div>
         </div>
 
