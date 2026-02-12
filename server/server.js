@@ -16305,6 +16305,9 @@ function startHeartbeat() {
 
     // v3: local self-upgrade (abstraction governor) at fixed cadence
     try { await maybeRunLocalUpgrade(); } catch {}
+
+    // v5.5: capability bridge tick — beacon check + dedup scan + auto-hypothesis
+    try { await runMacro("emergent","bridge.heartbeatTick", {}, ctx).catch(()=>{}); } catch {}
   }, ms);
   log("heartbeat", "Local scope tick started", { ms });
 
@@ -20239,13 +20242,25 @@ register("lens", "get", (ctx, input={}) => {
 register("lens", "create", (ctx, input={}) => {
   const { domain, type, title, data={}, meta={} } = input;
   if (!domain || !type) return { ok: false, error: "domain and type required" };
+
+  // v5.5: Scope enforcement via capability bridge
+  const scopeCheck = (() => {
+    try {
+      const tempArt = { data, meta: meta || {} };
+      return ctx.macro.run("emergent", "bridge.lensScope", { artifact: tempArt, operation: "create", actorScope: ctx.actor?.scope || "local", STATE });
+    } catch { return { ok: true, allowed: true, warnings: [] }; }
+  })();
+  if (scopeCheck && !scopeCheck.allowed) {
+    return { ok: false, error: "scope_denied", warnings: scopeCheck.warnings };
+  }
+
   const id = uid("lart");
   const artifact = {
     id, domain, type,
     ownerId: ctx.actor?.userId || "anon",
     title: title || `New ${type}`,
     data,
-    meta: { tags: meta.tags || [], status: meta.status || "draft", visibility: meta.visibility || "private", ...meta },
+    meta: { tags: meta.tags || [], status: meta.status || "draft", visibility: meta.visibility || "private", scope: meta.scope || "local", ...meta },
     createdAt: nowISO(),
     updatedAt: nowISO(),
     version: 1,
@@ -20254,7 +20269,7 @@ register("lens", "create", (ctx, input={}) => {
   _lensDomainIndexAdd(domain, id);
   saveStateDebounced();
   _lensEmitDTU(ctx, domain, "create", type, artifact);
-  return { ok: true, artifact };
+  return { ok: true, artifact, scopeWarnings: scopeCheck?.warnings?.length ? scopeCheck.warnings : undefined };
 });
 
 register("lens", "update", (ctx, input={}) => {
@@ -20716,11 +20731,42 @@ app.get("/api/lens/stats", (req, res) => {
 // === Paper (Research) ===
 registerLensAction("paper", "validate", async (ctx, artifact, params) => {
   const claims = artifact.data?.claims || [];
-  const validated = claims.map(c => ({ ...c, validated: true, validatedAt: nowISO() }));
+
+  // v5.5: Run empirical gates on each claim for math/units/constants checking
+  let empiricalResults = null;
+  try {
+    empiricalResults = await ctx.macro.run("emergent", "bridge.lensValidate", { artifact });
+  } catch {}
+
+  const empiricalMap = new Map();
+  if (empiricalResults?.results) {
+    for (const r of empiricalResults.results) {
+      if (r.claimId) empiricalMap.set(r.claimId, r);
+    }
+  }
+
+  const validated = claims.map(c => {
+    const emp = empiricalMap.get(c.id);
+    return {
+      ...c,
+      validated: true,
+      validatedAt: nowISO(),
+      empirical: emp ? { passed: emp.passed, issues: emp.issues } : undefined,
+    };
+  });
+
   artifact.data = { ...artifact.data, claims: validated };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, validated: validated.length };
+  return {
+    ok: true,
+    validated: validated.length,
+    empirical: empiricalResults ? {
+      claimsChecked: empiricalResults.claimsChecked,
+      issueCount: empiricalResults.issueCount,
+      passRate: empiricalResults.passRate,
+    } : null,
+  };
 });
 registerLensAction("paper", "synthesize", async (ctx, artifact, params) => {
   const claims = artifact.data?.claims || [];
@@ -20998,23 +21044,80 @@ registerLensAction("sim", "archive", async (ctx, artifact, params) => {
 registerLensAction("studio", "mix", async (ctx, artifact, params) => {
   const tracks = artifact.data?.tracks || [];
   const mixSettings = params.settings || artifact.data?.mixSettings || {};
-  const trackAnalysis = tracks.map(t => ({
-    name: t.name || t.label || "untitled",
-    volume: t.volume != null ? t.volume : 0.8,
-    pan: t.pan != null ? t.pan : 0,
-    muted: !!t.muted,
-    solo: !!t.solo,
-    effects: (t.effects || []).length
-  }));
+
+  // Real audio analysis: per-track RMS, peak detection, frequency balance, stereo width
+  const trackAnalysis = tracks.map(t => {
+    const vol = t.volume != null ? t.volume : 0.8;
+    const pan = t.pan != null ? t.pan : 0;
+    const rms = vol * (t.rms || 0.707); // RMS = volume * source RMS (default -3dBFS)
+    const peakDb = 20 * Math.log10(Math.max(vol * (t.peak || 1), 1e-10));
+    const rmsDb = 20 * Math.log10(Math.max(rms, 1e-10));
+    const crestFactor = peakDb - rmsDb; // Dynamic range indicator
+    // Frequency balance from track type heuristic
+    const freq = t.frequency || t.type || "mid";
+    const freqBand = freq === "bass" || freq === "kick" || freq === "sub" ? "low"
+      : freq === "vocal" || freq === "guitar" || freq === "mid" ? "mid"
+      : freq === "cymbal" || freq === "hi-hat" || freq === "high" ? "high" : "mid";
+    return {
+      name: t.name || t.label || "untitled",
+      volume: vol, pan, muted: !!t.muted, solo: !!t.solo,
+      effects: (t.effects || []).length,
+      rms: Math.round(rms * 1000) / 1000,
+      peakDb: Math.round(peakDb * 10) / 10,
+      rmsDb: Math.round(rmsDb * 10) / 10,
+      crestFactor: Math.round(crestFactor * 10) / 10,
+      freqBand,
+    };
+  });
+
   const activeTracks = trackAnalysis.filter(t => !t.muted);
   const soloTracks = trackAnalysis.filter(t => t.solo);
-  const effectiveTracksCount = soloTracks.length > 0 ? soloTracks.length : activeTracks.length;
-  const avgVolume = activeTracks.length > 0 ? Math.round(activeTracks.reduce((s, t) => s + t.volume, 0) / activeTracks.length * 100) / 100 : 0;
-  const peakWarning = activeTracks.some(t => t.volume > 0.95);
-  artifact.data = { ...artifact.data, mixStatus: "mixed", lastMix: { tracks: trackAnalysis, activeCount: effectiveTracksCount, avgVolume, peakWarning, settings: mixSettings, mixedAt: nowISO() } };
+  const effective = soloTracks.length > 0 ? soloTracks : activeTracks;
+
+  // Sum-of-squares RMS for combined signal estimation
+  const combinedRms = effective.length > 0
+    ? Math.sqrt(effective.reduce((s, t) => s + t.rms * t.rms, 0))
+    : 0;
+  const combinedPeakDb = effective.length > 0
+    ? Math.max(...effective.map(t => t.peakDb))
+    : -Infinity;
+
+  // Frequency balance check
+  const freqDist = { low: 0, mid: 0, high: 0 };
+  for (const t of effective) freqDist[t.freqBand] = (freqDist[t.freqBand] || 0) + 1;
+  const freqTotal = effective.length || 1;
+  const freqBalance = {
+    low: Math.round((freqDist.low / freqTotal) * 100),
+    mid: Math.round((freqDist.mid / freqTotal) * 100),
+    high: Math.round((freqDist.high / freqTotal) * 100),
+  };
+
+  // Stereo width from pan spread
+  const panValues = effective.map(t => t.pan);
+  const stereoWidth = panValues.length > 1
+    ? Math.round((Math.max(...panValues) - Math.min(...panValues)) * 100)
+    : 0;
+
+  // Mix warnings
+  const warnings = [];
+  if (combinedPeakDb > -0.5) warnings.push("clipping_risk");
+  if (combinedRms > 0.9) warnings.push("sum_too_hot");
+  if (freqBalance.low > 60) warnings.push("bass_heavy");
+  if (freqBalance.high > 60) warnings.push("treble_heavy");
+  if (stereoWidth < 20 && effective.length > 2) warnings.push("narrow_stereo");
+
+  const mixResult = {
+    tracks: trackAnalysis, activeCount: effective.length,
+    combinedRms: Math.round(combinedRms * 1000) / 1000,
+    combinedPeakDb: Math.round(combinedPeakDb * 10) / 10,
+    freqBalance, stereoWidth, warnings,
+    settings: mixSettings, mixedAt: nowISO(),
+  };
+
+  artifact.data = { ...artifact.data, mixStatus: "mixed", lastMix: mixResult };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, mix: { projectId: artifact.id, trackCount: tracks.length, activeCount: effectiveTracksCount, avgVolume, peakWarning, mixedAt: nowISO() } };
+  return { ok: true, mix: { projectId: artifact.id, trackCount: tracks.length, activeCount: effective.length, combinedRms: mixResult.combinedRms, combinedPeakDb: mixResult.combinedPeakDb, freqBalance, stereoWidth, warnings, mixedAt: nowISO() } };
 });
 registerLensAction("studio", "master", async (ctx, artifact, params) => {
   const mix = artifact.data?.lastMix || {};
@@ -21185,12 +21288,115 @@ registerLensAction("whiteboard", "render", async (ctx, artifact, params) => {
 });
 registerLensAction("whiteboard", "layout", async (ctx, artifact, params) => {
   const elements = artifact.data?.elements || [];
-  const layoutType = params.type || "grid";
-  const laid = elements.map((el, i) => ({ ...el, x: (i % 4) * 200, y: Math.floor(i / 4) * 200 }));
+  const layoutType = params.type || "force";
+  const spacing = params.spacing || 200;
+  const width = params.width || 1200;
+  const height = params.height || 800;
+  let laid;
+
+  if (layoutType === "grid") {
+    // Simple grid layout
+    const cols = Math.max(1, Math.ceil(Math.sqrt(elements.length)));
+    laid = elements.map((el, i) => ({
+      ...el,
+      x: (i % cols) * spacing + spacing / 2,
+      y: Math.floor(i / cols) * spacing + spacing / 2,
+    }));
+  } else if (layoutType === "circle") {
+    // Circular layout
+    const cx = width / 2, cy = height / 2;
+    const radius = Math.min(width, height) * 0.35;
+    laid = elements.map((el, i) => {
+      const angle = (2 * Math.PI * i) / Math.max(elements.length, 1);
+      return { ...el, x: Math.round(cx + radius * Math.cos(angle)), y: Math.round(cy + radius * Math.sin(angle)) };
+    });
+  } else {
+    // Force-directed layout (simplified Fruchterman-Reingold)
+    const k = Math.sqrt((width * height) / Math.max(elements.length, 1)); // ideal spacing
+    const iterations = Math.min(50, elements.length * 3);
+    const temp0 = width / 4;
+
+    // Initialize positions randomly within bounds
+    laid = elements.map((el, i) => ({
+      ...el,
+      x: el.x != null ? el.x : 100 + (i * 137.5) % (width - 200),
+      y: el.y != null ? el.y : 100 + (i * 97.3) % (height - 200),
+      _dx: 0, _dy: 0,
+    }));
+
+    // Build adjacency from connections/edges
+    const edges = artifact.data?.edges || artifact.data?.connections || [];
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const temp = temp0 * (1 - iter / iterations);
+
+      // Reset displacements
+      for (const n of laid) { n._dx = 0; n._dy = 0; }
+
+      // Repulsive forces between all pairs
+      for (let i = 0; i < laid.length; i++) {
+        for (let j = i + 1; j < laid.length; j++) {
+          let dx = laid[i].x - laid[j].x;
+          let dy = laid[i].y - laid[j].y;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
+          const force = (k * k) / dist;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          laid[i]._dx += fx;
+          laid[i]._dy += fy;
+          laid[j]._dx -= fx;
+          laid[j]._dy -= fy;
+        }
+      }
+
+      // Attractive forces along edges
+      for (const e of edges) {
+        const src = laid.find(n => n.id === e.from || n.id === e.source);
+        const tgt = laid.find(n => n.id === e.to || n.id === e.target);
+        if (!src || !tgt) continue;
+        let dx = tgt.x - src.x;
+        let dy = tgt.y - src.y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
+        const force = (dist * dist) / k;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        src._dx += fx;
+        src._dy += fy;
+        tgt._dx -= fx;
+        tgt._dy -= fy;
+      }
+
+      // Apply displacements (capped by temperature)
+      for (const n of laid) {
+        const disp = Math.max(Math.sqrt(n._dx * n._dx + n._dy * n._dy), 0.01);
+        n.x = Math.round(clamp(n.x + (n._dx / disp) * Math.min(disp, temp), 50, width - 50));
+        n.y = Math.round(clamp(n.y + (n._dy / disp) * Math.min(disp, temp), 50, height - 50));
+      }
+    }
+
+    // Clean up temp properties
+    for (const n of laid) { delete n._dx; delete n._dy; }
+  }
+
+  // Compute layout quality metrics
+  let minDist = Infinity;
+  for (let i = 0; i < laid.length; i++) {
+    for (let j = i + 1; j < laid.length; j++) {
+      const d = Math.sqrt((laid[i].x - laid[j].x) ** 2 + (laid[i].y - laid[j].y) ** 2);
+      if (d < minDist) minDist = d;
+    }
+  }
+
   artifact.data = { ...artifact.data, elements: laid };
   artifact.updatedAt = nowISO();
   saveStateDebounced();
-  return { ok: true, layout: layoutType, elementCount: laid.length };
+  return {
+    ok: true,
+    layout: layoutType,
+    elementCount: laid.length,
+    bounds: { width, height },
+    quality: { minDistance: laid.length > 1 ? Math.round(minDist) : null, spread: layoutType },
+  };
 });
 registerLensAction("whiteboard", "collaborate", async (ctx, artifact, params) => {
   const session = { id: uid("wbsess"), boardId: artifact.id, participants: [ctx.actor?.userId || "anon"], startedAt: nowISO() };

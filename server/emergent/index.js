@@ -280,6 +280,17 @@ import {
   getPipelineMetrics,
 } from "./autogen-pipeline.js";
 
+// ── Empirical Gates (Math / Units / Physical Constants) ──────────────────────
+
+import {
+  evalMathExpression, parseUnitExpr, convertUnits,
+  checkUnits, invarianceCheck,
+  PHYS_CONSTANTS,
+  extractNumericClaims, extractMathExpressions, extractConstantReferences,
+  mathGate, unitGate, constantsGate,
+  runEmpiricalGates, getEmpiricalGateInfo,
+} from "./empirical-gates.js";
+
 // ── Scope Separation (Global / Marketplace / Local) ─────────────────────────
 
 import {
@@ -295,7 +306,19 @@ import {
   getMarketplaceAnalytics, getScopeMetrics,
 } from "./scope-separation.js";
 
-const EMERGENT_VERSION = "5.3.0";
+// ── Capability Bridge (Cross-System Integration) ─────────────────────────────
+
+import {
+  autoHypothesisFromConflicts,
+  getPipelineStrategyHints, recordPipelineOutcomeToMetaLearning,
+  dedupGate, scanRecentDuplicates,
+  runBeaconCheck,
+  lensCheckScope, lensValidateEmpirically,
+  runHeartbeatBridgeTick, ensureBaselineStrategies,
+  getCapabilityBridgeInfo,
+} from "./capability-bridge.js";
+
+const EMERGENT_VERSION = "5.5.0";
 
 /**
  * Initialize the Emergent Agent Governance system.
@@ -1437,6 +1460,116 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get autogen pipeline metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // EMPIRICAL GATES (Math / Units / Physical Constants)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "empirical.math", (_ctx, input = {}) => {
+    if (!input.expr) return { ok: false, error: "expr_required" };
+    try {
+      const value = evalMathExpression(input.expr);
+      return { ok: true, expr: input.expr, value, engine: "deterministic" };
+    } catch (e) {
+      return { ok: false, error: e.message, expr: input.expr };
+    }
+  }, { description: "Evaluate a math expression deterministically", public: true });
+
+  register("emergent", "empirical.parseUnits", (_ctx, input = {}) => {
+    if (!input.expr) return { ok: false, error: "expr_required" };
+    return parseUnitExpr(input.expr);
+  }, { description: "Parse a unit expression into SI dimension vector", public: true });
+
+  register("emergent", "empirical.convertUnits", (_ctx, input = {}) => {
+    if (!input.fromUnits || !input.toUnits) return { ok: false, error: "fromUnits_and_toUnits_required" };
+    return convertUnits(input.value ?? 1, input.fromUnits, input.toUnits);
+  }, { description: "Convert between unit expressions", public: true });
+
+  register("emergent", "empirical.checkUnits", (_ctx, input = {}) => {
+    return checkUnits(input);
+  }, { description: "Check dimensional consistency of units", public: true });
+
+  register("emergent", "empirical.invarianceCheck", (_ctx, input = {}) => {
+    return invarianceCheck(input);
+  }, { description: "Check unit-consistency across invariants", public: true });
+
+  register("emergent", "empirical.constants", (_ctx, input = {}) => {
+    const keys = Array.isArray(input.keys) ? input.keys : null;
+    const out = {};
+    for (const k of Object.keys(PHYS_CONSTANTS)) {
+      if (!keys || keys.includes(k)) out[k] = PHYS_CONSTANTS[k];
+    }
+    return { ok: true, constants: out };
+  }, { description: "Get physical constants (deterministic, SI)", public: true });
+
+  register("emergent", "empirical.scanCandidate", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return runEmpiricalGates(input.candidate);
+  }, { description: "Run all empirical gates on a pipeline candidate", public: true });
+
+  register("emergent", "empirical.scanText", (_ctx, input = {}) => {
+    if (!input.text) return { ok: false, error: "text_required" };
+    const texts = Array.isArray(input.text) ? input.text : [input.text];
+    return {
+      ok: true,
+      numericClaims: texts.flatMap(t => extractNumericClaims(t)),
+      mathExpressions: texts.flatMap(t => extractMathExpressions(t)),
+      constantReferences: texts.flatMap(t => extractConstantReferences(t)),
+    };
+  }, { description: "Scan text for empirical content (numbers, units, constants)", public: true });
+
+  register("emergent", "empirical.info", (_ctx) => {
+    return getEmpiricalGateInfo();
+  }, { description: "Get empirical gate capabilities and supported units", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CAPABILITY BRIDGE (Cross-System Integration)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Bootstrap meta-learning strategies for pipeline domains
+  ensureBaselineStrategies(STATE);
+
+  register("emergent", "bridge.hypothesisFromConflicts", (_ctx, input = {}) => {
+    return autoHypothesisFromConflicts(STATE, input.conflictPairs || [], input);
+  }, { description: "Auto-propose hypotheses from autogen conflict pairs", public: false });
+
+  register("emergent", "bridge.strategyHints", (_ctx, input = {}) => {
+    return getPipelineStrategyHints(STATE, input.domain || "autogen");
+  }, { description: "Get meta-learning strategy hints for pipeline", public: true });
+
+  register("emergent", "bridge.recordOutcome", (_ctx, input = {}) => {
+    return recordPipelineOutcomeToMetaLearning(STATE, input.strategyId, input.success, input.performance ?? 0.5);
+  }, { description: "Record pipeline outcome to meta-learning", public: false });
+
+  register("emergent", "bridge.dedupGate", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return dedupGate(STATE, input.candidate, input);
+  }, { description: "Check candidate against existing DTUs for duplicates", public: true });
+
+  register("emergent", "bridge.dedupScan", (_ctx, input = {}) => {
+    return scanRecentDuplicates(STATE, input);
+  }, { description: "Scan recent DTUs for near-duplicates", public: true });
+
+  register("emergent", "bridge.beacon", (_ctx) => {
+    return runBeaconCheck(STATE);
+  }, { description: "Run beacon/continuity check", public: true });
+
+  register("emergent", "bridge.lensScope", (_ctx, input = {}) => {
+    return lensCheckScope(input.artifact, input.operation || "create", { ...input, STATE });
+  }, { description: "Check lens artifact scope compliance", public: true });
+
+  register("emergent", "bridge.lensValidate", (_ctx, input = {}) => {
+    if (!input.artifact) return { ok: false, error: "artifact_required" };
+    return lensValidateEmpirically(input.artifact);
+  }, { description: "Run empirical gates on lens artifact claims", public: true });
+
+  register("emergent", "bridge.heartbeatTick", (_ctx, input = {}) => {
+    return runHeartbeatBridgeTick(STATE, input);
+  }, { description: "Run all bridge checks in one heartbeat cycle", public: false });
+
+  register("emergent", "bridge.info", (_ctx) => {
+    return getCapabilityBridgeInfo();
+  }, { description: "Get capability bridge information", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // AUDIT / STATUS
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1522,10 +1655,15 @@ function init({ register, STATE, helpers }) {
       autogenIntents: ALL_INTENTS,
       autogenVariants: VARIANT_INTENTS,
       escalationReasons: Object.values(ESCALATION_REASONS),
+      // Empirical Gates additions
+      physicalConstants: Object.keys(PHYS_CONSTANTS),
+      empiricalGates: ["math", "unit", "constants"],
       // Scope Separation additions
       scopes: ALL_SCOPES,
       dtuClasses: ALL_DTU_CLASSES,
       heartbeatConfig: HEARTBEAT_CONFIG,
+      // Capability Bridge additions
+      bridgeModules: ["hypothesis_auto_propose", "metalearning_strategy", "dedup_gate", "dedup_scan", "beacon_check", "lens_scope", "lens_empirical", "heartbeat_bridge"],
     };
   }, { description: "Get emergent system schema", public: true });
 
@@ -1533,13 +1671,13 @@ function init({ register, STATE, helpers }) {
   getConstitutionStore(STATE);
 
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 250,
+    macroCount: 270,
   };
 }
 

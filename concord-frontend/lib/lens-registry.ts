@@ -135,6 +135,7 @@ export const LENS_REGISTRY: LensEntry[] = [
   { id: 'tick', name: 'Tick', icon: Clock, description: 'System tick monitor', category: 'system', showInSidebar: false, showInCommandPalette: true, path: '/lenses/tick', order: 87, keywords: ['heartbeat', 'pulse', 'cycle'] },
   { id: 'lock', name: 'Lock', icon: Lock, description: 'Sovereignty lock status', category: 'system', showInSidebar: false, showInCommandPalette: true, path: '/lenses/lock', order: 88, keywords: ['sovereignty', '70%', 'control'] },
   { id: 'offline', name: 'Offline', icon: Download, description: 'Offline data manager', category: 'system', showInSidebar: false, showInCommandPalette: true, path: '/lenses/offline', order: 89, keywords: ['local', 'sync', 'cache'] },
+  { id: 'platform', name: 'Platform', icon: Activity, description: 'Mega platform dashboard — pipeline, empirical gates, nerve center, scopes', category: 'system', showInSidebar: true, showInCommandPalette: true, path: '/lenses/platform', order: 79, keywords: ['pipeline', 'empirical', 'bridge', 'beacon', 'scope', 'nerve', 'monitor', 'dashboard', 'platform'] },
 
   // ── Specialized ───────────────────────────────────────────────
   { id: 'lab', name: 'Lab', icon: FlaskConical, description: 'Experimentation sandbox', category: 'specialized', showInSidebar: true, showInCommandPalette: true, path: '/lenses/lab', order: 90, keywords: ['experiment', 'test', 'sandbox'] },
