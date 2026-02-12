@@ -650,3 +650,214 @@ describe("Golden 14: Store-Level Lane", () => {
     assert.equal(result.dtu._lane, "local", "DTU should default to local lane");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 15: Chat Loose Mode — Fast Pipeline
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import { chatRetrieve, saveAsDtu, publishToGlobal, getChatMetrics, recordChatExchange, getChatSession } from "../emergent/atlas-chat.js";
+import { CHAT_PROFILE } from "../emergent/atlas-config.js";
+
+describe("Golden 15: Chat Loose Mode — Fast Pipeline", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+    // Seed some DTUs for retrieval
+    scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Chat test: Local knowledge about gravity",
+      tags: ["physics", "gravity"],
+    }), { actor: "user-1" });
+
+    scopedWrite(STATE, SCOPES.GLOBAL, WRITE_OPS.CREATE, makeGoodDtu({
+      title: "Chat test: Global verified gravity constant",
+      tags: ["physics", "gravity", "constant"],
+    }), { actor: "user-1" });
+  });
+
+  it("should retrieve context without triggering governance", () => {
+    const result = chatRetrieve(STATE, "gravity", {});
+    assert.ok(result.ok, "Chat retrieve should succeed");
+    assert.ok(result.meta, "Should have meta envelope");
+    assert.equal(result.meta.mode, "chat", "Meta should indicate chat mode");
+    assert.equal(result.meta.validationLevel, "OFF", "Chat should NOT run validation");
+    assert.equal(result.meta.contradictionGate, "OFF", "Chat should NOT run contradiction gate");
+  });
+
+  it("should return scope-labeled context items", () => {
+    const result = chatRetrieve(STATE, "gravity", {});
+    assert.ok(result.ok);
+    assert.ok(result.context.length > 0, "Should find matching DTUs");
+
+    for (const ctx of result.context) {
+      assert.ok(ctx.sourceScope, "Each context item should have sourceScope");
+      assert.ok(ctx.scopeLabel, "Each context item should have scopeLabel");
+    }
+  });
+
+  it("should show confidence badge only on Global references", () => {
+    const result = chatRetrieve(STATE, "gravity", {});
+    assert.ok(result.ok);
+
+    const localItems = result.context.filter(c => c.sourceScope === "local");
+    const globalItems = result.context.filter(c => c.sourceScope === "global");
+
+    for (const item of localItems) {
+      assert.equal(item.confidenceBadge, null, "Local items should NOT have confidence badge");
+    }
+
+    for (const item of globalItems) {
+      assert.ok(item.confidenceBadge, "Global items should have confidence badge");
+      assert.equal(typeof item.confidenceBadge.score, "number", "Badge should have numeric score");
+    }
+  });
+
+  it("should work on empty state (no crash, no null derefs)", () => {
+    const emptyState = makeTestState();
+    const result = chatRetrieve(emptyState, "anything", {});
+    assert.ok(result.ok, "Chat retrieve on empty state should succeed");
+    assert.equal(result.context.length, 0, "No results expected");
+    assert.equal(result.meta.resultCount, 0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 16: Chat Loose Mode — Does NOT Create DTUs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 16: Chat Does NOT Create DTUs", () => {
+  let STATE;
+  let dtuCountBefore;
+
+  before(() => {
+    STATE = makeTestState();
+    scopedWrite(STATE, SCOPES.LOCAL, WRITE_OPS.CREATE, makeGoodDtu(), { actor: "user-1" });
+    const atlas = getAtlasState(STATE);
+    dtuCountBefore = atlas.dtus.size;
+  });
+
+  it("should NOT create DTUs on chatRetrieve", () => {
+    chatRetrieve(STATE, "water boils", {});
+    chatRetrieve(STATE, "physics", {});
+    chatRetrieve(STATE, "nonexistent topic xyz", {});
+
+    const atlas = getAtlasState(STATE);
+    assert.equal(atlas.dtus.size, dtuCountBefore, "Chat retrieval must not create DTUs");
+  });
+
+  it("should NOT run promotion or submission on chatRetrieve", () => {
+    const metrics = getChatMetrics(STATE);
+    assert.equal(metrics.escalations, 0, "No escalations should have happened");
+    assert.equal(metrics.savesAsDtu, 0, "No saves should have happened");
+    assert.equal(metrics.publishToGlobal, 0, "No publishes should have happened");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 17: Chat Escalation — Save as DTU
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 17: Chat Escalation — Save as DTU", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should create a Local DTU when user explicitly saves", () => {
+    const result = saveAsDtu(STATE, {
+      title: "My chat insight about quantum mechanics",
+      content: "Superposition is counterintuitive",
+      tags: ["quantum", "physics"],
+    }, { actor: "user-1", sessionId: "sess-1" });
+
+    assert.ok(result.ok, "Save as DTU should succeed");
+    assert.ok(result.dtu, "Should return the created DTU");
+    assert.ok(result.dtu.id, "DTU should have an ID");
+
+    // Verify it was created in LOCAL scope
+    const scope = getDtuScope(STATE, result.dtu.id);
+    assert.equal(scope, "local", "Saved DTU should be in LOCAL scope");
+  });
+
+  it("should increment escalation metrics on save", () => {
+    const metrics = getChatMetrics(STATE);
+    assert.equal(metrics.escalations, 1, "One escalation should be recorded");
+    assert.equal(metrics.savesAsDtu, 1, "One save-as-DTU should be recorded");
+  });
+
+  it("should allow saving without strict fields (domainType, epistemicClass)", () => {
+    // Chat saves should pass SOFT validation — no required fields blocking
+    const result = saveAsDtu(STATE, {
+      title: "Quick thought about lunch",
+      // No domainType, no epistemicClass, no claims, no sources
+    }, { actor: "user-2" });
+
+    assert.ok(result.ok, "Save without strict fields should succeed in LOCAL scope");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 18: Chat Escalation — Publish to Global
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 18: Chat Escalation — Publish to Global", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should create Local DTU + Global submission in one call", () => {
+    const result = publishToGlobal(STATE, makeGoodDtu({
+      title: "Chat insight ready for global review",
+    }), { actor: "user-1", sessionId: "sess-2" });
+
+    assert.ok(result.ok, "Publish to global should succeed");
+    assert.ok(result.dtu, "Should have created a local DTU");
+    assert.ok(result.submission, "Should have created a submission");
+    assert.equal(result.submission.targetScope, "global", "Submission should target global");
+    assert.equal(result.submission.status, "PENDING", "Submission should be PENDING");
+    assert.ok(result.note, "Should have an explanatory note");
+  });
+
+  it("should NOT bypass council pipeline (submission is PENDING, not APPROVED)", () => {
+    const result = publishToGlobal(STATE, makeGoodDtu({
+      title: "Another chat insight for global",
+    }), { actor: "user-1" });
+
+    assert.ok(result.ok);
+    assert.equal(result.submission.status, "PENDING", "Must go through council — not auto-approved");
+    assert.notEqual(result.submission.status, "APPROVED", "Must NOT auto-approve");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEST 19: Chat Session Tracking
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Golden 19: Chat Session Tracking", () => {
+  let STATE;
+
+  before(() => {
+    STATE = makeTestState();
+  });
+
+  it("should record chat exchanges without creating DTUs", () => {
+    const r1 = recordChatExchange(STATE, "sess-track-1", { query: "What is gravity?", contextCount: 3 });
+    assert.ok(r1.ok);
+
+    const r2 = recordChatExchange(STATE, "sess-track-1", { query: "Explain more", contextCount: 2 });
+    assert.ok(r2.ok);
+
+    const session = getChatSession(STATE, "sess-track-1");
+    assert.ok(session.ok);
+    assert.equal(session.session.exchanges.length, 2, "Should have 2 exchanges");
+    assert.equal(session.session.exchanges[0].query, "What is gravity?");
+  });
+
+  it("should return not found for unknown session", () => {
+    const result = getChatSession(STATE, "nonexistent");
+    assert.equal(result.ok, false, "Should fail for unknown session");
+  });
+});

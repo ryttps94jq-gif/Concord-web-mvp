@@ -55,6 +55,7 @@ import { applyWrite, WRITE_OPS, runAutoPromoteGate, ingestAutogenCandidate, guar
 import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "./emergent/atlas-scope-router.js";
 import { tickLocal, tickGlobal, tickMarketplace, tickAll, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
 import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
+import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
 
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
@@ -26853,6 +26854,74 @@ app.get("/api/atlas/invariants/metrics", (req, res) => {
 
 app.get("/api/atlas/invariants/log", (req, res) => {
   try { res.json({ ok: true, log: getInvariantLog(Number(req.query.limit || 100)) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Atlas v2: Chat Loose Mode Endpoints ─────────────────────────────────────
+// Chat sits ABOVE Atlas — fast retrieval, no governance, no DTU writes.
+// Escalation ("Save as DTU", "Publish to Global", "List on Marketplace") is explicit.
+
+app.get("/api/atlas/chat/retrieve", (req, res) => {
+  try {
+    const { q, limit, policy, minConfidence, domainType } = req.query;
+    res.json(chatRetrieve(STATE, q, {
+      limit: limit ? Number(limit) : undefined,
+      policy,
+      minConfidence: minConfidence ? Number(minConfidence) : undefined,
+      domainType,
+    }));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/chat/save", (req, res) => {
+  try {
+    const { content, sessionId } = req.body;
+    const actor = req.user?.id || req.body?.actor || "chat_user";
+    const result = saveAsDtu(STATE, content || {}, { actor, sessionId });
+    if (result.ok && sessionId) {
+      recordChatEscalation(STATE, sessionId, { type: "save_as_dtu", dtuId: result.dtu?.id });
+    }
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/chat/publish", (req, res) => {
+  try {
+    const { content, sessionId } = req.body;
+    const actor = req.user?.id || req.body?.actor || "chat_user";
+    const result = publishToGlobal(STATE, content || {}, { actor, sessionId });
+    if (result.ok && sessionId) {
+      recordChatEscalation(STATE, sessionId, { type: "publish_to_global", dtuId: result.dtu?.id, submissionId: result.submission?.id });
+    }
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/chat/list", (req, res) => {
+  try {
+    const { content, marketplace, sessionId } = req.body;
+    const actor = req.user?.id || req.body?.actor || "chat_user";
+    const result = listOnMarketplace(STATE, content || {}, marketplace || {}, { actor, sessionId });
+    if (result.ok && sessionId) {
+      recordChatEscalation(STATE, sessionId, { type: "list_on_marketplace", dtuId: result.dtu?.id, submissionId: result.submission?.id });
+    }
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/atlas/chat/exchange", (req, res) => {
+  try {
+    const { sessionId, query, contextCount, hasGlobalRefs, hasLocalRefs } = req.body;
+    if (!sessionId) return res.status(400).json({ ok: false, error: "sessionId required" });
+    res.json(recordChatExchange(STATE, sessionId, { query, contextCount, hasGlobalRefs, hasLocalRefs }));
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/chat/session/:id", (req, res) => {
+  try { res.json(getChatSession(STATE, req.params.id)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/atlas/chat/metrics", (req, res) => {
+  try { res.json(getChatMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery, Heartbeats) ----

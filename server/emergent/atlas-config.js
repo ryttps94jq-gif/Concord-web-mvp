@@ -156,6 +156,16 @@ export const AUTO_PROMOTE_THRESHOLDS = Object.freeze({
     dedupeThreshold:    0.65,
     label:              "VERIFIED",
   },
+  GENERAL: {
+    min_structural:     0.70,
+    min_factual:        0.60,
+    proofVerified:      false,
+    uniqueSources:      1,
+    maxHighContra:      0,
+    uncitedFactsOk:     false,
+    dedupeThreshold:    0.65,
+    label:              "VERIFIED",
+  },
 });
 
 // ── Proposed-level thresholds (used by the write guard / store) ─────────────
@@ -167,6 +177,7 @@ export const PROPOSED_THRESHOLDS = Object.freeze({
   MODEL:        { min_structural: 0.50 },
   ARTS:         { min_structural: 0.40 },
   DESIGN:       { min_structural: 0.45 },
+  GENERAL:      { min_structural: 0.40 },
 });
 
 // ── Contradiction Severity + Types ──────────────────────────────────────────
@@ -259,6 +270,25 @@ export const ANTIGAMING_CAPS = Object.freeze({
   maxSameAuthorSupportLinks:   5,
   maxSingleAuthorConfidence:   0.25,
   similarityThreshold:         DUP_THRESH,
+});
+
+// ── Chat Profile (Loose Mode) ────────────────────────────────────────────
+// Chat sits ABOVE Atlas, not inside it. No DTU writes, no status machine,
+// no promotion gate, no submission objects. Just fast retrieval + synthesis.
+export const CHAT_PROFILE = Object.freeze({
+  validationLevel:            VALIDATION_LEVEL.OFF,
+  contradictionGate:          "OFF",
+  antiGaming:                 "NONE",
+  sourceRequired:             false,
+  promotionPolicy:            "NEVER",   // chat never auto-promotes
+  dedupeRequired:             false,
+  cycleCheckRequired:         false,
+  maxRetrievalResults:        10,        // keep retrieval fast
+  defaultRetrievalPolicy:     "LOCAL_THEN_GLOBAL",
+  allowSpeculation:           true,
+  allowBrainstorm:            true,
+  showConfidenceBadge:        "ON_GLOBAL_REF",  // only when quoting Global DTUs
+  showScopeLabels:            true,              // always label source scope
 });
 
 // ── Retrieval Policies ──────────────────────────────────────────────────────

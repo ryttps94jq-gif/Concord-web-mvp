@@ -36,6 +36,8 @@ export const DOMAIN_TYPES = Object.freeze({
   // Design
   DESIGN_ARCHITECTURE:"design.architecture",
   DESIGN_PRODUCT:     "design.product",
+  // General (chat-originated, unclassified)
+  GENERAL_NOTE:       "general.note",
 });
 
 export const DOMAIN_TYPE_SET = new Set(Object.values(DOMAIN_TYPES));
@@ -50,6 +52,7 @@ export const EPISTEMIC_CLASSES = Object.freeze({
   MODEL:        "MODEL",
   ARTS:         "ARTS",
   DESIGN:       "DESIGN",
+  GENERAL:      "GENERAL",
 });
 
 export const EPISTEMIC_CLASS_SET = new Set(Object.values(EPISTEMIC_CLASSES));
@@ -72,6 +75,7 @@ const DOMAIN_TO_CLASS = {
   "arts.literature":    "ARTS",
   "design.architecture":"DESIGN",
   "design.product":     "DESIGN",
+  "general.note":       "GENERAL",
 };
 
 export function getEpistemicClass(domainType) {
