@@ -16,6 +16,8 @@ export {
   getLensManifest,
   getLensManifests,
   getAllLensDomains,
+  getManifestCount,
+  getLensesMissingMacro,
 } from './manifest';
 
 // Status taxonomy (Step 1)

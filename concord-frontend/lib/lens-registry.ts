@@ -101,6 +101,8 @@ export const LENS_REGISTRY: LensEntry[] = [
   { id: 'ar', name: 'AR', icon: Glasses, description: 'Augmented reality', category: 'creative', showInSidebar: true, showInCommandPalette: true, path: '/lenses/ar', order: 42, keywords: ['augmented reality', 'webxr', '3d'] },
   { id: 'fractal', name: 'Fractal', icon: Sparkles, description: 'Fractal explorer', category: 'creative', showInSidebar: true, showInCommandPalette: true, path: '/lenses/fractal', order: 43, keywords: ['visualization', 'patterns', 'generative'] },
   { id: 'sim', name: 'Sim', icon: Boxes, description: 'Simulation sandbox', category: 'creative', showInSidebar: false, showInCommandPalette: true, path: '/lenses/sim', order: 44, keywords: ['simulation', 'sandbox', 'worldmodel'] },
+  { id: 'art', name: 'Art', icon: Palette, description: 'Visual art creation and gallery', category: 'creative', showInSidebar: true, showInCommandPalette: true, path: '/lenses/art', order: 45, keywords: ['artwork', 'gallery', 'visual', 'illustration'] },
+  { id: 'studio', name: 'Studio', icon: Music, description: 'Creative production studio', category: 'creative', showInSidebar: true, showInCommandPalette: true, path: '/lenses/studio', order: 46, keywords: ['production', 'audio', 'mix', 'master'] },
 
   // ── Governance ────────────────────────────────────────────────
   { id: 'council', name: 'Council', icon: Users, description: 'DTU governance council', category: 'governance', showInSidebar: true, showInCommandPalette: true, path: '/lenses/council', order: 50, keywords: ['vote', 'governance', 'decisions'] },

@@ -175,6 +175,70 @@ function checkRule5_StatusMismatch() {
   }
 }
 
+function checkRule6_UpgradeLaneLensHasManifest() {
+  const upgradeLane = LENS_STATUS_MAP.filter(
+    e => e.status === 'product' || e.status === 'hybrid' || e.status === 'viewer'
+  );
+
+  for (const entry of upgradeLane) {
+    const manifest = getLensManifest(entry.id);
+    if (!manifest) {
+      violations.push({
+        rule: 'upgrade_lane_no_manifest',
+        severity: 'error',
+        lensId: entry.id,
+        message: `${entry.status} lens "${entry.id}" is in the upgrade lane but has no manifest. Add to LENS_MANIFESTS.`,
+      });
+    }
+  }
+}
+
+function checkRule7_MacroNamingConvention() {
+  const upgradeLane = LENS_STATUS_MAP.filter(
+    e => e.status === 'product' || e.status === 'hybrid' || e.status === 'viewer'
+  );
+
+  for (const entry of upgradeLane) {
+    const manifest = getLensManifest(entry.id);
+    if (!manifest) continue;
+
+    const expectedPrefix = `lens.${entry.id}.`;
+    for (const [key, value] of Object.entries(manifest.macros)) {
+      if (value && !value.startsWith(expectedPrefix)) {
+        violations.push({
+          rule: 'macro_naming_convention',
+          severity: 'warning',
+          lensId: entry.id,
+          message: `Lens "${entry.id}" macro "${key}" is "${value}" but should start with "${expectedPrefix}".`,
+        });
+      }
+    }
+  }
+}
+
+function checkRule8_UpgradeLensHasFullCRUD() {
+  const upgradeLane = LENS_STATUS_MAP.filter(
+    e => e.status === 'product' || e.status === 'hybrid'
+  );
+
+  for (const entry of upgradeLane) {
+    const manifest = getLensManifest(entry.id);
+    if (!manifest) continue;
+
+    const requiredMacros: (keyof typeof manifest.macros)[] = ['list', 'get', 'create', 'update', 'delete', 'run', 'export'];
+    const missing = requiredMacros.filter(m => !manifest.macros[m]);
+
+    if (missing.length > 0) {
+      violations.push({
+        rule: 'incomplete_crud',
+        severity: entry.status === 'product' ? 'error' : 'warning',
+        lensId: entry.id,
+        message: `${entry.status} lens "${entry.id}" is missing macros: ${missing.join(', ')}. Competitor-level requires full CRUD + run + export.`,
+      });
+    }
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────────
 
 function main() {
@@ -186,6 +250,9 @@ function main() {
   checkRule3_ProductLensHasWriteMacro();
   checkRule4_DeprecatedNotInSidebar();
   checkRule5_StatusMismatch();
+  checkRule6_UpgradeLaneLensHasManifest();
+  checkRule7_MacroNamingConvention();
+  checkRule8_UpgradeLensHasFullCRUD();
 
   const errors = violations.filter(v => v.severity === 'error');
   const warnings = violations.filter(v => v.severity === 'warning');

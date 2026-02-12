@@ -119,6 +119,20 @@ export const LENS_STATUS_MAP: LensStatusEntry[] = [
 
   // 6. Studio (Creative Super-Lens)
   {
+    id: 'studio',
+    status: 'product',
+    mergeTarget: null,
+    postMergeRole: 'standalone',
+    rationale: 'Creative production studio super-lens. Artifacts: Project, Track, Effect, Session, Mixdown.',
+  },
+  {
+    id: 'art',
+    status: 'product',
+    mergeTarget: null,
+    postMergeRole: 'standalone',
+    rationale: 'Visual art creation and gallery. Artifacts: Artwork, Collection, Style, Gallery, Exhibition.',
+  },
+  {
     id: 'music',
     status: 'hybrid',
     mergeTarget: 'studio',
