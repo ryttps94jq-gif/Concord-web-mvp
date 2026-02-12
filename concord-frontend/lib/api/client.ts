@@ -1055,6 +1055,29 @@ export const apiHelpers = {
     councilMerge: (data: Record<string, unknown>) => api.post('/api/atlas/council/merge', data),
     councilActions: (params?: Record<string, unknown>) => api.get('/api/atlas/council/actions', { params }),
     councilMetrics: () => api.get('/api/atlas/council/metrics'),
+    // Chat Loose Mode
+    chatRetrieve: (query: string, opts?: { limit?: number; policy?: string; minConfidence?: number }) =>
+      api.post('/api/atlas/chat/retrieve', { query, ...opts }),
+    chatSave: (content: Record<string, unknown>, ctx?: { actor?: string; sessionId?: string }) =>
+      api.post('/api/atlas/chat/save', { content, ctx }),
+    chatPublish: (content: Record<string, unknown>, ctx?: { actor?: string; sessionId?: string }) =>
+      api.post('/api/atlas/chat/publish', { content, ctx }),
+    chatList: (content: Record<string, unknown>, opts?: Record<string, unknown>, ctx?: Record<string, unknown>) =>
+      api.post('/api/atlas/chat/list', { content, opts, ctx }),
+    chatExchange: (sessionId: string, exchange: { query: string; contextCount?: number; hasGlobalRefs?: boolean; hasLocalRefs?: boolean }) =>
+      api.post('/api/atlas/chat/exchange', { sessionId, exchange }),
+    chatSession: (sessionId: string) => api.get(`/api/atlas/chat/session/${sessionId}`),
+    chatMetrics: () => api.get('/api/atlas/chat/metrics'),
+    // Rights & Citations
+    rightsCheck: (userId: string, artifactId: string, action: string) =>
+      api.post('/api/atlas/rights/check', { userId, artifactId, action }),
+    rightsCitation: (artifactId: string) => api.get(`/api/atlas/rights/citation/${artifactId}`),
+    rightsOrigin: (artifactId: string) => api.get(`/api/atlas/rights/origin/${artifactId}`),
+    rightsVerify: (artifactId: string) => api.get(`/api/atlas/rights/verify/${artifactId}`),
+    rightsTransfer: (artifactId: string, fromUserId: string, toUserId: string, action: string) =>
+      api.post('/api/atlas/rights/transfer', { artifactId, fromUserId, toUserId, action }),
+    rightsHash: (artifactId: string) => api.get(`/api/atlas/rights/hash/${artifactId}`),
+    rightsMetrics: () => api.get('/api/atlas/rights/metrics'),
   },
 
   social: {

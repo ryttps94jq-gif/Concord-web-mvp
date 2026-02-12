@@ -93,6 +93,11 @@ export * from './reminders/ReminderList';
 // Theme Components
 export * from './themes/ThemeSelector';
 
+// Atlas Components (v5.6.0 — Chat, Rights, Citations)
+export * from './atlas/AtlasStatusBadge';
+export * from './atlas/CitationCard';
+export * from './atlas/RightsDisplay';
+
 // Platform Components (v5.5.0)
 export { default as PipelineMonitor } from './platform/PipelineMonitor';
 export { default as NerveCenter } from './platform/NerveCenter';

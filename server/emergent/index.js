@@ -264,7 +264,7 @@ import {
   registerSlotConfig, getSlotConfig, getAllSlotConfigs, getSlotLabel,
   recordInvocation, makeResult, unregisterSlotConfig,
   getInvocations, getResultDistribution, auditSlotCoverage,
-  getFailureRates, getActionSlotMetrics,
+  getFailureRates as getSlotFailureRates, getActionSlotMetrics,
 } from "./action-slots.js";
 
 // ── Autogen Pipeline (6-Stage Knowledge Synthesis) ───────────────────────────
@@ -1308,7 +1308,7 @@ function init({ register, STATE, helpers }) {
   }, { description: "Audit slot coverage across lenses", public: true });
 
   register("emergent", "slots.failureRates", (_ctx, input = {}) => {
-    return getFailureRates(STATE, input);
+    return getSlotFailureRates(STATE, input);
   }, { description: "Get failure rates per lens", public: true });
 
   register("emergent", "slots.metrics", (_ctx) => {

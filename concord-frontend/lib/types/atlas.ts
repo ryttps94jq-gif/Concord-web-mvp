@@ -9,13 +9,19 @@ export type DomainType =
   | 'interpretive.philosophy' | 'interpretive.linguistics'
   | 'model.economics' | 'model.policy'
   | 'arts.visual' | 'arts.music' | 'arts.literature'
-  | 'design.architecture' | 'design.product';
+  | 'design.architecture' | 'design.product'
+  | 'general.note';
 
 export type EpistemicClass =
   | 'FORMAL' | 'EMPIRICAL' | 'HISTORICAL'
-  | 'INTERPRETIVE' | 'MODEL' | 'ARTS' | 'DESIGN';
+  | 'INTERPRETIVE' | 'MODEL' | 'ARTS' | 'DESIGN' | 'GENERAL';
 
 export type AtlasStatus = 'DRAFT' | 'PROPOSED' | 'VERIFIED' | 'DISPUTED' | 'DEPRECATED' | 'QUARANTINED';
+
+// ── Lane-specific statuses ──────────────────────────────────────────────
+export type LocalStatus = 'LOCAL_DRAFT' | 'LOCAL_PROPOSED' | 'LOCAL_VERIFIED' | 'LOCAL_DISPUTED';
+export type MarketStatus = 'LISTING_DRAFT' | 'LISTING_REVIEW' | 'LISTED' | 'LISTING_DISPUTED' | 'DELISTED' | 'QUARANTINED';
+export type AtlasScope = 'local' | 'global' | 'marketplace';
 
 export type ClaimType = 'FACT' | 'INTERPRETATION' | 'RECEPTION' | 'PROVENANCE' | 'SPEC' | 'HYPOTHESIS' | 'MODEL_OUTPUT';
 
@@ -346,4 +352,149 @@ export const EPISTEMIC_CLASS_CONFIG: Record<EpistemicClass, { label: string; des
   MODEL:        { label: 'Model',        description: 'Assumption/scenario-based',       color: 'text-indigo-400' },
   ARTS:         { label: 'Arts',         description: 'Provenance + interpretation',     color: 'text-pink-400' },
   DESIGN:       { label: 'Design',       description: 'Specs + process + constraints',   color: 'text-teal-400' },
+  GENERAL:      { label: 'General',      description: 'Unclassified / chat-originated',  color: 'text-gray-400' },
+};
+
+// ── License Types ───────────────────────────────────────────────────────
+
+export type LicenseType =
+  | 'CONCORD_PERSONAL'
+  | 'CONCORD_OPEN'
+  | 'CONCORD_ATTRIBUTION_OPEN'
+  | 'CONCORD_NONCOMMERCIAL'
+  | 'CONCORD_MARKET_EXCLUSIVE'
+  | 'CUSTOM';
+
+export interface LicenseProfile {
+  attribution_required: boolean;
+  derivative_allowed: boolean;
+  commercial_use_allowed: boolean;
+  redistribution_allowed: boolean;
+  royalty_required: boolean;
+  exclusive?: boolean;
+}
+
+export const LICENSE_CONFIG: Record<LicenseType, { label: string; description: string; color: string; icon: string }> = {
+  CONCORD_PERSONAL:         { label: 'Personal',         description: 'Local only, no sharing',                color: 'text-gray-400',   icon: 'Lock' },
+  CONCORD_OPEN:             { label: 'Open',             description: 'Share freely, no attribution needed',   color: 'text-green-400',  icon: 'Globe' },
+  CONCORD_ATTRIBUTION_OPEN: { label: 'Attribution Open', description: 'Share with credit',                     color: 'text-blue-400',   icon: 'Quote' },
+  CONCORD_NONCOMMERCIAL:    { label: 'Noncommercial',    description: 'Share with credit, no commercial use',  color: 'text-yellow-400', icon: 'Ban' },
+  CONCORD_MARKET_EXCLUSIVE: { label: 'Market Exclusive', description: 'Marketplace only, no redistribution',   color: 'text-purple-400', icon: 'Store' },
+  CUSTOM:                   { label: 'Custom',           description: 'Custom license terms',                  color: 'text-orange-400', icon: 'Settings' },
+};
+
+// ── Rights Types ────────────────────────────────────────────────────────
+
+export type RightsAction = 'VIEW' | 'CITE' | 'DERIVE' | 'REDISTRIBUTE' | 'COMMERCIAL_USE' | 'LIST_ON_MARKET' | 'TRANSFER';
+
+export type DerivationType = 'EXTENSION' | 'REVISION' | 'TRANSLATION' | 'SYNTHESIS' | 'CRITIQUE';
+
+export interface ArtifactRights {
+  content_hash: string;
+  evidence_hash: string;
+  lineage_hash: string;
+  license_type: LicenseType;
+  license_profile: LicenseProfile | null;
+  origin_lane: AtlasScope;
+  stamped_at: string;
+  creator_id: string;
+}
+
+export interface OriginRecord {
+  artifact_id: string;
+  content_hash: string;
+  creator_id: string;
+  created_at: string;
+  instance_id: string;
+  origin_fingerprint: string;
+}
+
+export interface Citation {
+  artifact_id: string;
+  title: string;
+  author: string;
+  license: LicenseType;
+  content_hash: string;
+  created_at: string;
+  citation_text: string;
+  attribution_required: boolean;
+}
+
+export interface RightsCheck {
+  allowed: boolean;
+  reason: string;
+  license_type: LicenseType;
+}
+
+// ── Chat Loose Mode Types ───────────────────────────────────────────────
+
+export interface ChatContext {
+  id: string;
+  title: string;
+  claims: { text: string; claimType: ClaimType }[];
+  tags: string[];
+  sourceScope: AtlasScope;
+  scopeLabel: string;
+  confidenceBadge: {
+    score: number;
+    label: string;
+    verified: boolean;
+    disputed: boolean;
+  } | null;
+  disputeIndicator: boolean;
+  isVerified: boolean;
+}
+
+export interface ChatMeta {
+  mode: 'chat';
+  profile: string;
+  validationLevel: 'OFF';
+  contradictionGate: 'OFF';
+  policy: string;
+  query: string;
+  resultCount: number;
+  ts: number;
+}
+
+export interface ChatRetrieveResponse {
+  ok: boolean;
+  context: ChatContext[];
+  total?: number;
+  meta: ChatMeta;
+}
+
+export interface ChatMetrics {
+  ok: boolean;
+  queries: number;
+  retrievals: number;
+  escalations: number;
+  savesAsDtu: number;
+  publishToGlobal: number;
+  listOnMarket: number;
+}
+
+export interface ChatSession {
+  id: string;
+  createdAt: string;
+  exchanges: {
+    ts: number;
+    query: string;
+    contextCount: number;
+    hasGlobalRefs: boolean;
+    hasLocalRefs: boolean;
+  }[];
+  escalations: {
+    ts: number;
+    type: string;
+    dtuId: string;
+    submissionId: string | null;
+  }[];
+}
+
+// ── Scope Label Config ──────────────────────────────────────────────────
+
+export const SCOPE_LABEL_CONFIG: Record<AtlasScope, { label: string; color: string; bgColor: string }> = {
+  local:       { label: 'Local Knowledge',      color: 'text-blue-400',   bgColor: 'bg-blue-500/10' },
+  global:      { label: 'Global Atlas',         color: 'text-green-400',  bgColor: 'bg-green-500/10' },
+  marketplace: { label: 'Marketplace Listing',  color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
 };
