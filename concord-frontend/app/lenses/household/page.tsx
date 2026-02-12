@@ -67,31 +67,12 @@ const STATUS_COLORS: Record<Status, string> = {
 };
 
 const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  FamilyMember: [
-    { title: 'Alex Chen', data: { name: 'Alex Chen', role: 'Parent', birthday: '1988-03-15', allergies: ['peanuts'], notes: 'Works from home Tues/Thu' }, meta: { status: 'active', tags: ['parent'] } },
-    { title: 'Jamie Chen', data: { name: 'Jamie Chen', role: 'Parent', birthday: '1990-07-22', allergies: [], notes: 'Coaches soccer Saturdays' }, meta: { status: 'active', tags: ['parent'] } },
-    { title: 'Mia Chen', data: { name: 'Mia Chen', role: 'Child', birthday: '2016-11-01', allergies: ['dairy'], notes: 'Piano lessons Wed 4pm' }, meta: { status: 'active', tags: ['child'] } },
-  ],
-  MealPlan: [
-    { title: 'Monday Dinner - Pasta Night', data: { name: 'Pasta Night', day: 'Monday', mealType: 'dinner', recipe: 'Spaghetti Bolognese', servings: 4, ingredients: ['pasta', 'ground beef', 'tomato sauce', 'onion', 'garlic'] }, meta: { status: 'planned', tags: ['dinner'] } },
-    { title: 'Tuesday Lunch - Chicken Wraps', data: { name: 'Chicken Wraps', day: 'Tuesday', mealType: 'lunch', recipe: 'Grilled Chicken Caesar Wrap', servings: 4, ingredients: ['tortillas', 'chicken', 'lettuce', 'parmesan', 'dressing'] }, meta: { status: 'planned', tags: ['lunch'] } },
-  ],
-  Chore: [
-    { title: 'Vacuum Living Room', data: { name: 'Vacuum Living Room', assignee: 'Alex', frequency: 'weekly', room: 'Living Room', estimatedMinutes: 20 }, meta: { status: 'active', tags: ['cleaning'] } },
-    { title: 'Dishes After Dinner', data: { name: 'Dishes After Dinner', assignee: 'Jamie', frequency: 'daily', room: 'Kitchen', estimatedMinutes: 15 }, meta: { status: 'active', tags: ['cleaning'] } },
-    { title: 'Take Out Trash', data: { name: 'Take Out Trash', assignee: 'Mia', frequency: 'weekly', room: 'Kitchen', estimatedMinutes: 5 }, meta: { status: 'overdue', tags: ['chore'] } },
-  ],
-  MaintenanceItem: [
-    { title: 'HVAC Filter Replacement', data: { name: 'HVAC Filter Replacement', area: 'Utility Room', priority: 'high', dueDate: '2026-02-15', cost: 45, vendor: 'Home Depot' }, meta: { status: 'planned', tags: ['maintenance'] } },
-    { title: 'Gutter Cleaning', data: { name: 'Gutter Cleaning', area: 'Exterior', priority: 'medium', dueDate: '2026-03-01', cost: 200, vendor: 'CleanPro Services' }, meta: { status: 'planned', tags: ['exterior'] } },
-  ],
-  Pet: [
-    { title: 'Biscuit', data: { name: 'Biscuit', species: 'Dog', breed: 'Golden Retriever', vetDate: '2026-04-10', food: 'Blue Buffalo Adult', notes: 'Walks 2x daily, loves fetch' }, meta: { status: 'active', tags: ['dog'] } },
-  ],
-  MajorEvent: [
-    { title: 'Mia\'s Birthday Party', data: { name: 'Mia\'s Birthday Party', date: '2026-11-01', location: 'Home', budget: 300, guests: 12, notes: 'Unicorn theme, dairy-free cake' }, meta: { status: 'planned', tags: ['birthday'] } },
-    { title: 'Summer Vacation', data: { name: 'Summer Vacation', date: '2026-07-15', location: 'Lake Tahoe', budget: 3500, guests: 4, notes: 'Cabin rental booked' }, meta: { status: 'planned', tags: ['vacation'] } },
-  ],
+  FamilyMember: [],
+  MealPlan: [],
+  Chore: [],
+  MaintenanceItem: [],
+  Pet: [],
+  MajorEvent: [],
 };
 
 /* ------------------------------------------------------------------ */

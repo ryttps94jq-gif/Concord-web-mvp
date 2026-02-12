@@ -12,14 +12,7 @@ interface MilestoneData {
   confidence: number;
 }
 
-const SEED_MILESTONES = [
-  { title: 'Foundation', data: { year: 2026, description: 'Concord OS v1 launch, 50+ lenses', status: 'current' as const, confidence: 1.0 } },
-  { title: 'Swarm Scaling', data: { year: 2030, description: '10,000+ entities, distributed cognition', status: 'future' as const, confidence: 0.85 } },
-  { title: 'Global Network', data: { year: 2050, description: 'Federated Concord instances worldwide', status: 'future' as const, confidence: 0.72 } },
-  { title: 'Centennial', data: { year: 2100, description: 'Self-sustaining cognitive ecosystem', status: 'future' as const, confidence: 0.58 } },
-  { title: 'Bicentennial', data: { year: 2200, description: 'Multi-generational knowledge transfer', status: 'future' as const, confidence: 0.42 } },
-  { title: '400-Year Vision', data: { year: 2400, description: 'Complete founder intent realization', status: 'future' as const, confidence: 0.25 } },
-];
+const SEED_MILESTONES: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function LegacyLensPage() {
   useLensNav('legacy');

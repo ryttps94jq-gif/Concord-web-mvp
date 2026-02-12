@@ -23,17 +23,15 @@ interface TransactionData {
   timestamp: string;
 }
 
-const SEED_CHAINS = [
-  { title: 'Concord Chain', data: { chainId: 'concord', name: 'Concord Chain', symbol: 'CC', balance: 1000, price: 1.00 } },
-  { title: 'Ethereum (Sim)', data: { chainId: 'ethereum', name: 'Ethereum (Sim)', symbol: 'sETH', balance: 2.5, price: 2400 } },
-  { title: 'Bitcoin (Sim)', data: { chainId: 'bitcoin', name: 'Bitcoin (Sim)', symbol: 'sBTC', balance: 0.05, price: 45000 } },
-];
+const SEED_CHAINS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
-const SEED_TRANSACTIONS = [
-  { title: 'Quest completion', data: { type: 'earn', amount: 100, symbol: 'CC', description: 'Quest completion', timestamp: new Date().toISOString() } },
-  { title: 'DTU purchase', data: { type: 'spend', amount: 25, symbol: 'CC', description: 'DTU purchase', timestamp: new Date().toISOString() } },
-  { title: 'Council vote reward', data: { type: 'earn', amount: 50, symbol: 'CC', description: 'Council vote reward', timestamp: new Date().toISOString() } },
-];
+const SEED_TRANSACTIONS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function CryptoLensPage() {
   useLensNav('crypto');

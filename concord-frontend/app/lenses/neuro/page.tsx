@@ -19,18 +19,9 @@ interface NeuronData {
   type: 'input' | 'hidden' | 'output';
 }
 
-const SEED_NETWORKS = [
-  { title: 'feedforward', data: { name: 'Feedforward', neurons: 128, layers: 4, accuracy: 0.92 } },
-  { title: 'recurrent', data: { name: 'Recurrent', neurons: 64, layers: 3, accuracy: 0.88 } },
-  { title: 'transformer', data: { name: 'Transformer', neurons: 256, layers: 6, accuracy: 0.95 } },
-];
+const SEED_NETWORKS: { title: string; data: Record<string, unknown> }[] = [];
 
-const SEED_NEURONS = [
-  { title: 'n-001', data: { activation: 0.85, connections: 12, type: 'input' as const } },
-  { title: 'n-002', data: { activation: 0.72, connections: 8, type: 'hidden' as const } },
-  { title: 'n-003', data: { activation: 0.91, connections: 15, type: 'hidden' as const } },
-  { title: 'n-004', data: { activation: 0.68, connections: 5, type: 'output' as const } },
-];
+const SEED_NEURONS: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function NeuroLensPage() {
   useLensNav('neuro');

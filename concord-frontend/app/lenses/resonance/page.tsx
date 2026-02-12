@@ -51,18 +51,14 @@ interface Alert {
   acknowledged: boolean;
 }
 
-const SEED_ALERTS: Alert[] = [
-  { id: 'a1', type: 'warning', message: 'Contradiction load approaching threshold', metric: 'contradictionLoad', value: 0.18, timestamp: new Date(Date.now() - 3600000), acknowledged: false },
-  { id: 'a2', type: 'info', message: 'Homeostasis improved by 5%', metric: 'homeostasis', value: 0.85, timestamp: new Date(Date.now() - 7200000), acknowledged: true },
-  { id: 'a3', type: 'critical', message: 'Acute stress spike detected', metric: 'stressAcute', value: 0.72, timestamp: new Date(Date.now() - 1800000), acknowledged: false },
-];
+const SEED_ALERTS: Alert[] = [];
 
 export default function ResonanceLensPage() {
   useLensNav('resonance');
 
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
-  const [alerts, setAlerts] = useState<Alert[]>(SEED_ALERTS);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showAlerts, setShowAlerts] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);

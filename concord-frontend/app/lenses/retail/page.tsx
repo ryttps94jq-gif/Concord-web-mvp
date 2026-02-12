@@ -83,35 +83,12 @@ function statusOptionsFor(type: ArtifactType): string[] {
 }
 
 const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  Product: [
-    { title: 'Wireless Headphones Pro', data: { name: 'Wireless Headphones Pro', sku: 'WHP-001', category: 'Electronics', price: 149.99, stock: 234, reorderPoint: 50, supplier: 'AudioTech Inc' }, meta: { status: 'active', tags: ['electronics', 'featured'] } },
-    { title: 'Ergonomic Office Chair', data: { name: 'Ergonomic Office Chair', sku: 'EOC-042', category: 'Furniture', price: 399.00, stock: 18, reorderPoint: 20, supplier: 'ComfortWorks' }, meta: { status: 'active', tags: ['furniture', 'low-stock'] } },
-    { title: 'Organic Coffee Beans 1lb', data: { name: 'Organic Coffee Beans 1lb', sku: 'OCB-110', category: 'Food & Beverage', price: 18.50, stock: 520, reorderPoint: 100, supplier: 'BeanOrigin Co' }, meta: { status: 'active', tags: ['food'] } },
-  ],
-  Order: [
-    { title: 'ORD-2026-0842', data: { orderNumber: 'ORD-2026-0842', customer: 'Sarah Mitchell', items: 3, total: 567.49, shippingMethod: 'Express', trackingNumber: '1Z999AA10123456784' }, meta: { status: 'shipped', tags: ['express'] } },
-    { title: 'ORD-2026-0841', data: { orderNumber: 'ORD-2026-0841', customer: 'James Wong', items: 1, total: 149.99, shippingMethod: 'Standard', trackingNumber: '' }, meta: { status: 'processing', tags: [] } },
-    { title: 'ORD-2026-0840', data: { orderNumber: 'ORD-2026-0840', customer: 'Elena Rodriguez', items: 5, total: 1243.00, shippingMethod: 'Express', trackingNumber: '1Z999AA10123456785' }, meta: { status: 'delivered', tags: ['express', 'high-value'] } },
-  ],
-  Customer: [
-    { title: 'Sarah Mitchell', data: { name: 'Sarah Mitchell', email: 'sarah@example.com', phone: '(555) 123-4567', totalOrders: 12, totalSpent: 3420.50, tier: 'Gold' }, meta: { status: 'active', tags: ['gold'] } },
-    { title: 'James Wong', data: { name: 'James Wong', email: 'james.w@example.com', phone: '(555) 234-5678', totalOrders: 3, totalSpent: 649.97, tier: 'Silver' }, meta: { status: 'active', tags: ['silver'] } },
-    { title: 'Elena Rodriguez', data: { name: 'Elena Rodriguez', email: 'elena.r@example.com', phone: '(555) 345-6789', totalOrders: 28, totalSpent: 12580.00, tier: 'Platinum' }, meta: { status: 'active', tags: ['platinum', 'vip'] } },
-  ],
-  Lead: [
-    { title: 'TechStart Inc - Enterprise License', data: { name: 'TechStart Inc', company: 'TechStart Inc', email: 'buyer@techstart.io', value: 45000, source: 'Trade Show', assignee: 'Mike Chen', probability: 60 }, meta: { status: 'proposal', tags: ['enterprise'] } },
-    { title: 'GreenCo - Bulk Order', data: { name: 'GreenCo', company: 'GreenCo Sustainability', email: 'procurement@greenco.com', value: 12500, source: 'Website', assignee: 'Lisa Park', probability: 80 }, meta: { status: 'negotiation', tags: ['bulk'] } },
-    { title: 'City Schools District', data: { name: 'City Schools District', company: 'Metro City Schools', email: 'purchasing@cityschools.edu', value: 78000, source: 'Referral', assignee: 'Mike Chen', probability: 30 }, meta: { status: 'qualified', tags: ['education', 'government'] } },
-  ],
-  Ticket: [
-    { title: 'TK-1052: Defective unit received', data: { subject: 'Defective unit received', customer: 'Sarah Mitchell', priority: 'high', category: 'Returns', assignee: 'Support Team A', slaDeadline: '2026-02-09T17:00:00Z' }, meta: { status: 'open', tags: ['returns', 'urgent'] } },
-    { title: 'TK-1051: Billing question', data: { subject: 'Billing question', customer: 'James Wong', priority: 'low', category: 'Billing', assignee: 'Support Team B', slaDeadline: '2026-02-10T17:00:00Z' }, meta: { status: 'in_progress', tags: ['billing'] } },
-    { title: 'TK-1050: Shipping delay inquiry', data: { subject: 'Shipping delay inquiry', customer: 'Elena Rodriguez', priority: 'medium', category: 'Shipping', assignee: 'Support Team A', slaDeadline: '2026-02-11T17:00:00Z' }, meta: { status: 'waiting', tags: ['shipping'] } },
-  ],
-  Display: [
-    { title: 'Spring Collection Window', data: { name: 'Spring Collection Window', location: 'Main Entrance', type: 'Window', startDate: '2026-03-01', endDate: '2026-04-30', products: ['WHP-001', 'EOC-042'] }, meta: { status: 'active', tags: ['seasonal'] } },
-    { title: 'Coffee Corner Endcap', data: { name: 'Coffee Corner Endcap', location: 'Aisle 3 End', type: 'Endcap', startDate: '2026-02-01', endDate: '2026-02-28', products: ['OCB-110'] }, meta: { status: 'active', tags: ['food'] } },
-  ],
+  Product: [],
+  Order: [],
+  Customer: [],
+  Lead: [],
+  Ticket: [],
+  Display: [],
 };
 
 /* ------------------------------------------------------------------ */

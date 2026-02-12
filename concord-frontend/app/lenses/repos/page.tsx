@@ -464,17 +464,9 @@ export default function ReposLensPage() {
 }
 
 function generateMockRepos(): Repository[] {
-  return [
-    { id: '1', name: 'concord-core', description: 'Core cognitive engine', language: 'TypeScript', stars: 234, forks: 45, watchers: 12, issues: 8, pullRequests: 3, updatedAt: new Date().toISOString(), isPrivate: false, defaultBranch: 'main' },
-    { id: '2', name: 'lattice-ui', description: 'Frontend components for the lattice', language: 'TypeScript', stars: 156, forks: 23, watchers: 8, issues: 5, pullRequests: 1, updatedAt: new Date().toISOString(), isPrivate: false, defaultBranch: 'main' },
-    { id: '3', name: 'dtu-processor', description: 'DTU processing pipeline', language: 'Rust', stars: 89, forks: 12, watchers: 5, issues: 3, pullRequests: 0, updatedAt: new Date().toISOString(), isPrivate: true, defaultBranch: 'main' },
-  ];
+  return [];
 }
 
 function generateMockCommits(): Commit[] {
-  return [
-    { id: '1', sha: 'abc1234', message: 'feat: Add resonance metrics dashboard', author: 'user', date: new Date().toISOString(), additions: 234, deletions: 12 },
-    { id: '2', sha: 'def5678', message: 'fix: Resolve DTU linking issue', author: 'user', date: new Date(Date.now() - 86400000).toISOString(), additions: 45, deletions: 23 },
-    { id: '3', sha: 'ghi9012', message: 'docs: Update README with new features', author: 'user', date: new Date(Date.now() - 172800000).toISOString(), additions: 89, deletions: 5 },
-  ];
+  return [];
 }

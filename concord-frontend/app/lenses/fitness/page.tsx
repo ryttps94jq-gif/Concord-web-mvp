@@ -67,16 +67,7 @@ const STATUS_COLORS: Record<Status, string> = {
   graduated: 'neon-purple',
 };
 
-const seedItems: { title: string; data: FitnessArtifact }[] = [
-  { title: 'Sarah Mitchell', data: { artifactType: 'Client', status: 'active', description: 'Weight loss program, 3x/week, targeting 15lb reduction in 12 weeks', coach: 'Coach Davis', goal: 'Lose 15 lbs', category: 'Weight Loss' } },
-  { title: 'Marathon Prep 16-Week', data: { artifactType: 'Program', status: 'active', description: '16-week marathon preparation plan with progressive distance increases', coach: 'Coach Hernandez', duration: 112, category: 'Endurance', goal: 'Complete marathon under 4:00' } },
-  { title: 'HIIT Circuit Alpha', data: { artifactType: 'Workout', status: 'active', description: 'High-intensity interval circuit: burpees, box jumps, kettlebell swings, battle ropes', duration: 45, intensity: 'high', category: 'HIIT' } },
-  { title: 'Sunrise Yoga - MWF 6AM', data: { artifactType: 'Class', status: 'active', description: 'Vinyasa flow yoga class, all levels welcome', coach: 'Instructor Kim', duration: 60, intensity: 'moderate', schedule: 'Mon/Wed/Fri 6:00 AM', category: 'Yoga' } },
-  { title: 'Varsity Track & Field', data: { artifactType: 'Team', status: 'active', description: 'University varsity track team, spring season', coach: 'Coach Hernandez', category: 'Athletics' } },
-  { title: 'Marcus Thompson - Sprint Prospect', data: { artifactType: 'Athlete', status: 'active', description: '100m: 10.42s, 200m: 20.89s. Regional champion. Excellent acceleration.', category: 'Sprint', goal: 'National championship qualifying time' } },
-  { title: 'Jake Rivera', data: { artifactType: 'Client', status: 'active', description: 'Strength building, 4x/week, focus on compound lifts', coach: 'Coach Davis', goal: 'Bench 225 lbs', category: 'Strength' } },
-  { title: 'Strength Foundations 8-Week', data: { artifactType: 'Program', status: 'active', description: 'Beginner strength program: squat, bench, deadlift progression', coach: 'Coach Davis', duration: 56, category: 'Strength', intensity: 'moderate' } },
-];
+const seedItems: { title: string; data: FitnessArtifact }[] = [];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

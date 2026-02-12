@@ -19,12 +19,10 @@ interface MathStatsData {
   value: string;
 }
 
-const SEED_STATS = [
-  { title: 'Expressions', data: { label: 'Expressions', value: '0' } },
-  { title: 'Verified', data: { label: 'Verified', value: '0' } },
-  { title: 'Constants', data: { label: 'Constants', value: 'pi' } },
-  { title: 'Accuracy', data: { label: 'Accuracy', value: '100%' } },
-];
+const SEED_STATS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function MathLensPage() {
   useLensNav('math');

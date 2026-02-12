@@ -6,18 +6,9 @@ import { Leaf, Sun, Droplet, Wind, TreeDeciduous, TrendingUp, Loader2 } from 'lu
 import { ErrorState } from '@/components/common/EmptyState';
 
 // Seed data — auto-created in backend if empty
-const SEED_METRICS = [
-  { title: 'Energy Flow', data: { id: 'energy', value: 0.85, unit: 'TJ/day', icon: 'Sun', color: 'text-yellow-500' } },
-  { title: 'Water Cycle', data: { id: 'water', value: 0.92, unit: 'ML/day', icon: 'Droplet', color: 'text-neon-blue' } },
-  { title: 'Carbon Balance', data: { id: 'carbon', value: 0.78, unit: 'kt CO2', icon: 'Wind', color: 'text-gray-400' } },
-  { title: 'Biodiversity', data: { id: 'biodiversity', value: 0.88, unit: 'index', icon: 'TreeDeciduous', color: 'text-neon-green' } },
-];
+const SEED_METRICS: { title: string; data: { id: string; value: number; unit: string; icon: string; color: string } }[] = [];
 
-const SEED_ORGANISMS = [
-  { title: 'Producers', data: { type: 'Producers', count: 1250, growth: 0.05 } },
-  { title: 'Consumers', data: { type: 'Consumers', count: 340, growth: -0.02 } },
-  { title: 'Decomposers', data: { type: 'Decomposers', count: 890, growth: 0.08 } },
-];
+const SEED_ORGANISMS: { title: string; data: { type: string; count: number; growth: number } }[] = [];
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Sun,

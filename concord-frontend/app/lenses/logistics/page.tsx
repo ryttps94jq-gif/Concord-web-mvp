@@ -45,32 +45,12 @@ const MODE_TABS: { id: ModeTab; label: string; icon: typeof Truck; type: Artifac
 // Seed data
 // ---------------------------------------------------------------------------
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  Vehicle: [
-    { title: 'Freightliner Cascadia #101', data: { vin: '1FUJGLD54DL001', make: 'Freightliner', model: 'Cascadia', year: 2023, mileage: 42000, fuelType: 'Diesel', capacity: '44,000 lbs' }, meta: { status: 'active', tags: ['long-haul'] } },
-    { title: 'Kenworth T680 #102', data: { vin: '1XKYD49X3DJ002', make: 'Kenworth', model: 'T680', year: 2022, mileage: 78500, fuelType: 'Diesel', capacity: '44,000 lbs' }, meta: { status: 'maintenance', tags: ['long-haul'] } },
-    { title: 'Ford Transit #201', data: { vin: '1FTBW2CM1MK003', make: 'Ford', model: 'Transit', year: 2024, mileage: 8200, fuelType: 'Gas', capacity: '4,650 lbs' }, meta: { status: 'active', tags: ['last-mile'] } },
-  ],
-  Driver: [
-    { title: 'Marcus Johnson', data: { license: 'CDL-A', phone: '555-0101', hireDate: '2021-03-15', hoursThisWeek: 38, rating: 4.8 }, meta: { status: 'active', tags: ['hazmat'] } },
-    { title: 'Sarah Chen', data: { license: 'CDL-A', phone: '555-0102', hireDate: '2022-08-01', hoursThisWeek: 42, rating: 4.9 }, meta: { status: 'active', tags: ['tanker'] } },
-  ],
-  Shipment: [
-    { title: 'SH-20260201-001', data: { origin: 'Chicago, IL', destination: 'Dallas, TX', weight: '32,000 lbs', pieces: 24, carrier: 'Cascadia #101', eta: '2026-02-10' }, meta: { status: 'in_transit', tags: ['priority'] } },
-    { title: 'SH-20260203-002', data: { origin: 'Atlanta, GA', destination: 'Miami, FL', weight: '18,500 lbs', pieces: 12, carrier: 'Transit #201', eta: '2026-02-09' }, meta: { status: 'booked', tags: [] } },
-    { title: 'SH-20260130-003', data: { origin: 'Seattle, WA', destination: 'Portland, OR', weight: '8,200 lbs', pieces: 6, carrier: 'T680 #102', eta: '2026-02-08' }, meta: { status: 'delivered', tags: [] } },
-  ],
-  WarehouseItem: [
-    { title: 'Pallet SKU-4421', data: { sku: 'SKU-4421', zone: 'A-12', quantity: 480, lotNumber: 'LOT-2026-0101', expiresAt: '2027-01-01' }, meta: { status: 'active', tags: ['perishable'] } },
-    { title: 'Pallet SKU-7733', data: { sku: 'SKU-7733', zone: 'B-04', quantity: 120, lotNumber: 'LOT-2026-0205', expiresAt: '' }, meta: { status: 'active', tags: [] } },
-  ],
-  Route: [
-    { title: 'RT-CHI-DAL-01', data: { origin: 'Chicago, IL', destination: 'Dallas, TX', distance: '920 mi', estimatedTime: '14h', stops: 2 }, meta: { status: 'in_progress', tags: [] } },
-    { title: 'RT-ATL-MIA-01', data: { origin: 'Atlanta, GA', destination: 'Miami, FL', distance: '662 mi', estimatedTime: '10h', stops: 1 }, meta: { status: 'planned', tags: [] } },
-  ],
-  ComplianceLog: [
-    { title: 'DOT Inspection - Unit #101', data: { type: 'DOT', inspector: 'J. Williams', findings: 'No violations', nextDue: '2026-08-01' }, meta: { status: 'active', tags: ['passed'] } },
-    { title: 'ELD Audit Q1 2026', data: { type: 'ELD', auditor: 'Internal', findings: 'Minor logging gap on 01/28', nextDue: '2026-04-01' }, meta: { status: 'flagged', tags: ['action-required'] } },
-  ],
+  Vehicle: [],
+  Driver: [],
+  Shipment: [],
+  WarehouseItem: [],
+  Route: [],
+  ComplianceLog: [],
 };
 
 // ---------------------------------------------------------------------------

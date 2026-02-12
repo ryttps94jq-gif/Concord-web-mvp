@@ -93,29 +93,12 @@ const STATUSES_BY_TYPE: Record<ArtifactType, string[]> = {
 };
 
 const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  Permit: [
-    { title: 'Building Permit - 142 Elm St', data: { applicant: 'Sarah Mitchell', type: 'Building', address: '142 Elm St', description: 'Two-story residential addition', fee: 1250, submittedDate: '2026-01-10' }, meta: { status: 'under_review', tags: ['residential'] } },
-    { title: 'Electrical Permit - 300 Main Ave', data: { applicant: 'Mike Torres', type: 'Electrical', address: '300 Main Ave', description: 'Commercial panel upgrade 200A', fee: 450, submittedDate: '2026-01-15' }, meta: { status: 'approved', tags: ['commercial'] } },
-    { title: 'Demolition Permit - 88 Oak Ln', data: { applicant: 'BuildRight LLC', type: 'Demolition', address: '88 Oak Ln', description: 'Tear-down of condemned structure', fee: 800, submittedDate: '2026-01-20' }, meta: { status: 'submitted', tags: ['demolition'] } },
-  ],
-  Project: [
-    { title: 'Downtown Sidewalk Restoration', data: { name: 'Downtown Sidewalk Restoration', department: 'Public Works', budget: 450000, startDate: '2026-03-01', endDate: '2026-08-15', contractor: 'CivicBuild Inc', location: 'Main St corridor' }, meta: { status: 'active', tags: ['infrastructure'] } },
-    { title: 'Water Main Replacement Phase 2', data: { name: 'Water Main Replacement Phase 2', department: 'Water Dept', budget: 1200000, startDate: '2026-04-01', endDate: '2026-12-01', contractor: 'AquaPipe Solutions', location: 'North District' }, meta: { status: 'pending', tags: ['water', 'utilities'] } },
-  ],
-  Violation: [
-    { title: 'Overgrown Property - 55 Cedar Dr', data: { address: '55 Cedar Dr', code: 'MC-7.12', description: 'Vegetation exceeding 12 inches', inspector: 'Officer Daniels', observedDate: '2026-01-28', severity: 'minor' }, meta: { status: 'noticed', tags: ['property'] } },
-    { title: 'Unpermitted Construction - 220 Pine Rd', data: { address: '220 Pine Rd', code: 'BC-3.04', description: 'Deck built without permit', inspector: 'Officer Chen', observedDate: '2026-01-22', severity: 'major' }, meta: { status: 'compliance_period', tags: ['building'] } },
-  ],
-  EmergencyPlan: [
-    { title: 'Flood Response Plan', data: { name: 'Flood Response Plan', type: 'Natural Disaster', zone: 'Zone A - Riverside', coordinator: 'Chief Martinez', activationLevel: 'Level 3', resources: ['Sandbags', 'Pumps', 'Shelters', 'National Guard'] }, meta: { status: 'standby', tags: ['flood', 'natural'] } },
-    { title: 'Severe Weather Protocol', data: { name: 'Severe Weather Protocol', type: 'Weather', zone: 'Countywide', coordinator: 'Dir. Thompson', activationLevel: 'Level 2', resources: ['Warning sirens', 'Shelters', 'First Responders'] }, meta: { status: 'watch', tags: ['weather'] } },
-  ],
-  Record: [
-    { title: 'Council Meeting Minutes - Jan 2026', data: { type: 'Minutes', department: 'City Council', filedDate: '2026-01-31', retentionYears: 10, description: 'Regular session minutes including budget amendment vote', public: true }, meta: { status: 'active', tags: ['council'] } },
-  ],
-  CourtCase: [
-    { title: 'City v. Greenfield Developers', data: { caseNumber: '2026-CV-0412', plaintiff: 'City of Meridian', defendant: 'Greenfield Developers LLC', judge: 'Hon. Patricia Wells', courtDate: '2026-03-15', type: 'Zoning Violation' }, meta: { status: 'active', tags: ['zoning'] } },
-  ],
+  Permit: [],
+  Project: [],
+  Violation: [],
+  EmergencyPlan: [],
+  Record: [],
+  CourtCase: [],
 };
 
 /* ------------------------------------------------------------------ */

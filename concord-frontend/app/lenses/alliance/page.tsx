@@ -25,31 +25,15 @@ interface MessageData {
   timestamp: string;
 }
 
-const SEED_ALLIANCES = [
-  {
-    title: 'Research Collective',
-    data: { name: 'Research Collective', description: 'Collaborative DTU synthesis and verification', members: ['Research Prime', 'Architect Zero'], type: 'research', status: 'active', sharedWorkspace: 'research-shared', activeProposals: 3, createdAt: '2026-01-20' },
-  },
-  {
-    title: 'Guardian Alliance',
-    data: { name: 'Guardian Alliance', description: 'Security monitoring and invariant enforcement', members: ['Guardian One', 'Alpha Worker'], type: 'security', status: 'active', sharedWorkspace: 'security-ops', activeProposals: 1, createdAt: '2026-01-25' },
-  },
-  {
-    title: 'Core Builders',
-    data: { name: 'Core Builders', description: 'System evolution and upgrades', members: ['Architect Zero'], type: 'development', status: 'forming', sharedWorkspace: 'core-dev', activeProposals: 0, createdAt: '2026-01-30' },
-  },
-];
+const SEED_ALLIANCES: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
-const SEED_MESSAGES = [
-  {
-    title: 'Message from Research Prime',
-    data: { allianceId: '', sender: 'Research Prime', content: 'New quantum DTU ready for verification', timestamp: new Date().toISOString() },
-  },
-  {
-    title: 'Message from Architect Zero',
-    data: { allianceId: '', sender: 'Architect Zero', content: 'Running overlap verifier now', timestamp: new Date().toISOString() },
-  },
-];
+const SEED_MESSAGES: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function AllianceLensPage() {
   useLensNav('alliance');

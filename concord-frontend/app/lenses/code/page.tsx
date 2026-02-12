@@ -568,95 +568,13 @@ const API_REFERENCE: { category: string; functions: { signature: string; descrip
   },
 ];
 
-function generateMockOutput(scriptType: ScriptType, code: string): { log: string; visualization: string } {
+function generateScriptOutput(scriptType: ScriptType, code: string): { log: string; visualization: string } {
   const lines = code.split('\n').length;
-  switch (scriptType) {
-    case 'midi':
-      return {
-        log: `[Script Engine] Compiling MIDI script (${lines} lines)...\n[MIDI] Parsed scale definitions: major, minor, dorian\n[MIDI] Generating chord progression: ii - V - I\n[MIDI] Root: C4 (60) | Scale: major\n[MIDI] Chord 1: D4-F4-A4 (vel:100, dur:1/4)\n[MIDI] Chord 2: G4-B4-D5 (vel:100, dur:1/4)\n[MIDI] Chord 3: C4-E4-G4 (vel:100, dur:1/4)\n[OK] Generated 3 chords, 9 MIDI events`,
-        visualization: `PIANO ROLL                    Beat 1    Beat 2    Beat 3    Beat 4
-  ──────────────────────────────┼─────────┼─────────┼─────────┼──────
-  A4 (69) ██████░░░░░░░░░░░░░░░│         │         │         │
-  G4 (67) ░░░░░░░░░░████████░░░│         │    ███████████    │
-  F4 (65) ██████░░░░░░░░░░░░░░░│         │         │         │
-  E4 (64) ░░░░░░░░░░░░░░░░████│████     │         │    ███████████
-  D5 (74) ░░░░░░░░░░████████░░░│         │         │         │
-  D4 (62) ██████░░░░░░░░░░░░░░░│         │    ███████████    │
-  C4 (60) ░░░░░░░░░░░░░░░░████│████     │         │    ███████████
-  ──────────────────────────────┼─────────┼─────────┼─────────┼──────
-            ii (Dm)       V (G)        I (C)`,
-      };
-    case 'effect':
-      return {
-        log: `[Script Engine] Building effect chain...\n[FX] Creating node: early_reflections (delay)\n[FX] Creating node: diffusion (allpass x4)\n[FX] Creating node: tail (reverb, decay=2.8s)\n[FX] Creating node: eq (hi-pass 120Hz)\n[FX] Chain linked: 4 nodes connected\n[OK] Effect chain "Custom Plate Reverb" ready`,
-        visualization: `SIGNAL FLOW
-  ┌─────────┐    ┌────────────┐    ┌──────────┐    ┌─────────┐
-  │  INPUT   │───>│   EARLY    │───>│ DIFFUSION│───>│  TAIL   │
-  │          │    │ REFLECTIONS│    │  (4-stage │    │ (reverb)│
-  │  -----   │    │  7/13/22ms │    │  allpass) │    │ 2.8s dk │
-  └─────────┘    └────────────┘    └──────────┘    └────┬────┘
-                                                        │
-                    ┌──────────┐    ┌─────────┐         │
-                    │  OUTPUT  │<───│   EQ    │<────────┘
-                    │          │    │ HP:120Hz│
-                    │  -----   │    │ LS:-2dB │
-                    └──────────┘    └─────────┘`,
-      };
-    case 'automation':
-      return {
-        log: `[Script Engine] Generating automation curves...\n[AUTO] Curve: filter.frequency (5 breakpoints)\n[AUTO] Curve: filter.resonance (4 breakpoints)\n[AUTO] Range: 200Hz -> 12000Hz (exponential)\n[AUTO] Sync: 4 bars @ project tempo\n[AUTO] Curves linked for synchronized playback\n[OK] 2 automation lanes rendered`,
-        visualization: `AUTOMATION: filter.frequency           AUTOMATION: filter.resonance
-  12kHz ┤                  ╱╲              1.0 ┤              ╱──╲
-        │                ╱  ╲                  │            ╱    ╲
-   8kHz ┤              ╱    ╲              0.7 ┤          ╱      ╲
-        │            ╱       ╲                 │        ╱         ╲
-   2kHz ┤        ╱╱╱          ╲            0.4 ┤      ╱            ╲
-        │      ╱               ╲               │    ╱               ╲
-   200Hz┤─────╱                 ╲──        0.2 ┤───╱                 ╲──
-        └──┼──┼──┼──┼──┼──┼──┼──┼──           └──┼──┼──┼──┼──┼──┼──┼──
-          1   2   3   4  bars                    1   2   3   4  bars`,
-      };
-    case 'macro':
-      return {
-        log: `[Script Engine] Loading macro...\n[MACRO] Registered: "Quick Chop"\n[MACRO] Inputs: sample (audio), slices (16), pattern (forward)\n[MACRO] Ready - awaiting execution\n[OK] Macro compiled and registered`,
-        visualization: `MACRO: Quick Chop
-  ┌──────────────────────────────────────────┐
-  │  INPUT: Sample          [Drop audio]     │
-  │  SLICES: 16             [====|====]      │
-  │  PATTERN: forward       [v]              │
-  │──────────────────────────────────────────│
-  │  PREVIEW:                                │
-  │  |01|02|03|04|05|06|07|08|09|10|11|12|.. │
-  │  ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓ ▓▓  │
-  │                                          │
-  │            [ RUN MACRO ]                 │
-  └──────────────────────────────────────────┘`,
-      };
-    case 'sampler':
-      return {
-        log: `[Script Engine] Initializing sampler...\n[SAMPLER] Engine ready, buffer size: 512\n[SAMPLER] Loading kit samples...\n[SAMPLER] Pattern sequencer armed\n[OK] Sampler script compiled`,
-        visualization: `SAMPLE PADS                    SEQUENCE
-  ┌─────┬─────┬─────┬─────┐   Step: 1  2  3  4  5  6  7  8
-  │ KCK │ SNR │ HHC │ HHO │   KCK:  X  .  .  .  X  .  .  .
-  │ 127 │  98 │  80 │  72 │   SNR:  .  .  .  .  X  .  .  .
-  ├─────┼─────┼─────┼─────┤   HHC:  X  .  X  .  X  .  X  .
-  │ CLP │ RIM │ TOM │ CYM │   HHO:  .  .  .  .  .  .  .  X
-  │  90 │  85 │ 100 │  70 │   CLP:  .  .  .  .  X  .  .  .
-  └─────┴─────┴─────┴─────┘`,
-      };
-    case 'generator':
-      return {
-        log: `[Script Engine] Running generator...\n[GEN] Algorithm: stochastic Markov chain\n[GEN] Parameters: complexity=0.7, density=0.5\n[GEN] Generating 8 bars of material...\n[GEN] Post-processing: quantize, humanize\n[OK] Generated 47 events across 8 bars`,
-        visualization: `GENERATED OUTPUT (8 bars)
-  ┌────────────────────────────────────────────────┐
-  │ ♩  ♪♪ ♩  ♩  │ ♪  ♩  ♪♪ ♩  │ ♩  ♩  ♪♪ ♩  │  │
-  │ C  EG  A  G  │ F  E  CD  B  │ A  G  EF  C  │  │
-  │              │              │              │  │
-  │ Density: ▓▓▓▓░░░▓▓▓▓▓░░▓▓▓▓▓▓░░░░▓▓▓▓░░░ │  │
-  │ Velocity: ╱╲╱──╲╱╲──╱╲╱╲╱──╲╱╲──╱╲╱╲╱──╲  │  │
-  └────────────────────────────────────────────────┘`,
-      };
-  }
+  const typeName = SCRIPT_TYPES.find((s) => s.id === scriptType)?.name || scriptType;
+  return {
+    log: `[Script Engine] Compiling ${typeName} script (${lines} lines)...\n[OK] Script submitted for processing`,
+    visualization: '',
+  };
 }
 
 export default function CodeLensPage() {
@@ -688,7 +606,7 @@ export default function CodeLensPage() {
       return res.data;
     },
     onSuccess: () => {
-      const result = generateMockOutput(activeTab.scriptType || activeScriptType, activeTab.content);
+      const result = generateScriptOutput(activeTab.scriptType || activeScriptType, activeTab.content);
       setScriptOutput(result);
       setConsoleLog((prev) => [
         ...prev,
@@ -700,7 +618,7 @@ export default function CodeLensPage() {
       setOutputTab('output');
     },
     onError: (error: Record<string, unknown>) => {
-      const result = generateMockOutput(activeTab.scriptType || activeScriptType, activeTab.content);
+      const result = generateScriptOutput(activeTab.scriptType || activeScriptType, activeTab.content);
       setScriptOutput(result);
       setConsoleLog((prev) => [
         ...prev,

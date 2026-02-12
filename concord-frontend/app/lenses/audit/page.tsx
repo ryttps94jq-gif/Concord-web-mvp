@@ -46,13 +46,7 @@ export default function AuditLensPage() {
     timestamp: e.at,
   }));
 
-  // Add some mock shadow DTU entries
-  const shadowEntries: AuditEntry[] = [
-    { id: 's-001', type: 'verifier', action: 'overlap_verifier', status: 'warning', details: 'Potential contradiction detected in DTU lineage', timestamp: new Date().toISOString() },
-    { id: 's-002', type: 'invariant', action: 'ethos_check', status: 'success', details: 'All invariants passed for terminal exec', timestamp: new Date().toISOString() },
-  ];
-
-  const allEntries = [...shadowEntries, ...auditEntries];
+  const allEntries = [...auditEntries];
 
   const filteredEntries = allEntries.filter((entry) => {
     if (filter !== 'all' && entry.type !== filter) return false;

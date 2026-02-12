@@ -66,14 +66,7 @@ const STATUS_COLORS: Record<Status, string> = {
   archived: 'gray-400',
 };
 
-const seedItems: { title: string; data: HealthcareArtifact }[] = [
-  { title: 'Jane Doe - Annual Physical', data: { artifactType: 'Patient', status: 'active', description: 'Annual wellness exam due', provider: 'Dr. Smith', date: '2025-06-15', priority: 'medium' } },
-  { title: 'Post-Op Follow-Up #412', data: { artifactType: 'Encounter', status: 'scheduled', description: 'Knee replacement follow-up at 6 weeks', provider: 'Dr. Chen', date: '2025-06-20', priority: 'high' } },
-  { title: 'Diabetes Management Protocol', data: { artifactType: 'CareProtocol', status: 'active', description: 'Type 2 diabetes standard management pathway', provider: 'Endocrinology', priority: 'high' } },
-  { title: 'Metformin 500mg BID', data: { artifactType: 'Prescription', status: 'active', description: 'Metformin for glycemic control', provider: 'Dr. Smith', priority: 'medium' } },
-  { title: 'HbA1c Panel', data: { artifactType: 'LabResult', status: 'completed', description: 'Hemoglobin A1c result: 6.8%', provider: 'LabCorp', date: '2025-06-01', priority: 'low' } },
-  { title: 'CBT Session Plan - Anxiety', data: { artifactType: 'Treatment', status: 'active', description: 'Cognitive behavioral therapy for generalized anxiety', provider: 'Dr. Patel', priority: 'medium' } },
-];
+const seedItems: { title: string; data: HealthcareArtifact }[] = [];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

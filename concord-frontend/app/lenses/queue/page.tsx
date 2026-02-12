@@ -34,19 +34,10 @@ export default function QueueLensPage() {
     queryFn: () => api.get('/api/jobs/status').then((r) => r.data),
   });
 
-  // Mock queue items (would come from actual queue endpoints)
   const queueItems: Record<string, QueueItem[]> = {
-    ingest: [
-      { id: '1', type: 'text', content: 'Research paper on quantum computing', priority: 'high', createdAt: new Date().toISOString(), status: 'pending' },
-      { id: '2', type: 'text', content: 'Meeting notes from council session', priority: 'normal', createdAt: new Date().toISOString(), status: 'pending' },
-    ],
-    autocrawl: [
-      { id: '3', type: 'url', content: 'https://arxiv.org/abs/2401.00001', priority: 'high', createdAt: new Date().toISOString(), status: 'processing' },
-    ],
-    terminal: [
-      { id: '4', type: 'command', content: 'entity_fork --workspace main', priority: 'normal', createdAt: new Date().toISOString(), status: 'pending' },
-      { id: '5', type: 'proposal', content: 'Upgrade resonance core to v2', priority: 'high', createdAt: new Date().toISOString(), status: 'pending' },
-    ],
+    ingest: [],
+    autocrawl: [],
+    terminal: [],
   };
 
   const processItem = useMutation({

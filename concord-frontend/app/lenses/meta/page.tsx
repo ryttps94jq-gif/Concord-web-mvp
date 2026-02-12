@@ -27,20 +27,15 @@ interface GeneratedLensData {
   generatedAt: string;
 }
 
-const SEED_TEMPLATES = [
-  { title: 'Data Viewer', data: { name: 'Data Viewer', description: 'Display and filter DTU data', category: 'display', components: ['DataGrid', 'FilterBar', 'Pagination'] } },
-  { title: 'Visualization', data: { name: 'Visualization', description: 'Charts and graphs', category: 'display', components: ['Graph', 'Legend', 'Controls'] } },
-  { title: 'Form Builder', data: { name: 'Form Builder', description: 'Input and submission', category: 'input', components: ['Form', 'Validation', 'Submit'] } },
-  { title: 'Dashboard', data: { name: 'Dashboard', description: 'Metrics overview', category: 'display', components: ['MetricCards', 'Charts', 'Activity'] } },
-];
+const SEED_TEMPLATES: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
-const SEED_COMPONENTS = [
-  { title: 'DataGrid', data: { name: 'DataGrid', icon: 'Layout' } },
-  { title: 'Chart', data: { name: 'Chart', icon: 'Eye' } },
-  { title: 'Form', data: { name: 'Form', icon: 'Settings' } },
-  { title: 'CodeView', data: { name: 'CodeView', icon: 'Code' } },
-  { title: 'ThemePicker', data: { name: 'ThemePicker', icon: 'Palette' } },
-];
+const SEED_COMPONENTS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 const ICON_MAP: Record<string, typeof Layout> = {
   Layout,

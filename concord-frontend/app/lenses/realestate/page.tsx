@@ -82,14 +82,7 @@ const STATUS_COLORS: Record<string, string> = {
   prospecting: 'gray-400', analysis: 'neon-blue', due_diligence: 'amber-400', under_contract: 'neon-purple', passed: 'gray-400',
 };
 
-const seedItems: { title: string; data: RealEstateArtifact }[] = [
-  { title: '742 Evergreen Terrace', data: { artifactType: 'Listing', status: 'active', description: 'Charming 3BR/2BA colonial with updated kitchen and landscaped yard', address: '742 Evergreen Terrace, Springfield, IL', price: 425000, agent: 'Lisa Realty', propertyType: 'Single Family', bedrooms: 3, bathrooms: 2, sqft: 1850 } },
-  { title: '1600 Pennsylvania Ave NW', data: { artifactType: 'Listing', status: 'coming_soon', description: 'Luxury estate with historic significance, extensive grounds', address: '1600 Pennsylvania Ave NW, Washington, DC', price: 12500000, agent: 'Lisa Realty', propertyType: 'Estate', bedrooms: 16, bathrooms: 35, sqft: 55000 } },
-  { title: 'Showing - 742 Evergreen', data: { artifactType: 'Showing', status: 'scheduled', description: 'First showing for the Garcia family', client: 'Garcia Family', agent: 'Lisa Realty', date: '2025-07-10', address: '742 Evergreen Terrace' } },
-  { title: 'Purchase - 221B Baker St', data: { artifactType: 'Transaction', status: 'inspection', description: 'Buyer: Watson Ltd. Inspection contingency period, 10 days remaining.', address: '221B Baker St, London', price: 875000, agent: 'Lisa Realty', client: 'Watson Ltd', date: '2025-07-01' } },
-  { title: 'Unit 4B - Sunset Apartments', data: { artifactType: 'RentalUnit', status: 'leased', description: '2BR/1BA apartment, lease through Dec 2025', address: '100 Sunset Blvd, Unit 4B', price: 2200, propertyType: 'Apartment', bedrooms: 2, bathrooms: 1, sqft: 950 } },
-  { title: 'Mixed-Use Investment - Downtown', data: { artifactType: 'Deal', status: 'analysis', description: '12-unit mixed-use building with retail ground floor, value-add opportunity', address: '500 Main St, Downtown', price: 3200000, roi: 8.5, propertyType: 'Mixed Use' } },
-];
+const seedItems: { title: string; data: RealEstateArtifact }[] = [];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

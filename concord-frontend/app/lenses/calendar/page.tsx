@@ -120,154 +120,8 @@ const CategoryIcon = ({ type, className }: { type: EventType; className?: string
   }
 };
 
-const generateMockEvents = (currentDate: Date): CalendarEvent[] => {
-  const events: CalendarEvent[] = [];
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const today = currentDate.getDate();
-
-  events.push({
-    id: '1',
-    title: 'EP Release: Night Vibes',
-    description: 'Full 6-track EP drop across all platforms. Artwork finalized, pre-save campaign live.',
-    startDate: new Date(year, month, 25, 0, 0),
-    endDate: new Date(year, month, 25, 23, 59),
-    allDay: true,
-    color: '#22c55e',
-    category: 'Release Dates',
-    eventType: 'release',
-    platforms: ['Spotify', 'Apple Music', 'SoundCloud', 'YouTube Music'],
-    linkedProject: 'Night Vibes EP',
-    reminders: [{ time: 1, unit: 'weeks' }, { time: 1, unit: 'days' }],
-    artworkColor: '#22c55e',
-  });
-
-  events.push({
-    id: '2',
-    title: 'Vocal Recording Session - Studio B',
-    description: 'Recording vocals for tracks 3 and 5 of the EP. Bring lyric sheets and warm up 30 min before.',
-    startDate: new Date(year, month, 15, 10, 0),
-    endDate: new Date(year, month, 15, 12, 0),
-    allDay: false,
-    color: '#06b6d4',
-    category: 'Studio Sessions',
-    eventType: 'session',
-    location: 'Studio B - Wavelength Studios',
-    linkedProject: 'Night Vibes EP',
-    reminders: [{ time: 1, unit: 'hours' }],
-  });
-
-  events.push({
-    id: '3',
-    title: 'Mix deadline: Summer Beat Pack',
-    description: 'Final mixes due for all 10 tracks. Stems exported at 48kHz/24bit.',
-    startDate: new Date(year, month, 20, 17, 0),
-    endDate: new Date(year, month, 20, 17, 0),
-    allDay: false,
-    color: '#ef4444',
-    category: 'Deadlines',
-    eventType: 'deadline',
-    linkedProject: 'Summer Beat Pack',
-    reminders: [{ time: 3, unit: 'days' }, { time: 1, unit: 'days' }],
-  });
-
-  events.push({
-    id: '4',
-    title: 'Collab session with @producer_x',
-    description: 'Working on the lo-fi flip. Bring MIDI controller and headphones.',
-    startDate: new Date(year, month, 12, 14, 0),
-    endDate: new Date(year, month, 12, 17, 0),
-    allDay: false,
-    color: '#8b5cf6',
-    category: 'Collaboration',
-    eventType: 'collab',
-    collaborators: ['@producer_x'],
-    location: 'Home Studio',
-    url: 'https://meet.example.com/collab-room',
-  });
-
-  events.push({
-    id: '5',
-    title: 'Instagram promo push',
-    description: 'Post teaser clips, behind-the-scenes stories, and pre-save link for Night Vibes.',
-    startDate: new Date(year, month, 22, 12, 0),
-    endDate: new Date(year, month, 22, 14, 0),
-    allDay: false,
-    color: '#f97316',
-    category: 'Marketing',
-    eventType: 'marketing',
-    linkedProject: 'Night Vibes EP',
-    platforms: ['Spotify', 'Apple Music'],
-  });
-
-  events.push({
-    id: '6',
-    title: 'Mastering workshop',
-    description: 'Online masterclass: Advanced limiting and loudness standards for streaming.',
-    startDate: new Date(year, month, 18, 19, 0),
-    endDate: new Date(year, month, 18, 21, 0),
-    allDay: false,
-    color: '#3b82f6',
-    category: 'Learning',
-    eventType: 'learning',
-    url: 'https://workshop.example.com/mastering-101',
-  });
-
-  events.push({
-    id: '7',
-    title: 'Beat drop: Weekly Series #12',
-    description: 'Weekly beat release - dark trap instrumental, 140 BPM.',
-    startDate: new Date(year, month, today + 1, 0, 0),
-    endDate: new Date(year, month, today + 1, 23, 59),
-    allDay: true,
-    color: '#22c55e',
-    category: 'Release Dates',
-    eventType: 'release',
-    platforms: ['SoundCloud', 'YouTube Music'],
-    linkedProject: 'Weekly Series',
-    artworkColor: '#8b5cf6',
-  });
-
-  events.push({
-    id: '8',
-    title: 'Sample pack submission deadline',
-    description: 'Submit finalized sample pack to distributor. 50 one-shots + 10 loops required.',
-    startDate: new Date(year, month, today + 5, 23, 59),
-    endDate: new Date(year, month, today + 5, 23, 59),
-    allDay: false,
-    color: '#ef4444',
-    category: 'Deadlines',
-    eventType: 'deadline',
-    reminders: [{ time: 3, unit: 'days' }, { time: 1, unit: 'days' }],
-  });
-
-  events.push({
-    id: '9',
-    title: 'Sound design session',
-    description: 'Designing synth patches and foley for ambient EP.',
-    startDate: new Date(year, month, today, 15, 0),
-    endDate: new Date(year, month, today, 17, 0),
-    allDay: false,
-    color: '#06b6d4',
-    category: 'Studio Sessions',
-    eventType: 'session',
-    location: 'Home Studio',
-    linkedProject: 'Ambient Sketches',
-  });
-
-  events.push({
-    id: '10',
-    title: 'TikTok content batch',
-    description: 'Record 5 short clips: beat-making process, before/after mix, gear showcase.',
-    startDate: new Date(year, month, today + 3, 10, 0),
-    endDate: new Date(year, month, today + 3, 12, 0),
-    allDay: false,
-    color: '#f97316',
-    category: 'Marketing',
-    eventType: 'marketing',
-  });
-
-  return events;
+const generateInitialEvents = (_currentDate: Date): CalendarEvent[] => {
+  return [];
 };
 
 const MONTH_NAMES = [
@@ -335,7 +189,7 @@ export default function CalendarLensPage() {
 
   // Initialize events
   useEffect(() => {
-    setEvents(generateMockEvents(currentDate));
+    setEvents(generateInitialEvents(currentDate));
   }, [currentDate]);
 
   // Calendar calculations

@@ -40,36 +40,12 @@ const MODE_TABS: { id: ModeTab; label: string; icon: typeof CalendarDays; type: 
 // Seed data
 // ---------------------------------------------------------------------------
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  Event: [
-    { title: 'Neon Lights Festival 2026', data: { date: '2026-06-14', venue: 'Meridian Amphitheatre', capacity: 12000, ticketsSold: 8450, genre: 'Electronic', headliner: 'Prism Collective' }, meta: { status: 'confirmed', tags: ['festival', 'outdoor'] } },
-    { title: 'Jazz Under the Stars', data: { date: '2026-03-22', venue: 'Rooftop Garden', capacity: 400, ticketsSold: 380, genre: 'Jazz', headliner: 'The Blue Note Ensemble' }, meta: { status: 'advancing', tags: ['intimate'] } },
-    { title: 'Corporate Gala - TechCorp', data: { date: '2026-04-10', venue: 'Grand Ballroom', capacity: 800, ticketsSold: 0, genre: 'Corporate', headliner: 'N/A' }, meta: { status: 'planning', tags: ['corporate', 'private'] } },
-    { title: 'Summer Block Party', data: { date: '2026-07-04', venue: 'Downtown Plaza', capacity: 5000, ticketsSold: 2100, genre: 'Mixed', headliner: 'Various' }, meta: { status: 'planning', tags: ['free', 'community'] } },
-  ],
-  Venue: [
-    { title: 'Meridian Amphitheatre', data: { address: '450 Lakeshore Drive', capacity: 12000, type: 'Outdoor Amphitheatre', parkingSpaces: 3000, loadInAccess: 'Rear dock, 53ft clearance', contactName: 'Diana Torres' }, meta: { status: 'confirmed', tags: ['outdoor', 'large'] } },
-    { title: 'Grand Ballroom', data: { address: '100 Hotel Blvd, Suite 1', capacity: 800, type: 'Indoor Ballroom', parkingSpaces: 500, loadInAccess: 'Service elevator, freight dock', contactName: 'Robert Lee' }, meta: { status: 'confirmed', tags: ['indoor', 'upscale'] } },
-    { title: 'The Underground', data: { address: '77 Basement Ave', capacity: 250, type: 'Club', parkingSpaces: 50, loadInAccess: 'Street level, narrow door', contactName: 'Alex Vega' }, meta: { status: 'confirmed', tags: ['club', 'intimate'] } },
-  ],
-  Performer: [
-    { title: 'Prism Collective', data: { genre: 'Electronic / Synthwave', members: 4, agent: 'Starlight Mgmt', fee: 45000, rider: '12-page technical rider', rating: 4.9 }, meta: { status: 'confirmed', tags: ['headliner'] } },
-    { title: 'The Blue Note Ensemble', data: { genre: 'Jazz', members: 6, agent: 'Independent', fee: 8000, rider: 'Standard jazz setup + grand piano', rating: 4.7 }, meta: { status: 'confirmed', tags: ['jazz'] } },
-    { title: 'DJ Solaris', data: { genre: 'House / Techno', members: 1, agent: 'Beat Agency', fee: 15000, rider: '4-page rider', rating: 4.5 }, meta: { status: 'advancing', tags: ['dj'] } },
-  ],
-  Tour: [
-    { title: 'Prism Collective - Neon World Tour', data: { artist: 'Prism Collective', dates: 24, startDate: '2026-05-01', endDate: '2026-08-30', markets: 18, grossProjected: 2400000 }, meta: { status: 'advancing', tags: ['international'] } },
-    { title: 'Blue Note Summer Series', data: { artist: 'The Blue Note Ensemble', dates: 8, startDate: '2026-06-01', endDate: '2026-08-15', markets: 6, grossProjected: 96000 }, meta: { status: 'planning', tags: ['regional'] } },
-  ],
-  Production: [
-    { title: 'PROD-NLF26 Neon Lights Main Stage', data: { event: 'Neon Lights Festival 2026', stageSize: '80x60 ft', lighting: 'Full rig - 200 fixtures', audio: '120,000W line array', video: '3x LED walls', crew: 45 }, meta: { status: 'advancing', tags: ['festival', 'large'] } },
-    { title: 'PROD-JUTS Jazz Rooftop Setup', data: { event: 'Jazz Under the Stars', stageSize: '20x16 ft', lighting: 'Ambient wash + spots', audio: '8,000W PA', video: 'None', crew: 6 }, meta: { status: 'confirmed', tags: ['intimate'] } },
-  ],
-  Vendor: [
-    { title: 'SoundWave Audio', data: { category: 'Audio', contact: 'Mike Hernandez', phone: '555-0301', rate: '$4,500/day', insurance: 'Current', rating: 4.8 }, meta: { status: 'confirmed', tags: ['preferred'] } },
-    { title: 'LightCraft Productions', data: { category: 'Lighting', contact: 'Jen Park', phone: '555-0302', rate: '$6,200/day', insurance: 'Current', rating: 4.9 }, meta: { status: 'confirmed', tags: ['preferred'] } },
-    { title: 'CaterAll Services', data: { category: 'Catering', contact: 'Carlos Rivera', phone: '555-0303', rate: '$35/head', insurance: 'Current', rating: 4.6 }, meta: { status: 'confirmed', tags: ['food'] } },
-    { title: 'SecureGuard Events', data: { category: 'Security', contact: 'Tanya Brooks', phone: '555-0304', rate: '$2,800/day', insurance: 'Current', rating: 4.4 }, meta: { status: 'planning', tags: [] } },
-  ],
+  Event: [],
+  Venue: [],
+  Performer: [],
+  Tour: [],
+  Production: [],
+  Vendor: [],
 };
 
 // ---------------------------------------------------------------------------

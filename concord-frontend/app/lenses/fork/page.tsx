@@ -17,14 +17,10 @@ interface ForkData {
   lastActivity: string;
 }
 
-const SEED_FORKS = [
-  { title: 'f-root', data: { parentId: null, entityId: 'e-004', entityName: 'Architect Zero', workspace: 'core', status: 'active' as const, depth: 0, children: 3, lastActivity: new Date().toISOString() } },
-  { title: 'f-001', data: { parentId: 'f-root', entityId: 'e-001', entityName: 'Alpha Worker', workspace: 'main', status: 'active' as const, depth: 1, children: 2, lastActivity: new Date().toISOString() } },
-  { title: 'f-002', data: { parentId: 'f-root', entityId: 'e-002', entityName: 'Research Prime', workspace: 'research-lab', status: 'active' as const, depth: 1, children: 4, lastActivity: new Date().toISOString() } },
-  { title: 'f-003', data: { parentId: 'f-root', entityId: 'e-003', entityName: 'Guardian One', workspace: 'security', status: 'merged' as const, depth: 1, children: 0, lastActivity: '2026-01-30' } },
-  { title: 'f-004', data: { parentId: 'f-001', entityId: 'e-001', entityName: 'Alpha Worker', workspace: 'main-exp-1', status: 'active' as const, depth: 2, children: 0, lastActivity: new Date().toISOString() } },
-  { title: 'f-005', data: { parentId: 'f-002', entityId: 'e-002', entityName: 'Research Prime', workspace: 'quantum-exp', status: 'active' as const, depth: 2, children: 1, lastActivity: new Date().toISOString() } },
-];
+const SEED_FORKS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function ForkLensPage() {
   useLensNav('fork');

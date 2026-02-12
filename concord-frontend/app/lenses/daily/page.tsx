@@ -31,33 +31,13 @@ const QUOTES = [
   { text: 'Art is not what you see, but what you make others see.', author: 'Edgar Degas' },
 ];
 
-const INITIAL_ENTRIES: JournalEntry[] = [
-  { id: 'j1', date: '2026-02-07', mood: 4, notes: 'Incredible session today. Mixed down the verse section and it sounds massive.', workedOn: 'Verse mixdown for "Nightfall" EP track 3', learned: 'Parallel compression on vocals creates a much fuller presence without sacrificing dynamics.', goals: 'Finish the bridge arrangement and start layering synth pads.' },
-  { id: 'j2', date: '2026-02-06', mood: 3, notes: 'Steady progress on sound design. Created a few usable patches.', workedOn: 'Synth patch design for ambient project', learned: 'Wavetable modulation with slow LFOs gives organic movement.', goals: 'Record vocal takes for track 3.' },
-  { id: 'j3', date: '2026-02-05', mood: 2, notes: 'Struggled with the low-end balance all day. Nothing sounded right.', workedOn: 'Bass mixing on "Concrete" single', learned: 'Sometimes you need fresh ears. Take a break and come back.', goals: 'Revisit the bass mix with reference tracks.' },
-  { id: 'j4', date: '2026-02-04', mood: 4, notes: 'Wrote an amazing chord progression that just flowed out.', workedOn: 'Songwriting session — new R&B demo', learned: 'Using the Nashville number system speeds up experimentation.', goals: 'Flesh out the demo with drums and a rough vocal.' },
-  { id: 'j5', date: '2026-02-03', mood: 3, notes: 'Organized sample library and tagged everything. Productive day.', workedOn: 'Sample library management and tagging', learned: 'Consistent naming conventions save massive time later.', goals: 'Start the next production session with the cleaned-up library.' },
-];
+const INITIAL_ENTRIES: JournalEntry[] = [];
 
-const INITIAL_SESSIONS: SessionLog[] = [
-  { id: 's1', project: 'Nightfall EP — Track 3', duration: 145, genre: 'Electronic / Ambient', startedAt: '2026-02-07T09:30:00' },
-  { id: 's2', project: 'Concrete Single', duration: 90, genre: 'Hip-Hop / Trap', startedAt: '2026-02-07T13:00:00' },
-  { id: 's3', project: 'R&B Demo Sketch', duration: 55, genre: 'R&B / Neo-Soul', startedAt: '2026-02-07T16:15:00' },
-];
+const INITIAL_SESSIONS: SessionLog[] = [];
 
-const mkWave = (n: number): number[] => Array.from({ length: n }, () => 0.1 + Math.random() * 0.9);
-const INITIAL_CLIPS: AudioClip[] = [
-  { id: 'a1', name: 'Vocal melody idea — verse hook', duration: 34, waveform: mkWave(40), recordedAt: '2026-02-07T10:12:00' },
-  { id: 'a2', name: 'Bass tone reference snap', duration: 12, waveform: mkWave(40), recordedAt: '2026-02-07T11:45:00' },
-  { id: 'a3', name: 'Pad texture experiment', duration: 48, waveform: mkWave(40), recordedAt: '2026-02-07T14:22:00' },
-  { id: 'a4', name: 'Quick note — remix arrangement', duration: 21, waveform: mkWave(40), recordedAt: '2026-02-07T17:05:00' },
-];
+const INITIAL_CLIPS: AudioClip[] = [];
 
-const INITIAL_REMINDERS: Reminder[] = [
-  { id: 'r1', title: 'Send stems to collaborator', dueAt: '2026-02-07T18:00:00', completed: false },
-  { id: 'r2', title: 'Backup project files to cloud', dueAt: '2026-02-07T22:00:00', completed: false },
-  { id: 'r3', title: 'Review mastering feedback', dueAt: '2026-02-08T10:00:00', completed: false },
-];
+const INITIAL_REMINDERS: Reminder[] = [];
 
 const SKILLS = ['Finger drumming', 'Chord voicings', 'Sound design', 'Ear training', 'Mixing technique', 'Rhythm exercises'];
 const MOODS = ['😤', '😕', '😐', '🙂', '🔥'];
@@ -115,11 +95,11 @@ export default function DailyLensPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [reminderTitle, setReminderTitle] = useState('');
   const [reminderDue, setReminderDue] = useState('');
-  const [selectedMood, setSelectedMood] = useState<number | null>(4);
-  const [journalNotes, setJournalNotes] = useState(INITIAL_ENTRIES[0].notes);
-  const [workedOn, setWorkedOn] = useState(INITIAL_ENTRIES[0].workedOn);
-  const [learned, setLearned] = useState(INITIAL_ENTRIES[0].learned);
-  const [goals, setGoals] = useState(INITIAL_ENTRIES[0].goals);
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const [journalNotes, setJournalNotes] = useState('');
+  const [workedOn, setWorkedOn] = useState('');
+  const [learned, setLearned] = useState('');
+  const [goals, setGoals] = useState('');
   const [sessions, setSessions] = useState<SessionLog[]>(INITIAL_SESSIONS);
   const [newProject, setNewProject] = useState('');
   const [newGenre, setNewGenre] = useState('');

@@ -17,11 +17,10 @@ interface SyncItem {
 }
 
 // Seed data for pending sync items
-const SEED_SYNC_ITEMS = [
-  { title: 'Create DTU', data: { type: 'dtu', action: 'create', timestamp: new Date().toISOString(), synced: false } },
-  { title: 'Update Event', data: { type: 'event', action: 'update', timestamp: new Date().toISOString(), synced: false } },
-  { title: 'Update DTU', data: { type: 'dtu', action: 'update', timestamp: new Date().toISOString(), synced: false } },
-];
+const SEED_SYNC_ITEMS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function OfflineLensPage() {
   useLensNav('offline');

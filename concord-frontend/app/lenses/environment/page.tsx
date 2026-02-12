@@ -72,33 +72,12 @@ const STATUS_COLORS: Record<Status, string> = {
 };
 
 const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  Site: [
-    { title: 'Cedar Creek Wetland Reserve', data: { name: 'Cedar Creek Wetland Reserve', type: 'Wetland', lat: 45.123, lon: -93.456, acreage: 340, manager: 'DNR District 7', designation: 'State Natural Area' }, meta: { status: 'active', tags: ['wetland', 'protected'] } },
-    { title: 'Quarry Bluff Remediation Site', data: { name: 'Quarry Bluff Remediation Site', type: 'Brownfield', lat: 44.987, lon: -93.221, acreage: 28, manager: 'EPA Region 5', designation: 'Superfund' }, meta: { status: 'remediation', tags: ['brownfield', 'superfund'] } },
-    { title: 'Hawk Ridge Migration Corridor', data: { name: 'Hawk Ridge Migration Corridor', type: 'Wildlife Corridor', lat: 46.813, lon: -92.044, acreage: 1200, manager: 'Audubon Society', designation: 'Important Bird Area' }, meta: { status: 'seasonal', tags: ['birds', 'migration'] } },
-  ],
-  Species: [
-    { title: 'Rusty Patched Bumble Bee', data: { commonName: 'Rusty Patched Bumble Bee', scientificName: 'Bombus affinis', category: 'Insect', conservationStatus: 'Endangered', habitat: 'Prairie grasslands', population: 'Declining', lastSighted: '2026-01-15' }, meta: { status: 'critical', tags: ['pollinator', 'endangered'] } },
-    { title: 'Blanding\'s Turtle', data: { commonName: 'Blanding\'s Turtle', scientificName: 'Emydoidea blandingii', category: 'Reptile', conservationStatus: 'Threatened', habitat: 'Wetlands and marshes', population: 'Stable', lastSighted: '2025-09-20' }, meta: { status: 'monitoring', tags: ['reptile', 'threatened'] } },
-    { title: 'Northern Long-Eared Bat', data: { commonName: 'Northern Long-Eared Bat', scientificName: 'Myotis septentrionalis', category: 'Mammal', conservationStatus: 'Endangered', habitat: 'Forest roosts / caves', population: 'Declining', lastSighted: '2025-11-02' }, meta: { status: 'critical', tags: ['mammal', 'endangered'] } },
-  ],
-  Survey: [
-    { title: 'Spring Amphibian Census 2026', data: { name: 'Spring Amphibian Census 2026', method: 'Visual Encounter Survey', area: 'Cedar Creek Wetland', leadResearcher: 'Dr. Kim Patel', startDate: '2026-03-15', endDate: '2026-05-30', sampleCount: 0 }, meta: { status: 'active', tags: ['amphibians', 'census'] } },
-    { title: 'Water Quality Baseline Study', data: { name: 'Water Quality Baseline Study', method: 'Grab Sampling', area: 'North Fork Watershed', leadResearcher: 'Dr. James Okafor', startDate: '2026-01-01', endDate: '2026-12-31', sampleCount: 48 }, meta: { status: 'monitoring', tags: ['water', 'baseline'] } },
-  ],
-  TrailAsset: [
-    { title: 'Lakeshore Loop Trail', data: { name: 'Lakeshore Loop Trail', length: 5.4, difficulty: 'Easy', surface: 'Crushed limestone', condition: 'Good', lastInspected: '2026-01-05', features: ['Accessible', 'Interpretive signs', 'Birdwatching blinds'] }, meta: { status: 'active', tags: ['loop', 'accessible'] } },
-    { title: 'Ridge Summit Trail', data: { name: 'Ridge Summit Trail', length: 8.2, difficulty: 'Strenuous', surface: 'Natural', condition: 'Fair - erosion near mile 3', lastInspected: '2025-11-20', features: ['Scenic overlook', 'Backcountry camping'] }, meta: { status: 'monitoring', tags: ['summit', 'erosion'] } },
-  ],
-  EnvironmentalSample: [
-    { title: 'WQ-2026-001 Nitrate', data: { sampleId: 'WQ-2026-001', medium: 'Surface Water', parameter: 'Nitrate-N', value: 8.4, unit: 'mg/L', collectionDate: '2026-01-20', location: 'North Fork Station A', lat: 45.001, lon: -93.102 }, meta: { status: 'monitoring', tags: ['water', 'nitrate'] } },
-    { title: 'AQ-2026-014 PM2.5', data: { sampleId: 'AQ-2026-014', medium: 'Air', parameter: 'PM2.5', value: 18.7, unit: 'ug/m3', collectionDate: '2026-01-22', location: 'Industrial District Monitor', lat: 44.950, lon: -93.250 }, meta: { status: 'active', tags: ['air', 'particulates'] } },
-    { title: 'SL-2026-003 Lead', data: { sampleId: 'SL-2026-003', medium: 'Soil', parameter: 'Lead (Pb)', value: 420, unit: 'mg/kg', collectionDate: '2026-01-18', location: 'Quarry Bluff Grid B7', lat: 44.988, lon: -93.220 }, meta: { status: 'critical', tags: ['soil', 'lead', 'contamination'] } },
-  ],
-  WasteStream: [
-    { title: 'Industrial Solvent Waste', data: { name: 'Industrial Solvent Waste', type: 'Hazardous', source: 'MegaChem Manufacturing', volume: 2400, unit: 'gallons/month', disposalMethod: 'Licensed HW facility', complianceFramework: 'RCRA Subtitle C' }, meta: { status: 'monitoring', tags: ['hazardous', 'solvent'] } },
-    { title: 'Municipal Biosolids', data: { name: 'Municipal Biosolids', type: 'Non-hazardous', source: 'City WWTP', volume: 850, unit: 'dry tons/year', disposalMethod: 'Land application', complianceFramework: 'EPA 503 Rule' }, meta: { status: 'active', tags: ['biosolids', 'municipal'] } },
-  ],
+  Site: [],
+  Species: [],
+  Survey: [],
+  TrailAsset: [],
+  EnvironmentalSample: [],
+  WasteStream: [],
 };
 
 /* ------------------------------------------------------------------ */
@@ -347,9 +326,9 @@ export default function EnvironmentLensPage() {
       <div className={ds.panel}>
         <div className={ds.sectionHeader}><h3 className={ds.heading3}>Environmental Summary</h3><BarChart3 className="w-5 h-5 text-gray-400" /></div>
         <div className={`${ds.grid3} mt-4`}>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Mountain className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{seedData.Site.length}</p><p className={ds.textMuted}>Managed Sites</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Bug className="w-6 h-6 text-neon-purple mx-auto mb-1" /><p className={ds.heading3}>{seedData.Species.length}</p><p className={ds.textMuted}>Tracked Species</p></div>
-          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Droplets className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{seedData.EnvironmentalSample.length}</p><p className={ds.textMuted}>Active Samples</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Mountain className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className={ds.heading3}>{items.length}</p><p className={ds.textMuted}>Managed Sites</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Bug className="w-6 h-6 text-neon-purple mx-auto mb-1" /><p className={ds.heading3}>{items.length}</p><p className={ds.textMuted}>Tracked Species</p></div>
+          <div className="text-center p-3 rounded-lg bg-lattice-elevated/30"><Droplets className="w-6 h-6 text-neon-blue mx-auto mb-1" /><p className={ds.heading3}>{items.length}</p><p className={ds.textMuted}>Active Samples</p></div>
         </div>
       </div>
 

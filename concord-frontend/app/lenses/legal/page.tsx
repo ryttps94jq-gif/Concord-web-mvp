@@ -76,14 +76,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'amber-400', registered: 'neon-green', contested: 'red-400',
 };
 
-const seedItems: { title: string; data: LegalArtifact }[] = [
-  { title: 'Smith v. Acme Corp', data: { artifactType: 'Case', status: 'discovery', description: 'Product liability dispute, class action potential', jurisdiction: 'US Federal', assignee: 'J. Whitfield', dueDate: '2025-08-01', value: 2500000 } },
-  { title: 'SaaS License Agreement - TechCo', data: { artifactType: 'Contract', status: 'review', description: 'Enterprise SaaS license with 3-year term', jurisdiction: 'Delaware', assignee: 'M. Torres', dueDate: '2025-07-15', value: 480000 } },
-  { title: 'GDPR Annual Audit', data: { artifactType: 'ComplianceItem', status: 'due_soon', description: 'Annual GDPR compliance audit for EU operations', jurisdiction: 'EU', assignee: 'L. Fischer', dueDate: '2025-07-01' } },
-  { title: 'SEC Form 10-K', data: { artifactType: 'Filing', status: 'draft', description: 'Annual report filing for fiscal year', jurisdiction: 'US Federal', assignee: 'R. Gupta', dueDate: '2025-06-30' } },
-  { title: 'PatentApp #2025-1142', data: { artifactType: 'IPAsset', status: 'pending', description: 'Utility patent application for ML inference method', jurisdiction: 'USPTO', assignee: 'K. Yamamoto' } },
-  { title: 'NDA - Vendor Partnership', data: { artifactType: 'Contract', status: 'executed', description: 'Mutual NDA for strategic vendor evaluation', jurisdiction: 'New York', parties: ['Our Company', 'VendorCo'], assignee: 'M. Torres' } },
-];
+const seedItems: { title: string; data: LegalArtifact }[] = [];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

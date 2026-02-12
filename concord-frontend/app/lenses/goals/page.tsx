@@ -87,47 +87,13 @@ interface Achievement {
 
 // --------------- Demo Data ---------------
 
-const SEED_GOALS: DemoGoal[] = [
-  { id: 'g1', title: 'Finish Lo-Fi EP', description: 'Complete 5-track lo-fi EP for streaming release', category: 'Production', progress: 0.72, priority: 'high', targetDate: '2026-02-10', subtasks: [{ id: 's1', label: 'Mix track 4', done: true }, { id: 's2', label: 'Master all tracks', done: false }, { id: 's3', label: 'Design cover art', done: true }], xp: 500, milestones: [25, 50, 75], status: 'active' },
-  { id: 'g2', title: 'Learn Serum Synthesis', description: 'Complete advanced wavetable synthesis course', category: 'Learning', progress: 0.45, priority: 'medium', targetDate: '2026-02-28', subtasks: [{ id: 's4', label: 'Oscillator basics', done: true }, { id: 's5', label: 'FM synthesis module', done: false }], xp: 300, milestones: [50], status: 'active' },
-  { id: 'g3', title: 'Collab with 3 Artists', description: 'Reach out and complete collaborative sessions', category: 'Collaboration', progress: 0.33, priority: 'medium', targetDate: '2026-03-15', subtasks: [{ id: 's6', label: 'Session with VoxLayer', done: true }, { id: 's7', label: 'Session with BeatNova', done: false }, { id: 's8', label: 'Session with Driftwave', done: false }], xp: 400, milestones: [33, 66], status: 'active' },
-  { id: 'g4', title: 'Release Single on Spotify', description: 'Distribute first solo single to all platforms', category: 'Release', progress: 0.9, priority: 'high', targetDate: '2026-02-08', subtasks: [{ id: 's9', label: 'Final master', done: true }, { id: 's10', label: 'Upload to distributor', done: true }, { id: 's11', label: 'Submit playlist pitches', done: false }], xp: 600, milestones: [50, 90], status: 'active' },
-  { id: 'g5', title: 'Build Sample Pack', description: 'Create and package 50 original drum samples', category: 'Production', progress: 0.6, priority: 'low', targetDate: '2026-03-01', subtasks: [{ id: 's12', label: 'Record 30 kicks', done: true }, { id: 's13', label: 'Process snares', done: false }], xp: 350, milestones: [25, 50, 75], status: 'active' },
-  { id: 'g6', title: 'Mix 10 Tracks for Portfolio', description: 'Professional-quality mixes to showcase skills', category: 'Mixing', progress: 0.5, priority: 'medium', targetDate: '2026-03-20', subtasks: [{ id: 's14', label: 'Mix 5 hip-hop tracks', done: true }, { id: 's15', label: 'Mix 5 electronic tracks', done: false }], xp: 450, milestones: [50], status: 'active' },
-  { id: 'g7', title: 'Produce 20 Beats This Month', description: 'Quantity challenge to sharpen production speed', category: 'Production', progress: 1.0, priority: 'high', targetDate: '2026-01-31', subtasks: [{ id: 's16', label: 'Beats 1-10', done: true }, { id: 's17', label: 'Beats 11-20', done: true }], xp: 700, milestones: [25, 50, 75, 100], status: 'completed' },
-  { id: 'g8', title: 'Master EQ Techniques', description: 'Deep-dive into surgical and creative EQ usage', category: 'Learning', progress: 1.0, priority: 'low', targetDate: '2026-01-15', subtasks: [{ id: 's18', label: 'Subtractive EQ', done: true }, { id: 's19', label: 'Dynamic EQ', done: true }], xp: 250, milestones: [50, 100], status: 'completed' },
-];
+const SEED_GOALS: DemoGoal[] = [];
 
-const SEED_CHALLENGES: Challenge[] = [
-  { id: 'c1', title: 'Produce a Beat in a New Genre', description: 'Step outside your comfort zone and create in a genre you have never tried', type: 'daily', difficulty: 'Medium', xp: 150, progress: 0, target: 1, endsIn: '8h 23m', accepted: false },
-  { id: 'c2', title: 'Release 3 Tracks This Week', description: 'Finish and distribute three complete tracks before the week ends', type: 'weekly', difficulty: 'Hard', xp: 400, progress: 1, target: 3, endsIn: '4d 12h', accepted: true },
-  { id: 'c3', title: '100 Beats Community Marathon', description: 'Join producers worldwide in a collective beat-making marathon', type: 'community', difficulty: 'Legendary', xp: 1000, progress: 42, target: 100, participants: 237, endsIn: '12d', accepted: true },
-  { id: 'c4', title: 'Sound Design From Scratch', description: 'Create 5 unique patches using only a basic synthesizer', type: 'daily', difficulty: 'Easy', xp: 100, progress: 3, target: 5, endsIn: '16h 45m', accepted: true },
-];
+const SEED_CHALLENGES: Challenge[] = [];
 
-const SEED_MILESTONES: Milestone[] = [
-  { id: 'm1', title: 'First Track Completed', description: 'Finished your very first production from start to finish', unlocked: true, date: '2025-06-15', icon: 'music', xpReward: 100 },
-  { id: 'm2', title: '10 Beats Produced', description: 'Reached double digits in beat production output', unlocked: true, date: '2025-09-02', icon: 'zap', xpReward: 250 },
-  { id: 'm3', title: 'First Collaboration', description: 'Completed a creative session with another artist', unlocked: true, date: '2025-11-20', icon: 'users', xpReward: 200 },
-  { id: 'm4', title: 'First Sale', description: 'Earned your first revenue from your music career', unlocked: true, date: '2026-01-10', icon: 'star', xpReward: 500 },
-  { id: 'm5', title: '50 Beats Milestone', description: 'Half a century of beats in the catalog -- serious commitment', unlocked: false, icon: 'trophy', xpReward: 750 },
-  { id: 'm6', title: 'Album Release', description: 'Release a full-length album project to streaming platforms', unlocked: false, icon: 'award', xpReward: 1000 },
-];
+const SEED_MILESTONES: Milestone[] = [];
 
-const SEED_ACHIEVEMENTS: Achievement[] = [
-  { id: 'a1', name: 'Beat Machine', description: 'Produce 50 beats', category: 'Production', unlocked: false, icon: 'zap', rarity: 'epic' },
-  { id: 'a2', name: 'Mixdown Master', description: 'Mix 25 tracks professionally', category: 'Production', unlocked: false, icon: 'music', rarity: 'rare' },
-  { id: 'a3', name: 'Sound Designer', description: 'Create 100 original patches', category: 'Production', unlocked: false, icon: 'sparkles', rarity: 'legendary' },
-  { id: 'a4', name: 'Collaborator', description: 'Complete 10 collab sessions', category: 'Social', unlocked: false, icon: 'users', rarity: 'rare' },
-  { id: 'a5', name: 'Community Star', description: 'Participate in 5 community challenges', category: 'Social', unlocked: true, icon: 'star', rarity: 'common' },
-  { id: 'a6', name: 'Mentor', description: 'Help 3 new producers with feedback', category: 'Social', unlocked: false, icon: 'award', rarity: 'rare' },
-  { id: 'a7', name: 'First Dollar', description: 'Earn your first revenue from music', category: 'Sales', unlocked: true, icon: 'trophy', rarity: 'common' },
-  { id: 'a8', name: 'Catalog Builder', description: 'Have 20 tracks on streaming platforms', category: 'Sales', unlocked: false, icon: 'target', rarity: 'epic' },
-  { id: 'a9', name: '1K Streams', description: 'Reach 1,000 total streams', category: 'Sales', unlocked: false, icon: 'trending', rarity: 'rare' },
-  { id: 'a10', name: 'Theory Nerd', description: 'Complete 5 music theory courses', category: 'Learning', unlocked: false, icon: 'book', rarity: 'rare' },
-  { id: 'a11', name: 'Gear Head', description: 'Master 3 different DAWs', category: 'Learning', unlocked: true, icon: 'settings', rarity: 'common' },
-  { id: 'a12', name: 'Genre Hopper', description: 'Produce tracks in 8 different genres', category: 'Learning', unlocked: false, icon: 'flame', rarity: 'epic' },
-];
+const SEED_ACHIEVEMENTS: Achievement[] = [];
 
 // --------------- Style Mappings ---------------
 

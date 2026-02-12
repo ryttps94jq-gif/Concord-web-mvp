@@ -13,12 +13,10 @@ interface LockEventData {
   level: number;
 }
 
-const SEED_LOCK_HISTORY = [
-  { title: '2026-01-15', data: { event: 'Lock initialized', level: 70 } },
-  { title: '2026-01-20', data: { event: 'Invariant added: LEGALITY_GATE', level: 70 } },
-  { title: '2026-01-25', data: { event: 'Audit passed', level: 70 } },
-  { title: '2026-02-01', data: { event: 'Sovereignty check: PASS', level: 70 } },
-];
+const SEED_LOCK_HISTORY: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function LockLensPage() {
   useLensNav('lock');

@@ -83,44 +83,13 @@ function statusOptionsFor(type: ArtifactType): string[] {
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
 
 const seedData: Record<string, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  Account: [
-    { title: 'Operating Checking', data: { name: 'Operating Checking', accountNumber: '****4521', type: 'Asset', balance: 84250.00, currency: 'USD', institution: 'First National Bank' }, meta: { status: 'active', tags: ['checking'] } },
-    { title: 'Business Savings', data: { name: 'Business Savings', accountNumber: '****7833', type: 'Asset', balance: 150000.00, currency: 'USD', institution: 'First National Bank' }, meta: { status: 'active', tags: ['savings'] } },
-    { title: 'Accounts Receivable', data: { name: 'Accounts Receivable', accountNumber: 'AR-001', type: 'Asset', balance: 32450.00, currency: 'USD', institution: 'Internal' }, meta: { status: 'active', tags: ['receivable'] } },
-    { title: 'Revenue - Services', data: { name: 'Revenue - Services', accountNumber: 'REV-100', type: 'Revenue', balance: 245000.00, currency: 'USD', institution: 'Internal' }, meta: { status: 'active', tags: ['revenue'] } },
-    { title: 'Accounts Payable', data: { name: 'Accounts Payable', accountNumber: 'AP-001', type: 'Liability', balance: 18750.00, currency: 'USD', institution: 'Internal' }, meta: { status: 'active', tags: ['payable'] } },
-  ],
-  Transaction: [
-    { title: 'Client payment - Acme Corp', data: { description: 'Client payment - Acme Corp', account: 'Operating Checking', debit: 12500, credit: 0, category: 'Revenue', reference: 'INV-2026-042', date: '2026-02-07' }, meta: { status: 'cleared', tags: ['payment'] } },
-    { title: 'Office rent - February', data: { description: 'Office rent - February', account: 'Operating Checking', debit: 0, credit: 3500, category: 'Expense', reference: 'CHK-1842', date: '2026-02-01' }, meta: { status: 'reconciled', tags: ['rent'] } },
-    { title: 'Software subscription', data: { description: 'Software subscription', account: 'Operating Checking', debit: 0, credit: 299, category: 'Expense', reference: 'AUTO-0214', date: '2026-02-05' }, meta: { status: 'pending', tags: ['software'] } },
-    { title: 'Vendor payment - SupplyChain Ltd', data: { description: 'Vendor payment - SupplyChain Ltd', account: 'Accounts Payable', debit: 0, credit: 8400, category: 'COGS', reference: 'PO-3391', date: '2026-02-06' }, meta: { status: 'cleared', tags: ['vendor'] } },
-  ],
-  Invoice: [
-    { title: 'INV-2026-045 - TechStart Inc', data: { invoiceNumber: 'INV-2026-045', client: 'TechStart Inc', amount: 15000, dueDate: '2026-03-01', issuedDate: '2026-02-01', lineItems: 3, notes: 'Consulting services - January' }, meta: { status: 'sent', tags: ['consulting'] } },
-    { title: 'INV-2026-044 - GreenCo', data: { invoiceNumber: 'INV-2026-044', client: 'GreenCo Sustainability', amount: 8750, dueDate: '2026-02-15', issuedDate: '2026-01-15', lineItems: 2, notes: 'Monthly retainer' }, meta: { status: 'overdue', tags: ['retainer'] } },
-    { title: 'INV-2026-043 - Metro Schools', data: { invoiceNumber: 'INV-2026-043', client: 'Metro City Schools', amount: 22400, dueDate: '2026-02-28', issuedDate: '2026-01-28', lineItems: 5, notes: 'Training program delivery' }, meta: { status: 'partial', tags: ['training'] } },
-    { title: 'INV-2026-042 - Acme Corp', data: { invoiceNumber: 'INV-2026-042', client: 'Acme Corp', amount: 12500, dueDate: '2026-02-07', issuedDate: '2026-01-07', lineItems: 2, notes: 'Project milestone 2' }, meta: { status: 'paid', tags: ['project'] } },
-  ],
-  PayrollEntry: [
-    { title: 'Jan 2026 - Sarah Mitchell', data: { employee: 'Sarah Mitchell', period: '2026-01', grossPay: 8500, deductions: 2125, netPay: 6375, department: 'Engineering' }, meta: { status: 'active', tags: ['engineering'] } },
-    { title: 'Jan 2026 - Mike Chen', data: { employee: 'Mike Chen', period: '2026-01', grossPay: 7200, deductions: 1800, netPay: 5400, department: 'Sales' }, meta: { status: 'active', tags: ['sales'] } },
-    { title: 'Jan 2026 - Lisa Park', data: { employee: 'Lisa Park', period: '2026-01', grossPay: 9000, deductions: 2250, netPay: 6750, department: 'Operations' }, meta: { status: 'active', tags: ['operations'] } },
-  ],
-  Budget: [
-    { title: 'Marketing Q1 2026', data: { name: 'Marketing Q1 2026', category: 'Marketing', allocated: 25000, spent: 14200, period: 'Q1-2026', department: 'Marketing' }, meta: { status: 'active', tags: ['marketing'] } },
-    { title: 'Engineering Q1 2026', data: { name: 'Engineering Q1 2026', category: 'Engineering', allocated: 80000, spent: 52300, period: 'Q1-2026', department: 'Engineering' }, meta: { status: 'active', tags: ['engineering'] } },
-    { title: 'Office Operations Q1 2026', data: { name: 'Office Operations Q1 2026', category: 'Operations', allocated: 15000, spent: 11800, period: 'Q1-2026', department: 'Operations' }, meta: { status: 'active', tags: ['operations'] } },
-  ],
-  Property: [
-    { title: '120 Main Street Office', data: { name: '120 Main Street Office', address: '120 Main St, Suite 400', type: 'Commercial', units: 4, monthlyRent: 12000, occupancy: 100, expenses: 3200 }, meta: { status: 'active', tags: ['commercial'] } },
-    { title: 'Elm Street Apartments', data: { name: 'Elm Street Apartments', address: '45 Elm Street', type: 'Residential', units: 8, monthlyRent: 14400, occupancy: 87.5, expenses: 4800 }, meta: { status: 'active', tags: ['residential'] } },
-  ],
-  TaxItem: [
-    { title: 'Office Equipment Depreciation', data: { name: 'Office Equipment Depreciation', category: 'Depreciation', amount: 12000, taxYear: '2025', deductible: true, filingStatus: 'pending' }, meta: { status: 'pending', tags: ['depreciation'] } },
-    { title: 'Business Insurance Premium', data: { name: 'Business Insurance Premium', category: 'Insurance', amount: 8400, taxYear: '2025', deductible: true, filingStatus: 'pending' }, meta: { status: 'pending', tags: ['insurance'] } },
-    { title: 'Estimated Q4 Tax Payment', data: { name: 'Estimated Q4 Tax Payment', category: 'Estimated Tax', amount: 15000, taxYear: '2025', deductible: false, filingStatus: 'filed' }, meta: { status: 'active', tags: ['quarterly'] } },
-  ],
+  Account: [],
+  Transaction: [],
+  Invoice: [],
+  PayrollEntry: [],
+  Budget: [],
+  Property: [],
+  TaxItem: [],
 };
 
 /* ------------------------------------------------------------------ */

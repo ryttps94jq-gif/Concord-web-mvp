@@ -538,8 +538,7 @@ export default function MarketplaceLensPage() {
     return () => clearInterval(t);
   }, [featuredItems.length]);
 
-  // Shop stats (mock)
-  const shopStats = { totalSales: 47, revenue: 3842, itemsListed: 6, avgRating: 4.7 };
+  const shopStats = { totalSales: 0, revenue: 0, itemsListed: 0, avgRating: 0 };
 
   // ----- Render helpers -----
 
@@ -925,20 +924,10 @@ export default function MarketplaceLensPage() {
       {/* ================================================================== */}
       {tab === 'analytics' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-          {/* Revenue chart (mock bars) */}
           <div className="panel p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2"><BarChart2 className="w-4 h-4 text-neon-cyan" /> Revenue Over Time</h3>
-            <div className="flex items-end gap-2 h-40">
-              {['Oct', 'Nov', 'Dec', 'Jan', 'Feb'].map((month, i) => {
-                const heights = [35, 52, 68, 85, 60];
-                return (
-                  <div key={month} className="flex-1 flex flex-col items-center gap-1">
-                    <motion.div initial={{ height: 0 }} animate={{ height: `${heights[i]}%` }} transition={{ delay: i * 0.1, duration: 0.5 }}
-                      className="w-full rounded-t-md bg-gradient-to-t from-neon-purple to-neon-cyan/50" />
-                    <span className="text-[10px] text-gray-500">{month}</span>
-                  </div>
-                );
-              })}
+            <div className="flex items-center justify-center h-40 text-gray-500 text-sm">
+              No revenue data yet
             </div>
           </div>
 

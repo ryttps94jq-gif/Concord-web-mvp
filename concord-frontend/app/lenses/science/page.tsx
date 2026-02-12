@@ -71,31 +71,12 @@ const STATUS_COLORS: Record<Status, string> = {
 };
 
 const seedData: Record<ArtifactType, { title: string; data: Record<string, unknown>; meta: Record<string, unknown> }[]> = {
-  Expedition: [
-    { title: 'Atacama Extremophile Survey', data: { name: 'Atacama Extremophile Survey', region: 'Atacama Desert, Chile', lat: -23.865, lon: -69.140, pi: 'Dr. Elena Vasquez', startDate: '2026-03-01', endDate: '2026-04-15', teamSize: 8, fundingSource: 'NSF Grant #2026-BIO-4401' }, meta: { status: 'planned', tags: ['astrobiology', 'extremophile'] } },
-    { title: 'Arctic Sea Ice Monitoring 2026', data: { name: 'Arctic Sea Ice Monitoring 2026', region: 'Svalbard, Norway', lat: 78.230, lon: 15.635, pi: 'Dr. Lars Eriksen', startDate: '2026-06-01', endDate: '2026-08-30', teamSize: 12, fundingSource: 'EU Horizon Europe' }, meta: { status: 'planned', tags: ['climate', 'arctic'] } },
-    { title: 'Borneo Canopy Biodiversity', data: { name: 'Borneo Canopy Biodiversity', region: 'Danum Valley, Borneo', lat: 4.965, lon: 117.804, pi: 'Dr. Amara Tan', startDate: '2025-11-01', endDate: '2026-02-28', teamSize: 6, fundingSource: 'National Geographic Society' }, meta: { status: 'active', tags: ['biodiversity', 'tropical'] } },
-  ],
-  Observation: [
-    { title: 'Thermal Vent Microbial Mat OBS-001', data: { subject: 'Microbial mat community', method: 'In-situ photography + temperature logging', location: 'Salar de Atacama, Laguna Cejar', lat: -23.390, lon: -68.225, observer: 'Dr. Elena Vasquez', datetime: '2026-01-20T14:30:00Z', conditions: 'Clear, 28C, wind 5kph', notes: 'Pink-orange mat at 42C spring outflow' }, meta: { status: 'active', tags: ['microbiology', 'field'] } },
-    { title: 'Orangutan Nest Count - Sector 7', data: { subject: 'Pongo pygmaeus nesting behavior', method: 'Line-transect survey', location: 'Danum Valley Sector 7', lat: 4.958, lon: 117.811, observer: 'Dr. Amara Tan', datetime: '2026-01-18T07:00:00Z', conditions: 'Overcast, 26C, humidity 95%', notes: '14 fresh nests identified, 3 reused structures' }, meta: { status: 'analyzing', tags: ['primates', 'behavior'] } },
-  ],
-  Sample: [
-    { title: 'ATK-S-001 Halophilic Isolate', data: { sampleId: 'ATK-S-001', type: 'Biological', source: 'Hypersaline spring sediment', collectionDate: '2026-01-20', collector: 'Dr. Vasquez', preservationMethod: 'Cryopreservation -80C', storageLocation: 'Lab A, Freezer 3, Rack 2', quantity: 50, unit: 'mL' }, meta: { status: 'analyzing', tags: ['halophile', 'sediment'] } },
-    { title: 'BRN-S-014 Canopy Soil Core', data: { sampleId: 'BRN-S-014', type: 'Soil', source: 'Epiphyte root mass, 30m canopy', collectionDate: '2026-01-15', collector: 'Dr. Tan', preservationMethod: 'Air-dried, sealed bag', storageLocation: 'Field Station B, Shelf 4', quantity: 200, unit: 'g' }, meta: { status: 'active', tags: ['soil', 'canopy'] } },
-  ],
-  LabProtocol: [
-    { title: 'DNA Extraction - Hypersaline Samples', data: { name: 'DNA Extraction - Hypersaline Samples', version: '3.2', equipment: ['Centrifuge', 'Vortex Mixer', 'Thermocycler', 'NanoDrop'], duration: '4 hours', safetyLevel: 'BSL-1', author: 'Dr. Vasquez', lastValidated: '2025-12-01' }, meta: { status: 'published', tags: ['molecular', 'DNA'] } },
-    { title: '16S rRNA Amplicon Sequencing Prep', data: { name: '16S rRNA Amplicon Sequencing Prep', version: '2.1', equipment: ['PCR Hood', 'Thermocycler', 'Gel Electrophoresis', 'Qubit Fluorometer'], duration: '6 hours', safetyLevel: 'BSL-1', author: 'Dr. Kim Park', lastValidated: '2025-10-15' }, meta: { status: 'published', tags: ['sequencing', '16S'] } },
-  ],
-  Analysis: [
-    { title: 'Atacama Microbial Diversity - 16S', data: { name: 'Atacama Microbial Diversity - 16S', method: 'QIIME2 + DADA2 pipeline', dataset: 'ATK-SEQ-2026-batch1', software: 'QIIME2 v2025.10, R v4.4', author: 'Dr. Kim Park', startDate: '2026-02-01', pValue: 'p < 0.001', conclusion: 'Novel halophilic Archaea clade identified in 3 of 5 springs' }, meta: { status: 'peer_review', tags: ['metagenomics', 'diversity'] } },
-  ],
-  Equipment: [
-    { title: 'Portable pH/Conductivity Meter', data: { name: 'Portable pH/Conductivity Meter', model: 'Hanna HI98194', serialNumber: 'HI-98194-2024-0087', calibrationDate: '2026-01-05', nextCalibration: '2026-04-05', location: 'Field Kit A', condition: 'Good', assignedTo: 'Atacama Field Team' }, meta: { status: 'active', tags: ['field', 'water-quality'] } },
-    { title: 'Thermal Imaging Camera', data: { name: 'Thermal Imaging Camera', model: 'FLIR E96', serialNumber: 'FLIR-E96-2023-1142', calibrationDate: '2025-11-20', nextCalibration: '2026-05-20', location: 'Equipment Room 2', condition: 'Good', assignedTo: 'Borneo Canopy Team' }, meta: { status: 'active', tags: ['thermal', 'imaging'] } },
-    { title: 'Illumina MiSeq Sequencer', data: { name: 'Illumina MiSeq Sequencer', model: 'MiSeq System', serialNumber: 'MS-2022-0019', calibrationDate: '2026-01-15', nextCalibration: '2026-07-15', location: 'Genomics Lab, Room 104', condition: 'Excellent', assignedTo: 'Genomics Core' }, meta: { status: 'active', tags: ['sequencer', 'genomics'] } },
-  ],
+  Expedition: [],
+  Observation: [],
+  Sample: [],
+  LabProtocol: [],
+  Analysis: [],
+  Equipment: [],
 };
 
 /* ------------------------------------------------------------------ */

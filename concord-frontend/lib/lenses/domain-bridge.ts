@@ -27,9 +27,6 @@ import {
 import {
   type WorkflowDef,
   getWorkflowsForDomain,
-  getAvailableTransitions,
-  isValidTransition,
-  getInitialState,
   getDomainsWithWorkflows,
 } from './workflow-definitions';
 
@@ -141,33 +138,3 @@ export function getFleetSummary(): { competitorLevel: number; platformReady: num
   };
 }
 
-// ── Convenience re-exports for single-import usage ─────────────
-
-export {
-  getAvailableTransitions,
-  isValidTransition,
-  getInitialState,
-} from './workflow-definitions';
-
-export type {
-  DomainSchema,
-  EntityDef,
-  FieldDef,
-  RelationDef,
-} from './domain-schemas';
-
-export type {
-  WorkflowDef,
-  WorkflowState,
-  WorkflowTransition,
-} from './workflow-definitions';
-
-export type {
-  ImportExportProfile,
-  AutomationProfile,
-  AutomationTrigger,
-  DomainRBACProfile,
-  DomainPermission,
-  ImportFormat,
-  ExportFormat,
-} from './automation-bindings';

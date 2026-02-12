@@ -18,20 +18,7 @@ interface Invariant {
 }
 
 // Seed data — auto-created in backend on first load if empty
-const SEED_INVARIANTS = [
-  { title: 'NO_TELEMETRY', data: { name: 'NO_TELEMETRY', description: 'No external analytics or tracking', status: 'enforced', category: 'ethos', frozen: true } },
-  { title: 'NO_ADS', data: { name: 'NO_ADS', description: 'No advertisements or sponsored content', status: 'enforced', category: 'ethos', frozen: true } },
-  { title: 'NO_RESALE', data: { name: 'NO_RESALE', description: 'User data is never sold', status: 'enforced', category: 'ethos', frozen: true } },
-  { title: 'LOCAL_FIRST', data: { name: 'LOCAL_FIRST', description: 'Local processing prioritized over cloud', status: 'enforced', category: 'structural', frozen: true } },
-  { title: 'OWNER_CONTROL', data: { name: 'OWNER_CONTROL', description: 'Owner maintains full control of data', status: 'enforced', category: 'structural', frozen: true } },
-  { title: 'TRANSPARENT_OPS', data: { name: 'TRANSPARENT_OPS', description: 'All operations are auditable', status: 'enforced', category: 'structural', frozen: true } },
-  { title: 'NO_DARK_PATTERNS', data: { name: 'NO_DARK_PATTERNS', description: 'No manipulative UI/UX patterns', status: 'enforced', category: 'ethos', frozen: true } },
-  { title: 'NO_SECRET_MONITORING', data: { name: 'NO_SECRET_MONITORING', description: 'No hidden surveillance', status: 'enforced', category: 'ethos', frozen: true } },
-  { title: 'ALIGNMENT_PHYSICS_BASED', data: { name: 'ALIGNMENT_PHYSICS_BASED', description: 'Alignment through physical constraints', status: 'enforced', category: 'capability', frozen: true } },
-  { title: 'FOUNDER_INTENT_STRUCTURAL', data: { name: 'FOUNDER_INTENT_STRUCTURAL', description: 'Founder values structurally embedded', status: 'enforced', category: 'structural', frozen: true } },
-  { title: 'PERSONA_SOVEREIGNTY', data: { name: 'PERSONA_SOVEREIGNTY', description: 'Entities maintain autonomy', status: 'enforced', category: 'capability', frozen: true } },
-  { title: 'LEGALITY_GATE', data: { name: 'LEGALITY_GATE', description: 'Actions must pass legal checks', status: 'enforced', category: 'capability', frozen: true } },
-];
+const SEED_INVARIANTS: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function InvariantLensPage() {
   useLensNav('invariant');

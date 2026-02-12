@@ -27,17 +27,9 @@ export default function OrganLensPage() {
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });
 
-  // Mock organ data derived from system state
-  const organs: Organ[] = [
-    { id: 'growth_os', name: 'Growth OS', maturity: 0.85, wear: 0.12, plasticity: 0.92, lastTick: new Date().toISOString(), dependencies: ['kernel', 'memory'] },
-    { id: 'council_engine', name: 'Council Engine', maturity: 0.78, wear: 0.08, plasticity: 0.88, lastTick: new Date().toISOString(), dependencies: ['governance', 'voting'] },
-    { id: 'dtu_forge', name: 'DTU Forge', maturity: 0.92, wear: 0.15, plasticity: 0.95, lastTick: new Date().toISOString(), dependencies: ['synthesis', 'verification'] },
-    { id: 'resonance_core', name: 'Resonance Core', maturity: 0.88, wear: 0.05, plasticity: 0.90, lastTick: new Date().toISOString(), dependencies: ['coherence', 'homeostasis'] },
-    { id: 'terminal_hub', name: 'Terminal Hub', maturity: 0.72, wear: 0.20, plasticity: 0.85, lastTick: new Date().toISOString(), dependencies: ['entities', 'execution'] },
-    { id: 'memory_lattice', name: 'Memory Lattice', maturity: 0.95, wear: 0.03, plasticity: 0.98, lastTick: new Date().toISOString(), dependencies: ['storage', 'retrieval'] },
-  ];
+  const organs: Organ[] = [];
 
-  const avgHealth = organs.reduce((sum, o) => sum + (o.maturity - o.wear), 0) / organs.length;
+  const avgHealth = organs.length > 0 ? organs.reduce((sum, o) => sum + (o.maturity - o.wear), 0) / organs.length : 0;
 
 
   if (isError) {

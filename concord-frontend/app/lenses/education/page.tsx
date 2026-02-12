@@ -69,16 +69,7 @@ const STATUS_COLORS: Record<Status, string> = {
   graduated: 'amber-400',
 };
 
-const seedItems: { title: string; data: EducationArtifact }[] = [
-  { title: 'Alex Johnson', data: { artifactType: 'Student', status: 'enrolled', description: 'Computer Science major, sophomore year', subject: 'Computer Science', semester: 'Fall 2025', credits: 15 } },
-  { title: 'CS 301 - Data Structures', data: { artifactType: 'Course', status: 'active', description: 'Advanced data structures and algorithms', instructor: 'Prof. Williams', subject: 'Computer Science', semester: 'Fall 2025', credits: 4 } },
-  { title: 'Midterm Project - Binary Trees', data: { artifactType: 'Assignment', status: 'active', description: 'Implement AVL tree with balancing, include unit tests', instructor: 'Prof. Williams', subject: 'CS 301', dueDate: '2025-10-15' } },
-  { title: 'CS 301 Midterm Exam', data: { artifactType: 'Grade', status: 'completed', description: 'Midterm examination grade', grade: 'A-', score: 91, subject: 'CS 301', semester: 'Fall 2025' } },
-  { title: 'Week 8: Graph Algorithms', data: { artifactType: 'LessonPlan', status: 'active', description: 'BFS, DFS, Dijkstra shortest path, spanning trees', instructor: 'Prof. Williams', subject: 'CS 301' } },
-  { title: 'AWS Cloud Practitioner', data: { artifactType: 'Certification', status: 'completed', description: 'AWS foundational cloud certification', dueDate: '2025-12-01' } },
-  { title: 'Maria Chen', data: { artifactType: 'Student', status: 'enrolled', description: 'Mathematics major, junior year', subject: 'Mathematics', semester: 'Fall 2025', credits: 16 } },
-  { title: 'MATH 401 - Real Analysis', data: { artifactType: 'Course', status: 'active', description: 'Introduction to real analysis and measure theory', instructor: 'Prof. Nakamura', subject: 'Mathematics', semester: 'Fall 2025', credits: 3 } },
-];
+const seedItems: { title: string; data: EducationArtifact }[] = [];
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

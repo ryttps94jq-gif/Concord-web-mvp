@@ -20,39 +20,9 @@ interface MoralDTUData {
   weight: number;
 }
 
-const SEED_FRAMEWORKS = [
-  {
-    title: 'Utilitarianism',
-    data: { name: 'Utilitarianism', desc: 'Greatest good for greatest number', weight: 0.3 },
-  },
-  {
-    title: 'Deontology',
-    data: { name: 'Deontology', desc: 'Duty-based ethics', weight: 0.25 },
-  },
-  {
-    title: 'Virtue Ethics',
-    data: { name: 'Virtue Ethics', desc: 'Character-based approach', weight: 0.25 },
-  },
-  {
-    title: 'Care Ethics',
-    data: { name: 'Care Ethics', desc: 'Relationship-centered', weight: 0.2 },
-  },
-];
+const SEED_FRAMEWORKS: { title: string; data: { name: string; desc: string; weight: number } }[] = [];
 
-const SEED_MORAL_DTUS = [
-  {
-    title: 'Maximize aggregate wellbeing',
-    data: { framework: 'Utilitarianism', position: 'Maximize aggregate wellbeing', weight: 0.85 },
-  },
-  {
-    title: 'Respect rational autonomy',
-    data: { framework: 'Deontology', position: 'Respect rational autonomy', weight: 0.78 },
-  },
-  {
-    title: 'Cultivate practical wisdom',
-    data: { framework: 'Virtue Ethics', position: 'Cultivate practical wisdom', weight: 0.82 },
-  },
-];
+const SEED_MORAL_DTUS: { title: string; data: { framework: string; position: string; weight: number } }[] = [];
 
 export default function EthicsLensPage() {
   useLensNav('ethics');

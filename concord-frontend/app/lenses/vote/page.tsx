@@ -22,24 +22,10 @@ interface ProposalData {
   createdAt: string;
 }
 
-const SEED_PROPOSALS = [
-  {
-    title: 'Upgrade Resonance Core to v2.1',
-    data: { description: 'Improve coherence calculation with new algorithm', proposer: 'Architect Zero', type: 'upgrade', status: 'active', votesFor: 7, votesAgainst: 2, threshold: 10, deadline: '2026-02-05', createdAt: '2026-01-30' },
-  },
-  {
-    title: 'Add Quantum Lens to core set',
-    data: { description: 'Integrate quantum computing simulations', proposer: 'Research Prime', type: 'policy', status: 'active', votesFor: 5, votesAgainst: 1, threshold: 8, deadline: '2026-02-03', createdAt: '2026-01-29' },
-  },
-  {
-    title: 'Increase entity fork limit to 20',
-    data: { description: 'Allow more parallel entity forks', proposer: 'Alpha Worker', type: 'resource', status: 'passed', votesFor: 12, votesAgainst: 3, threshold: 10, deadline: '2026-01-28', createdAt: '2026-01-25' },
-  },
-  {
-    title: 'Spawn 10 new worker entities',
-    data: { description: 'Scale swarm for parallel processing', proposer: 'Guardian One', type: 'entity', status: 'pending', votesFor: 0, votesAgainst: 0, threshold: 5, deadline: '2026-02-10', createdAt: '2026-02-01' },
-  },
-];
+const SEED_PROPOSALS: {
+  title: string;
+  data: Record<string, unknown>;
+}[] = [];
 
 export default function VoteLensPage() {
   useLensNav('vote');
