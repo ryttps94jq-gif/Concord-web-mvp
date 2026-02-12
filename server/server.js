@@ -520,6 +520,47 @@ const DEFAULT_LLM_ON = (__llmDefaultForcedRaw !== null)
   : Boolean((process.env.OPENAI_API_KEY || "").trim());
 
 
+// ---- Terminal / sandbox execution gate ----
+// P0.1: Hard-disabled in production unless explicitly opted-in via ENABLE_TERMINAL_EXEC=true
+const TERMINAL_EXEC_ENABLED = (
+  String(process.env.ENABLE_TERMINAL_EXEC || "").toLowerCase() === "true"
+);
+if (NODE_ENV === "production" && TERMINAL_EXEC_ENABLED) {
+  console.warn("[Security] WARNING: ENABLE_TERMINAL_EXEC=true in production. Terminal command execution is ACTIVE.");
+}
+
+// ============================================================================
+// CAPABILITIES REGISTRY — single source of truth for runtime feature gates
+// ============================================================================
+// Every route/macro that depends on an optional capability checks CAPS.<key>.
+// This consolidates the implicit checks scattered across the codebase.
+const CAPS = Object.freeze({
+  // Storage
+  sqlite:       Boolean(Database),
+  // Auth / security deps
+  jwt:          Boolean(jwt),
+  bcrypt:       Boolean(bcrypt),
+  zod:          Boolean(z),
+  rateLimit:    Boolean(rateLimit),
+  helmet:       Boolean(helmet),
+  compression:  Boolean(compression),
+  // LLM
+  openai:       Boolean(OPENAI_API_KEY),
+  ollama:       Boolean((process.env.OLLAMA_HOST || "").trim()),
+  // Unsafe surfaces (off by default)
+  exec:         TERMINAL_EXEC_ENABLED,
+  // Federation
+  federation:   String(process.env.FEDERATION_ENABLED || "").toLowerCase() === "true",
+  // Embeddings
+  embeddings:   String(process.env.EMBEDDINGS_ENABLED || "true").toLowerCase() === "true",
+  // Voice / media (presence of external binaries)
+  whisper:      Boolean((process.env.WHISPER_CPP_BIN || "").trim()),
+  piper:        Boolean((process.env.PIPER_BIN || "").trim()),
+  imagegen:     Boolean((process.env.SD_URL || process.env.COMFYUI_URL || "").trim()) || Boolean(OPENAI_API_KEY),
+});
+
+console.log("[Caps]", JSON.stringify(CAPS));
+
 // ---- immutables ----
 const IMMUTABLES = Object.freeze({ NO_MACHINE_TO_HUMAN: true, COUNCIL_REQUIRED: true });
 
@@ -4558,8 +4599,11 @@ async function tryLoadSeedDTUs() {
       console.warn(`[DTU-Pack] Failed to load packs: ${e.message}`);
     }
   }
-  // 2. Fallback to dtus.js monolithic import
+  // 2. Fallback to dtus.js monolithic import (deferred — logs startup tax)
   try {
+    console.warn("[Seed] JSONL packs not found — falling back to monolithic dtus.js import.");
+    console.warn("[Seed] To reduce startup time + memory, run: node server/scripts/convert-dtus-to-packs.js");
+    const t0 = Date.now();
     const mod = await import("./dtus.js");
     const seed = (mod?.dtus ?? mod?.default ?? mod?.DTUS ?? null);
     const arr = Array.isArray(seed) ? seed : (Array.isArray(seed?.dtus) ? seed.dtus : []);
@@ -4568,6 +4612,7 @@ async function tryLoadSeedDTUs() {
     SEED_INFO.loaded = true;
     SEED_INFO.count = arr.length;
     SEED_INFO.source = "dtus.js";
+    console.log(`[Seed] Loaded ${arr.length} DTUs from dtus.js in ${Date.now() - t0}ms`);
     return arr;
   } catch (e) {
     SEED_INFO.ok = false;
@@ -5084,6 +5129,11 @@ try {
 }
 
 register("entity", "terminal", async (ctx, input={}) => {
+  // P0.1: Hard-gate — disabled unless ENABLE_TERMINAL_EXEC=true
+  if (!TERMINAL_EXEC_ENABLED) {
+    return { ok: false, error: "Terminal execution is disabled. Set ENABLE_TERMINAL_EXEC=true to enable.", disabled: true };
+  }
+
   enforceEthosInvariant("entity_terminal");
 
   const entityId = String(ctx?.actor?.userId || "");
@@ -5295,6 +5345,10 @@ if (workingDir) {
 // GA: SANDBOX EXECUTOR
 // ============================================================================
 function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
+  // P0.1: Defense-in-depth — sandbox executor also checks the gate
+  if (!TERMINAL_EXEC_ENABLED) {
+    return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Terminal execution is disabled.", timedOut: false });
+  }
   return new Promise((resolve) => {
     const proc = spawnSync("bash", ["-c", command], {
       cwd: workDir,
@@ -5323,6 +5377,11 @@ function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputByte
 // GA: COUNCIL APPROVAL PROCESSOR
 // ============================================================================
 register("entity", "terminal_approve", async (ctx, input={}) => {
+  // P0.1: Hard-gate — disabled unless ENABLE_TERMINAL_EXEC=true
+  if (!TERMINAL_EXEC_ENABLED) {
+    return { ok: false, error: "Terminal execution is disabled. Set ENABLE_TERMINAL_EXEC=true to enable.", disabled: true };
+  }
+
   enforceEthosInvariant("entity_terminal_approve");
 
   const proposalId = String(input?.proposalId || "");
@@ -15650,7 +15709,8 @@ app.get("/api/status", (req, res) => {
         helmetEnabled: Boolean(helmet)
       },
       envValidation: ENV_VALIDATION,
-      llmPipeline: getLLMPipelineStatus()
+      llmPipeline: getLLMPipelineStatus(),
+      capabilities: CAPS
     }
   });
 });

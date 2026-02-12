@@ -24,12 +24,14 @@ services:
       # Optional features
       - EMBEDDINGS_ENABLED=${EMBEDDINGS_ENABLED:-true}
       - FEDERATION_ENABLED=${FEDERATION_ENABLED:-false}
+      # Unsafe surfaces — disabled by default in production
+      - ENABLE_TERMINAL_EXEC=${ENABLE_TERMINAL_EXEC:-false}
     volumes:
       - concord-data:/data
     networks:
       - concord-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready && curl -f http://localhost:5050/api/status | grep -q '\"database\":{\"type\":\"sqlite\"'"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready && curl -f http://localhost:5050/api/status | grep -q '\"ok\":true'"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -149,15 +151,16 @@ services:
     container_name: concord-grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-concord}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:?GRAFANA_USER must be set in .env}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set in .env}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    # Bind Grafana to localhost only — access via SSH tunnel or VPN in production
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     networks:
       - concord-network
     depends_on:

@@ -259,3 +259,51 @@ ETHOS_INVARIANTS = {
 ```
 
 These cannot be changed by configuration and are enforced at runtime.
+
+## Unsafe Surfaces Registry
+
+The following capabilities expose attack surface beyond standard CRUD.
+Each is **disabled by default** in production unless explicitly enabled.
+
+| Surface | Env Gate | Default | Risk | Notes |
+|---------|----------|---------|------|-------|
+| Terminal/sandbox exec | `ENABLE_TERMINAL_EXEC` | `false` | **Critical** | Spawns `bash -c <cmd>` in entity workspace. Council-gated for medium+ risk, but shell access is shell access. Only enable on air-gapped / isolated instances. |
+| Cloud LLM | `OPENAI_API_KEY` | empty | Medium | Sends user content to external API. Requires session-level opt-in. |
+| Federation | `FEDERATION_ENABLED` | `false` | Medium | Redis pub/sub between instances. Opens cross-instance DTU sync. |
+| Whisper STT | `WHISPER_CPP_BIN` | empty | Low | Spawns whisper binary on audio files. Path must be pre-configured. |
+| Piper TTS | `PIPER_BIN` | empty | Low | Spawns piper binary for speech synthesis. Path must be pre-configured. |
+| Image gen | `SD_URL` / `COMFYUI_URL` | empty | Low | HTTP calls to local Stable Diffusion. |
+
+### Verifying at runtime
+
+The capabilities registry is exposed on the status endpoint:
+
+```bash
+curl -s http://localhost:5050/api/status | jq '.infrastructure.capabilities'
+```
+
+Returns:
+```json
+{
+  "sqlite": true,
+  "jwt": true,
+  "bcrypt": true,
+  "openai": false,
+  "ollama": true,
+  "exec": false,
+  "federation": false,
+  "whisper": false,
+  "piper": false,
+  "imagegen": false
+}
+```
+
+### Hardening checklist (v2 public deployment)
+
+1. Ensure `ENABLE_TERMINAL_EXEC` is absent or `false`
+2. Set `GRAFANA_USER` and `GRAFANA_PASSWORD` explicitly (no defaults)
+3. Verify nginx security headers with `curl -I https://your-domain.com`
+4. Confirm `/api/status` shows `"exec": false`
+5. Run `npm audit` and address high/critical findings
+6. Bind Grafana to localhost (`127.0.0.1:3001`) or behind VPN
+7. Verify backend healthcheck accepts both sqlite and JSON persistence
