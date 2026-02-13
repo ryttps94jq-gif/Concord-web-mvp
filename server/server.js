@@ -35117,46 +35117,50 @@ app.get('/api/artistry/studio/effects', (_req, res) => {
 
 app.post('/api/artistry/studio/vocal/analyze', (req, res) => {
   const { projectId, trackId } = req.body;
-  res.json({
-    ok: true,
-    analysis: {
-      projectId, trackId,
-      pitch: { accuracy: 0.87 + Math.random() * 0.1, range: { low: 'E2', high: 'C5' }, averagePitch: 'A3' },
-      timing: { accuracy: 0.92 + Math.random() * 0.05, rushTendency: -0.02, dragTendency: 0.01 },
-      dynamics: { range: 24, average: -18, peaks: 12, compression: 'moderate' },
-      formants: { clarity: 0.85, breathiness: 0.15, nasality: 0.08 },
-      suggestedEffects: ['auto-tune', 'de-esser', 'compressor', 'reverb-plate'],
-    },
-  });
+  if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
+  const art = ensureArtistryState();
+  const project = art.projects.get(projectId);
+  if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
+  const track = (project.tracks || []).find(t => t.id === trackId);
+  if (!track) return res.status(404).json({ ok: false, error: 'Track not found' });
+  if (!track.clips || track.clips.length === 0) {
+    return res.status(422).json({ ok: false, error: 'Track has no audio clips to analyze. Record or import audio first.' });
+  }
+  res.status(501).json({ ok: false, error: 'Vocal analysis requires an audio processing engine (not yet configured). Connect an audio DSP service to enable this feature.' });
 });
 
 app.post('/api/artistry/studio/vocal/process', (req, res) => {
-  const { projectId, trackId, corrections } = req.body;
-  res.json({
-    ok: true,
-    processed: {
-      projectId, trackId, corrections: corrections || ['pitch', 'timing'],
-      pitchCorrected: true, timingAligned: true, breathsReduced: true, sibilantsControlled: true,
-    },
-  });
+  const { projectId, trackId } = req.body;
+  if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
+  const art = ensureArtistryState();
+  const project = art.projects.get(projectId);
+  if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
+  const track = (project.tracks || []).find(t => t.id === trackId);
+  if (!track) return res.status(404).json({ ok: false, error: 'Track not found' });
+  if (!track.clips || track.clips.length === 0) {
+    return res.status(422).json({ ok: false, error: 'Track has no audio clips to process. Record or import audio first.' });
+  }
+  res.status(501).json({ ok: false, error: 'Vocal processing requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.' });
 });
 
 app.post('/api/artistry/studio/master', (req, res) => {
   const art = ensureArtistryState();
   const { projectId, preset, targetLufs, format } = req.body;
   const project = art.projects.get(projectId);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
-  res.json({
-    ok: true,
-    master: {
-      projectId, preset: preset || 'balanced', targetLufs: targetLufs || -14, format: format || 'wav',
+  if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
+  if (!project.tracks || project.tracks.length === 0) {
+    return res.status(422).json({ ok: false, error: 'Project has no tracks to master. Add tracks with audio clips first.' });
+  }
+  res.status(501).json({
+    ok: false,
+    error: 'Mastering requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.',
+    project: {
+      projectId,
+      preset: preset || 'balanced',
+      targetLufs: targetLufs || -14,
+      format: format || 'wav',
       chain: project.masterBus.effects.map(fx => fx.label || fx.effect),
-      analysis: {
-        inputLufs: -18.5 + Math.random() * 3, outputLufs: targetLufs || -14, truePeak: -1.0,
-        dynamicRange: 8 + Math.random() * 4, stereoCorrelation: 0.85 + Math.random() * 0.1,
-        frequencyBalance: { low: 'balanced', mid: 'slight boost', high: 'balanced' },
-      },
-      status: 'completed', masteredAt: Date.now(),
+      trackCount: project.tracks.length,
     },
   });
 });

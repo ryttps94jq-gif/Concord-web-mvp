@@ -84,75 +84,34 @@ interface ShopItem {
 }
 
 // ---------------------------------------------------------------------------
-// Demo Data  --  Music / Audio Production themed
+// Initial state — empty; all data comes from the backend API
 // ---------------------------------------------------------------------------
 
 const INITIAL_PROFILE = {
-  name: 'Alex Resonance',
-  title: 'Beat Architect',
-  level: 14,
-  xp: 8420,
-  nextLevelXp: 10000,
-  totalXpEarned: 34820,
-  achievements: 23,
-  totalAchievements: 48,
-  streak: 12,
-  longestStreak: 21,
-  questsCompleted: 67,
-  challengesWon: 8,
-  joinDate: '2025-06-15',
-  rank: 4,
-  completionRate: 78,
+  name: '',
+  title: '',
+  level: 1,
+  xp: 0,
+  nextLevelXp: 1000,
+  totalXpEarned: 0,
+  achievements: 0,
+  totalAchievements: 0,
+  streak: 0,
+  longestStreak: 0,
+  questsCompleted: 0,
+  challengesWon: 0,
+  joinDate: new Date().toISOString().slice(0, 10),
+  rank: 0,
+  completionRate: 0,
 };
 
-const INITIAL_XP_HISTORY = [
-  { day: 'Mon', xp: 340, label: 'Monday' },
-  { day: 'Tue', xp: 520, label: 'Tuesday' },
-  { day: 'Wed', xp: 180, label: 'Wednesday' },
-  { day: 'Thu', xp: 670, label: 'Thursday' },
-  { day: 'Fri', xp: 410, label: 'Friday' },
-  { day: 'Sat', xp: 890, label: 'Saturday' },
-  { day: 'Sun', xp: 250, label: 'Sunday' },
-];
+const INITIAL_XP_HISTORY: { day: string; xp: number; label: string }[] = [];
 
-const INITIAL_ACHIEVEMENTS: Achievement[] = [
-  { id: 'a1', name: 'First Beat', description: 'Complete your first production session', icon: '🥁', category: 'Production', unlocked: true, progress: 1, maxProgress: 1, xpReward: 100, rarity: 'common' },
-  { id: 'a2', name: 'Mix Master', description: 'Mix 10 tracks to completion', icon: '🎛️', category: 'Production', unlocked: true, progress: 10, maxProgress: 10, xpReward: 500, rarity: 'rare' },
-  { id: 'a3', name: 'Frequency Wizard', description: 'Master EQ across 25 sessions', icon: '🌊', category: 'Theory', unlocked: false, progress: 18, maxProgress: 25, xpReward: 750, rarity: 'epic' },
-  { id: 'a4', name: 'Sound Sculptor', description: 'Create 50 unique patches', icon: '🎨', category: 'Production', unlocked: false, progress: 34, maxProgress: 50, xpReward: 1000, rarity: 'epic' },
-  { id: 'a5', name: 'Synth Lord', description: 'Unlock all synthesis techniques', icon: '👑', category: 'Theory', unlocked: false, progress: 6, maxProgress: 12, xpReward: 2000, rarity: 'legendary' },
-  { id: 'a6', name: 'Collab King', description: 'Complete 5 collaborative projects', icon: '🤝', category: 'Performance', unlocked: true, progress: 5, maxProgress: 5, xpReward: 400, rarity: 'rare' },
-  { id: 'a7', name: 'Night Owl', description: 'Log 20 late-night sessions', icon: '🦉', category: 'Performance', unlocked: true, progress: 20, maxProgress: 20, xpReward: 300, rarity: 'common' },
-  { id: 'a8', name: 'Golden Ears', description: 'Pass 100 ear training exercises', icon: '👂', category: 'Theory', unlocked: false, progress: 72, maxProgress: 100, xpReward: 1500, rarity: 'legendary' },
-  { id: 'a9', name: 'Plugin Collector', description: 'Use 30 different effects', icon: '🔌', category: 'Engineering', unlocked: true, progress: 30, maxProgress: 30, xpReward: 350, rarity: 'rare' },
-  { id: 'a10', name: 'Streak Master', description: 'Maintain a 30-day streak', icon: '🔥', category: 'Performance', unlocked: false, progress: 12, maxProgress: 30, xpReward: 800, rarity: 'epic' },
-  { id: 'a11', name: 'Sidechain Sensei', description: 'Apply sidechain compression in 15 projects', icon: '⛓️', category: 'Engineering', unlocked: false, progress: 9, maxProgress: 15, xpReward: 600, rarity: 'rare' },
-  { id: 'a12', name: 'Sample Hoarder', description: 'Collect 500 samples', icon: '📦', category: 'Engineering', unlocked: true, progress: 500, maxProgress: 500, xpReward: 250, rarity: 'common' },
-];
+const INITIAL_ACHIEVEMENTS: Achievement[] = [];
 
-const INITIAL_QUESTS: Quest[] = [
-  { id: 'q1', name: 'Daily Mix Session', description: 'Spend 30 min mixing any project', icon: '🎚️', xpReward: 120, difficulty: 'easy', type: 'daily', status: 'available', timeLeft: '18h' },
-  { id: 'q2', name: 'EQ Challenge', description: 'Complete an EQ matching exercise', icon: '📊', xpReward: 80, difficulty: 'easy', type: 'daily', status: 'available', timeLeft: '18h' },
-  { id: 'q3', name: 'Sound Design Sprint', description: 'Design 3 new patches from scratch', icon: '🎹', xpReward: 200, difficulty: 'medium', type: 'daily', status: 'available', timeLeft: '18h' },
-  { id: 'q4', name: 'Master a Track', description: 'Bring a project through full mastering chain', icon: '💎', xpReward: 350, difficulty: 'hard', type: 'daily', status: 'available', timeLeft: '18h' },
-  { id: 'q5', name: 'Weekly Remix Challenge', description: 'Remix the featured stems of the week', icon: '🔄', xpReward: 800, difficulty: 'hard', type: 'weekly', status: 'available', timeLeft: '5d' },
-  { id: 'q6', name: 'Genre Explorer', description: 'Produce a track outside your comfort zone', icon: '🧭', xpReward: 500, difficulty: 'medium', type: 'weekly', status: 'available', timeLeft: '5d' },
-  { id: 'q7', name: 'Feedback Loop', description: 'Give detailed feedback on 3 community tracks', icon: '💬', xpReward: 300, difficulty: 'medium', type: 'weekly', status: 'available', timeLeft: '5d' },
-  { id: 'q8', name: 'Beatmaker Showdown', description: 'Create a beat in under 30 minutes using only stock plugins', icon: '⚡', xpReward: 600, difficulty: 'hard', type: 'challenge', status: 'available' },
-];
+const INITIAL_QUESTS: Quest[] = [];
 
-const INITIAL_LEADERBOARD: LeaderboardPlayer[] = [
-  { id: 'l1', name: 'Nova Synth', title: 'Waveform Deity', level: 22, xp: 68400, achievements: 41 },
-  { id: 'l2', name: 'BassQuake', title: 'Sub Commander', level: 19, xp: 52100, achievements: 36 },
-  { id: 'l3', name: 'Echo Chamber', title: 'Reverb Queen', level: 17, xp: 45200, achievements: 33 },
-  { id: 'l4', name: 'Alex Resonance', title: 'Beat Architect', level: 14, xp: 34820, achievements: 23, isCurrentUser: true },
-  { id: 'l5', name: 'Vinyl Ghost', title: 'Lo-Fi Spirit', level: 13, xp: 31500, achievements: 21 },
-  { id: 'l6', name: 'Phase Shift', title: 'Signal Rider', level: 12, xp: 28900, achievements: 19 },
-  { id: 'l7', name: 'Decay Rate', title: 'Envelope Shaper', level: 11, xp: 25100, achievements: 17 },
-  { id: 'l8', name: 'Clip Gain', title: 'Gain Stager', level: 10, xp: 22000, achievements: 15 },
-  { id: 'l9', name: 'Sibilance', title: 'De-Esser Pro', level: 9, xp: 18400, achievements: 12 },
-  { id: 'l10', name: 'White Noise', title: 'Noise Floor', level: 8, xp: 15200, achievements: 10 },
-];
+const INITIAL_LEADERBOARD: LeaderboardPlayer[] = [];
 
 const SKILL_TREES: Record<SkillBranch, { label: string; color: string; icon: typeof Music; nodes: SkillNode[] }> = {
   production: {
@@ -160,10 +119,10 @@ const SKILL_TREES: Record<SkillBranch, { label: string; color: string; icon: typ
     color: 'text-neon-purple',
     icon: Music,
     nodes: [
-      { id: 'p1', name: 'Beat Making', description: 'Fundamentals of rhythm and groove', level: 5, maxLevel: 5, xpCost: 0, unlocked: true },
-      { id: 'p2', name: 'Arrangement', description: 'Song structure and flow', level: 4, maxLevel: 5, xpCost: 200, unlocked: true, requires: 'p1' },
-      { id: 'p3', name: 'Sampling', description: 'Creative sample manipulation', level: 3, maxLevel: 5, xpCost: 300, unlocked: true, requires: 'p1' },
-      { id: 'p4', name: 'Vocal Production', description: 'Recording and processing vocals', level: 1, maxLevel: 5, xpCost: 400, unlocked: true, requires: 'p2' },
+      { id: 'p1', name: 'Beat Making', description: 'Fundamentals of rhythm and groove', level: 0, maxLevel: 5, xpCost: 0, unlocked: true },
+      { id: 'p2', name: 'Arrangement', description: 'Song structure and flow', level: 0, maxLevel: 5, xpCost: 200, unlocked: false, requires: 'p1' },
+      { id: 'p3', name: 'Sampling', description: 'Creative sample manipulation', level: 0, maxLevel: 5, xpCost: 300, unlocked: false, requires: 'p1' },
+      { id: 'p4', name: 'Vocal Production', description: 'Recording and processing vocals', level: 0, maxLevel: 5, xpCost: 400, unlocked: false, requires: 'p2' },
       { id: 'p5', name: 'Orchestration', description: 'Layering and instrumentation', level: 0, maxLevel: 5, xpCost: 500, unlocked: false, requires: 'p2' },
     ],
   },
@@ -172,9 +131,9 @@ const SKILL_TREES: Record<SkillBranch, { label: string; color: string; icon: typ
     color: 'text-neon-cyan',
     icon: BookOpen,
     nodes: [
-      { id: 't1', name: 'Scales & Modes', description: 'Musical scales and modal theory', level: 4, maxLevel: 5, xpCost: 0, unlocked: true },
-      { id: 't2', name: 'Harmony', description: 'Chord progressions and voice leading', level: 3, maxLevel: 5, xpCost: 250, unlocked: true, requires: 't1' },
-      { id: 't3', name: 'Ear Training', description: 'Interval and chord recognition', level: 2, maxLevel: 5, xpCost: 350, unlocked: true, requires: 't1' },
+      { id: 't1', name: 'Scales & Modes', description: 'Musical scales and modal theory', level: 0, maxLevel: 5, xpCost: 0, unlocked: true },
+      { id: 't2', name: 'Harmony', description: 'Chord progressions and voice leading', level: 0, maxLevel: 5, xpCost: 250, unlocked: false, requires: 't1' },
+      { id: 't3', name: 'Ear Training', description: 'Interval and chord recognition', level: 0, maxLevel: 5, xpCost: 350, unlocked: false, requires: 't1' },
       { id: 't4', name: 'Counterpoint', description: 'Melodic independence and interplay', level: 0, maxLevel: 5, xpCost: 450, unlocked: false, requires: 't2' },
       { id: 't5', name: 'Orchestral Theory', description: 'Advanced harmonic and timbral concepts', level: 0, maxLevel: 5, xpCost: 600, unlocked: false, requires: 't4' },
     ],
@@ -184,11 +143,11 @@ const SKILL_TREES: Record<SkillBranch, { label: string; color: string; icon: typ
     color: 'text-neon-green',
     icon: Cpu,
     nodes: [
-      { id: 'e1', name: 'EQ & Filtering', description: 'Spectral shaping and tone sculpting', level: 5, maxLevel: 5, xpCost: 0, unlocked: true },
-      { id: 'e2', name: 'Compression', description: 'Dynamic range control', level: 4, maxLevel: 5, xpCost: 200, unlocked: true, requires: 'e1' },
-      { id: 'e3', name: 'Spatial FX', description: 'Reverb, delay, and stereo imaging', level: 3, maxLevel: 5, xpCost: 300, unlocked: true, requires: 'e1' },
-      { id: 'e4', name: 'Mastering', description: 'Final polish and loudness optimization', level: 1, maxLevel: 5, xpCost: 500, unlocked: true, requires: 'e2' },
-      { id: 'e5', name: 'Synthesis', description: 'Subtractive, FM, wavetable, granular', level: 2, maxLevel: 5, xpCost: 400, unlocked: true, requires: 'e3' },
+      { id: 'e1', name: 'EQ & Filtering', description: 'Spectral shaping and tone sculpting', level: 0, maxLevel: 5, xpCost: 0, unlocked: true },
+      { id: 'e2', name: 'Compression', description: 'Dynamic range control', level: 0, maxLevel: 5, xpCost: 200, unlocked: false, requires: 'e1' },
+      { id: 'e3', name: 'Spatial FX', description: 'Reverb, delay, and stereo imaging', level: 0, maxLevel: 5, xpCost: 300, unlocked: false, requires: 'e1' },
+      { id: 'e4', name: 'Mastering', description: 'Final polish and loudness optimization', level: 0, maxLevel: 5, xpCost: 500, unlocked: false, requires: 'e2' },
+      { id: 'e5', name: 'Synthesis', description: 'Subtractive, FM, wavetable, granular', level: 0, maxLevel: 5, xpCost: 400, unlocked: false, requires: 'e3' },
     ],
   },
   performance: {
@@ -196,9 +155,9 @@ const SKILL_TREES: Record<SkillBranch, { label: string; color: string; icon: typ
     color: 'text-neon-pink',
     icon: Headphones,
     nodes: [
-      { id: 'r1', name: 'Live Sets', description: 'Building and performing live sets', level: 3, maxLevel: 5, xpCost: 0, unlocked: true },
-      { id: 'r2', name: 'DJ Mixing', description: 'Beatmatching, transitions, and reading a crowd', level: 2, maxLevel: 5, xpCost: 250, unlocked: true, requires: 'r1' },
-      { id: 'r3', name: 'Improvisation', description: 'Real-time creative decision-making', level: 1, maxLevel: 5, xpCost: 350, unlocked: true, requires: 'r1' },
+      { id: 'r1', name: 'Live Sets', description: 'Building and performing live sets', level: 0, maxLevel: 5, xpCost: 0, unlocked: true },
+      { id: 'r2', name: 'DJ Mixing', description: 'Beatmatching, transitions, and reading a crowd', level: 0, maxLevel: 5, xpCost: 250, unlocked: false, requires: 'r1' },
+      { id: 'r3', name: 'Improvisation', description: 'Real-time creative decision-making', level: 0, maxLevel: 5, xpCost: 350, unlocked: false, requires: 'r1' },
       { id: 'r4', name: 'Controllerism', description: 'Advanced MIDI controller techniques', level: 0, maxLevel: 5, xpCost: 450, unlocked: false, requires: 'r2' },
       { id: 'r5', name: 'Stage Presence', description: 'Audience engagement and showmanship', level: 0, maxLevel: 5, xpCost: 500, unlocked: false, requires: 'r3' },
     ],

@@ -80,24 +80,11 @@ const COLORS = [
   { name: 'Yellow', value: '#eab308' },
 ];
 
-const INITIAL_CATEGORIES: CalendarCategory[] = [
-  { id: '1', name: 'Release Dates',   color: '#22c55e', visible: true, icon: 'release' },
-  { id: '2', name: 'Studio Sessions', color: '#06b6d4', visible: true, icon: 'session' },
-  { id: '3', name: 'Deadlines',       color: '#ef4444', visible: true, icon: 'deadline' },
-  { id: '4', name: 'Collaboration',   color: '#8b5cf6', visible: true, icon: 'collab' },
-  { id: '5', name: 'Marketing',       color: '#f97316', visible: true, icon: 'marketing' },
-  { id: '6', name: 'Learning',        color: '#3b82f6', visible: true, icon: 'learning' },
-];
+const INITIAL_CATEGORIES: CalendarCategory[] = [];
 
 const PLATFORMS = ['Spotify', 'Apple Music', 'SoundCloud', 'YouTube Music', 'Tidal', 'Bandcamp', 'Amazon Music'];
 
-const INITIAL_PROJECTS = [
-  'Night Vibes EP',
-  'Summer Beat Pack',
-  'Weekly Series',
-  'Collab Tape Vol. 2',
-  'Ambient Sketches',
-];
+const INITIAL_PROJECTS: string[] = [];
 
 const REMINDER_OPTIONS = [
   { label: '1 week before',  time: 1, unit: 'weeks' as const },

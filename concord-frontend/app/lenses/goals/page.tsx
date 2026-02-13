@@ -37,7 +37,7 @@ interface SubTask {
   done: boolean;
 }
 
-interface DemoGoal {
+interface Goal {
   id: string;
   title: string;
   description: string;
@@ -85,9 +85,9 @@ interface Achievement {
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
 }
 
-// --------------- Demo Data ---------------
+// --------------- Seed Data (empty — populated from backend) ---------------
 
-const SEED_GOALS: DemoGoal[] = [];
+const SEED_GOALS: Goal[] = [];
 
 const SEED_CHALLENGES: Challenge[] = [];
 
@@ -240,11 +240,11 @@ export default function GoalsLensPage() {
   // Create goal form state
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [newCategory, setNewCategory] = useState<DemoGoal['category']>('Production');
+  const [newCategory, setNewCategory] = useState<Goal['category']>('Production');
   const [newTargetDate, setNewTargetDate] = useState('');
   const [newSubtasks, setNewSubtasks] = useState('');
   const [newXp, setNewXp] = useState(200);
-  const [newPriority, setNewPriority] = useState<DemoGoal['priority']>('medium');
+  const [newPriority, setNewPriority] = useState<Goal['priority']>('medium');
 
   const { isError: isError, error: error, refetch: refetch, items: _goalItems, create: _createGoal, update: _updateGoal } = useLensData('goals', 'goal', {
     seed: SEED_GOALS.map(g => ({ title: g.title, data: g as unknown as Record<string, unknown> })),
@@ -258,8 +258,8 @@ export default function GoalsLensPage() {
   const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
   const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
 
-  // Demo state
-  const [goals, setGoals] = useState<DemoGoal[]>(SEED_GOALS);
+  // State — initialized empty, populated from backend via useLensData
+  const [goals, setGoals] = useState<Goal[]>(SEED_GOALS);
   const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
   const [milestones] = useState<Milestone[]>(SEED_MILESTONES);
   const [achievements] = useState<Achievement[]>(SEED_ACHIEVEMENTS);
@@ -282,7 +282,7 @@ export default function GoalsLensPage() {
 
   // Computed stats
   const totalXp = useMemo(
-    () => goals.filter((g) => g.status === 'completed').reduce((s, g) => s + g.xp, 0) + 1250,
+    () => goals.filter((g) => g.status === 'completed').reduce((s, g) => s + g.xp, 0),
     [goals]
   );
   const level = getLevel(totalXp);
@@ -297,7 +297,7 @@ export default function GoalsLensPage() {
     return active.reduce((s, g) => s + g.progress, 0) / active.length;
   }, [goals]);
 
-  const streakDays = 14;
+  const streakDays = 0;
 
   const filteredGoals = useMemo(() => {
     if (goalFilter === 'All') return goals;
@@ -341,7 +341,7 @@ export default function GoalsLensPage() {
       .split('\n')
       .filter(Boolean)
       .map((label, i) => ({ id: `new-${Date.now()}-${i}`, label: label.trim(), done: false }));
-    const newGoal: DemoGoal = {
+    const newGoal: Goal = {
       id: `g-${Date.now()}`,
       title: newTitle,
       description: newDescription,
@@ -481,10 +481,10 @@ export default function GoalsLensPage() {
               <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Goal title..." className="input-lattice w-full" />
               <textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Describe your goal and what success looks like..." className="input-lattice w-full h-16 resize-none" />
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as DemoGoal['category'])} className="input-lattice">
+                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as Goal['category'])} className="input-lattice">
                   {['Production', 'Mixing', 'Release', 'Learning', 'Collaboration'].map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as DemoGoal['priority'])} className="input-lattice">
+                <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as Goal['priority'])} className="input-lattice">
                   <option value="low">Low Priority</option>
                   <option value="medium">Medium Priority</option>
                   <option value="high">High Priority</option>

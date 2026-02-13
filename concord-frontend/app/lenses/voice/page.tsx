@@ -95,52 +95,7 @@ const PRESET_CONFIGS: Record<ProcessingPreset, Record<string, { enabled: boolean
 const generateWaveform = (count: number): number[] =>
   Array.from({ length: count }, () => Math.random() * 0.7 + 0.15);
 
-const INITIAL_TAKES: Take[] = [
-  {
-    id: 'take-1',
-    number: 1,
-    name: 'Take 1',
-    duration: 47,
-    timestamp: new Date(Date.now() - 900000),
-    starred: false,
-    isBest: false,
-    waveformHeights: generateWaveform(16),
-    transcript: 'This is the first take of the recording session. Testing one two three.',
-  },
-  {
-    id: 'take-2',
-    number: 2,
-    name: 'Take 2',
-    duration: 63,
-    timestamp: new Date(Date.now() - 600000),
-    starred: true,
-    isBest: true,
-    waveformHeights: generateWaveform(16),
-    transcript: 'Second take with improved delivery. The knowledge lattice enables cognitive enhancement through structured data.',
-  },
-  {
-    id: 'take-3',
-    number: 3,
-    name: 'Take 3',
-    duration: 35,
-    timestamp: new Date(Date.now() - 300000),
-    starred: false,
-    isBest: false,
-    waveformHeights: generateWaveform(16),
-    transcript: 'Third attempt. Concord cognitive engine processes information in real time.',
-  },
-  {
-    id: 'take-4',
-    number: 4,
-    name: 'Pickup - Intro',
-    duration: 22,
-    timestamp: new Date(Date.now() - 120000),
-    starred: true,
-    isBest: false,
-    waveformHeights: generateWaveform(16),
-    transcript: null,
-  },
-];
+const INITIAL_TAKES: Take[] = [];
 
 const INITIAL_EFFECTS: EffectNode[] = [
   { id: 'noise-gate', name: 'Noise Gate', enabled: false, paramLabel: 'Threshold', paramValue: -40, paramMin: -80, paramMax: 0, paramUnit: 'dB' },
@@ -152,9 +107,6 @@ const INITIAL_EFFECTS: EffectNode[] = [
 
 const INITIAL_INPUTS = [
   { id: 'default', label: 'Built-in Microphone' },
-  { id: 'usb-1', label: 'Blue Yeti USB' },
-  { id: 'interface-1', label: 'Focusrite Scarlett 2i2 - Input 1' },
-  { id: 'interface-2', label: 'Focusrite Scarlett 2i2 - Input 2' },
 ];
 
 export default function VoiceLensPage() {
@@ -172,7 +124,7 @@ export default function VoiceLensPage() {
   const { isError: isError, error: error, refetch: refetch, items: _takeItems, create: _createTake } = useLensData<Take>('voice', 'take', {
     seed: INITIAL_TAKES.map(t => ({ title: t.name, data: t as unknown as Record<string, unknown> })),
   });
-  const [activeTakeId, setActiveTakeId] = useState<string | null>('take-2');
+  const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 

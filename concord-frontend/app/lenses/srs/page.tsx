@@ -66,27 +66,10 @@ function _sm2(item: SRSItem, quality: number): { interval: number; easiness: num
   return { interval, easiness, repetitions };
 }
 
-// --- Demo Data ---
-const INITIAL_DECKS: Deck[] = [
-  { id: 'music-theory', name: 'Music Theory', description: 'Scales, chords, intervals, and harmonic analysis', color: '#06b6d4', cardCount: 48, dueCount: 12, newCount: 5, learnCount: 3 },
-  { id: 'production', name: 'Production Techniques', description: 'DAW workflows, mixing, mastering, sound design', color: '#a855f7', cardCount: 36, dueCount: 8, newCount: 3, learnCount: 2 },
-  { id: 'audio-eng', name: 'Audio Engineering', description: 'Signal flow, EQ, compression, acoustics', color: '#f97316', cardCount: 24, dueCount: 5, newCount: 4, learnCount: 1 },
-  { id: 'history', name: 'Music History', description: 'Genres, movements, influential artists, cultural impact', color: '#22c55e', cardCount: 30, dueCount: 7, newCount: 2, learnCount: 4 },
-  { id: 'synthesis', name: 'Synthesis & Sound Design', description: 'Oscillators, filters, modulation, FM/AM/wavetable', color: '#ec4899', cardCount: 20, dueCount: 4, newCount: 6, learnCount: 0 },
-];
+// --- Initial state — populated from backend ---
+const INITIAL_DECKS: Deck[] = [];
 
-const INITIAL_CARDS: SRSItem[] = [
-  { dtuId: 'srs-001', front: 'What is the circle of fifths?', back: 'A visual representation of the relationships among the 12 tones of the chromatic scale. Moving clockwise adds a sharp; counterclockwise adds a flat. Adjacent keys differ by one accidental.', deck: 'music-theory', tags: ['harmony', 'fundamentals'], easiness: 2.5, repetitions: 3, interval: 15, streak: 3, lapses: 0, lastReview: '2026-02-05', nextReview: '2026-02-07' },
-  { dtuId: 'srs-002', front: 'What is sidechain compression?', back: 'A technique where the compressor on one track is triggered by the signal of another track. Commonly used to duck bass/pads under the kick drum for a pumping effect.', deck: 'production', tags: ['mixing', 'compression'], easiness: 2.3, repetitions: 2, interval: 6, streak: 2, lapses: 1, lastReview: '2026-02-01', nextReview: '2026-02-07' },
-  { dtuId: 'srs-003', front: 'Explain the Nyquist theorem.', back: 'A signal must be sampled at least twice its highest frequency to be accurately reconstructed. CD audio (44.1kHz) can reproduce frequencies up to 22.05kHz, covering the full human hearing range.', deck: 'audio-eng', tags: ['digital-audio', 'sampling'], easiness: 2.6, repetitions: 4, interval: 20, streak: 4, lapses: 0, lastReview: '2026-01-18', nextReview: '2026-02-07' },
-  { dtuId: 'srs-004', front: 'What is a diminished 7th chord?', back: 'A four-note chord built entirely from minor thirds (3 semitones each). Every inversion is equidistant. There are only 3 unique dim7 chords. Formula: 1-b3-b5-bb7.', deck: 'music-theory', tags: ['chords', 'harmony'], easiness: 2.1, repetitions: 1, interval: 1, streak: 0, lapses: 2, lastReview: '2026-02-06', nextReview: '2026-02-07' },
-  { dtuId: 'srs-005', front: 'What is FM synthesis?', back: 'Frequency Modulation synthesis uses one oscillator (modulator) to modulate the frequency of another (carrier). Creates complex, evolving timbres. Popularized by the Yamaha DX7 (1983).', deck: 'synthesis', tags: ['synthesis', 'sound-design'], easiness: 2.5, repetitions: 2, interval: 10, streak: 2, lapses: 0, lastReview: '2026-01-28', nextReview: '2026-02-07' },
-  { dtuId: 'srs-006', front: 'What are the 3 types of minor scales?', back: 'Natural minor (Aeolian mode): W-H-W-W-H-W-W\nHarmonic minor: raises 7th degree (augmented 2nd between 6-7)\nMelodic minor: raises 6th & 7th ascending, natural descending', deck: 'music-theory', tags: ['scales', 'fundamentals'], easiness: 2.4, repetitions: 5, interval: 30, streak: 5, lapses: 1, lastReview: '2026-01-08', nextReview: '2026-02-07' },
-  { dtuId: 'srs-007', front: 'What is parallel compression?', back: 'Also called "New York compression." Blend a heavily compressed signal with the dry signal. Preserves transients and dynamics while adding body and sustain. Common on drums and vocals.', deck: 'production', tags: ['mixing', 'compression'], easiness: 2.5, repetitions: 3, interval: 12, streak: 3, lapses: 0, lastReview: '2026-01-26', nextReview: '2026-02-07' },
-  { dtuId: 'srs-008', front: 'Who pioneered musique concrète?', back: 'Pierre Schaeffer in 1948 at RTF Paris. Used recorded sounds (not synthesized) as raw material, manipulated via tape techniques (splicing, speed change, reversal). Foundational to electronic music and sampling.', deck: 'history', tags: ['electronic', 'pioneers'], easiness: 2.5, repetitions: 1, interval: 6, streak: 1, lapses: 0, lastReview: '2026-02-01', nextReview: '2026-02-07' },
-  { dtuId: 'srs-009', front: 'What is a wavetable synthesizer?', back: 'Stores multiple single-cycle waveforms in a table. Playback position sweeps through the table to create evolving timbres. Serum, Vital, and Massive X are popular wavetable synths.', deck: 'synthesis', tags: ['synthesis', 'sound-design'], easiness: 2.5, repetitions: 0, interval: 0, streak: 0, lapses: 0 },
-  { dtuId: 'srs-010', front: 'What is the Fletcher-Munson curve?', back: 'Equal-loudness contours showing that human hearing sensitivity varies by frequency. We are most sensitive to 2-5kHz and less sensitive to low and very high frequencies at lower volumes. Important for mixing at consistent levels.', deck: 'audio-eng', tags: ['psychoacoustics', 'mixing'], easiness: 2.5, repetitions: 0, interval: 0, streak: 0, lapses: 0 },
-];
+const INITIAL_CARDS: SRSItem[] = [];
 
 // --- Stat helpers ---
 function getRetentionRate(cards: SRSItem[]): number {

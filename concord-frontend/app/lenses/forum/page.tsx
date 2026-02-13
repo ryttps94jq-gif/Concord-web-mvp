@@ -125,152 +125,19 @@ const FLAIRS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Demo data
+// Initial state — populated from backend
 // ---------------------------------------------------------------------------
 
-const INITIAL_USERS: Record<string, UserProfile> = {
-  beatsmith: { username: 'beatsmith', displayName: 'BeatSmith', avatar: 'BS', karma: 14820, joinedAt: '2024-03-15', bio: 'Producer / Sound Designer. Ableton + Serum enthusiast.', postCount: 47, commentCount: 312 },
-  synthwave99: { username: 'synthwave99', displayName: 'SynthWave99', avatar: 'SW', karma: 9340, joinedAt: '2024-06-01', bio: 'Retro synth lover. Juno-106 is king.', postCount: 28, commentCount: 189 },
-  voxqueen: { username: 'voxqueen', displayName: 'VoxQueen', avatar: 'VQ', karma: 22100, joinedAt: '2023-11-20', bio: 'Vocalist & vocal producer. Melodyne wizard.', postCount: 63, commentCount: 540 },
-  bassdrop: { username: 'bassdrop', displayName: 'BassDrop', avatar: 'BD', karma: 7650, joinedAt: '2024-09-10', bio: 'Bass music producer. Sub frequencies are life.', postCount: 19, commentCount: 97 },
-  loficharlie: { username: 'loficharlie', displayName: 'LofiCharlie', avatar: 'LC', karma: 5200, joinedAt: '2025-01-05', bio: 'Lo-fi beats and vinyl crackle.', postCount: 12, commentCount: 68 },
-  mixmaster_t: { username: 'mixmaster_t', displayName: 'MixMaster T', avatar: 'MT', karma: 31400, joinedAt: '2023-08-12', bio: 'Mixing & mastering engineer. 15+ years in the game.', postCount: 85, commentCount: 720 },
-  drumcode_x: { username: 'drumcode_x', displayName: 'DrumCode_X', avatar: 'DX', karma: 11200, joinedAt: '2024-04-22', bio: 'Techno producer. Analog drum machines only.', postCount: 34, commentCount: 201 },
-  melodicmind: { username: 'melodicmind', displayName: 'MelodicMind', avatar: 'MM', karma: 8900, joinedAt: '2024-07-18', bio: 'Songwriter and melodic producer. Keys player.', postCount: 22, commentCount: 155 },
-};
+const INITIAL_USERS: Record<string, UserProfile> = {};
 
-const INITIAL_COMMUNITIES: Community[] = [
-  { id: 'production', name: 'Production', description: 'General music production discussion, tips, and workflow talk.', memberCount: 24500, icon: '\uD83C\uDFDB\uFE0F', banner: 'from-cyan-600 to-blue-700', joined: true, rules: ['Be constructive', 'No self-promo spam', 'Tag your DAW'], createdAt: '2023-06-01', moderators: ['mixmaster_t', 'beatsmith'] },
-  { id: 'mixing', name: 'Mixing & Mastering', description: 'EQ, compression, spatial effects, and loudness. Get your mix right.', memberCount: 18200, icon: '\uD83C\uDFA7', banner: 'from-purple-600 to-indigo-700', joined: true, rules: ['Share settings when asking for help', 'Use audio examples'], createdAt: '2023-07-15', moderators: ['mixmaster_t'] },
-  { id: 'synths', name: 'Synthesizers', description: 'Hardware and software synths, sound design, and patch sharing.', memberCount: 15800, icon: '\uD83C\uDFB9', banner: 'from-pink-600 to-purple-700', joined: false, rules: ['Specify hardware vs software', 'Share presets freely'], createdAt: '2023-08-20', moderators: ['synthwave99'] },
-  { id: 'vocals', name: 'Vocals & Recording', description: 'Recording techniques, vocal processing, microphone reviews.', memberCount: 12400, icon: '\uD83C\uDFA4', banner: 'from-red-600 to-pink-700', joined: true, rules: ['Specify your signal chain', 'Be respectful of all skill levels'], createdAt: '2023-09-10', moderators: ['voxqueen'] },
-  { id: 'beats', name: 'Beat Making', description: 'Hip-hop, trap, boom bap, and everything in between.', memberCount: 21000, icon: '\uD83E\uDD41', banner: 'from-orange-600 to-red-700', joined: false, rules: ['Credit your samples', 'Feedback threads welcome'], createdAt: '2023-10-01', moderators: ['beatsmith', 'bassdrop'] },
-  { id: 'electronic', name: 'Electronic Music', description: 'House, techno, DnB, ambient, IDM, and experimental electronic.', memberCount: 19300, icon: '\u26A1', banner: 'from-green-600 to-teal-700', joined: true, rules: ['Genre-tag your posts', 'No gatekeeping'], createdAt: '2023-11-15', moderators: ['drumcode_x'] },
-  { id: 'gear', name: 'Gear & Reviews', description: 'Hardware reviews, studio setup photos, and gear recommendations.', memberCount: 16700, icon: '\uD83D\uDD27', banner: 'from-yellow-600 to-orange-700', joined: false, rules: ['Disclose affiliations', 'Include price context'], createdAt: '2024-01-05', moderators: ['mixmaster_t'] },
-  { id: 'lofi', name: 'Lo-Fi & Chill', description: 'Lo-fi hip hop, chill beats, jazzy samples, and tape saturation.', memberCount: 13600, icon: '\u2615', banner: 'from-amber-700 to-stone-700', joined: true, rules: ['Keep it chill', 'Vinyl crackle is not a personality'], createdAt: '2024-02-20', moderators: ['loficharlie'] },
-];
+const INITIAL_COMMUNITIES: Community[] = [];
 
 function mkComment(id: string, author: string, content: string, score: number, replies: Comment[] = []): Comment {
   const hrs = Math.floor(Math.random() * 48) + 1;
   return { id, author: INITIAL_USERS[author], content, score, userVote: 0, createdAt: new Date(Date.now() - hrs * 3600000).toISOString(), awards: score > 80 ? ['\uD83D\uDD25'] : [], replies, collapsed: false };
 }
 
-const INITIAL_POSTS: Post[] = [
-  {
-    id: 'p1', title: 'Finally nailed that wide stereo image on my mix - here is my approach',
-    content: 'After months of muddy mixes, I discovered that the key is NOT to widen everything. I started by keeping kick, bass, and lead vocal dead center in mono. Then I used Haas effect (10-25ms delay) on doubled guitars, with a high-pass at 200Hz on the widened signal. For pads, mid-side EQ to cut lows from the side channel made a huge difference. The mix suddenly had clarity AND width.\n\nMy signal chain for the stereo bus:\n1. Subtle glue compression (2-3dB GR)\n2. Mid-side EQ - slight low cut on sides, gentle high shelf boost on sides\n3. Stereo imager only on the 2-8kHz range\n4. Limiter at -1dB true peak\n\nAnyone else have tips for stereo imaging without losing mono compatibility?',
-    author: INITIAL_USERS.mixmaster_t, community: 'mixing', score: 847, userVote: 0, commentCount: 24, createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), tags: ['mixing', 'stereo', 'tips'], flair: FLAIRS[1], pinned: true, locked: false, removed: false, awards: ['\uD83D\uDD25', '\uD83C\uDFC6', '\uD83C\uDFA7'], saved: false, views: 3420,
-    comments: [
-      mkComment('c1', 'beatsmith', 'This is gold. The mid-side EQ tip alone changed my mixes. I was boosting sides across the whole spectrum like a fool.', 124, [
-        mkComment('c1r1', 'mixmaster_t', 'Glad it helped! Yeah, low-end in the sides is the #1 killer of punch in a mix.', 67, [
-          mkComment('c1r1r1', 'bassdrop', 'Can confirm. My sub bass was fighting the side information for months before I figured this out.', 31),
-        ]),
-      ]),
-      mkComment('c2', 'voxqueen', 'For vocals I add a very subtle stereo widener on the reverb return only, never on the dry vocal. Keeps it intimate but spacious.', 98, [
-        mkComment('c2r1', 'loficharlie', 'Smart. I might try that on my lo-fi vocal chains.', 15),
-      ]),
-      mkComment('c3', 'synthwave99', 'Haas effect is so underrated compared to just cranking a stereo knob. Great breakdown.', 56),
-    ],
-  },
-  {
-    id: 'p2', title: 'Serum vs Vital for sound design in 2026 - which are you using?',
-    content: 'I have been a Serum user since 2018, but Vital has matured so much that I am starting to question my loyalty. The spectral warping in Vital 2.0 is insane, and it is free/affordable.\n\nThat said, Serum\'s wavetable editor and the sheer volume of presets and tutorials available still gives it an edge for learning.\n\nWhat is everyone\'s daily driver for sound design these days?',
-    author: INITIAL_USERS.synthwave99, community: 'synths', score: 532, userVote: 0, commentCount: 18, createdAt: new Date(Date.now() - 7 * 3600000).toISOString(), tags: ['synths', 'serum', 'vital', 'sound-design'], flair: FLAIRS[0], pinned: false, locked: false, removed: false, awards: ['\uD83C\uDFA7'], saved: false, views: 2180,
-    comments: [
-      mkComment('c4', 'beatsmith', 'Vital for everything now. The modulation system is just more intuitive for me. Plus the CPU usage is lower in my tests.', 87, [
-        mkComment('c4r1', 'drumcode_x', 'Vital crashes less for me too. Serum has been rock solid though to be fair.', 23),
-      ]),
-      mkComment('c5', 'melodicmind', 'I use both honestly. Serum for basses and leads, Vital for pads and textures. Different flavors.', 65),
-    ],
-  },
-  {
-    id: 'p3', title: 'How I built a vocal chain that works for ANY genre',
-    content: 'After recording and mixing vocals across pop, hip-hop, rock, and electronic for 5 years, I settled on a \"universal\" vocal chain that I tweak per genre:\n\n1. Gain staging to -18dBFS RMS\n2. Subtractive EQ (high-pass at 80-120Hz, notch out resonances)\n3. De-esser (dynamic, 4-8kHz range)\n4. Fast compressor (1176-style, 4:1, fast attack for control)\n5. Slow compressor (LA-2A style, gentle 2-3dB for body)\n6. Additive EQ (air shelf at 10kHz, presence at 3-5kHz)\n7. Saturation (tape-style, subtle)\n8. Reverb/delay sends\n\nThe order matters more than the specific plugins. Fight me.',
-    author: INITIAL_USERS.voxqueen, community: 'vocals', score: 1243, userVote: 0, commentCount: 31, createdAt: new Date(Date.now() - 12 * 3600000).toISOString(), tags: ['vocals', 'mixing', 'chain', 'tutorial'], flair: FLAIRS[1], pinned: false, locked: false, removed: false, awards: ['\uD83D\uDD25', '\uD83D\uDD25', '\uD83C\uDFC6', '\uD83D\uDCBF'], saved: true, views: 6840,
-    comments: [
-      mkComment('c6', 'mixmaster_t', 'Serial compression with two different characters is the real pro move here. Most beginners just slam one compressor.', 156, [
-        mkComment('c6r1', 'voxqueen', 'Exactly. The 1176 catches peaks, the LA-2A smooths the body. Together they sound natural.', 89),
-      ]),
-      mkComment('c7', 'loficharlie', 'For lo-fi I skip the de-esser and crank the saturation. But this is a solid starting point for sure.', 42),
-    ],
-  },
-  {
-    id: 'p4', title: 'Just got the Roland TR-8S - first impressions from a software-only producer',
-    content: 'After 6 years of only using software drums (Battery, Addictive Drums, samples), I finally bought a hardware drum machine. The TR-8S was on sale and I pulled the trigger.\n\nFirst impressions:\n- The feel of tweaking knobs in real time is incomparable to clicking a mouse\n- The built-in effects (scatter, reverb, delay) are actually usable in a mix\n- Sequencing is faster once you learn the workflow\n- It forced me to commit to sounds instead of endlessly tweaking\n\nDownsides:\n- Menu diving for some functions is annoying\n- Sample import workflow is clunky\n- It is one more thing on my desk\n\nOverall: 9/10 would recommend to any electronic producer wanting to break out of the screen.',
-    author: INITIAL_USERS.drumcode_x, community: 'gear', score: 421, userVote: 0, commentCount: 15, createdAt: new Date(Date.now() - 18 * 3600000).toISOString(), tags: ['gear', 'drums', 'roland', 'hardware'], flair: FLAIRS[2], pinned: false, locked: false, removed: false, awards: ['\uD83C\uDFA7'], saved: false, views: 1870,
-    comments: [
-      mkComment('c8', 'synthwave99', 'The scatter effect alone is worth the price. It is like a performable glitch machine.', 55, [
-        mkComment('c8r1', 'drumcode_x', 'Right? I have been using it live and it is so much more expressive than automation lanes.', 28),
-      ]),
-      mkComment('c9', 'beatsmith', 'I switched from the TR-8S to a Digitakt. More flexible sampling but the Roland sounds are unbeatable for classic drum machine tones.', 37),
-    ],
-  },
-  {
-    id: 'p5', title: 'Unpopular opinion: most producers over-compress their beats',
-    content: 'I hear so many beats where every element is slammed to the limiter and the master is a sausage waveform. Where is the dynamics? Where is the groove?\n\nI started leaving 6-8dB of dynamic range in my beats and suddenly vocalists love working with them. The beat breathes, the vocal sits naturally, and the final master still gets loud enough.\n\nStop trying to win the loudness war on your 2-track bounce. Leave room for the mix engineer.',
-    author: INITIAL_USERS.bassdrop, community: 'beats', score: 673, userVote: 0, commentCount: 22, createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), tags: ['beats', 'compression', 'dynamics', 'hot-take'], flair: FLAIRS[0], pinned: false, locked: false, removed: false, awards: ['\uD83D\uDD25', '\uD83C\uDFA4'], saved: false, views: 2950,
-    comments: [
-      mkComment('c10', 'mixmaster_t', 'THANK YOU. As a mix engineer I cannot tell you how many beats I receive that are already clipping. Leave me headroom, please.', 201, [
-        mkComment('c10r1', 'bassdrop', 'Exactly my point. The loudness can happen at mastering. Not on every individual track.', 78),
-        mkComment('c10r2', 'beatsmith', 'Counterpoint: for certain trap styles the sausage IS the aesthetic. It is genre-dependent.', 45),
-      ]),
-      mkComment('c11', 'voxqueen', 'As a vocalist - yes. I need space to sit in the mix. Over-compressed beats make my job 10x harder.', 134),
-    ],
-  },
-  {
-    id: 'p6', title: 'Made a free lo-fi sample pack - 200+ one-shots and loops',
-    content: 'Hey everyone, I spent the last month recording vinyl crackle, cassette tape noise, room tones, and processing a bunch of jazz piano and guitar through real tape machines.\n\nThe pack includes:\n- 80 vinyl texture loops (various intensities)\n- 40 tape-saturated piano chords\n- 30 processed guitar licks\n- 25 ambient room tone layers\n- 30 foley percussion hits (tapping, brushes, shakers)\n\nAll royalty-free, 24-bit WAV. Download link in the comments.\n\nWould love to hear what you make with these!',
-    author: INITIAL_USERS.loficharlie, community: 'lofi', score: 1567, userVote: 0, commentCount: 45, createdAt: new Date(Date.now() - 36 * 3600000).toISOString(), tags: ['lofi', 'samples', 'free', 'resource'], flair: FLAIRS[2], pinned: false, locked: false, removed: false, awards: ['\uD83D\uDD25', '\uD83C\uDFC6', '\uD83C\uDFC6', '\uD83D\uDCBF', '\uD83C\uDFA7'], saved: true, views: 9200,
-    comments: [
-      mkComment('c12', 'melodicmind', 'These vinyl textures are incredible. Used three of them in a track already. Thank you for sharing!', 89, [
-        mkComment('c12r1', 'loficharlie', 'That is awesome, would love to hear the track when it is done!', 34),
-      ]),
-      mkComment('c13', 'beatsmith', 'The tape piano chords are chef\'s kiss. Perfect amount of warmth and wobble.', 76),
-    ],
-  },
-  {
-    id: 'p7', title: 'Guide: Setting up sidechain compression properly (not just the "pumping" effect)',
-    content: 'Sidechain compression is one of the most misunderstood tools. Most tutorials only show you the EDM pumping effect, but proper sidechaining is about frequency management.\n\nTechniques I use daily:\n\n1. Kick vs Bass: Sidechain the bass to the kick with a fast attack and medium release. Goal: 3-6dB reduction, barely audible but cleans up the low end.\n\n2. Vocal vs instruments: Sidechain pads and guitars to the vocal. Subtle 1-2dB dip. The vocal cuts through without turning it up.\n\n3. Multiband sidechain: Only duck specific frequency ranges. Duck 60-200Hz of synths when kick hits, leave everything else untouched.\n\n4. Ghost sidechain: Use a duplicate kick track (muted to output) as the trigger. This lets you shape the sidechain envelope independently from the actual kick sound.\n\nStop making everything pump. Start making everything fit.',
-    author: INITIAL_USERS.mixmaster_t, community: 'production', score: 956, userVote: 0, commentCount: 28, createdAt: new Date(Date.now() - 48 * 3600000).toISOString(), tags: ['production', 'sidechain', 'compression', 'tutorial'], flair: FLAIRS[1], pinned: false, locked: false, removed: false, awards: ['\uD83D\uDD25', '\uD83C\uDFC6'], saved: false, views: 4100,
-    comments: [
-      mkComment('c14', 'drumcode_x', 'Ghost sidechain changed my life. Being able to shape the duck curve without affecting the kick sound is incredible.', 112, [
-        mkComment('c14r1', 'mixmaster_t', 'It is a game changer for techno especially where you want the kick to trigger the duck but the actual kick might have a long tail.', 58),
-      ]),
-      mkComment('c15', 'bassdrop', 'Multiband sidechain is underrated. I use it on every bass-heavy mix now. Trackspacer plugin makes it easy.', 73),
-    ],
-  },
-  {
-    id: 'p8', title: 'What key and BPM combos work best for different genres?',
-    content: 'I have been building a database of popular tracks and analyzing their key/BPM combos. Here are some patterns I found:\n\n- Lo-fi hip hop: Eb minor / F minor, 70-85 BPM\n- Trap: C minor / D minor, 130-160 BPM (half-time feel)\n- House: G minor / A minor, 120-128 BPM\n- DnB: E minor / A minor, 170-178 BPM\n- Pop: C major / G major, 100-120 BPM\n- Ambient: Any key, 60-90 BPM or no fixed tempo\n\nObviously there are exceptions everywhere, but if you are starting a track and want it to "feel" like a genre, these are solid starting points.\n\nWhat patterns have you all noticed?',
-    author: INITIAL_USERS.melodicmind, community: 'production', score: 388, userVote: 0, commentCount: 19, createdAt: new Date(Date.now() - 60 * 3600000).toISOString(), tags: ['production', 'music-theory', 'keys', 'bpm'], flair: FLAIRS[0], pinned: false, locked: false, removed: false, awards: ['\uD83C\uDFA7'], saved: false, views: 1650,
-    comments: [
-      mkComment('c16', 'synthwave99', 'Synthwave is almost always F minor or A minor at 80-118 BPM. The minor key is essential for that nostalgic vibe.', 44, [
-        mkComment('c16r1', 'melodicmind', 'Great addition, I should have included synthwave. F minor at 100 BPM is the sweet spot.', 21),
-      ]),
-      mkComment('c17', 'beatsmith', 'Trap in D minor at 140 BPM is basically the default template for every type beat on YouTube.', 58),
-    ],
-  },
-  {
-    id: 'p9', title: 'Anyone else feel like AI-generated music is missing "soul"?',
-    content: 'I have been experimenting with various AI music generation tools and while the output is technically impressive, something is always missing. The music sounds correct but not compelling.\n\nI think the difference is intention. When a human producer makes a choice - to leave a note slightly off-grid, to let a reverb tail ring out too long, to have a slightly imperfect vocal take - those "flaws" are what make music feel alive.\n\nAI tools are great for generating ideas and starting points, but I do not think they will replace the human touch in arrangement, mixing decisions, and emotional performance.\n\nWhat is your take? Am I being a luddite or is this a real limitation?',
-    author: INITIAL_USERS.beatsmith, community: 'production', score: 712, userVote: 0, commentCount: 35, createdAt: new Date(Date.now() - 72 * 3600000).toISOString(), tags: ['production', 'ai', 'discussion', 'philosophy'], flair: FLAIRS[0], pinned: false, locked: false, removed: false, awards: ['\uD83D\uDD25'], saved: false, views: 3800,
-    comments: [
-      mkComment('c18', 'voxqueen', 'As a vocalist, the AI vocals creep me out. They are technically perfect but they do not breathe, they do not hesitate, they do not feel. That IS the soul.', 189, [
-        mkComment('c18r1', 'loficharlie', 'Imperfection is the whole point of lo-fi. AI will never understand that intentional imperfection is a feature, not a bug.', 76),
-      ]),
-      mkComment('c19', 'drumcode_x', 'I use AI for generating initial chord progressions and then heavily modify. It is a tool, not a replacement. Like how we use samples.', 94),
-    ],
-  },
-  {
-    id: 'p10', title: 'New community: c/electronic is live - join us!',
-    content: 'We just launched c/electronic for all things house, techno, DnB, ambient, IDM, breakbeat, and experimental electronic music.\n\nWhether you produce, DJ, or just listen - come hang out. We will be running weekly feedback threads and monthly remix challenges.\n\nNo gatekeeping, all subgenres welcome. See you in there!',
-    author: INITIAL_USERS.drumcode_x, community: 'electronic', score: 305, userVote: 0, commentCount: 8, createdAt: new Date(Date.now() - 96 * 3600000).toISOString(), tags: ['electronic', 'community', 'announcement'], flair: FLAIRS[5], pinned: true, locked: false, removed: false, awards: ['\u26A1'], saved: false, views: 1240,
-    comments: [
-      mkComment('c20', 'synthwave99', 'Joined! Looking forward to the remix challenges.', 22),
-      mkComment('c21', 'bassdrop', 'Finally a place for bass music that is not just "post your Soundcloud" spam.', 35),
-    ],
-  },
-];
+const INITIAL_POSTS: Post[] = [];
 
 // ---------------------------------------------------------------------------
 // Helpers

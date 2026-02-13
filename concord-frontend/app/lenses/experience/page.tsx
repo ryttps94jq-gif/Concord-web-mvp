@@ -64,79 +64,29 @@ interface InsightData {
   weeklyHeatmap: number[][];
 }
 
-// --- Demo Data ---
+// --- Initial state — populated from backend ---
 
 const PROFILE = {
-  name: 'Alex Resonance',
-  bio: 'Electronic music producer & sound designer. Crafting sonic landscapes since 2019.',
-  location: 'Los Angeles, CA',
-  genres: ['Electronic', 'Ambient', 'Lo-fi', 'Synthwave', 'Experimental'],
-  stats: { tracks: 47, collaborations: 12, sales: 89, followers: 1340 },
-  socials: [
-    { label: 'SoundCloud', url: '#' },
-    { label: 'Spotify', url: '#' },
-    { label: 'Instagram', url: '#' },
-    { label: 'Twitter', url: '#' },
-  ],
+  name: '',
+  bio: '',
+  location: '',
+  genres: [] as string[],
+  stats: { tracks: 0, collaborations: 0, sales: 0, followers: 0 },
+  socials: [] as { label: string; url: string }[],
 };
 
-const INITIAL_PORTFOLIO: PortfolioItem[] = [
-  { id: 'p1', type: 'track', title: 'Midnight Protocol', subtitle: 'Original Mix', coverGradient: 'from-purple-600 to-blue-500', playCount: 2840, genre: 'Synthwave', date: '2025-12-15', featured: true },
-  { id: 'p2', type: 'release', title: 'Neon Drift EP', subtitle: '5 tracks', coverGradient: 'from-cyan-500 to-teal-400', trackCount: 5, genre: 'Electronic', date: '2025-11-20', featured: true },
-  { id: 'p3', type: 'art', title: 'Waveform Series #3', subtitle: 'Generative Art', coverGradient: 'from-pink-500 to-orange-400', medium: 'Digital / Processing', genre: 'Visual', date: '2025-10-08', featured: false },
-  { id: 'p4', type: 'track', title: 'Deep State', subtitle: 'Extended Mix', coverGradient: 'from-green-500 to-emerald-400', playCount: 1520, genre: 'Ambient', date: '2025-09-30', featured: false },
-  { id: 'p5', type: 'collaboration', title: 'Echoes feat. Luna', subtitle: 'w/ Luna Wave', coverGradient: 'from-yellow-500 to-red-400', playCount: 4120, genre: 'Lo-fi', date: '2025-08-22', featured: true },
-  { id: 'p6', type: 'track', title: 'Circuit Breaker', subtitle: 'Radio Edit', coverGradient: 'from-indigo-500 to-purple-400', playCount: 980, genre: 'Electronic', date: '2025-07-14', featured: false },
-  { id: 'p7', type: 'release', title: 'Analog Dreams LP', subtitle: '12 tracks', coverGradient: 'from-rose-500 to-pink-400', trackCount: 12, genre: 'Synthwave', date: '2025-06-01', featured: true },
-  { id: 'p8', type: 'art', title: 'Spectral Bloom', subtitle: 'Album Cover', coverGradient: 'from-amber-500 to-yellow-300', medium: 'Digital / Photoshop', genre: 'Visual', date: '2025-05-10', featured: false },
-];
+const INITIAL_PORTFOLIO: PortfolioItem[] = [];
 
-const INITIAL_SKILLS: SkillData[] = [
-  { id: 's1', name: 'Production', category: 'technical', level: 8, maxLevel: 10, xp: 720, xpToNext: 1000, endorsements: 24, linkedLens: 'voice' },
-  { id: 's2', name: 'Mixing', category: 'technical', level: 7, maxLevel: 10, xp: 580, xpToNext: 800, endorsements: 18, linkedLens: 'collab' },
-  { id: 's3', name: 'Mastering', category: 'technical', level: 5, maxLevel: 10, xp: 310, xpToNext: 600, endorsements: 9, linkedLens: 'invariant' },
-  { id: 's4', name: 'Songwriting', category: 'creative', level: 6, maxLevel: 10, xp: 450, xpToNext: 700, endorsements: 15, linkedLens: 'commonsense' },
-  { id: 's5', name: 'Sound Design', category: 'creative', level: 9, maxLevel: 10, xp: 880, xpToNext: 1000, endorsements: 31, linkedLens: 'entity' },
-  { id: 's6', name: 'Arrangement', category: 'creative', level: 7, maxLevel: 10, xp: 620, xpToNext: 800, endorsements: 12, linkedLens: 'voice' },
-];
+const INITIAL_SKILLS: SkillData[] = [];
 
-const INITIAL_HISTORY: HistoryItem[] = [
-  { id: 'h1', type: 'track_created', title: 'Created "Midnight Protocol"', description: 'Synthwave track, 4:32 duration', timestamp: '2 hours ago', group: 'today' },
-  { id: 'h2', type: 'skill_leveled', title: 'Sound Design leveled up!', description: 'Now level 9 - Expert tier', timestamp: '5 hours ago', group: 'today' },
-  { id: 'h3', type: 'session_joined', title: 'Joined collab session', description: 'With Luna Wave - mixing session', timestamp: '8 hours ago', group: 'today' },
-  { id: 'h4', type: 'item_sold', title: 'Sold "Neon Drift EP"', description: 'Digital download - $9.99', timestamp: '1 day ago', group: 'this_week' },
-  { id: 'h5', type: 'goal_completed', title: 'Completed weekly goal', description: 'Produce 3 tracks this week', timestamp: '2 days ago', group: 'this_week' },
-  { id: 'h6', type: 'track_created', title: 'Created "Deep State"', description: 'Ambient track, 6:15 duration', timestamp: '3 days ago', group: 'this_week' },
-  { id: 'h7', type: 'session_joined', title: 'Joined feedback session', description: 'Community mix review', timestamp: '4 days ago', group: 'this_week' },
-  { id: 'h8', type: 'item_sold', title: 'Sold "Circuit Breaker"', description: 'Licensing deal - $45.00', timestamp: '5 days ago', group: 'this_week' },
-  { id: 'h9', type: 'skill_leveled', title: 'Mixing leveled up!', description: 'Now level 7 - Advanced tier', timestamp: '1 week ago', group: 'this_month' },
-  { id: 'h10', type: 'track_created', title: 'Created "Echoes"', description: 'Lo-fi collaboration track', timestamp: '2 weeks ago', group: 'this_month' },
-  { id: 'h11', type: 'goal_completed', title: 'Hit 1000 followers', description: 'Milestone achievement unlocked', timestamp: '2 weeks ago', group: 'this_month' },
-  { id: 'h12', type: 'session_joined', title: 'Masterclass: EQ techniques', description: 'Attended advanced mixing workshop', timestamp: '3 weeks ago', group: 'this_month' },
-  { id: 'h13', type: 'track_created', title: 'Created "Analog Dreams LP"', description: '12-track album release', timestamp: '2 months ago', group: 'earlier' },
-  { id: 'h14', type: 'item_sold', title: 'Bulk sale: sample pack', description: '15 units sold - $74.85', timestamp: '3 months ago', group: 'earlier' },
-  { id: 'h15', type: 'goal_completed', title: 'Completed sound design course', description: 'Advanced synthesis techniques', timestamp: '4 months ago', group: 'earlier' },
-];
+const INITIAL_HISTORY: HistoryItem[] = [];
 
 const INITIAL_INSIGHTS: InsightData = {
-  mostProductiveDay: 'Wednesday',
-  favoriteGenre: 'Synthwave',
-  collaborationScore: 78,
-  recommendations: [
-    'Try mastering -- your mixing skills are strong enough to level up',
-    'Collaborate more in Lo-fi -- high engagement from your last collab',
-    'Explore arrangement techniques to complement your sound design',
-    'Consider releasing a sample pack -- your sound design endorsements are top-tier',
-  ],
-  weeklyHeatmap: [
-    [3, 1, 4, 2],
-    [2, 3, 1, 5],
-    [5, 4, 3, 4],
-    [1, 2, 5, 3],
-    [4, 5, 2, 1],
-    [2, 1, 3, 4],
-    [0, 1, 0, 2],
-  ],
+  mostProductiveDay: '',
+  favoriteGenre: '',
+  collaborationScore: 0,
+  recommendations: [],
+  weeklyHeatmap: [],
 };
 
 // --- Radar Chart Helper ---
