@@ -16,7 +16,7 @@ import {
   CreditCard, PiggyBank, FileText, Stethoscope, Siren,
   Dog, Pill, Activity, MapPin, CircleDot, Zap,
   Sun, Snowflake, Leaf, CloudRain, ClipboardList,
-  ArrowUpDown, CircleCheck, Info, Beef, Coffee,
+  ArrowUpDown, CheckCircle2, Info, Beef, Coffee,
   Moon, Pizza, Salad, Soup, Cake, Apple,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -422,7 +422,7 @@ export default function HouseholdLensPage() {
         <div className={ds.panel}>
           <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><CheckSquare className="w-5 h-5 text-red-400" /> Overdue Chores</h3>
           {overdueChores.length === 0 ? (
-            <p className={cn(ds.textMuted, 'flex items-center gap-2')}><CircleCheck className="w-4 h-4 text-green-400" /> All caught up!</p>
+            <p className={cn(ds.textMuted, 'flex items-center gap-2')}><CheckCircle2 className="w-4 h-4 text-green-400" /> All caught up!</p>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {overdueChores.map(ch => {
@@ -657,7 +657,7 @@ export default function HouseholdLensPage() {
                     <div className="flex items-center gap-3">
                       <span className={ds.badge('yellow-400')}><Star className="w-3 h-3" /> {stats.points} pts</span>
                       <span className={ds.badge('neon-blue')}><Clock className="w-3 h-3" /> {stats.hours.toFixed(1)}h</span>
-                      <span className={ds.badge('green-400')}><CircleCheck className="w-3 h-3" /> {stats.completed}</span>
+                      <span className={ds.badge('green-400')}><CheckCircle2 className="w-3 h-3" /> {stats.completed}</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -696,7 +696,7 @@ export default function HouseholdLensPage() {
                         'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
                         isComplete ? 'bg-green-400 border-green-400' : 'border-gray-500 hover:border-neon-cyan'
                       )}>
-                        {isComplete && <CircleCheck className="w-3 h-3 text-white" />}
+                        {isComplete && <CheckCircle2 className="w-3 h-3 text-white" />}
                       </button>
                       <h4 className={cn('text-sm font-medium text-white', isComplete && 'line-through')}>{item.title}</h4>
                     </div>
@@ -1081,7 +1081,7 @@ export default function HouseholdLensPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white">{formatCurrency(d.amount)}</span>
                     <button className={cn(ds.btnGhost, ds.btnSmall)} onClick={() => toggleBillPaid(item)}>
-                      <CircleCheck className="w-4 h-4 text-green-400" />
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
                     </button>
                     <button className={cn(ds.btnGhost, ds.btnSmall)} onClick={() => openEdit(item)}><Edit3 className="w-3.5 h-3.5" /></button>
                   </div>

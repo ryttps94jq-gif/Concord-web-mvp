@@ -262,6 +262,18 @@ export default function LogisticsLensPage() {
     : mode === 'routes' ? ROUTE_STATUSES
     : GENERAL_STATUSES;
 
+
+  const groupedShipments = useMemo(() => {
+    const map: Record<string, LensItem[]> = {};
+    for (const col of KANBAN_COLUMNS) map[col.key] = [];
+    map['exception'] = [];
+    for (const item of filtered) {
+      const st = item.meta?.status || 'booked';
+      if (map[st]) map[st].push(item);
+    }
+    return map;
+  }, [filtered]);
+
   // Editor helpers
   const resetForm = () => {
     setFormTitle(''); setFormStatus('active');
@@ -602,18 +614,7 @@ export default function LogisticsLensPage() {
 
   /** Shipment Tracking Board - Kanban */
   const renderShipmentsTab = () => {
-    const grouped = useMemo(() => {
-      const map: Record<string, LensItem[]> = {};
-      for (const col of KANBAN_COLUMNS) map[col.key] = [];
-      map['exception'] = [];
-      for (const item of filtered) {
-        const st = item.meta?.status || 'booked';
-        if (map[st]) map[st].push(item);
-      }
-      return map;
-    }, [filtered]);
-
-    const exceptionItems = grouped['exception'] || [];
+    const exceptionItems = groupedShipments['exception'] || [];
 
     return (
       <div className="space-y-4">
@@ -667,7 +668,7 @@ export default function LogisticsLensPage() {
           /* Kanban Board */
           <div className="flex gap-3 overflow-x-auto pb-4">
             {KANBAN_COLUMNS.map(col => {
-              const columnItems = grouped[col.key] || [];
+              const columnItems = groupedShipments[col.key] || [];
               return (
                 <div key={col.key} className="min-w-[260px] flex-shrink-0">
                   <div className={cn('flex items-center gap-2 px-3 py-2 rounded-t-lg', `bg-${col.color}/10 border border-${col.color}/30`)}>
