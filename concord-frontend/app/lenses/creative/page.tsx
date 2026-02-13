@@ -1,38 +1,67 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
+import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/common/EmptyState';
 import {
   Palette, Camera, Image as ImageIcon, Tv, LayoutGrid, FileCheck,
-  Plus, Search, Filter, X, Edit2, Trash2,
-  Clock, Eye,
-  TrendingUp, FileImage, Video, Aperture,
+  Plus, Search, Filter, X, Edit2, Trash2, Clock, Eye,
+  TrendingUp, FileImage, Video, Aperture, ChevronRight,
+  DollarSign, Target, Users, MapPin, CalendarDays, Package,
+  CheckCircle2, AlertCircle, MessageSquare, Star, BarChart3,
+  Clapperboard, Mic, FileText, Monitor, Printer, Globe,
+  Share2, Download, ArrowUpRight, ArrowDownRight, Minus,
+  FolderOpen, Layers, Zap, Send, ThumbsUp, ThumbsDown,
+  RotateCcw, Shield, Hash, Play, Gauge, Briefcase,
+  CircleDot, ListChecks, ClipboardList, Receipt, PieChart,
 } from 'lucide-react';
-import { ErrorState } from '@/components/common/EmptyState';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type ModeTab = 'projects' | 'shoots' | 'assets' | 'episodes' | 'collections' | 'proofs';
-type ArtifactType = 'Project' | 'Shoot' | 'Asset' | 'Episode' | 'Collection' | 'ClientProof';
+type ModeTab = 'dashboard' | 'projects' | 'assets' | 'shotlist' | 'proofs' | 'budget' | 'distribution';
+type ArtifactType = 'Project' | 'Asset' | 'ShotItem' | 'ClientProof' | 'BudgetLine' | 'DistItem';
+type ProjectPhase = 'concept' | 'pre_production' | 'production' | 'post_production' | 'review' | 'delivery';
+type AssetCategory = 'photo' | 'video' | 'audio' | 'graphic' | 'document';
+type ProofStatus = 'pending_review' | 'approved' | 'revision_requested';
+type ShotStatus = 'planned' | 'scheduled' | 'in_progress' | 'captured' | 'review' | 'final';
 
-const ALL_STATUSES = ['brief', 'pre_production', 'production', 'post_production', 'review', 'delivered', 'archived'] as const;
+const ALL_STATUSES = ['concept', 'pre_production', 'production', 'post_production', 'review', 'delivery', 'archived'] as const;
 
 const STATUS_COLORS: Record<string, string> = {
-  brief: 'gray-400', pre_production: 'neon-blue', production: 'neon-cyan',
-  post_production: 'neon-purple', review: 'amber-400', delivered: 'green-400', archived: 'gray-500',
+  concept: 'gray-400', pre_production: 'neon-blue', production: 'neon-cyan',
+  post_production: 'neon-purple', review: 'amber-400', delivery: 'green-400',
+  archived: 'gray-500', planned: 'gray-400', scheduled: 'neon-blue',
+  in_progress: 'neon-cyan', captured: 'neon-purple', final: 'green-400',
+  pending_review: 'amber-400', approved: 'green-400', revision_requested: 'red-400',
 };
 
-const MODE_TABS: { id: ModeTab; label: string; icon: typeof Palette; type: ArtifactType }[] = [
+const PHASE_ORDER: ProjectPhase[] = ['concept', 'pre_production', 'production', 'post_production', 'review', 'delivery'];
+const PHASE_LABELS: Record<ProjectPhase, string> = {
+  concept: 'Concept', pre_production: 'Pre-Production', production: 'Production',
+  post_production: 'Post-Production', review: 'Review', delivery: 'Delivery',
+};
+
+const ASSET_CATEGORIES: { id: AssetCategory; label: string; icon: typeof Camera }[] = [
+  { id: 'photo', label: 'Photo', icon: Aperture },
+  { id: 'video', label: 'Video', icon: Video },
+  { id: 'audio', label: 'Audio', icon: Mic },
+  { id: 'graphic', label: 'Graphic', icon: FileImage },
+  { id: 'document', label: 'Document', icon: FileText },
+];
+
+const MODE_TABS: { id: ModeTab; label: string; icon: typeof Palette; type?: ArtifactType }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'projects', label: 'Projects', icon: Palette, type: 'Project' },
-  { id: 'shoots', label: 'Shoots', icon: Camera, type: 'Shoot' },
-  { id: 'assets', label: 'Assets', icon: ImageIcon, type: 'Asset' },
-  { id: 'episodes', label: 'Episodes', icon: Tv, type: 'Episode' },
-  { id: 'collections', label: 'Collections', icon: LayoutGrid, type: 'Collection' },
-  { id: 'proofs', label: 'Proofs', icon: FileCheck, type: 'ClientProof' },
+  { id: 'assets', label: 'Asset Library', icon: FolderOpen, type: 'Asset' },
+  { id: 'shotlist', label: 'Shot List', icon: Clapperboard, type: 'ShotItem' },
+  { id: 'proofs', label: 'Client Proofing', icon: FileCheck, type: 'ClientProof' },
+  { id: 'budget', label: 'Budget', icon: DollarSign, type: 'BudgetLine' },
+  { id: 'distribution', label: 'Distribution', icon: Send, type: 'DistItem' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -40,37 +69,159 @@ const MODE_TABS: { id: ModeTab; label: string; icon: typeof Palette; type: Artif
 // ---------------------------------------------------------------------------
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
   Project: [
-    { title: 'Brand Refresh - Lumina Co', data: { client: 'Lumina Co', type: 'Branding', budget: 85000, deadline: '2026-04-01', lead: 'Ava Thompson', deliverables: 24 }, meta: { status: 'production', tags: ['branding', 'priority'] } },
-    { title: 'Product Launch - NovaTech', data: { client: 'NovaTech', type: 'Campaign', budget: 120000, deadline: '2026-05-15', lead: 'Marcus Reed', deliverables: 42 }, meta: { status: 'pre_production', tags: ['campaign'] } },
-    { title: 'Annual Report 2025 - FinGroup', data: { client: 'FinGroup', type: 'Print / Digital', budget: 35000, deadline: '2026-03-01', lead: 'Sofia Nguyen', deliverables: 8 }, meta: { status: 'review', tags: ['print'] } },
-    { title: 'Documentary - Urban Roots', data: { client: 'Internal', type: 'Film', budget: 200000, deadline: '2026-09-01', lead: 'James Carter', deliverables: 1 }, meta: { status: 'production', tags: ['film', 'documentary'] } },
-  ],
-  Shoot: [
-    { title: 'Lumina Hero Shots - Studio A', data: { project: 'Lumina Co Brand Refresh', date: '2026-02-20', location: 'Studio A', photographer: 'Mia Chen', duration: '8 hours', shotList: 48 }, meta: { status: 'pre_production', tags: ['product'] } },
-    { title: 'NovaTech Lifestyle - On Location', data: { project: 'NovaTech Product Launch', date: '2026-03-10', location: 'Downtown Loft', photographer: 'Elijah Brooks', duration: '10 hours', shotList: 72 }, meta: { status: 'brief', tags: ['lifestyle'] } },
-    { title: 'Urban Roots B-Roll - Day 4', data: { project: 'Urban Roots Documentary', date: '2026-02-15', location: 'East Side Market', photographer: 'James Carter', duration: '6 hours', shotList: 0 }, meta: { status: 'production', tags: ['documentary', 'b-roll'] } },
+    {
+      title: 'Brand Refresh - Lumina Co',
+      data: {
+        client: 'Lumina Co', budget: 85000, budgetSpent: 52400, deadline: '2026-04-01',
+        lead: 'Ava Thompson', deliverables: 24, deliverablesCompleted: 14,
+        phase: 'production', projectType: 'Branding',
+        milestones: JSON.stringify([
+          { name: 'Creative Brief Approved', date: '2026-01-15', done: true },
+          { name: 'Mood Board Sign-off', date: '2026-01-28', done: true },
+          { name: 'Logo Concepts Delivered', date: '2026-02-10', done: true },
+          { name: 'Brand Guide v1', date: '2026-03-01', done: false },
+          { name: 'Final Delivery', date: '2026-04-01', done: false },
+        ]),
+        teamMembers: JSON.stringify(['Ava Thompson', 'Marcus Reed', 'Sofia Nguyen']),
+      },
+      meta: { status: 'production', tags: ['branding', 'priority'] },
+    },
+    {
+      title: 'Product Launch - NovaTech',
+      data: {
+        client: 'NovaTech', budget: 120000, budgetSpent: 18500, deadline: '2026-05-15',
+        lead: 'Marcus Reed', deliverables: 42, deliverablesCompleted: 6,
+        phase: 'pre_production', projectType: 'Campaign',
+        milestones: JSON.stringify([
+          { name: 'Strategy Deck', date: '2026-02-20', done: true },
+          { name: 'Talent Booking', date: '2026-03-01', done: false },
+          { name: 'Production Shoot', date: '2026-03-15', done: false },
+          { name: 'Post-Production', date: '2026-04-15', done: false },
+          { name: 'Launch Assets Delivered', date: '2026-05-15', done: false },
+        ]),
+        teamMembers: JSON.stringify(['Marcus Reed', 'Elijah Brooks', 'Mia Chen']),
+      },
+      meta: { status: 'pre_production', tags: ['campaign', 'high-value'] },
+    },
+    {
+      title: 'Annual Report 2025 - FinGroup',
+      data: {
+        client: 'FinGroup', budget: 35000, budgetSpent: 31200, deadline: '2026-03-01',
+        lead: 'Sofia Nguyen', deliverables: 8, deliverablesCompleted: 7,
+        phase: 'review', projectType: 'Print / Digital',
+        milestones: JSON.stringify([
+          { name: 'Content Outline', date: '2026-01-10', done: true },
+          { name: 'Design Drafts', date: '2026-02-01', done: true },
+          { name: 'Infographic Set', date: '2026-02-10', done: true },
+          { name: 'Client Review', date: '2026-02-20', done: true },
+          { name: 'Print Ready Files', date: '2026-03-01', done: false },
+        ]),
+        teamMembers: JSON.stringify(['Sofia Nguyen', 'Lena Park']),
+      },
+      meta: { status: 'review', tags: ['print', 'urgent'] },
+    },
+    {
+      title: 'Documentary - Urban Roots',
+      data: {
+        client: 'Internal', budget: 200000, budgetSpent: 87600, deadline: '2026-09-01',
+        lead: 'James Carter', deliverables: 3, deliverablesCompleted: 0,
+        phase: 'production', projectType: 'Film',
+        milestones: JSON.stringify([
+          { name: 'Script Final', date: '2026-01-20', done: true },
+          { name: 'Principal Photography', date: '2026-04-30', done: false },
+          { name: 'Rough Cut', date: '2026-06-15', done: false },
+          { name: 'Final Cut', date: '2026-08-01', done: false },
+          { name: 'Distribution', date: '2026-09-01', done: false },
+        ]),
+        teamMembers: JSON.stringify(['James Carter', 'Lena Park', 'Elijah Brooks']),
+      },
+      meta: { status: 'production', tags: ['film', 'documentary'] },
+    },
+    {
+      title: 'Social Campaign - Verdant Greens',
+      data: {
+        client: 'Verdant Greens', budget: 28000, budgetSpent: 28000, deadline: '2026-02-01',
+        lead: 'Mia Chen', deliverables: 36, deliverablesCompleted: 36,
+        phase: 'delivery', projectType: 'Social Media',
+        milestones: JSON.stringify([
+          { name: 'Content Calendar', date: '2025-12-01', done: true },
+          { name: 'Asset Production', date: '2026-01-15', done: true },
+          { name: 'Client Approval', date: '2026-01-25', done: true },
+          { name: 'Launch', date: '2026-02-01', done: true },
+        ]),
+        teamMembers: JSON.stringify(['Mia Chen']),
+      },
+      meta: { status: 'delivery', tags: ['social', 'complete'] },
+    },
   ],
   Asset: [
-    { title: 'lumina-logo-primary.svg', data: { type: 'Vector', format: 'SVG', resolution: 'Scalable', fileSize: '42 KB', project: 'Lumina Co Brand Refresh', version: 3 }, meta: { status: 'delivered', tags: ['logo', 'final'] } },
-    { title: 'nova-hero-16x9.psd', data: { type: 'Photo', format: 'PSD', resolution: '5760x3240', fileSize: '285 MB', project: 'NovaTech Product Launch', version: 1 }, meta: { status: 'production', tags: ['hero', 'wip'] } },
-    { title: 'urban-roots-ep1-rough.mp4', data: { type: 'Video', format: 'MP4', resolution: '4K', fileSize: '12.4 GB', project: 'Urban Roots Documentary', version: 2 }, meta: { status: 'post_production', tags: ['rough-cut'] } },
-    { title: 'fingroup-charts-set.ai', data: { type: 'Vector', format: 'AI', resolution: 'Scalable', fileSize: '18 MB', project: 'FinGroup Annual Report', version: 5 }, meta: { status: 'review', tags: ['infographic'] } },
+    { title: 'lumina-logo-primary.svg', data: { category: 'graphic', format: 'SVG', resolution: 'Scalable', fileSize: '42 KB', colorSpace: 'sRGB', project: 'Lumina Co Brand Refresh', version: 3, usageCount: 12, versionHistory: JSON.stringify([{ v: 1, date: '2026-01-20', note: 'Initial concept' }, { v: 2, date: '2026-02-01', note: 'Color refinement' }, { v: 3, date: '2026-02-08', note: 'Final approved' }]) }, meta: { status: 'delivery', tags: ['logo', 'final', 'approved'] } },
+    { title: 'nova-hero-16x9.psd', data: { category: 'photo', format: 'PSD', resolution: '5760x3240', fileSize: '285 MB', colorSpace: 'Adobe RGB', project: 'NovaTech Product Launch', version: 1, usageCount: 2, versionHistory: JSON.stringify([{ v: 1, date: '2026-02-12', note: 'Raw composite' }]) }, meta: { status: 'production', tags: ['hero', 'wip'] } },
+    { title: 'urban-roots-ep1-rough.mp4', data: { category: 'video', format: 'MP4 H.265', resolution: '3840x2160', fileSize: '12.4 GB', colorSpace: 'Rec.709', project: 'Urban Roots Documentary', version: 2, usageCount: 5, versionHistory: JSON.stringify([{ v: 1, date: '2026-02-01', note: 'Assembly cut' }, { v: 2, date: '2026-02-10', note: 'Rough cut with music' }]) }, meta: { status: 'post_production', tags: ['rough-cut', 'video'] } },
+    { title: 'fingroup-charts-set.ai', data: { category: 'graphic', format: 'AI', resolution: 'Scalable', fileSize: '18 MB', colorSpace: 'CMYK', project: 'FinGroup Annual Report', version: 5, usageCount: 8, versionHistory: JSON.stringify([{ v: 5, date: '2026-02-08', note: 'Final data update' }]) }, meta: { status: 'review', tags: ['infographic', 'print'] } },
+    { title: 'lumina-brand-guide.pdf', data: { category: 'document', format: 'PDF', resolution: 'N/A', fileSize: '4.2 MB', colorSpace: 'sRGB', project: 'Lumina Co Brand Refresh', version: 2, usageCount: 18, versionHistory: JSON.stringify([{ v: 1, date: '2026-01-28', note: 'Draft v1' }, { v: 2, date: '2026-02-05', note: 'Updated typography section' }]) }, meta: { status: 'review', tags: ['brand-guide', 'document'] } },
+    { title: 'verdant-reel-30s.mp4', data: { category: 'video', format: 'MP4 H.264', resolution: '1920x1080', fileSize: '86 MB', colorSpace: 'sRGB', project: 'Verdant Greens Social', version: 1, usageCount: 24, versionHistory: JSON.stringify([{ v: 1, date: '2026-01-20', note: 'Final delivered' }]) }, meta: { status: 'delivery', tags: ['social', 'reel', 'final'] } },
+    { title: 'nova-ambient-track.wav', data: { category: 'audio', format: 'WAV 24bit', resolution: '48kHz', fileSize: '142 MB', colorSpace: 'N/A', project: 'NovaTech Product Launch', version: 1, usageCount: 1, versionHistory: JSON.stringify([{ v: 1, date: '2026-02-11', note: 'Composed draft' }]) }, meta: { status: 'production', tags: ['audio', 'music'] } },
   ],
-  Episode: [
-    { title: 'Urban Roots - Ep. 1: Seeds', data: { series: 'Urban Roots', number: 1, duration: '28 min', director: 'James Carter', editor: 'Lena Park', airDate: '2026-09-15' }, meta: { status: 'post_production', tags: ['pilot'] } },
-    { title: 'Urban Roots - Ep. 2: Soil', data: { series: 'Urban Roots', number: 2, duration: '26 min', director: 'James Carter', editor: 'Lena Park', airDate: '2026-09-22' }, meta: { status: 'production', tags: [] } },
-    { title: 'Urban Roots - Ep. 3: Growth', data: { series: 'Urban Roots', number: 3, duration: 'TBD', director: 'James Carter', editor: 'Lena Park', airDate: '2026-09-29' }, meta: { status: 'brief', tags: [] } },
-  ],
-  Collection: [
-    { title: 'Lumina Brand Kit v3', data: { project: 'Lumina Co Brand Refresh', assetCount: 18, categories: 'Logo, Color, Typography, Iconography', sharedWith: 'Client + Internal', lastUpdated: '2026-02-05' }, meta: { status: 'production', tags: ['brand-kit'] } },
-    { title: 'NovaTech Campaign Assets', data: { project: 'NovaTech Product Launch', assetCount: 6, categories: 'Photo, Video, Copy', sharedWith: 'Internal', lastUpdated: '2026-02-01' }, meta: { status: 'pre_production', tags: ['campaign'] } },
+  ShotItem: [
+    { title: 'Hero Product - White Sweep', data: { project: 'Lumina Co Brand Refresh', description: 'Main product shot on white cyclorama, overhead lighting, 3 angles', location: 'Studio A', talent: 'N/A (product)', equipment: 'Phase One IQ4, Broncolor Siros, C-stands', scheduledDate: '2026-02-20', scheduledTime: '09:00-12:00', shotNumber: 1 }, meta: { status: 'scheduled', tags: ['product', 'hero'] } },
+    { title: 'Lifestyle - Morning Routine', data: { project: 'NovaTech Product Launch', description: 'Model using NovaTech device in a modern kitchen, natural light + fill', location: 'Downtown Loft, 45 Main St', talent: 'Sarah Kim (model)', equipment: 'Sony A7S III, Aputure 600d, Slider', scheduledDate: '2026-03-10', scheduledTime: '07:00-10:00', shotNumber: 1 }, meta: { status: 'planned', tags: ['lifestyle', 'talent'] } },
+    { title: 'Lifestyle - Commute Scene', data: { project: 'NovaTech Product Launch', description: 'Walking shot with device, urban backdrop, golden hour', location: 'Financial District', talent: 'Sarah Kim (model)', equipment: 'Sony A7S III, Gimbal, Wireless Lav', scheduledDate: '2026-03-10', scheduledTime: '17:00-19:00', shotNumber: 2 }, meta: { status: 'planned', tags: ['lifestyle', 'outdoor'] } },
+    { title: 'B-Roll - East Side Market', data: { project: 'Urban Roots Documentary', description: 'Wide establishing, vendor close-ups, customer interactions, produce detail', location: 'East Side Market, 120 River Rd', talent: 'Market vendors (releases needed)', equipment: 'RED Komodo, Zeiss CP.3 set, Tripod + Monopod', scheduledDate: '2026-02-15', scheduledTime: '06:00-12:00', shotNumber: 4 }, meta: { status: 'in_progress', tags: ['documentary', 'b-roll'] } },
+    { title: 'Interview - Community Leader', data: { project: 'Urban Roots Documentary', description: 'Sit-down interview, 2-cam setup, controlled lighting in community center', location: 'Eastside Community Center', talent: 'Maria Gonzales', equipment: 'RED Komodo x2, Sennheiser MKH 416, LED panels', scheduledDate: '2026-02-18', scheduledTime: '14:00-17:00', shotNumber: 5 }, meta: { status: 'scheduled', tags: ['documentary', 'interview'] } },
+    { title: 'Infographic Animation Capture', data: { project: 'FinGroup Annual Report', description: 'Screen capture of animated chart sequences for digital edition', location: 'Remote / Studio B', talent: 'N/A', equipment: 'Screen capture rig, After Effects', scheduledDate: '2026-02-22', scheduledTime: '10:00-14:00', shotNumber: 1 }, meta: { status: 'planned', tags: ['digital', 'animation'] } },
   ],
   ClientProof: [
-    { title: 'Lumina Logo Options - Round 2', data: { project: 'Lumina Co Brand Refresh', client: 'Lumina Co', sentDate: '2026-02-03', versions: 4, feedback: 'Prefer option B with minor color tweak', approved: false }, meta: { status: 'review', tags: ['logo'] } },
-    { title: 'FinGroup Report Draft v5', data: { project: 'FinGroup Annual Report', client: 'FinGroup', sentDate: '2026-02-06', versions: 5, feedback: 'Approved with minor edits p.12', approved: true }, meta: { status: 'delivered', tags: ['approved'] } },
-    { title: 'NovaTech Mood Board', data: { project: 'NovaTech Product Launch', client: 'NovaTech', sentDate: '2026-01-28', versions: 2, feedback: 'Love direction 1, explore further', approved: false }, meta: { status: 'review', tags: ['mood-board'] } },
+    { title: 'Lumina Logo Options - Round 2', data: { project: 'Lumina Co Brand Refresh', client: 'Lumina Co', clientContact: 'Jennifer Walsh', sentDate: '2026-02-03', proofRound: 2, proofStatus: 'revision_requested', revisionCount: 1, comments: JSON.stringify([{ author: 'Jennifer Walsh', date: '2026-02-05', text: 'Love option B but need warmer gold tone. Can we see a version with the alternate typeface?' }, { author: 'Ava Thompson', date: '2026-02-06', text: 'Updated gold tone to #D4A853. New typeface mockup attached.' }]), approvalGate: false }, meta: { status: 'review', tags: ['logo', 'round-2'] } },
+    { title: 'FinGroup Report Draft v5', data: { project: 'FinGroup Annual Report', client: 'FinGroup', clientContact: 'Robert Chen', sentDate: '2026-02-06', proofRound: 5, proofStatus: 'approved', revisionCount: 4, comments: JSON.stringify([{ author: 'Robert Chen', date: '2026-02-08', text: 'Approved with minor edit on page 12 caption. Excellent work overall.' }]), approvalGate: true }, meta: { status: 'delivery', tags: ['approved', 'final'] } },
+    { title: 'NovaTech Mood Board', data: { project: 'NovaTech Product Launch', client: 'NovaTech', clientContact: 'Diana Park', sentDate: '2026-01-28', proofRound: 1, proofStatus: 'pending_review', revisionCount: 0, comments: JSON.stringify([{ author: 'Diana Park', date: '2026-01-30', text: 'Love direction 1 with the tech-minimalist feel. Want to explore further before committing.' }]), approvalGate: false }, meta: { status: 'review', tags: ['mood-board', 'round-1'] } },
+    { title: 'Urban Roots Ep.1 Rough Cut', data: { project: 'Urban Roots Documentary', client: 'Internal', clientContact: 'Executive Team', sentDate: '2026-02-10', proofRound: 1, proofStatus: 'pending_review', revisionCount: 0, comments: JSON.stringify([]), approvalGate: false }, meta: { status: 'review', tags: ['video', 'rough-cut'] } },
+    { title: 'Verdant Social Set - Final', data: { project: 'Verdant Greens Social', client: 'Verdant Greens', clientContact: 'Tom Harris', sentDate: '2026-01-24', proofRound: 3, proofStatus: 'approved', revisionCount: 2, comments: JSON.stringify([{ author: 'Tom Harris', date: '2026-01-25', text: 'All approved! Great color grading on the product shots.' }]), approvalGate: true }, meta: { status: 'delivery', tags: ['social', 'approved'] } },
+  ],
+  BudgetLine: [
+    { title: 'Talent - Sarah Kim (2 days)', data: { project: 'NovaTech Product Launch', category: 'talent', estimated: 4500, actual: 0, notes: 'Day rate $2,250, 2 shoot days confirmed', invoiced: false }, meta: { status: 'pre_production', tags: ['talent'] } },
+    { title: 'Studio A Rental (1 day)', data: { project: 'Lumina Co Brand Refresh', category: 'location', estimated: 2800, actual: 2800, notes: 'Full day with cyclorama and lighting grid', invoiced: true }, meta: { status: 'production', tags: ['studio', 'invoiced'] } },
+    { title: 'RED Komodo Kit Rental (5 days)', data: { project: 'Urban Roots Documentary', category: 'equipment', estimated: 3750, actual: 3750, notes: '5-day rental with Zeiss CP.3 lens set', invoiced: true }, meta: { status: 'production', tags: ['equipment', 'invoiced'] } },
+    { title: 'Color Grading - Ep.1', data: { project: 'Urban Roots Documentary', category: 'post_production', estimated: 6000, actual: 4200, notes: 'Colorist: Alex Mercer, 3 sessions completed', invoiced: false }, meta: { status: 'post_production', tags: ['post', 'color'] } },
+    { title: 'Stock Music License (3 tracks)', data: { project: 'NovaTech Product Launch', category: 'licensing', estimated: 1200, actual: 980, notes: 'Artlist annual + 2 premium tracks', invoiced: true }, meta: { status: 'production', tags: ['music', 'license'] } },
+    { title: 'Print Production (500 copies)', data: { project: 'FinGroup Annual Report', category: 'post_production', estimated: 8500, actual: 0, notes: 'Premium stock, saddle-stitch, spot UV cover', invoiced: false }, meta: { status: 'review', tags: ['print'] } },
+    { title: 'Downtown Loft Location Fee', data: { project: 'NovaTech Product Launch', category: 'location', estimated: 3200, actual: 0, notes: 'Full day permit, includes parking for crew van', invoiced: false }, meta: { status: 'pre_production', tags: ['location'] } },
+    { title: 'Drone Operator (2 days)', data: { project: 'Urban Roots Documentary', category: 'talent', estimated: 3000, actual: 1500, notes: 'FAA licensed, 1 of 2 days completed', invoiced: false }, meta: { status: 'production', tags: ['drone', 'talent'] } },
+  ],
+  DistItem: [
+    { title: 'Instagram Feed (1:1)', data: { project: 'Verdant Greens Social', format: '1080x1080 JPG', platform: 'Instagram', requirement: 'Max 30MB, sRGB, no text in safe zone', completed: true, notes: '12 posts delivered' }, meta: { status: 'delivery', tags: ['social', 'instagram'] } },
+    { title: 'Instagram Story (9:16)', data: { project: 'Verdant Greens Social', format: '1080x1920 MP4', platform: 'Instagram', requirement: '15s max, H.264, under 250MB', completed: true, notes: '8 stories delivered' }, meta: { status: 'delivery', tags: ['social', 'story'] } },
+    { title: 'Web Hero Banner', data: { project: 'NovaTech Product Launch', format: '2560x800 WebP', platform: 'Web', requirement: 'WebP optimized, < 200KB, sRGB', completed: false, notes: 'Pending final hero image approval' }, meta: { status: 'pre_production', tags: ['web', 'hero'] } },
+    { title: 'Print Ready PDF (CMYK)', data: { project: 'FinGroup Annual Report', format: 'PDF/X-4, 300dpi CMYK', platform: 'Print', requirement: '3mm bleed, crop marks, Fogra39 profile', completed: false, notes: 'Awaiting final text approval' }, meta: { status: 'review', tags: ['print', 'cmyk'] } },
+    { title: 'YouTube 4K Master', data: { project: 'Urban Roots Documentary', format: '3840x2160 ProRes 422', platform: 'YouTube', requirement: 'ProRes master + H.264 web proxy, HDR metadata', completed: false, notes: 'Pending final cut completion' }, meta: { status: 'production', tags: ['video', 'youtube'] } },
+    { title: 'LinkedIn Carousel', data: { project: 'NovaTech Product Launch', format: '1080x1080 PDF/PNG', platform: 'LinkedIn', requirement: '10 slides max, PNG set + single PDF', completed: false, notes: 'Copy deck in review' }, meta: { status: 'pre_production', tags: ['social', 'linkedin'] } },
+    { title: 'Podcast Audio Master', data: { project: 'Urban Roots Documentary', format: 'WAV 24bit/48kHz + MP3 320', platform: 'Podcast', requirement: 'LUFS -16, true peak -1dB', completed: false, notes: 'Audio mix session scheduled' }, meta: { status: 'production', tags: ['audio', 'podcast'] } },
   ],
 };
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function parseSafe<T>(val: unknown, fallback: T): T {
+  if (typeof val === 'string') {
+    try { return JSON.parse(val) as T; } catch { return fallback; }
+  }
+  if (Array.isArray(val)) return val as unknown as T;
+  return fallback;
+}
+
+function fmtCurrency(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+function fmtPct(n: number): string {
+  return `${Math.round(n * 100)}%`;
+}
+
+function daysUntil(dateStr: string): number {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -78,28 +229,40 @@ const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unk
 export default function CreativeLensPage() {
   useLensNav('creative');
 
-  const [mode, setMode] = useState<ModeTab>('projects');
+  const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState<AssetCategory | 'all'>('all');
   const [editing, setEditing] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
-
-  const [formTitle, setFormTitle] = useState('');
-  const [formStatus, setFormStatus] = useState('brief');
-  const [formField1, setFormField1] = useState('');
-  const [formField2, setFormField2] = useState('');
-  const [formField3, setFormField3] = useState('');
-  const [formNotes, setFormNotes] = useState('');
+  const [detailItem, setDetailItem] = useState<LensItem | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
 
-  const currentType = MODE_TABS.find(t => t.id === mode)!.type;
+  // Form fields
+  const [formTitle, setFormTitle] = useState('');
+  const [formStatus, setFormStatus] = useState('concept');
+  const [formFields, setFormFields] = useState<Record<string, string>>({});
 
-  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('creative', currentType, {
+  // Determine which artifact type to load
+  const currentTabDef = MODE_TABS.find(t => t.id === mode);
+  const currentType: ArtifactType = currentTabDef?.type || 'Project';
+
+  const { items, isLoading, isError, error, refetch, create, update, remove } = useLensData('creative', currentType, {
     seed: SEED[currentType],
   });
 
+  // Also load projects for cross-referencing from dashboard
+  const { items: allProjects } = useLensData('creative', 'Project', { seed: SEED.Project, noSeed: mode !== 'dashboard' && mode !== 'budget' });
+  const { items: allProofs } = useLensData('creative', 'ClientProof', { seed: SEED.ClientProof, noSeed: mode !== 'dashboard' });
+  const { items: allAssets } = useLensData('creative', 'Asset', { seed: SEED.Asset, noSeed: mode !== 'dashboard' });
+  const { items: allBudget } = useLensData('creative', 'BudgetLine', { seed: SEED.BudgetLine, noSeed: mode !== 'dashboard' && mode !== 'budget' });
+  const { items: allDist } = useLensData('creative', 'DistItem', { seed: SEED.DistItem, noSeed: mode !== 'dashboard' });
+
   const runAction = useRunArtifact('creative');
 
+  // Filtering
   const filtered = useMemo(() => {
     let list = items;
     if (search) {
@@ -107,37 +270,41 @@ export default function CreativeLensPage() {
       list = list.filter(i => i.title.toLowerCase().includes(q) || JSON.stringify(i.data).toLowerCase().includes(q));
     }
     if (statusFilter !== 'all') {
-      list = list.filter(i => i.meta?.status === statusFilter);
+      list = list.filter(i => (i.meta?.status === statusFilter) || ((i.data as Record<string, unknown>).proofStatus === statusFilter));
+    }
+    if (mode === 'assets' && categoryFilter !== 'all') {
+      list = list.filter(i => (i.data as Record<string, unknown>).category === categoryFilter);
     }
     return list;
-  }, [items, search, statusFilter]);
+  }, [items, search, statusFilter, categoryFilter, mode]);
 
-  const resetForm = () => { setFormTitle(''); setFormStatus('brief'); setFormField1(''); setFormField2(''); setFormField3(''); setFormNotes(''); setEditing(null); setShowEditor(false); };
-  const openCreate = () => { resetForm(); setShowEditor(true); };
+  // Form handling
+  const resetForm = useCallback(() => {
+    setFormTitle(''); setFormStatus('concept'); setFormFields({}); setEditing(null); setShowEditor(false);
+  }, []);
 
-  const openEdit = (id: string) => {
-    const item = items.find(i => i.id === id);
-    if (!item) return;
-    setEditing(id);
+  const openCreate = useCallback(() => { resetForm(); setShowEditor(true); }, [resetForm]);
+
+  const openEdit = useCallback((item: LensItem) => {
+    setEditing(item.id);
     setFormTitle(item.title);
-    setFormStatus(item.meta?.status || 'brief');
-    const vals = Object.values(item.data as Record<string, unknown>);
-    setFormField1(String(vals[0] ?? ''));
-    setFormField2(String(vals[1] ?? ''));
-    setFormField3(String(vals[2] ?? ''));
-    setFormNotes(String(vals[4] ?? ''));
+    setFormStatus(item.meta?.status || 'concept');
+    const d = item.data as Record<string, unknown>;
+    const fields: Record<string, string> = {};
+    Object.entries(d).forEach(([k, v]) => {
+      fields[k] = typeof v === 'object' ? JSON.stringify(v) : String(v ?? '');
+    });
+    setFormFields(fields);
     setShowEditor(true);
-  };
+  }, []);
+
+  const openDetail = useCallback((item: LensItem) => {
+    setDetailItem(item);
+    setShowDetail(true);
+  }, []);
 
   const handleSave = async () => {
-    const data: Record<string, unknown> = {};
-    if (mode === 'projects') { data.client = formField1; data.type = formField2; data.budget = formField3; data.notes = formNotes; }
-    if (mode === 'shoots') { data.project = formField1; data.date = formField2; data.location = formField3; data.notes = formNotes; }
-    if (mode === 'assets') { data.type = formField1; data.format = formField2; data.resolution = formField3; data.notes = formNotes; }
-    if (mode === 'episodes') { data.series = formField1; data.number = formField2; data.duration = formField3; data.notes = formNotes; }
-    if (mode === 'collections') { data.project = formField1; data.assetCount = formField2; data.categories = formField3; data.notes = formNotes; }
-    if (mode === 'proofs') { data.project = formField1; data.client = formField2; data.versions = formField3; data.feedback = formNotes; }
-
+    const data: Record<string, unknown> = { ...formFields };
     if (editing) {
       await update(editing, { title: formTitle, data, meta: { status: formStatus } });
     } else {
@@ -146,40 +313,138 @@ export default function CreativeLensPage() {
     resetForm();
   };
 
-  const _handleAction = async (action: string, artifactId?: string) => {
+  const handleAction = async (action: string, artifactId?: string) => {
     const targetId = artifactId || editing || filtered[0]?.id;
     if (!targetId) return;
+    setActiveAction(action);
     try {
       const result = await runAction.mutateAsync({ id: targetId, action });
       setActionResult(result.result as Record<string, unknown>);
     } catch (err) {
       console.error('Action failed:', err);
+    } finally {
+      setActiveAction(null);
     }
   };
 
-  const fieldLabels: Record<ModeTab, [string, string, string, string]> = {
-    projects: ['Client', 'Type', 'Budget', 'Notes'],
-    shoots: ['Project', 'Date', 'Location', 'Notes'],
-    assets: ['Asset Type', 'Format', 'Resolution', 'Notes'],
-    episodes: ['Series', 'Episode Number', 'Duration', 'Notes'],
-    collections: ['Project', 'Asset Count', 'Categories', 'Notes'],
-    proofs: ['Project', 'Client', 'Versions', 'Client Feedback'],
+  // Form field configs per mode
+  const formConfig: Record<string, { key: string; label: string; type: 'input' | 'textarea' | 'select'; options?: string[] }[]> = {
+    projects: [
+      { key: 'client', label: 'Client', type: 'input' },
+      { key: 'projectType', label: 'Project Type', type: 'select', options: ['Branding', 'Campaign', 'Film', 'Print / Digital', 'Social Media', 'Web', 'Other'] },
+      { key: 'budget', label: 'Budget ($)', type: 'input' },
+      { key: 'deadline', label: 'Deadline', type: 'input' },
+      { key: 'lead', label: 'Project Lead', type: 'input' },
+      { key: 'phase', label: 'Phase', type: 'select', options: ['concept', 'pre_production', 'production', 'post_production', 'review', 'delivery'] },
+    ],
+    assets: [
+      { key: 'category', label: 'Category', type: 'select', options: ['photo', 'video', 'audio', 'graphic', 'document'] },
+      { key: 'format', label: 'Format', type: 'input' },
+      { key: 'resolution', label: 'Resolution', type: 'input' },
+      { key: 'fileSize', label: 'File Size', type: 'input' },
+      { key: 'colorSpace', label: 'Color Space', type: 'input' },
+      { key: 'project', label: 'Project', type: 'input' },
+    ],
+    shotlist: [
+      { key: 'project', label: 'Project', type: 'input' },
+      { key: 'description', label: 'Shot Description', type: 'textarea' },
+      { key: 'location', label: 'Location', type: 'input' },
+      { key: 'talent', label: 'Talent', type: 'input' },
+      { key: 'equipment', label: 'Equipment', type: 'input' },
+      { key: 'scheduledDate', label: 'Date', type: 'input' },
+      { key: 'scheduledTime', label: 'Time', type: 'input' },
+    ],
+    proofs: [
+      { key: 'project', label: 'Project', type: 'input' },
+      { key: 'client', label: 'Client', type: 'input' },
+      { key: 'clientContact', label: 'Client Contact', type: 'input' },
+      { key: 'proofRound', label: 'Proof Round', type: 'input' },
+      { key: 'proofStatus', label: 'Proof Status', type: 'select', options: ['pending_review', 'approved', 'revision_requested'] },
+    ],
+    budget: [
+      { key: 'project', label: 'Project', type: 'input' },
+      { key: 'category', label: 'Category', type: 'select', options: ['talent', 'equipment', 'location', 'post_production', 'licensing'] },
+      { key: 'estimated', label: 'Estimated ($)', type: 'input' },
+      { key: 'actual', label: 'Actual ($)', type: 'input' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+    distribution: [
+      { key: 'project', label: 'Project', type: 'input' },
+      { key: 'format', label: 'Format Spec', type: 'input' },
+      { key: 'platform', label: 'Platform', type: 'select', options: ['Instagram', 'YouTube', 'LinkedIn', 'Web', 'Print', 'Podcast', 'TikTok', 'Other'] },
+      { key: 'requirement', label: 'Requirements', type: 'textarea' },
+      { key: 'completed', label: 'Completed', type: 'select', options: ['true', 'false'] },
+    ],
   };
 
+  // ---------------------------------------------------------------------------
   // Dashboard metrics
-  const activeProjects = SEED.Project.filter(p => !['archived', 'delivered'].includes(p.meta.status as string)).length;
-  const inReview = items.filter(i => i.meta?.status === 'review').length;
-  const totalBudget = SEED.Project.reduce((s, p) => s + (p.data.budget as number), 0);
-  const deliveredCount = items.filter(i => i.meta?.status === 'delivered').length;
+  // ---------------------------------------------------------------------------
+  const projectData = (allProjects.length ? allProjects : items).map(p => p.data as Record<string, unknown>);
+  const activeProjectCount = allProjects.filter(p => !['delivery', 'archived'].includes(p.meta?.status as string)).length;
+  const totalRevenue = projectData.reduce((s, p) => s + Number(p.budget || 0), 0);
+  const totalSpent = projectData.reduce((s, p) => s + Number(p.budgetSpent || 0), 0);
+  const pendingProofs = allProofs.filter(p => (p.data as Record<string, unknown>).proofStatus === 'pending_review' || (p.data as Record<string, unknown>).proofStatus === 'revision_requested').length;
+  const assetsThisMonth = allAssets.length;
+  const deliveredDist = allDist.filter(d => (d.data as Record<string, unknown>).completed === true || (d.data as Record<string, unknown>).completed === 'true').length;
+  const totalDist = allDist.length;
 
-  // Icon helper for asset types
-  const assetIcon = (type: string) => {
-    if (type === 'Video' || type === 'Film') return <Video className="w-4 h-4 text-neon-purple" />;
-    if (type === 'Photo') return <Aperture className="w-4 h-4 text-neon-cyan" />;
-    return <FileImage className="w-4 h-4 text-neon-blue" />;
+  const upcomingDeadlines = allProjects
+    .filter(p => {
+      const d = p.data as Record<string, unknown>;
+      return d.deadline && daysUntil(d.deadline as string) > 0 && daysUntil(d.deadline as string) <= 60;
+    })
+    .sort((a, b) => daysUntil((a.data as Record<string, unknown>).deadline as string) - daysUntil((b.data as Record<string, unknown>).deadline as string));
+
+  const budgetByCategory = useMemo(() => {
+    const cats: Record<string, { estimated: number; actual: number }> = {};
+    const bl = allBudget.length ? allBudget : items;
+    bl.forEach(b => {
+      const d = b.data as Record<string, unknown>;
+      const cat = String(d.category || 'other');
+      if (!cats[cat]) cats[cat] = { estimated: 0, actual: 0 };
+      cats[cat].estimated += Number(d.estimated || 0);
+      cats[cat].actual += Number(d.actual || 0);
+    });
+    return cats;
+  }, [allBudget, items]);
+
+  const utilizationRate = totalRevenue > 0 ? totalSpent / totalRevenue : 0;
+
+  // Icon helper
+  const categoryIcon = (cat: string) => {
+    switch (cat) {
+      case 'photo': return <Aperture className="w-4 h-4 text-neon-cyan" />;
+      case 'video': return <Video className="w-4 h-4 text-neon-purple" />;
+      case 'audio': return <Mic className="w-4 h-4 text-pink-400" />;
+      case 'graphic': return <FileImage className="w-4 h-4 text-neon-blue" />;
+      case 'document': return <FileText className="w-4 h-4 text-amber-400" />;
+      default: return <FileImage className="w-4 h-4 text-gray-400" />;
+    }
   };
 
+  const proofStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved': return <CheckCircle2 className="w-4 h-4 text-green-400" />;
+      case 'revision_requested': return <RotateCcw className="w-4 h-4 text-red-400" />;
+      default: return <Clock className="w-4 h-4 text-amber-400" />;
+    }
+  };
 
+  const budgetCategoryIcon = (cat: string) => {
+    switch (cat) {
+      case 'talent': return <Users className="w-4 h-4 text-neon-cyan" />;
+      case 'equipment': return <Camera className="w-4 h-4 text-neon-purple" />;
+      case 'location': return <MapPin className="w-4 h-4 text-amber-400" />;
+      case 'post_production': return <Tv className="w-4 h-4 text-pink-400" />;
+      case 'licensing': return <Shield className="w-4 h-4 text-green-400" />;
+      default: return <Receipt className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Error state
+  // ---------------------------------------------------------------------------
   if (isError) {
     return (
       <div className="flex items-center justify-center h-full p-8">
@@ -187,6 +452,859 @@ export default function CreativeLensPage() {
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Render: Dashboard
+  // ---------------------------------------------------------------------------
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* KPI Row */}
+      <div className={ds.grid4}>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-neon-purple" /><span className={ds.textMuted}>Active Projects</span></div>
+          <p className="text-2xl font-bold">{activeProjectCount}</p>
+          <p className={cn(ds.textMuted, 'text-xs mt-1')}>{allProjects.length} total</p>
+        </div>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-1"><FolderOpen className="w-4 h-4 text-neon-cyan" /><span className={ds.textMuted}>Assets This Month</span></div>
+          <p className="text-2xl font-bold">{assetsThisMonth}</p>
+          <p className={cn(ds.textMuted, 'text-xs mt-1')}>{allAssets.filter(a => (a.data as Record<string, unknown>).category === 'video').length} videos, {allAssets.filter(a => (a.data as Record<string, unknown>).category === 'photo').length} photos</p>
+        </div>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-1"><FileCheck className="w-4 h-4 text-amber-400" /><span className={ds.textMuted}>Pending Proofs</span></div>
+          <p className="text-2xl font-bold">{pendingProofs}</p>
+          <p className={cn(ds.textMuted, 'text-xs mt-1')}>{allProofs.filter(p => (p.data as Record<string, unknown>).proofStatus === 'approved').length} approved</p>
+        </div>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-1"><DollarSign className="w-4 h-4 text-green-400" /><span className={ds.textMuted}>Revenue Pipeline</span></div>
+          <p className="text-2xl font-bold">{fmtCurrency(totalRevenue)}</p>
+          <p className={cn(ds.textMuted, 'text-xs mt-1')}>{fmtCurrency(totalSpent)} spent ({fmtPct(utilizationRate)})</p>
+        </div>
+      </div>
+
+      {/* Second KPI Row */}
+      <div className={ds.grid3}>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-2"><Gauge className="w-4 h-4 text-neon-blue" /><span className={ds.textMuted}>Budget Utilization</span></div>
+          <div className="w-full bg-lattice-elevated rounded-full h-3 mb-2">
+            <div className={cn('h-3 rounded-full transition-all', utilizationRate > 0.9 ? 'bg-red-400' : utilizationRate > 0.7 ? 'bg-amber-400' : 'bg-green-400')} style={{ width: `${Math.min(utilizationRate * 100, 100)}%` }} />
+          </div>
+          <div className="flex justify-between">
+            <span className={ds.textMuted}>{fmtCurrency(totalSpent)}</span>
+            <span className={ds.textMuted}>{fmtCurrency(totalRevenue)}</span>
+          </div>
+        </div>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-2"><Send className="w-4 h-4 text-neon-purple" /><span className={ds.textMuted}>Distribution Progress</span></div>
+          <div className="w-full bg-lattice-elevated rounded-full h-3 mb-2">
+            <div className="h-3 rounded-full bg-neon-purple transition-all" style={{ width: totalDist > 0 ? `${(deliveredDist / totalDist) * 100}%` : '0%' }} />
+          </div>
+          <div className="flex justify-between">
+            <span className={ds.textMuted}>{deliveredDist} delivered</span>
+            <span className={ds.textMuted}>{totalDist} total</span>
+          </div>
+        </div>
+        <div className={ds.panel}>
+          <div className="flex items-center gap-2 mb-2"><TrendingUp className="w-4 h-4 text-green-400" /><span className={ds.textMuted}>Profit Margin</span></div>
+          <p className="text-2xl font-bold text-green-400">{fmtCurrency(totalRevenue - totalSpent)}</p>
+          <p className={cn(ds.textMuted, 'text-xs mt-1')}>
+            {totalRevenue > 0 ? fmtPct((totalRevenue - totalSpent) / totalRevenue) : '0%'} margin across all projects
+          </p>
+        </div>
+      </div>
+
+      {/* Upcoming Deadlines + Phase Pipeline */}
+      <div className={ds.grid2}>
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><CalendarDays className="w-5 h-5 text-amber-400" /> Upcoming Deadlines</h3>
+          {upcomingDeadlines.length === 0 ? (
+            <p className={ds.textMuted}>No upcoming deadlines in the next 60 days</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingDeadlines.map(p => {
+                const d = p.data as Record<string, unknown>;
+                const days = daysUntil(d.deadline as string);
+                return (
+                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-lattice-border last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{p.title}</p>
+                      <p className={ds.textMuted}>{String(d.client)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', days <= 7 ? 'bg-red-500/20 text-red-400' : days <= 21 ? 'bg-amber-400/20 text-amber-400' : 'bg-green-400/20 text-green-400')}>
+                        {days}d left
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><Layers className="w-5 h-5 text-neon-cyan" /> Phase Pipeline</h3>
+          <div className="space-y-2">
+            {PHASE_ORDER.map(phase => {
+              const count = allProjects.filter(p => (p.data as Record<string, unknown>).phase === phase).length;
+              return (
+                <div key={phase} className="flex items-center gap-3">
+                  <span className={cn('w-28 text-xs', ds.textMuted)}>{PHASE_LABELS[phase]}</span>
+                  <div className="flex-1 bg-lattice-elevated rounded-full h-2">
+                    <div className={cn('h-2 rounded-full')} style={{ width: allProjects.length > 0 ? `${(count / allProjects.length) * 100}%` : '0%', backgroundColor: `var(--${STATUS_COLORS[phase]?.replace('-', '-')}, #666)` }} />
+                  </div>
+                  <span className="text-sm font-medium w-6 text-right">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Budget Breakdown by Category */}
+      <div className={ds.panel}>
+        <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><PieChart className="w-5 h-5 text-neon-purple" /> Budget by Category</h3>
+        <div className={ds.grid3}>
+          {Object.entries(budgetByCategory).map(([cat, vals]) => {
+            const pct = vals.estimated > 0 ? vals.actual / vals.estimated : 0;
+            return (
+              <div key={cat} className="p-3 rounded-lg bg-lattice-elevated/50">
+                <div className="flex items-center gap-2 mb-2">
+                  {budgetCategoryIcon(cat)}
+                  <span className="text-sm font-medium text-white capitalize">{cat.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="w-full bg-lattice-surface rounded-full h-2 mb-1">
+                  <div className={cn('h-2 rounded-full', pct > 1 ? 'bg-red-400' : pct > 0.8 ? 'bg-amber-400' : 'bg-neon-cyan')} style={{ width: `${Math.min(pct * 100, 100)}%` }} />
+                </div>
+                <div className="flex justify-between">
+                  <span className={cn(ds.textMuted, 'text-xs')}>{fmtCurrency(vals.actual)} spent</span>
+                  <span className={cn(ds.textMuted, 'text-xs')}>{fmtCurrency(vals.estimated)} est.</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Domain Actions */}
+      <div className={ds.panel}>
+        <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><Zap className="w-5 h-5 text-amber-400" /> Quick Actions</h3>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { action: 'generate_shot_list', label: 'Generate Shot List', icon: Clapperboard },
+            { action: 'asset_report', label: 'Asset Report', icon: BarChart3 },
+            { action: 'budget_analysis', label: 'Budget Analysis', icon: DollarSign },
+            { action: 'distribution_checklist', label: 'Distribution Checklist', icon: ListChecks },
+            { action: 'project_summary', label: 'Project Summary', icon: ClipboardList },
+          ].map(a => (
+            <button
+              key={a.action}
+              onClick={() => {
+                const target = allProjects[0]?.id || filtered[0]?.id;
+                if (target) handleAction(a.action, target);
+              }}
+              disabled={runAction.isPending}
+              className={cn(ds.btnSecondary, ds.btnSmall, 'text-sm')}
+            >
+              <a.icon className="w-4 h-4" />
+              {activeAction === a.action ? 'Running...' : a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Projects
+  // ---------------------------------------------------------------------------
+  const renderProjects = () => (
+    <div className={ds.grid2}>
+      {filtered.map(item => {
+        const d = item.data as Record<string, unknown>;
+        const milestones = parseSafe<{ name: string; date: string; done: boolean }[]>(d.milestones, []);
+        const team = parseSafe<string[]>(d.teamMembers, []);
+        const phase = String(d.phase || 'concept') as ProjectPhase;
+        const phaseIdx = PHASE_ORDER.indexOf(phase);
+        const budget = Number(d.budget || 0);
+        const spent = Number(d.budgetSpent || 0);
+        const delivTotal = Number(d.deliverables || 0);
+        const delivDone = Number(d.deliverablesCompleted || 0);
+        const dLeft = d.deadline ? daysUntil(d.deadline as string) : 0;
+        const profitMargin = budget > 0 ? (budget - spent) / budget : 0;
+
+        return (
+          <div key={item.id} className={ds.panelHover} onClick={() => openDetail(item)}>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-3">
+              <div className="min-w-0">
+                <h3 className={cn(ds.heading3, 'truncate')}>{item.title}</h3>
+                <p className={ds.textMuted}>{String(d.client)} &middot; {String(d.projectType)}</p>
+              </div>
+              <span className={ds.badge(STATUS_COLORS[phase] || 'gray-400')}>{PHASE_LABELS[phase]}</span>
+            </div>
+
+            {/* Phase progress */}
+            <div className="flex items-center gap-1 mb-3">
+              {PHASE_ORDER.map((ph, idx) => (
+                <div key={ph} className="flex items-center flex-1">
+                  <div className={cn('h-1.5 flex-1 rounded-full', idx <= phaseIdx ? 'bg-neon-purple' : 'bg-lattice-elevated')} />
+                  {idx < PHASE_ORDER.length - 1 && <ChevronRight className={cn('w-3 h-3 shrink-0', idx < phaseIdx ? 'text-neon-purple' : 'text-gray-600')} />}
+                </div>
+              ))}
+            </div>
+
+            {/* Key metrics */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="text-center p-2 rounded bg-lattice-elevated/50">
+                <p className={cn(ds.textMuted, 'text-xs')}>Budget</p>
+                <p className="text-sm font-semibold">{fmtCurrency(budget)}</p>
+                <p className={cn('text-xs', spent / budget > 0.9 ? 'text-red-400' : 'text-green-400')}>{fmtPct(spent / (budget || 1))} used</p>
+              </div>
+              <div className="text-center p-2 rounded bg-lattice-elevated/50">
+                <p className={cn(ds.textMuted, 'text-xs')}>Deliverables</p>
+                <p className="text-sm font-semibold">{delivDone}/{delivTotal}</p>
+                <div className="w-full bg-lattice-surface rounded-full h-1 mt-1">
+                  <div className="h-1 rounded-full bg-neon-cyan" style={{ width: delivTotal > 0 ? `${(delivDone / delivTotal) * 100}%` : '0%' }} />
+                </div>
+              </div>
+              <div className="text-center p-2 rounded bg-lattice-elevated/50">
+                <p className={cn(ds.textMuted, 'text-xs')}>Deadline</p>
+                <p className={cn('text-sm font-semibold', dLeft <= 7 ? 'text-red-400' : dLeft <= 21 ? 'text-amber-400' : 'text-white')}>
+                  {dLeft > 0 ? `${dLeft}d` : dLeft === 0 ? 'Today' : 'Overdue'}
+                </p>
+              </div>
+            </div>
+
+            {/* Milestones */}
+            {milestones.length > 0 && (
+              <div className="mb-3">
+                <p className={cn(ds.textMuted, 'text-xs mb-1')}>Milestones</p>
+                <div className="space-y-1">
+                  {milestones.slice(0, 3).map((m, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      {m.done ? <CheckCircle2 className="w-3 h-3 text-green-400 shrink-0" /> : <CircleDot className="w-3 h-3 text-gray-500 shrink-0" />}
+                      <span className={cn(m.done ? 'text-gray-500 line-through' : 'text-gray-300')}>{m.name}</span>
+                    </div>
+                  ))}
+                  {milestones.length > 3 && <p className={cn(ds.textMuted, 'text-xs')}>+{milestones.length - 3} more</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
+              <div className="flex items-center gap-1">
+                {team.slice(0, 3).map((t, i) => (
+                  <div key={i} className="w-6 h-6 rounded-full bg-lattice-elevated flex items-center justify-center text-[10px] font-medium text-gray-300 border border-lattice-border" title={t}>
+                    {t.split(' ').map(w => w[0]).join('')}
+                  </div>
+                ))}
+                {team.length > 3 && <span className={cn(ds.textMuted, 'text-xs')}>+{team.length - 3}</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className={cn('text-xs font-medium', profitMargin > 0.3 ? 'text-green-400' : profitMargin > 0.1 ? 'text-amber-400' : 'text-red-400')}>
+                  {fmtPct(profitMargin)} margin
+                </span>
+                <button onClick={e => { e.stopPropagation(); openEdit(item); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Asset Library
+  // ---------------------------------------------------------------------------
+  const renderAssets = () => (
+    <div className="space-y-4">
+      {/* Category filter bar */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => setCategoryFilter('all')} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors', categoryFilter === 'all' ? 'bg-neon-cyan/20 text-neon-cyan' : 'text-gray-400 hover:text-white hover:bg-lattice-elevated')}>
+          <LayoutGrid className="w-3.5 h-3.5" /> All
+        </button>
+        {ASSET_CATEGORIES.map(cat => {
+          const Icon = cat.icon;
+          const count = items.filter(i => (i.data as Record<string, unknown>).category === cat.id).length;
+          return (
+            <button key={cat.id} onClick={() => setCategoryFilter(cat.id)} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors', categoryFilter === cat.id ? 'bg-neon-cyan/20 text-neon-cyan' : 'text-gray-400 hover:text-white hover:bg-lattice-elevated')}>
+              <Icon className="w-3.5 h-3.5" /> {cat.label} <span className="text-xs opacity-60">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Asset grid */}
+      <div className={ds.grid3}>
+        {filtered.map(item => {
+          const d = item.data as Record<string, unknown>;
+          const versions = parseSafe<{ v: number; date: string; note: string }[]>(d.versionHistory, []);
+          return (
+            <div key={item.id} className={ds.panelHover} onClick={() => openDetail(item)}>
+              {/* Asset preview placeholder */}
+              <div className="w-full h-28 rounded-lg bg-lattice-elevated/70 flex items-center justify-center mb-3 border border-lattice-border">
+                {categoryIcon(String(d.category))}
+                <span className={cn(ds.textMuted, 'ml-2 text-xs uppercase')}>{String(d.format)}</span>
+              </div>
+
+              <div className="flex items-start justify-between mb-2">
+                <div className="min-w-0">
+                  <h3 className={cn(ds.heading3, 'text-sm truncate')}>{item.title}</h3>
+                  <p className={cn(ds.textMuted, 'text-xs')}>{String(d.project)}</p>
+                </div>
+                <span className={ds.badge(STATUS_COLORS[item.meta?.status as string] || 'gray-400')}>
+                  {String(item.meta?.status || '').replace(/_/g, ' ')}
+                </span>
+              </div>
+
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-2 text-xs">
+                <div><span className="text-gray-500">Resolution:</span> <span className="text-gray-300">{String(d.resolution)}</span></div>
+                <div><span className="text-gray-500">Size:</span> <span className="text-gray-300">{String(d.fileSize)}</span></div>
+                <div><span className="text-gray-500">Color:</span> <span className="text-gray-300">{String(d.colorSpace)}</span></div>
+                <div><span className="text-gray-500">Version:</span> <span className="text-gray-300">v{String(d.version)}</span></div>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {(item.meta?.tags || []).slice(0, 4).map(tag => (
+                  <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-lattice-elevated text-gray-400">
+                    <Hash className="w-2.5 h-2.5 inline mr-0.5" />{tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* Usage + versions */}
+              <div className="flex items-center justify-between pt-2 border-t border-lattice-border text-xs">
+                <span className={ds.textMuted}><Eye className="w-3 h-3 inline mr-1" />{String(d.usageCount)} uses</span>
+                <span className={ds.textMuted}>{versions.length} version{versions.length !== 1 ? 's' : ''}</span>
+                <div className="flex gap-1">
+                  <button onClick={e => { e.stopPropagation(); openEdit(item); }} className={ds.btnGhost}><Edit2 className="w-3 h-3" /></button>
+                  <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3 h-3" /></button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Shot List / Production Board
+  // ---------------------------------------------------------------------------
+  const renderShotList = () => {
+    const shotStatuses: ShotStatus[] = ['planned', 'scheduled', 'in_progress', 'captured', 'review', 'final'];
+    return (
+      <div className="space-y-4">
+        {/* Status board view */}
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {shotStatuses.map(status => {
+            const shots = filtered.filter(i => i.meta?.status === status);
+            return (
+              <div key={status} className="min-w-[280px] flex-1">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className={ds.badge(STATUS_COLORS[status] || 'gray-400')}>{status.replace(/_/g, ' ')}</span>
+                  <span className={cn(ds.textMuted, 'text-xs')}>{shots.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {shots.map(item => {
+                    const d = item.data as Record<string, unknown>;
+                    return (
+                      <div key={item.id} className={cn(ds.panel, 'cursor-pointer hover:border-neon-cyan/50 transition-colors')} onClick={() => openDetail(item)}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn(ds.textMono, 'text-xs text-neon-blue')}>#{String(d.shotNumber || '-')}</span>
+                          <h4 className="text-sm font-medium text-white truncate">{item.title}</h4>
+                        </div>
+                        <p className={cn(ds.textMuted, 'text-xs mb-2 line-clamp-2')}>{String(d.description)}</p>
+
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{String(d.location)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <Users className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{String(d.talent)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <CalendarDays className="w-3 h-3 shrink-0" />
+                            <span>{String(d.scheduledDate)} {String(d.scheduledTime || '')}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <Camera className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{String(d.equipment)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-lattice-border">
+                          <span className={cn(ds.textMuted, 'text-xs')}>{String(d.project)}</span>
+                          <div className="flex gap-1">
+                            <button onClick={e => { e.stopPropagation(); openEdit(item); }} className={ds.btnGhost}><Edit2 className="w-3 h-3" /></button>
+                            <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3 h-3" /></button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render: Client Proofing
+  // ---------------------------------------------------------------------------
+  const renderProofs = () => (
+    <div className="space-y-4">
+      {/* Proof status summary */}
+      <div className={ds.grid3}>
+        {(['pending_review', 'revision_requested', 'approved'] as ProofStatus[]).map(ps => {
+          const count = filtered.filter(i => (i.data as Record<string, unknown>).proofStatus === ps).length;
+          return (
+            <div key={ps} className={cn(ds.panel, 'text-center')}>
+              {proofStatusIcon(ps)}
+              <p className="text-xl font-bold mt-1">{count}</p>
+              <p className={cn(ds.textMuted, 'text-xs capitalize')}>{ps.replace(/_/g, ' ')}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Proof cards */}
+      <div className={ds.grid2}>
+        {filtered.map(item => {
+          const d = item.data as Record<string, unknown>;
+          const comments = parseSafe<{ author: string; date: string; text: string }[]>(d.comments, []);
+          const proofSt = String(d.proofStatus || 'pending_review') as ProofStatus;
+          const isApproved = d.approvalGate === true;
+
+          return (
+            <div key={item.id} className={cn(ds.panelHover, isApproved && 'border-green-500/30')} onClick={() => openDetail(item)}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="min-w-0">
+                  <h3 className={cn(ds.heading3, 'text-sm truncate')}>{item.title}</h3>
+                  <p className={ds.textMuted}>{String(d.project)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={ds.badge(STATUS_COLORS[proofSt] || 'gray-400')}>
+                    {proofSt.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Proof metadata */}
+              <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                <div><span className="text-gray-500">Client:</span> <span className="text-gray-300">{String(d.clientContact)}</span></div>
+                <div><span className="text-gray-500">Round:</span> <span className="text-gray-300">{String(d.proofRound)}</span></div>
+                <div><span className="text-gray-500">Sent:</span> <span className="text-gray-300">{String(d.sentDate)}</span></div>
+                <div><span className="text-gray-500">Revisions:</span> <span className={cn('text-gray-300', Number(d.revisionCount) > 3 && 'text-amber-400')}>{String(d.revisionCount)}</span></div>
+              </div>
+
+              {/* Approval gate */}
+              {isApproved && (
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <Shield className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-green-400 font-medium">Final Approval Granted</span>
+                </div>
+              )}
+
+              {/* Comments */}
+              {comments.length > 0 && (
+                <div className="mb-3">
+                  <p className={cn(ds.textMuted, 'text-xs mb-1 flex items-center gap-1')}>
+                    <MessageSquare className="w-3 h-3" /> {comments.length} comment{comments.length !== 1 ? 's' : ''}
+                  </p>
+                  {comments.slice(-2).map((c, i) => (
+                    <div key={i} className="p-2 rounded bg-lattice-elevated/50 mb-1 last:mb-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-white">{c.author}</span>
+                        <span className={cn(ds.textMuted, 'text-[10px]')}>{c.date}</span>
+                      </div>
+                      <p className="text-xs text-gray-300 line-clamp-2">{c.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
+                <div className="flex items-center gap-2">
+                  {proofStatusIcon(proofSt)}
+                  <span className={cn(ds.textMuted, 'text-xs capitalize')}>{proofSt.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={e => { e.stopPropagation(); openEdit(item); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Budget Tracker
+  // ---------------------------------------------------------------------------
+  const renderBudget = () => {
+    const categories = ['talent', 'equipment', 'location', 'post_production', 'licensing'];
+    const projectBudgets = allProjects.map(p => {
+      const d = p.data as Record<string, unknown>;
+      const projectLines = filtered.filter(l => (l.data as Record<string, unknown>).project === String(d.client) + ' ' + p.title || String((l.data as Record<string, unknown>).project).includes(String(d.client)));
+      const lineEstimated = projectLines.reduce((s, l) => s + Number((l.data as Record<string, unknown>).estimated || 0), 0);
+      const lineActual = projectLines.reduce((s, l) => s + Number((l.data as Record<string, unknown>).actual || 0), 0);
+      return { ...p, lineEstimated, lineActual };
+    });
+
+    const totalEstimated = filtered.reduce((s, i) => s + Number((i.data as Record<string, unknown>).estimated || 0), 0);
+    const totalActual = filtered.reduce((s, i) => s + Number((i.data as Record<string, unknown>).actual || 0), 0);
+    const overBudgetItems = filtered.filter(i => {
+      const d = i.data as Record<string, unknown>;
+      return Number(d.actual || 0) > Number(d.estimated || 0);
+    });
+
+    return (
+      <div className="space-y-4">
+        {/* Budget summary cards */}
+        <div className={ds.grid4}>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Total Estimated</p>
+            <p className="text-2xl font-bold">{fmtCurrency(totalEstimated)}</p>
+          </div>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Total Actual</p>
+            <p className="text-2xl font-bold">{fmtCurrency(totalActual)}</p>
+          </div>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Variance</p>
+            <p className={cn('text-2xl font-bold flex items-center gap-1', totalEstimated - totalActual >= 0 ? 'text-green-400' : 'text-red-400')}>
+              {totalEstimated - totalActual >= 0 ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+              {fmtCurrency(Math.abs(totalEstimated - totalActual))}
+            </p>
+          </div>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Over Budget Items</p>
+            <p className={cn('text-2xl font-bold', overBudgetItems.length > 0 ? 'text-red-400' : 'text-green-400')}>{overBudgetItems.length}</p>
+          </div>
+        </div>
+
+        {/* Category breakdown */}
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3')}>By Category</h3>
+          <div className="space-y-3">
+            {categories.map(cat => {
+              const catItems = filtered.filter(i => (i.data as Record<string, unknown>).category === cat);
+              const est = catItems.reduce((s, i) => s + Number((i.data as Record<string, unknown>).estimated || 0), 0);
+              const act = catItems.reduce((s, i) => s + Number((i.data as Record<string, unknown>).actual || 0), 0);
+              const pct = est > 0 ? act / est : 0;
+              return (
+                <div key={cat} className="flex items-center gap-3">
+                  {budgetCategoryIcon(cat)}
+                  <span className="w-28 text-sm capitalize text-gray-300">{cat.replace(/_/g, ' ')}</span>
+                  <div className="flex-1 bg-lattice-elevated rounded-full h-3">
+                    <div className={cn('h-3 rounded-full transition-all', pct > 1 ? 'bg-red-400' : pct > 0.8 ? 'bg-amber-400' : 'bg-neon-cyan')} style={{ width: `${Math.min(pct * 100, 100)}%` }} />
+                  </div>
+                  <span className="w-24 text-right text-sm text-gray-300">{fmtCurrency(act)}</span>
+                  <span className={cn(ds.textMuted, 'w-24 text-right text-xs')}>/ {fmtCurrency(est)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Line items table */}
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3')}>Line Items</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-lattice-border text-left">
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium')}>Item</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium')}>Project</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium')}>Category</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium text-right')}>Estimated</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium text-right')}>Actual</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium text-right')}>Variance</th>
+                  <th className={cn(ds.textMuted, 'pb-2 font-medium text-center')}>Invoiced</th>
+                  <th className="pb-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(item => {
+                  const d = item.data as Record<string, unknown>;
+                  const est = Number(d.estimated || 0);
+                  const act = Number(d.actual || 0);
+                  const variance = est - act;
+                  const invoiced = d.invoiced === true || d.invoiced === 'true';
+                  return (
+                    <tr key={item.id} className="border-b border-lattice-border/50 hover:bg-lattice-elevated/30 cursor-pointer" onClick={() => openDetail(item)}>
+                      <td className="py-2.5 text-white font-medium">{item.title}</td>
+                      <td className="py-2.5 text-gray-400">{String(d.project)}</td>
+                      <td className="py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {budgetCategoryIcon(String(d.category))}
+                          <span className="text-gray-300 capitalize">{String(d.category || '').replace(/_/g, ' ')}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right text-gray-300">{fmtCurrency(est)}</td>
+                      <td className="py-2.5 text-right text-white font-medium">{fmtCurrency(act)}</td>
+                      <td className={cn('py-2.5 text-right font-medium', variance >= 0 ? 'text-green-400' : 'text-red-400')}>
+                        {variance >= 0 ? '+' : ''}{fmtCurrency(variance)}
+                      </td>
+                      <td className="py-2.5 text-center">
+                        {invoiced ? <CheckCircle2 className="w-4 h-4 text-green-400 mx-auto" /> : <Minus className="w-4 h-4 text-gray-600 mx-auto" />}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={e => { e.stopPropagation(); openEdit(item); }} className={ds.btnGhost}><Edit2 className="w-3 h-3" /></button>
+                          <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3 h-3" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render: Distribution Checklist
+  // ---------------------------------------------------------------------------
+  const renderDistribution = () => {
+    const platforms = [...new Set(filtered.map(i => String((i.data as Record<string, unknown>).platform)))];
+    const completedCount = filtered.filter(i => (i.data as Record<string, unknown>).completed === true || (i.data as Record<string, unknown>).completed === 'true').length;
+
+    return (
+      <div className="space-y-4">
+        {/* Summary */}
+        <div className={ds.grid3}>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Total Deliverables</p>
+            <p className="text-2xl font-bold">{filtered.length}</p>
+          </div>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Completed</p>
+            <p className="text-2xl font-bold text-green-400">{completedCount}</p>
+          </div>
+          <div className={ds.panel}>
+            <p className={ds.textMuted}>Remaining</p>
+            <p className="text-2xl font-bold text-amber-400">{filtered.length - completedCount}</p>
+          </div>
+        </div>
+
+        {/* Platform grouped view */}
+        {platforms.map(platform => {
+          const platItems = filtered.filter(i => String((i.data as Record<string, unknown>).platform) === platform);
+          const platDone = platItems.filter(i => (i.data as Record<string, unknown>).completed === true || (i.data as Record<string, unknown>).completed === 'true').length;
+          const platIcon = platform === 'Instagram' || platform === 'LinkedIn' || platform === 'TikTok'
+            ? <Share2 className="w-4 h-4 text-neon-purple" />
+            : platform === 'YouTube' ? <Play className="w-4 h-4 text-red-400" />
+            : platform === 'Web' ? <Globe className="w-4 h-4 text-neon-cyan" />
+            : platform === 'Print' ? <Printer className="w-4 h-4 text-amber-400" />
+            : platform === 'Podcast' ? <Mic className="w-4 h-4 text-pink-400" />
+            : <Monitor className="w-4 h-4 text-gray-400" />;
+
+          return (
+            <div key={platform} className={ds.panel}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  {platIcon}
+                  <h3 className={ds.heading3}>{platform}</h3>
+                  <span className={cn(ds.textMuted, 'text-xs')}>{platDone}/{platItems.length} complete</span>
+                </div>
+                <div className="w-32 bg-lattice-elevated rounded-full h-2">
+                  <div className="h-2 rounded-full bg-green-400" style={{ width: platItems.length > 0 ? `${(platDone / platItems.length) * 100}%` : '0%' }} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                {platItems.map(item => {
+                  const d = item.data as Record<string, unknown>;
+                  const done = d.completed === true || d.completed === 'true';
+                  return (
+                    <div key={item.id} className={cn('flex items-center gap-3 p-3 rounded-lg', done ? 'bg-green-500/5 border border-green-500/20' : 'bg-lattice-elevated/30 border border-lattice-border')}>
+                      <button
+                        onClick={() => {
+                          update(item.id, { data: { ...d, completed: !done } });
+                        }}
+                        className={cn('w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors', done ? 'border-green-400 bg-green-400/20' : 'border-gray-500 hover:border-neon-cyan')}
+                      >
+                        {done && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-sm font-medium', done ? 'text-gray-500 line-through' : 'text-white')}>{item.title}</p>
+                        <p className={cn(ds.textMuted, 'text-xs')}>{String(d.format)} &middot; {String(d.project)}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={cn(ds.textMuted, 'text-xs')}>{String(d.requirement).substring(0, 40)}{String(d.requirement).length > 40 ? '...' : ''}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => openEdit(item)} className={ds.btnGhost}><Edit2 className="w-3 h-3" /></button>
+                        <button onClick={() => remove(item.id)} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Detail Modal
+  // ---------------------------------------------------------------------------
+  const renderDetailModal = () => {
+    if (!showDetail || !detailItem) return null;
+    const d = detailItem.data as Record<string, unknown>;
+    const currentMode = mode;
+
+    return (
+      <>
+        <div className={ds.modalBackdrop} onClick={() => setShowDetail(false)} />
+        <div className={ds.modalContainer}>
+          <div className={cn(ds.modalPanel, 'max-w-2xl')}>
+            <div className="flex items-center justify-between p-4 border-b border-lattice-border">
+              <h2 className={ds.heading2}>{detailItem.title}</h2>
+              <button onClick={() => setShowDetail(false)} className={ds.btnGhost}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                <span className={ds.badge(STATUS_COLORS[detailItem.meta?.status as string] || 'gray-400')}>
+                  {String(detailItem.meta?.status || '').replace(/_/g, ' ')}
+                </span>
+                {detailItem.meta?.tags?.map(tag => (
+                  <span key={tag} className="px-2 py-0.5 rounded text-xs bg-lattice-elevated text-gray-400">#{tag}</span>
+                ))}
+              </div>
+
+              {/* All data fields */}
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(d).filter(([k]) => !['milestones', 'teamMembers', 'versionHistory', 'comments'].includes(k)).map(([k, v]) => (
+                  <div key={k}>
+                    <p className={cn(ds.label, 'text-xs capitalize')}>{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}</p>
+                    <p className="text-sm text-white">{typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Milestones (projects) */}
+              {d.milestones && (
+                <div>
+                  <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Milestones</h3>
+                  <div className="space-y-1.5">
+                    {parseSafe<{ name: string; date: string; done: boolean }[]>(d.milestones, []).map((m, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        {m.done ? <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" /> : <CircleDot className="w-4 h-4 text-gray-500 shrink-0" />}
+                        <span className={cn(m.done ? 'text-gray-500' : 'text-white')}>{m.name}</span>
+                        <span className={cn(ds.textMuted, 'ml-auto text-xs')}>{m.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Team (projects) */}
+              {d.teamMembers && (
+                <div>
+                  <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Team</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {parseSafe<string[]>(d.teamMembers, []).map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-lattice-elevated border border-lattice-border">
+                        <div className="w-6 h-6 rounded-full bg-neon-purple/20 flex items-center justify-center text-[10px] text-neon-purple font-medium">
+                          {t.split(' ').map(w => w[0]).join('')}
+                        </div>
+                        <span className="text-sm text-gray-300">{t}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Version history (assets) */}
+              {d.versionHistory && (
+                <div>
+                  <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Version History</h3>
+                  <div className="space-y-2">
+                    {parseSafe<{ v: number; date: string; note: string }[]>(d.versionHistory, []).map((vh, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2 rounded bg-lattice-elevated/50">
+                        <span className={cn(ds.textMono, 'text-xs text-neon-blue')}>v{vh.v}</span>
+                        <span className={cn(ds.textMuted, 'text-xs')}>{vh.date}</span>
+                        <span className="text-sm text-gray-300">{vh.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Comments (proofs) */}
+              {d.comments && (
+                <div>
+                  <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Comment Thread</h3>
+                  <div className="space-y-2">
+                    {parseSafe<{ author: string; date: string; text: string }[]>(d.comments, []).map((c, i) => (
+                      <div key={i} className="p-3 rounded-lg bg-lattice-elevated/50 border border-lattice-border">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-white">{c.author}</span>
+                          <span className={cn(ds.textMuted, 'text-xs')}>{c.date}</span>
+                        </div>
+                        <p className="text-sm text-gray-300">{c.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Domain actions */}
+              <div className="pt-3 border-t border-lattice-border">
+                <p className={cn(ds.textMuted, 'text-xs mb-2')}>Actions</p>
+                <div className="flex flex-wrap gap-2">
+                  {currentMode === 'projects' && (
+                    <>
+                      <button onClick={() => handleAction('project_summary', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><ClipboardList className="w-3 h-3" /> Project Summary</button>
+                      <button onClick={() => handleAction('generate_shot_list', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><Clapperboard className="w-3 h-3" /> Generate Shot List</button>
+                      <button onClick={() => handleAction('budget_analysis', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><DollarSign className="w-3 h-3" /> Budget Analysis</button>
+                    </>
+                  )}
+                  {currentMode === 'assets' && (
+                    <button onClick={() => handleAction('asset_report', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><BarChart3 className="w-3 h-3" /> Asset Report</button>
+                  )}
+                  {currentMode === 'proofs' && (
+                    <button onClick={() => handleAction('project_summary', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><ClipboardList className="w-3 h-3" /> Generate Summary</button>
+                  )}
+                  {currentMode === 'distribution' && (
+                    <button onClick={() => handleAction('distribution_checklist', detailItem.id)} className={cn(ds.btnSecondary, ds.btnSmall, 'text-xs')} disabled={runAction.isPending}><ListChecks className="w-3 h-3" /> Checklist Report</button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-lattice-border">
+              <button onClick={() => { setShowDetail(false); openEdit(detailItem); }} className={ds.btnSecondary}><Edit2 className="w-4 h-4" /> Edit</button>
+              <button onClick={() => setShowDetail(false)} className={ds.btnPrimary}>Close</button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Main Render
+  // ---------------------------------------------------------------------------
   return (
     <div className={ds.pageContainer}>
       {/* Header */}
@@ -195,13 +1313,17 @@ export default function CreativeLensPage() {
           <Palette className="w-7 h-7 text-neon-purple" />
           <div>
             <h1 className={ds.heading1}>Creative Production</h1>
-            <p className={ds.textMuted}>Projects, shoots, assets, episodes and client proofs</p>
+            <p className={ds.textMuted}>Projects, assets, shot lists, client proofing, budgets and distribution</p>
           </div>
         </div>
-        <button onClick={openCreate} className={ds.btnPrimary}>
-          <Plus className="w-4 h-4" /> New {currentType}
-        </button>
-        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+        <div className="flex items-center gap-2">
+          {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running action...</span>}
+          {mode !== 'dashboard' && (
+            <button onClick={openCreate} className={ds.btnPrimary}>
+              <Plus className="w-4 h-4" /> New {currentType}
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Mode Tabs */}
@@ -211,10 +1333,11 @@ export default function CreativeLensPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => { setMode(tab.id); setSearch(''); setStatusFilter('all'); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              onClick={() => { setMode(tab.id); setSearch(''); setStatusFilter('all'); setCategoryFilter('all'); }}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 mode === tab.id ? 'bg-neon-purple/20 text-neon-purple' : 'text-gray-400 hover:text-white hover:bg-lattice-elevated'
-              }`}
+              )}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
@@ -223,106 +1346,65 @@ export default function CreativeLensPage() {
         })}
       </nav>
 
-      {/* Dashboard */}
-      <div className={ds.grid4}>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-neon-purple" /><span className={ds.textMuted}>Active Projects</span></div>
-          <p className="text-2xl font-bold">{activeProjects}</p>
+      {/* Filters (non-dashboard) */}
+      {mode !== 'dashboard' && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${currentType.toLowerCase()}s...`} className={cn(ds.input, 'pl-10')} />
+          </div>
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={cn(ds.select, 'pl-10 pr-8')}>
+              <option value="all">All statuses</option>
+              {mode === 'proofs'
+                ? ['pending_review', 'approved', 'revision_requested'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+                : mode === 'shotlist'
+                ? ['planned', 'scheduled', 'in_progress', 'captured', 'review', 'final'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+                : ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+              }
+            </select>
+          </div>
         </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><Eye className="w-4 h-4 text-amber-400" /><span className={ds.textMuted}>In Review</span></div>
-          <p className="text-2xl font-bold">{inReview}</p>
-        </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-neon-cyan" /><span className={ds.textMuted}>Total Budget</span></div>
-          <p className="text-2xl font-bold">${(totalBudget / 1000).toFixed(0)}k</p>
-        </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><FileCheck className="w-4 h-4 text-green-400" /><span className={ds.textMuted}>Delivered</span></div>
-          <p className="text-2xl font-bold">{deliveredCount}</p>
-        </div>
-      </div>
+      )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${currentType.toLowerCase()}s...`} className={`${ds.input} pl-10`} />
-        </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${ds.select} pl-10 pr-8`}>
-            <option value="all">All statuses</option>
-            {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Artifact library */}
-      {isLoading ? (
+      {/* Content */}
+      {mode === 'dashboard' ? renderDashboard() : isLoading ? (
         <div className="text-center py-12"><p className={ds.textMuted}>Loading...</p></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <ImageIcon className="w-10 h-10 text-gray-600 mx-auto mb-3" />
           <p className={ds.textMuted}>No {currentType.toLowerCase()}s found</p>
-          <button onClick={openCreate} className={`${ds.btnGhost} mt-3`}><Plus className="w-4 h-4" /> Create one</button>
+          <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Create one</button>
         </div>
       ) : (
-        <div className={ds.grid3}>
-          {filtered.map(item => {
-            const status = item.meta?.status || 'brief';
-            const color = STATUS_COLORS[status] || 'gray-400';
-            const d = item.data as Record<string, unknown>;
-            return (
-              <div key={item.id} className={ds.panelHover} onClick={() => openEdit(item.id)}>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {currentType === 'Asset' && assetIcon(String(d.type || ''))}
-                    <h3 className={ds.heading3 + ' truncate'}>{item.title}</h3>
-                  </div>
-                  <span className={ds.badge(color)}>{String(status).replace(/_/g, ' ')}</span>
-                </div>
-                <div className="space-y-1 mb-3">
-                  {Object.entries(d).slice(0, 3).map(([k, v]) => (
-                    <p key={k} className={ds.textMuted}><span className="text-gray-500">{k}:</span> {String(v)}</p>
-                  ))}
-                </div>
-                {/* Approval indicator for proofs */}
-                {currentType === 'ClientProof' && d.approved !== undefined && (
-                  <div className={`flex items-center gap-1 text-xs mb-2 ${d.approved ? 'text-green-400' : 'text-amber-400'}`}>
-                    {d.approved ? <FileCheck className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                    {d.approved ? 'Client Approved' : 'Awaiting Approval'}
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
-                  <span className={ds.textMuted}>{new Date(item.updatedAt).toLocaleDateString()}</span>
-                  <div className="flex items-center gap-1">
-                    <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
-                    <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={`${ds.btnGhost} hover:text-red-400`}><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {mode === 'projects' && renderProjects()}
+          {mode === 'assets' && renderAssets()}
+          {mode === 'shotlist' && renderShotList()}
+          {mode === 'proofs' && renderProofs()}
+          {mode === 'budget' && renderBudget()}
+          {mode === 'distribution' && renderDistribution()}
+        </>
       )}
 
+      {/* Action Result Panel */}
       {actionResult && (
         <div className={ds.panel}>
           <div className="flex items-center justify-between mb-2">
             <h3 className={ds.heading3}>Action Result</h3>
             <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
           </div>
-          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+          <pre className={cn(ds.textMono, 'text-xs overflow-auto max-h-48')}>{JSON.stringify(actionResult, null, 2)}</pre>
         </div>
       )}
 
-      {/* Editor modal */}
+      {/* Editor Modal */}
       {showEditor && (
         <>
           <div className={ds.modalBackdrop} onClick={resetForm} />
           <div className={ds.modalContainer}>
-            <div className={`${ds.modalPanel} max-w-lg`}>
+            <div className={cn(ds.modalPanel, 'max-w-lg')}>
               <div className="flex items-center justify-between p-4 border-b border-lattice-border">
                 <h2 className={ds.heading2}>{editing ? 'Edit' : 'New'} {currentType}</h2>
                 <button onClick={resetForm} className={ds.btnGhost}><X className="w-5 h-5" /></button>
@@ -335,54 +1417,91 @@ export default function CreativeLensPage() {
                 <div>
                   <label className={ds.label}>Status</label>
                   <select value={formStatus} onChange={e => setFormStatus(e.target.value)} className={ds.select}>
-                    {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                    {mode === 'proofs'
+                      ? ['pending_review', 'approved', 'revision_requested'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+                      : mode === 'shotlist'
+                      ? ['planned', 'scheduled', 'in_progress', 'captured', 'review', 'final'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+                      : ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)
+                    }
                   </select>
                 </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][0]}</label>
-                  <input value={formField1} onChange={e => setFormField1(e.target.value)} className={ds.input} />
-                </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][1]}</label>
-                  <input value={formField2} onChange={e => setFormField2(e.target.value)} className={ds.input} />
-                </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][2]}</label>
-                  <input value={formField3} onChange={e => setFormField3(e.target.value)} className={ds.input} />
-                </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][3]}</label>
-                  <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} className={ds.textarea} rows={3} placeholder="Additional notes or feedback..." />
-                </div>
+                {(formConfig[mode] || []).map(field => (
+                  <div key={field.key}>
+                    <label className={ds.label}>{field.label}</label>
+                    {field.type === 'textarea' ? (
+                      <textarea
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(f => ({ ...f, [field.key]: e.target.value }))}
+                        className={ds.textarea}
+                        rows={3}
+                      />
+                    ) : field.type === 'select' && field.options ? (
+                      <select
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(f => ({ ...f, [field.key]: e.target.value }))}
+                        className={ds.select}
+                      >
+                        <option value="">Select...</option>
+                        {field.options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(f => ({ ...f, [field.key]: e.target.value }))}
+                        className={ds.input}
+                        placeholder={field.label}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-end gap-2 p-4 border-t border-lattice-border">
-                <button onClick={resetForm} className={ds.btnSecondary}>Cancel</button>
-                <button onClick={handleSave} className={ds.btnPrimary} disabled={!formTitle.trim()}>
-                  {editing ? 'Update' : 'Create'}
-                </button>
+              <div className="flex items-center justify-between p-4 border-t border-lattice-border">
+                <div>
+                  {editing && (
+                    <button onClick={() => { remove(editing); resetForm(); }} className={ds.btnDanger}>
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={resetForm} className={ds.btnSecondary}>Cancel</button>
+                  <button onClick={handleSave} className={ds.btnPrimary} disabled={!formTitle.trim()}>
+                    {editing ? 'Update' : 'Create'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </>
       )}
 
+      {/* Detail Modal */}
+      {renderDetailModal()}
+
       {/* Pipeline overview */}
-      <section>
-        <h2 className={ds.heading2 + ' mb-3'}>Pipeline</h2>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {ALL_STATUSES.map(status => {
-              const count = items.filter(i => i.meta?.status === status).length;
-              return (
-                <div key={status} className="flex-1 min-w-[100px] text-center p-3 rounded-lg bg-lattice-elevated/50">
-                  <span className={ds.badge(STATUS_COLORS[status])}>{status.replace(/_/g, ' ')}</span>
-                  <p className="text-2xl font-bold mt-2">{count}</p>
-                </div>
-              );
-            })}
+      {mode !== 'dashboard' && mode !== 'budget' && mode !== 'distribution' && (
+        <section>
+          <h2 className={cn(ds.heading2, 'mb-3')}>Pipeline</h2>
+          <div className={ds.panel}>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {(mode === 'shotlist'
+                ? ['planned', 'scheduled', 'in_progress', 'captured', 'review', 'final']
+                : mode === 'proofs'
+                ? ['pending_review', 'revision_requested', 'approved']
+                : ALL_STATUSES as unknown as string[]
+              ).map(status => {
+                const count = items.filter(i => i.meta?.status === status || (mode === 'proofs' && (i.data as Record<string, unknown>).proofStatus === status)).length;
+                return (
+                  <div key={status} className="flex-1 min-w-[100px] text-center p-3 rounded-lg bg-lattice-elevated/50">
+                    <span className={ds.badge(STATUS_COLORS[status] || 'gray-400')}>{status.replace(/_/g, ' ')}</span>
+                    <p className="text-2xl font-bold mt-2">{count}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

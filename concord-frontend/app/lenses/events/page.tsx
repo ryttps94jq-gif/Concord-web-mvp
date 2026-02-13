@@ -2,82 +2,406 @@
 
 import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useLensData } from '@/lib/hooks/use-lens-data';
+import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
-import {
-  CalendarDays, MapPin, Mic2, Bus, Film, Store,
-  Plus, Search, Filter, X, Edit2, Trash2,
-  Ticket, Star,
-  Music, Sparkles,
-} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import {
+  CalendarDays, MapPin, Plus, Search, Filter, X, Edit2, Trash2,
+  Ticket, Star, DollarSign, Users, Clock, CheckCircle2, AlertTriangle,
+  Building2, Utensils, Speaker, Palette, Camera, Shield, Music,
+  BarChart3, FileText, Play,
+  ListChecks, PieChart, ArrowUpRight,
+  ArrowDownRight, Crown, Gift, ClipboardList, Sparkles,
+  Phone, Mail, PartyPopper, Briefcase, Heart,
+  Theater, School, UtensilsCrossed, Armchair,
+} from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type ModeTab = 'events' | 'venues' | 'performers' | 'tours' | 'productions' | 'vendors';
-type ArtifactType = 'Event' | 'Venue' | 'Performer' | 'Tour' | 'Production' | 'Vendor';
+type ModeTab = 'dashboard' | 'events' | 'venues' | 'vendors' | 'runofshow' | 'budget' | 'tickets';
+type ArtifactType = 'Event' | 'Venue' | 'Vendor' | 'RunOfShow' | 'Budget' | 'TicketTier';
 
-const ALL_STATUSES = ['planning', 'confirmed', 'advancing', 'load_in', 'live', 'struck', 'settled', 'cancelled'] as const;
+type EventType = 'conference' | 'wedding' | 'concert' | 'festival' | 'corporate' | 'social';
+type EventStatus = 'planning' | 'confirmed' | 'live' | 'completed' | 'cancelled';
+type VenueSetup = 'theater' | 'classroom' | 'banquet' | 'reception';
+type VendorCategory = 'catering' | 'av' | 'decor' | 'entertainment' | 'photo' | 'security';
+type _PaymentStatus = 'pending' | 'partial' | 'paid' | 'overdue';
+
+const EVENT_TYPES: { id: EventType; label: string; icon: typeof CalendarDays }[] = [
+  { id: 'conference', label: 'Conference', icon: Briefcase },
+  { id: 'wedding', label: 'Wedding', icon: Heart },
+  { id: 'concert', label: 'Concert', icon: Music },
+  { id: 'festival', label: 'Festival', icon: PartyPopper },
+  { id: 'corporate', label: 'Corporate', icon: Building2 },
+  { id: 'social', label: 'Social', icon: Users },
+];
+
+const EVENT_STATUSES: EventStatus[] = ['planning', 'confirmed', 'live', 'completed', 'cancelled'];
 
 const STATUS_COLORS: Record<string, string> = {
-  planning: 'gray-400', confirmed: 'neon-blue', advancing: 'neon-cyan',
-  load_in: 'amber-400', live: 'green-400', struck: 'neon-purple',
-  settled: 'green-400', cancelled: 'red-400',
+  planning: 'amber-400', confirmed: 'neon-blue', live: 'green-400',
+  completed: 'neon-purple', cancelled: 'red-400',
+  pending: 'amber-400', partial: 'neon-cyan', paid: 'green-400', overdue: 'red-400',
+  available: 'green-400', booked: 'red-400', maintenance: 'amber-400',
+  draft: 'gray-400', finalized: 'neon-blue', active: 'green-400',
 };
 
-const MODE_TABS: { id: ModeTab; label: string; icon: typeof CalendarDays; type: ArtifactType }[] = [
-  { id: 'events', label: 'Events', icon: CalendarDays, type: 'Event' },
-  { id: 'venues', label: 'Venues', icon: MapPin, type: 'Venue' },
-  { id: 'performers', label: 'Performers', icon: Mic2, type: 'Performer' },
-  { id: 'tours', label: 'Tours', icon: Bus, type: 'Tour' },
-  { id: 'productions', label: 'Productions', icon: Film, type: 'Production' },
-  { id: 'vendors', label: 'Vendors', icon: Store, type: 'Vendor' },
+const VENUE_SETUPS: { id: VenueSetup; label: string; icon: typeof CalendarDays }[] = [
+  { id: 'theater', label: 'Theater', icon: Theater },
+  { id: 'classroom', label: 'Classroom', icon: School },
+  { id: 'banquet', label: 'Banquet', icon: UtensilsCrossed },
+  { id: 'reception', label: 'Reception', icon: Armchair },
 ];
+
+const VENDOR_CATEGORIES: { id: VendorCategory; label: string; icon: typeof CalendarDays }[] = [
+  { id: 'catering', label: 'Catering', icon: Utensils },
+  { id: 'av', label: 'AV / Tech', icon: Speaker },
+  { id: 'decor', label: 'Decor', icon: Palette },
+  { id: 'entertainment', label: 'Entertainment', icon: Music },
+  { id: 'photo', label: 'Photo / Video', icon: Camera },
+  { id: 'security', label: 'Security', icon: Shield },
+];
+
+const MODE_TABS: { id: ModeTab; label: string; icon: typeof CalendarDays }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  { id: 'events', label: 'Events', icon: CalendarDays },
+  { id: 'venues', label: 'Venues', icon: Building2 },
+  { id: 'vendors', label: 'Vendors', icon: Users },
+  { id: 'runofshow', label: 'Run of Show', icon: ListChecks },
+  { id: 'budget', label: 'Budget', icon: DollarSign },
+  { id: 'tickets', label: 'Tickets', icon: Ticket },
+];
+
+const _BUDGET_CATEGORIES = ['venue', 'catering', 'entertainment', 'decor', 'marketing', 'staffing', 'misc'] as const;
 
 // ---------------------------------------------------------------------------
 // Seed data
 // ---------------------------------------------------------------------------
+const SEED_EVENTS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'TechVision Summit 2026',
+    data: { eventType: 'conference', date: '2026-04-15', endDate: '2026-04-17', venue: 'Grand Convention Center', capacity: 2500, registered: 1847, ticketsSold: 1623, description: 'Annual technology conference featuring 50+ speakers', ticketTiers: 'Early Bird,Regular,VIP,Student', revenue: 486900 },
+    meta: { status: 'confirmed', tags: ['tech', 'conference'] },
+  },
+  {
+    title: 'Anderson-Chen Wedding',
+    data: { eventType: 'wedding', date: '2026-06-21', endDate: '2026-06-21', venue: 'Rosewood Estate', capacity: 200, registered: 187, ticketsSold: 187, description: 'Elegant garden ceremony and reception', ticketTiers: 'Guest,Family,VIP', revenue: 0 },
+    meta: { status: 'planning', tags: ['wedding', 'private'] },
+  },
+  {
+    title: 'Neon Nights Music Festival',
+    data: { eventType: 'festival', date: '2026-07-04', endDate: '2026-07-06', venue: 'Meridian Amphitheatre', capacity: 15000, registered: 8934, ticketsSold: 8200, description: '3-day outdoor music festival with 40 acts', ticketTiers: 'GA,VIP,Backstage,Camping', revenue: 1230000 },
+    meta: { status: 'confirmed', tags: ['music', 'festival', 'outdoor'] },
+  },
+  {
+    title: 'Q3 Corporate Leadership Retreat',
+    data: { eventType: 'corporate', date: '2026-03-28', endDate: '2026-03-29', venue: 'Lakeside Resort & Spa', capacity: 80, registered: 72, ticketsSold: 72, description: 'Executive team building and strategy sessions', ticketTiers: 'Executive,Director', revenue: 28800 },
+    meta: { status: 'live', tags: ['corporate', 'retreat'] },
+  },
+  {
+    title: 'Summer Jazz Gala',
+    data: { eventType: 'concert', date: '2026-08-12', endDate: '2026-08-12', venue: 'Rooftop Garden Lounge', capacity: 350, registered: 112, ticketsSold: 98, description: 'Evening of jazz performances with gourmet dining', ticketTiers: 'Standard,Premium,Table', revenue: 19600 },
+    meta: { status: 'planning', tags: ['jazz', 'gala', 'dining'] },
+  },
+  {
+    title: 'Community Block Party',
+    data: { eventType: 'social', date: '2026-05-30', endDate: '2026-05-30', venue: 'Downtown Plaza', capacity: 5000, registered: 3200, ticketsSold: 2800, description: 'Free community celebration with food trucks and bands', ticketTiers: 'Free,VIP,Sponsor', revenue: 45000 },
+    meta: { status: 'confirmed', tags: ['community', 'free', 'outdoor'] },
+  },
+];
+
+const SEED_VENUES: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'Grand Convention Center',
+    data: { address: '500 Convention Blvd, Downtown', capacity: 5000, rooms: 'Main Hall,Ballroom A,Ballroom B,Breakout 1-8,Executive Suite', setupOptions: 'theater,classroom,banquet,reception', rentalCost: 15000, amenities: 'WiFi,AV System,Catering Kitchen,Parking (500),Loading Dock,Green Room', restrictions: 'No pyrotechnics, noise curfew 11pm', contactPhone: '555-0100', contactEmail: 'events@grandconvention.com' },
+    meta: { status: 'available', tags: ['large', 'downtown'] },
+  },
+  {
+    title: 'Rosewood Estate',
+    data: { address: '1200 Garden Lane, Hillside', capacity: 250, rooms: 'Garden Terrace,Indoor Ballroom,Bridal Suite,Wine Cellar', setupOptions: 'banquet,reception', rentalCost: 8500, amenities: 'Gardens,Parking (100),Bridal Suite,Kitchen,Photo Spots', restrictions: 'No amplified music after 10pm, indoor smoking prohibited', contactPhone: '555-0200', contactEmail: 'bookings@rosewoodest.com' },
+    meta: { status: 'available', tags: ['wedding', 'garden', 'elegant'] },
+  },
+  {
+    title: 'Meridian Amphitheatre',
+    data: { address: '800 Lakeshore Drive', capacity: 20000, rooms: 'Main Stage,Side Stage,VIP Section,Backstage,Production Office', setupOptions: 'theater,reception', rentalCost: 35000, amenities: 'Stage (60x40),Sound System,Lighting Rig,Jumbotron,Parking (2000),Food Court Area', restrictions: 'Permit required for 10k+, noise ordinance midnight', contactPhone: '555-0300', contactEmail: 'events@meridianamp.com' },
+    meta: { status: 'booked', tags: ['outdoor', 'large', 'amphitheatre'] },
+  },
+  {
+    title: 'Rooftop Garden Lounge',
+    data: { address: '42 Skyline Ave, Penthouse', capacity: 400, rooms: 'Open Terrace,Covered Lounge,Bar Area,Private Dining', setupOptions: 'reception,banquet', rentalCost: 6000, amenities: 'City Views,Full Bar,Sound System,Heaters,Elevator Access', restrictions: 'Weather dependent for terrace, max 400 ppl', contactPhone: '555-0400', contactEmail: 'events@rooftopgarden.com' },
+    meta: { status: 'available', tags: ['rooftop', 'upscale', 'views'] },
+  },
+];
+
+const SEED_VENDORS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'Savory & Sweet Catering Co.',
+    data: { category: 'catering', contactName: 'Maria Chen', phone: '555-1001', email: 'maria@savorycatering.com', contractCost: 18500, paymentStatus: 'partial', paidAmount: 9250, setupTime: '4 hours before', teardownTime: '2 hours after', insuranceVerified: true, rating: 4.8, assignedEvent: 'TechVision Summit 2026', notes: 'Includes kosher and vegan options' },
+    meta: { status: 'confirmed', tags: ['catering', 'premium'] },
+  },
+  {
+    title: 'SoundWave AV Productions',
+    data: { category: 'av', contactName: 'James Rodriguez', phone: '555-1002', email: 'james@soundwaveav.com', contractCost: 12000, paymentStatus: 'pending', paidAmount: 0, setupTime: '6 hours before', teardownTime: '3 hours after', insuranceVerified: true, rating: 4.9, assignedEvent: 'Neon Nights Music Festival', notes: 'Full PA, lighting rig, 2 LED walls' },
+    meta: { status: 'confirmed', tags: ['av', 'sound', 'lighting'] },
+  },
+  {
+    title: 'Bloom & Vine Florals',
+    data: { category: 'decor', contactName: 'Sarah Park', phone: '555-1003', email: 'sarah@bloomvine.com', contractCost: 4200, paymentStatus: 'paid', paidAmount: 4200, setupTime: '3 hours before', teardownTime: '1 hour after', insuranceVerified: true, rating: 4.7, assignedEvent: 'Anderson-Chen Wedding', notes: 'Garden roses, peonies, eucalyptus theme' },
+    meta: { status: 'confirmed', tags: ['decor', 'florals'] },
+  },
+  {
+    title: 'ShutterPro Photography',
+    data: { category: 'photo', contactName: 'Alex Kim', phone: '555-1004', email: 'alex@shutterpro.com', contractCost: 3500, paymentStatus: 'pending', paidAmount: 0, setupTime: '1 hour before', teardownTime: '30 min after', insuranceVerified: false, rating: 4.6, assignedEvent: 'Anderson-Chen Wedding', notes: '2 photographers, drone footage, same-day edits' },
+    meta: { status: 'pending', tags: ['photo', 'video'] },
+  },
+  {
+    title: 'Iron Shield Security',
+    data: { category: 'security', contactName: 'Mike Torres', phone: '555-1005', email: 'mike@ironshield.com', contractCost: 8800, paymentStatus: 'partial', paidAmount: 4400, setupTime: '2 hours before', teardownTime: '1 hour after', insuranceVerified: true, rating: 4.5, assignedEvent: 'Neon Nights Music Festival', notes: '12 guards, crowd management, VIP area' },
+    meta: { status: 'confirmed', tags: ['security'] },
+  },
+  {
+    title: 'Electric Dreams Entertainment',
+    data: { category: 'entertainment', contactName: 'DJ Nova', phone: '555-1006', email: 'nova@electricdreams.com', contractCost: 5500, paymentStatus: 'pending', paidAmount: 0, setupTime: '2 hours before', teardownTime: '1 hour after', insuranceVerified: true, rating: 4.8, assignedEvent: 'Summer Jazz Gala', notes: 'DJ set, live percussion, light show' },
+    meta: { status: 'pending', tags: ['entertainment', 'dj', 'live'] },
+  },
+];
+
+const SEED_RUNOFSHOW: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'TechVision Summit - Day 1',
+    data: {
+      eventName: 'TechVision Summit 2026', date: '2026-04-15',
+      segments: JSON.stringify([
+        { time: '07:00', duration: 60, activity: 'Venue Setup & Tech Check', responsible: 'Production Team', avCues: 'Test all mics, projectors, screens', transition: 'N/A', contingency: 'Backup projector on standby' },
+        { time: '08:00', duration: 30, activity: 'Registration Opens', responsible: 'Front Desk Team', avCues: 'Welcome slides on loop', transition: 'Background music playlist', contingency: 'Manual check-in if system down' },
+        { time: '08:30', duration: 15, activity: 'Welcome Coffee & Networking', responsible: 'Catering Team', avCues: 'Ambient music', transition: 'Fade music, house lights dim', contingency: 'Extra coffee station if lines long' },
+        { time: '08:45', duration: 45, activity: 'Opening Keynote - Dr. Sarah Lin', responsible: 'Stage Manager', avCues: 'Lapel mic, keynote slides, video roll at 12min', transition: 'Applause track, stage reset', contingency: 'Pre-recorded backup available' },
+        { time: '09:30', duration: 30, activity: 'Panel: Future of AI', responsible: 'Moderator: J. Smith', avCues: '4 panel mics, discussion slides', transition: 'Thank panelists, 5min break', contingency: 'Extra questions prepared' },
+        { time: '10:00', duration: 15, activity: 'Break', responsible: 'Catering Team', avCues: 'Break slides with sponsors', transition: 'Chime sound for return', contingency: 'Extend if speakers running late' },
+        { time: '10:15', duration: 45, activity: 'Workshop Track A: Cloud Architecture', responsible: 'Room Lead: M. Torres', avCues: 'Room A setup, screen share enabled', transition: 'Wrap-up announcement', contingency: 'Pre-loaded demo environment' },
+        { time: '11:00', duration: 60, activity: 'Breakout Sessions (4 tracks)', responsible: 'Track Leads', avCues: 'Individual room AV', transition: 'Central display shows rooms', contingency: 'Overflow room ready' },
+        { time: '12:00', duration: 90, activity: 'Lunch & Sponsor Expo', responsible: 'Catering + Sponsors', avCues: 'Expo hall music, sponsor videos', transition: 'Announcement 10min before end', contingency: 'Boxed lunches if buffet delay' },
+      ]),
+    },
+    meta: { status: 'finalized', tags: ['conference', 'day1'] },
+  },
+  {
+    title: 'Anderson-Chen Wedding Timeline',
+    data: {
+      eventName: 'Anderson-Chen Wedding', date: '2026-06-21',
+      segments: JSON.stringify([
+        { time: '14:00', duration: 60, activity: 'Vendor Setup & Floral Arrangement', responsible: 'Bloom & Vine / Coordinator', avCues: 'Test ceremony speakers', transition: 'N/A', contingency: 'Rain plan: move to indoor ballroom' },
+        { time: '15:00', duration: 30, activity: 'Guest Arrival & Seating', responsible: 'Ushers', avCues: 'String quartet begins', transition: 'Signal to bridal party', contingency: 'Extra programs if rain move' },
+        { time: '15:30', duration: 30, activity: 'Ceremony', responsible: 'Officiant / Coordinator', avCues: 'Processional music, mic for vows', transition: 'Recessional music', contingency: 'Backup reader for readings' },
+        { time: '16:00', duration: 60, activity: 'Cocktail Hour', responsible: 'Catering / Bar Team', avCues: 'Jazz playlist, lawn games', transition: 'Announcement for reception', contingency: 'Indoor cocktail backup space' },
+        { time: '17:00', duration: 30, activity: 'Grand Entrance & First Dance', responsible: 'DJ / Coordinator', avCues: 'Spotlight, wireless mic for MC', transition: 'Invite guests to seats', contingency: 'Backup song on USB' },
+        { time: '17:30', duration: 90, activity: 'Dinner Service', responsible: 'Catering Team', avCues: 'Background dinner music', transition: 'Toast introduction', contingency: 'Allergy meals pre-tagged' },
+      ]),
+    },
+    meta: { status: 'draft', tags: ['wedding'] },
+  },
+];
+
+const SEED_BUDGETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'TechVision Summit 2026 Budget',
+    data: {
+      eventName: 'TechVision Summit 2026', totalBudget: 250000, attendeeCount: 2500,
+      categories: JSON.stringify([
+        { name: 'venue', budgeted: 45000, actual: 45000, notes: 'Grand Convention Center - 3 day rental' },
+        { name: 'catering', budgeted: 75000, actual: 68500, notes: 'Breakfast, lunch, snacks for 3 days' },
+        { name: 'entertainment', budgeted: 25000, actual: 22000, notes: 'Keynote speakers, panel honorariums' },
+        { name: 'decor', budgeted: 15000, actual: 14200, notes: 'Stage design, signage, banners' },
+        { name: 'marketing', budgeted: 35000, actual: 38500, notes: 'Digital ads, print, PR - went over on social' },
+        { name: 'staffing', budgeted: 40000, actual: 36000, notes: '20 volunteers, 15 paid staff' },
+        { name: 'misc', budgeted: 15000, actual: 8900, notes: 'Swag bags, badges, lanyards, contingency' },
+      ]),
+      sponsorships: JSON.stringify([
+        { sponsor: 'TechCorp Global', amount: 50000, tier: 'Platinum' },
+        { sponsor: 'CloudBase Inc.', amount: 25000, tier: 'Gold' },
+        { sponsor: 'DataStream Analytics', amount: 25000, tier: 'Gold' },
+        { sponsor: 'InnovateLab', amount: 10000, tier: 'Silver' },
+        { sponsor: 'ByteForge', amount: 10000, tier: 'Silver' },
+        { sponsor: 'NeuroNet AI', amount: 5000, tier: 'Bronze' },
+      ]),
+    },
+    meta: { status: 'active', tags: ['conference', 'budget'] },
+  },
+  {
+    title: 'Neon Nights Festival Budget',
+    data: {
+      eventName: 'Neon Nights Music Festival', totalBudget: 850000, attendeeCount: 15000,
+      categories: JSON.stringify([
+        { name: 'venue', budgeted: 105000, actual: 105000, notes: 'Meridian Amphitheatre 3-day rental + grounds' },
+        { name: 'catering', budgeted: 120000, actual: 95000, notes: 'Food truck coordination, bar services' },
+        { name: 'entertainment', budgeted: 350000, actual: 340000, notes: '40 acts - headliners, mid-tier, local' },
+        { name: 'decor', budgeted: 60000, actual: 55000, notes: 'Stage design, neon installations, art' },
+        { name: 'marketing', budgeted: 80000, actual: 85000, notes: 'Social media, influencers, radio' },
+        { name: 'staffing', budgeted: 95000, actual: 88000, notes: 'Security, medics, stage crew, volunteers' },
+        { name: 'misc', budgeted: 40000, actual: 28000, notes: 'Permits, insurance, portable restrooms' },
+      ]),
+      sponsorships: JSON.stringify([
+        { sponsor: 'VibeStream Music', amount: 100000, tier: 'Title' },
+        { sponsor: 'NeonBrew Energy', amount: 50000, tier: 'Platinum' },
+        { sponsor: 'UrbanWear Co.', amount: 30000, tier: 'Gold' },
+        { sponsor: 'SoundWave Audio', amount: 15000, tier: 'Silver' },
+      ]),
+    },
+    meta: { status: 'active', tags: ['festival', 'budget'] },
+  },
+];
+
+const SEED_TICKETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [
+  {
+    title: 'TechVision - Early Bird',
+    data: { eventName: 'TechVision Summit 2026', tierName: 'Early Bird', price: 199, totalAvailable: 500, sold: 500, checkedIn: 0, waitlist: 0, compTickets: 15, saleStart: '2025-12-01', saleEnd: '2026-02-28', description: 'Discounted early registration', perks: 'Full access, swag bag' },
+    meta: { status: 'completed', tags: ['early-bird', 'sold-out'] },
+  },
+  {
+    title: 'TechVision - Regular',
+    data: { eventName: 'TechVision Summit 2026', tierName: 'Regular', price: 349, totalAvailable: 1500, sold: 923, checkedIn: 0, waitlist: 0, compTickets: 20, saleStart: '2026-03-01', saleEnd: '2026-04-14', description: 'Standard conference pass', perks: 'Full access, swag bag, lunch' },
+    meta: { status: 'active', tags: ['regular'] },
+  },
+  {
+    title: 'TechVision - VIP',
+    data: { eventName: 'TechVision Summit 2026', tierName: 'VIP', price: 799, totalAvailable: 200, sold: 147, checkedIn: 0, waitlist: 12, compTickets: 10, saleStart: '2025-12-01', saleEnd: '2026-04-14', description: 'Premium experience with exclusive access', perks: 'Front row, speaker dinner, VIP lounge, premium swag' },
+    meta: { status: 'active', tags: ['vip', 'premium'] },
+  },
+  {
+    title: 'TechVision - Student',
+    data: { eventName: 'TechVision Summit 2026', tierName: 'Student', price: 99, totalAvailable: 300, sold: 200, checkedIn: 0, waitlist: 0, compTickets: 50, saleStart: '2026-01-15', saleEnd: '2026-04-14', description: 'Discounted student rate with valid ID', perks: 'Full access, student networking' },
+    meta: { status: 'active', tags: ['student', 'discount'] },
+  },
+  {
+    title: 'Neon Nights - GA',
+    data: { eventName: 'Neon Nights Music Festival', tierName: 'General Admission', price: 150, totalAvailable: 12000, sold: 7200, checkedIn: 0, waitlist: 0, compTickets: 100, saleStart: '2026-01-01', saleEnd: '2026-07-03', description: '3-day general admission pass', perks: 'All stages, food court access' },
+    meta: { status: 'active', tags: ['ga', 'festival'] },
+  },
+  {
+    title: 'Neon Nights - VIP',
+    data: { eventName: 'Neon Nights Music Festival', tierName: 'VIP', price: 450, totalAvailable: 2000, sold: 820, checkedIn: 0, waitlist: 45, compTickets: 30, saleStart: '2026-01-01', saleEnd: '2026-07-03', description: 'Premium festival experience', perks: 'VIP viewing, private bar, artist meet & greet' },
+    meta: { status: 'active', tags: ['vip', 'festival'] },
+  },
+  {
+    title: 'Neon Nights - Backstage',
+    data: { eventName: 'Neon Nights Music Festival', tierName: 'Backstage Pass', price: 1200, totalAvailable: 100, sold: 78, checkedIn: 0, waitlist: 22, compTickets: 5, saleStart: '2026-01-01', saleEnd: '2026-06-01', description: 'Ultimate backstage access', perks: 'All VIP perks, backstage tours, artist lounge, premium parking' },
+    meta: { status: 'active', tags: ['backstage', 'ultra-premium'] },
+  },
+];
+
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  Event: [],
-  Venue: [],
-  Performer: [],
-  Tour: [],
-  Production: [],
-  Vendor: [],
+  Event: SEED_EVENTS,
+  Venue: SEED_VENUES,
+  Vendor: SEED_VENDORS,
+  RunOfShow: SEED_RUNOFSHOW,
+  Budget: SEED_BUDGETS,
+  TicketTier: SEED_TICKETS,
 };
 
 // ---------------------------------------------------------------------------
-// Component
+// Helpers
+// ---------------------------------------------------------------------------
+function fmtCurrency(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+function pct(a: number, b: number): number {
+  return b > 0 ? Math.round((a / b) * 100) : 0;
+}
+
+function parseJsonSafe<T>(val: unknown, fallback: T): T {
+  if (typeof val === 'string') {
+    try { return JSON.parse(val) as T; } catch { return fallback; }
+  }
+  if (Array.isArray(val)) return val as T;
+  return fallback;
+}
+
+function ProgressBar({ value, max, color = 'neon-blue' }: { value: number; max: number; color?: string }) {
+  const p = pct(value, max);
+  return (
+    <div className="w-full">
+      <div className="flex justify-between text-xs text-gray-400 mb-1">
+        <span>{value.toLocaleString()} / {max.toLocaleString()}</span>
+        <span>{p}%</span>
+      </div>
+      <div className="w-full h-2 bg-lattice-elevated rounded-full overflow-hidden">
+        <div className={cn('h-full rounded-full transition-all', `bg-${color}`)} style={{ width: `${Math.min(100, p)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, sub, trend }: { icon: typeof CalendarDays; label: string; value: string | number; sub?: string; trend?: 'up' | 'down' | null }) {
+  return (
+    <div className={ds.panel}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="w-4 h-4 text-neon-cyan" />
+        <span className={ds.textMuted}>{label}</span>
+      </div>
+      <div className="flex items-end gap-2">
+        <p className="text-2xl font-bold">{value}</p>
+        {trend === 'up' && <ArrowUpRight className="w-4 h-4 text-green-400" />}
+        {trend === 'down' && <ArrowDownRight className="w-4 h-4 text-red-400" />}
+      </div>
+      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
 // ---------------------------------------------------------------------------
 export default function EventsLensPage() {
   useLensNav('events');
 
-  const [mode, setMode] = useState<ModeTab>('events');
+  const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [editing, setEditing] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState('all');
   const [showEditor, setShowEditor] = useState(false);
-
-  const [formTitle, setFormTitle] = useState('');
-  const [formStatus, setFormStatus] = useState('planning');
-  const [formField1, setFormField1] = useState('');
-  const [formField2, setFormField2] = useState('');
-  const [formField3, setFormField3] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
-  const currentType = MODE_TABS.find(t => t.id === mode)!.type;
+  // Form state
+  const [formTitle, setFormTitle] = useState('');
+  const [formStatus, setFormStatus] = useState('planning');
+  const [formFields, setFormFields] = useState<Record<string, string>>({});
 
-  const { items, isLoading, isError: isError, error: error, refetch: refetch, create, update, remove } = useLensData('events', currentType, {
-    seed: SEED[currentType],
-  });
+  // Determine current artifact type
+  const typeMap: Record<ModeTab, ArtifactType> = {
+    dashboard: 'Event', events: 'Event', venues: 'Venue', vendors: 'Vendor',
+    runofshow: 'RunOfShow', budget: 'Budget', tickets: 'TicketTier',
+  };
+  const currentType = typeMap[mode] || 'Event';
+
+  // Data hooks
+  const { items: events, isLoading: eventsLoading, isError, error, refetch, create: createEvent, update: updateEvent, remove: removeEvent } = useLensData('events', 'Event', { seed: SEED.Event });
+  const { items: venues, isLoading: venuesLoading, create: createVenue, update: updateVenue, remove: removeVenue } = useLensData('events', 'Venue', { seed: SEED.Venue });
+  const { items: vendors, isLoading: vendorsLoading, create: createVendor, update: updateVendor, remove: removeVendor } = useLensData('events', 'Vendor', { seed: SEED.Vendor });
+  const { items: runofshows, isLoading: rosLoading, create: createROS, update: updateROS, remove: removeROS } = useLensData('events', 'RunOfShow', { seed: SEED.RunOfShow });
+  const { items: budgets, isLoading: budgetLoading, create: createBudget, update: updateBudget, remove: removeBudget } = useLensData('events', 'Budget', { seed: SEED.Budget });
+  const { items: tickets, isLoading: ticketsLoading, create: createTicket, update: updateTicket, remove: removeTicket } = useLensData('events', 'TicketTier', { seed: SEED.TicketTier });
 
   const runAction = useRunArtifact('events');
-  const editingItem = items.find(i => i.id === editing) || null;
 
+  // Current items based on mode
+  const currentItems = useMemo(() => {
+    const map: Record<ModeTab, LensItem[]> = {
+      dashboard: events, events, venues, vendors, runofshow: runofshows, budget: budgets, tickets,
+    };
+    return map[mode] || [];
+  }, [mode, events, venues, vendors, runofshows, budgets, tickets]);
+
+  const isLoading = eventsLoading || venuesLoading || vendorsLoading || rosLoading || budgetLoading || ticketsLoading;
+
+  // Filtering
   const filtered = useMemo(() => {
-    let list = items;
+    let list = currentItems;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(i => i.title.toLowerCase().includes(q) || JSON.stringify(i.data).toLowerCase().includes(q));
@@ -85,34 +409,54 @@ export default function EventsLensPage() {
     if (statusFilter !== 'all') {
       list = list.filter(i => i.meta?.status === statusFilter);
     }
+    if (typeFilter !== 'all' && mode === 'events') {
+      list = list.filter(i => (i.data as Record<string, unknown>).eventType === typeFilter);
+    }
     return list;
-  }, [items, search, statusFilter]);
+  }, [currentItems, search, statusFilter, typeFilter, mode]);
 
-  const resetForm = () => { setFormTitle(''); setFormStatus('planning'); setFormField1(''); setFormField2(''); setFormField3(''); setEditing(null); setShowEditor(false); };
+  const detailItem = currentItems.find(i => i.id === detailId) || null;
+
+  // CRUD helpers
+  const getCrud = () => {
+    switch (mode) {
+      case 'events': case 'dashboard': return { create: createEvent, update: updateEvent, remove: removeEvent };
+      case 'venues': return { create: createVenue, update: updateVenue, remove: removeVenue };
+      case 'vendors': return { create: createVendor, update: updateVendor, remove: removeVendor };
+      case 'runofshow': return { create: createROS, update: updateROS, remove: removeROS };
+      case 'budget': return { create: createBudget, update: updateBudget, remove: removeBudget };
+      case 'tickets': return { create: createTicket, update: updateTicket, remove: removeTicket };
+      default: return { create: createEvent, update: updateEvent, remove: removeEvent };
+    }
+  };
+
+  const resetForm = () => {
+    setFormTitle(''); setFormStatus('planning'); setFormFields({}); setEditing(null); setShowEditor(false);
+  };
+
   const openCreate = () => { resetForm(); setShowEditor(true); };
 
   const openEdit = (id: string) => {
-    const item = items.find(i => i.id === id);
+    const item = currentItems.find(i => i.id === id);
     if (!item) return;
     setEditing(id);
     setFormTitle(item.title);
-    setFormStatus(item.meta?.status || 'planning');
-    const vals = Object.values(item.data as Record<string, unknown>);
-    setFormField1(String(vals[0] ?? ''));
-    setFormField2(String(vals[1] ?? ''));
-    setFormField3(String(vals[2] ?? ''));
+    setFormStatus((item.meta?.status as string) || 'planning');
+    const fields: Record<string, string> = {};
+    Object.entries(item.data as Record<string, unknown>).forEach(([k, v]) => {
+      fields[k] = String(v ?? '');
+    });
+    setFormFields(fields);
     setShowEditor(true);
   };
 
   const handleSave = async () => {
+    const { create, update } = getCrud();
     const data: Record<string, unknown> = {};
-    if (mode === 'events') { data.date = formField1; data.venue = formField2; data.capacity = formField3; }
-    if (mode === 'venues') { data.address = formField1; data.capacity = formField2; data.type = formField3; }
-    if (mode === 'performers') { data.genre = formField1; data.agent = formField2; data.fee = formField3; }
-    if (mode === 'tours') { data.artist = formField1; data.dates = formField2; data.markets = formField3; }
-    if (mode === 'productions') { data.event = formField1; data.stageSize = formField2; data.crew = formField3; }
-    if (mode === 'vendors') { data.category = formField1; data.contact = formField2; data.rate = formField3; }
-
+    Object.entries(formFields).forEach(([k, v]) => {
+      const num = Number(v);
+      data[k] = !isNaN(num) && v.trim() !== '' && !k.includes('date') && !k.includes('Date') && !k.includes('phone') && !k.includes('email') && !k.includes('Name') && !k.includes('address') && !k.includes('description') && !k.includes('notes') && !k.includes('perks') && !k.includes('restrictions') && !k.includes('amenities') && !k.includes('rooms') && !k.includes('setupOptions') && !k.includes('ticketTiers') && !k.includes('segments') && !k.includes('categories') && !k.includes('sponsorships') && !k.includes('saleStart') && !k.includes('saleEnd') ? num : v;
+    });
     if (editing) {
       await update(editing, { title: formTitle, data, meta: { status: formStatus } });
     } else {
@@ -121,8 +465,8 @@ export default function EventsLensPage() {
     resetForm();
   };
 
-  const _handleAction = async (action: string, artifactId?: string) => {
-    const targetId = artifactId || editingItem?.id || filtered[0]?.id;
+  const handleAction = async (action: string, artifactId?: string) => {
+    const targetId = artifactId || detailId || filtered[0]?.id;
     if (!targetId) return;
     try {
       const result = await runAction.mutateAsync({ id: targetId, action });
@@ -132,21 +476,95 @@ export default function EventsLensPage() {
     }
   };
 
-  const fieldLabels: Record<ModeTab, [string, string, string]> = {
-    events: ['Date', 'Venue', 'Capacity'],
-    venues: ['Address', 'Capacity', 'Type'],
-    performers: ['Genre', 'Agent', 'Fee'],
-    tours: ['Artist', 'Number of Dates', 'Markets'],
-    productions: ['Event', 'Stage Size', 'Crew Size'],
-    vendors: ['Category', 'Contact Name', 'Rate'],
+  // Computed dashboard metrics
+  const dashMetrics = useMemo(() => {
+    const upcoming = events.filter(e => ['planning', 'confirmed'].includes(e.meta?.status as string)).length;
+    const liveNow = events.filter(e => e.meta?.status === 'live').length;
+    const totalSold = tickets.reduce((s, t) => s + Number((t.data as Record<string, unknown>).sold || 0), 0);
+    const totalAvail = tickets.reduce((s, t) => s + Number((t.data as Record<string, unknown>).totalAvailable || 0), 0);
+    const revenueMonth = events.reduce((s, e) => s + Number((e.data as Record<string, unknown>).revenue || 0), 0);
+    const vendorsPending = vendors.filter(v => v.meta?.status === 'pending').length;
+    const vendorsConfirmed = vendors.filter(v => v.meta?.status === 'confirmed').length;
+    const totalRegistered = events.reduce((s, e) => s + Number((e.data as Record<string, unknown>).registered || 0), 0);
+    const totalCapacity = events.reduce((s, e) => s + Number((e.data as Record<string, unknown>).capacity || 0), 0);
+    const avgAttendance = pct(totalRegistered, totalCapacity);
+    const budgetTotal = budgets.reduce((s, b) => {
+      const cats = parseJsonSafe<Array<{ budgeted: number; actual: number }>>(
+        (b.data as Record<string, unknown>).categories, []
+      );
+      return s + cats.reduce((c, cat) => c + (cat.actual || 0), 0);
+    }, 0);
+    const sponsorTotal = budgets.reduce((s, b) => {
+      const sps = parseJsonSafe<Array<{ amount: number }>>(
+        (b.data as Record<string, unknown>).sponsorships, []
+      );
+      return s + sps.reduce((c, sp) => c + (sp.amount || 0), 0);
+    }, 0);
+    return { upcoming, liveNow, totalSold, totalAvail, revenueMonth, vendorsPending, vendorsConfirmed, avgAttendance, budgetTotal, sponsorTotal };
+  }, [events, vendors, tickets, budgets]);
+
+  // Form field configs per mode
+  const getFormConfig = (): Array<{ key: string; label: string; type?: string; options?: string[] }> => {
+    switch (mode) {
+      case 'events': case 'dashboard': return [
+        { key: 'eventType', label: 'Event Type', type: 'select', options: EVENT_TYPES.map(t => t.id) },
+        { key: 'date', label: 'Start Date', type: 'date' },
+        { key: 'endDate', label: 'End Date', type: 'date' },
+        { key: 'venue', label: 'Venue' },
+        { key: 'capacity', label: 'Capacity' },
+        { key: 'description', label: 'Description', type: 'textarea' },
+        { key: 'ticketTiers', label: 'Ticket Tiers (comma-separated)' },
+      ];
+      case 'venues': return [
+        { key: 'address', label: 'Address' },
+        { key: 'capacity', label: 'Max Capacity' },
+        { key: 'rooms', label: 'Rooms / Areas (comma-separated)' },
+        { key: 'setupOptions', label: 'Setup Options', type: 'select', options: VENUE_SETUPS.map(s => s.id) },
+        { key: 'rentalCost', label: 'Rental Cost ($)' },
+        { key: 'amenities', label: 'Included Amenities' },
+        { key: 'restrictions', label: 'Restrictions', type: 'textarea' },
+        { key: 'contactPhone', label: 'Contact Phone' },
+        { key: 'contactEmail', label: 'Contact Email' },
+      ];
+      case 'vendors': return [
+        { key: 'category', label: 'Category', type: 'select', options: VENDOR_CATEGORIES.map(c => c.id) },
+        { key: 'contactName', label: 'Contact Name' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+        { key: 'contractCost', label: 'Contract Cost ($)' },
+        { key: 'paymentStatus', label: 'Payment Status', type: 'select', options: ['pending', 'partial', 'paid', 'overdue'] },
+        { key: 'paidAmount', label: 'Amount Paid ($)' },
+        { key: 'setupTime', label: 'Setup Time' },
+        { key: 'teardownTime', label: 'Teardown Time' },
+        { key: 'insuranceVerified', label: 'Insurance Verified', type: 'select', options: ['true', 'false'] },
+        { key: 'assignedEvent', label: 'Assigned Event' },
+        { key: 'notes', label: 'Notes', type: 'textarea' },
+      ];
+      case 'runofshow': return [
+        { key: 'eventName', label: 'Event Name' },
+        { key: 'date', label: 'Date', type: 'date' },
+      ];
+      case 'budget': return [
+        { key: 'eventName', label: 'Event Name' },
+        { key: 'totalBudget', label: 'Total Budget ($)' },
+        { key: 'attendeeCount', label: 'Expected Attendees' },
+      ];
+      case 'tickets': return [
+        { key: 'eventName', label: 'Event Name' },
+        { key: 'tierName', label: 'Tier Name' },
+        { key: 'price', label: 'Price ($)' },
+        { key: 'totalAvailable', label: 'Total Available' },
+        { key: 'sold', label: 'Sold' },
+        { key: 'waitlist', label: 'Waitlist Count' },
+        { key: 'compTickets', label: 'Comp Tickets' },
+        { key: 'saleStart', label: 'Sale Start', type: 'date' },
+        { key: 'saleEnd', label: 'Sale End', type: 'date' },
+        { key: 'description', label: 'Description' },
+        { key: 'perks', label: 'Perks / Includes' },
+      ];
+      default: return [];
+    }
   };
-
-  // Dashboard metrics
-  const upcomingEvents = SEED.Event.filter(e => e.meta.status !== 'cancelled' && e.meta.status !== 'settled').length;
-  const totalTicketsSold = SEED.Event.reduce((s, e) => s + (e.data.ticketsSold as number), 0);
-  const confirmedVendors = SEED.Vendor.filter(v => v.meta.status === 'confirmed').length;
-  const liveShows = SEED.Event.filter(e => e.meta.status === 'live').length;
-
 
   if (isError) {
     return (
@@ -155,6 +573,927 @@ export default function EventsLensPage() {
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Render: Dashboard
+  // ---------------------------------------------------------------------------
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* Metric cards */}
+      <div className={ds.grid4}>
+        <MetricCard icon={CalendarDays} label="Upcoming Events" value={dashMetrics.upcoming} sub={`${dashMetrics.liveNow} live now`} trend="up" />
+        <MetricCard icon={Ticket} label="Tickets Sold" value={dashMetrics.totalSold.toLocaleString()} sub={`of ${dashMetrics.totalAvail.toLocaleString()} available`} trend="up" />
+        <MetricCard icon={DollarSign} label="Total Revenue" value={fmtCurrency(dashMetrics.revenueMonth)} sub={`Sponsorships: ${fmtCurrency(dashMetrics.sponsorTotal)}`} trend="up" />
+        <MetricCard icon={Users} label="Avg Attendance" value={`${dashMetrics.avgAttendance}%`} sub="across all events" trend={dashMetrics.avgAttendance > 70 ? 'up' : 'down'} />
+      </div>
+
+      <div className={ds.grid2}>
+        {/* Vendor status summary */}
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}>
+            <Users className="w-5 h-5 text-neon-cyan" /> Vendor Overview
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Confirmed Vendors</span>
+              <span className="text-green-400 font-semibold">{dashMetrics.vendorsConfirmed}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Pending Contracts</span>
+              <span className="text-amber-400 font-semibold">{dashMetrics.vendorsPending}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Total Vendor Spend</span>
+              <span className="text-white font-semibold">{fmtCurrency(vendors.reduce((s, v) => s + Number((v.data as Record<string, unknown>).contractCost || 0), 0))}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Unverified Insurance</span>
+              <span className={cn('font-semibold', vendors.filter(v => !(v.data as Record<string, unknown>).insuranceVerified).length > 0 ? 'text-red-400' : 'text-green-400')}>
+                {vendors.filter(v => !(v.data as Record<string, unknown>).insuranceVerified).length}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Budget snapshot */}
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}>
+            <PieChart className="w-5 h-5 text-neon-pink" /> Budget Snapshot
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Total Budgeted</span>
+              <span className="text-white font-semibold">{fmtCurrency(budgets.reduce((s, b) => s + Number((b.data as Record<string, unknown>).totalBudget || 0), 0))}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Total Spent</span>
+              <span className="text-amber-400 font-semibold">{fmtCurrency(dashMetrics.budgetTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Sponsorship Revenue</span>
+              <span className="text-green-400 font-semibold">{fmtCurrency(dashMetrics.sponsorTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={ds.textMuted}>Net Position</span>
+              {(() => {
+                const net = dashMetrics.revenueMonth + dashMetrics.sponsorTotal - dashMetrics.budgetTotal;
+                return <span className={cn('font-semibold', net >= 0 ? 'text-green-400' : 'text-red-400')}>{fmtCurrency(net)}</span>;
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Upcoming events timeline */}
+      <div className={ds.panel}>
+        <h3 className={cn(ds.heading3, 'mb-4 flex items-center gap-2')}>
+          <Clock className="w-5 h-5 text-amber-400" /> Upcoming Events Timeline
+        </h3>
+        <div className="divide-y divide-lattice-border">
+          {events
+            .filter(e => ['planning', 'confirmed', 'live'].includes(e.meta?.status as string))
+            .sort((a, b) => String((a.data as Record<string, unknown>).date || '').localeCompare(String((b.data as Record<string, unknown>).date || '')))
+            .map(evt => {
+              const d = evt.data as Record<string, unknown>;
+              const st = evt.meta?.status as string;
+              const evtType = EVENT_TYPES.find(t => t.id === d.eventType);
+              const EvtIcon = evtType?.icon || CalendarDays;
+              return (
+                <div key={evt.id} className="flex items-center gap-4 py-3 px-2 hover:bg-lattice-elevated/50 rounded-lg cursor-pointer transition-colors" onClick={() => { setMode('events'); setDetailId(evt.id); }}>
+                  <EvtIcon className="w-5 h-5 text-neon-pink shrink-0" />
+                  <span className={cn(ds.textMono, 'w-24 text-neon-cyan shrink-0')}>{String(d.date || '').slice(5)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-200 truncate">{evt.title}</p>
+                    <p className={cn(ds.textMuted, 'truncate')}>{String(d.venue || '')} -- Cap: {Number(d.capacity || 0).toLocaleString()}</p>
+                  </div>
+                  <ProgressBar value={Number(d.registered || 0)} max={Number(d.capacity || 1)} color="neon-pink" />
+                  <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                </div>
+              );
+            })}
+          {events.filter(e => ['planning', 'confirmed', 'live'].includes(e.meta?.status as string)).length === 0 && (
+            <p className={cn(ds.textMuted, 'py-4 text-center')}>No upcoming events</p>
+          )}
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div className={ds.panel}>
+        <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}>
+          <Play className="w-5 h-5 text-green-400" /> Domain Actions
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Budget Analysis', action: 'budget_analysis', icon: PieChart },
+            { label: 'Vendor Check', action: 'vendor_check', icon: CheckCircle2 },
+            { label: 'Run-of-Show Generate', action: 'ros_generate', icon: ListChecks },
+            { label: 'Registration Report', action: 'registration_report', icon: FileText },
+            { label: 'Event Summary', action: 'event_summary', icon: ClipboardList },
+          ].map(a => (
+            <button key={a.action} onClick={() => handleAction(a.action)} className={cn(ds.btnSecondary, ds.btnSmall)} disabled={runAction.isPending}>
+              <a.icon className="w-4 h-4" /> {a.label}
+            </button>
+          ))}
+          {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse self-center ml-2">Running...</span>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Events list
+  // ---------------------------------------------------------------------------
+  const renderEventsList = () => (
+    <div className="space-y-4">
+      {/* Type filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setTypeFilter('all')} className={cn(ds.btnSmall, typeFilter === 'all' ? 'bg-neon-pink/20 text-neon-pink border border-neon-pink/50' : ds.btnGhost)}>All Types</button>
+        {EVENT_TYPES.map(t => {
+          const Icon = t.icon;
+          return (
+            <button key={t.id} onClick={() => setTypeFilter(t.id)} className={cn(ds.btnSmall, typeFilter === t.id ? 'bg-neon-pink/20 text-neon-pink border border-neon-pink/50' : ds.btnGhost)}>
+              <Icon className="w-3.5 h-3.5" /> {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <CalendarDays className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className={ds.textMuted}>No events found</p>
+          <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Create one</button>
+        </div>
+      ) : detailId && detailItem ? (
+        renderEventDetail(detailItem)
+      ) : (
+        <div className={ds.grid3}>
+          {filtered.map(item => {
+            const d = item.data as Record<string, unknown>;
+            const st = item.meta?.status as string;
+            const evtType = EVENT_TYPES.find(t => t.id === d.eventType);
+            const EvtIcon = evtType?.icon || CalendarDays;
+            return (
+              <div key={item.id} className={ds.panelHover} onClick={() => setDetailId(item.id)}>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <EvtIcon className="w-5 h-5 text-neon-pink shrink-0" />
+                    <h3 className={cn(ds.heading3, 'truncate')}>{item.title}</h3>
+                  </div>
+                  <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                </div>
+                <div className="space-y-1 mb-3">
+                  <p className={ds.textMuted}><MapPin className="w-3 h-3 inline mr-1" />{String(d.venue || 'TBD')}</p>
+                  <p className={ds.textMuted}><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.date || 'TBD')}{d.endDate && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
+                  {d.description && <p className="text-xs text-gray-500 line-clamp-2">{String(d.description)}</p>}
+                </div>
+                <ProgressBar value={Number(d.registered || 0)} max={Number(d.capacity || 1)} color="neon-pink" />
+                <div className="flex items-center justify-between pt-2 mt-2 border-t border-lattice-border">
+                  <span className={ds.textMuted}>{fmtCurrency(Number(d.revenue || 0))} revenue</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); removeEvent(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Event detail view
+  // ---------------------------------------------------------------------------
+  const renderEventDetail = (item: LensItem) => {
+    const d = item.data as Record<string, unknown>;
+    const st = item.meta?.status as string;
+    const evtType = EVENT_TYPES.find(t => t.id === d.eventType);
+    const EvtIcon = evtType?.icon || CalendarDays;
+    const relatedVendors = vendors.filter(v => (v.data as Record<string, unknown>).assignedEvent === item.title);
+    const relatedTickets = tickets.filter(t => (t.data as Record<string, unknown>).eventName === item.title);
+    const relatedROS = runofshows.filter(r => (r.data as Record<string, unknown>).eventName === item.title);
+
+    return (
+      <div className="space-y-4">
+        <button onClick={() => setDetailId(null)} className={cn(ds.btnGhost, 'mb-2')}><X className="w-4 h-4" /> Back to list</button>
+        <div className={ds.panel}>
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <EvtIcon className="w-8 h-8 text-neon-pink" />
+              <div>
+                <h2 className={ds.heading2}>{item.title}</h2>
+                <p className={ds.textMuted}>{evtType?.label || 'Event'} -- {String(d.venue || 'TBD')}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+              <button onClick={() => openEdit(item.id)} className={ds.btnSecondary}><Edit2 className="w-4 h-4" /> Edit</button>
+            </div>
+          </div>
+
+          <div className={ds.grid4}>
+            <div>
+              <p className={ds.textMuted}>Date</p>
+              <p className="font-medium">{String(d.date || 'TBD')}{d.endDate && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
+            </div>
+            <div>
+              <p className={ds.textMuted}>Capacity</p>
+              <p className="font-medium">{Number(d.capacity || 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className={ds.textMuted}>Registered</p>
+              <p className="font-medium">{Number(d.registered || 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className={ds.textMuted}>Revenue</p>
+              <p className="font-medium text-green-400">{fmtCurrency(Number(d.revenue || 0))}</p>
+            </div>
+          </div>
+
+          {d.description && <p className="text-sm text-gray-300 mt-3">{String(d.description)}</p>}
+
+          <div className="mt-4">
+            <p className={cn(ds.textMuted, 'mb-2')}>Registration vs Capacity</p>
+            <ProgressBar value={Number(d.registered || 0)} max={Number(d.capacity || 1)} color="neon-pink" />
+          </div>
+        </div>
+
+        {/* Related tickets */}
+        {relatedTickets.length > 0 && (
+          <div className={ds.panel}>
+            <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><Ticket className="w-5 h-5 text-neon-cyan" /> Ticket Tiers</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-lattice-border">
+                    <th className="pb-2 pr-4">Tier</th>
+                    <th className="pb-2 pr-4">Price</th>
+                    <th className="pb-2 pr-4">Sold</th>
+                    <th className="pb-2 pr-4">Available</th>
+                    <th className="pb-2 pr-4">Waitlist</th>
+                    <th className="pb-2 pr-4">Comp</th>
+                    <th className="pb-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-lattice-border">
+                  {relatedTickets.map(t => {
+                    const td = t.data as Record<string, unknown>;
+                    return (
+                      <tr key={t.id} className="text-gray-300">
+                        <td className="py-2 pr-4 font-medium">{String(td.tierName)}</td>
+                        <td className="py-2 pr-4">{fmtCurrency(Number(td.price || 0))}</td>
+                        <td className="py-2 pr-4">{Number(td.sold || 0).toLocaleString()}</td>
+                        <td className="py-2 pr-4">{Number(td.totalAvailable || 0).toLocaleString()}</td>
+                        <td className="py-2 pr-4">{Number(td.waitlist || 0)}</td>
+                        <td className="py-2 pr-4">{Number(td.compTickets || 0)}</td>
+                        <td className="py-2"><span className={ds.badge(STATUS_COLORS[t.meta?.status as string] || 'gray-400')}>{t.meta?.status as string}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Related vendors */}
+        {relatedVendors.length > 0 && (
+          <div className={ds.panel}>
+            <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><Users className="w-5 h-5 text-green-400" /> Assigned Vendors</h3>
+            <div className={ds.grid2}>
+              {relatedVendors.map(v => {
+                const vd = v.data as Record<string, unknown>;
+                const catInfo = VENDOR_CATEGORIES.find(c => c.id === vd.category);
+                const CatIcon = catInfo?.icon || Users;
+                return (
+                  <div key={v.id} className="flex items-start gap-3 p-3 bg-lattice-elevated rounded-lg">
+                    <CatIcon className="w-5 h-5 text-neon-cyan shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{v.title}</p>
+                      <p className={ds.textMuted}>{catInfo?.label || String(vd.category)} -- {String(vd.contactName)}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-gray-400">{fmtCurrency(Number(vd.contractCost || 0))}</span>
+                        <span className={ds.badge(STATUS_COLORS[String(vd.paymentStatus)] || 'gray-400')}>{String(vd.paymentStatus)}</span>
+                        {vd.insuranceVerified ? <Shield className="w-3.5 h-3.5 text-green-400" /> : <AlertTriangle className="w-3.5 h-3.5 text-red-400" />}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Related run-of-show */}
+        {relatedROS.length > 0 && (
+          <div className={ds.panel}>
+            <h3 className={cn(ds.heading3, 'mb-3 flex items-center gap-2')}><ListChecks className="w-5 h-5 text-amber-400" /> Run of Show</h3>
+            {relatedROS.map(ros => {
+              const rd = ros.data as Record<string, unknown>;
+              const segments = parseJsonSafe<Array<{ time: string; duration: number; activity: string; responsible: string; avCues: string; transition: string; contingency: string }>>(rd.segments, []);
+              return (
+                <div key={ros.id} className="mb-4 last:mb-0">
+                  <p className="text-sm text-gray-300 mb-2 font-medium">{ros.title}</p>
+                  <div className="space-y-1">
+                    {segments.slice(0, 6).map((seg, i) => (
+                      <div key={i} className="flex items-start gap-3 py-2 px-2 hover:bg-lattice-elevated/50 rounded text-sm">
+                        <span className={cn(ds.textMono, 'text-neon-cyan w-14 shrink-0')}>{seg.time}</span>
+                        <span className="text-gray-400 w-12 shrink-0">{seg.duration}min</span>
+                        <span className="flex-1 text-gray-200">{seg.activity}</span>
+                        <span className="text-gray-500 text-xs">{seg.responsible}</span>
+                      </div>
+                    ))}
+                    {segments.length > 6 && <p className={cn(ds.textMuted, 'text-center py-1')}>+{segments.length - 6} more segments</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Domain actions for this event */}
+        <div className={ds.panel}>
+          <h3 className={cn(ds.heading3, 'mb-3')}>Actions</h3>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Budget Analysis', action: 'budget_analysis', icon: PieChart },
+              { label: 'Vendor Check', action: 'vendor_check', icon: CheckCircle2 },
+              { label: 'Generate Run-of-Show', action: 'ros_generate', icon: ListChecks },
+              { label: 'Registration Report', action: 'registration_report', icon: FileText },
+              { label: 'Event Summary', action: 'event_summary', icon: ClipboardList },
+            ].map(a => (
+              <button key={a.action} onClick={() => handleAction(a.action, item.id)} className={cn(ds.btnSecondary, ds.btnSmall)} disabled={runAction.isPending}>
+                <a.icon className="w-4 h-4" /> {a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render: Venues
+  // ---------------------------------------------------------------------------
+  const renderVenues = () => (
+    <div className="space-y-4">
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <Building2 className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className={ds.textMuted}>No venues found</p>
+          <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Add venue</button>
+        </div>
+      ) : (
+        <div className={ds.grid2}>
+          {filtered.map(item => {
+            const d = item.data as Record<string, unknown>;
+            const st = item.meta?.status as string;
+            const rooms = String(d.rooms || '').split(',').filter(Boolean);
+            const setups = String(d.setupOptions || '').split(',').filter(Boolean);
+            return (
+              <div key={item.id} className={ds.panelHover} onClick={() => openEdit(item.id)}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-neon-cyan" />
+                    <h3 className={ds.heading3}>{item.title}</h3>
+                  </div>
+                  <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                </div>
+                <div className="space-y-2 mb-3">
+                  <p className={ds.textMuted}><MapPin className="w-3 h-3 inline mr-1" />{String(d.address || '')}</p>
+                  <div className="flex items-center gap-4">
+                    <span className={ds.textMuted}><Users className="w-3 h-3 inline mr-1" />Cap: {Number(d.capacity || 0).toLocaleString()}</span>
+                    <span className={ds.textMuted}><DollarSign className="w-3 h-3 inline mr-1" />{fmtCurrency(Number(d.rentalCost || 0))}</span>
+                  </div>
+                </div>
+                {/* Rooms */}
+                <div className="mb-2">
+                  <p className="text-xs text-gray-500 mb-1">Rooms / Areas</p>
+                  <div className="flex flex-wrap gap-1">
+                    {rooms.slice(0, 4).map((r, i) => <span key={i} className={ds.badge('neon-cyan')}>{r.trim()}</span>)}
+                    {rooms.length > 4 && <span className={ds.badge('gray-400')}>+{rooms.length - 4}</span>}
+                  </div>
+                </div>
+                {/* Setups */}
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-1">Setup Options</p>
+                  <div className="flex flex-wrap gap-1">
+                    {setups.map((s, i) => {
+                      const info = VENUE_SETUPS.find(vs => vs.id === s.trim());
+                      return <span key={i} className={ds.badge('neon-purple')}>{info?.label || s.trim()}</span>;
+                    })}
+                  </div>
+                </div>
+                {/* Contact */}
+                {(d.contactPhone || d.contactEmail) && (
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                    {d.contactPhone && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.contactPhone)}</span>}
+                    {d.contactEmail && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.contactEmail)}</span>}
+                  </div>
+                )}
+                {/* Amenities */}
+                {d.amenities && (
+                  <div className="mb-2">
+                    <p className="text-xs text-gray-500 mb-1">Amenities</p>
+                    <p className="text-xs text-gray-400">{String(d.amenities)}</p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
+                  {d.restrictions && <p className="text-xs text-red-400/70 flex-1 truncate"><AlertTriangle className="w-3 h-3 inline mr-1" />{String(d.restrictions)}</p>}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); removeVenue(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Vendors
+  // ---------------------------------------------------------------------------
+  const renderVendors = () => (
+    <div className="space-y-4">
+      {/* Category filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setTypeFilter('all')} className={cn(ds.btnSmall, typeFilter === 'all' ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50' : ds.btnGhost)}>All Categories</button>
+        {VENDOR_CATEGORIES.map(c => {
+          const Icon = c.icon;
+          return (
+            <button key={c.id} onClick={() => setTypeFilter(c.id)} className={cn(ds.btnSmall, typeFilter === c.id ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50' : ds.btnGhost)}>
+              <Icon className="w-3.5 h-3.5" /> {c.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {(() => {
+        const vendorFiltered = typeFilter !== 'all' ? filtered.filter(v => (v.data as Record<string, unknown>).category === typeFilter) : filtered;
+        if (vendorFiltered.length === 0) {
+          return (
+            <div className="text-center py-12">
+              <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+              <p className={ds.textMuted}>No vendors found</p>
+              <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Add vendor</button>
+            </div>
+          );
+        }
+        return (
+          <div className={ds.grid3}>
+            {vendorFiltered.map(item => {
+              const d = item.data as Record<string, unknown>;
+              const st = item.meta?.status as string;
+              const catInfo = VENDOR_CATEGORIES.find(c => c.id === d.category);
+              const CatIcon = catInfo?.icon || Users;
+              const payColor = STATUS_COLORS[String(d.paymentStatus)] || 'gray-400';
+              const paidPct = pct(Number(d.paidAmount || 0), Number(d.contractCost || 1));
+              return (
+                <div key={item.id} className={ds.panelHover} onClick={() => openEdit(item.id)}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CatIcon className="w-5 h-5 text-neon-cyan shrink-0" />
+                      <h3 className={cn(ds.heading3, 'truncate')}>{item.title}</h3>
+                    </div>
+                    <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                  </div>
+                  <div className="space-y-1 mb-3">
+                    <p className={ds.textMuted}>{catInfo?.label || String(d.category)}</p>
+                    <p className="text-sm text-gray-300">{String(d.contactName || '')}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      {d.phone && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.phone)}</span>}
+                      {d.email && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.email)}</span>}
+                    </div>
+                  </div>
+                  {/* Contract and payment */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-gray-400">Contract: {fmtCurrency(Number(d.contractCost || 0))}</span>
+                      <span className={ds.badge(payColor)}>{String(d.paymentStatus)}</span>
+                    </div>
+                    <div className="w-full h-2 bg-lattice-elevated rounded-full overflow-hidden">
+                      <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${Math.min(100, paidPct)}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{fmtCurrency(Number(d.paidAmount || 0))} of {fmtCurrency(Number(d.contractCost || 0))} paid</p>
+                  </div>
+                  {/* Times */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                    <span><Clock className="w-3 h-3 inline mr-1" />Setup: {String(d.setupTime || 'N/A')}</span>
+                    <span>Teardown: {String(d.teardownTime || 'N/A')}</span>
+                  </div>
+                  {/* Insurance and rating */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1">
+                      {d.insuranceVerified ? (
+                        <span className="flex items-center gap-1 text-xs text-green-400"><Shield className="w-3.5 h-3.5" /> Insured</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-red-400"><AlertTriangle className="w-3.5 h-3.5" /> Unverified</span>
+                      )}
+                    </div>
+                    {d.rating && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                        <span className="text-sm text-amber-400">{String(d.rating)}</span>
+                      </div>
+                    )}
+                  </div>
+                  {d.assignedEvent && <p className="text-xs text-gray-500"><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.assignedEvent)}</p>}
+                  <div className="flex items-center justify-end gap-1 pt-2 border-t border-lattice-border mt-2">
+                    <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); removeVendor(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Run-of-Show
+  // ---------------------------------------------------------------------------
+  const renderRunOfShow = () => (
+    <div className="space-y-4">
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <ListChecks className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className={ds.textMuted}>No run-of-show timelines found</p>
+          <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Create one</button>
+        </div>
+      ) : (
+        filtered.map(item => {
+          const d = item.data as Record<string, unknown>;
+          const segments = parseJsonSafe<Array<{ time: string; duration: number; activity: string; responsible: string; avCues: string; transition: string; contingency: string }>>(d.segments, []);
+          const st = item.meta?.status as string;
+          return (
+            <div key={item.id} className={ds.panel}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <ListChecks className="w-6 h-6 text-amber-400" />
+                  <div>
+                    <h3 className={ds.heading3}>{item.title}</h3>
+                    <p className={ds.textMuted}>{String(d.eventName || '')} -- {String(d.date || '')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                  <button onClick={() => openEdit(item.id)} className={ds.btnGhost}><Edit2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeROS(item.id)} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+              {/* Segments table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-lattice-border">
+                      <th className="pb-2 pr-3 w-16">Time</th>
+                      <th className="pb-2 pr-3 w-14">Dur.</th>
+                      <th className="pb-2 pr-3">Activity</th>
+                      <th className="pb-2 pr-3">Responsible</th>
+                      <th className="pb-2 pr-3">AV / Tech Cues</th>
+                      <th className="pb-2 pr-3">Transition</th>
+                      <th className="pb-2">Contingency</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-lattice-border">
+                    {segments.map((seg, i) => (
+                      <tr key={i} className="text-gray-300 hover:bg-lattice-elevated/30">
+                        <td className={cn('py-2 pr-3', ds.textMono, 'text-neon-cyan')}>{seg.time}</td>
+                        <td className="py-2 pr-3 text-gray-400">{seg.duration}m</td>
+                        <td className="py-2 pr-3 font-medium">{seg.activity}</td>
+                        <td className="py-2 pr-3 text-gray-400">{seg.responsible}</td>
+                        <td className="py-2 pr-3 text-xs text-gray-500">{seg.avCues}</td>
+                        <td className="py-2 pr-3 text-xs text-gray-500">{seg.transition}</td>
+                        <td className="py-2 text-xs text-amber-400/80">{seg.contingency}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {segments.length === 0 && <p className={cn(ds.textMuted, 'py-4 text-center')}>No segments added yet</p>}
+              {/* Quick action */}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-lattice-border">
+                <button onClick={() => handleAction('ros_generate', item.id)} className={cn(ds.btnSecondary, ds.btnSmall)} disabled={runAction.isPending}>
+                  <Sparkles className="w-4 h-4" /> AI Generate Segments
+                </button>
+                <button onClick={() => handleAction('event_summary', item.id)} className={cn(ds.btnSecondary, ds.btnSmall)} disabled={runAction.isPending}>
+                  <FileText className="w-4 h-4" /> Export
+                </button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Budget
+  // ---------------------------------------------------------------------------
+  const renderBudget = () => (
+    <div className="space-y-4">
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <DollarSign className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className={ds.textMuted}>No budgets found</p>
+          <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Create budget</button>
+        </div>
+      ) : (
+        filtered.map(item => {
+          const d = item.data as Record<string, unknown>;
+          const categories = parseJsonSafe<Array<{ name: string; budgeted: number; actual: number; notes: string }>>(d.categories, []);
+          const sponsorships = parseJsonSafe<Array<{ sponsor: string; amount: number; tier: string }>>(d.sponsorships, []);
+          const totalBudgeted = categories.reduce((s, c) => s + c.budgeted, 0);
+          const totalActual = categories.reduce((s, c) => s + c.actual, 0);
+          const totalSponsors = sponsorships.reduce((s, sp) => s + sp.amount, 0);
+          const attendees = Number(d.attendeeCount || 1);
+          const perAttendee = attendees > 0 ? totalActual / attendees : 0;
+          const overallBudget = Number(d.totalBudget || 0);
+          const st = item.meta?.status as string;
+
+          return (
+            <div key={item.id} className={ds.panel}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-6 h-6 text-green-400" />
+                  <div>
+                    <h3 className={ds.heading3}>{item.title}</h3>
+                    <p className={ds.textMuted}>{String(d.eventName || '')} -- {attendees.toLocaleString()} attendees</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                  <button onClick={() => openEdit(item.id)} className={ds.btnGhost}><Edit2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeBudget(item.id)} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+
+              {/* Summary cards */}
+              <div className={ds.grid4}>
+                <div className="p-3 bg-lattice-elevated rounded-lg">
+                  <p className={ds.textMuted}>Total Budget</p>
+                  <p className="text-lg font-bold">{fmtCurrency(overallBudget)}</p>
+                </div>
+                <div className="p-3 bg-lattice-elevated rounded-lg">
+                  <p className={ds.textMuted}>Total Spent</p>
+                  <p className={cn('text-lg font-bold', totalActual > overallBudget ? 'text-red-400' : 'text-white')}>{fmtCurrency(totalActual)}</p>
+                </div>
+                <div className="p-3 bg-lattice-elevated rounded-lg">
+                  <p className={ds.textMuted}>Sponsorship Revenue</p>
+                  <p className="text-lg font-bold text-green-400">{fmtCurrency(totalSponsors)}</p>
+                </div>
+                <div className="p-3 bg-lattice-elevated rounded-lg">
+                  <p className={ds.textMuted}>Cost Per Attendee</p>
+                  <p className="text-lg font-bold">{fmtCurrency(perAttendee)}</p>
+                </div>
+              </div>
+
+              {/* Budget utilization bar */}
+              <div className="mt-4 mb-4">
+                <p className={cn(ds.textMuted, 'mb-1')}>Budget Utilization</p>
+                <ProgressBar value={totalActual} max={overallBudget} color={totalActual > overallBudget ? 'red-400' : 'green-400'} />
+              </div>
+
+              {/* Category breakdown */}
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-lattice-border">
+                      <th className="pb-2 pr-4">Category</th>
+                      <th className="pb-2 pr-4 text-right">Budgeted</th>
+                      <th className="pb-2 pr-4 text-right">Actual</th>
+                      <th className="pb-2 pr-4 text-right">Variance</th>
+                      <th className="pb-2 pr-4">Usage</th>
+                      <th className="pb-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-lattice-border">
+                    {categories.map((cat, i) => {
+                      const variance = cat.budgeted - cat.actual;
+                      const usage = pct(cat.actual, cat.budgeted);
+                      return (
+                        <tr key={i} className="text-gray-300">
+                          <td className="py-2 pr-4 font-medium capitalize">{cat.name}</td>
+                          <td className="py-2 pr-4 text-right">{fmtCurrency(cat.budgeted)}</td>
+                          <td className="py-2 pr-4 text-right">{fmtCurrency(cat.actual)}</td>
+                          <td className={cn('py-2 pr-4 text-right font-medium', variance >= 0 ? 'text-green-400' : 'text-red-400')}>
+                            {variance >= 0 ? '+' : ''}{fmtCurrency(variance)}
+                          </td>
+                          <td className="py-2 pr-4 w-32">
+                            <div className="w-full h-1.5 bg-lattice-elevated rounded-full overflow-hidden">
+                              <div className={cn('h-full rounded-full', usage > 100 ? 'bg-red-400' : 'bg-neon-cyan')} style={{ width: `${Math.min(120, usage)}%` }} />
+                            </div>
+                          </td>
+                          <td className="py-2 text-xs text-gray-500">{cat.notes}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="text-white font-semibold border-t-2 border-lattice-border">
+                      <td className="py-2 pr-4">Total</td>
+                      <td className="py-2 pr-4 text-right">{fmtCurrency(totalBudgeted)}</td>
+                      <td className="py-2 pr-4 text-right">{fmtCurrency(totalActual)}</td>
+                      <td className={cn('py-2 pr-4 text-right', (totalBudgeted - totalActual) >= 0 ? 'text-green-400' : 'text-red-400')}>
+                        {(totalBudgeted - totalActual) >= 0 ? '+' : ''}{fmtCurrency(totalBudgeted - totalActual)}
+                      </td>
+                      <td className="py-2 pr-4" />
+                      <td className="py-2" />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Sponsorships */}
+              {sponsorships.length > 0 && (
+                <div>
+                  <h4 className={cn(ds.heading3, 'text-base mb-2 flex items-center gap-2')}><Crown className="w-4 h-4 text-amber-400" /> Sponsorships</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {sponsorships.map((sp, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-lattice-elevated rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium">{sp.sponsor}</p>
+                          <p className="text-xs text-gray-500">{sp.tier}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-green-400">{fmtCurrency(sp.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* P&L summary */}
+              <div className="mt-4 p-3 bg-lattice-elevated rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-400">Profit / Loss</span>
+                  {(() => {
+                    const evtRevenue = events.find(e => e.title === d.eventName);
+                    const rev = Number((evtRevenue?.data as Record<string, unknown>)?.revenue || 0) + totalSponsors;
+                    const pl = rev - totalActual;
+                    return (
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Revenue: {fmtCurrency(rev)} - Costs: {fmtCurrency(totalActual)}</p>
+                        <p className={cn('text-lg font-bold', pl >= 0 ? 'text-green-400' : 'text-red-400')}>
+                          {pl >= 0 ? '+' : ''}{fmtCurrency(pl)}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Action */}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-lattice-border">
+                <button onClick={() => handleAction('budget_analysis', item.id)} className={cn(ds.btnSecondary, ds.btnSmall)} disabled={runAction.isPending}>
+                  <PieChart className="w-4 h-4" /> AI Budget Analysis
+                </button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render: Tickets
+  // ---------------------------------------------------------------------------
+  const renderTickets = () => {
+    // Group by event
+    const byEvent = filtered.reduce<Record<string, LensItem[]>>((acc, t) => {
+      const evtName = String((t.data as Record<string, unknown>).eventName || 'Unassigned');
+      if (!acc[evtName]) acc[evtName] = [];
+      acc[evtName].push(t);
+      return acc;
+    }, {});
+
+    return (
+      <div className="space-y-4">
+        {Object.keys(byEvent).length === 0 ? (
+          <div className="text-center py-12">
+            <Ticket className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+            <p className={ds.textMuted}>No ticket tiers found</p>
+            <button onClick={openCreate} className={cn(ds.btnGhost, 'mt-3')}><Plus className="w-4 h-4" /> Add ticket tier</button>
+          </div>
+        ) : (
+          Object.entries(byEvent).map(([eventName, tiers]) => {
+            const totalSold = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).sold || 0), 0);
+            const totalAvail = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).totalAvailable || 0), 0);
+            const totalRevenue = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).sold || 0) * Number((t.data as Record<string, unknown>).price || 0), 0);
+            const totalWaitlist = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).waitlist || 0), 0);
+            const totalComp = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).compTickets || 0), 0);
+            const totalCheckedIn = tiers.reduce((s, t) => s + Number((t.data as Record<string, unknown>).checkedIn || 0), 0);
+
+            return (
+              <div key={eventName} className={ds.panel}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={cn(ds.heading3, 'flex items-center gap-2')}><Ticket className="w-5 h-5 text-neon-pink" /> {eventName}</h3>
+                  <span className={ds.textMuted}>{totalSold.toLocaleString()} / {totalAvail.toLocaleString()} sold</span>
+                </div>
+
+                {/* Summary row */}
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Revenue</p>
+                    <p className="text-sm font-bold text-green-400">{fmtCurrency(totalRevenue)}</p>
+                  </div>
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Sold</p>
+                    <p className="text-sm font-bold">{totalSold.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Remaining</p>
+                    <p className="text-sm font-bold">{(totalAvail - totalSold).toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Checked In</p>
+                    <p className="text-sm font-bold">{totalCheckedIn.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Waitlist</p>
+                    <p className="text-sm font-bold text-amber-400">{totalWaitlist}</p>
+                  </div>
+                  <div className="p-2 bg-lattice-elevated rounded-lg text-center">
+                    <p className="text-xs text-gray-500">Comps</p>
+                    <p className="text-sm font-bold">{totalComp}</p>
+                  </div>
+                </div>
+
+                {/* Overall progress */}
+                <div className="mb-4">
+                  <ProgressBar value={totalSold} max={totalAvail} color="neon-pink" />
+                </div>
+
+                {/* Tier cards */}
+                <div className={ds.grid3}>
+                  {tiers.map(t => {
+                    const td = t.data as Record<string, unknown>;
+                    const sold = Number(td.sold || 0);
+                    const avail = Number(td.totalAvailable || 0);
+                    const price = Number(td.price || 0);
+                    const tierRev = sold * price;
+                    const st = t.meta?.status as string;
+                    const soldOut = sold >= avail;
+                    return (
+                      <div key={t.id} className={cn(ds.panelHover, 'relative')} onClick={() => openEdit(t.id)}>
+                        {soldOut && (
+                          <div className="absolute top-2 right-2">
+                            <span className={ds.badge('red-400')}>SOLD OUT</span>
+                          </div>
+                        )}
+                        <h4 className="font-semibold text-sm mb-1">{String(td.tierName)}</h4>
+                        <p className="text-xl font-bold text-neon-cyan mb-2">{fmtCurrency(price)}</p>
+                        <ProgressBar value={sold} max={avail} color={soldOut ? 'red-400' : 'neon-cyan'} />
+                        <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                          <div><span className="text-gray-500">Revenue:</span> <span className="text-green-400">{fmtCurrency(tierRev)}</span></div>
+                          <div><span className="text-gray-500">Waitlist:</span> <span className="text-amber-400">{Number(td.waitlist || 0)}</span></div>
+                          <div><span className="text-gray-500">Comps:</span> <span>{Number(td.compTickets || 0)}</span></div>
+                          <div><span className="text-gray-500">Check-in:</span> <span>{Number(td.checkedIn || 0)}</span></div>
+                        </div>
+                        {td.perks && <p className="text-xs text-gray-500 mt-2 line-clamp-2"><Gift className="w-3 h-3 inline mr-1" />{String(td.perks)}</p>}
+                        <div className="flex items-center justify-between pt-2 mt-2 border-t border-lattice-border">
+                          <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={e => { e.stopPropagation(); openEdit(t.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={e => { e.stopPropagation(); removeTicket(t.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render: Content by mode
+  // ---------------------------------------------------------------------------
+  const renderContent = () => {
+    switch (mode) {
+      case 'dashboard': return renderDashboard();
+      case 'events': return renderEventsList();
+      case 'venues': return renderVenues();
+      case 'vendors': return renderVendors();
+      case 'runofshow': return renderRunOfShow();
+      case 'budget': return renderBudget();
+      case 'tickets': return renderTickets();
+      default: return null;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Main return
+  // ---------------------------------------------------------------------------
   return (
     <div className={ds.pageContainer}>
       {/* Header */}
@@ -162,14 +1501,15 @@ export default function EventsLensPage() {
         <div className="flex items-center gap-3">
           <Sparkles className="w-7 h-7 text-neon-pink" />
           <div>
-            <h1 className={ds.heading1}>Events &amp; Entertainment</h1>
-            <p className={ds.textMuted}>Events, venues, performers, tours and production</p>
+            <h1 className={ds.heading1}>Event Management</h1>
+            <p className={ds.textMuted}>Plan, coordinate, and execute events end-to-end</p>
           </div>
         </div>
-        <button onClick={openCreate} className={ds.btnPrimary}>
-          <Plus className="w-4 h-4" /> New {currentType}
-        </button>
-        {runAction.isPending && <span className="text-xs text-neon-blue animate-pulse">Running...</span>}
+        {mode !== 'dashboard' && (
+          <button onClick={openCreate} className={ds.btnPrimary}>
+            <Plus className="w-4 h-4" /> New {currentType === 'RunOfShow' ? 'Run of Show' : currentType === 'TicketTier' ? 'Ticket Tier' : currentType}
+          </button>
+        )}
       </header>
 
       {/* Mode Tabs */}
@@ -179,10 +1519,11 @@ export default function EventsLensPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => { setMode(tab.id); setSearch(''); setStatusFilter('all'); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              onClick={() => { setMode(tab.id); setSearch(''); setStatusFilter('all'); setTypeFilter('all'); setDetailId(null); }}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 mode === tab.id ? 'bg-neon-pink/20 text-neon-pink' : 'text-gray-400 hover:text-white hover:bg-lattice-elevated'
-              }`}
+              )}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
@@ -191,105 +1532,43 @@ export default function EventsLensPage() {
         })}
       </nav>
 
-      {/* Dashboard */}
-      <div className={ds.grid4}>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><CalendarDays className="w-4 h-4 text-neon-pink" /><span className={ds.textMuted}>Upcoming Events</span></div>
-          <p className="text-2xl font-bold">{upcomingEvents}</p>
-        </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><Ticket className="w-4 h-4 text-neon-cyan" /><span className={ds.textMuted}>Tickets Sold</span></div>
-          <p className="text-2xl font-bold">{totalTicketsSold.toLocaleString()}</p>
-        </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><Store className="w-4 h-4 text-green-400" /><span className={ds.textMuted}>Confirmed Vendors</span></div>
-          <p className="text-2xl font-bold">{confirmedVendors}</p>
-        </div>
-        <div className={ds.panel}>
-          <div className="flex items-center gap-2 mb-1"><Music className="w-4 h-4 text-amber-400" /><span className={ds.textMuted}>Live Now</span></div>
-          <p className="text-2xl font-bold">{liveShows}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${currentType.toLowerCase()}s...`} className={`${ds.input} pl-10`} />
-        </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${ds.select} pl-10 pr-8`}>
-            <option value="all">All statuses</option>
-            {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Artifact library */}
-      {isLoading ? (
-        <div className="text-center py-12"><p className={ds.textMuted}>Loading...</p></div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12">
-          <CalendarDays className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-          <p className={ds.textMuted}>No {currentType.toLowerCase()}s found</p>
-          <button onClick={openCreate} className={`${ds.btnGhost} mt-3`}><Plus className="w-4 h-4" /> Create one</button>
-        </div>
-      ) : (
-        <div className={ds.grid3}>
-          {filtered.map(item => {
-            const status = item.meta?.status || 'planning';
-            const color = STATUS_COLORS[status] || 'gray-400';
-            return (
-              <div key={item.id} className={ds.panelHover} onClick={() => openEdit(item.id)}>
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className={ds.heading3 + ' truncate flex-1'}>{item.title}</h3>
-                  <span className={ds.badge(color)}>{String(status).replace(/_/g, ' ')}</span>
-                </div>
-                <div className="space-y-1 mb-3">
-                  {Object.entries(item.data as Record<string, unknown>).slice(0, 3).map(([k, v]) => (
-                    <p key={k} className={ds.textMuted}><span className="text-gray-500">{k}:</span> {String(v)}</p>
-                  ))}
-                </div>
-                {/* Ticket progress for events */}
-                {currentType === 'Event' && (item.data as Record<string, unknown>).ticketsSold !== undefined && Number((item.data as Record<string, unknown>).capacity) > 0 && (
-                  <div className="mb-2">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
-                      <span>Tickets</span>
-                      <span>{String((item.data as Record<string, unknown>).ticketsSold)}/{String((item.data as Record<string, unknown>).capacity)}</span>
-                    </div>
-                    <div className="w-full h-2 bg-lattice-elevated rounded-full overflow-hidden">
-                      <div className="h-full bg-neon-pink rounded-full transition-all" style={{ width: `${Math.min(100, (Number((item.data as Record<string, unknown>).ticketsSold) / Number((item.data as Record<string, unknown>).capacity)) * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-                {/* Star rating for performers / vendors */}
-                {((item.data as Record<string, unknown>).rating !== undefined) && (
-                  <div className="flex items-center gap-1 mb-2">
-                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                    <span className="text-sm text-amber-400">{String((item.data as Record<string, unknown>).rating)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
-                  <span className={ds.textMuted}>{new Date(item.updatedAt).toLocaleDateString()}</span>
-                  <div className="flex items-center gap-1">
-                    <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
-                    <button onClick={e => { e.stopPropagation(); remove(item.id); }} className={`${ds.btnGhost} hover:text-red-400`}><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* Filters (non-dashboard) */}
+      {mode !== 'dashboard' && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${mode}...`} className={cn(ds.input, 'pl-10')} />
+          </div>
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={cn(ds.select, 'pl-10 pr-8')}>
+              <option value="all">All statuses</option>
+              {EVENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {mode === 'vendors' && ['pending', 'partial', 'paid', 'overdue'].map(s => <option key={s} value={s}>{s}</option>)}
+              {mode === 'venues' && ['available', 'booked', 'maintenance'].map(s => <option key={s} value={s}>{s}</option>)}
+              {mode === 'runofshow' && ['draft', 'finalized'].map(s => <option key={s} value={s}>{s}</option>)}
+              {mode === 'budget' && ['active', 'draft', 'finalized'].map(s => <option key={s} value={s}>{s}</option>)}
+              {mode === 'tickets' && ['active', 'completed', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
       )}
 
+      {/* Loading */}
+      {isLoading ? (
+        <div className="text-center py-12"><p className={ds.textMuted}>Loading event data...</p></div>
+      ) : (
+        renderContent()
+      )}
+
+      {/* Action result display */}
       {actionResult && (
         <div className={ds.panel}>
           <div className="flex items-center justify-between mb-2">
             <h3 className={ds.heading3}>Action Result</h3>
             <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
           </div>
-          <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+          <pre className={cn(ds.textMono, 'text-xs overflow-auto max-h-48')}>{JSON.stringify(actionResult, null, 2)}</pre>
         </div>
       )}
 
@@ -298,69 +1577,76 @@ export default function EventsLensPage() {
         <>
           <div className={ds.modalBackdrop} onClick={resetForm} />
           <div className={ds.modalContainer}>
-            <div className={`${ds.modalPanel} max-w-lg`}>
-              <div className="flex items-center justify-between p-4 border-b border-lattice-border">
-                <h2 className={ds.heading2}>{editing ? 'Edit' : 'New'} {currentType}</h2>
+            <div className={cn(ds.modalPanel, 'max-w-2xl max-h-[90vh] flex flex-col')}>
+              <div className="flex items-center justify-between p-4 border-b border-lattice-border shrink-0">
+                <h2 className={ds.heading2}>{editing ? 'Edit' : 'New'} {currentType === 'RunOfShow' ? 'Run of Show' : currentType === 'TicketTier' ? 'Ticket Tier' : currentType}</h2>
                 <button onClick={resetForm} className={ds.btnGhost}><X className="w-5 h-5" /></button>
               </div>
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
                 <div>
                   <label className={ds.label}>Title / Name</label>
-                  <input value={formTitle} onChange={e => setFormTitle(e.target.value)} className={ds.input} placeholder={`${currentType} name`} />
+                  <input value={formTitle} onChange={e => setFormTitle(e.target.value)} className={ds.input} placeholder="Enter a name..." />
                 </div>
                 <div>
                   <label className={ds.label}>Status</label>
                   <select value={formStatus} onChange={e => setFormStatus(e.target.value)} className={ds.select}>
-                    {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                    {EVENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    {mode === 'vendors' && ['pending', 'partial', 'paid', 'overdue'].map(s => <option key={`v-${s}`} value={s}>{s}</option>)}
+                    {mode === 'venues' && ['available', 'booked', 'maintenance'].map(s => <option key={`ve-${s}`} value={s}>{s}</option>)}
+                    {mode === 'runofshow' && ['draft', 'finalized'].map(s => <option key={`r-${s}`} value={s}>{s}</option>)}
+                    {mode === 'budget' && ['active', 'draft', 'finalized'].map(s => <option key={`b-${s}`} value={s}>{s}</option>)}
+                    {mode === 'tickets' && ['active', 'completed', 'cancelled'].map(s => <option key={`t-${s}`} value={s}>{s}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][0]}</label>
-                  <input value={formField1} onChange={e => setFormField1(e.target.value)} className={ds.input} />
-                </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][1]}</label>
-                  <input value={formField2} onChange={e => setFormField2(e.target.value)} className={ds.input} />
-                </div>
-                <div>
-                  <label className={ds.label}>{fieldLabels[mode][2]}</label>
-                  <input value={formField3} onChange={e => setFormField3(e.target.value)} className={ds.input} />
-                </div>
+                {getFormConfig().map(field => (
+                  <div key={field.key}>
+                    <label className={ds.label}>{field.label}</label>
+                    {field.type === 'select' ? (
+                      <select
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        className={ds.select}
+                      >
+                        <option value="">Select...</option>
+                        {field.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        className={ds.textarea}
+                        rows={3}
+                      />
+                    ) : (
+                      <input
+                        type={field.type === 'date' ? 'date' : 'text'}
+                        value={formFields[field.key] || ''}
+                        onChange={e => setFormFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        className={ds.input}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-end gap-2 p-4 border-t border-lattice-border">
-                <button onClick={resetForm} className={ds.btnSecondary}>Cancel</button>
-                <button onClick={handleSave} className={ds.btnPrimary} disabled={!formTitle.trim()}>
-                  {editing ? 'Update' : 'Create'}
-                </button>
+              <div className="flex items-center justify-between gap-2 p-4 border-t border-lattice-border shrink-0">
+                <div>
+                  {editing && (
+                    <button onClick={() => { const { remove } = getCrud(); if (editing) { remove(editing); resetForm(); } }} className={ds.btnDanger}>
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={resetForm} className={ds.btnSecondary}>Cancel</button>
+                  <button onClick={handleSave} className={ds.btnPrimary} disabled={!formTitle.trim()}>
+                    {editing ? 'Update' : 'Create'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </>
       )}
-
-      {/* Upcoming timeline */}
-      <section>
-        <h2 className={ds.heading2 + ' mb-3'}>Upcoming Timeline</h2>
-        <div className={ds.panel}>
-          <div className="divide-y divide-lattice-border">
-            {[
-              { date: 'Mar 22', event: 'Jazz Under the Stars', venue: 'Rooftop Garden', status: 'advancing' },
-              { date: 'Apr 10', event: 'Corporate Gala - TechCorp', venue: 'Grand Ballroom', status: 'planning' },
-              { date: 'Jun 14', event: 'Neon Lights Festival 2026', venue: 'Meridian Amphitheatre', status: 'confirmed' },
-              { date: 'Jul 04', event: 'Summer Block Party', venue: 'Downtown Plaza', status: 'planning' },
-            ].map((evt, i) => (
-              <div key={i} className="flex items-center gap-4 py-3 px-2">
-                <span className={ds.textMono + ' w-16 text-neon-pink'}>{evt.date}</span>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-200">{evt.event}</p>
-                  <p className={ds.textMuted}>{evt.venue}</p>
-                </div>
-                <span className={ds.badge(STATUS_COLORS[evt.status] || 'gray-400')}>{evt.status.replace(/_/g, ' ')}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
