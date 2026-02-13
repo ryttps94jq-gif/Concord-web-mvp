@@ -11,7 +11,7 @@ import {
   TrendingUp, Flame, Leaf, Scale, DollarSign, ClipboardList, CalendarDays,
   Star, Puzzle, TrendingDown, Package, FileText, UserCheck, MapPin,
   ArrowDown, ArrowUp, Minus, Hash, Utensils, Coffee, CircleDot, Layers,
-  RotateCcw, Eye, Zap, Target, PieChart, Table2, Armchair, CircleAlert,
+  RotateCcw, Eye, Zap, Target, PieChart, Table2, Armchair, AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';

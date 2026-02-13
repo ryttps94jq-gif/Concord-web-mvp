@@ -1237,7 +1237,7 @@ export default function EnvironmentLensPage() {
                 <p className={ds.textMuted}>{d.areaAcres as number || 0} acres | {d.landUse as string || 'N/A'}</p>
                 <p className={ds.textMuted}>Regulatory: {d.regulatoryStatus as string || 'N/A'}</p>
                 <p className={ds.textMuted}>Schedule: {d.samplingSchedule as string || 'N/A'}</p>
-                {d.lat && d.lon && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>{(d.lat as number).toFixed(6)}, {(d.lon as number).toFixed(6)}</p>}
+                {Boolean(d.lat) && Boolean(d.lon) && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>{(d.lat as number).toFixed(6)}, {(d.lon as number).toFixed(6)}</p>}
               </>
             );
           })()}
@@ -1247,16 +1247,16 @@ export default function EnvironmentLensPage() {
               <p className={cn(ds.textMuted, 'italic')}>{d.scientificName as string}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={ds.badge('neon-cyan')}>{d.category as string}</span>
-                {d.conservationStatus && renderConservationBadge(d.conservationStatus as ConservationStatus)}
+                {Boolean(d.conservationStatus) && renderConservationBadge(d.conservationStatus as ConservationStatus)}
               </div>
               <div className="flex items-center gap-3">
-                {d.populationTrend && renderTrendIndicator(d.populationTrend as PopulationTrend)}
-                {d.count && <span className={ds.textMuted}>Count: {d.count as number}</span>}
+                {Boolean(d.populationTrend) && renderTrendIndicator(d.populationTrend as PopulationTrend)}
+                {d.count !== undefined && d.count !== null && <span className={ds.textMuted}>Count: {d.count as number}</span>}
               </div>
               <p className={ds.textMuted}>Habitat: {d.habitat as string || 'N/A'}</p>
-              {d.behavior && <p className={ds.textMuted}>Behavior: {d.behavior as string}</p>}
-              {d.observationDate && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>Observed: {d.observationDate as string}</p>}
-              {d.photoLogRef && (
+              {Boolean(d.behavior) && <p className={ds.textMuted}>Behavior: {d.behavior as string}</p>}
+              {Boolean(d.observationDate) && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>Observed: {d.observationDate as string}</p>}
+              {Boolean(d.photoLogRef) && (
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Camera className="w-3 h-3" />
                   <span>{d.photoLogRef as string}</span>
@@ -1274,14 +1274,14 @@ export default function EnvironmentLensPage() {
               </div>
               <p className={cn(ds.heading3, 'text-base')}>
                 {d.value as number} <span className={ds.textMuted}>{d.unit as string}</span>
-                {d.referenceLimit && (
+                {d.referenceLimit !== undefined && d.referenceLimit !== null && (
                   <span className={cn(ds.textMuted, 'text-xs ml-2')}>
                     (limit: {d.referenceLimit as number} {d.unit as string})
                   </span>
                 )}
               </p>
               {renderExceedance(d as unknown as EnvironmentalSample)}
-              {d.chainOfCustody && (
+              {Boolean(d.chainOfCustody) && (
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Clipboard className="w-3 h-3" />
                   <span>COC: {d.chainOfCustody as string}</span>
@@ -1294,9 +1294,9 @@ export default function EnvironmentLensPage() {
           {currentType === 'TrailAsset' && (
             <>
               <div className="flex items-center gap-2 flex-wrap">
-                {d.assetCategory && <span className={ds.badge('neon-cyan')}>{d.assetCategory as string}</span>}
-                {d.condition && renderConditionBadge(d.condition as TrailCondition)}
-                {d.difficulty && <span className={ds.badge('neon-purple')}>{d.difficulty as string}</span>}
+                {Boolean(d.assetCategory) && <span className={ds.badge('neon-cyan')}>{d.assetCategory as string}</span>}
+                {Boolean(d.condition) && renderConditionBadge(d.condition as TrailCondition)}
+                {Boolean(d.difficulty) && <span className={ds.badge('neon-purple')}>{d.difficulty as string}</span>}
               </div>
               {(d.length as number) > 0 && <p className={ds.textMuted}>{d.length as number} mi | Surface: {d.surface as string || 'N/A'}</p>}
               {(d.visitorCountEstimate as number) > 0 && (
@@ -1305,13 +1305,13 @@ export default function EnvironmentLensPage() {
                   <span>{(d.visitorCountEstimate as number).toLocaleString()} visitors/mo est.</span>
                 </div>
               )}
-              {d.workOrderId && (
+              {Boolean(d.workOrderId) && (
                 <div className="flex items-center gap-2">
                   <span className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.workOrderId as string}</span>
-                  {d.workOrderStatus && <span className={ds.badge(d.workOrderStatus === 'Completed' ? 'green-400' : 'orange-400')}>{d.workOrderStatus as string}</span>}
+                  {Boolean(d.workOrderStatus) && <span className={ds.badge(d.workOrderStatus === 'Completed' ? 'green-400' : 'orange-400')}>{d.workOrderStatus as string}</span>}
                 </div>
               )}
-              {d.nextMaintenance && <p className={cn(ds.textMuted, 'text-xs')}>Next maintenance: {d.nextMaintenance as string}</p>}
+              {Boolean(d.nextMaintenance) && <p className={cn(ds.textMuted, 'text-xs')}>Next maintenance: {d.nextMaintenance as string}</p>}
               <div className="flex flex-wrap gap-1 mt-1">
                 {((d.features as string[]) || []).map(f => (
                   <span key={f} className={ds.badge('neon-cyan')}>{f}</span>
@@ -1323,7 +1323,7 @@ export default function EnvironmentLensPage() {
           {currentType === 'WasteStream' && (
             <>
               <div className="flex items-center gap-2">
-                {d.wasteType && (
+                {Boolean(d.wasteType) && (
                   <span className={ds.badge(
                     d.wasteType === 'hazardous' ? 'red-400' :
                     d.wasteType === 'recycling' ? 'green-400' :
@@ -1350,7 +1350,7 @@ export default function EnvironmentLensPage() {
                 <p className="text-xs text-red-400">Contamination: {d.contaminationRate as number}%</p>
               )}
               <p className={ds.textMuted}>Hauler: {d.hauler as string || 'N/A'} | {d.disposalMethod as string || 'N/A'}</p>
-              {d.nextPickup && <p className={cn(ds.textMuted, 'text-xs')}>Next pickup: {d.nextPickup as string}</p>}
+              {Boolean(d.nextPickup) && <p className={cn(ds.textMuted, 'text-xs')}>Next pickup: {d.nextPickup as string}</p>}
             </>
           )}
 
@@ -1361,7 +1361,7 @@ export default function EnvironmentLensPage() {
               <>
                 <div className="flex items-center gap-2">
                   <span className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.permitNumber as string}</span>
-                  {d.permitType && <span className={ds.badge('neon-blue')}>{d.permitType as string}</span>}
+                  {Boolean(d.permitType) && <span className={ds.badge('neon-blue')}>{d.permitType as string}</span>}
                 </div>
                 <p className={ds.textMuted}>Agency: {d.issuingAgency as string || 'N/A'}</p>
                 <div className="flex items-center gap-3">
@@ -1377,9 +1377,9 @@ export default function EnvironmentLensPage() {
                     </span>
                   )}
                 </div>
-                {d.expirationDate && <p className={cn(ds.textMuted, 'text-xs')}>Expires: {d.expirationDate as string}</p>}
-                {d.nextInspection && <p className={cn(ds.textMuted, 'text-xs')}>Next inspection: {d.nextInspection as string}</p>}
-                {d.violationHistory && (
+                {Boolean(d.expirationDate) && <p className={cn(ds.textMuted, 'text-xs')}>Expires: {d.expirationDate as string}</p>}
+                {Boolean(d.nextInspection) && <p className={cn(ds.textMuted, 'text-xs')}>Next inspection: {d.nextInspection as string}</p>}
+                {Boolean(d.violationHistory) && (
                   <div className="flex items-center gap-1 text-xs text-red-400">
                     <AlertTriangle className="w-3 h-3" />
                     <span className="truncate">{d.violationHistory as string}</span>
@@ -1393,7 +1393,7 @@ export default function EnvironmentLensPage() {
         {/* Detail expansion */}
         {detailItem === item.id && (
           <div className="mt-3 pt-3 border-t border-lattice-border space-y-2" onClick={e => e.stopPropagation()}>
-            {d.notes && (
+            {Boolean(d.notes) && (
               <div>
                 <p className={cn(ds.label, 'mb-0.5')}>Notes</p>
                 <p className="text-xs text-gray-300">{d.notes as string}</p>

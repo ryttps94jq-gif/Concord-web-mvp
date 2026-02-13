@@ -611,12 +611,12 @@ export default function SecurityLensPage() {
           {currentType === 'Incident' && (
             <>
               <div className="flex items-center gap-2 flex-wrap">
-                {d.severity && renderStatusBadge(d.severity as string)}
-                {d.type && renderStatusBadge(d.type as string)}
+                {Boolean(d.severity) && renderStatusBadge(d.severity as string)}
+                {Boolean(d.type) && renderStatusBadge(d.type as string)}
               </div>
-              {d.description && <p className={cn(ds.textMuted, 'line-clamp-2')}>{d.description as string}</p>}
+              {Boolean(d.description) && <p className={cn(ds.textMuted, 'line-clamp-2')}>{d.description as string}</p>}
               <div className="flex items-center gap-3 text-xs">
-                {d.assignee && <span className={ds.textMuted}><Users className="w-3 h-3 inline mr-1" />{d.assignee as string}</span>}
+                {Boolean(d.assignee) && <span className={ds.textMuted}><Users className="w-3 h-3 inline mr-1" />{d.assignee as string}</span>}
                 {(d.mttd as number) > 0 && <span className={cn(ds.textMono, 'text-yellow-400')}>MTTD: {d.mttd as number}m</span>}
                 {(d.mttr as number) > 0 && <span className={cn(ds.textMono, 'text-green-400')}>MTTR: {d.mttr as number}m</span>}
               </div>
@@ -633,17 +633,17 @@ export default function SecurityLensPage() {
           {currentType === 'Asset' && (
             <>
               <div className="flex items-center gap-2">
-                {d.assetType && renderStatusBadge(d.assetType as string)}
-                {d.criticality && renderStatusBadge(d.criticality as string)}
+                {Boolean(d.assetType) && renderStatusBadge(d.assetType as string)}
+                {Boolean(d.criticality) && renderStatusBadge(d.criticality as string)}
               </div>
-              {d.ip && <p className={cn(ds.textMono, 'text-gray-400 text-xs')}>{d.ip as string}</p>}
+              {Boolean(d.ip) && <p className={cn(ds.textMono, 'text-gray-400 text-xs')}>{d.ip as string}</p>}
               <p className={ds.textMuted}>Owner: {d.owner as string} | {d.department as string}</p>
               <div className="flex items-center gap-3 text-xs">
-                {d.patchStatus && renderStatusBadge(d.patchStatus as string)}
+                {Boolean(d.patchStatus) && renderStatusBadge(d.patchStatus as string)}
                 <span className={cn(ds.textMuted)}>Vulns: {d.vulnerabilityCount as number}</span>
               </div>
-              {d.os && <p className={cn(ds.textMuted, 'text-xs')}>OS: {d.os as string}</p>}
-              {d.lastScanDate && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Last scan: {d.lastScanDate as string}</p>}
+              {Boolean(d.os) && <p className={cn(ds.textMuted, 'text-xs')}>OS: {d.os as string}</p>}
+              {Boolean(d.lastScanDate) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Last scan: {d.lastScanDate as string}</p>}
             </>
           )}
 
@@ -674,8 +674,8 @@ export default function SecurityLensPage() {
               <p className={ds.textMuted}>{d.coverage as string}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={ds.badge('blue-400')}>{d.resolution as string}</span>
-                {d.nightVision && <span className={ds.badge('green-400')}>Night Vision</span>}
-                {d.motionDetection && <span className={ds.badge('yellow-400')}>Motion</span>}
+                {Boolean(d.nightVision) && <span className={ds.badge('green-400')}>Night Vision</span>}
+                {Boolean(d.motionDetection) && <span className={ds.badge('yellow-400')}>Motion</span>}
               </div>
               <div className="flex items-center gap-3 text-xs mt-1">
                 <span className={cn(ds.textMuted)}>Alerts: {d.alertCount as number}</span>
@@ -688,8 +688,8 @@ export default function SecurityLensPage() {
           {currentType === 'AccessControl' && (
             <>
               <div className="flex items-center gap-2">
-                {d.accessLevel && renderStatusBadge(d.accessLevel as string)}
-                {d.badgeId && <span className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.badgeId as string}</span>}
+                {Boolean(d.accessLevel) && renderStatusBadge(d.accessLevel as string)}
+                {Boolean(d.badgeId) && <span className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.badgeId as string}</span>}
               </div>
               <p className={ds.textMuted}>{d.holder as string} | {d.department as string}</p>
               {(d.zones as string[])?.length > 0 && (
@@ -698,8 +698,8 @@ export default function SecurityLensPage() {
                 </div>
               )}
               <p className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.validFrom as string} to {d.validUntil as string}</p>
-              {d.escortRequired && <span className={ds.badge('orange-400')}>Escort Required</span>}
-              {d.visitorName && <p className={cn(ds.textMuted, 'text-xs')}>Visitor: {d.visitorName as string} ({d.visitorCompany as string})</p>}
+              {Boolean(d.escortRequired) && <span className={ds.badge('orange-400')}>Escort Required</span>}
+              {Boolean(d.visitorName) && <p className={cn(ds.textMuted, 'text-xs')}>Visitor: {d.visitorName as string} ({d.visitorCompany as string})</p>}
             </>
           )}
 
@@ -710,7 +710,7 @@ export default function SecurityLensPage() {
                 <span className={ds.badge('red-400')}>{d.iocType as string}</span>
                 <span className={cn(ds.textMono, 'text-xs text-red-300')}>{d.iocValue as string}</span>
               </div>
-              {d.threatActor && <p className={cn(ds.textMuted, 'font-medium')}><Skull className="w-3 h-3 inline mr-1" />{d.threatActor as string}</p>}
+              {Boolean(d.threatActor) && <p className={cn(ds.textMuted, 'font-medium')}><Skull className="w-3 h-3 inline mr-1" />{d.threatActor as string}</p>}
               <div className="flex items-center gap-3 text-xs">
                 {(d.confidence as number) > 0 && <span className={cn(ds.textMono, 'text-blue-400')}>Confidence: {d.confidence as number}%</span>}
                 {(d.riskScore as number) > 0 && (
@@ -719,7 +719,7 @@ export default function SecurityLensPage() {
                   </span>
                 )}
               </div>
-              {d.description && <p className={cn(ds.textMuted, 'line-clamp-2 text-xs')}>{d.description as string}</p>}
+              {Boolean(d.description) && <p className={cn(ds.textMuted, 'line-clamp-2 text-xs')}>{d.description as string}</p>}
               {(d.tags as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(d.tags as string[]).map(tag => <span key={tag} className={ds.badge('gray-400')}>{tag}</span>)}

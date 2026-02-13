@@ -704,12 +704,12 @@ export default function LogisticsLensPage() {
                             <span>{String(d.pieces)} pcs</span>
                             <span>{String(d.carrier)}</span>
                           </div>
-                          {d.eta && (
+                          {Boolean(d.eta) && (
                             <div className="flex items-center gap-1 text-xs text-gray-400">
                               <Clock className="w-3 h-3" /> ETA: {String(d.eta)}
                             </div>
                           )}
-                          {d.podSigned && (
+                          {Boolean(d.podSigned) && (
                             <div className="flex items-center gap-1 text-xs text-green-400">
                               <BadgeCheck className="w-3 h-3" /> POD Signed
                             </div>
@@ -984,7 +984,7 @@ export default function LogisticsLensPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={ds.badge(STATUS_COLORS[status] || 'gray-400')}>{String(status).replace(/_/g, ' ')}</span>
-                {d.optimized && <span className={ds.badge('green-400')}>Optimized</span>}
+                {Boolean(d.optimized) && <span className={ds.badge('green-400')}>Optimized</span>}
               </div>
             </div>
 

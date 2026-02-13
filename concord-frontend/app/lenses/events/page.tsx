@@ -539,8 +539,8 @@ export default function EventsLensPage() {
                 </div>
                 <div className="space-y-1 mb-3">
                   <p className={ds.textMuted}><MapPin className="w-3 h-3 inline mr-1" />{String(d.venue || 'TBD')}</p>
-                  <p className={ds.textMuted}><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.date || 'TBD')}{d.endDate && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
-                  {d.description && <p className="text-xs text-gray-500 line-clamp-2">{String(d.description)}</p>}
+                  <p className={ds.textMuted}><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.date || 'TBD')}{Boolean(d.endDate) && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
+                  {Boolean(d.description) && <p className="text-xs text-gray-500 line-clamp-2">{String(d.description)}</p>}
                 </div>
                 <ProgressBar value={Number(d.registered || 0)} max={Number(d.capacity || 1)} color="neon-pink" />
                 <div className="flex items-center justify-between pt-2 mt-2 border-t border-lattice-border">
@@ -591,7 +591,7 @@ export default function EventsLensPage() {
           <div className={ds.grid4}>
             <div>
               <p className={ds.textMuted}>Date</p>
-              <p className="font-medium">{String(d.date || 'TBD')}{d.endDate && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
+              <p className="font-medium">{String(d.date || 'TBD')}{Boolean(d.endDate) && d.endDate !== d.date ? ` to ${String(d.endDate)}` : ''}</p>
             </div>
             <div>
               <p className={ds.textMuted}>Capacity</p>
@@ -607,7 +607,7 @@ export default function EventsLensPage() {
             </div>
           </div>
 
-          {d.description && <p className="text-sm text-gray-300 mt-3">{String(d.description)}</p>}
+          {Boolean(d.description) && <p className="text-sm text-gray-300 mt-3">{String(d.description)}</p>}
 
           <div className="mt-4">
             <p className={cn(ds.textMuted, 'mb-2')}>Registration vs Capacity</p>
@@ -782,21 +782,21 @@ export default function EventsLensPage() {
                   </div>
                 </div>
                 {/* Contact */}
-                {(d.contactPhone || d.contactEmail) && (
+                {Boolean(d.contactPhone || d.contactEmail) && (
                   <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
-                    {d.contactPhone && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.contactPhone)}</span>}
-                    {d.contactEmail && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.contactEmail)}</span>}
+                    {Boolean(d.contactPhone) && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.contactPhone)}</span>}
+                    {Boolean(d.contactEmail) && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.contactEmail)}</span>}
                   </div>
                 )}
                 {/* Amenities */}
-                {d.amenities && (
+                {Boolean(d.amenities) && (
                   <div className="mb-2">
                     <p className="text-xs text-gray-500 mb-1">Amenities</p>
                     <p className="text-xs text-gray-400">{String(d.amenities)}</p>
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-2 border-t border-lattice-border">
-                  {d.restrictions && <p className="text-xs text-red-400/70 flex-1 truncate"><AlertTriangle className="w-3 h-3 inline mr-1" />{String(d.restrictions)}</p>}
+                  {Boolean(d.restrictions) && <p className="text-xs text-red-400/70 flex-1 truncate"><AlertTriangle className="w-3 h-3 inline mr-1" />{String(d.restrictions)}</p>}
                   <div className="flex items-center gap-1 ml-auto">
                     <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={e => { e.stopPropagation(); removeVenue(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
@@ -861,8 +861,8 @@ export default function EventsLensPage() {
                     <p className={ds.textMuted}>{catInfo?.label || String(d.category)}</p>
                     <p className="text-sm text-gray-300">{String(d.contactName || '')}</p>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {d.phone && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.phone)}</span>}
-                      {d.email && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.email)}</span>}
+                      {Boolean(d.phone) && <span><Phone className="w-3 h-3 inline mr-1" />{String(d.phone)}</span>}
+                      {Boolean(d.email) && <span><Mail className="w-3 h-3 inline mr-1" />{String(d.email)}</span>}
                     </div>
                   </div>
                   {/* Contract and payment */}
@@ -890,14 +890,14 @@ export default function EventsLensPage() {
                         <span className="flex items-center gap-1 text-xs text-red-400"><AlertTriangle className="w-3.5 h-3.5" /> Unverified</span>
                       )}
                     </div>
-                    {d.rating && (
+                    {Boolean(d.rating) && (
                       <div className="flex items-center gap-1">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                         <span className="text-sm text-amber-400">{String(d.rating)}</span>
                       </div>
                     )}
                   </div>
-                  {d.assignedEvent && <p className="text-xs text-gray-500"><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.assignedEvent)}</p>}
+                  {Boolean(d.assignedEvent) && <p className="text-xs text-gray-500"><CalendarDays className="w-3 h-3 inline mr-1" />{String(d.assignedEvent)}</p>}
                   <div className="flex items-center justify-end gap-1 pt-2 border-t border-lattice-border mt-2">
                     <button onClick={e => { e.stopPropagation(); openEdit(item.id); }} className={ds.btnGhost}><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={e => { e.stopPropagation(); removeVendor(item.id); }} className={cn(ds.btnGhost, 'hover:text-red-400')}><Trash2 className="w-3.5 h-3.5" /></button>
@@ -1250,7 +1250,7 @@ export default function EventsLensPage() {
                           <div><span className="text-gray-500">Comps:</span> <span>{Number(td.compTickets || 0)}</span></div>
                           <div><span className="text-gray-500">Check-in:</span> <span>{Number(td.checkedIn || 0)}</span></div>
                         </div>
-                        {td.perks && <p className="text-xs text-gray-500 mt-2 line-clamp-2"><Gift className="w-3 h-3 inline mr-1" />{String(td.perks)}</p>}
+                        {Boolean(td.perks) && <p className="text-xs text-gray-500 mt-2 line-clamp-2"><Gift className="w-3 h-3 inline mr-1" />{String(td.perks)}</p>}
                         <div className="flex items-center justify-between pt-2 mt-2 border-t border-lattice-border">
                           <span className={ds.badge(STATUS_COLORS[st] || 'gray-400')}>{st}</span>
                           <div className="flex items-center gap-1">

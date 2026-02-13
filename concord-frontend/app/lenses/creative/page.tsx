@@ -1171,6 +1171,22 @@ export default function CreativeLensPage() {
     if (!showDetail || !detailItem) return null;
     const d = detailItem.data as Record<string, unknown>;
     const currentMode = mode;
+    const tags = Array.isArray(detailItem.meta?.tags)
+      ? detailItem.meta.tags.map((tag) => String(tag))
+      : [];
+    const renderFieldValue = (value: unknown): string => {
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      if (value == null) return '—';
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    };
+    const dataFields = Object.entries(d)
+      .filter(([k]) => !['milestones', 'teamMembers', 'versionHistory', 'comments'].includes(k))
+      .map(([k, v]) => ({
+        key: k,
+        label: k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' '),
+        value: renderFieldValue(v),
+      }));
 
     return (
       <>
@@ -1187,23 +1203,23 @@ export default function CreativeLensPage() {
                 <span className={ds.badge(STATUS_COLORS[detailItem.meta?.status as string] || 'gray-400')}>
                   {String(detailItem.meta?.status || '').replace(/_/g, ' ')}
                 </span>
-                {detailItem.meta?.tags?.map(tag => (
+                {tags.map(tag => (
                   <span key={tag} className="px-2 py-0.5 rounded text-xs bg-lattice-elevated text-gray-400">#{tag}</span>
                 ))}
               </div>
 
               {/* All data fields */}
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(d).filter(([k]) => !['milestones', 'teamMembers', 'versionHistory', 'comments'].includes(k)).map(([k, v]) => (
-                  <div key={k}>
-                    <p className={cn(ds.label, 'text-xs capitalize')}>{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}</p>
-                    <p className="text-sm text-white">{typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}</p>
+                {dataFields.map((field) => (
+                  <div key={field.key}>
+                    <p className={cn(ds.label, 'text-xs capitalize')}>{field.label}</p>
+                    <p className="text-sm text-white">{field.value}</p>
                   </div>
                 ))}
               </div>
 
               {/* Milestones (projects) */}
-              {d.milestones && (
+              {Boolean(d.milestones) && (
                 <div>
                   <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Milestones</h3>
                   <div className="space-y-1.5">
@@ -1219,7 +1235,7 @@ export default function CreativeLensPage() {
               )}
 
               {/* Team (projects) */}
-              {d.teamMembers && (
+              {Boolean(d.teamMembers) && (
                 <div>
                   <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Team</h3>
                   <div className="flex flex-wrap gap-2">
@@ -1236,7 +1252,7 @@ export default function CreativeLensPage() {
               )}
 
               {/* Version history (assets) */}
-              {d.versionHistory && (
+              {Boolean(d.versionHistory) && (
                 <div>
                   <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Version History</h3>
                   <div className="space-y-2">
@@ -1252,7 +1268,7 @@ export default function CreativeLensPage() {
               )}
 
               {/* Comments (proofs) */}
-              {d.comments && (
+              {Boolean(d.comments) && (
                 <div>
                   <h3 className={cn(ds.heading3, 'text-sm mb-2')}>Comment Thread</h3>
                   <div className="space-y-2">

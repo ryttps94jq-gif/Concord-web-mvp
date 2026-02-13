@@ -584,7 +584,7 @@ export default function RetailLensPage() {
           </div>
         </div>
         {/* Timeline events */}
-        {d.timeline && d.timeline.length > 0 && (
+        {Boolean(d.timeline) && d.timeline.length > 0 && (
           <div className="mt-4 border-t border-lattice-border pt-4">
             <h4 className="text-sm font-medium text-gray-300 mb-3">Event History</h4>
             <div className="space-y-3">
@@ -1365,7 +1365,7 @@ export default function RetailLensPage() {
               <p className={ds.textMuted}>{d.category as string}{d.collection ? ` | ${d.collection}` : ''} | {formatCurrency((d.price as number) || 0)}</p>
               <p className={ds.textMuted}>Stock: {d.stock as number} (reorder at {d.reorderPoint as number}){d.supplier ? ` | ${d.supplier}` : ''}</p>
               {(d.stock as number) <= (d.reorderPoint as number) && <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Low stock - reorder needed</p>}
-              {d.costPrice && (
+              {Boolean(d.costPrice) && (
                 <p className={ds.textMuted}>Margin: {Math.round((((d.price as number) - (d.costPrice as number)) / (d.price as number)) * 100)}%</p>
               )}
             </>
@@ -1375,7 +1375,7 @@ export default function RetailLensPage() {
               <p className={ds.textMuted}>Customer: {d.customer as string}</p>
               <p className={ds.textMuted}>{d.items as number} items | {formatCurrency((d.total as number) || 0)}</p>
               <p className={ds.textMuted}>{d.shippingMethod as string}{d.trackingNumber ? ` | ${d.trackingNumber}` : ''}</p>
-              {d.returnReason && <p className="text-xs text-red-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Return: {d.returnReason as string}</p>}
+              {Boolean(d.returnReason) && <p className="text-xs text-red-400 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Return: {d.returnReason as string}</p>}
             </>
           )}
           {currentType === 'Customer' && (
@@ -1385,9 +1385,9 @@ export default function RetailLensPage() {
               <p className={ds.textMuted}>{d.totalOrders as number} orders | {formatCurrency((d.totalSpent as number) || 0)} spent</p>
               <div className="flex items-center gap-2">
                 {renderTierBadge((d.tier as CustomerTier) || 'Bronze')}
-                {d.engagementScore && <span className={ds.badge((d.engagementScore as number) >= 70 ? 'green-400' : (d.engagementScore as number) >= 40 ? 'yellow-400' : 'red-400')}>Engagement: {d.engagementScore as number}</span>}
+                {Boolean(d.engagementScore) && <span className={ds.badge((d.engagementScore as number) >= 70 ? 'green-400' : (d.engagementScore as number) >= 40 ? 'yellow-400' : 'red-400')}>Engagement: {d.engagementScore as number}</span>}
               </div>
-              {d.lifetimeValue && <p className={ds.textMuted}>LTV: {formatCurrency(d.lifetimeValue as number)}</p>}
+              {Boolean(d.lifetimeValue) && <p className={ds.textMuted}>LTV: {formatCurrency(d.lifetimeValue as number)}</p>}
             </>
           )}
           {currentType === 'Lead' && (
@@ -1395,8 +1395,8 @@ export default function RetailLensPage() {
               <p className={ds.textMuted}>{d.company as string}</p>
               <p className={ds.textMuted}>Value: {formatCurrency((d.value as number) || 0)} | {d.probability as number}% probability</p>
               <p className={ds.textMuted}>Source: {d.source as string} | Assigned: {d.assignee as string}</p>
-              {d.expectedClose && <p className={ds.textMuted}>Expected close: {d.expectedClose as string}</p>}
-              {d.nextAction && <p className="text-xs text-neon-cyan flex items-center gap-1"><ArrowRight className="w-3 h-3" /> {d.nextAction as string}</p>}
+              {Boolean(d.expectedClose) && <p className={ds.textMuted}>Expected close: {d.expectedClose as string}</p>}
+              {Boolean(d.nextAction) && <p className="text-xs text-neon-cyan flex items-center gap-1"><ArrowRight className="w-3 h-3" /> {d.nextAction as string}</p>}
             </>
           )}
           {currentType === 'Ticket' && (
@@ -1407,7 +1407,7 @@ export default function RetailLensPage() {
                 {renderPriorityBadge((d.priority as string) || 'medium')}
               </div>
               <p className={ds.textMuted}>Assigned: {d.assignee as string}</p>
-              {d.slaDeadline && (() => {
+              {Boolean(d.slaDeadline) && (() => {
                 const sla = getSLATimeRemaining(d.slaDeadline as string);
                 return (
                   <div className={cn('flex items-center gap-1 text-xs', sla.breached ? 'text-red-400' : sla.urgent ? 'text-yellow-400' : 'text-green-400')}>
@@ -1423,7 +1423,7 @@ export default function RetailLensPage() {
               <p className={ds.textMuted}><MapPin className="w-3 h-3 inline" /> {d.location as string} | {d.type as string}</p>
               <p className={ds.textMuted}>{d.startDate as string} to {d.endDate as string}</p>
               <p className={ds.textMuted}>{((d.products as string[]) || []).length} products featured</p>
-              {d.budget && <p className={ds.textMuted}>Budget: {formatCurrency(d.budget as number)} | {d.impressions || 0} impressions | {d.conversions || 0} conversions</p>}
+              {d.budget !== undefined && d.budget !== null && <p className={ds.textMuted}>Budget: {formatCurrency(d.budget as number)} | {Number(d.impressions || 0)} impressions | {Number(d.conversions || 0)} conversions</p>}
             </>
           )}
         </div>

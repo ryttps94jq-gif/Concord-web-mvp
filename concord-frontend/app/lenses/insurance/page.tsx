@@ -593,10 +593,10 @@ export default function InsuranceLensPage() {
               <>
                 <div className="flex items-center gap-2">
                   <PolicyIcon className="w-4 h-4 text-blue-400" />
-                  {d.policyType && renderStatusBadge(d.policyType as string)}
-                  {d.carrier && <span className={ds.badge('gray-400')}>{d.carrier as string}</span>}
+                  {Boolean(d.policyType) && renderStatusBadge(d.policyType as string)}
+                  {Boolean(d.carrier) && <span className={ds.badge('gray-400')}>{d.carrier as string}</span>}
                 </div>
-                {d.policyNumber && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.policyNumber as string}</p>}
+                {Boolean(d.policyNumber) && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.policyNumber as string}</p>}
                 <div className="flex items-center gap-3 text-xs mt-1">
                   <span className="text-green-400 font-bold">${(d.premium as number)?.toLocaleString()}</span>
                   {(d.coverageLimit as number) > 0 && <span className={ds.textMuted}>Limit: ${(d.coverageLimit as number)?.toLocaleString()}</span>}
@@ -616,31 +616,31 @@ export default function InsuranceLensPage() {
           {currentType === 'Claim' && (
             <>
               <div className="flex items-center gap-2">
-                {d.status && renderStatusBadge(d.status as string)}
-                {d.claimNumber && <span className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.claimNumber as string}</span>}
+                {Boolean(d.status) && renderStatusBadge(d.status as string)}
+                {Boolean(d.claimNumber) && <span className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.claimNumber as string}</span>}
               </div>
-              {d.policyRef && <p className={cn(ds.textMuted, 'text-xs')}>Policy: {d.policyRef as string}</p>}
-              {d.description && <p className={cn(ds.textMuted, 'line-clamp-2')}>{d.description as string}</p>}
+              {Boolean(d.policyRef) && <p className={cn(ds.textMuted, 'text-xs')}>Policy: {d.policyRef as string}</p>}
+              {Boolean(d.description) && <p className={cn(ds.textMuted, 'line-clamp-2')}>{d.description as string}</p>}
               <div className="flex items-center gap-3 text-xs mt-1">
-                {d.adjuster && <span className={ds.textMuted}>Adjuster: {d.adjuster as string}</span>}
-                {d.causeOfLoss && <span className={ds.badge('orange-400')}>{d.causeOfLoss as string}</span>}
+                {Boolean(d.adjuster) && <span className={ds.textMuted}>Adjuster: {d.adjuster as string}</span>}
+                {Boolean(d.causeOfLoss) && <span className={ds.badge('orange-400')}>{d.causeOfLoss as string}</span>}
               </div>
               <div className="flex items-center gap-3 text-xs">
                 {(d.reserveAmount as number) > 0 && <span className={cn(ds.textMono, 'text-yellow-400')}>Reserve: ${(d.reserveAmount as number)?.toLocaleString()}</span>}
                 {(d.paidAmount as number) > 0 && <span className={cn(ds.textMono, 'text-green-400')}>Paid: ${(d.paidAmount as number)?.toLocaleString()}</span>}
               </div>
-              {d.subrogation && <span className={ds.badge('blue-400')}>Subrogation</span>}
-              {d.dateOfLoss && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Loss: {d.dateOfLoss as string}</p>}
+              {Boolean(d.subrogation) && <span className={ds.badge('blue-400')}>Subrogation</span>}
+              {Boolean(d.dateOfLoss) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Loss: {d.dateOfLoss as string}</p>}
             </>
           )}
 
           {currentType === 'Quote' && (
             <>
               <div className="flex items-center gap-2">
-                {d.policyType && renderStatusBadge(d.policyType as string)}
-                {d.carrier && <span className={ds.badge('gray-400')}>{d.carrier as string}</span>}
+                {Boolean(d.policyType) && renderStatusBadge(d.policyType as string)}
+                {Boolean(d.carrier) && <span className={ds.badge('gray-400')}>{d.carrier as string}</span>}
               </div>
-              {d.applicant && <p className={ds.textMuted}>{d.applicant as string}</p>}
+              {Boolean(d.applicant) && <p className={ds.textMuted}>{d.applicant as string}</p>}
               {(d.quotedPremium as number) > 0 && <p className="text-green-400 font-bold">${(d.quotedPremium as number)?.toLocaleString()}</p>}
               {(d.riskFactors as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.riskFactors as string[]).map(r => <span key={r} className={ds.badge('orange-400')}>{r}</span>)}</div>
@@ -648,14 +648,14 @@ export default function InsuranceLensPage() {
               {(d.coverageSelections as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.coverageSelections as string[]).map(c => <span key={c} className={ds.badge('blue-400')}>{c}</span>)}</div>
               )}
-              {d.multiPolicyDiscount && <span className={ds.badge('green-400')}><Percent className="w-3 h-3" /> Multi-Policy Discount</span>}
+              {Boolean(d.multiPolicyDiscount) && <span className={ds.badge('green-400')}><Percent className="w-3 h-3" /> Multi-Policy Discount</span>}
             </>
           )}
 
           {currentType === 'InsuredClient' && (
             <>
-              {d.riskProfile && renderStatusBadge(d.riskProfile as string)}
-              {d.email && <p className={cn(ds.textMuted, 'text-xs')}>{d.email as string}</p>}
+              {Boolean(d.riskProfile) && renderStatusBadge(d.riskProfile as string)}
+              {Boolean(d.email) && <p className={cn(ds.textMuted, 'text-xs')}>{d.email as string}</p>}
               <div className="flex items-center gap-3 text-xs">
                 <span className={ds.textMuted}>Claims: {d.claimsHistory as number}</span>
                 {(d.totalPremium as number) > 0 && <span className="text-green-400 font-bold">${(d.totalPremium as number)?.toLocaleString()}</span>}
@@ -666,7 +666,7 @@ export default function InsuranceLensPage() {
               {(d.coverageGaps as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.coverageGaps as string[]).map(g => <span key={g} className={ds.badge('red-400')}><AlertTriangle className="w-2.5 h-2.5" />{g}</span>)}</div>
               )}
-              {d.nextRenewal && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Next renewal: {d.nextRenewal as string}</p>}
+              {Boolean(d.nextRenewal) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Next renewal: {d.nextRenewal as string}</p>}
             </>
           )}
 
@@ -678,17 +678,17 @@ export default function InsuranceLensPage() {
                 <span className={cn(ds.textMono, 'text-xs')}>{d.commissionRate as number}%</span>
                 {(d.overrideAmount as number) > 0 && <span className={cn(ds.textMono, 'text-blue-400')}>Override: ${d.overrideAmount as number}</span>}
               </div>
-              {d.policyRef && <p className={cn(ds.textMuted, 'text-xs')}>Policy: {d.policyRef as string}</p>}
-              {d.agent && <p className={cn(ds.textMuted, 'text-xs')}>Agent: {d.agent as string}</p>}
-              {d.period && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.period as string}</p>}
+              {Boolean(d.policyRef) && <p className={cn(ds.textMuted, 'text-xs')}>Policy: {d.policyRef as string}</p>}
+              {Boolean(d.agent) && <p className={cn(ds.textMuted, 'text-xs')}>Agent: {d.agent as string}</p>}
+              {Boolean(d.period) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.period as string}</p>}
             </>
           )}
 
           {currentType === 'ComplianceItem' && (
             <>
               <span className={ds.badge('blue-400')}>{d.type as string}</span>
-              {d.state && <span className={ds.badge('gray-400')}>{d.state as string}</span>}
-              {d.dueDate && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Due: {d.dueDate as string}</p>}
+              {Boolean(d.state) && <span className={ds.badge('gray-400')}>{d.state as string}</span>}
+              {Boolean(d.dueDate) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Due: {d.dueDate as string}</p>}
               {(d.creditsRequired as number) > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-lattice-elevated rounded-full overflow-hidden">
@@ -700,7 +700,7 @@ export default function InsuranceLensPage() {
                   <span className={cn(ds.textMono, 'text-xs')}>{d.creditsCompleted as number}/{d.creditsRequired as number}</span>
                 </div>
               )}
-              {d.licenseNumber && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.licenseNumber as string}</p>}
+              {Boolean(d.licenseNumber) && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.licenseNumber as string}</p>}
               {(d.renewalFee as number) > 0 && <p className={cn(ds.textMuted, 'text-xs')}>Fee: ${d.renewalFee as number}</p>}
             </>
           )}

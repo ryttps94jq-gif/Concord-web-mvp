@@ -1334,7 +1334,7 @@ export default function LegalLensPage() {
                     <span className={ds.badge(STATUS_COLORS[d.contactType || ''] || 'gray-400')}>{formatLabel(d.contactType || 'contact')}</span>
                   </div>
                   {d.conflictCleared && (
-                    <CheckCircle2 className="w-4 h-4 text-neon-green shrink-0" title="Conflict cleared" />
+                    <CheckCircle2 className="w-4 h-4 text-neon-green shrink-0" />
                   )}
                 </div>
                 {d.organization && (

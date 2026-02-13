@@ -387,8 +387,8 @@ export default function SimLensPage() {
   // ── Derived data ───────────────────────────────────────────────────────────
   const scenarios: Scenario[] = useMemo(() =>
     scenarioArtifacts.map(a => ({
-      id: a.id,
       ...a.data,
+      id: a.id,
       name: a.title || a.data.name || 'Untitled',
     })),
     [scenarioArtifacts]
@@ -396,8 +396,8 @@ export default function SimLensPage() {
 
   const runs: SimRun[] = useMemo(() =>
     runArtifacts.map(a => ({
-      id: a.id,
       ...a.data,
+      id: a.id,
     })),
     [runArtifacts]
   );

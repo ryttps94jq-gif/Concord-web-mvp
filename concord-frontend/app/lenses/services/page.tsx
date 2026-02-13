@@ -510,35 +510,35 @@ export default function ServicesLensPage() {
                 <span className={ds.textMuted}><Clock className="w-3 h-3 inline mr-1" />{d.duration as number}min</span>
                 {(d.price as number) > 0 && <span className="text-green-400 font-bold">${d.price as number}</span>}
               </div>
-              {d.recurring && <span className={ds.badge('neon-cyan')}><Repeat className="w-3 h-3" /> {d.recurringFrequency as string}</span>}
-              {d.reminderSent && <span className={ds.badge('blue-400')}><Bell className="w-3 h-3" /> Sent</span>}
+              {Boolean(d.recurring) && <span className={ds.badge('neon-cyan')}><Repeat className="w-3 h-3" /> {d.recurringFrequency as string}</span>}
+              {Boolean(d.reminderSent) && <span className={ds.badge('blue-400')}><Bell className="w-3 h-3" /> Sent</span>}
               {(d.noShowCount as number) > 0 && <span className={ds.badge('red-400')}>No-shows: {d.noShowCount as number}</span>}
             </>
           )}
 
           {currentType === 'Client' && (
             <>
-              {d.phone && <p className={ds.textMuted}><Phone className="w-3 h-3 inline mr-1" />{d.phone as string}</p>}
-              {d.email && <p className={ds.textMuted}><Mail className="w-3 h-3 inline mr-1" />{d.email as string}</p>}
+              {Boolean(d.phone) && <p className={ds.textMuted}><Phone className="w-3 h-3 inline mr-1" />{d.phone as string}</p>}
+              {Boolean(d.email) && <p className={ds.textMuted}><Mail className="w-3 h-3 inline mr-1" />{d.email as string}</p>}
               <div className="flex items-center gap-3 text-xs">
                 <span className={ds.badge('blue-400')}>{d.visitHistory as number} visits</span>
                 <span className="text-green-400 font-bold">${(d.totalSpend as number)?.toLocaleString()}</span>
                 {(d.loyaltyPoints as number) > 0 && <span className={ds.badge('yellow-400')}><Star className="w-3 h-3" /> {d.loyaltyPoints as number}pts</span>}
               </div>
-              {d.preferredProvider && <p className={cn(ds.textMuted, 'text-xs')}><Heart className="w-3 h-3 inline mr-1" />Prefers: {d.preferredProvider as string}</p>}
-              {d.birthday && <p className={cn(ds.textMuted, 'text-xs')}><Gift className="w-3 h-3 inline mr-1" />{d.birthday as string}</p>}
-              {d.allergies && <p className="text-orange-400 text-xs"><AlertTriangle className="w-3 h-3 inline mr-1" />{d.allergies as string}</p>}
+              {Boolean(d.preferredProvider) && <p className={cn(ds.textMuted, 'text-xs')}><Heart className="w-3 h-3 inline mr-1" />Prefers: {d.preferredProvider as string}</p>}
+              {Boolean(d.birthday) && <p className={cn(ds.textMuted, 'text-xs')}><Gift className="w-3 h-3 inline mr-1" />{d.birthday as string}</p>}
+              {Boolean(d.allergies) && <p className="text-orange-400 text-xs"><AlertTriangle className="w-3 h-3 inline mr-1" />{d.allergies as string}</p>}
             </>
           )}
 
           {currentType === 'ServiceItem' && (
             <>
-              {d.category && <span className={ds.badge('purple-400')}>{d.category as string}</span>}
+              {Boolean(d.category) && <span className={ds.badge('purple-400')}>{d.category as string}</span>}
               <div className="flex items-center gap-3 text-xs mt-1">
                 {(d.price as number) > 0 && <span className="text-green-400 font-bold">${d.price as number}</span>}
                 <span className={ds.textMuted}><Clock className="w-3 h-3 inline mr-1" />{d.duration as number}min</span>
               </div>
-              {d.requiredStaff && <p className={cn(ds.textMuted, 'text-xs')}>Staff: {d.requiredStaff as string}</p>}
+              {Boolean(d.requiredStaff) && <p className={cn(ds.textMuted, 'text-xs')}>Staff: {d.requiredStaff as string}</p>}
               {(d.addOns as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.addOns as string[]).map(a => <span key={a} className={ds.badge('cyan-400')}>{a}</span>)}</div>
               )}
@@ -554,7 +554,7 @@ export default function ServicesLensPage() {
               {(d.skills as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1">{(d.skills as string[]).map(s => <span key={s} className={ds.badge('cyan-400')}>{s}</span>)}</div>
               )}
-              {d.schedule && <p className={cn(ds.textMuted, 'text-xs')}><Clock className="w-3 h-3 inline mr-1" />{d.schedule as string}</p>}
+              {Boolean(d.schedule) && <p className={cn(ds.textMuted, 'text-xs')}><Clock className="w-3 h-3 inline mr-1" />{d.schedule as string}</p>}
               <div className="flex items-center gap-3 text-xs mt-1">
                 <span className={ds.textMuted}>{d.bookingsThisMonth as number} bookings</span>
                 <span className="text-green-400 font-bold">${(d.revenueThisMonth as number)?.toLocaleString()}</span>
@@ -575,18 +575,18 @@ export default function ServicesLensPage() {
               )}
               <div className="flex items-center gap-3 text-xs mt-1">
                 <span className="text-green-400 font-bold text-sm">${d.total as number}</span>
-                {d.paymentMethod && <span className={ds.badge('gray-400')}>{(d.paymentMethod as string).replace(/_/g, ' ')}</span>}
+                {Boolean(d.paymentMethod) && <span className={ds.badge('gray-400')}>{(d.paymentMethod as string).replace(/_/g, ' ')}</span>}
                 {(d.tip as number) > 0 && <span className={ds.textMuted}>Tip: ${d.tip as number}</span>}
                 {(d.discount as number) > 0 && <span className="text-red-400">-${d.discount as number}</span>}
               </div>
-              {d.receiptNumber && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.receiptNumber as string}</p>}
+              {Boolean(d.receiptNumber) && <p className={cn(ds.textMono, 'text-xs text-gray-500')}>{d.receiptNumber as string}</p>}
             </>
           )}
 
           {currentType === 'Product' && (
             <>
               <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.sku as string}</p>
-              {d.category && <span className={ds.badge('purple-400')}>{d.category as string}</span>}
+              {Boolean(d.category) && <span className={ds.badge('purple-400')}>{d.category as string}</span>}
               <div className="flex items-center gap-3 text-xs mt-1">
                 <span className={ds.textMuted}>Cost: ${d.costPrice as number}</span>
                 <span className="text-green-400 font-bold">Retail: ${d.retailPrice as number}</span>

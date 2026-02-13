@@ -881,7 +881,7 @@ export default function ManufacturingLensPage() {
                 <p className={ds.textMuted}>Cost: <span className="text-neon-cyan font-mono">${(d.totalCost as number).toFixed(2)}</span></p>
                 <p className={ds.textMuted}>Approved: <span className="text-gray-300">{d.approvedBy as string}</span></p>
               </div>
-              {d.changeNote && (
+              {Boolean(d.changeNote) && (
                 <div className="mt-2 p-2 bg-lattice-elevated/50 rounded text-xs text-gray-400">
                   <FileText className="w-3 h-3 inline mr-1" />{d.changeNote as string}
                 </div>
@@ -1376,7 +1376,7 @@ export default function ManufacturingLensPage() {
 
               <p className="text-sm text-gray-300 mb-2">{d.description as string}</p>
 
-              {d.oshaRecordable && (
+              {Boolean(d.oshaRecordable) && (
                 <div className="flex items-center gap-2 mb-2">
                   <span className={ds.badge('red-400')}>OSHA RECORDABLE</span>
                   {(d.lostTimeDays as number) > 0 && (
@@ -1396,7 +1396,7 @@ export default function ManufacturingLensPage() {
                     <p className="text-sm text-gray-300">{d.correctiveAction as string}</p>
                     <p className={ds.textMuted}>Due: {d.dueDate as string}</p>
                   </div>
-                  {d.trainingRequired && (
+                  {Boolean(d.trainingRequired) && (
                     <div>
                       <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Training Required</h4>
                       <span className={ds.badge('neon-blue')}>{d.trainingRequired as string}</span>

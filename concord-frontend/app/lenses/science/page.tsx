@@ -586,14 +586,14 @@ export default function ScienceLensPage() {
           {/* Experiment card */}
           {currentType === 'Experiment' && (
             <>
-              {d.hypothesis && <p className={cn(ds.textMuted, 'line-clamp-2')}><Eye className="w-3 h-3 inline mr-1" />{d.hypothesis as string}</p>}
-              {d.pi && <p className={ds.textMuted}>PI: {d.pi as string}</p>}
+              {Boolean(d.hypothesis) && <p className={cn(ds.textMuted, 'line-clamp-2')}><Eye className="w-3 h-3 inline mr-1" />{d.hypothesis as string}</p>}
+              {Boolean(d.pi) && <p className={ds.textMuted}>PI: {d.pi as string}</p>}
               <div className="flex items-center gap-2 flex-wrap mt-1">
-                {d.reproducibility && renderStatusBadge(d.reproducibility as string)}
-                {d.fundingSource && <span className={ds.badge('blue-400')}>{d.fundingSource as string}</span>}
+                {Boolean(d.reproducibility) && renderStatusBadge(d.reproducibility as string)}
+                {Boolean(d.fundingSource) && <span className={ds.badge('blue-400')}>{d.fundingSource as string}</span>}
               </div>
-              {d.startDate && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>{d.startDate as string} to {(d.endDate as string) || 'ongoing'}</p>}
-              {d.conclusions && <p className={cn(ds.textMuted, 'line-clamp-2 mt-1 italic')}>{d.conclusions as string}</p>}
+              {Boolean(d.startDate) && <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>{d.startDate as string} to {(d.endDate as string) || 'ongoing'}</p>}
+              {Boolean(d.conclusions) && <p className={cn(ds.textMuted, 'line-clamp-2 mt-1 italic')}>{d.conclusions as string}</p>}
               {(d.tags as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(d.tags as string[]).map(tag => <span key={tag} className={ds.badge('gray-400')}><Hash className="w-2.5 h-2.5" />{tag}</span>)}
@@ -608,8 +608,8 @@ export default function ScienceLensPage() {
               <p className={cn(ds.textMono, 'text-gray-500')}>{d.sampleId as string}</p>
               <p className={ds.textMuted}>{d.type as string} | {d.storageLocation as string}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                {d.condition && renderStatusBadge(d.condition as string)}
-                {d.hazardClass && (d.hazardClass as string) !== 'none' && (
+                {Boolean(d.condition) && renderStatusBadge(d.condition as string)}
+                {Boolean(d.hazardClass) && (d.hazardClass as string) !== 'none' && (
                   <span className={cn(ds.badge('red-400'), 'flex items-center gap-1')}>
                     <AlertTriangle className="w-3 h-3" />{d.hazardClass as string}
                   </span>
@@ -627,14 +627,14 @@ export default function ScienceLensPage() {
             <>
               <p className={ds.textMuted}>{d.model as string} | SN: {d.serialNumber as string}</p>
               <div className="flex items-center gap-2">
-                {d.condition && renderStatusBadge(d.condition as string)}
+                {Boolean(d.condition) && renderStatusBadge(d.condition as string)}
               </div>
               <p className={ds.textMuted}>Location: {d.location as string}</p>
               <p className={ds.textMuted}>Assigned: {d.assignedTo as string}</p>
               <p className={cn(ds.textMono, 'text-gray-500 text-xs')}>
                 Cal: {d.calibrationDate as string} | Next: {d.nextCalibration as string}
               </p>
-              {d.maintenanceSchedule && <p className={ds.textMuted}>Maint: {d.maintenanceSchedule as string}</p>}
+              {Boolean(d.maintenanceSchedule) && <p className={ds.textMuted}>Maint: {d.maintenanceSchedule as string}</p>}
             </>
           )}
 
@@ -645,10 +645,10 @@ export default function ScienceLensPage() {
               <div className={cn(ds.panel, 'mt-2 p-2 space-y-1')}>
                 <p className={cn(ds.textMono, 'text-xs text-gray-300')}>Mean: {d.mean as number} | Median: {d.median as number}</p>
                 <p className={cn(ds.textMono, 'text-xs text-gray-300')}>SD: {d.stdDev as number} | N: {d.sampleN as number}</p>
-                {d.pValue && <p className={cn(ds.textMono, 'text-xs text-green-400')}>p = {d.pValue as string}</p>}
-                {d.confidenceInterval && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.confidenceInterval as string}</p>}
+                {Boolean(d.pValue) && <p className={cn(ds.textMono, 'text-xs text-green-400')}>p = {d.pValue as string}</p>}
+                {Boolean(d.confidenceInterval) && <p className={cn(ds.textMono, 'text-xs text-gray-400')}>{d.confidenceInterval as string}</p>}
               </div>
-              {d.vizType && <span className={ds.badge('neon-cyan')}><PieChart className="w-3 h-3" />{d.vizType as string}</span>}
+              {Boolean(d.vizType) && <span className={ds.badge('neon-cyan')}><PieChart className="w-3 h-3" />{d.vizType as string}</span>}
               <p className={ds.textMuted}>{d.software as string} | {d.author as string}</p>
               {(d.pipelineSteps as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -663,11 +663,11 @@ export default function ScienceLensPage() {
             <>
               <div className="flex items-center gap-2">
                 <span className={ds.badge('neon-blue')}>v{d.version as string}</span>
-                {d.approvalStatus && renderStatusBadge(d.approvalStatus as string)}
-                {d.safetyLevel && <span className={ds.badge('orange-400')}>{d.safetyLevel as string}</span>}
+                {Boolean(d.approvalStatus) && renderStatusBadge(d.approvalStatus as string)}
+                {Boolean(d.safetyLevel) && <span className={ds.badge('orange-400')}>{d.safetyLevel as string}</span>}
               </div>
               <p className={ds.textMuted}>Author: {d.author as string} | Duration: {d.duration as string}</p>
-              {d.approvedBy && <p className={ds.textMuted}>Approved by: {d.approvedBy as string}</p>}
+              {Boolean(d.approvedBy) && <p className={ds.textMuted}>Approved by: {d.approvedBy as string}</p>}
               <p className={cn(ds.textMono, 'text-xs text-gray-500')}>Review: {d.reviewDate as string} | Next: {d.nextReviewDate as string}</p>
               {(d.equipment as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.equipment as string[]).map(eq => <span key={eq} className={ds.badge('neon-cyan')}>{eq}</span>)}</div>
@@ -683,14 +683,14 @@ export default function ScienceLensPage() {
             <>
               <p className={cn(ds.textMuted, 'font-medium')}>{d.journal as string}</p>
               <div className="flex items-center gap-2">
-                {d.status && renderStatusBadge(d.status as string)}
+                {Boolean(d.status) && renderStatusBadge(d.status as string)}
                 {(d.impactFactor as number) > 0 && <span className={ds.badge('yellow-400')}>IF: {d.impactFactor as number}</span>}
               </div>
               {(d.coAuthors as string[])?.length > 0 && (
                 <p className={cn(ds.textMuted, 'text-xs')}><Users className="w-3 h-3 inline mr-1" />{(d.coAuthors as string[]).join(', ')}</p>
               )}
-              {d.doi && <p className={cn(ds.textMono, 'text-xs text-neon-cyan')}>DOI: {d.doi as string}</p>}
-              {d.abstract && <p className={cn(ds.textMuted, 'line-clamp-2 text-xs italic mt-1')}>{d.abstract as string}</p>}
+              {Boolean(d.doi) && <p className={cn(ds.textMono, 'text-xs text-neon-cyan')}>DOI: {d.doi as string}</p>}
+              {Boolean(d.abstract) && <p className={cn(ds.textMuted, 'line-clamp-2 text-xs italic mt-1')}>{d.abstract as string}</p>}
               {(d.keywords as string[])?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">{(d.keywords as string[]).map(kw => <span key={kw} className={ds.badge('gray-400')}>{kw}</span>)}</div>
               )}

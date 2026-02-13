@@ -708,9 +708,9 @@ export default function HouseholdLensPage() {
                     <div className="flex items-center gap-2 mt-1">
                       <span className={ds.badge('yellow-400')}><Star className="w-3 h-3" /> {d.points || 0} pts</span>
                       <span className={ds.badge('gray-400')}><Clock className="w-3 h-3" /> {d.estimatedMinutes || 0}m</span>
-                      {d.isRecurring && <span className={ds.badge('neon-blue')}><RotateCcw className="w-3 h-3" /> Recurring</span>}
+                      {Boolean(d.isRecurring) && <span className={ds.badge('neon-blue')}><RotateCcw className="w-3 h-3" /> Recurring</span>}
                     </div>
-                    {d.rotationOrder && d.rotationOrder.length > 0 && (
+                    {Boolean(d.rotationOrder) && d.rotationOrder.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs text-gray-500">Rotation: {d.rotationOrder.join(' -> ')}</p>
                       </div>
@@ -812,18 +812,18 @@ export default function HouseholdLensPage() {
                           {d.priority === 'high' && <span className={ds.badge('yellow-400')}>High</span>}
                         </div>
                         <div className="flex items-center gap-3 mt-1">
-                          {d.dueDate && <span className={cn('text-xs', daysLeft <= 7 ? 'text-red-400' : 'text-gray-400')}>Due: {d.dueDate} ({daysLeft}d)</span>}
-                          {d.vendor && <span className="text-xs text-gray-400">Vendor: {d.vendor}</span>}
+                          {Boolean(d.dueDate) && <span className={cn('text-xs', daysLeft <= 7 ? 'text-red-400' : 'text-gray-400')}>Due: {d.dueDate} ({daysLeft}d)</span>}
+                          {Boolean(d.vendor) && <span className="text-xs text-gray-400">Vendor: {d.vendor}</span>}
                           {d.cost > 0 && <span className="text-xs text-gray-400">Est: {formatCurrency(d.cost)}</span>}
                         </div>
-                        {d.warrantyExpiry && (
+                        {Boolean(d.warrantyExpiry) && (
                           <div className="mt-1">
                             <span className={cn('text-xs', warrantyDays <= 30 ? 'text-yellow-400' : 'text-gray-500')}>
                               Warranty: {d.warrantyExpiry} {warrantyDays <= 30 && warrantyDays > 0 ? '(expiring soon!)' : warrantyDays <= 0 ? '(expired)' : ''}
                             </span>
                           </div>
                         )}
-                        {d.serviceHistory && d.serviceHistory.length > 0 && (
+                        {Boolean(d.serviceHistory) && d.serviceHistory.length > 0 && (
                           <p className="text-xs text-gray-500 mt-1">Last service: {d.serviceHistory[d.serviceHistory.length - 1]}</p>
                         )}
                       </div>
@@ -1071,10 +1071,10 @@ export default function HouseholdLensPage() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-white">{item.title}</p>
                       <span className={ds.badge('gray-400')}>{d.category}</span>
-                      {d.isRecurring && <span className={ds.badge('neon-blue')}><RotateCcw className="w-3 h-3" /></span>}
+                      {Boolean(d.isRecurring) && <span className={ds.badge('neon-blue')}><RotateCcw className="w-3 h-3" /></span>}
                     </div>
                     <p className={ds.textMuted}>Due: {d.dueDate} {daysLeft >= 0 ? `(${daysLeft}d)` : '(overdue)'}</p>
-                    {d.splitAmong && d.splitAmong.length > 1 && (
+                    {Boolean(d.splitAmong) && d.splitAmong.length > 1 && (
                       <p className="text-xs text-gray-500">Split: {d.splitAmong.join(', ')}</p>
                     )}
                   </div>
@@ -1139,11 +1139,11 @@ export default function HouseholdLensPage() {
               <div>
                 <p className="text-sm font-medium text-white">{item.title}</p>
                 <p className={ds.textMuted}>{d.relationship}</p>
-                {d.phone && <p className="text-sm text-neon-cyan">{d.phone}</p>}
-                {d.email && <p className="text-xs text-gray-400">{d.email}</p>}
-                {d.policyNumber && <p className={cn(ds.textMono, 'text-gray-400')}>Policy: {d.policyNumber}</p>}
-                {d.accountNumber && <p className={cn(ds.textMono, 'text-gray-400')}>Account: {d.accountNumber}</p>}
-                {d.notes && <p className="text-xs text-gray-500 mt-1">{d.notes}</p>}
+                {Boolean(d.phone) && <p className="text-sm text-neon-cyan">{d.phone}</p>}
+                {Boolean(d.email) && <p className="text-xs text-gray-400">{d.email}</p>}
+                {Boolean(d.policyNumber) && <p className={cn(ds.textMono, 'text-gray-400')}>Policy: {d.policyNumber}</p>}
+                {Boolean(d.accountNumber) && <p className={cn(ds.textMono, 'text-gray-400')}>Account: {d.accountNumber}</p>}
+                {Boolean(d.notes) && <p className="text-xs text-gray-500 mt-1">{d.notes}</p>}
               </div>
               <div className="flex items-center gap-1">
                 <button className={cn(ds.btnGhost, ds.btnSmall)} onClick={() => openEdit(item)}><Edit3 className="w-3.5 h-3.5" /></button>
@@ -1250,7 +1250,7 @@ export default function HouseholdLensPage() {
                       <div className={ds.grid2}>
                         <div>
                           <p className="text-xs text-gray-500">Vet: {d.vetName || 'Not set'}</p>
-                          {d.vetPhone && <p className="text-xs text-neon-cyan">{d.vetPhone}</p>}
+                          {Boolean(d.vetPhone) && <p className="text-xs text-neon-cyan">{d.vetPhone}</p>}
                           <p className="text-xs text-gray-500">Next visit: {d.vetDate || 'Not scheduled'}</p>
                         </div>
                         <div>
@@ -1316,11 +1316,11 @@ export default function HouseholdLensPage() {
                   {currentType === 'FamilyMember' && (
                     <>
                       <div className="flex items-center gap-2">
-                        {d.color && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color as string }} />}
+                        {Boolean(d.color) && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color as string }} />}
                         <p className={ds.textMuted}>Role: {d.role as string}</p>
                       </div>
                       <p className={ds.textMuted}>Birthday: {d.birthday as string}</p>
-                      {d.bloodType && <p className={ds.textMuted}>Blood type: {d.bloodType as string}</p>}
+                      {Boolean(d.bloodType) && <p className={ds.textMuted}>Blood type: {d.bloodType as string}</p>}
                       {(d.allergies as string[])?.length > 0 && (
                         <div className="flex flex-wrap gap-1">{(d.allergies as string[]).map(a => <span key={a} className={ds.badge('red-400')}>{a}</span>)}</div>
                       )}
@@ -1334,8 +1334,8 @@ export default function HouseholdLensPage() {
                       <p className={ds.textMuted}>{d.species as string} - {d.breed as string}</p>
                       <p className={ds.textMuted}>Next vet: {d.vetDate as string}</p>
                       <p className={ds.textMuted}>Food: {d.food as string}</p>
-                      {d.vetName && <p className={ds.textMuted}>Vet: {d.vetName as string}</p>}
-                      {d.weight && <p className={ds.textMuted}>Weight: {d.weight as number} lbs</p>}
+                      {Boolean(d.vetName) && <p className={ds.textMuted}>Vet: {d.vetName as string}</p>}
+                      {Boolean(d.weight) && <p className={ds.textMuted}>Weight: {d.weight as number} lbs</p>}
                     </>
                   )}
                 </div>
