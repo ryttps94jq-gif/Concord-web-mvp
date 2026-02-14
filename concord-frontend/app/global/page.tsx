@@ -194,7 +194,7 @@ export default function GlobalPage() {
                   <span className="text-white font-medium truncate">
                     {(item.title as string) || (item.type as string) || (item.id as string)}
                   </span>
-                  {item.visibility && (
+                  {!!item.visibility && (
                     <span className={cn(
                       'text-xs px-2 py-0.5 rounded-full',
                       item.visibility === 'public' ? 'bg-neon-green/20 text-neon-green' :
@@ -205,7 +205,7 @@ export default function GlobalPage() {
                       {item.visibility as string}
                     </span>
                   )}
-                  {item.status && (
+                  {!!item.status && (
                     <span className={cn(
                       'text-xs px-2 py-0.5 rounded-full',
                       item.status === 'completed' ? 'bg-neon-green/20 text-neon-green' :
@@ -216,13 +216,13 @@ export default function GlobalPage() {
                       {item.status as string}
                     </span>
                   )}
-                  {item.tier && (
+                  {!!item.tier && (
                     <span className="text-xs text-gray-500">{item.tier as string}</span>
                   )}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  {item.type && <span className="mr-3">Type: {item.type as string}</span>}
-                  {item.created_at && <span>Created: {new Date(item.created_at as string).toLocaleDateString()}</span>}
+                  {!!item.type && <span className="mr-3">Type: {item.type as string}</span>}
+                  {!!item.created_at && <span>Created: {new Date(item.created_at as string).toLocaleDateString()}</span>}
                 </div>
               </div>
 
