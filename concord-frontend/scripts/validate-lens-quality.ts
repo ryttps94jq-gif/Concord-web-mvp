@@ -5,13 +5,15 @@
  * Hard rules that should fail CI in production:
  *
  *   ERROR (build fails):
- *     1. A product-status lens imports MOCK_* or SEED_* for display data
+ *     1. A product-status lens references MOCK_* constants anywhere, or SEED_* constants outside useLensData({ seed })
  *     2. A product-status lens has no persisted artifact in manifest
  *     3. A product-status lens has no create macro in manifest
  *
  *   WARNING (logged but does not fail):
  *     4. A deprecated lens still has showInSidebar=true
- *     5. A lens with score < 5/7 has showInSidebar=true or showInCommandPalette=true
+ *     5. Registry/status drift warnings (missing or orphaned status entries)
+ *     6. Macro naming convention mismatches
+ *     7. Hybrid lens CRUD incompleteness
  *
  * Usage:
  *   npx tsx scripts/validate-lens-quality.ts
@@ -20,8 +22,9 @@
  * Add to CI pipeline to prevent regression.
  */
 
-import { readdirSync, readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import ts from 'typescript';
 
 import { LENS_REGISTRY } from '../lib/lens-registry';
 import { getLensManifest } from '../lib/lenses/manifest';
@@ -57,6 +60,49 @@ function getRegistryEntry(lensId: string) {
   return LENS_REGISTRY.find(e => e.id === lensId);
 }
 
+function isWithinSeedOption(identifier: ts.Identifier): boolean {
+  let current: ts.Node | undefined = identifier;
+  while (current) {
+    if (ts.isPropertyAssignment(current)) {
+      const propertyName = current.name.getText();
+      if (propertyName === 'seed' && current.initializer && current.initializer.pos <= identifier.pos && current.initializer.end >= identifier.end) {
+        return true;
+      }
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function findDisallowedMockSeedIdentifiers(sourceText: string): { mockIdentifiers: string[]; seedIdentifiers: string[] } {
+  const sourceFile = ts.createSourceFile('page.tsx', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const mockIdentifiers = new Set<string>();
+  const seedIdentifiers = new Set<string>();
+
+  function visit(node: ts.Node) {
+    if (ts.isIdentifier(node)) {
+      const name = node.text;
+
+      if (name.startsWith('MOCK_')) {
+        mockIdentifiers.add(name);
+      }
+
+      if (name.startsWith('SEED_') && !isWithinSeedOption(node)) {
+        seedIdentifiers.add(name);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+
+  return {
+    mockIdentifiers: Array.from(mockIdentifiers).sort(),
+    seedIdentifiers: Array.from(seedIdentifiers).sort(),
+  };
+}
+
 // ── Rule Checks ─────────────────────────────────────────────────
 
 function checkRule1_NoMockImportsInProducts() {
@@ -66,26 +112,24 @@ function checkRule1_NoMockImportsInProducts() {
     const pageSource = readLensPage(entry.id);
     if (!pageSource) continue;
 
-    if (/MOCK_/.test(pageSource)) {
+    const { mockIdentifiers, seedIdentifiers } = findDisallowedMockSeedIdentifiers(pageSource);
+
+    if (mockIdentifiers.length > 0) {
       violations.push({
         rule: 'no_mock_imports',
         severity: 'error',
         lensId: entry.id,
-        message: `Product lens "${entry.id}" imports MOCK_* constants. Replace with useLensData() or useArtifacts().`,
+        message: `Product lens "${entry.id}" references MOCK_* identifiers outside supported patterns: ${mockIdentifiers.join(', ')}. Replace with useLensData() or useArtifacts().`,
       });
     }
 
-    if (/SEED_/.test(pageSource)) {
-      // SEED_ is acceptable in useLensData({ seed: ... }) — check if it's standalone
-      const seedUsedStandalone = /(?<!seed:\s*)SEED_/.test(pageSource);
-      if (seedUsedStandalone) {
-        violations.push({
-          rule: 'no_mock_imports',
-          severity: 'error',
-          lensId: entry.id,
-          message: `Product lens "${entry.id}" uses SEED_* constants outside of useLensData seed option.`,
-        });
-      }
+    if (seedIdentifiers.length > 0) {
+      violations.push({
+        rule: 'no_mock_imports',
+        severity: 'error',
+        lensId: entry.id,
+        message: `Product lens "${entry.id}" references SEED_* identifiers outside useLensData({ seed }): ${seedIdentifiers.join(', ')}.`,
+      });
     }
   }
 }

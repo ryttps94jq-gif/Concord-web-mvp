@@ -80,20 +80,20 @@ const _BUDGET_CATEGORIES = ['venue', 'catering', 'entertainment', 'decor', 'mark
 // ---------------------------------------------------------------------------
 // Seed data — empty; all data comes from the backend API via useLensData
 // ---------------------------------------------------------------------------
-const SEED_EVENTS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
-const SEED_VENUES: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
-const SEED_VENDORS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
-const SEED_RUNOFSHOW: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
-const SEED_BUDGETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
-const SEED_TICKETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_EVENTS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_VENUES: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_VENDORS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_RUNOFSHOW: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_BUDGETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
+const EMPTY_TICKETS: Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }> = [];
 
-const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  Event: SEED_EVENTS,
-  Venue: SEED_VENUES,
-  Vendor: SEED_VENDORS,
-  RunOfShow: SEED_RUNOFSHOW,
-  Budget: SEED_BUDGETS,
-  TicketTier: SEED_TICKETS,
+const EMPTY_DATA: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
+  Event: EMPTY_EVENTS,
+  Venue: EMPTY_VENUES,
+  Vendor: EMPTY_VENDORS,
+  RunOfShow: EMPTY_RUNOFSHOW,
+  Budget: EMPTY_BUDGETS,
+  TicketTier: EMPTY_TICKETS,
 };
 
 // ---------------------------------------------------------------------------
@@ -175,12 +175,12 @@ export default function EventsLensPage() {
   const currentType = typeMap[mode] || 'Event';
 
   // Data hooks
-  const { items: events, isLoading: eventsLoading, isError, error, refetch, create: createEvent, update: updateEvent, remove: removeEvent } = useLensData('events', 'Event', { seed: SEED.Event });
-  const { items: venues, isLoading: venuesLoading, create: createVenue, update: updateVenue, remove: removeVenue } = useLensData('events', 'Venue', { seed: SEED.Venue });
-  const { items: vendors, isLoading: vendorsLoading, create: createVendor, update: updateVendor, remove: removeVendor } = useLensData('events', 'Vendor', { seed: SEED.Vendor });
-  const { items: runofshows, isLoading: rosLoading, create: createROS, update: updateROS, remove: removeROS } = useLensData('events', 'RunOfShow', { seed: SEED.RunOfShow });
-  const { items: budgets, isLoading: budgetLoading, create: createBudget, update: updateBudget, remove: removeBudget } = useLensData('events', 'Budget', { seed: SEED.Budget });
-  const { items: tickets, isLoading: ticketsLoading, create: createTicket, update: updateTicket, remove: removeTicket } = useLensData('events', 'TicketTier', { seed: SEED.TicketTier });
+  const { items: events, isLoading: eventsLoading, isError, error, refetch, create: createEvent, update: updateEvent, remove: removeEvent } = useLensData('events', 'Event', { seed: EMPTY_DATA.Event });
+  const { items: venues, isLoading: venuesLoading, create: createVenue, update: updateVenue, remove: removeVenue } = useLensData('events', 'Venue', { seed: EMPTY_DATA.Venue });
+  const { items: vendors, isLoading: vendorsLoading, create: createVendor, update: updateVendor, remove: removeVendor } = useLensData('events', 'Vendor', { seed: EMPTY_DATA.Vendor });
+  const { items: runofshows, isLoading: rosLoading, create: createROS, update: updateROS, remove: removeROS } = useLensData('events', 'RunOfShow', { seed: EMPTY_DATA.RunOfShow });
+  const { items: budgets, isLoading: budgetLoading, create: createBudget, update: updateBudget, remove: removeBudget } = useLensData('events', 'Budget', { seed: EMPTY_DATA.Budget });
+  const { items: tickets, isLoading: ticketsLoading, create: createTicket, update: updateTicket, remove: removeTicket } = useLensData('events', 'TicketTier', { seed: EMPTY_DATA.TicketTier });
 
   const runAction = useRunArtifact('events');
 
