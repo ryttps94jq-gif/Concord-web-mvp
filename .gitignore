@@ -1,4 +1,7 @@
 
+# Dependencies
+node_modules/
+
 # Server generated files
 server/node_modules/
 server/concord_state.json
