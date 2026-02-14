@@ -130,6 +130,21 @@ check "Guided DTU create" "/api/dtus/guided" "POST" "$GUIDED_DTU"
 PREVIEW_BODY='{"action":"delete_dtu","entityType":"dtu","entityId":"nonexistent"}'
 check "Action preview" "/api/preview-action" "POST" "$PREVIEW_BODY"
 
+# ── Economy System ────────────────────────────────────────
+echo ""
+echo "--- Economy ---"
+check "Fee schedule" "/api/economy/fees"
+check "Ledger integrity" "/api/economy/integrity"
+BUY_BODY='{"user_id":"smoke-user","amount":100}'
+check "Token purchase" "/api/economy/buy" "POST" "$BUY_BODY"
+check "Balance check" "/api/economy/balance?user_id=smoke-user"
+check "History" "/api/economy/history?user_id=smoke-user"
+TRANSFER_BODY='{"from":"smoke-user","to":"smoke-recipient","amount":10}'
+check "Transfer" "/api/economy/transfer" "POST" "$TRANSFER_BODY"
+WITHDRAW_BODY='{"user_id":"smoke-user","amount":5}'
+check "Withdrawal request" "/api/economy/withdraw" "POST" "$WITHDRAW_BODY"
+check "Platform balance" "/api/economy/platform-balance"
+
 # ── Results ──────────────────────────────────────────────
 echo ""
 echo "========================"

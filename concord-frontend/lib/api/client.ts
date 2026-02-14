@@ -456,6 +456,59 @@ export const apiHelpers = {
       api.post(`/api/marketplace/listings/${listingId}/guided-publish`),
   },
 
+  // ═══════════════════════════════════════════════════════════════
+  // Economy System
+  // ═══════════════════════════════════════════════════════════════
+
+  economy: {
+    // Balance
+    balance: (userId?: string) =>
+      api.get('/api/economy/balance', { params: { user_id: userId } }),
+
+    // Transaction history
+    history: (params?: { user_id?: string; type?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/history', { params }),
+
+    // Token purchase
+    buy: (data: { user_id?: string; amount: number; source?: string }) =>
+      api.post('/api/economy/buy', data),
+
+    // Transfer
+    transfer: (data: { from?: string; to: string; amount: number; metadata?: Record<string, unknown> }) =>
+      api.post('/api/economy/transfer', data),
+
+    // Marketplace purchase
+    marketplacePurchase: (data: { buyer_id?: string; seller_id: string; amount: number; listing_id?: string }) =>
+      api.post('/api/economy/marketplace-purchase', data),
+
+    // Withdrawals
+    withdraw: (data: { user_id?: string; amount: number }) =>
+      api.post('/api/economy/withdraw', data),
+    withdrawals: (params?: { user_id?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/withdrawals', { params }),
+    cancelWithdrawal: (withdrawalId: string, userId?: string) =>
+      api.post(`/api/economy/withdrawals/${withdrawalId}/cancel`, { user_id: userId }),
+
+    // Info
+    fees: () => api.get('/api/economy/fees'),
+    platformBalance: () => api.get('/api/economy/platform-balance'),
+    integrity: () => api.get('/api/economy/integrity'),
+
+    // Admin
+    adminTransactions: (params?: { type?: string; status?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/admin/transactions', { params }),
+    adminWithdrawals: (params?: { status?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/admin/withdrawals', { params }),
+    adminApproveWithdrawal: (withdrawalId: string, reviewerId?: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/approve`, { reviewer_id: reviewerId }),
+    adminRejectWithdrawal: (withdrawalId: string, reviewerId?: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/reject`, { reviewer_id: reviewerId }),
+    adminProcessWithdrawal: (withdrawalId: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/process`),
+    adminReverse: (transactionId: string, reason?: string) =>
+      api.post('/api/economy/admin/reverse', { transaction_id: transactionId, reason }),
+  },
+
   // Macros
   macros: {
     run: (recipeName: string, ctx?: Record<string, unknown>) =>

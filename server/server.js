@@ -41,6 +41,9 @@ import { registerDurableEndpoints } from "./durable.js";
 // ---- Guidance Layer v1: events, SSE, inspector, undo, suggestions ----
 import { registerGuidanceEndpoints } from "./guidance.js";
 
+// ---- Economy System: ledger, balances, transfers, withdrawals ----
+import { registerEconomyEndpoints } from "./economy/index.js";
+
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
 import { createAtlasDtu, getAtlasDtu, searchAtlasDtus, promoteAtlasDtu, addAtlasLink, getScoreExplanation, recomputeScores, registerEntity, getEntity, getContradictions, getAtlasMetrics, contentHash } from "./emergent/atlas-store.js";
@@ -27231,6 +27234,9 @@ registerDurableEndpoints(app, db);
 
 // ── Guidance Layer v1: events, SSE, inspector, undo, suggestions ─────────────
 registerGuidanceEndpoints(app, db);
+
+// ── Economy System: ledger, balances, transfers, withdrawals ─────────────────
+registerEconomyEndpoints(app, db);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
