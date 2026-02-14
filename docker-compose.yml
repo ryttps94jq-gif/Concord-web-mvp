@@ -10,6 +10,7 @@ services:
       - NODE_ENV=production
       - PORT=5050
       - DATA_DIR=/data
+      - DB_PATH=/data/db/concord.db
       - STATE_PATH=/data/concord_state.json
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://concord-os.org}

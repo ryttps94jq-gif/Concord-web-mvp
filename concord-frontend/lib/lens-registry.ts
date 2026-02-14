@@ -65,6 +65,10 @@ export interface LensEntry {
  * are generated automatically.
  */
 export const LENS_REGISTRY: LensEntry[] = [
+  // ── Platform ────────────────────────────────────────────────────
+  { id: 'global', name: 'Global', icon: Globe, description: 'Browse all DTUs, artifacts, jobs, marketplace', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/global', order: 0, keywords: ['browse', 'all', 'truth', 'global', 'everything'] },
+  { id: 'hub', name: 'Lens Hub', icon: Compass, description: 'Discover all lenses', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/hub', order: 0, keywords: ['all', 'lenses', 'discover', 'hub', 'browse'] },
+
   // ── Core ──────────────────────────────────────────────────────
   { id: 'chat', name: 'Chat', icon: MessageSquare, description: 'Conversational AI interface', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/chat', order: 1, keywords: ['message', 'talk', 'ai'] },
   { id: 'thread', name: 'Thread', icon: MessageCircle, description: 'Threaded conversations', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/thread', order: 2, keywords: ['conversation', 'discussion'] },

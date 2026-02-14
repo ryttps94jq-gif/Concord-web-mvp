@@ -328,6 +328,84 @@ export const apiHelpers = {
   // Global feed
   global: {
     feed: () => api.get('/api/global/feed'),
+    // "Everything Real" paginated endpoints
+    dtusPaginated: (params?: { q?: string; limit?: number; offset?: number; visibility?: string; tier?: string }) =>
+      api.get('/api/dtus/paginated', { params }),
+    artifactsPaginated: (params?: { q?: string; limit?: number; offset?: number; type?: string; visibility?: string }) =>
+      api.get('/api/artifacts/paginated', { params }),
+    jobsPaginated: (params?: { q?: string; limit?: number; offset?: number; type?: string; status?: string }) =>
+      api.get('/api/jobs/paginated', { params }),
+    marketplacePaginated: (params?: { q?: string; limit?: number; offset?: number; visibility?: string }) =>
+      api.get('/api/marketplace/paginated', { params }),
+  },
+
+  // Durable artifacts (Everything Real)
+  durableArtifacts: {
+    upload: (data: { type?: string; title?: string; data: string; mime_type?: string; filename?: string; visibility?: string; owner_user_id?: string }) =>
+      api.post('/api/artifacts/upload', data),
+    download: (id: string, userId?: string) =>
+      api.get(`/api/artifacts/${id}/download`, { params: { user_id: userId }, responseType: 'blob' }),
+    info: (id: string) => api.get(`/api/artifacts/${id}/info`),
+  },
+
+  // Durable marketplace (Everything Real)
+  durableMarketplace: {
+    createListing: (data: { owner_user_id: string; title: string; description?: string; price_cents?: number; currency?: string; license_id?: string }) =>
+      api.post('/api/marketplace/listings', data),
+    attachAsset: (listingId: string, artifactId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/assets`, { artifact_id: artifactId }),
+    publish: (listingId: string) => api.post(`/api/marketplace/listings/${listingId}/publish`),
+    getListing: (id: string) => api.get(`/api/marketplace/listings/${id}`),
+    purchase: (listingId: string, userId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/purchase`, { user_id: userId }),
+  },
+
+  // Durable studio (Everything Real)
+  durableStudio: {
+    createProject: (data: { name?: string; bpm?: number; key?: string; scale?: string; genre?: string; owner_user_id?: string }) =>
+      api.post('/api/studio/projects', data),
+    listProjects: (params?: { owner_user_id?: string; limit?: number; offset?: number }) =>
+      api.get('/api/studio/projects', { params }),
+    getProject: (id: string) => api.get(`/api/studio/projects/${id}`),
+    updateProject: (id: string, data: Record<string, unknown>) => api.patch(`/api/studio/projects/${id}`, data),
+    addTrack: (projectId: string, data: { name?: string; type?: string; instrument_id?: string }) =>
+      api.post(`/api/studio/projects/${projectId}/tracks`, data),
+    addClip: (projectId: string, trackId: string, data: Record<string, unknown>) =>
+      api.post(`/api/studio/projects/${projectId}/tracks/${trackId}/clips`, data),
+    addEffects: (projectId: string, trackId: string, chain: unknown[]) =>
+      api.post(`/api/studio/projects/${projectId}/tracks/${trackId}/effects`, { chain }),
+    render: (projectId: string, data?: { format?: string; settings?: Record<string, unknown> }) =>
+      api.post(`/api/studio/${projectId}/render`, data),
+    vocalAnalyze: (data: { project_id: string; track_id: string; owner_user_id?: string }) =>
+      api.post('/api/studio/vocal/analyze', data),
+    vocalProcess: (data: { project_id: string; track_id: string; corrections?: string[]; owner_user_id?: string }) =>
+      api.post('/api/studio/vocal/process', data),
+    masterJob: (data: { project_id: string; preset?: string; target_lufs?: number; format?: string; owner_user_id?: string }) =>
+      api.post('/api/studio/master/job', data),
+  },
+
+  // Durable distribution (Everything Real)
+  durableDistribution: {
+    createRelease: (data: { artifact_id: string; title?: string; artist_name?: string; license_terms?: string; visibility?: string; owner_user_id?: string }) =>
+      api.post('/api/distribution/releases', data),
+  },
+
+  // Lens items sync
+  lensItems: {
+    sync: (data: { lens_id: string; artifact_id?: string; dtu_id?: string; owner_user_id?: string; metadata?: Record<string, unknown> }) =>
+      api.post('/api/lens-items/sync', data),
+    list: (lensId: string) => api.get(`/api/lens-items/${lensId}`),
+  },
+
+  // Events log
+  eventsLog: {
+    list: (params?: { type?: string; limit?: number; offset?: number }) =>
+      api.get('/api/events/log', { params }),
+  },
+
+  // Schema version
+  schemaVersion: {
+    get: () => api.get('/api/schema/version'),
   },
 
   // Macros

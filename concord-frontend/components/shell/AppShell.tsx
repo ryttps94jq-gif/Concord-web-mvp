@@ -7,6 +7,7 @@ import { CommandPalette } from './CommandPalette';
 import { useUIStore } from '@/store/ui';
 import { Toasts } from '@/components/common/Toasts';
 import { OperatorErrorBanner } from '@/components/common/OperatorErrorBanner';
+import { SystemStatus } from '@/components/common/SystemStatus';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -77,6 +78,7 @@ export function AppShell({ children }: AppShellProps) {
         onClose={() => setCommandPaletteOpen(false)}
       />
       <Toasts />
+      <SystemStatus />
     </div>
   );
 }

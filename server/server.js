@@ -34,6 +34,10 @@ import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
 import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
 
+// ---- "Everything Real" imports: migration runner + durable endpoints ----
+import { runMigrations } from "./migrate.js";
+import { registerDurableEndpoints } from "./durable.js";
+
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
 import { createAtlasDtu, getAtlasDtu, searchAtlasDtus, promoteAtlasDtu, addAtlasLink, getScoreExplanation, recomputeScores, registerEntity, getEntity, getContradictions, getAtlasMetrics, contentHash } from "./emergent/atlas-store.js";
@@ -2663,6 +2667,16 @@ function initDatabase() {
 }
 
 const _DB_READY = initDatabase();
+
+// ---- "Everything Real": Run schema migrations after DB init ----
+if (db) {
+  try {
+    const migrationResult = await runMigrations(db);
+    console.log(`[Concord] Schema version: ${migrationResult.currentVersion} (${migrationResult.appliedCount} new migrations)`);
+  } catch (e) {
+    console.error("[Concord] Migration failed:", e.message);
+  }
+}
 
 // Register database close on shutdown
 if (db) {
@@ -27208,6 +27222,9 @@ setInterval(() => {
 console.log("[Concord] Atlas Global + Platform v2: All endpoints registered");
 console.log("[Concord] New modules: Atlas Epistemic Engine, Autogen v2, Council Protocol, Social Layer, Collaboration, RBAC, Analytics, Webhooks, Compliance, Onboarding, Compute Efficiency");
 console.log("[Concord] Atlas v2 Default-On: Write Guard, Scope Router, 3-Lane Separation, Invariant Monitor, Heartbeats, Auto-Promote Gate");
+
+// ── "Everything Real": Register durable DB-backed endpoints ──────────────────
+registerDurableEndpoints(app, db);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
