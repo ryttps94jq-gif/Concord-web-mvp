@@ -15,8 +15,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import {
-  Heart, Lightbulb, CheckCircle, Circle, ChevronRight,
-  Activity, AlertTriangle, Database, HardDrive, X, Minimize2, Maximize2,
+  Lightbulb, CheckCircle, Circle, ChevronRight,
+  Activity, AlertTriangle, Minimize2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

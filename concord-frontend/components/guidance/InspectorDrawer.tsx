@@ -12,9 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import {
   X, FileText, Package, Store, Music, Cog,
-  History, Link2, Zap, ChevronDown, ChevronRight, Copy,
+  History, Link2, ChevronDown, ChevronRight, Copy,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
 
 interface InspectorProps {

@@ -7,7 +7,7 @@
  * Connects to SSE for live updates.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { Activity, Filter, RefreshCw, Undo2, Copy, ChevronLeft, ChevronRight } from 'lucide-react';

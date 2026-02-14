@@ -81,7 +81,7 @@ export function UndoTimeline() {
           <div className="absolute left-4 top-0 bottom-0 w-px bg-lattice-border" />
 
           <div className="space-y-0">
-            {timelineItems.map((item, i) => {
+            {timelineItems.map((item) => {
               const isUndo = item.type === 'UNDO_APPLIED';
               const canUndo = Boolean(item.undoToken) && !isUndo;
 

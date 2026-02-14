@@ -89,7 +89,7 @@ export function FirstWinWizard() {
 
       {/* Steps */}
       <div className="p-3 space-y-2">
-        {data.steps.map((step, i) => {
+        {data.steps.map((step) => {
           const Icon = STEP_ICONS[step.id] || Circle;
           const isCurrent = step.id === currentStep.id && !step.completed;
 
