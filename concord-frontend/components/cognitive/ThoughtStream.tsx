@@ -315,7 +315,7 @@ function FilterTab({
   );
 }
 
-// Helper functions for demo
+// Fallback labels for WebSocket events that lack title/description
 function getRandomTitle(type: EventType): string {
   const titles: Record<EventType, string[]> = {
     create: ['New DTU created', 'Thought captured', 'Idea recorded'],
