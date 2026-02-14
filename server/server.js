@@ -14792,7 +14792,10 @@ if (helmet) {app.use(helmet({
   },
 }));} // Security headers
 if (compression) app.use(compression()); // Gzip compression
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "10mb", verify: (req, _res, buf) => {
+  // Preserve raw body for Stripe webhook signature verification
+  if (req.url === '/api/economic/webhook') req.rawBody = buf;
+} }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(idempotencyMiddleware); // Category 2: Double-submit prevention via Idempotency-Key header
 
@@ -33910,7 +33913,7 @@ app.post('/api/economic/subscribe', async (req, res) => {
 });
 
 // ---- Stripe Webhook Handler ----
-app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/api/economic/webhook', async (req, res) => {
   const stripeClient = await getStripe();
   if (!stripeClient) return res.status(503).send('Stripe not configured');
 
@@ -33918,7 +33921,7 @@ app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), asy
   let event;
 
   try {
-    event = stripeClient.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
   } catch (e) {
     console.error('[Economic] Webhook signature verification failed:', e.message);
     return res.status(400).send(`Webhook Error: ${e.message}`);

@@ -29,7 +29,8 @@
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
     "prom-client": "^15.1.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "stripe": "^17.4.0"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
