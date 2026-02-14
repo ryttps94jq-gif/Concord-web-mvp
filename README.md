@@ -14,6 +14,8 @@ Concord is **not** a generic project management or collaboration SaaS. It is a *
 
 ## Architecture
 
+For the production hardening roadmap, see [`docs/CONCORD_REALITY_PLAN.md`](docs/CONCORD_REALITY_PLAN.md).
+
 ### Intentional Monolith Design
 
 The server is intentionally structured as a single comprehensive file (`server.js`). This is a **deliberate architectural choice** for:
