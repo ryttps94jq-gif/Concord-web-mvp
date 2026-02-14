@@ -112,6 +112,24 @@ echo ""
 echo "--- Events ---"
 check "Events log" "/api/events/log?limit=10"
 
+# ── Guidance Layer ────────────────────────────────────────
+echo ""
+echo "--- Guidance Layer ---"
+check "System health" "/api/system/health"
+check "Events paginated" "/api/events/paginated?limit=5"
+check "Suggestions" "/api/guidance/suggestions"
+check "First-win status" "/api/guidance/first-win"
+
+# ── Guided DTU (create + undo) ────────────────────────────
+echo ""
+echo "--- Guided DTU + Undo ---"
+GUIDED_DTU='{"title":"Smoke Guide DTU","body":{"content":"test"},"tags":["smoke"],"visibility":"private"}'
+check "Guided DTU create" "/api/dtus/guided" "POST" "$GUIDED_DTU"
+
+# ── Action Preview ────────────────────────────────────────
+PREVIEW_BODY='{"action":"delete_dtu","entityType":"dtu","entityId":"nonexistent"}'
+check "Action preview" "/api/preview-action" "POST" "$PREVIEW_BODY"
+
 # ── Results ──────────────────────────────────────────────
 echo ""
 echo "========================"

@@ -35,8 +35,11 @@ import { init as initEmergent } from "./emergent/index.js";
 import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
-import { runMigrations } from "./migrate.js";
+import { runMigrations as runSchemaMigrations } from "./migrate.js";
 import { registerDurableEndpoints } from "./durable.js";
+
+// ---- Guidance Layer v1: events, SSE, inspector, undo, suggestions ----
+import { registerGuidanceEndpoints } from "./guidance.js";
 
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
@@ -2671,7 +2674,7 @@ const _DB_READY = initDatabase();
 // ---- "Everything Real": Run schema migrations after DB init ----
 if (db) {
   try {
-    const migrationResult = await runMigrations(db);
+    const migrationResult = await runSchemaMigrations(db);
     console.log(`[Concord] Schema version: ${migrationResult.currentVersion} (${migrationResult.appliedCount} new migrations)`);
   } catch (e) {
     console.error("[Concord] Migration failed:", e.message);
@@ -27225,6 +27228,9 @@ console.log("[Concord] Atlas v2 Default-On: Write Guard, Scope Router, 3-Lane Se
 
 // ── "Everything Real": Register durable DB-backed endpoints ──────────────────
 registerDurableEndpoints(app, db);
+
+// ── Guidance Layer v1: events, SSE, inspector, undo, suggestions ─────────────
+registerGuidanceEndpoints(app, db);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 

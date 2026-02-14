@@ -8,6 +8,8 @@ import { useUIStore } from '@/store/ui';
 import { Toasts } from '@/components/common/Toasts';
 import { OperatorErrorBanner } from '@/components/common/OperatorErrorBanner';
 import { SystemStatus } from '@/components/common/SystemStatus';
+import { SystemGuidePanel } from '@/components/guidance/SystemGuidePanel';
+import { FirstWinWizard } from '@/components/guidance/FirstWinWizard';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -79,6 +81,8 @@ export function AppShell({ children }: AppShellProps) {
       />
       <Toasts />
       <SystemStatus />
+      <SystemGuidePanel />
+      <FirstWinWizard />
     </div>
   );
 }

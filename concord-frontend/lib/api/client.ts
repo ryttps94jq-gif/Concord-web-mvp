@@ -408,6 +408,54 @@ export const apiHelpers = {
     get: () => api.get('/api/schema/version'),
   },
 
+  // ═══════════════════════════════════════════════════════════════
+  // Guidance Layer v1
+  // ═══════════════════════════════════════════════════════════════
+
+  guidance: {
+    // System health
+    health: () => api.get('/api/system/health'),
+
+    // Enhanced paginated events with scope/type filters
+    eventsPaginated: (params?: { type?: string; scope?: string; entityType?: string; entityId?: string; limit?: number; offset?: number }) =>
+      api.get('/api/events/paginated', { params }),
+
+    // Object Inspector
+    inspect: (entityType: string, entityId: string) =>
+      api.get(`/api/inspect/${entityType}/${entityId}`),
+
+    // Undo
+    undo: (undoToken: string, userId?: string) =>
+      api.post('/api/undo', { undoToken, user_id: userId }),
+
+    // Action preview (dry-run)
+    previewAction: (data: { action: string; entityType?: string; entityId?: string; params?: Record<string, unknown> }) =>
+      api.post('/api/preview-action', data),
+
+    // Context suggestions
+    suggestions: (lens?: string, userId?: string) =>
+      api.get('/api/guidance/suggestions', { params: { lens, user_id: userId } }),
+
+    // First-win wizard status
+    firstWin: () => api.get('/api/guidance/first-win'),
+
+    // Guided DTU CRUD (with undo tokens)
+    createDtu: (data: { title?: string; body?: Record<string, unknown>; tags?: string[]; visibility?: string; tier?: string; owner_user_id?: string }) =>
+      api.post('/api/dtus/guided', data),
+    updateDtu: (id: string, data: Record<string, unknown>) =>
+      api.put(`/api/dtus/guided/${id}`, data),
+    deleteDtu: (id: string) =>
+      api.delete(`/api/dtus/guided/${id}`),
+
+    // Guided lens sync (with undo)
+    syncLensItem: (data: { lens_id: string; artifact_id?: string; dtu_id?: string; owner_user_id?: string; metadata?: Record<string, unknown> }) =>
+      api.post('/api/lens-items/guided-sync', data),
+
+    // Guided marketplace publish (with undo)
+    publishListing: (listingId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/guided-publish`),
+  },
+
   // Macros
   macros: {
     run: (recipeName: string, ctx?: Record<string, unknown>) =>
