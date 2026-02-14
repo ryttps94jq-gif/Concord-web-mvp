@@ -5,6 +5,7 @@ FROM node:20-alpine AS base
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
+ENV npm_config_cache=/tmp/npm-cache
 
 # Copy package files and npm configuration
 COPY package*.json ./
@@ -41,10 +42,14 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_CACHE_DIR=/data/next-cache
+ENV npm_config_cache=/data/npm-cache
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+RUN mkdir -p /data/next-cache /data/npm-cache
+RUN chown -R nextjs:nodejs /data
 
 # Copy public folder
 COPY --from=builder /app/public ./public

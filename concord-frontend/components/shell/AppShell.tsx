@@ -5,6 +5,8 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { CommandPalette } from './CommandPalette';
 import { useUIStore } from '@/store/ui';
+import { Toasts } from '@/components/common/Toasts';
+import { OperatorErrorBanner } from '@/components/common/OperatorErrorBanner';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -56,6 +58,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
+        <OperatorErrorBanner />
 
         <main
           id="main-content"
@@ -73,6 +76,7 @@ export function AppShell({ children }: AppShellProps) {
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
       />
+      <Toasts />
     </div>
   );
 }

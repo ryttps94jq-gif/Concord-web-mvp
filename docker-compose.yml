@@ -16,6 +16,7 @@ services:
       # Auth - MUST set these in .env file
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - AUTH_MODE=${AUTH_MODE:-hybrid}
       - AUTH_ENABLED=${AUTH_ENABLED:-true}
       # LLM - set OPENAI_API_KEY in .env for AI features
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -59,6 +60,8 @@ services:
       - NODE_ENV=production
     depends_on:
       - backend
+    volumes:
+      - frontend-data:/data
     networks:
       - concord-network
     healthcheck:
@@ -221,4 +224,6 @@ volumes:
   prometheus-data:
     driver: local
   grafana-data:
+    driver: local
+  frontend-data:
     driver: local

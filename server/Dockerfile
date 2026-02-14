@@ -25,11 +25,14 @@ COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=5050
+ENV DATA_DIR=/data
+ENV STATE_PATH=/data/concord_state.json
+ENV npm_config_cache=/data/npm-cache
 
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -m -u 1001 -g nodejs concord && \
-    mkdir -p /data && chown -R concord:nodejs /data
+    mkdir -p /data /data/npm-cache && chown -R concord:nodejs /data
 
 USER concord
 

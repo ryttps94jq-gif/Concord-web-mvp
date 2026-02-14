@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { updateClockOffset } from '../offline/db';
+import { useUIStore } from '@/store/ui';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
 
@@ -88,6 +89,17 @@ api.interceptors.response.use(
       console.debug('[API] Idempotent replay detected for:', response.config?.url);
     }
 
+    if (response.config?.url?.includes('/api/status')) {
+      const auth = (response.data as { infrastructure?: { auth?: { mode?: string; usesJwt?: boolean; usesApiKey?: boolean } } })?.infrastructure?.auth;
+      if (auth) {
+        useUIStore.getState().setAuthPosture({
+          mode: (auth.mode as 'public' | 'apikey' | 'jwt' | 'hybrid') || 'unknown',
+          usesJwt: Boolean(auth.usesJwt),
+          usesApiKey: Boolean(auth.usesApiKey),
+        });
+      }
+    }
+
     return response;
   },
   async (error: AxiosError) => {
@@ -131,6 +143,26 @@ api.interceptors.response.use(
       }
     } else if (error.request) {
       console.error('Network error - no response received');
+    }
+
+    if (typeof window !== 'undefined') {
+      const data = error.response?.data as { error?: string; reason?: string; code?: string } | undefined;
+      const requestId = (error.response?.headers?.['x-request-id'] as string | undefined) ||
+        (error.response?.headers?.['X-Request-ID'] as string | undefined);
+      const reason = data?.reason || data?.error || (error.response?.status === 401 ? 'Login required' : error.message);
+      useUIStore.getState().addRequestError({
+        path: error.config?.url,
+        method: error.config?.method?.toUpperCase(),
+        status: error.response?.status,
+        code: data?.code,
+        requestId,
+        message: data?.error || error.message,
+        reason,
+      });
+
+      if (error.response?.status === 401 && data?.code === 'AUTH_REQUIRED' && reason.toLowerCase().includes('api key')) {
+        useUIStore.getState().addToast({ type: 'warning', message: 'API key missing. Add x-api-key or switch AUTH_MODE.' });
+      }
     }
     return Promise.reject(error);
   }

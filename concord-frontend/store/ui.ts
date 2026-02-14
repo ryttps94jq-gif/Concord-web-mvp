@@ -48,6 +48,12 @@ interface UIState {
   // Toast notifications
   toasts: Toast[];
 
+  // Operator-facing request failures
+  requestErrors: RequestError[];
+
+  // Active backend auth posture
+  authPosture: AuthPosture;
+
   // Actions
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -59,6 +65,28 @@ interface UIState {
   setFullPageMode: (mode: boolean) => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
+  addRequestError: (error: Omit<RequestError, 'id' | 'at'>) => void;
+  clearRequestErrors: () => void;
+  setAuthPosture: (authPosture: Partial<AuthPosture>) => void;
+}
+
+
+interface RequestError {
+  id: string;
+  at: string;
+  path?: string;
+  method?: string;
+  status?: number;
+  code?: string;
+  requestId?: string;
+  message: string;
+  reason?: string;
+}
+
+interface AuthPosture {
+  mode: 'public' | 'apikey' | 'jwt' | 'hybrid' | 'unknown';
+  usesJwt: boolean;
+  usesApiKey: boolean;
 }
 
 interface Toast {
@@ -79,6 +107,8 @@ export const useUIStore = create<UIState>()(
       theme: 'dark',
       fullPageMode: false,
       toasts: [],
+      requestErrors: [],
+      authPosture: { mode: 'unknown', usesJwt: false, usesApiKey: false },
 
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -107,6 +137,23 @@ export const useUIStore = create<UIState>()(
         set((state) => ({
           toasts: state.toasts.filter((t) => t.id !== id),
         })),
+
+      addRequestError: (error) =>
+        set((state) => ({
+          requestErrors: [
+            ...state.requestErrors.slice(-19),
+            {
+              ...error,
+              id: `reqerr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` ,
+              at: new Date().toISOString(),
+            },
+          ],
+        })),
+
+      clearRequestErrors: () => set({ requestErrors: [] }),
+
+      setAuthPosture: (authPosture) =>
+        set((state) => ({ authPosture: { ...state.authPosture, ...authPosture } })),
     }),
     {
       name: 'concord-ui-store',

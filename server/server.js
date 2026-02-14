@@ -486,10 +486,22 @@ function requestLoggerMiddleware(req, res, next) {
 const PORT = Number(process.env.PORT || 5050);
 const VERSION = "5.1.0-production";
 const NODE_ENV = process.env.NODE_ENV || "development";
+const AUTH_MODE_VALUES = new Set(["public", "apikey", "jwt", "hybrid"]);
+const LEGACY_AUTH_ENABLED = String(process.env.AUTH_ENABLED || "true").toLowerCase() === "true";
+const AUTH_MODE_RAW = String(process.env.AUTH_MODE || "").toLowerCase().trim();
+const AUTH_MODE = AUTH_MODE_VALUES.has(AUTH_MODE_RAW)
+  ? AUTH_MODE_RAW
+  : (AUTH_MODE_RAW ? "hybrid" : (LEGACY_AUTH_ENABLED ? "hybrid" : "public"));
+const AUTH_USES_JWT = AUTH_MODE === "jwt" || AUTH_MODE === "hybrid";
+const AUTH_USES_APIKEY = AUTH_MODE === "apikey" || AUTH_MODE === "hybrid";
+
+if (AUTH_MODE_RAW && !AUTH_MODE_VALUES.has(AUTH_MODE_RAW)) {
+  console.warn(`[Auth] Invalid AUTH_MODE='${AUTH_MODE_RAW}'. Falling back to 'hybrid'. Allowed: public|apikey|jwt|hybrid.`);
+}
 
 // SECURITY: JWT_SECRET must be set in production
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET && NODE_ENV === "production") {
+if (!JWT_SECRET && NODE_ENV === "production" && AUTH_USES_JWT) {
   console.error("\n[FATAL] JWT_SECRET environment variable is required in production.");
   console.error("[FATAL] Generate one with: openssl rand -hex 64");
   console.error("[FATAL] Add it to your .env file or environment variables.\n");
@@ -503,7 +515,6 @@ if (!JWT_SECRET) {
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
-const AUTH_ENABLED = String(process.env.AUTH_ENABLED || "true").toLowerCase() === "true";
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 100);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
@@ -3355,7 +3366,7 @@ function cookieParserMiddleware(req, res, next) {
 
 // Auth middleware
 function authMiddleware(req, res, next) {
-  if (!AUTH_ENABLED) return next();
+  if (AUTH_MODE === "public") return next();
 
   // Skip auth for public endpoints
   const publicPaths = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status"];
@@ -3365,37 +3376,37 @@ function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const apiKey = req.headers["x-api-key"] || "";
 
-  // 1. Try httpOnly cookie first (most secure for browsers)
-  const cookieToken = req.cookies?.concord_auth;
-  if (cookieToken) {
-    const decoded = verifyToken(cookieToken);
-    if (decoded?.userId) {
-      const user = AuthDB.getUser(decoded.userId);
-      if (user) {
-        req.user = user;
-        req.authMethod = "cookie";
-        return next();
+  // 1. Try JWT/cookie auth if enabled by AUTH_MODE
+  if (AUTH_USES_JWT) {
+    const cookieToken = req.cookies?.concord_auth;
+    if (cookieToken) {
+      const decoded = verifyToken(cookieToken);
+      if (decoded?.userId) {
+        const user = AuthDB.getUser(decoded.userId);
+        if (user) {
+          req.user = user;
+          req.authMethod = "cookie";
+          return next();
+        }
+      }
+    }
+
+    if (authHeader.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const decoded = verifyToken(token);
+      if (decoded?.userId) {
+        const user = AuthDB.getUser(decoded.userId);
+        if (user) {
+          req.user = user;
+          req.authMethod = "jwt";
+          return next();
+        }
       }
     }
   }
 
-  // 2. Try Bearer token (for API clients)
-  if (authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    const decoded = verifyToken(token);
-    if (decoded?.userId) {
-      const user = AuthDB.getUser(decoded.userId);
-      if (user) {
-        req.user = user;
-        req.authMethod = "jwt";
-        return next();
-      }
-    }
-  }
-
-  // 3. Try API key (keys are stored hashed for security)
-  if (apiKey) {
-    // Try to find API key by hash
+  // 2. Try API key if enabled by AUTH_MODE (keys are stored hashed)
+  if (AUTH_USES_APIKEY && apiKey) {
     let keyData = null;
     const allKeys = AuthDB.getAllApiKeys();
     for (const key of allKeys) {
@@ -3419,13 +3430,19 @@ function authMiddleware(req, res, next) {
     }
   }
 
-  return res.status(401).json({ ok: false, error: "Unauthorized", code: "AUTH_REQUIRED" });
+  return res.status(401).json({
+    ok: false,
+    error: "Unauthorized",
+    code: "AUTH_REQUIRED",
+    reason: AUTH_MODE === "apikey" ? "API key missing" : "Login required",
+    authMode: AUTH_MODE
+  });
 }
 
 // Require authentication helper (returns middleware)
 function requireAuth() {
   return (req, res, next) => {
-    if (!AUTH_ENABLED) return next();
+    if (AUTH_MODE === "public") return next();
     if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
     return next();
   };
@@ -3434,7 +3451,7 @@ function requireAuth() {
 // Permission check helper
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!AUTH_ENABLED) return next();
+    if (AUTH_MODE === "public") return next();
     if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
     if (roles.length === 0 || roles.includes(req.user.role) || req.user.scopes?.includes("*")) {
       return next();
@@ -3444,7 +3461,7 @@ function requireRole(...roles) {
 }
 
 // Production write-auth: enforce authentication on all mutating requests in production
-// even when AUTH_ENABLED=false, to prevent accidental open-write deployments.
+// even in AUTH_MODE=public, to prevent accidental open-write deployments.
 const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics"];
 function productionWriteAuthMiddleware(req, res, next) {
   if (NODE_ENV !== "production") return next();
@@ -4287,7 +4304,7 @@ async function tryInitNativeWebSockets(server) {
 // ---- persistence ----
 // Production: SQLite (if available). Dev fallback: JSON file.
 // This prevents "DTUs disappeared" when server restarts or hot-reloads.
-const STATE_PATH = process.env.STATE_PATH || path.join(process.cwd(), "concord_state.json");
+const STATE_PATH = process.env.STATE_PATH || path.join(DATA_DIR, "concord_state.json");
 const IS_PRODUCTION = (process.env.NODE_ENV || "").toLowerCase() === "production";
 const USE_SQLITE_STATE = db && (IS_PRODUCTION || process.env.STATE_BACKEND === "sqlite");
 let _saveTimer = null;
@@ -14673,7 +14690,10 @@ const corsOptions = {
         // In production, only allow specific trusted no-origin scenarios
         // (e.g., same-origin requests from the backend itself)
         console.warn("[CORS] Rejected request with no origin in production mode");
-        return callback(new Error("Origin required in production"), false);
+        const err = new Error("Origin blocked");
+        err.code = "ORIGIN_BLOCKED";
+        err.reason = "Origin required in production";
+        return callback(err, false);
       }
       return callback(null, true);
     }
@@ -14684,13 +14704,19 @@ const corsOptions = {
     // In production, check against allowed origins
     if (allowedOrigins.length === 0) {
       console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Rejecting cross-origin request from:", origin);
-      return callback(new Error("CORS not configured"), false);
+      const err = new Error("Origin blocked");
+      err.code = "ORIGIN_BLOCKED";
+      err.reason = "No ALLOWED_ORIGINS configured";
+      return callback(err, false);
     }
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     console.warn("[CORS] Rejected origin:", origin);
-    return callback(new Error("Not allowed by CORS"), false);
+    const err = new Error("Origin blocked");
+    err.code = "ORIGIN_BLOCKED";
+    err.reason = `Origin not allowed: ${origin}`;
+    return callback(err, false);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -15660,7 +15686,8 @@ console.log(`\nConcord v2 (Macro‑Max) starting…`);
 console.log(`- version: ${VERSION}`);
 console.log(`- port: ${PORT}`);
 console.log(`- dotenvLoaded: ${DOTENV.loaded} (path=${DOTENV.path})`);
-console.log(`- llmReady: ${LLM_READY}\n`);
+console.log(`- llmReady: ${LLM_READY}`);
+console.log(`- authMode: ${AUTH_MODE} (jwt=${AUTH_USES_JWT}, apikey=${AUTH_USES_APIKEY})\n`);
 
 app.get("/", (req, res) => res.json({ ok:true, name:"Concord v2 Macro‑Max", version: VERSION }));
 
@@ -15699,9 +15726,11 @@ app.get("/api/status", (req, res) => {
         path: USE_SQLITE_STATE ? DB_PATH : STATE_PATH,
       },
       auth: {
-        enabled: AUTH_ENABLED,
+        mode: AUTH_MODE,
         totalUsers: AuthDB.getUserCount(),
-        jwtConfigured: Boolean(JWT_SECRET)
+        jwtConfigured: Boolean(JWT_SECRET),
+        usesJwt: AUTH_USES_JWT,
+        usesApiKey: AUTH_USES_APIKEY
       },
       security: {
         csrfEnabled: NODE_ENV === "production",
@@ -16297,7 +16326,12 @@ app.post("/api/macros/run", async (req, res) => {
     return uiJson(res, _withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "macro_run", domain, name }), req, { panel: "macro_run", domain, name });
   } catch (e) {
     kernelTick({ type: "ERROR", meta: { path: req.path, domain, name }, signals: { error: 0.4 } });
-    return res.status(404).json({ ok:false, reply: String(e?.message || e), error: String(e?.message || e) });
+    const msg = String(e?.message || e);
+    if (msg.startsWith("forbidden:")) {
+      const permission = msg.replace("forbidden:", "").trim();
+      return res.status(403).json({ ok:false, error: `Permission denied: ${permission}`, code: "PERMISSION_DENIED", permission });
+    }
+    return res.status(404).json({ ok:false, reply: msg, error: msg });
   }
 });
 
@@ -16365,6 +16399,9 @@ app.post("/api/anon/decrypt-local", async (req,res)=> res.json(await runMacro("a
 app.use((err, req, res, _next) => {
   const msg = String(err?.message || err);
   log("server.error", msg, { stack: String(err?.stack || "") });
+  if (err?.code === "ORIGIN_BLOCKED") {
+    return res.status(403).json({ ok:false, error:"Origin blocked", code:"ORIGIN_BLOCKED", reason: err?.reason || msg });
+  }
   res.status(500).json({ ok:false, error: msg });
 });
 
@@ -24753,7 +24790,8 @@ function getAdminStats() {
       storageUsed: JSON.stringify(STATE).length,
       auditLogSize: AUDIT_LOG.length,
       activeFeatures: {
-        auth: AUTH_ENABLED,
+        auth: AUTH_MODE !== "public",
+        authMode: AUTH_MODE,
         embeddings: EMBEDDINGS.enabled,
         federation: _c3Federation.enabled,
         websockets: REALTIME.ready
