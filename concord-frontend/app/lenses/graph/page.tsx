@@ -216,7 +216,8 @@ export default function GraphLensPage() {
 
   const { data: links, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['links-graph'],
-    queryFn: () => api.get('/api/links').then((r) => r.data).catch(() => ({ links: [] })),
+    queryFn: () => api.get('/api/links').then((r) => r.data),
+    retry: 1,
   });
 
   // --- Graph algorithms ---

@@ -935,11 +935,13 @@ export default function MarketplaceLensPage() {
                 {checkoutError && (
                   <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{checkoutError}</p>
                 )}
-                <button onClick={handleCheckout} disabled={checkoutLoading}
+                <button onClick={handleCheckout} disabled={checkoutLoading || cart.length === 0 || userBalance < cartTotal}
                   className={cn('btn-neon purple w-full py-3 text-sm font-semibold flex items-center justify-center gap-2',
-                    checkoutLoading && 'opacity-50 cursor-not-allowed')}>
+                    (checkoutLoading || userBalance < cartTotal) && 'opacity-50 cursor-not-allowed')}>
                   {checkoutLoading ? (
                     <><span className="animate-spin">⟳</span> Processing...</>
+                  ) : userBalance < cartTotal ? (
+                    <>Insufficient balance</>
                   ) : (
                     <><Check className="w-4 h-4" /> Checkout</>
                   )}

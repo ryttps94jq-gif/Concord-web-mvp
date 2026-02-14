@@ -479,7 +479,7 @@ export default function ChatLensPage() {
                       >
                         <ThumbsDown className={cn('w-3 h-3', feedbackState[message.id] === 'down' && 'fill-current')} />
                       </button>
-                      <button className="hover:text-white transition-colors" title="Regenerate">
+                      <button className="hover:text-white transition-colors opacity-50 cursor-not-allowed" title="Regenerate (not yet wired)">
                         <RefreshCw className="w-3 h-3" />
                       </button>
                     </>

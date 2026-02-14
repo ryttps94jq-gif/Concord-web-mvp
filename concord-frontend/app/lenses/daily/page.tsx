@@ -434,8 +434,8 @@ export default function DailyLensPage() {
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                 <Headphones className="w-4 h-4 text-neon-purple" /> Audio Clips
               </h2>
-              <button className="btn-neon purple text-xs flex items-center gap-1">
-                <Mic className="w-3 h-3" /> Record Quick Note
+              <button className="btn-neon purple text-xs flex items-center gap-1 opacity-50 cursor-not-allowed" title="Audio recording not yet wired" disabled>
+                <Mic className="w-3 h-3" /> Record Quick Note (coming soon)
               </button>
             </div>
             <div className="space-y-2">

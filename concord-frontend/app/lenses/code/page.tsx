@@ -801,10 +801,10 @@ export default function CodeLensPage() {
                 <div className="p-2 border-b border-lattice-border flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-400 uppercase">Templates</span>
                   <div className="flex items-center gap-1">
-                    <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400">
+                    <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400 opacity-50 cursor-not-allowed" title="New file (not yet wired)" disabled>
                       <Plus className="w-4 h-4" />
                     </button>
-                    <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400">
+                    <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400 opacity-50 cursor-not-allowed" title="Folder management (not yet wired)" disabled>
                       <FolderTree className="w-4 h-4" />
                     </button>
                   </div>
@@ -860,7 +860,7 @@ export default function CodeLensPage() {
               ))}
             </div>
 
-            <button className="p-1.5 rounded hover:bg-lattice-elevated text-gray-400 flex-shrink-0">
+            <button className="p-1.5 rounded hover:bg-lattice-elevated text-gray-400 flex-shrink-0 opacity-50 cursor-not-allowed" title="New tab (not yet wired)" disabled>
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -878,13 +878,21 @@ export default function CodeLensPage() {
                   <span>{activeTab.content.split('\n').length} lines</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400" title="Save">
+                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400 opacity-50 cursor-not-allowed" title="Save (not yet wired)" disabled>
                     <Save className="w-4 h-4" />
                   </button>
-                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400" title="Copy">
+                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400" title="Copy to clipboard"
+                    onClick={() => navigator.clipboard?.writeText(activeTab.content)}>
                     <Copy className="w-4 h-4" />
                   </button>
-                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400" title="Download">
+                  <button className="p-1 rounded hover:bg-lattice-elevated text-gray-400" title="Download file"
+                    onClick={() => {
+                      const blob = new Blob([activeTab.content], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url; a.download = activeTab.name;
+                      a.click(); URL.revokeObjectURL(url);
+                    }}>
                     <Download className="w-4 h-4" />
                   </button>
                 </div>
