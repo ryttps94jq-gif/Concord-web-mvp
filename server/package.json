@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "backup": "node -e \"import('./server.js').then(m => m.createBackup?.())\"",
-    "restore": "node -e \"import('./server.js').then(m => m.restoreBackup?.(process.argv[2]))\""
+    "restore": "node -e \"import('./server.js').then(m => m.restoreBackup?.(process.argv[2]))\"",
+    "migrate": "node migrate.js"
   },
   "dependencies": {
     "express": "^4.18.2",

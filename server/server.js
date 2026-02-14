@@ -32,6 +32,7 @@ import path from "path";
 import { spawnSync } from "child_process";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
+import { runSqliteMigrations } from "./migrate.js";
 
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
@@ -2575,7 +2576,8 @@ const STATE = {
 // ============================================================================
 
 // ---- SQLite Database for Auth & Audit ----
-const DB_PATH = path.join(DATA_DIR, "concord.db");
+const DB_DIR = path.join(DATA_DIR, "db");
+const DB_PATH = process.env.DB_PATH || path.join(DB_DIR, "concord.db");
 let db = null;
 
 function initDatabase() {
@@ -2585,73 +2587,21 @@ function initDatabase() {
   }
 
   try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.mkdirSync(DB_DIR, { recursive: true });
+
+    // Backward compatibility for existing deployments that used /data/concord.db
+    const legacyDbPath = path.join(DATA_DIR, "concord.db");
+    if (!fs.existsSync(DB_PATH) && fs.existsSync(legacyDbPath)) {
+      fs.renameSync(legacyDbPath, DB_PATH);
+      console.log(`[DB] Migrated legacy database path ${legacyDbPath} -> ${DB_PATH}`);
+    }
+
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL"); // Better performance
     db.pragma("foreign_keys = ON");
 
-    // Create tables
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'member',
-        scopes TEXT NOT NULL DEFAULT '["read","write"]',
-        created_at TEXT NOT NULL,
-        last_login_at TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1
-      );
-
-      CREATE TABLE IF NOT EXISTS api_keys (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        key_hash TEXT NOT NULL,
-        key_prefix TEXT NOT NULL,
-        scopes TEXT NOT NULL DEFAULT '["read"]',
-        created_at TEXT NOT NULL,
-        last_used_at TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        token_hash TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL,
-        ip_address TEXT,
-        user_agent TEXT,
-        is_revoked INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS audit_log (
-        id TEXT PRIMARY KEY,
-        timestamp TEXT NOT NULL,
-        category TEXT NOT NULL,
-        action TEXT NOT NULL,
-        user_id TEXT,
-        ip_address TEXT,
-        user_agent TEXT,
-        request_id TEXT,
-        path TEXT,
-        method TEXT,
-        status_code INTEGER,
-        details TEXT,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp DESC);
-      CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
-      CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_log(category);
-      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-      CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
-      CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
-    `);
+    const migrationResult = runSqliteMigrations(db);
+    console.log(`[DB] SQLite migrations complete (version ${migrationResult.currentVersion}, applied ${migrationResult.applied})`);
 
     console.log("[DB] SQLite database initialized");
     return true;
@@ -19461,17 +19411,155 @@ app.get("/api/admin/metrics", async (req, res) => {
 });
 
 app.get("/api/dtus/paginated", (req, res) => {
-  const page = clamp(Number(req.query.page || 1), 1, 10000);
-  const pageSize = clamp(Number(req.query.pageSize || 20), 1, 100);
-  const tier = req.query.tier || null;
-  const tag = req.query.tag || null;
+  const legacyPage = Number(req.query.page || 1);
+  const legacyPageSize = Number(req.query.pageSize || 20);
+  const limit = clamp(Number(req.query.limit || legacyPageSize), 1, 100);
+  const offset = Math.max(0, Number(req.query.offset ?? ((legacyPage - 1) * legacyPageSize)) || 0);
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const type = String(req.query.type || req.query.tier || "").trim();
+  const visibility = String(req.query.visibility || "").trim();
+  const tagsRaw = req.query.tags || req.query.tag || "";
+  const tags = String(tagsRaw)
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 
   let dtus = dtusArray();
-  if (tier) dtus = dtus.filter(d => d.tier === tier);
-  if (tag) dtus = dtus.filter(d => (d.tags || []).includes(tag));
+  if (type) dtus = dtus.filter((d) => String(d.type || d.tier || "") === type);
+  if (visibility) dtus = dtus.filter((d) => String(d.visibility || d.meta?.visibility || "private") === visibility);
+  if (q) {
+    dtus = dtus.filter((d) => {
+      const title = String(d.title || "").toLowerCase();
+      const body = JSON.stringify(d.creti || d.human || d.core || {}).toLowerCase();
+      return title.includes(q) || body.includes(q);
+    });
+  }
+  if (tags.length) {
+    dtus = dtus.filter((d) => {
+      const dTags = Array.isArray(d.tags) ? d.tags : [];
+      return tags.every((tag) => dTags.includes(tag));
+    });
+  }
 
-  const result = paginateResults(dtus, { page, pageSize });
-  return res.json({ ok: true, ...result });
+  dtus.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const total = dtus.length;
+  const items = dtus.slice(offset, offset + limit);
+  const tagCounts = new Map();
+  const typeCounts = new Map();
+  for (const d of dtus) {
+    for (const tag of Array.isArray(d.tags) ? d.tags : []) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    const dType = String(d.type || d.tier || "unknown");
+    typeCounts.set(dType, (typeCounts.get(dType) || 0) + 1);
+  }
+
+  return res.json({
+    ok: true,
+    items,
+    total,
+    limit,
+    offset,
+    facets: {
+      tags: Array.from(tagCounts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count).slice(0, 25),
+      types: Array.from(typeCounts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count)
+    }
+  });
+});
+
+app.get("/api/artifacts/paginated", (req, res) => {
+  const limit = clamp(Number(req.query.limit || 20), 1, 100);
+  const offset = Math.max(0, Number(req.query.offset || 0) || 0);
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const type = String(req.query.type || "").trim();
+
+  let artifacts = Array.from(STATE.lensArtifacts.values());
+  if (type) artifacts = artifacts.filter((a) => String(a.type || "") === type);
+  if (q) artifacts = artifacts.filter((a) => String(a.title || "").toLowerCase().includes(q) || JSON.stringify(a.data || {}).toLowerCase().includes(q));
+
+  artifacts.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+  const total = artifacts.length;
+  const items = artifacts.slice(offset, offset + limit);
+  const typeCounts = new Map();
+  for (const a of artifacts) {
+    const artifactType = String(a.type || "unknown");
+    typeCounts.set(artifactType, (typeCounts.get(artifactType) || 0) + 1);
+  }
+
+  return res.json({
+    ok: true,
+    items,
+    total,
+    limit,
+    offset,
+    facets: {
+      tags: [],
+      types: Array.from(typeCounts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count)
+    }
+  });
+});
+
+app.get("/api/jobs/paginated", (req, res) => {
+  const limit = clamp(Number(req.query.limit || 20), 1, 100);
+  const offset = Math.max(0, Number(req.query.offset || 0) || 0);
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const status = String(req.query.status || "").trim();
+
+  let jobs = Array.from(STATE.jobs.values());
+  if (status) jobs = jobs.filter((j) => String(j.status || "") === status);
+  if (q) jobs = jobs.filter((j) => String(j.kind || j.type || "").toLowerCase().includes(q));
+  jobs.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const total = jobs.length;
+  const items = jobs.slice(offset, offset + limit);
+  const statusCounts = new Map();
+  for (const j of jobs) {
+    const st = String(j.status || "unknown");
+    statusCounts.set(st, (statusCounts.get(st) || 0) + 1);
+  }
+
+  return res.json({
+    ok: true,
+    items,
+    total,
+    limit,
+    offset,
+    facets: {
+      tags: [],
+      types: Array.from(statusCounts.entries()).map(([value, count]) => ({ value, count }))
+    }
+  });
+});
+
+app.get("/api/marketplace/paginated", (req, res) => {
+  const limit = clamp(Number(req.query.limit || 20), 1, 100);
+  const offset = Math.max(0, Number(req.query.offset || 0) || 0);
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const visibility = String(req.query.visibility || req.query.status || "").trim();
+
+  let listings = Array.from(STATE.listings.values());
+  if (visibility) listings = listings.filter((l) => String(l.visibility || l.status || "") === visibility);
+  if (q) listings = listings.filter((l) => String(l.title || l.dtuId || "").toLowerCase().includes(q));
+  listings.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const total = listings.length;
+  const items = listings.slice(offset, offset + limit);
+  const statusCounts = new Map();
+  for (const l of listings) {
+    const st = String(l.visibility || l.status || "unknown");
+    statusCounts.set(st, (statusCounts.get(st) || 0) + 1);
+  }
+
+  return res.json({
+    ok: true,
+    items,
+    total,
+    limit,
+    offset,
+    facets: {
+      tags: [],
+      types: Array.from(statusCounts.entries()).map(([value, count]) => ({ value, count }))
+    }
+  });
 });
 
 // ============================================================================
