@@ -67,12 +67,14 @@ export interface LensEntry {
 export const LENS_REGISTRY: LensEntry[] = [
   // ── Core ──────────────────────────────────────────────────────
   { id: 'chat', name: 'Chat', icon: MessageSquare, description: 'Conversational AI interface', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/chat', order: 1, keywords: ['message', 'talk', 'ai'] },
-  { id: 'thread', name: 'Thread', icon: MessageCircle, description: 'Threaded conversations', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/thread', order: 2, keywords: ['conversation', 'discussion'] },
-  { id: 'code', name: 'Code', icon: Code, description: 'Code editor and execution', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/code', order: 3, keywords: ['editor', 'programming', 'dev'] },
-  { id: 'graph', name: 'Graph', icon: Share2, description: 'Knowledge graph visualization', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/graph', order: 4, keywords: ['network', 'nodes', 'edges', 'knowledge'] },
-  { id: 'resonance', name: 'Resonance', icon: Activity, description: 'System health dashboard', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/resonance', order: 5, keywords: ['health', 'metrics', 'status'] },
-  { id: 'docs', name: 'Docs', icon: Book, description: 'Documentation viewer', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/docs', order: 6, keywords: ['documentation', 'reference', 'help'] },
-  { id: 'paper', name: 'Paper', icon: FileText, description: 'Research paper editor', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/paper', order: 7, keywords: ['research', 'writing', 'academic'] },
+  { id: 'global', name: 'Global', icon: Globe, description: 'Universal DTU browser and sync hub', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/global', order: 2, keywords: ['truth', 'dtu', 'sync', 'browser'] },
+  { id: 'all', name: 'All Lenses', icon: Compass, description: 'Lens Hub for discovering every lens', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/all', order: 3, keywords: ['hub', 'discover', 'catalog'] },
+  { id: 'thread', name: 'Thread', icon: MessageCircle, description: 'Threaded conversations', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/thread', order: 4, keywords: ['conversation', 'discussion'] },
+  { id: 'code', name: 'Code', icon: Code, description: 'Code editor and execution', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/code', order: 5, keywords: ['editor', 'programming', 'dev'] },
+  { id: 'graph', name: 'Graph', icon: Share2, description: 'Knowledge graph visualization', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/graph', order: 6, keywords: ['network', 'nodes', 'edges', 'knowledge'] },
+  { id: 'resonance', name: 'Resonance', icon: Activity, description: 'System health dashboard', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/resonance', order: 7, keywords: ['health', 'metrics', 'status'] },
+  { id: 'docs', name: 'Docs', icon: Book, description: 'Documentation viewer', category: 'core', showInSidebar: false, showInCommandPalette: true, path: '/lenses/docs', order: 8, keywords: ['documentation', 'reference', 'help'] },
+  { id: 'paper', name: 'Paper', icon: FileText, description: 'Research paper editor', category: 'core', showInSidebar: true, showInCommandPalette: true, path: '/lenses/paper', order: 9, keywords: ['research', 'writing', 'academic'] },
 
   // ── Knowledge ─────────────────────────────────────────────────
   { id: 'forum', name: 'Forum', icon: Hash, description: 'Discussion forum', category: 'knowledge', showInSidebar: false, showInCommandPalette: true, path: '/lenses/forum', order: 10, keywords: ['discuss', 'community'] },

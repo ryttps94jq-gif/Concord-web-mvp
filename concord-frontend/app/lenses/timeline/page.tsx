@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -88,11 +89,15 @@ export default function TimelineLensPage() {
 
   const [_newPost, setNewPost] = useState('');
   const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [limit, setLimit] = useState(30);
 
-  const { data: posts, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
-    queryKey: ['timeline-posts'],
-    queryFn: () => api.get('/api/dtus', { params: { limit: 30 } }).then(r =>
-      r.data?.dtus?.map((dtu: Record<string, unknown>) => ({
+  const { data: postsData, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
+    queryKey: ['timeline-posts', limit],
+    queryFn: () => api.get('/api/dtus/paginated', { params: { limit, offset: 0, tags: 'timeline' } }).then(r => r.data),
+  });
+
+  const posts =
+    postsData?.items?.map((dtu: Record<string, unknown>) => ({
         id: dtu.id,
         author: {
           id: dtu.authorId || 'user',
@@ -111,9 +116,8 @@ export default function TimelineLensPage() {
         comments: Math.floor(Math.random() * 50),
         shares: Math.floor(Math.random() * 20),
         dtuId: dtu.id
-      })) || []
-    ),
-  });
+      })) || [];
+
 
   const { data: friends, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['friends'],
@@ -179,6 +183,12 @@ export default function TimelineLensPage() {
   }
   return (
     <div className="min-h-full bg-[#18191a]">
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <div className="bg-[#242526] rounded-lg p-3 flex items-center justify-between text-sm">
+          <span className="text-gray-300">Timeline defaults to 30 posts for speed.</span>
+          <Link href="/lenses/global" className="text-blue-400 hover:text-blue-300">View all in Global</Link>
+        </div>
+      </div>
       {/* Header */}
       <header className="sticky top-0 z-20 bg-[#242526] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -312,7 +322,18 @@ export default function TimelineLensPage() {
               ))}
             </div>
           ) : (
-            posts?.map((post: Post) => (
+            <>
+              <div className="bg-[#242526] rounded-lg p-3 flex items-center justify-between text-xs text-gray-400">
+                <span>Showing {posts.length} of {postsData?.total || posts.length} timeline DTUs</span>
+                <button
+                  className="px-3 py-1.5 rounded bg-[#3a3b3c] text-white disabled:opacity-50"
+                  disabled={posts.length >= Number(postsData?.total || 0)}
+                  onClick={() => setLimit((v) => v + 30)}
+                >
+                  Load more
+                </button>
+              </div>
+            {posts?.map((post: Post) => (
               <article key={post.id} className="bg-[#242526] rounded-lg">
                 {/* Post Header */}
                 <div className="p-4 pb-0">
@@ -434,7 +455,8 @@ export default function TimelineLensPage() {
                   </div>
                 </div>
               </article>
-            ))
+            ))}
+            </>
           )}
         </main>
 

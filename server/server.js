@@ -19461,17 +19461,67 @@ app.get("/api/admin/metrics", async (req, res) => {
 });
 
 app.get("/api/dtus/paginated", (req, res) => {
+  const hasOffsetMode = req.query.limit !== undefined || req.query.offset !== undefined;
   const page = clamp(Number(req.query.page || 1), 1, 10000);
-  const pageSize = clamp(Number(req.query.pageSize || 20), 1, 100);
+  const pageSize = clamp(Number(req.query.pageSize || req.query.limit || 20), 1, 100);
+  const offset = Math.max(Number(req.query.offset || 0), 0);
   const tier = req.query.tier || null;
-  const tag = req.query.tag || null;
+  const query = String(req.query.query || req.query.search || "").trim().toLowerCase();
+  const tagsRaw = req.query.tags || req.query.tag || null;
 
   let dtus = dtusArray();
   if (tier) dtus = dtus.filter(d => d.tier === tier);
-  if (tag) dtus = dtus.filter(d => (d.tags || []).includes(tag));
+  if (query) {
+    dtus = dtus.filter((d) => {
+      const haystack = `${d.title || ""} ${d.content || ""} ${d.human?.summary || ""} ${(d.tags || []).join(" ")}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  if (tagsRaw) {
+    const tags = String(tagsRaw).split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    if (tags.length) {
+      dtus = dtus.filter((d) => (d.tags || []).some((t) => tags.includes(String(t).toLowerCase())));
+    }
+  }
+
+  if (hasOffsetMode) {
+    const total = dtus.length;
+    const items = dtus.slice(offset, offset + pageSize);
+    return res.json({
+      ok: true,
+      items,
+      total,
+      pagination: {
+        limit: pageSize,
+        offset,
+        total,
+        hasMore: offset + items.length < total,
+      },
+    });
+  }
 
   const result = paginateResults(dtus, { page, pageSize });
-  return res.json({ ok: true, ...result });
+  return res.json({ ok: true, ...result, total: result.pagination.total });
+});
+
+app.post('/api/dtus/:id/sync-lens', (req, res) => {
+  const dtu = getDTU(req.params.id);
+  if (!dtu) return res.status(404).json({ ok: false, error: 'DTU not found' });
+
+  const lens = String(req.body?.lens || '').trim().toLowerCase();
+  if (!lens) return res.status(400).json({ ok: false, error: 'lens is required' });
+
+  const scopeTag = `scope:${String(req.body?.scope || 'global')}`;
+  const lensTag = `lens:${lens}`;
+  const currentTags = Array.isArray(dtu.tags) ? dtu.tags : [];
+  dtu.tags = Array.from(new Set([...currentTags, lensTag, scopeTag]));
+  dtu.updatedAt = Date.now();
+
+  STATE.dtus.set(dtu.id, dtu);
+  saveStateDebounced();
+
+  return res.json({ ok: true, dtu, synced: { lens, scope: String(req.body?.scope || 'global') } });
 });
 
 // ============================================================================
