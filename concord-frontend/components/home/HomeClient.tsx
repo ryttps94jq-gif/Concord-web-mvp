@@ -23,6 +23,7 @@ const ENTERED_KEY = 'concord_entered';
 
 export function HomeClient() {
   const [hasEntered, setHasEntered] = useState<boolean | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const setFullPageMode = useUIStore((state) => state.setFullPageMode);
 
   useEffect(() => {
@@ -34,12 +35,21 @@ export function HomeClient() {
     const isEntered = entered === 'true';
     setHasEntered(isEntered);
     setFullPageMode(!isEntered);
+
+    // If user has entered before, verify they're still authenticated
+    if (isEntered) {
+      api.get('/api/auth/me')
+        .then(() => setAuthChecked(true))
+        .catch(() => {
+          // Not authenticated — the 401 interceptor will redirect to /login
+          setAuthChecked(true);
+        });
+    }
   }, [setFullPageMode]);
 
   const handleEnter = () => {
-    localStorage.setItem(ENTERED_KEY, 'true');
-    setHasEntered(true);
-    setFullPageMode(false);
+    // Send user to register/login instead of straight to dashboard
+    window.location.href = '/register';
   };
 
   // Still loading from localStorage
@@ -52,7 +62,16 @@ export function HomeClient() {
     return <LandingPage onEnter={handleEnter} />;
   }
 
-  // Show dashboard for returning users
+  // Wait for auth check before rendering dashboard
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show dashboard for authenticated returning users
   return <DashboardPage />;
 }
 

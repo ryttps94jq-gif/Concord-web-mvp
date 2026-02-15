@@ -122,9 +122,10 @@ api.interceptors.response.use(
       }
 
       if (status === 401 && typeof window !== 'undefined') {
-        // Redirect to login if not already on login page
+        // Redirect to login if not already on an auth page
         // Session is managed via httpOnly cookies, cleared by server
-        if (!window.location.pathname.includes('/login')) {
+        const path = window.location.pathname;
+        if (!path.includes('/login') && !path.includes('/register')) {
           window.location.href = '/login';
         }
       }

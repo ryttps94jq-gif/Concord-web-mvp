@@ -4407,9 +4407,11 @@ function _hydrateState(obj) {
   put(STATE.dtus, obj.dtus);
   put(STATE.shadowDtus, obj.shadowDtus);
   // migration: DTUs created before tiers existed default to regular
+  // migration: DTUs created before scope separation default to global (seed/canonical data)
   for (const d of STATE.dtus.values()) {
     if (!d.tier) d.tier = "regular";
     if (!d.createdAt) d.createdAt = nowISO();
+    if (!d.scope) d.scope = (d.source === "user" || d.source === "chat") ? "local" : "global";
   }
   put(STATE.wrappers, obj.wrappers);
   put(STATE.layers, obj.layers);

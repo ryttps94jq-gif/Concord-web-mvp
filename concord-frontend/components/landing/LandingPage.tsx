@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 interface LandingPageProps {
-  onEnter: () => void;
+  onEnter?: () => void;
 }
 
-export function LandingPage({ onEnter }: LandingPageProps) {
+export function LandingPage(_props: LandingPageProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -41,12 +41,18 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
           <a href="#sovereignty" className="text-gray-400 hover:text-white transition-colors">Sovereignty</a>
           <a href="#architecture" className="text-gray-400 hover:text-white transition-colors">Architecture</a>
-          <button
-            onClick={onEnter}
+          <a
+            href="/login"
+            className="px-4 py-2 text-gray-300 hover:text-white transition-colors font-medium"
+          >
+            Sign In
+          </a>
+          <a
+            href="/register"
             className="px-4 py-2 bg-neon-blue/20 border border-neon-blue/50 rounded-lg text-neon-blue hover:bg-neon-blue/30 transition-all"
           >
-            Enter Dashboard
-          </button>
+            Get Started
+          </a>
         </nav>
       </header>
 
@@ -71,13 +77,13 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
-            onClick={onEnter}
+          <a
+            href="/register"
             className="group px-8 py-4 bg-gradient-to-r from-neon-cyan to-neon-blue rounded-xl text-white font-semibold text-lg hover:shadow-lg hover:shadow-neon-cyan/25 transition-all flex items-center gap-2"
           >
-            Launch Concord
+            Get Started
             <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-          </button>
+          </a>
           <a
             href="#features"
             className="px-8 py-4 border border-gray-700 rounded-xl text-gray-300 font-semibold text-lg hover:border-gray-500 hover:text-white transition-all"
@@ -245,16 +251,16 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </h2>
           <p className="text-gray-400 text-lg mb-8">
             Start building your sovereign knowledge empire today.
-            No sign-up required. No data collected. Just pure cognitive power.
+            No data collected. Just pure cognitive power.
           </p>
-          <button
-            onClick={onEnter}
-            className="group px-10 py-5 bg-gradient-to-r from-neon-cyan to-neon-blue rounded-xl text-white font-semibold text-xl hover:shadow-xl hover:shadow-neon-cyan/30 transition-all flex items-center gap-3 mx-auto"
+          <a
+            href="/register"
+            className="group px-10 py-5 bg-gradient-to-r from-neon-cyan to-neon-blue rounded-xl text-white font-semibold text-xl hover:shadow-xl hover:shadow-neon-cyan/30 transition-all inline-flex items-center gap-3 mx-auto"
           >
             <Sparkles className="w-6 h-6" />
-            Enter Concord
+            Create Your Account
             <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-          </button>
+          </a>
         </div>
       </section>
 
