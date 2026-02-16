@@ -68,8 +68,9 @@ export function useLensData<T = Record<string, unknown>>(
       return data as { ok: boolean; artifacts: LensItem<T>[]; total: number };
     },
     enabled,
-    staleTime: 5000,
-    retry: 1,
+    staleTime: 30000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
   // Auto-seed if backend returned empty and we have seed data
@@ -77,11 +78,14 @@ export function useLensData<T = Record<string, unknown>>(
     if (noSeed || seeded.current || !response || isLoading) return;
     if (response.ok && response.total === 0 && seed.length > 0) {
       seeded.current = true;
-      api.post(`/api/lens/${domain}/bulk`, { type, items: seed })
+      api.post(`/api/lens/${domain}/bulk`, { type, items: seed }, { timeout: 60000 })
         .then(() => {
           qc.invalidateQueries({ queryKey: ['lens', domain, 'list'] });
         })
-        .catch(() => { seeded.current = false; });
+        .catch((err) => {
+          console.error(`[useLensData] Bulk seed failed for ${domain}/${type}:`, err?.message || err);
+          seeded.current = false;
+        });
     }
   }, [response, isLoading, domain, type, seed, noSeed, qc]);
 

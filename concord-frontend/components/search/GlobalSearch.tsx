@@ -15,6 +15,7 @@ import {
   Filter,
   Sparkles
 } from 'lucide-react';
+import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 interface SearchResult {
@@ -78,40 +79,18 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
     const searchTimeout = setTimeout(async () => {
       setLoading(true);
       try {
-        // In real implementation, call search API
-        // const res = await api.search({ query, scope });
-
-        // Simulated results
-        const mockResults: SearchResult[] = [
-          {
-            id: '1',
-            type: 'dtu',
-            title: `DTU matching "${query}"`,
-            excerpt: 'This is a sample result excerpt that shows matching content...',
-            tier: 'regular',
-            tags: ['philosophy', 'cognition'],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '2',
-            type: 'dtu',
-            title: `Another result for "${query}"`,
-            excerpt: 'Another matching document with relevant content...',
-            tier: 'mega',
-            tags: ['research'],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '3',
-            type: 'tag',
-            title: query.toLowerCase(),
-            excerpt: '15 DTUs tagged'
-          }
-        ];
-
-        setResults(mockResults);
+        const res = await api.get('/api/global/search', {
+          params: { q: query, scope, limit: 20 }
+        });
+        const data = res.data;
+        if (data.ok && Array.isArray(data.results)) {
+          setResults(data.results);
+        } else {
+          setResults([]);
+        }
       } catch (error) {
         console.error('Search failed:', error);
+        setResults([]);
       } finally {
         setLoading(false);
       }

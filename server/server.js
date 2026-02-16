@@ -15708,9 +15708,19 @@ globalThis.canRunMacro = _canRunMacro;
 app.use((req, res, next) => {
   try {
     ensureRootIdentity();
-    const a = getActorFromReq(req);
-    if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
-    req.actor = a.actor;
+    // If JWT/cookie auth already authenticated the user, derive actor from req.user
+    if (req.user) {
+      req.actor = {
+        userId: req.user.id,
+        orgId: "default",
+        role: req.user.role || "member",
+        scopes: Array.isArray(req.user.scopes) && req.user.scopes.length ? req.user.scopes : ["read", "write"]
+      };
+    } else {
+      const a = getActorFromReq(req);
+      if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
+      req.actor = a.actor;
+    }
   } catch (e) {
     return res.status(500).json({ ok:false, error: String(e?.message || e) });
   }
@@ -16120,25 +16130,45 @@ app.get("/api/dtu_view/:id", (req, res) => {
 
 // DTUs
 app.get("/api/dtus", async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","list",{ q:req.query.q, tier:req.query.tier || "any", limit:req.query.limit, offset:req.query.offset }, ctx);
-  res.json(out);
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("dtu","list",{ q:req.query.q, tier:req.query.tier || "any", limit:req.query.limit, offset:req.query.offset }, ctx);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
+  }
 });
 app.get("/api/dtus/:id", async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","get",{ id:req.params.id }, ctx);
-  if (!out.ok) return res.status(404).json(out);
-  res.json(out);
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("dtu","get",{ id:req.params.id }, ctx);
+    if (!out.ok) return res.status(404).json(out);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
+  }
 });
 app.post("/api/dtus", async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","create", req.body || {}, ctx);
-  res.json(out);
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("dtu","create", req.body || {}, ctx);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
+  }
 });
 app.post("/api/dtus/saveSuggested", async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","saveSuggested", req.body || {}, ctx);
-  res.json(out);
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("dtu","saveSuggested", req.body || {}, ctx);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
+  }
 });
 
 // Chat + Ask
@@ -18910,6 +18940,11 @@ STATE.dtus.set = function(key, value) {
   return _originalDtuSet(key, value);
 };
 
+// Force initial search index build so first queries don't hit cold index
+if (STATE.dtus.size > 0) {
+  rebuildSearchIndex();
+}
+
 // ---- Query DSL Parser ----
 function parseQueryDSL(queryString) {
   const conditions = [];
@@ -19522,6 +19557,62 @@ app.get("/api/search/dsl", async (req, res) => {
 app.post("/api/search/reindex", async (req, res) => {
   const out = await runMacro("search", "reindex", {}, makeCtx(req));
   return res.json(out);
+});
+
+// Global search endpoint - unified search across DTUs, tags, and lens artifacts
+app.get("/api/global/search", (req, res) => {
+  const query = String(req.query.q || "").trim();
+  const scope = String(req.query.scope || "all");
+  const limit = clamp(Number(req.query.limit || 20), 1, 100);
+
+  if (!query) return res.json({ ok: true, results: [], query: "", count: 0 });
+
+  const results = [];
+
+  // Search DTUs
+  if (scope === "all" || scope === "dtus") {
+    const indexed = searchIndexed(query, { limit, minScore: 0.01 });
+    for (const dtu of indexed) {
+      results.push({
+        id: dtu.id,
+        type: "dtu",
+        title: dtu.title || "Untitled",
+        excerpt: dtu.human?.summary || dtu.cretiHuman || (dtu.core?.definitions || []).slice(0, 1).join("") || "",
+        tier: dtu.tier || "regular",
+        tags: (dtu.tags || []).slice(0, 5),
+        createdAt: dtu.createdAt,
+        score: dtu._searchScore || 0
+      });
+    }
+  }
+
+  // Search by tags
+  if (scope === "all" || scope === "tags") {
+    const qLower = query.toLowerCase();
+    const tagCounts = new Map();
+    for (const dtu of dtusArray()) {
+      if (isShadowDTU(dtu)) continue;
+      for (const tag of (dtu.tags || [])) {
+        if (tag.toLowerCase().includes(qLower)) {
+          tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+        }
+      }
+    }
+    const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    for (const [tag, count] of sortedTags) {
+      results.push({
+        id: `tag:${tag}`,
+        type: "tag",
+        title: tag,
+        excerpt: `${count} DTU${count !== 1 ? "s" : ""} tagged`,
+        score: count / 100
+      });
+    }
+  }
+
+  // Sort by score descending, take limit
+  results.sort((a, b) => (b.score || 0) - (a.score || 0));
+  return res.json({ ok: true, results: results.slice(0, limit), query, count: results.length });
 });
 
 app.post("/api/llm/local", async (req, res) => {
@@ -20950,42 +21041,7 @@ function registerLensAction(domain, action, handler) {
   LENS_ACTIONS.set(`${domain}.${action}`, handler);
 }
 
-// REST routes for generic lens artifacts
-app.get("/api/lens/:domain", async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("lens", "list", { domain: req.params.domain, type: req.query.type, search: req.query.search, tags: req.query.tags?.split(","), status: req.query.status, limit: Number(req.query.limit)||100, offset: Number(req.query.offset)||0 }, ctx);
-  res.json(out);
-});
-app.get("/api/lens/:domain/:id", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "get", { id: req.params.id, domain: req.params.domain }, ctx));
-});
-app.post("/api/lens/:domain", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "create", { domain: req.params.domain, ...req.body }, ctx));
-});
-app.put("/api/lens/:domain/:id", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "update", { id: req.params.id, ...req.body }, ctx));
-});
-app.delete("/api/lens/:domain/:id", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "delete", { id: req.params.id }, ctx));
-});
-app.post("/api/lens/:domain/:id/run", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "run", { id: req.params.id, ...req.body }, ctx));
-});
-app.get("/api/lens/:domain/:id/export", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "export", { id: req.params.id, format: req.query.format || "json" }, ctx));
-});
-app.post("/api/lens/:domain/bulk", async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
-});
-
-// Pipeline introspection endpoint
+// Pipeline introspection endpoint (must be before wildcard :domain routes)
 app.get("/api/lens/pipelines", (req, res) => {
   const pipelines = [];
   for (const [key, handlers] of LENS_PIPELINES) {
@@ -20997,13 +21053,97 @@ app.get("/api/lens/pipelines", (req, res) => {
   res.json({ ok: true, pipelines, count: pipelines.length });
 });
 
-// Domain index stats endpoint
+// Domain index stats endpoint (must be before wildcard :domain routes)
 app.get("/api/lens/stats", (req, res) => {
   const domains = {};
   for (const [domain, ids] of STATE.lensDomainIndex) {
     domains[domain] = ids.size;
   }
   res.json({ ok: true, domains, totalArtifacts: STATE.lensArtifacts.size, domainCount: STATE.lensDomainIndex.size });
+});
+
+// REST routes for generic lens artifacts
+// All routes wrapped in try/catch to prevent hanging requests on errors
+app.get("/api/lens/:domain", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("lens", "list", { domain: req.params.domain, type: req.query.type, search: req.query.search, tags: req.query.tags?.split(","), status: req.query.status, limit: Number(req.query.limit)||100, offset: Number(req.query.offset)||0 }, ctx);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.get("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "get", { id: req.params.id, domain: req.params.domain }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "create", { domain: req.params.domain, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.put("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "update", { id: req.params.id, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.delete("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "delete", { id: req.params.id }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain/:id/run", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "run", { id: req.params.id, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.get("/api/lens/:domain/:id/export", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "export", { id: req.params.id, format: req.query.format || "json" }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain/bulk", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
 });
 
 // ── Domain-Specific Lens Action Engines ──────────────────────────────────────
@@ -26315,9 +26455,10 @@ app.post("/api/credits/spend", requireAuth(), (req, res) => {
 app.get("/api/global/feed", (req, res) => {
   const { limit = 50, offset = 0, tier } = req.query;
 
-  // Get global DTUs (isGlobal flag or tier >= mega)
+  // Get global DTUs (isGlobal flag, scope=global, or tier >= mega)
   let globalDtus = Array.from(STATE.dtus?.values() || [])
-    .filter(d => d.isGlobal || d.tier === "mega" || d.tier === "hyper")
+    .filter(d => d.isGlobal || d.scope === "global" || d.tier === "mega" || d.tier === "hyper")
+    .filter(d => !isShadowDTU(d))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   // Filter by tier if specified
