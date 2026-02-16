@@ -16195,7 +16195,9 @@ app.post("/api/queues/:queue/propose", (req,res)=>{
   ensureQueues();
   const q = String(req.params.queue||"");
   if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
-  const item = { id: uid(`q_${q}`), createdAt: nowISO(), status: "queued", ...((req.body&&typeof req.body==='object')?req.body:{}) };
+  const raw = (req.body&&typeof req.body==='object') ? req.body : {};
+  const { title, description, content, tags, priority, meta, proposerOrganId, type: itemType } = raw;
+  const item = { id: uid(`q_${q}`), createdAt: nowISO(), status: "queued", title, description, content, tags, priority, meta, proposerOrganId, type: itemType };
   STATE.queues[q].push(item);
   saveStateDebounced();
   res.json({ ok:true, item });

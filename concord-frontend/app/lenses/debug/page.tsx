@@ -33,7 +33,7 @@ export default function DebugLensPage() {
   if (isError || isError2 || isError3) {
     return (
       <div className="flex items-center justify-center h-full p-8">
-        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch3(); }} />
+        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetchStatus(); refetchEvents(); refetch3(); }} />
       </div>
     );
   }

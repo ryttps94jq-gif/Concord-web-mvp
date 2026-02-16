@@ -44,21 +44,40 @@ export function ActivityFeed() {
   const [scopeFilter, setScopeFilter] = useState('');
   const limit = 25;
 
-  // SSE for live updates
+  // SSE for live updates with reconnection
   useEffect(() => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
-    const es = new EventSource(`${baseUrl}/api/events/stream`);
+    let es: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout>;
+    let retryDelay = 1000;
+    let cancelled = false;
 
-    es.onmessage = () => {
-      // Invalidate to refresh the list when new events arrive
-      queryClient.invalidateQueries({ queryKey: ['activity-feed'] });
+    function connect() {
+      if (cancelled) return;
+      es = new EventSource(`${baseUrl}/api/events/stream`);
+
+      es.onopen = () => { retryDelay = 1000; };
+
+      es.onmessage = () => {
+        queryClient.invalidateQueries({ queryKey: ['activity-feed'] });
+      };
+
+      es.onerror = () => {
+        es?.close();
+        if (!cancelled) {
+          retryTimeout = setTimeout(connect, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimeout);
+      es?.close();
     };
-
-    es.onerror = () => {
-      // SSE reconnects automatically
-    };
-
-    return () => es.close();
   }, [queryClient]);
 
   const { data, isLoading, refetch } = useQuery<EventsResponse>({

@@ -114,9 +114,10 @@ export function registerGuidanceEndpoints(app, db) {
     res.write("data: {\"type\":\"connected\"}\n\n");
     sseClients.add(res);
 
-    req.on("close", () => {
-      sseClients.delete(res);
-    });
+    const cleanup = () => sseClients.delete(res);
+    req.on("close", cleanup);
+    req.on("error", cleanup);
+    res.on("error", cleanup);
   });
 
   // ═══════════════════════════════════════════════════════════════
@@ -163,7 +164,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, items, total, limit: lim, offset: off });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -328,7 +329,7 @@ export function registerGuidanceEndpoints(app, db) {
         actions,
       });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -365,7 +366,8 @@ export function registerGuidanceEndpoints(app, db) {
           }
           case "delete_created": {
             // Delete the entity that was just created
-            const table = undo.table || "dtus";
+            const UNDO_ALLOWED_TABLES = ["dtus", "artifacts", "jobs", "marketplace_listings", "lens_items", "studio_projects"];
+            const table = UNDO_ALLOWED_TABLES.includes(undo.table) ? undo.table : "dtus";
             db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(undo.entityId);
             break;
           }
@@ -406,7 +408,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, message: "Undo applied", originalEvent: event.id });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -447,7 +449,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, dtu: { id, title, visibility, tier, created_at: now }, undoToken });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -503,7 +505,7 @@ export function registerGuidanceEndpoints(app, db) {
       const updated = db.prepare("SELECT * FROM dtus WHERE id = ?").get(req.params.id);
       res.json({ ok: true, dtu: updated, undoToken });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -529,7 +531,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, undoToken });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -562,7 +564,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, lens_item_id: id, undoToken });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -597,7 +599,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, message: "Published", undoToken });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -648,7 +650,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, preview });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -751,7 +753,7 @@ export function registerGuidanceEndpoints(app, db) {
       suggestions.sort((a, b) => a.priority - b.priority);
       res.json({ ok: true, suggestions: suggestions.slice(0, 5) });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -781,7 +783,7 @@ export function registerGuidanceEndpoints(app, db) {
 
       res.json({ ok: true, steps, allDone, completedCount: steps.filter((s) => s.completed).length });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 

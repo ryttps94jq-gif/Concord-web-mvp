@@ -175,7 +175,7 @@ export default function HouseholdLensPage() {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
 
-  const currentTab = MODE_TABS.find(t => t.id === mode)!;
+  const currentTab = MODE_TABS.find(t => t.id === mode) ?? MODE_TABS[0];
   const currentType = currentTab.types[0];
 
   const { items, isLoading, isError, error, refetch, create, update, remove } = useLensData<ArtifactData>('household', currentType, {

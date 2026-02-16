@@ -320,7 +320,7 @@ export function registerDurableEndpoints(app, db) {
 
       // Check entitlement if marketplace
       if (artifact.visibility === "marketplace") {
-        const userId = req.query.user_id || req.headers["x-user-id"];
+        const userId = req.actor?.userId || req.query.user_id || req.headers["x-user-id"];
         if (userId && userId !== artifact.owner_user_id) {
           const listingAsset = db.prepare(
             "SELECT la.listing_id FROM marketplace_listing_assets la JOIN marketplace_listings l ON la.listing_id = l.id WHERE la.artifact_id = ? AND l.visibility = 'published'"
@@ -345,7 +345,8 @@ export function registerDurableEndpoints(app, db) {
 
       res.setHeader("Content-Type", file.contentType);
       res.setHeader("Content-Length", file.size);
-      res.setHeader("Content-Disposition", `attachment; filename="${artifact.title}"`);
+      const safeFilename = (artifact.title || "download").replace(/["\r\n\\]/g, "_");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
       file.stream.pipe(res);
     } catch (e) {
       if (e.message?.includes("not found")) return res.status(404).json({ error: e.message });

@@ -36,11 +36,11 @@ export default function CustomLensPage() {
   });
 
   const createLens = useMutation({
-    mutationFn: (payload: { name: string; config: string }) =>
-      api.post('/api/lenses/custom', {
-        name: payload.name,
-        config: JSON.parse(payload.config),
-      }),
+    mutationFn: (payload: { name: string; config: string }) => {
+      let parsed;
+      try { parsed = JSON.parse(payload.config); } catch { throw new Error('Invalid JSON in lens configuration'); }
+      return api.post('/api/lenses/custom', { name: payload.name, config: parsed });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['custom-lenses'] });
       setShowBuilder(false);

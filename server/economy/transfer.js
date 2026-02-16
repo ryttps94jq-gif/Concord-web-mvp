@@ -4,7 +4,7 @@
 
 import { recordTransactionBatch, generateTxId, checkRefIdProcessed } from "./ledger.js";
 import { calculateFee, PLATFORM_ACCOUNT_ID } from "./fees.js";
-import { validateTransfer, validateAmount, validateBalance } from "./validators.js";
+import { validateTransfer, validateAmount, validateBalance, validateUsers } from "./validators.js";
 
 /**
  * Execute an atomic transfer between two users.
@@ -27,73 +27,81 @@ export function executeTransfer(db, { from, to, amount, type = "TRANSFER", metad
     if (existing.exists) return { ok: true, idempotent: true, entries: existing.entries };
   }
 
-  // 1. Validate
-  const validation = validateTransfer(db, { from, to, amount });
-  if (!validation.ok) return validation;
+  // 1. Validate (non-balance checks outside transaction for fast-fail)
+  const amountCheck = validateAmount(amount);
+  if (!amountCheck.ok) return amountCheck;
+  const userCheck = validateUsers(from, to);
+  if (!userCheck.ok) return userCheck;
 
   // 2-3. Compute fee and net
   const { fee, net } = calculateFee(type, amount);
 
-  // 4-7. Atomic commit: debit + credit + fee
-  const entries = [];
+  // 4-7. Atomic commit: balance check + debit + credit + fee
   const batchId = generateTxId();
 
-  // Debit: sender loses the full amount
-  entries.push({
-    id: generateTxId(),
-    type,
-    from,
-    to,
-    amount,
-    fee,
-    net,
-    status: "complete",
-    refId,
-    metadata: { ...metadata, batchId, role: "debit" },
-    requestId,
-    ip,
-  });
-
-  // Credit: recipient gets the net amount
-  entries.push({
-    id: generateTxId(),
-    type,
-    from: null,
-    to,
-    amount: net,
-    fee: 0,
-    net,
-    status: "complete",
-    refId,
-    metadata: { ...metadata, batchId, role: "credit" },
-    requestId,
-    ip,
-  });
-
-  // Fee: platform gets the fee (if > 0)
-  if (fee > 0) {
-    entries.push({
-      id: generateTxId(),
-      type: "FEE",
-      from: null,
-      to: PLATFORM_ACCOUNT_ID,
-      amount: fee,
-      fee: 0,
-      net: fee,
-      status: "complete",
-      refId,
-      metadata: { ...metadata, batchId, role: "fee", sourceType: type },
-      requestId,
-      ip,
-    });
-  }
-
-  // Execute atomically (with idempotency guard inside transaction)
+  // Execute atomically (balance validated INSIDE transaction to prevent races)
   const doTransfer = db.transaction(() => {
     if (refId) {
       const dupe = checkRefIdProcessed(db, refId);
       if (dupe.exists) return { idempotent: true, entries: dupe.entries };
     }
+
+    // Balance check inside transaction for atomicity
+    const balanceCheck = validateBalance(db, from, amount);
+    if (!balanceCheck.ok) throw new Error(`insufficient_balance:${balanceCheck.balance}:${balanceCheck.required}`);
+
+    const entries = [];
+
+    // Debit: sender loses the full amount
+    entries.push({
+      id: generateTxId(),
+      type,
+      from,
+      to,
+      amount,
+      fee,
+      net,
+      status: "complete",
+      refId,
+      metadata: { ...metadata, batchId, role: "debit" },
+      requestId,
+      ip,
+    });
+
+    // Credit: recipient gets the net amount
+    entries.push({
+      id: generateTxId(),
+      type,
+      from: null,
+      to,
+      amount: net,
+      fee: 0,
+      net,
+      status: "complete",
+      refId,
+      metadata: { ...metadata, batchId, role: "credit" },
+      requestId,
+      ip,
+    });
+
+    // Fee: platform gets the fee (if > 0)
+    if (fee > 0) {
+      entries.push({
+        id: generateTxId(),
+        type: "FEE",
+        from: null,
+        to: PLATFORM_ACCOUNT_ID,
+        amount: fee,
+        fee: 0,
+        net: fee,
+        status: "complete",
+        refId,
+        metadata: { ...metadata, batchId, role: "fee", sourceType: type },
+        requestId,
+        ip,
+      });
+    }
+
     return recordTransactionBatch(db, entries);
   });
 
@@ -111,6 +119,10 @@ export function executeTransfer(db, { from, to, amount, type = "TRANSFER", metad
       to,
     };
   } catch (err) {
+    if (err.message?.startsWith('insufficient_balance:')) {
+      const parts = err.message.split(':');
+      return { ok: false, error: "insufficient_balance", balance: Number(parts[1]), required: Number(parts[2]) };
+    }
     if (err.message?.includes('UNIQUE constraint') && refId) {
       return { ok: true, idempotent: true };
     }
@@ -203,69 +215,76 @@ export function executeMarketplacePurchase(db, { buyerId, sellerId, amount, list
     if (existing.exists) return { ok: true, idempotent: true, entries: existing.entries };
   }
 
-  // Validate buyer balance
-  const balCheck = validateBalance(db, buyerId, amount);
-  if (!balCheck.ok) return balCheck;
+  // Validate amount (fast-fail outside transaction)
+  const amtCheck = validateAmount(amount);
+  if (!amtCheck.ok) return amtCheck;
+  if (!buyerId) return { ok: false, error: "missing_buyer_id" };
 
   const { fee, net } = calculateFee("MARKETPLACE_PURCHASE", amount);
   const batchId = generateTxId();
 
-  const entries = [
-    // Debit: buyer pays full amount
-    {
-      id: generateTxId(),
-      type: "MARKETPLACE_PURCHASE",
-      from: buyerId,
-      to: sellerId,
-      amount,
-      fee,
-      net,
-      status: "complete",
-      refId,
-      metadata: { ...metadata, batchId, listingId, role: "debit" },
-      requestId,
-      ip,
-    },
-    // Credit: seller gets net
-    {
-      id: generateTxId(),
-      type: "MARKETPLACE_PURCHASE",
-      from: null,
-      to: sellerId,
-      amount: net,
-      fee: 0,
-      net,
-      status: "complete",
-      refId,
-      metadata: { ...metadata, batchId, listingId, role: "credit" },
-      requestId,
-      ip,
-    },
-  ];
-
-  // Fee to platform
-  if (fee > 0) {
-    entries.push({
-      id: generateTxId(),
-      type: "FEE",
-      from: null,
-      to: PLATFORM_ACCOUNT_ID,
-      amount: fee,
-      fee: 0,
-      net: fee,
-      status: "complete",
-      refId,
-      metadata: { ...metadata, batchId, listingId, role: "fee", sourceType: "MARKETPLACE_PURCHASE" },
-      requestId,
-      ip,
-    });
-  }
-
+  // Balance validated INSIDE transaction to prevent concurrent overspend
   const doMarketplace = db.transaction(() => {
     if (refId) {
       const dupe = checkRefIdProcessed(db, refId);
       if (dupe.exists) return { idempotent: true, entries: dupe.entries };
     }
+
+    // Atomic balance check — prevents race condition
+    const balCheck = validateBalance(db, buyerId, amount);
+    if (!balCheck.ok) throw new Error(`insufficient_balance:${balCheck.balance}:${balCheck.required}`);
+
+    const entries = [
+      // Debit: buyer pays full amount
+      {
+        id: generateTxId(),
+        type: "MARKETPLACE_PURCHASE",
+        from: buyerId,
+        to: sellerId,
+        amount,
+        fee,
+        net,
+        status: "complete",
+        refId,
+        metadata: { ...metadata, batchId, listingId, role: "debit" },
+        requestId,
+        ip,
+      },
+      // Credit: seller gets net
+      {
+        id: generateTxId(),
+        type: "MARKETPLACE_PURCHASE",
+        from: null,
+        to: sellerId,
+        amount: net,
+        fee: 0,
+        net,
+        status: "complete",
+        refId,
+        metadata: { ...metadata, batchId, listingId, role: "credit" },
+        requestId,
+        ip,
+      },
+    ];
+
+    // Fee to platform
+    if (fee > 0) {
+      entries.push({
+        id: generateTxId(),
+        type: "FEE",
+        from: null,
+        to: PLATFORM_ACCOUNT_ID,
+        amount: fee,
+        fee: 0,
+        net: fee,
+        status: "complete",
+        refId,
+        metadata: { ...metadata, batchId, listingId, role: "fee", sourceType: "MARKETPLACE_PURCHASE" },
+        requestId,
+        ip,
+      });
+    }
+
     return recordTransactionBatch(db, entries);
   });
 
@@ -274,6 +293,10 @@ export function executeMarketplacePurchase(db, { buyerId, sellerId, amount, list
     if (results.idempotent) return { ok: true, idempotent: true, entries: results.entries };
     return { ok: true, batchId, transactions: results, amount, fee, net, buyerId, sellerId, listingId };
   } catch (err) {
+    if (err.message?.startsWith('insufficient_balance:')) {
+      const parts = err.message.split(':');
+      return { ok: false, error: "insufficient_balance", balance: Number(parts[1]), required: Number(parts[2]) };
+    }
     if (err.message?.includes('UNIQUE constraint') && refId) {
       return { ok: true, idempotent: true };
     }
