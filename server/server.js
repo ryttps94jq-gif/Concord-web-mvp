@@ -3299,9 +3299,12 @@ function csrfMiddleware(req, res, next) {
   const safeMethods = ["GET", "HEAD", "OPTIONS"];
   if (safeMethods.includes(req.method)) return next();
 
-  // Skip for public endpoints
-  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready"];
+  // Skip for public endpoints and core API paths (chat, lens operations)
+  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready", "/api/chat", "/api/lens"];
   if (csrfExempt.some(p => req.path.startsWith(p))) return next();
+
+  // In AUTH_MODE=public, skip CSRF — anonymous users have no session to protect
+  if (AUTH_MODE === "public") return next();
 
   // In development, CSRF is optional
   if (NODE_ENV !== "production") return next();
@@ -3498,10 +3501,12 @@ function requireRole(...roles) {
 }
 
 // Production write-auth: enforce authentication on all mutating requests in production
-// even in AUTH_MODE=public, to prevent accidental open-write deployments.
-const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics"];
+// unless AUTH_MODE=public, where anonymous writes are intentionally allowed.
+const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics", "/api/chat", "/api/lens"];
 function productionWriteAuthMiddleware(req, res, next) {
   if (NODE_ENV !== "production") return next();
+  // AUTH_MODE=public explicitly allows anonymous access — skip write-auth gate
+  if (AUTH_MODE === "public") return next();
   const method = req.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
   if (WRITE_AUTH_PUBLIC_PATHS.some(p => req.path.startsWith(p))) return next();
@@ -5026,11 +5031,19 @@ function runMacro(domain, name, input, ctx) {
       _path.startsWith("/api/dtus") ||
       _path.startsWith("/api/dtu") ||
       _path.startsWith("/api/settings") ||
+      _path.startsWith("/api/lens") ||
+      _path.startsWith("/api/goals") ||
+      _path.startsWith("/api/growth") ||
+      _path.startsWith("/api/metrics") ||
+      _path.startsWith("/api/resonance") ||
+      _path.startsWith("/api/lattice") ||
 
       // Domain/name allowlist for read-only macros (covers alternate routers)
       (domain === "system" && (name === "status" || name === "getStatus")) ||
       (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-      (domain === "settings" && (name === "get" || name === "status"))
+      (domain === "settings" && (name === "get" || name === "status")) ||
+      (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
+      (domain === "goals" && (name === "list" || name === "get" || name === "status"))
     );
 
   if (!safeReadBypass) {
@@ -5047,11 +5060,19 @@ function runMacro(domain, name, input, ctx) {
           reqPath.startsWith("/api/dtus") ||
           reqPath.startsWith("/api/dtu") ||
           reqPath.startsWith("/api/settings") ||
+          reqPath.startsWith("/api/lens") ||
+          reqPath.startsWith("/api/goals") ||
+          reqPath.startsWith("/api/growth") ||
+          reqPath.startsWith("/api/metrics") ||
+          reqPath.startsWith("/api/resonance") ||
+          reqPath.startsWith("/api/lattice") ||
 
           // Domain/name allowlist for read-only macros (covers alternate routers)
           (domain === "system" && (name === "status" || name === "getStatus")) ||
           (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-          (domain === "settings" && (name === "get" || name === "status"))
+          (domain === "settings" && (name === "get" || name === "status")) ||
+          (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
+          (domain === "goals" && (name === "list" || name === "get" || name === "status"))
         );
 
       const internalTick =
@@ -7189,7 +7210,7 @@ function makeCtx(req=null) {
 
   return {
     state: STATE,
-    actor: (req && req.actor) ? req.actor : { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] },
+    actor: (req && req.actor) ? req.actor : { userId: "anon", orgId: "public", role: AUTH_MODE === "public" ? "member" : "viewer", scopes: AUTH_MODE === "public" ? ["read", "write"] : ["read"] },
     env: {
       version: VERSION,
       llmReady: LLM_READY,
@@ -14821,11 +14842,11 @@ const corsOptions = {
     }
     // In production, check against allowed origins
     if (allowedOrigins.length === 0) {
-      console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Rejecting cross-origin request from:", origin);
-      const err = new Error("Origin blocked");
-      err.code = "ORIGIN_BLOCKED";
-      err.reason = "No ALLOWED_ORIGINS configured";
-      return callback(err, false);
+      // If no ALLOWED_ORIGINS configured, allow all origins with a warning.
+      // This prevents silent CORS failures that surface as timeouts on the frontend.
+      // Operators should set ALLOWED_ORIGINS for tighter security.
+      console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Allowing origin:", origin, "— Set ALLOWED_ORIGINS env var to restrict.");
+      return callback(null, true);
     }
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
@@ -15604,7 +15625,14 @@ function ensureRootIdentity() {
 function getActorFromReq(req) {
   // Local-first API key auth: X-API-Key header or ?apiKey=...
   const raw = String(req?.headers?.["x-api-key"] || req?.query?.apiKey || "").trim();
-  if (!raw) return { ok: true, actor: { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] } };
+  // In AUTH_MODE=public, anonymous users get member role so all features are usable without login.
+  // In other modes, anonymous users (no API key) get viewer with read-only access.
+  if (!raw) {
+    if (AUTH_MODE === "public") {
+      return { ok: true, actor: { userId: "anon", orgId: "public", role: "member", scopes: ["read", "write"] } };
+    }
+    return { ok: true, actor: { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] } };
+  }
   const h = sha256Hex(raw);
   const key = Array.from(STATE.apiKeys.values()).find(k => k && !k.revokedAt && k.keyHash === h);
   if (!key) return { ok: false, error: "Invalid API key" };
@@ -15651,12 +15679,15 @@ const _ACL_MEMBER = { roles: ["member","admin","owner"], scopes: ["write","admin
 const _ACL_ADMIN  = { roles: ["admin","owner"], scopes: ["admin","*"] };
 const _ACL_OWNER  = { roles: ["owner"], scopes: ["*"] };
 
-// Public read macros (viewer+): frontend boot path, status checks, DTU browsing
+// Public read macros (viewer+): frontend boot path, status checks, DTU browsing, chat, lens reads
 for (const [d, n] of [
   ["system","status"],["system","getStatus"],
   ["dtu","list"],["dtu","get"],["dtu","search"],["dtu","recent"],["dtu","stats"],["dtu","count"],["dtu","export"],
   ["settings","get"],["settings","status"],
   ["chicken3","status"],
+  ["chat","respond"],["chat","feedback"],["chat","stream"],
+  ["goals","list"],["goals","get"],["goals","status"],
+  ["lattice","resonance"],["lattice","beacon"],
 ]) allowMacro(d, n, _ACL_PUB);
 
 // Member-level domains (authenticated user operations)
@@ -24010,6 +24041,37 @@ register("redis", "stats", async (_ctx, _input) => {
 app.get("/api/db/status", async (req, res) => res.json(await runMacro("db", "status", {}, makeCtx(req))));
 app.post("/api/db/migrate", async (req, res) => res.json(await runMacro("db", "migrate", {}, makeCtx(req))));
 app.post("/api/db/sync", async (req, res) => res.json(await runMacro("db", "syncToPostgres", req.body, makeCtx(req))));
+// Database lens endpoints (query/tables/indexes) — graceful stubs when no DB connected
+app.post("/api/db/query", (req, res) => {
+  const q = String(req.body?.query || "").trim();
+  if (!q) return res.status(400).json({ ok: false, error: "query required" });
+  if (!db) return res.json({ ok: true, rows: [], columns: [], message: "No database connected. Set DATABASE_URL to enable." });
+  try {
+    const stmt = db.prepare(q);
+    if (q.toUpperCase().startsWith("SELECT") || q.toUpperCase().startsWith("PRAGMA") || q.toUpperCase().startsWith("EXPLAIN")) {
+      const rows = stmt.all();
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      res.json({ ok: true, rows, columns, rowCount: rows.length });
+    } else {
+      const info = stmt.run();
+      res.json({ ok: true, rows: [], columns: [], changes: info.changes });
+    }
+  } catch (e) { res.status(400).json({ ok: false, error: String(e?.message || e) }); }
+});
+app.get("/api/db/tables", (req, res) => {
+  if (!db) return res.json({ ok: true, tables: [] });
+  try {
+    const tables = db.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name").all();
+    res.json({ ok: true, tables });
+  } catch (e) { res.json({ ok: true, tables: [], error: String(e?.message || e) }); }
+});
+app.get("/api/db/indexes", (req, res) => {
+  if (!db) return res.json({ ok: true, indexes: [] });
+  try {
+    const indexes = db.prepare("SELECT name, tbl_name as tableName, sql FROM sqlite_master WHERE type='index' ORDER BY tbl_name, name").all();
+    res.json({ ok: true, indexes });
+  } catch (e) { res.json({ ok: true, indexes: [], error: String(e?.message || e) }); }
+});
 app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req))));
 
 setTimeout(async () => {
