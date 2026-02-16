@@ -1333,6 +1333,7 @@ function formatCrispResponse({ prompt: _prompt, mode: _mode, microDTUs, macroDTU
 
 // --- Session pattern history tracking (for variety mechanism) ---
 const _PATTERN_HISTORY = new Map(); // sessionId → [last 3 pattern names]
+const _PATTERN_HISTORY_MAX = 10000; // Cap to prevent unbounded memory growth
 
 function _trackPatternUsage(sessionId, patternNames) {
   const history = _PATTERN_HISTORY.get(sessionId) || [];
@@ -1340,6 +1341,13 @@ function _trackPatternUsage(sessionId, patternNames) {
   // Keep only last 3
   while (history.length > 3) history.shift();
   _PATTERN_HISTORY.set(sessionId, history);
+  // Evict oldest entries when map gets too large
+  if (_PATTERN_HISTORY.size > _PATTERN_HISTORY_MAX) {
+    const it = _PATTERN_HISTORY.keys();
+    for (let i = 0; i < _PATTERN_HISTORY.size - _PATTERN_HISTORY_MAX; i++) {
+      _PATTERN_HISTORY.delete(it.next().value);
+    }
+  }
 }
 
 function _getPatternHistory(sessionId) {
@@ -14644,6 +14652,43 @@ register("lattice", "birth_protocol", (ctx, input={}) => {
   return { ok:true, id, dtu, homeostasis: homeo };
 }, { summary:"Chicken2 birth protocol: sandboxed emergence with homeostasis threshold then DTU commit." });
 
+register("lattice", "resonance", (ctx, input={}) => {
+  // Lattice resonance: compute health metrics from Chicken2 and growth state
+  const c2 = STATE.__chicken2 || {};
+  const m = c2.metrics || {};
+  const g = STATE.growth || {};
+  return {
+    ok: true,
+    resonance: {
+      homeostasis: m.homeostasis ?? 1,
+      continuity: m.continuityAvg ?? 0,
+      suffering: m.suffering ?? 0,
+      contradictionLoad: m.contradictionLoad ?? 0,
+      repairRate: g.repair?.repairRate ?? 0.5,
+      accepts: m.accepts ?? 0,
+      rejections: m.rejections ?? 0,
+    },
+    timestamp: nowISO()
+  };
+});
+
+register("persona", "speak", (ctx, input={}) => {
+  const { personaId, text } = input;
+  if (!personaId) return { ok: false, error: "personaId required" };
+  const persona = STATE.personas.get(personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+  const reply = `[${persona.name}]: ${text || "..."}`;
+  return { ok: true, reply, persona: { id: persona.id, name: persona.name } };
+});
+
+register("persona", "animate", (ctx, input={}) => {
+  const { personaId, kind } = input;
+  if (!personaId) return { ok: false, error: "personaId required" };
+  const persona = STATE.personas.get(personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+  return { ok: true, animation: kind || "talk", persona: { id: persona.id, name: persona.name } };
+});
+
 register("persona", "create", (ctx, input={}) => {
   const name = String(input.name||"");
   if (!name) throw new Error("name required");
@@ -14875,6 +14920,35 @@ app.use(authMiddleware);
 app.use(productionWriteAuthMiddleware); // Enforce auth on all writes in production
 app.use(csrfMiddleware); // CSRF protection after auth
 
+// ---- Global Async Safety Net ----
+// Wraps all async route handlers to catch unhandled promise rejections.
+// Without this, any async handler that throws without try/catch will leave
+// the request hanging forever (30s timeout for the user).
+{
+  const _origRoute = app.route.bind(app);
+  for (const method of ["get", "post", "put", "delete", "patch"]) {
+    const orig = app[method].bind(app);
+    app[method] = function (path, ...handlers) {
+      const wrapped = handlers.map(fn => {
+        if (fn && fn.constructor?.name === "AsyncFunction") {
+          return (req, res, next) => {
+            Promise.resolve(fn(req, res, next)).catch(err => {
+              const msg = String(err?.message || err);
+              log("async.error", `Unhandled async error on ${req.method} ${req.path}: ${msg}`, { stack: String(err?.stack || "").slice(0, 500) });
+              if (!res.headersSent) {
+                const status = msg.startsWith("forbidden") ? 403 : msg.includes("not found") ? 404 : 500;
+                res.status(status).json({ ok: false, error: msg });
+              }
+            });
+          };
+        }
+        return fn;
+      });
+      return orig(path, ...wrapped);
+    };
+  }
+}
+
 // ---- Health & Readiness Endpoints ----
 app.get("/health", (req, res) => {
   res.json({
@@ -14943,13 +15017,18 @@ app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister")
     lastLoginAt: null
   };
 
+  // Guard: if bcrypt is unavailable, passwordHash will be null — reject registration
+  if (!user.passwordHash) {
+    return res.status(503).json({ ok: false, error: "Password hashing unavailable. Install bcryptjs to enable registration." });
+  }
+
   AuthDB.createUser(user);
 
   const token = createToken(userId);
   const refreshToken = createRefreshToken(userId);
 
   // SECURITY: Set httpOnly cookies for browser auth
-  setAuthCookie(res, token);
+  if (token) setAuthCookie(res, token);
   if (refreshToken) setRefreshCookie(res, refreshToken);
 
   // Track refresh token family
@@ -15001,13 +15080,15 @@ app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), (req
   const refreshToken = createRefreshToken(user.id);
 
   // SECURITY: Set httpOnly cookies for browser auth
-  setAuthCookie(res, token);
+  if (token) setAuthCookie(res, token);
   if (refreshToken) setRefreshCookie(res, refreshToken);
 
   // Track refresh token family
   try {
-    const decoded = jwt.decode(refreshToken);
-    if (decoded?.family) _REFRESH_FAMILIES.set(decoded.family, { userId: user.id, currentJti: decoded.jti, rotatedAt: Date.now() });
+    if (refreshToken) {
+      const decoded = jwt.decode(refreshToken);
+      if (decoded?.family) _REFRESH_FAMILIES.set(decoded.family, { userId: user.id, currentJti: decoded.jti, rotatedAt: Date.now() });
+    }
   } catch {}
 
   // Audit successful login
@@ -15021,7 +15102,7 @@ app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), (req
   res.json({
     ok: true,
     user: { id: user.id, username: user.username, email: user.email, role: user.role },
-    token // Also return token for non-browser clients
+    token: token || undefined // Only return token if JWT is available
   });
 });
 
@@ -15584,8 +15665,7 @@ function _withAck(out, req, mutated=[], reads=[], job=null, extra={}) {
   if (out && typeof out === "object") return { ...out, ok: (typeof out.ok==="boolean"?out.ok:true), ack };
   return { ok: true, result: out, ack };
 }
-// NOTE: CORS is configured above in Production Middleware section - do not add duplicate cors() here
-app.use(express.json({ limit: "2mb" }));
+// NOTE: CORS and express.json() are configured above in Production Middleware section
 
 // ---- v3: Auth/Org (local-first) + Macro ACL + Actor Context ----
 function sha256Hex(s) {
@@ -16343,8 +16423,28 @@ app.post("/api/chat/stream", async (req, res) => {
     const out = await runMacro("chat","respond", req.body, ctx);
     kernelTick({ type: "USER_MSG", meta: { path: req.path, stream: true }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
 
+    const content = String(out?.content || out?.answer || out?.text || "");
+    // Deterministic chunking (local-first). If you later add true token-streaming LLM, swap this chunker.
+    const step = clamp(Number(req.body?.chunkSize || 220), 40, 1200);
+    for (let i = 0; i < content.length; i += step) {
+      const chunk = content.slice(i, i + step);
+      res.write(`data: ${JSON.stringify({ ok: true, chunk, done: false })}\n\n`);
+    }
+    // Final envelope (also contains full out for UI parity)
+    res.write(`data: ${JSON.stringify({ ok: true, done: true, out })}\n\n`);
+    return res.end();
+  } catch (e) {
+    const msg = String(e?.message || e || "Unknown error");
+    try {
+      res.write(`data: ${JSON.stringify({ ok:false, error: msg, errorId, done:true })}\n\n`);
+      return res.end();
+    } catch {
+      return uiJson(res, { ok:false, error: msg, errorId }, req, { panel:"chat_stream", errorId });
+    }
+  }
+});
 
-// Chicken3: status + session opt-in (additive)
+// Chicken3: status + session opt-in
 app.get("/api/chicken3/status", (req, res) => {
   try {
     return uiJson(res, { ok:true, chicken3: STATE.__chicken3, ethos: ETHOS_INVARIANTS }, req, { panel:"chicken3_status" });
@@ -16371,29 +16471,6 @@ app.post("/api/session/optin", (req, res) => {
     return uiJson(res, { ok:false, error: String(e?.message||e) }, req, { panel:"optin" });
   }
 });
-
-
-    const content = String(out?.content || out?.answer || out?.text || "");
-    // Deterministic chunking (local-first). If you later add true token-streaming LLM, swap this chunker.
-    const step = clamp(Number(req.body?.chunkSize || 220), 40, 1200);
-    for (let i = 0; i < content.length; i += step) {
-      const chunk = content.slice(i, i + step);
-      res.write(`data: ${JSON.stringify({ ok: true, chunk, done: false })}\n\n`);
-    }
-    // Final envelope (also contains full out for UI parity)
-    res.write(`data: ${JSON.stringify({ ok: true, done: true, out })}\n\n`);
-    return res.end();
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    try {
-      res.write(`data: ${JSON.stringify({ ok:false, error: msg, errorId, done:true })}\n\n`);
-      return res.end();
-    } catch {
-      return uiJson(res, { ok:false, error: msg, errorId }, req, { panel:"chat_stream", errorId });
-    }
-  }
-});
-
 
 app.post("/api/ask", async (req, res) => {
   const errorId = uid("err");

@@ -587,6 +587,11 @@ export default function MarketplaceLensPage() {
     setCheckoutLoading(false);
   }, [cart, checkoutLoading]);
 
+  // Clamp carousel index when featured items change
+  useEffect(() => {
+    setFeaturedIdx(i => (featuredItems.length === 0 ? 0 : Math.min(i, featuredItems.length - 1)));
+  }, [featuredItems.length]);
+
   // Featured carousel auto-advance
   useEffect(() => {
     if (featuredItems.length <= 1) return;
@@ -662,7 +667,7 @@ export default function MarketplaceLensPage() {
       {tab === 'browse' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
           {/* Hero / Featured Carousel */}
-          {featuredItems.length > 0 && (
+          {featuredItems.length > 0 && featuredItems[featuredIdx] && (
             <div className="relative panel p-0 overflow-hidden rounded-xl">
               <AnimatePresence mode="wait">
                 <motion.div key={featuredIdx} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.35 }}
