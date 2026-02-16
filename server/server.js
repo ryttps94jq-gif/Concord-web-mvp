@@ -15708,9 +15708,19 @@ globalThis.canRunMacro = _canRunMacro;
 app.use((req, res, next) => {
   try {
     ensureRootIdentity();
-    const a = getActorFromReq(req);
-    if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
-    req.actor = a.actor;
+    // If JWT/cookie auth already authenticated the user, derive actor from req.user
+    if (req.user) {
+      req.actor = {
+        userId: req.user.id,
+        orgId: "default",
+        role: req.user.role || "member",
+        scopes: Array.isArray(req.user.scopes) && req.user.scopes.length ? req.user.scopes : ["read", "write"]
+      };
+    } else {
+      const a = getActorFromReq(req);
+      if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
+      req.actor = a.actor;
+    }
   } catch (e) {
     return res.status(500).json({ ok:false, error: String(e?.message || e) });
   }
