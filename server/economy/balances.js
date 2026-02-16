@@ -12,23 +12,29 @@
  * @returns {{ balance: number, totalCredits: number, totalDebits: number }}
  */
 export function getBalance(db, userId) {
+  // Use integer arithmetic (cents) to avoid floating-point drift.
+  // CAST to INTEGER rounds at the DB level, then we divide by 100 for display.
   const credits = db.prepare(`
-    SELECT COALESCE(SUM(net), 0) as total
+    SELECT COALESCE(SUM(CAST(ROUND(net * 100) AS INTEGER)), 0) as total_cents
     FROM economy_ledger
     WHERE to_user_id = ? AND status = 'complete'
   `).get(userId);
 
   const debits = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total
+    SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) as total_cents
     FROM economy_ledger
     WHERE from_user_id = ? AND status = 'complete'
   `).get(userId);
 
-  const totalCredits = credits?.total || 0;
-  const totalDebits = debits?.total || 0;
-  const balance = Math.round((totalCredits - totalDebits) * 100) / 100;
+  const totalCreditsCents = credits?.total_cents || 0;
+  const totalDebitsCents = debits?.total_cents || 0;
+  const balanceCents = totalCreditsCents - totalDebitsCents;
 
-  return { balance, totalCredits, totalDebits };
+  return {
+    balance: balanceCents / 100,
+    totalCredits: totalCreditsCents / 100,
+    totalDebits: totalDebitsCents / 100,
+  };
 }
 
 /**

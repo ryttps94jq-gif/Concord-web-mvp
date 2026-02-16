@@ -75,12 +75,20 @@ export function getSocket(): Socket {
 }
 
 // Reconnect with fresh credentials (call after login)
+// Debounced to prevent reconnect storms from rapid network flaps
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const RECONNECT_DEBOUNCE_MS = 2000;
+
 export function reconnectSocket(): void {
-  if (socket) {
-    socket.disconnect();
-    socket.auth = getAuthCredentials();
-    socket.connect();
-  }
+  if (_reconnectTimer) clearTimeout(_reconnectTimer);
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    if (socket) {
+      socket.disconnect();
+      socket.auth = getAuthCredentials();
+      socket.connect();
+    }
+  }, RECONNECT_DEBOUNCE_MS);
 }
 
 export function connectSocket(): void {
