@@ -14807,18 +14807,10 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : [];
 const corsOptions = {
   origin: (origin, callback) => {
-    // SECURITY: In production, reject requests with no origin to prevent CSRF
-    // Only allow no-origin in development for tools like Postman/curl
+    // Requests with no Origin header come from same-origin requests, server-to-server
+    // calls, health checks (curl/Docker), and non-browser clients. Browsers always
+    // send an Origin header on cross-origin requests, so no-origin is safe to allow.
     if (!origin) {
-      if (NODE_ENV === "production") {
-        // In production, only allow specific trusted no-origin scenarios
-        // (e.g., same-origin requests from the backend itself)
-        console.warn("[CORS] Rejected request with no origin in production mode");
-        const err = new Error("Origin blocked");
-        err.code = "ORIGIN_BLOCKED";
-        err.reason = "Origin required in production";
-        return callback(err, false);
-      }
       return callback(null, true);
     }
     // In development, allow localhost
@@ -16571,6 +16563,9 @@ function startHeartbeat() {
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     const ctx = makeCtx(null);
+    // Heartbeat runs internal maintenance — elevate to system actor so admin-gated
+    // domains (ingest, system, emergent, etc.) are accessible.
+    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
 
     // process crawl queue once (Local scope only — ingest is local activity)
     await runMacro("ingest","processQueueOnce", {}, ctx).catch(()=>{});
@@ -16604,6 +16599,7 @@ function startHeartbeat() {
     if (!STATE.settings.heartbeatEnabled) return;
     try {
       const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
       await runMacro("emergent","scope.globalTick", {}, ctx).catch(()=>{});
     } catch { /* Global tick is best-effort */ }
   }, globalMs);
