@@ -550,10 +550,26 @@ export function registerDurableEndpoints(app, db) {
 
       const tracks = db.prepare("SELECT * FROM studio_tracks WHERE project_id = ? ORDER BY created_at").all(req.params.id);
 
-      // For each track, get clips and effects
+      // Batch fetch clips and effects for all tracks (avoids N+1 query pattern)
+      const trackIds = tracks.map(t => t.id);
+      const clipsMap = new Map();
+      const effectsMap = new Map();
+      if (trackIds.length > 0) {
+        const placeholders = trackIds.map(() => "?").join(",");
+        const allClips = db.prepare(`SELECT * FROM studio_clips WHERE track_id IN (${placeholders})`).all(...trackIds);
+        for (const clip of allClips) {
+          if (!clipsMap.has(clip.track_id)) clipsMap.set(clip.track_id, []);
+          clipsMap.get(clip.track_id).push(clip);
+        }
+        const allEffects = db.prepare(`SELECT * FROM studio_effect_chains WHERE track_id IN (${placeholders}) ORDER BY created_at DESC`).all(...trackIds);
+        for (const eff of allEffects) {
+          // Only keep the latest effect chain per track (first seen = most recent due to ORDER BY DESC)
+          if (!effectsMap.has(eff.track_id)) effectsMap.set(eff.track_id, eff);
+        }
+      }
       for (const track of tracks) {
-        track.clips = db.prepare("SELECT * FROM studio_clips WHERE track_id = ?").all(track.id);
-        const effectChain = db.prepare("SELECT * FROM studio_effect_chains WHERE track_id = ? ORDER BY created_at DESC LIMIT 1").get(track.id);
+        track.clips = clipsMap.get(track.id) || [];
+        const effectChain = effectsMap.get(track.id);
         track.effects = effectChain ? safeParseJSON(effectChain.chain_json) : [];
       }
 

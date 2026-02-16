@@ -34,6 +34,30 @@ export const api: AxiosInstance = axios.create({
   withCredentials: true, // SECURITY: Include cookies in cross-origin requests
 });
 
+// ---- Retry with exponential backoff for transient server errors ----
+const MAX_RETRIES = 3;
+const RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const RETRY_BASE_DELAY_MS = 1000;
+
+api.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const config = error.config as InternalAxiosRequestConfig & { _retryCount?: number };
+  if (!config) return Promise.reject(error);
+
+  const status = error.response?.status;
+  const isRetryable = status && RETRY_STATUS_CODES.has(status);
+  const retryCount = config._retryCount || 0;
+
+  if (isRetryable && retryCount < MAX_RETRIES) {
+    config._retryCount = retryCount + 1;
+    const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount); // 1s, 2s, 4s
+    console.warn(`[API] Retrying ${config.method?.toUpperCase()} ${config.url} (attempt ${config._retryCount}/${MAX_RETRIES}) after ${delay}ms`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return api.request(config);
+  }
+
+  return Promise.reject(error);
+});
+
 // Helper to get CSRF token from cookie
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;

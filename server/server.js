@@ -88,15 +88,35 @@ import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransf
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
 
 // ---- Production dependencies (graceful loading) ----
+// SECURITY: In production, security dependencies MUST load or the server refuses to start.
+// In development, they are optional to allow lightweight local dev without all deps.
 let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null; const _promClient = null;
 let Database = null; // better-sqlite3
-try { jwt = (await import("jsonwebtoken")).default; } catch { /* optional dependency */ }
-try { bcrypt = (await import("bcryptjs")).default; } catch { /* optional dependency */ }
-try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* optional dependency */ }
-try { rateLimit = (await import("express-rate-limit")).default; } catch { /* optional dependency */ }
-try { helmet = (await import("helmet")).default; } catch { /* optional dependency */ }
-try { compression = (await import("compression")).default; } catch { /* optional dependency */ }
-try { Database = (await import("better-sqlite3")).default; } catch { /* optional dependency */ }
+const _isProduction = (process.env.NODE_ENV || "development") === "production";
+const _securityLoadErrors = [];
+try { jwt = (await import("jsonwebtoken")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`jsonwebtoken: ${e.message}`);
+}
+try { bcrypt = (await import("bcryptjs")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`bcryptjs: ${e.message}`);
+}
+try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* optional in all envs */ }
+try { rateLimit = (await import("express-rate-limit")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`express-rate-limit: ${e.message}`);
+}
+try { helmet = (await import("helmet")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`helmet: ${e.message}`);
+}
+try { compression = (await import("compression")).default; } catch { /* optional in all envs */ }
+try { Database = (await import("better-sqlite3")).default; } catch { /* optional - falls back to JSON */ }
+
+// CRITICAL: Refuse to start in production without security dependencies
+if (_isProduction && _securityLoadErrors.length > 0) {
+  console.error("\n[FATAL] Security dependencies failed to load in production:");
+  _securityLoadErrors.forEach(e => console.error(`  - ${e}`));
+  console.error("\nInstall missing packages: npm install jsonwebtoken bcryptjs express-rate-limit helmet\n");
+  process.exit(1);
+}
 
 // ---- dotenv (safe) ----
 const DOTENV = { loaded: false, path: null, error: null };
@@ -249,6 +269,10 @@ const _MARKETPLACE_ABUSE = {
   // Wash trade detection: track buyer-seller pairs
   tradeGraph: new Map(), // `${buyer}:${seller}` -> { count, lastAt }
 
+  // Size caps to prevent unbounded memory growth
+  MAX_SELLER_ENTRIES: 50000,
+  MAX_TRADE_ENTRIES: 100000,
+
   MAX_LISTINGS_PER_HOUR: 20,
   MAX_BUYS_PER_HOUR: 30,
   WASH_TRADE_THRESHOLD: 5, // same pair in 24h triggers flag
@@ -260,6 +284,11 @@ const _MARKETPLACE_ABUSE = {
     let entry = this.sellerActivity.get(sellerId);
     if (!entry || now - entry.windowStart > 3600000) {
       entry = { listCount: 0, buyCount: 0, windowStart: now };
+      // Evict oldest entries if at capacity
+      if (this.sellerActivity.size >= this.MAX_SELLER_ENTRIES) {
+        const firstKey = this.sellerActivity.keys().next().value;
+        this.sellerActivity.delete(firstKey);
+      }
       this.sellerActivity.set(sellerId, entry);
     }
     entry.listCount++;
@@ -271,6 +300,10 @@ const _MARKETPLACE_ABUSE = {
     let entry = this.sellerActivity.get(buyerId);
     if (!entry || now - entry.windowStart > 3600000) {
       entry = { listCount: 0, buyCount: 0, windowStart: now };
+      if (this.sellerActivity.size >= this.MAX_SELLER_ENTRIES) {
+        const firstKey = this.sellerActivity.keys().next().value;
+        this.sellerActivity.delete(firstKey);
+      }
       this.sellerActivity.set(buyerId, entry);
     }
     entry.buyCount++;
@@ -290,11 +323,15 @@ const _MARKETPLACE_ABUSE = {
       }
     }
 
-    // Record this trade
+    // Record this trade (with size cap)
     const existing = this.tradeGraph.get(key) || { count: 0, lastAt: 0 };
     if (now - existing.lastAt > DAY_MS) existing.count = 0;
     existing.count++;
     existing.lastAt = now;
+    if (!this.tradeGraph.has(key) && this.tradeGraph.size >= this.MAX_TRADE_ENTRIES) {
+      const firstKey = this.tradeGraph.keys().next().value;
+      this.tradeGraph.delete(firstKey);
+    }
     this.tradeGraph.set(key, existing);
 
     return { flagged: false };
@@ -386,6 +423,64 @@ function sanitizationMiddleware(req, res, next) {
   next();
 }
 
+// ---- Circuit Breaker for External Services ----
+// Prevents cascading failures when external APIs (LLM, Stripe, etc.) are down.
+// After THRESHOLD consecutive failures, the breaker "opens" and fast-fails for RESET_MS
+// before allowing a single probe request through.
+class CircuitBreaker {
+  constructor(name, { threshold = 5, resetMs = 30000 } = {}) {
+    this.name = name;
+    this.threshold = threshold;
+    this.resetMs = resetMs;
+    this.failures = 0;
+    this.state = "closed"; // closed | open | half-open
+    this.openedAt = 0;
+  }
+
+  async call(fn) {
+    if (this.state === "open") {
+      if (Date.now() - this.openedAt > this.resetMs) {
+        this.state = "half-open";
+      } else {
+        throw Object.assign(new Error(`Circuit breaker '${this.name}' is OPEN — fast-failing`), { code: "CIRCUIT_OPEN" });
+      }
+    }
+    try {
+      const result = await fn();
+      this._onSuccess();
+      return result;
+    } catch (err) {
+      this._onFailure();
+      throw err;
+    }
+  }
+
+  _onSuccess() {
+    this.failures = 0;
+    this.state = "closed";
+  }
+
+  _onFailure() {
+    this.failures++;
+    if (this.failures >= this.threshold) {
+      this.state = "open";
+      this.openedAt = Date.now();
+      structuredLog("warn", "circuit_breaker_opened", { name: this.name, failures: this.failures });
+    }
+  }
+
+  getState() {
+    return { name: this.name, state: this.state, failures: this.failures };
+  }
+}
+
+// Shared breakers for external services
+const BREAKERS = {
+  ollama: new CircuitBreaker("ollama", { threshold: 5, resetMs: 30000 }),
+  openai: new CircuitBreaker("openai", { threshold: 3, resetMs: 60000 }),
+  stripe: new CircuitBreaker("stripe", { threshold: 3, resetMs: 60000 }),
+};
+
 // ---- Graceful Shutdown ----
 let isShuttingDown = false;
 const shutdownCallbacks = [];
@@ -418,7 +513,7 @@ async function gracefulShutdown(signal) {
 
   // Give pending requests time to complete
   const timeout = Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000);
-  await new Promise(resolve => { setTimeout(resolve, Math.min(timeout, 1000)); });
+  await new Promise(resolve => { setTimeout(resolve, timeout); });
 
   console.log("[Shutdown] Graceful shutdown complete");
   process.exit(0);
@@ -432,8 +527,13 @@ process.on("uncaughtException", (err) => {
   gracefulShutdown("uncaughtException");
 });
 process.on("unhandledRejection", (reason, _promise) => {
-  structuredLog("error", "unhandled_rejection", { reason: String(reason) });
-  // Don't exit on unhandled rejection, just log it
+  structuredLog("fatal", "unhandled_rejection", { reason: String(reason), stack: String(reason?.stack || "") });
+  // In production, exit on unhandled rejection — the container orchestrator will restart us.
+  // Continuing after an unhandled rejection risks corrupted state.
+  if ((process.env.NODE_ENV || "development") === "production") {
+    console.error("[FATAL] Unhandled promise rejection in production — exiting to allow clean restart.");
+    process.exit(1);
+  }
 });
 
 // ---- Structured JSON Logging ----
@@ -4545,7 +4645,9 @@ function _normalizeSettingsDefaults() {
       if (typeof STATE.settings.speculativeGateEnabled !== "boolean") STATE.settings.speculativeGateEnabled = false;
       if (typeof STATE.settings.canonicalOnly !== "boolean") STATE.settings.canonicalOnly = true;
     }
-  } catch {}
+  } catch (e) {
+    structuredLog("warn", "settings_normalization_failed", { error: String(e?.message || e) });
+  }
 }
 
 function loadStateFromDisk() {
@@ -4616,7 +4718,9 @@ function saveStateDebounced() {
         }
       }
     }, 250);
-  } catch {}
+  } catch (e) {
+    structuredLog("error", "save_state_debounce_failed", { error: String(e?.message || e) });
+  }
 }
 
 const STATE_DISK = loadStateFromDisk();
@@ -4626,7 +4730,9 @@ try {
     if (__llmDefaultForcedRaw !== null) STATE.settings.llmDefault = DEFAULT_LLM_ON;
     else if ((process.env.OPENAI_API_KEY || "").trim()) STATE.settings.llmDefault = true;
   }
-} catch {}
+} catch (e) {
+  structuredLog("warn", "boot_normalization_failed", { error: String(e?.message || e) });
+}
 
 
 
@@ -5623,11 +5729,17 @@ register("multimodal","vision_analyze", (ctx, input={}) => {
       model,
       messages: [{ role:"user", content: prompt, images: [imageB64] }]
     };
-    const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(_e=>null);
-    if (r && r.ok) {
-      const j = await r.json().catch(()=>null);
-      const content = j?.message?.content || j?.response || "";
-      return { ok:true, content, source: "ollama_llava" };
+    try {
+      const r = await BREAKERS.ollama.call(() =>
+        fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(60000) })
+      );
+      if (r && r.ok) {
+        const j = await r.json().catch(()=>null);
+        const content = j?.message?.content || j?.response || "";
+        return { ok:true, content, source: "ollama_llava" };
+      }
+    } catch (e) {
+      structuredLog("warn", "ollama_call_failed", { error: String(e?.message || e), circuit: BREAKERS.ollama.getState().state });
     }
   }
 
@@ -14832,10 +14944,10 @@ if (helmet) {app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // Note: Next.js requires 'unsafe-inline' for its hydration scripts in production
-      // In a future update, consider using nonces via Next.js's built-in CSP support
+      // Next.js requires 'unsafe-inline' for hydration. Nonce support should be added
+      // in a future update via Next.js's built-in CSP nonce support.
       scriptSrc: NODE_ENV === "production"
-        ? ["'self'", "'unsafe-inline'"] // Remove unsafe-eval in production
+        ? ["'self'", "'unsafe-inline'"]         // No unsafe-eval in production
         : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow eval in dev for HMR
       styleSrc: ["'self'", "'unsafe-inline'"], // Required for styled-components/emotion
       imgSrc: ["'self'", "data:", "blob:", "https:"],
@@ -14885,11 +14997,15 @@ const corsOptions = {
     if (NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
       return callback(null, true);
     }
-    // In production, check against allowed origins
+    // In production, REQUIRE ALLOWED_ORIGINS to be configured
     if (allowedOrigins.length === 0) {
-      // If no ALLOWED_ORIGINS configured, allow all origins with a warning.
-      // This prevents silent CORS failures that surface as timeouts on the frontend.
-      // Operators should set ALLOWED_ORIGINS for tighter security.
+      if (NODE_ENV === "production") {
+        console.error("[CORS] REJECTED: No ALLOWED_ORIGINS configured in production. Origin:", origin);
+        const err = new Error("CORS not configured");
+        err.code = "CORS_NOT_CONFIGURED";
+        return callback(err, false);
+      }
+      // In development, allow all origins with a warning
       console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Allowing origin:", origin, "— Set ALLOWED_ORIGINS env var to restrict.");
       return callback(null, true);
     }
@@ -14951,11 +15067,38 @@ app.use(csrfMiddleware); // CSRF protection after auth
 
 // ---- Health & Readiness Endpoints ----
 app.get("/health", (req, res) => {
-  res.json({
-    status: "healthy",
+  const checks = { server: true };
+  let healthy = true;
+
+  // Check database connectivity
+  if (db) {
+    try {
+      const row = db.prepare("SELECT 1 AS ok").get();
+      checks.database = Boolean(row?.ok);
+    } catch {
+      checks.database = false;
+      healthy = false;
+    }
+  } else {
+    checks.database = "no_db"; // JSON persistence mode — not an error
+  }
+
+  // Check memory usage (warn if >85% of container limit 2GB)
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1048576);
+  const heapTotalMB = Math.round(memUsage.heapTotal / 1048576);
+  checks.memoryMB = { used: heapUsedMB, total: heapTotalMB };
+  if (heapUsedMB > 1700) { // ~85% of 2GB
+    checks.memoryPressure = true;
+    healthy = false;
+  }
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "healthy" : "degraded",
     version: VERSION,
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    checks
   });
 });
 
@@ -14964,7 +15107,18 @@ app.get("/ready", (req, res) => {
     state: STATE.dtus !== null,
     macros: MACROS.size > 0
   };
-  const ready = Object.values(checks).every(Boolean);
+
+  // Also verify database is queryable if present
+  if (db) {
+    try {
+      db.prepare("SELECT 1").get();
+      checks.database = true;
+    } catch {
+      checks.database = false;
+    }
+  }
+
+  const ready = Object.values(checks).every(v => v === true || v === "no_db");
   res.status(ready ? 200 : 503).json({
     ready,
     checks,
@@ -15698,7 +15852,19 @@ function ensureRootIdentity() {
   saveStateDebounced();
   console.log("\n=== Concord v3 Auth Bootstrap ===");
   console.log("Created root user/org. Use this API key for requests:");
-  console.log(`X-API-Key: ${rawKey}`);
+  if (NODE_ENV === "production") {
+    // In production, write key to a secure file instead of stdout (prevents log leakage)
+    const keyFilePath = path.join(DATA_DIR, ".root_api_key");
+    try {
+      fs.writeFileSync(keyFilePath, rawKey, { mode: 0o600 });
+      console.log(`API key written to: ${keyFilePath} (mode 600, owner-read only)`);
+      console.log("Retrieve it once, then delete the file for security.");
+    } catch {
+      console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED (set DATA_DIR to enable file-based key delivery)`);
+    }
+  } else {
+    console.log(`X-API-Key: ${rawKey}`);
+  }
   console.log("================================\n");
 }
 
@@ -27551,31 +27717,41 @@ const server = SHOULD_LISTEN ? app.listen(PORT, () => {
 }) : null;
 
 // Optional: enable thin realtime mirror (WebSockets) for queues/jobs/panels.
-try { await tryInitWebSockets(server); } catch {}
+try { await tryInitWebSockets(server); } catch (e) {
+  structuredLog("error", "websocket_init_failed", { error: String(e?.message || e), stack: String(e?.stack || "").slice(0, 500) });
+}
 
 
 // ---- Auto-promotion scheduler (offline-first, deterministic) ----
 try {
   // Run once shortly after boot, then every 6 hours.
   const _promoActor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
-  setTimeout(async () => {
-    const c = makeCtx(null); c.actor = _promoActor;
-    try { await runAutoPromotion(c, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
-  }, 15_000);
+  let _promoRunning = false; // Guard against overlapping runs
+  const _runPromotion = async (opts) => {
+    if (_promoRunning) return;
+    _promoRunning = true;
+    try {
+      const c = makeCtx(null); c.actor = _promoActor;
+      await runAutoPromotion(c, opts);
+    } catch (e) {
+      structuredLog("warn", "auto_promotion_failed", { error: String(e?.message || e) });
+    } finally {
+      _promoRunning = false;
+    }
+  };
+  setTimeout(() => _runPromotion({ maxNewMegas: 3, maxNewHypers: 1 }), 15_000);
+  setInterval(() => _runPromotion({ maxNewMegas: 2, maxNewHypers: 0 }), 6 * 60 * 60 * 1000);
+} catch (e) {
+  structuredLog("warn", "auto_promotion_setup_failed", { error: String(e?.message || e) });
+}
 
-  setInterval(async () => {
-    const c = makeCtx(null); c.actor = _promoActor;
-    try { await runAutoPromotion(c, { maxNewMegas: 2, maxNewHypers: 0 }); } catch {}
-  }, 6 * 60 * 60 * 1000);
-} catch {}
-
-process.on("SIGINT", () => {
-  console.log("\nShutting down Concord…");
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  if (weeklyTimer) clearInterval(weeklyTimer);
-  if (globalTickTimer) clearInterval(globalTickTimer);
-  server.close(() => process.exit(0));
-})
+// NOTE: Primary SIGINT/SIGTERM handlers are registered above via gracefulShutdown().
+// Register cleanup for timers as a shutdown callback instead of a duplicate handler.
+registerShutdownCallback(() => {
+  if (typeof heartbeatTimer !== "undefined" && heartbeatTimer) clearInterval(heartbeatTimer);
+  if (typeof weeklyTimer !== "undefined" && weeklyTimer) clearInterval(weeklyTimer);
+  if (typeof globalTickTimer !== "undefined" && globalTickTimer) clearInterval(globalTickTimer);
+});
 // ---- OrganMaturationKernel + Growth OS (v2 upgrade) ----
 
 // Organ definitions (authoritative; present at all times, no stubs)

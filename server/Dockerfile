@@ -1,5 +1,6 @@
 # Backend Dockerfile (glibc-based for onnxruntime compatibility)
-FROM node:20-bookworm-slim
+# Pin to Node 20 LTS for reproducibility
+FROM node:20-bookworm-slim AS base
 
 # Install build tools for native modules (better-sqlite3) and runtime deps
 RUN apt-get update && apt-get install -y \
@@ -39,6 +40,6 @@ USER concord
 EXPOSE 5050
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:5050/api/status || exit 1
+  CMD curl -f http://localhost:5050/health || exit 1
 
 CMD ["node", "server.js"]

@@ -140,6 +140,12 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
   const stripeClient = await getStripe();
   if (!stripeClient) return { ok: false, error: "stripe_not_configured" };
 
+  // Guard: webhook secret must be configured for signature verification to work
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET is not configured — rejecting webhook");
+    return { ok: false, error: "webhook_secret_not_configured" };
+  }
+
   let event;
   try {
     event = stripeClient.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
