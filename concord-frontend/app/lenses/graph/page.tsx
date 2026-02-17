@@ -198,6 +198,7 @@ export default function GraphLensPage() {
   const [bpmRange, setBpmRange] = useState<[number, number]>([0, 300]);
   const [hiddenEdgeTypes, setHiddenEdgeTypes] = useState<Set<string>>(new Set());
   const [hiddenNodeTypes, setHiddenNodeTypes] = useState<Set<string>>(new Set());
+  const [focusedNodeIndex, setFocusedNodeIndex] = useState(-1);
 
   const [simParams, setSimParams] = useState({
     repulsion: 500,
@@ -774,6 +775,65 @@ export default function GraphLensPage() {
     setFilterRelated(null); setConnectSource(null); setConnectMode(false);
   };
 
+  // --- Keyboard navigation for graph nodes ---
+  const handleGraphKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Skip when user is typing in an input
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    const nodes = nodesRef.current;
+    if (nodes.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown': {
+        e.preventDefault();
+        const next = focusedNodeIndex < nodes.length - 1 ? focusedNodeIndex + 1 : 0;
+        setFocusedNodeIndex(next);
+        setHoveredNode(nodes[next]);
+        break;
+      }
+      case 'ArrowLeft':
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prev = focusedNodeIndex > 0 ? focusedNodeIndex - 1 : nodes.length - 1;
+        setFocusedNodeIndex(prev);
+        setHoveredNode(nodes[prev]);
+        break;
+      }
+      case 'Enter':
+      case ' ': {
+        e.preventDefault();
+        if (focusedNodeIndex >= 0 && focusedNodeIndex < nodes.length) {
+          setSelectedNode(nodes[focusedNodeIndex]);
+        }
+        break;
+      }
+      case 'Escape': {
+        e.preventDefault();
+        setSelectedNode(null);
+        setFocusedNodeIndex(-1);
+        setHoveredNode(null);
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        setFocusedNodeIndex(0);
+        setHoveredNode(nodes[0]);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        const last = nodes.length - 1;
+        setFocusedNodeIndex(last);
+        setHoveredNode(nodes[last]);
+        break;
+      }
+      default:
+        break;
+    }
+  }, [focusedNodeIndex, setSelectedNode, setHoveredNode]);
+
   const toggleTier = (tier: string) => {
     setFilterTiers(prev => {
       const next = new Set(prev);
@@ -860,15 +920,31 @@ export default function GraphLensPage() {
   return (
     <div className="h-full flex flex-col bg-lattice-bg">
       <div className="flex-1 flex overflow-hidden">
-      <div ref={containerRef} className="flex-1 relative overflow-hidden">
+      <div
+        ref={containerRef}
+        className="flex-1 relative overflow-hidden"
+        role="application"
+        aria-label={`Knowledge graph with ${stats.nodeCount} nodes and ${stats.edgeCount} edges. Use arrow keys to navigate between nodes, Enter or Space to select, Escape to deselect.`}
+        aria-roledescription="interactive graph"
+        tabIndex={0}
+        onKeyDown={handleGraphKeyDown}
+      >
         <canvas
           ref={canvasRef}
           className={cn('w-full h-full', connectMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing')}
           style={{ width: dimensions.width, height: dimensions.height }}
+          aria-hidden="true"
           onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
           onWheel={handleWheel} onContextMenu={handleContextMenu}
         />
+
+        {/* Screen reader announcement for focused node */}
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {focusedNodeIndex >= 0 && nodesRef.current[focusedNodeIndex] && (
+            `Focused on ${nodesRef.current[focusedNodeIndex].label}, ${(NODE_COLORS[nodesRef.current[focusedNodeIndex].tier] || NODE_COLORS.regular).name} node with ${nodesRef.current[focusedNodeIndex].connections} connections`
+          )}
+        </div>
 
         {/* --- Top-left: Search + Filters --- */}
         <div className="absolute top-4 left-4 space-y-3 max-w-xs">
@@ -1192,6 +1268,8 @@ export default function GraphLensPage() {
       <AnimatePresence>
         {selectedNode && (
           <motion.aside initial={{ x: 320, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 320, opacity: 0 }}
+            role="complementary"
+            aria-label={`Details for ${selectedNode.label}`}
             className="w-80 border-l border-lattice-border bg-lattice-surface p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-white">Node Details</h2>

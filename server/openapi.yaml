@@ -47,6 +47,22 @@ tags:
     description: Knowledge graph operations
   - name: Marketplace
     description: Plugin marketplace
+  - name: Economy
+    description: Credits, balance, and payments
+  - name: Social
+    description: Social profiles, following, and feed
+  - name: Collaboration
+    description: Workspaces, comments, and revisions
+  - name: Atlas
+    description: Epistemic knowledge store and retrieval
+  - name: Analytics
+    description: Dashboards and usage analytics
+  - name: RBAC
+    description: Organizations, roles, and permissions
+  - name: Compliance
+    description: Data governance and export controls
+  - name: Webhooks
+    description: Webhook registration and delivery
 
 paths:
   /health:
@@ -535,6 +551,407 @@ paths:
       responses:
         '200':
           description: Plugin list
+
+  /api/economy/balance:
+    get:
+      tags: [Economy]
+      summary: Get wallet balance
+      description: Returns the current user's credit balance
+      responses:
+        '200':
+          description: Balance info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  balance:
+                    type: number
+                  currency:
+                    type: string
+
+  /api/economy/fees:
+    get:
+      tags: [Economy]
+      summary: Get fee schedule
+      description: Returns current marketplace fee rates
+      responses:
+        '200':
+          description: Fee schedule
+
+  /api/credits/earn:
+    post:
+      tags: [Economy]
+      summary: Earn credits
+      description: Award credits for an action (contribution, referral, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [contribution, referral, achievement, daily_login]
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Credits awarded
+
+  /api/credits/spend:
+    post:
+      tags: [Economy]
+      summary: Spend credits
+      description: Deduct credits for a purchase or service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, amount]
+              properties:
+                action:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Credits spent
+        '402':
+          description: Insufficient balance
+
+  /api/social/profile:
+    get:
+      tags: [Social]
+      summary: Get own profile
+      description: Returns the authenticated user's social profile
+      responses:
+        '200':
+          description: User profile
+    post:
+      tags: [Social]
+      summary: Create/update profile
+      description: Create or update the user's social profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                bio:
+                  type: string
+                avatar:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated
+
+  /api/social/profile/{userId}:
+    get:
+      tags: [Social]
+      summary: Get user profile
+      description: Returns a specific user's public profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile
+        '404':
+          description: User not found
+
+  /api/social/follow:
+    post:
+      tags: [Social]
+      summary: Follow user
+      description: Follow another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+      responses:
+        '200':
+          description: Follow successful
+
+  /api/social/feed:
+    get:
+      tags: [Social]
+      summary: Get social feed
+      description: Returns publications from followed users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Feed items
+
+  /api/social/trending:
+    get:
+      tags: [Social]
+      summary: Get trending content
+      description: Returns trending publications and DTUs
+      responses:
+        '200':
+          description: Trending items
+
+  /api/collab/workspaces:
+    get:
+      tags: [Collaboration]
+      summary: List workspaces
+      description: Returns workspaces the user belongs to
+      responses:
+        '200':
+          description: Workspace list
+
+  /api/collab/workspace:
+    post:
+      tags: [Collaboration]
+      summary: Create workspace
+      description: Create a new collaborative workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Workspace created
+
+  /api/collab/workspace/{id}:
+    get:
+      tags: [Collaboration]
+      summary: Get workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workspace details
+    put:
+      tags: [Collaboration]
+      summary: Update workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Workspace updated
+
+  /api/atlas/dtu:
+    get:
+      tags: [Atlas]
+      summary: List Atlas DTUs
+      description: Query DTUs from the Atlas knowledge store
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [local, global]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Atlas DTU list
+    post:
+      tags: [Atlas]
+      summary: Store DTU in Atlas
+      description: Ingest a DTU into the Atlas epistemic store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DTUCreate'
+      responses:
+        '201':
+          description: DTU stored
+
+  /api/atlas/search:
+    post:
+      tags: [Atlas]
+      summary: Semantic search
+      description: Search Atlas with semantic similarity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  default: 10
+                scope:
+                  type: string
+      responses:
+        '200':
+          description: Search results
+
+  /api/atlas/council/resolve:
+    post:
+      tags: [Atlas]
+      summary: Resolve council conflict
+      description: Submit a conflict for council resolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conflictId]
+              properties:
+                conflictId:
+                  type: string
+                resolution:
+                  type: string
+      responses:
+        '200':
+          description: Conflict resolved
+
+  /api/analytics/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Analytics dashboard
+      description: Returns aggregated analytics for the dashboard
+      responses:
+        '200':
+          description: Dashboard data
+
+  /api/analytics/personal/{userId}:
+    get:
+      tags: [Analytics]
+      summary: Personal analytics
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Personal analytics data
+
+  /api/rbac/org:
+    get:
+      tags: [RBAC]
+      summary: List organizations
+      description: Returns organizations the user belongs to
+      responses:
+        '200':
+          description: Organization list
+    post:
+      tags: [RBAC]
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Organization created
+
+  /api/compliance/status:
+    get:
+      tags: [Compliance]
+      summary: Compliance status
+      description: Returns current compliance status and active policies
+      responses:
+        '200':
+          description: Compliance status
+
+  /api/webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhooks
+      description: Returns registered webhooks for the user
+      responses:
+        '200':
+          description: Webhook list
+    post:
+      tags: [Webhooks]
+      summary: Register webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                secret:
+                  type: string
+      responses:
+        '201':
+          description: Webhook registered
 
 components:
   securitySchemes:
