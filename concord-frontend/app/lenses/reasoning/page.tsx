@@ -544,7 +544,7 @@ export default function ReasoningLensPage() {
 
   const addStep = useMutation({
     mutationFn: () => {
-      if (!selectedChain) return Promise.reject('No chain selected');
+      if (!selectedChain) return Promise.reject(new Error('No chain selected'));
       return apiHelpers.reasoning.addStep(selectedChain, { content: newStep });
     },
     onSuccess: () => {
@@ -556,7 +556,7 @@ export default function ReasoningLensPage() {
 
   const concludeChain = useMutation({
     mutationFn: () => {
-      if (!selectedChain) return Promise.reject('No chain selected');
+      if (!selectedChain) return Promise.reject(new Error('No chain selected'));
       return apiHelpers.reasoning.conclude(selectedChain);
     },
     onSuccess: () => {
