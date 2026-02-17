@@ -195,7 +195,7 @@ export default function AgentsLensPage() {
   const [newMaxTokens, setNewMaxTokens] = useState(4096);
 
   // Persist agents via lens data (auto-seeds on first use)
-  const { items: lensAgentItems, isLoading, isError, error, isSeeding, refetch, create: createLensAgent, update: updateLensAgent, remove: removeLensAgent } = useLensData<Record<string, unknown>>('agents', 'agent', {
+  const { items: lensAgentItems, isLoading, isError, error, isSeeding: _isSeeding, refetch, create: createLensAgent, update: updateLensAgent, remove: _removeLensAgent } = useLensData<Record<string, unknown>>('agents', 'agent', {
     seed: INITIAL_AGENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
   });
   const isError2 = isError; const error2 = error; const refetch2 = refetch;

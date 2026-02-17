@@ -1,5 +1,5 @@
 export default function registerEventsActions(registerLensAction) {
-  registerLensAction("events", "budgetReconcile", async (ctx, artifact, params) => {
+  registerLensAction("events", "budgetReconcile", (ctx, artifact, _params) => {
     const projectedBudget = artifact.data?.budget || 0;
     const expenses = artifact.data?.expenses || [];
     const revenue = artifact.data?.revenue || [];
@@ -11,7 +11,7 @@ export default function registerEventsActions(registerLensAction) {
     return { ok: true, event: artifact.title, projectedBudget, totalExpenses, totalRevenue, netProfit: totalRevenue - totalExpenses, variance, overBudget: variance < 0, byCategory };
   });
 
-  registerLensAction("events", "advanceSheet", async (ctx, artifact, params) => {
+  registerLensAction("events", "advanceSheet", (ctx, artifact, _params) => {
     const venue = artifact.data?.venue || {};
     const sheet = {
       event: artifact.title,
@@ -31,7 +31,7 @@ export default function registerEventsActions(registerLensAction) {
     return { ok: true, advanceSheet: sheet };
   });
 
-  registerLensAction("events", "techRiderMatch", async (ctx, artifact, params) => {
+  registerLensAction("events", "techRiderMatch", (ctx, artifact, params) => {
     const riderRequirements = artifact.data?.riderRequirements || params.requirements || [];
     const venueEquipment = artifact.data?.venueEquipment || params.venueEquipment || [];
     const venueSet = new Set(venueEquipment.map(e => (e.name || e).toLowerCase()));
@@ -44,7 +44,7 @@ export default function registerEventsActions(registerLensAction) {
     return { ok: true, performer: artifact.title, matches, fulfilled, total: matches.length, fulfillmentRate: matches.length > 0 ? Math.round((fulfilled / matches.length) * 100) : 0 };
   });
 
-  registerLensAction("events", "settlementCalc", async (ctx, artifact, params) => {
+  registerLensAction("events", "settlementCalc", (ctx, artifact, params) => {
     const guarantee = artifact.data?.guarantee || params.guarantee || 0;
     const doorSplit = artifact.data?.doorSplit || params.doorSplit || 80;
     const ticketsSold = artifact.data?.ticketsSold || params.ticketsSold || 0;

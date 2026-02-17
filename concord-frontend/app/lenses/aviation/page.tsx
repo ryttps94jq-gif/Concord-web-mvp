@@ -6,11 +6,11 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState, useMemo, useCallback } from 'react';
 import {
-  Plane, Plus, Search, Clock, Users, Calendar, X, Navigation, Gauge,
+  Plane, Plus, Search, Clock, Users, Calendar, X, Navigation,
   Shield, Wrench, FileText, DollarSign, Weight, AlertTriangle, CheckCircle,
-  XCircle, ChevronDown, ChevronRight, Fuel, MapPin, Activity,
-  UserCheck, Clipboard, Calculator, BarChart3, Settings, Eye,
-  Timer, Award, CloudRain, TrendingUp, Package, PhoneCall
+  XCircle, ChevronDown, ChevronRight, Fuel, MapPin,
+  UserCheck, Clipboard, Calculator, BarChart3,
+  Timer, Award, CloudRain, TrendingUp, Package
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
@@ -20,32 +20,6 @@ import { cn } from '@/lib/utils';
 // ---------------------------------------------------------------------------
 type ModeTab = 'dashboard' | 'flights' | 'pilots' | 'fleet' | 'maintenance' | 'charter' | 'wb';
 
-interface FlightData {
-  aircraft: string;
-  tailNumber: string;
-  pic: string;
-  sic: string;
-  departure: string;
-  arrival: string;
-  date: string;
-  etd: string;
-  eta: string;
-  hobbsStart: number;
-  hobbsEnd: number;
-  tachStart: number;
-  tachEnd: number;
-  fuelBurn: number;
-  fuelOnboard: number;
-  passengers: number;
-  passengerNames: string;
-  route: string;
-  altitude: string;
-  weatherMins: string;
-  ceilingReq: number;
-  visibilityReq: number;
-  remarks: string;
-  squawks: string;
-}
 
 interface PilotData {
   name: string;
@@ -273,7 +247,6 @@ export default function AviationLensPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showDetail, setShowDetail] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 

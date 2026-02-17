@@ -75,15 +75,15 @@ describe('ErrorBoundary', () => {
     // Error state shown
     expect(screen.getByText('Something went wrong')).toBeDefined();
 
-    // Click try again
-    fireEvent.click(screen.getByText('Try Again'));
-
-    // Re-render with non-throwing component
+    // Re-render with non-throwing component first (so reset won't re-throw)
     rerender(
       <ErrorBoundary>
         <ThrowingComponent shouldThrow={false} />
       </ErrorBoundary>
     );
+
+    // Click try again to reset the boundary
+    fireEvent.click(screen.getByText('Try Again'));
 
     expect(screen.getByText('Content rendered successfully')).toBeDefined();
   });
