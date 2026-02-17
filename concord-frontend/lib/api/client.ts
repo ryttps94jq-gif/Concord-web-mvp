@@ -175,6 +175,8 @@ api.interceptors.response.use(
       const requestId = (error.response?.headers?.['x-request-id'] as string | undefined) ||
         (error.response?.headers?.['X-Request-ID'] as string | undefined);
       const reason = data?.reason || data?.error || (error.response?.status === 401 ? 'Login required' : error.message);
+
+      // Record error in store (deduplication handled by store)
       useUIStore.getState().addRequestError({
         path: error.config?.url,
         method: error.config?.method?.toUpperCase(),
@@ -185,22 +187,28 @@ api.interceptors.response.use(
         reason,
       });
 
-      // Surface API errors as visible toasts so users never get silent failures
+      // Surface API errors as toasts — but throttle to avoid flooding the UI.
+      // Only show toasts for user-facing errors, not background fetch failures.
       const store = useUIStore.getState();
       const toastStatus = error.response?.status;
+      const isBackgroundFetch = error.config?.method?.toUpperCase() === 'GET';
+      const existingToastCount = store.toasts.filter(t => t.type === 'error' || t.type === 'warning').length;
+      const shouldThrottle = existingToastCount >= 2;
 
-      if (toastStatus === 401) {
-        store.addToast({ type: 'warning', message: 'Session expired. Please log in again.' });
-      } else if (toastStatus === 403) {
-        store.addToast({ type: 'error', message: "You don't have permission to do that." });
-      } else if (toastStatus === 429) {
-        store.addToast({ type: 'warning', message: 'Too many requests. Please wait a moment.' });
-      } else if (toastStatus && toastStatus >= 500) {
-        store.addToast({ type: 'error', message: 'Something went wrong on our end. Please try again.' });
-      } else if (!error.response) {
-        store.addToast({ type: 'error', message: 'Unable to connect. Check your internet and try again.' });
-      } else if (data?.ok === false && data?.error) {
-        store.addToast({ type: 'error', message: data.error.replace(/_/g, ' ') });
+      if (!shouldThrottle) {
+        if (toastStatus === 401) {
+          store.addToast({ type: 'warning', message: 'Session expired. Please log in again.' });
+        } else if (toastStatus === 403) {
+          store.addToast({ type: 'error', message: "You don't have permission to do that." });
+        } else if (toastStatus === 429) {
+          store.addToast({ type: 'warning', message: 'Too many requests. Please wait a moment.' });
+        } else if (toastStatus && toastStatus >= 500 && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: 'Something went wrong on our end. Please try again.' });
+        } else if (!error.response && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: 'Unable to connect. Check your internet and try again.' });
+        } else if (data?.ok === false && data?.error && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: data.error.replace(/_/g, ' ') });
+        }
       }
     }
     return Promise.reject(error);
@@ -1451,12 +1459,8 @@ export const apiHelpers = {
   },
 };
 
-// Initialize CSRF token on page load (browser only)
-if (typeof window !== 'undefined') {
-  // Fetch CSRF token when the module loads
-  api.get('/api/auth/csrf-token').catch(() => {
-    // Silent fail - token will be fetched on first state-changing request
-  });
-}
+// CSRF token is fetched lazily before the first state-changing request.
+// Do NOT auto-fetch on module load — that fires before the user logs in
+// and generates error toasts/banners that block the login UI.
 
 export default api;

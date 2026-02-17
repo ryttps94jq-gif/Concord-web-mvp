@@ -336,7 +336,8 @@ export default function BoardLensPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
       {/* Main content area */}
       <div className={cn('flex-1 flex flex-col overflow-hidden transition-all', selectedTask ? 'mr-0' : '')}>
         {/* Header */}
@@ -678,6 +679,7 @@ export default function BoardLensPage() {
           </motion.aside>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }

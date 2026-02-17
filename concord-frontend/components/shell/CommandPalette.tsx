@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, ArrowRight } from 'lucide-react';
-import { getCommandPaletteLenses, LENS_CATEGORIES, type LensCategory } from '@/lib/lens-registry';
+import { getCommandPaletteLenses, getParentCoreLens, getCoreLensConfig, LENS_CATEGORIES, type LensCategory } from '@/lib/lens-registry';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -32,9 +32,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     // Navigation commands from the lens registry
     const navCommands: Command[] = paletteLenses.map((lens) => {
       const Icon = lens.icon;
+      // Show parent core lens context for absorbed lenses
+      const parentId = getParentCoreLens(lens.id);
+      const parentConfig = parentId ? getCoreLensConfig(parentId) : null;
+      const namePrefix = parentConfig ? `${parentConfig.name} > ` : '';
       return {
         id: `nav-${lens.id}`,
-        name: `Go to ${lens.name}`,
+        name: `Go to ${namePrefix}${lens.name}`,
         description: lens.description,
         icon: <Icon className="w-4 h-4" />,
         action: () => router.push(lens.path),

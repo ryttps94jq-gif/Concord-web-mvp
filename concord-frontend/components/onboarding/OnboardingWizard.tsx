@@ -1,12 +1,21 @@
 'use client';
 
+/**
+ * OnboardingWizard — Focused on the Core 5 model.
+ *
+ * Walks new users through: Welcome → Chat → Board → Graph → Code → Studio → Ready.
+ * Each step highlights a core workspace and its key capability.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
-  Sparkles,
-  Network,
-  Keyboard,
+  MessageSquare,
+  Layout,
+  Share2,
+  Code,
+  Music,
   Rocket,
   ChevronRight,
   ChevronLeft,
@@ -20,42 +29,70 @@ interface OnboardingStep {
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  color: string;
   action?: string;
+  shortcut?: string;
 }
 
 const STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to Concord',
-    description: 'Your local-first cognitive engine for thought synthesis. All your data stays on your machine.',
-    icon: Brain
+    description: 'Five workspaces. Everything connected. Your data stays local. No telemetry, no ads, no profiling.',
+    icon: Brain,
+    color: 'neon-cyan',
   },
   {
-    id: 'create-first-dtu',
-    title: 'Create Your First Thought',
-    description: 'DTUs (Discrete Thought Units) are atomic pieces of knowledge. Press Cmd+N to create your first one!',
-    icon: Sparkles,
-    action: 'createDTU'
+    id: 'chat',
+    title: 'Chat — Think Out Loud',
+    description: 'AI conversations with 6 modes: overview, deep analysis, creative, code, research, and CRETI. Every conversation becomes a DTU in your knowledge graph.',
+    icon: MessageSquare,
+    color: 'neon-cyan',
+    action: 'openChat',
+    shortcut: 'Threads, Forum, Daily, Governance',
   },
   {
-    id: 'explore-graph',
-    title: 'Explore the Graph',
-    description: 'See how your thoughts connect in the interactive graph view. Press Cmd+G to open it.',
-    icon: Network,
-    action: 'openGraph'
+    id: 'board',
+    title: 'Board — Get Things Done',
+    description: 'Kanban boards with goals, calendar, timeline, and spaced repetition. Drag tasks across columns, set due dates, track progress.',
+    icon: Layout,
+    color: 'neon-purple',
+    action: 'openBoard',
+    shortcut: 'Goals, Calendar, Timeline, Study',
   },
   {
-    id: 'keyboard-shortcuts',
-    title: 'Master the Shortcuts',
-    description: 'Press Cmd+K to open the command palette anytime. Speed through your workflow!',
-    icon: Keyboard,
-    action: 'openCommandPalette'
+    id: 'graph',
+    title: 'Graph — Connect Everything',
+    description: 'Visualize your knowledge as an interactive network. See how ideas link, explore citation chains, and discover surprising connections.',
+    icon: Share2,
+    color: 'neon-green',
+    action: 'openGraph',
+    shortcut: 'Schema, Entities, Temporal, Ecosystem',
+  },
+  {
+    id: 'code',
+    title: 'Code — Build and Ship',
+    description: 'Full code editor with MIDI scripting, debugging tools, database explorer, and repository browser. Write, run, and iterate.',
+    icon: Code,
+    color: 'neon-blue',
+    action: 'openCode',
+    shortcut: 'Debug, Database, Repos',
+  },
+  {
+    id: 'studio',
+    title: 'Studio — Create Anything',
+    description: 'Music production with a full DAW, visual art tools, game development, fractal explorer, and simulation sandbox.',
+    icon: Music,
+    color: 'neon-pink',
+    action: 'openStudio',
+    shortcut: 'Music, Art, Game, Visuals, AR',
   },
   {
     id: 'ready',
-    title: "You're Ready!",
-    description: 'Start building your personal knowledge lattice. Your thoughts, your way.',
-    icon: Rocket
+    title: "You're Ready",
+    description: 'Press Cmd+K anytime to search across all workspaces. Your thoughts, your lattice, your way.',
+    icon: Rocket,
+    color: 'neon-cyan',
   }
 ];
 
@@ -123,6 +160,9 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Welcome to Concord"
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -134,6 +174,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors z-10"
+              aria-label="Skip onboarding"
             >
               <X className="w-5 h-5" />
             </button>
@@ -141,13 +182,16 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
             {/* Progress dots */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
               {STEPS.map((s, i) => (
-                <div
+                <button
                   key={s.id}
+                  onClick={() => setCurrentStep(i)}
                   className={cn(
-                    'w-2 h-2 rounded-full transition-colors',
-                    i === currentStep ? 'bg-neon-cyan' :
-                    completedSteps.has(s.id) ? 'bg-green-500' : 'bg-gray-600'
+                    'w-2 h-2 rounded-full transition-all',
+                    i === currentStep ? `bg-${step.color} scale-125` :
+                    completedSteps.has(s.id) ? 'bg-green-500' : 'bg-gray-600',
+                    'hover:scale-150'
                   )}
+                  aria-label={`Go to step ${i + 1}: ${s.title}`}
                 />
               ))}
             </div>
@@ -163,8 +207,11 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
                   className="text-center"
                 >
                   {/* Icon */}
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-neon-cyan/10 flex items-center justify-center">
-                    <Icon className="w-10 h-10 text-neon-cyan" />
+                  <div className={cn(
+                    'w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center',
+                    `bg-${step.color}/10`
+                  )}>
+                    <Icon className={cn('w-10 h-10', `text-${step.color}`)} />
                   </div>
 
                   {/* Title */}
@@ -173,15 +220,25 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
                   </h2>
 
                   {/* Description */}
-                  <p className="text-gray-400 mb-8 leading-relaxed">
+                  <p className="text-gray-400 mb-4 leading-relaxed">
                     {step.description}
                   </p>
+
+                  {/* Sub-lenses included */}
+                  {step.shortcut && (
+                    <p className="text-xs text-gray-500 mb-6">
+                      Includes: <span className="text-gray-400">{step.shortcut}</span>
+                    </p>
+                  )}
 
                   {/* Action button (if applicable) */}
                   {step.action && (
                     <button
                       onClick={handleAction}
-                      className="mb-6 px-4 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
+                      className={cn(
+                        'mb-4 px-4 py-2 border rounded-lg text-sm transition-colors',
+                        `bg-${step.color}/10 border-${step.color}/30 text-${step.color} hover:bg-${step.color}/20`
+                      )}
                     >
                       Try it now
                     </button>
@@ -201,14 +258,24 @@ export function OnboardingWizard({ isOpen, onClose, onComplete, onAction }: Onbo
                     ? 'text-gray-600 cursor-not-allowed'
                     : 'text-gray-400 hover:text-white'
                 )}
+                aria-label="Previous step"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
               </button>
 
+              {/* Step counter */}
+              <span className="text-xs text-gray-500">
+                {currentStep + 1} / {STEPS.length}
+              </span>
+
               <button
                 onClick={handleNext}
-                className="flex items-center gap-2 px-6 py-2 bg-neon-cyan text-black font-medium rounded-lg hover:bg-neon-cyan/90 transition-colors"
+                className={cn(
+                  'flex items-center gap-2 px-6 py-2 font-medium rounded-lg transition-colors',
+                  `bg-${step.color} text-black hover:opacity-90`
+                )}
+                aria-label={isLastStep ? 'Finish onboarding' : 'Next step'}
               >
                 {isLastStep ? (
                   <>

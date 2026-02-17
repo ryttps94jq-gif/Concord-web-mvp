@@ -3,6 +3,7 @@
 import { useUIStore } from '@/store/ui';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { getLensById } from '@/lib/lens-registry';
 import { Search, Bell, User, Command, Activity, Zap, Menu } from 'lucide-react';
 import { SyncStatusDot } from '@/components/common/OfflineIndicator';
 import { useOnlineStatus } from '@/components/common/OfflineIndicator';
@@ -15,12 +16,18 @@ export function Topbar() {
     queryKey: ['resonance-quick'],
     queryFn: () => api.get('/api/resonance/quick').then((r) => r.data),
     refetchInterval: 30000,
+    retry: false,
   });
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications-count'],
     queryFn: () => api.get('/api/notifications/count').then((r) => r.data),
+    retry: false,
   });
+
+  // Look up proper display name and icon from the lens registry
+  const lensEntry = activeLens ? getLensById(activeLens) : null;
+  const displayName = lensEntry?.name || (activeLens ? activeLens.charAt(0).toUpperCase() + activeLens.slice(1) : 'Dashboard');
 
   return (
     <header
@@ -40,9 +47,15 @@ export function Topbar() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <h1 className="text-base lg:text-lg font-semibold capitalize truncate max-w-[120px] sm:max-w-none">
-          {activeLens || 'Dashboard'}
-        </h1>
+        <div className="flex items-center gap-2">
+          {lensEntry && (() => {
+            const LensIcon = lensEntry.icon;
+            return <LensIcon className="w-4 h-4 text-gray-400" />;
+          })()}
+          <h1 className="text-base lg:text-lg font-semibold truncate max-w-[120px] sm:max-w-none">
+            {displayName}
+          </h1>
+        </div>
       </div>
 
       {/* Center - Search (hidden on small mobile) */}

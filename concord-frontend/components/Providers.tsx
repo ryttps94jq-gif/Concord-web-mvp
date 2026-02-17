@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { AppShell } from '@/components/shell/AppShell';
 import { observeWebVitals } from '@/lib/perf';
 import { useUIStore } from '@/store/ui';
@@ -15,16 +15,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        queryCache: new QueryCache({
-          onError: (error) => {
-            useUIStore.getState().addToast({
-              type: 'error',
-              message: `Failed to load data: ${error.message}`,
-            });
-          },
-        }),
+        // Note: Query error toasts are handled by the axios interceptor in lib/api/client.ts.
+        // Do NOT add duplicate toasts via QueryCache.onError — that causes an error storm on page load.
         mutationCache: new MutationCache({
           onError: (error) => {
+            // Only toast for mutations (user-initiated actions), not queries (background fetches)
             useUIStore.getState().addToast({
               type: 'error',
               message: `Operation failed: ${error.message}`,

@@ -139,16 +139,28 @@ export const useUIStore = create<UIState>()(
         })),
 
       addRequestError: (error) =>
-        set((state) => ({
-          requestErrors: [
-            ...state.requestErrors.slice(-19),
-            {
-              ...error,
-              id: `reqerr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` ,
-              at: new Date().toISOString(),
-            },
-          ],
-        })),
+        set((state) => {
+          // Deduplicate: skip if same path+status already exists within last 10 seconds
+          const now = Date.now();
+          const isDuplicate = state.requestErrors.some(
+            (e) =>
+              e.path === error.path &&
+              e.status === error.status &&
+              now - new Date(e.at).getTime() < 10_000
+          );
+          if (isDuplicate) return state;
+
+          return {
+            requestErrors: [
+              ...state.requestErrors.slice(-19),
+              {
+                ...error,
+                id: `reqerr-${now}-${Math.random().toString(36).slice(2, 9)}`,
+                at: new Date().toISOString(),
+              },
+            ],
+          };
+        }),
 
       clearRequestErrors: () => set({ requestErrors: [] }),
 

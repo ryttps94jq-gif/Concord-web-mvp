@@ -36,14 +36,14 @@ const STEP_ICONS: Record<string, typeof Brain> = {
 };
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  create_dtu: 'Create a Discrete Thought Unit — the fundamental knowledge unit in Concord.',
-  create_artifact: 'Upload or generate a file artifact from your knowledge.',
+  create_dtu: 'Create a Discrete Thought Unit in the Chat workspace — the fundamental knowledge unit in Concord.',
+  create_artifact: 'Generate or upload a file artifact in the Studio workspace.',
   view_global: 'See your work in the Global truth view — the canonical source of all data.',
 };
 
 const STEP_ROUTES: Record<string, string> = {
-  create_dtu: '/forge',
-  create_artifact: '/artistry',
+  create_dtu: '/lenses/chat',
+  create_artifact: '/lenses/studio',
   view_global: '/global',
 };
 
