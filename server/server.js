@@ -26328,6 +26328,43 @@ app.post("/api/ml/infer", async (req, res) => {
   }
 });
 
+// POST /api/ml/train — queue a training job
+app.post("/api/ml/train", (req, res) => {
+  try {
+    const { mlJobs } = ensureMlState();
+    const { modelName, datasetId, epochs, learningRate } = req.body || {};
+    const jobId = `ml_job_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const job = {
+      id: jobId,
+      type: "train",
+      modelName: modelName || "custom_model",
+      datasetId: datasetId || null,
+      config: { epochs: epochs || 10, learningRate: learningRate || 0.001 },
+      status: "queued",
+      progress: 0,
+      createdAt: nowISO(),
+    };
+    mlJobs.set(jobId, job);
+    res.json({ ok: true, job });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// POST /api/ml/deploy/:modelId — deploy a model
+app.post("/api/ml/deploy/:modelId", (req, res) => {
+  try {
+    const { mlModels } = ensureMlState();
+    const model = mlModels.get(req.params.modelId);
+    if (!model) return res.status(404).json({ ok: false, error: "Model not found" });
+    model.status = "active";
+    model.deployedAt = nowISO();
+    res.json({ ok: true, model });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 // Game/gamification endpoints - computed from real DTU activity
 if (!STATE.gameProfiles) STATE.gameProfiles = new Map();
 
@@ -26515,6 +26552,28 @@ app.get("/api/economy/status", (req, res) => {
     treasury: STATE.economic?.treasury || 0,
     listings: { total: listingCount, active: activeListings },
     participants: wallets.size,
+  });
+});
+
+// GET /api/economy/balance — return wallet balance for current user (marketplace)
+app.get("/api/economy/balance", (req, res) => {
+  ensureEconomicState();
+  const userId = req.query.user_id || req.user?.id || "default";
+  const wallet = STATE.economic.wallets.get(userId);
+  res.json({ ok: true, balance: wallet?.balance || 0, tier: wallet?.tier || "free" });
+});
+
+// GET /api/economy/fees — return marketplace fee schedule
+app.get("/api/economy/fees", (req, res) => {
+  res.json({
+    ok: true,
+    fees: {
+      MARKETPLACE_PURCHASE: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+      TOKEN_PURCHASE: ECONOMIC_CONFIG.TOKEN_PURCHASE_FEE,
+      CREATOR_SHARE: ECONOMIC_CONFIG.CREATOR_SHARE,
+      ROYALTY_SHARE: ECONOMIC_CONFIG.ROYALTY_SHARE,
+      TREASURY_SHARE: ECONOMIC_CONFIG.TREASURY_SHARE,
+    },
   });
 });
 
@@ -34341,6 +34400,36 @@ function logTransaction(tx) {
 }
 
 // ---- Token Purchase System (1.46% fee) ----
+
+// GET /api/economic/config — return tiers and token packages for billing page
+app.get('/api/economic/config', (req, res) => {
+  res.json({
+    ok: true,
+    tiers: ECONOMIC_CONFIG.TIERS,
+    tokenPackages: ECONOMIC_CONFIG.TOKEN_PACKAGES,
+    marketplaceFee: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+    creatorShare: ECONOMIC_CONFIG.CREATOR_SHARE,
+  });
+});
+
+// GET /api/economic/wallet/:odId — return wallet info for billing page
+app.get('/api/economic/wallet/:odId', (req, res) => {
+  try {
+    const wallet = getWallet(req.params.odId);
+    const tracking = STATE.economic?.ingestTracking?.get(req.params.odId);
+    res.json({
+      ok: true,
+      balance: wallet.balance,
+      tier: wallet.tier,
+      tokensEarned: wallet.tokensEarned || 0,
+      tokensSpent: wallet.tokensSpent || 0,
+      ingestStatus: tracking ? { date: tracking.date, count: tracking.count } : null,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.post('/api/economic/tokens/purchase', async (req, res) => {
   try {
     const { odId, packageId } = req.body;
@@ -36150,6 +36239,16 @@ const LICENSE_TYPES = Object.freeze({
   'unlimited': { name: 'Unlimited License', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 300 },
   'exclusive': { name: 'Exclusive Rights', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 1000 },
   'free': { name: 'Free (CC-BY)', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 0 },
+});
+
+// GET /api/artistry/marketplace/art — list artwork assets for the art lens marketplace tab
+app.get('/api/artistry/marketplace/art', (req, res) => {
+  const art = ensureArtistryState();
+  const artworks = Array.from(art.assets.values())
+    .filter(a => a.status === 'active' && (a.type === 'artwork' || a.type === 'visual' || a.type === 'cover_art'))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, Number(req.query.limit) || 50);
+  res.json({ ok: true, artworks });
 });
 
 app.post('/api/artistry/marketplace/beats', (req, res) => {
