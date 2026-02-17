@@ -1,0 +1,6298 @@
+[
+  {
+    "id": "dtu_241_planets_as_constraint_envelopes",
+    "tier": "core",
+    "tags": [
+      "stsvk_241",
+      "planets",
+      "as",
+      "constraint",
+      "envelopes"
+    ],
+    "human": {
+      "summary": "Planets as Constraint Envelopes: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_242_planetary_energy_budget_theory",
+    "tier": "core",
+    "tags": [
+      "stsvk_242",
+      "planetary",
+      "energy",
+      "budget",
+      "theory"
+    ],
+    "human": {
+      "summary": "Planetary Energy Budget Theory: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_243_planetary_repair_capacity",
+    "tier": "core",
+    "tags": [
+      "stsvk_243",
+      "planetary",
+      "repair",
+      "capacity"
+    ],
+    "human": {
+      "summary": "Planetary Repair Capacity: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_244_planetary_entropy_debt",
+    "tier": "core",
+    "tags": [
+      "stsvk_244",
+      "planetary",
+      "entropy",
+      "debt"
+    ],
+    "human": {
+      "summary": "Planetary Entropy Debt: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_245_planetary_latency_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_245",
+      "planetary",
+      "latency",
+      "effects"
+    ],
+    "human": {
+      "summary": "Planetary Latency Effects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_246_planetary_stability_windows",
+    "tier": "core",
+    "tags": [
+      "stsvk_246",
+      "planetary",
+      "stability",
+      "windows"
+    ],
+    "human": {
+      "summary": "Planetary Stability Windows: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_247_planetary_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_247",
+      "planetary",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "Planetary Phase Transitions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_248_planetary_constraint_lock_in",
+    "tier": "core",
+    "tags": [
+      "stsvk_248",
+      "planetary",
+      "constraint",
+      "lock",
+      "in"
+    ],
+    "human": {
+      "summary": "Planetary Constraint Lock-In: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_249_multi_planetary_constraint_extension",
+    "tier": "core",
+    "tags": [
+      "stsvk_249",
+      "multi",
+      "planetary",
+      "constraint",
+      "extension"
+    ],
+    "human": {
+      "summary": "Multi-Planetary Constraint Extension: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_250_terraforming_as_constraint_engineering",
+    "tier": "core",
+    "tags": [
+      "stsvk_250",
+      "terraforming",
+      "as",
+      "constraint",
+      "engineering"
+    ],
+    "human": {
+      "summary": "Terraforming as Constraint Engineering: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_251_climate_as_a_feedback_network",
+    "tier": "core",
+    "tags": [
+      "stsvk_251",
+      "climate",
+      "as",
+      "a",
+      "feedback",
+      "network"
+    ],
+    "human": {
+      "summary": "Climate as a Feedback Network: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_252_climate_control_density",
+    "tier": "core",
+    "tags": [
+      "stsvk_252",
+      "climate",
+      "control",
+      "density"
+    ],
+    "human": {
+      "summary": "Climate Control Density: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_253_climate_latency_catastrophes",
+    "tier": "core",
+    "tags": [
+      "stsvk_253",
+      "climate",
+      "latency",
+      "catastrophes"
+    ],
+    "human": {
+      "summary": "Climate Latency Catastrophes: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_254_climate_repair_mechanisms",
+    "tier": "core",
+    "tags": [
+      "stsvk_254",
+      "climate",
+      "repair",
+      "mechanisms"
+    ],
+    "human": {
+      "summary": "Climate Repair Mechanisms: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_255_climate_noise_amplification",
+    "tier": "core",
+    "tags": [
+      "stsvk_255",
+      "climate",
+      "noise",
+      "amplification"
+    ],
+    "human": {
+      "summary": "Climate Noise Amplification: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_256_climate_phase_boundaries",
+    "tier": "core",
+    "tags": [
+      "stsvk_256",
+      "climate",
+      "phase",
+      "boundaries"
+    ],
+    "human": {
+      "summary": "Climate Phase Boundaries: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_257_climate_collapse_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_257",
+      "climate",
+      "collapse",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Climate Collapse Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_258_climate_stability_vs_productivity",
+    "tier": "core",
+    "tags": [
+      "stsvk_258",
+      "climate",
+      "stability",
+      "vs",
+      "productivity"
+    ],
+    "human": {
+      "summary": "Climate Stability vs Productivity: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_259_climate_aligned_civilization_design",
+    "tier": "core",
+    "tags": [
+      "stsvk_259",
+      "climate",
+      "aligned",
+      "civilization",
+      "design"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_260_climate_as_a_long_term_control_problem",
+    "tier": "core",
+    "tags": [
+      "stsvk_260",
+      "climate",
+      "as",
+      "a",
+      "long",
+      "term",
+      "control",
+      "problem"
+    ],
+    "human": {
+      "summary": "Climate as a Long-Term Control Problem: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_261_ecosystems_as_metabolic_networks",
+    "tier": "core",
+    "tags": [
+      "stsvk_261",
+      "ecosystems",
+      "as",
+      "metabolic",
+      "networks"
+    ],
+    "human": {
+      "summary": "Ecosystems as Metabolic Networks: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_262_ecological_constraint_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_262",
+      "ecological",
+      "constraint",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Ecological Constraint Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_263_biodiversity_as_redundancy",
+    "tier": "core",
+    "tags": [
+      "stsvk_263",
+      "biodiversity",
+      "as",
+      "redundancy"
+    ],
+    "human": {
+      "summary": "Biodiversity as Redundancy: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_264_ecosystem_repair_saturation",
+    "tier": "core",
+    "tags": [
+      "stsvk_264",
+      "ecosystem",
+      "repair",
+      "saturation"
+    ],
+    "human": {
+      "summary": "Ecosystem Repair Saturation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_265_ecological_latency_risks",
+    "tier": "core",
+    "tags": [
+      "stsvk_265",
+      "ecological",
+      "latency",
+      "risks"
+    ],
+    "human": {
+      "summary": "Ecological Latency Risks: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_266_invasive_species_as_constraint_violators",
+    "tier": "core",
+    "tags": [
+      "stsvk_266",
+      "invasive",
+      "species",
+      "as",
+      "constraint",
+      "violators"
+    ],
+    "human": {
+      "summary": "Invasive Species as Constraint Violators: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_267_ecological_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_267",
+      "ecological",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "Ecological Phase Transitions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_268_ecosystem_design_principles",
+    "tier": "core",
+    "tags": [
+      "stsvk_268",
+      "ecosystem",
+      "design",
+      "principles"
+    ],
+    "human": {
+      "summary": "Ecosystem Design Principles: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_269_artificial_ecosystems",
+    "tier": "core",
+    "tags": [
+      "stsvk_269",
+      "artificial",
+      "ecosystems"
+    ],
+    "human": {
+      "summary": "Artificial Ecosystems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_270_planetary_biosphere_engineering",
+    "tier": "core",
+    "tags": [
+      "stsvk_270",
+      "planetary",
+      "biosphere",
+      "engineering"
+    ],
+    "human": {
+      "summary": "Planetary Biosphere Engineering: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_271_infrastructure_as_energy_circulatory_system",
+    "tier": "core",
+    "tags": [
+      "stsvk_271",
+      "infrastructure",
+      "as",
+      "energy",
+      "circulatory",
+      "system"
+    ],
+    "human": {
+      "summary": "Infrastructure as Energy Circulatory System: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_272_infrastructure_repair_dominance",
+    "tier": "core",
+    "tags": [
+      "stsvk_272",
+      "infrastructure",
+      "repair",
+      "dominance"
+    ],
+    "human": {
+      "summary": "Infrastructure Repair Dominance: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_273_infrastructure_entropy_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_273",
+      "infrastructure",
+      "entropy",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Infrastructure Entropy Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_274_infrastructure_latency_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_274",
+      "infrastructure",
+      "latency",
+      "effects"
+    ],
+    "human": {
+      "summary": "Infrastructure Latency Effects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_275_modular_infrastructure_design",
+    "tier": "core",
+    "tags": [
+      "stsvk_275",
+      "modular",
+      "infrastructure",
+      "design"
+    ],
+    "human": {
+      "summary": "Modular Infrastructure Design: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_276_distributed_infrastructure_networks",
+    "tier": "core",
+    "tags": [
+      "stsvk_276",
+      "distributed",
+      "infrastructure",
+      "networks"
+    ],
+    "human": {
+      "summary": "Distributed Infrastructure Networks: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_277_infrastructure_over_optimization",
+    "tier": "core",
+    "tags": [
+      "stsvk_277",
+      "infrastructure",
+      "over",
+      "optimization"
+    ],
+    "human": {
+      "summary": "Infrastructure Over-Optimization: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_278_infrastructure_phase_failure",
+    "tier": "core",
+    "tags": [
+      "stsvk_278",
+      "infrastructure",
+      "phase",
+      "failure"
+    ],
+    "human": {
+      "summary": "Infrastructure Phase Failure: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_279_infrastructure_identity_preservation",
+    "tier": "core",
+    "tags": [
+      "stsvk_279",
+      "infrastructure",
+      "identity",
+      "preservation"
+    ],
+    "human": {
+      "summary": "Infrastructure Identity Preservation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_280_infrastructure_without_collapse",
+    "tier": "core",
+    "tags": [
+      "stsvk_280",
+      "infrastructure",
+      "without",
+      "collapse"
+    ],
+    "human": {
+      "summary": "Infrastructure Without Collapse: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_281_energy_systems_as_constraint_drivers",
+    "tier": "core",
+    "tags": [
+      "stsvk_281",
+      "energy",
+      "systems",
+      "as",
+      "constraint",
+      "drivers"
+    ],
+    "human": {
+      "summary": "Energy Systems as Constraint Drivers: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_282_energy_quality_vs_energy_quantity",
+    "tier": "core",
+    "tags": [
+      "stsvk_282",
+      "energy",
+      "quality",
+      "vs",
+      "quantity"
+    ],
+    "human": {
+      "summary": "Energy Quality vs Energy Quantity: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_283_energy_repair_costs",
+    "tier": "core",
+    "tags": [
+      "stsvk_283",
+      "energy",
+      "repair",
+      "costs"
+    ],
+    "human": {
+      "summary": "Energy Repair Costs: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_284_energy_storage_constraint_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_284",
+      "energy",
+      "storage",
+      "constraint",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Energy Storage Constraint Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_285_energy_distribution_latency",
+    "tier": "core",
+    "tags": [
+      "stsvk_285",
+      "energy",
+      "distribution",
+      "latency"
+    ],
+    "human": {
+      "summary": "Energy Distribution Latency: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_286_renewable_energy_constraint_limits",
+    "tier": "core",
+    "tags": [
+      "stsvk_286",
+      "renewable",
+      "energy",
+      "constraint",
+      "limits"
+    ],
+    "human": {
+      "summary": "Renewable Energy Constraint Limits: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_287_nuclear_energy_stability_windows",
+    "tier": "core",
+    "tags": [
+      "stsvk_287",
+      "nuclear",
+      "energy",
+      "stability",
+      "windows"
+    ],
+    "human": {
+      "summary": "Nuclear Energy Stability Windows: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_288_fusion_as_constraint_compression",
+    "tier": "core",
+    "tags": [
+      "stsvk_288",
+      "fusion",
+      "as",
+      "constraint",
+      "compression"
+    ],
+    "human": {
+      "summary": "Fusion as Constraint Compression: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_289_energy_system_collapse_cascades",
+    "tier": "core",
+    "tags": [
+      "stsvk_289",
+      "energy",
+      "system",
+      "collapse",
+      "cascades"
+    ],
+    "human": {
+      "summary": "Energy System Collapse Cascades: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_290_energy_aligned_civilization_scaling",
+    "tier": "core",
+    "tags": [
+      "stsvk_290",
+      "energy",
+      "aligned",
+      "civilization",
+      "scaling"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_291_megastructures_as_control_amplifiers",
+    "tier": "core",
+    "tags": [
+      "stsvk_291",
+      "megastructures",
+      "as",
+      "control",
+      "amplifiers"
+    ],
+    "human": {
+      "summary": "Megastructures as Control Amplifiers: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_292_megastructure_repair_dominance",
+    "tier": "core",
+    "tags": [
+      "stsvk_292",
+      "megastructure",
+      "repair",
+      "dominance"
+    ],
+    "human": {
+      "summary": "Megastructure Repair Dominance: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_293_megastructure_latency_hazards",
+    "tier": "core",
+    "tags": [
+      "stsvk_293",
+      "megastructure",
+      "latency",
+      "hazards"
+    ],
+    "human": {
+      "summary": "Megastructure Latency Hazards: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_294_distributed_megastructures",
+    "tier": "core",
+    "tags": [
+      "stsvk_294",
+      "distributed",
+      "megastructures"
+    ],
+    "human": {
+      "summary": "Distributed Megastructures: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_295_orbital_infrastructure_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_295",
+      "orbital",
+      "infrastructure",
+      "stability"
+    ],
+    "human": {
+      "summary": "Orbital Infrastructure Stability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_296_planetary_shielding_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_296",
+      "planetary",
+      "shielding",
+      "systems"
+    ],
+    "human": {
+      "summary": "Planetary Shielding Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_297_stellar_energy_harvesting",
+    "tier": "core",
+    "tags": [
+      "stsvk_297",
+      "stellar",
+      "energy",
+      "harvesting"
+    ],
+    "human": {
+      "summary": "Stellar Energy Harvesting: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_298_artificial_gravity_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_298",
+      "artificial",
+      "gravity",
+      "systems"
+    ],
+    "human": {
+      "summary": "Artificial Gravity Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_299_long_horizon_planetary_projects",
+    "tier": "core",
+    "tags": [
+      "stsvk_299",
+      "long",
+      "horizon",
+      "planetary",
+      "projects"
+    ],
+    "human": {
+      "summary": "Long-Horizon Planetary Projects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_300_planetary_engineering_ethics",
+    "tier": "core",
+    "tags": [
+      "stsvk_300",
+      "planetary",
+      "engineering",
+      "ethics"
+    ],
+    "human": {
+      "summary": "Planetary Engineering Ethics: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE6] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 5: Climate, Ecology, Infrastructure, Planetary-Scale Systems (241–300)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

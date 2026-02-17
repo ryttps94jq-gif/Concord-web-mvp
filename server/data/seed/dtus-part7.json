@@ -1,0 +1,5946 @@
+[
+  {
+    "id": "dtu_361_cognition_as_control_loop_architecture",
+    "tier": "core",
+    "tags": [
+      "stsvk_361",
+      "cognition",
+      "as",
+      "control",
+      "loop",
+      "architecture"
+    ],
+    "human": {
+      "summary": "Cognition as Control Loop Architecture: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "θ": "params"
+        },
+        "dynamics": "x_{t+1}=F(x_t;θ)",
+        "constraints": [
+          "h(x)=0",
+          "g(x)≤0"
+        ],
+        "potential": "V=||F(x)-x||^2",
+        "implication": "If V non-increasing and bounded below, x approaches invariant set where V=0."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_362_attention_as_control_allocation",
+    "tier": "core",
+    "tags": [
+      "stsvk_362",
+      "attention",
+      "as",
+      "control",
+      "allocation"
+    ],
+    "human": {
+      "summary": "Attention as Control Allocation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_363_working_memory_as_latency_buffer",
+    "tier": "core",
+    "tags": [
+      "stsvk_363",
+      "working",
+      "memory",
+      "as",
+      "latency",
+      "buffer"
+    ],
+    "human": {
+      "summary": "Working Memory as Latency Buffer: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_364_long_term_memory_as_repair_mechanism",
+    "tier": "core",
+    "tags": [
+      "stsvk_364",
+      "long",
+      "term",
+      "memory",
+      "as",
+      "repair",
+      "mechanism"
+    ],
+    "human": {
+      "summary": "Long-Term Memory as Repair Mechanism: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_365_cognitive_load_saturation",
+    "tier": "core",
+    "tags": [
+      "stsvk_365",
+      "cognitive",
+      "load",
+      "saturation"
+    ],
+    "human": {
+      "summary": "Cognitive Load Saturation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_366_cognitive_noise_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_366",
+      "cognitive",
+      "noise",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Cognitive Noise Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_367_intelligence_without_self_reflection",
+    "tier": "core",
+    "tags": [
+      "stsvk_367",
+      "intelligence",
+      "without",
+      "self",
+      "reflection"
+    ],
+    "human": {
+      "summary": "Intelligence Without Self-Reflection: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "θ": "params"
+        },
+        "dynamics": "x_{t+1}=F(x_t;θ)",
+        "constraints": [
+          "h(x)=0",
+          "g(x)≤0"
+        ],
+        "potential": "V=||F(x)-x||^2",
+        "implication": "If V non-increasing and bounded below, x approaches invariant set where V=0."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_368_self_modeling_as_stability_tool",
+    "tier": "core",
+    "tags": [
+      "stsvk_368",
+      "self",
+      "modeling",
+      "as",
+      "stability",
+      "tool"
+    ],
+    "human": {
+      "summary": "Self-Modeling as Stability Tool: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "θ": "params"
+        },
+        "dynamics": "x_{t+1}=F(x_t;θ)",
+        "constraints": [
+          "h(x)=0",
+          "g(x)≤0"
+        ],
+        "potential": "V=||F(x)-x||^2",
+        "implication": "If V non-increasing and bounded below, x approaches invariant set where V=0."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_369_cognitive_speed_depth_tradeoff",
+    "tier": "core",
+    "tags": [
+      "stsvk_369",
+      "cognitive",
+      "speed",
+      "depth",
+      "tradeoff"
+    ],
+    "human": {
+      "summary": "Cognitive Speed–Depth Tradeoff: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_370_cognitive_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_370",
+      "cognitive",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "Cognitive Phase Transitions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_371_emotion_as_control_signaling",
+    "tier": "core",
+    "tags": [
+      "stsvk_371",
+      "emotion",
+      "as",
+      "control",
+      "signaling"
+    ],
+    "human": {
+      "summary": "Emotion as Control Signaling: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_372_stress_as_entropy_alarm",
+    "tier": "core",
+    "tags": [
+      "stsvk_372",
+      "stress",
+      "as",
+      "entropy",
+      "alarm"
+    ],
+    "human": {
+      "summary": "Stress as Entropy Alarm: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_373_motivation_as_energy_gradient",
+    "tier": "core",
+    "tags": [
+      "stsvk_373",
+      "motivation",
+      "as",
+      "energy",
+      "gradient"
+    ],
+    "human": {
+      "summary": "Motivation as Energy Gradient: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_374_mental_health_as_repair_balance",
+    "tier": "core",
+    "tags": [
+      "stsvk_374",
+      "mental",
+      "health",
+      "as",
+      "repair",
+      "balance"
+    ],
+    "human": {
+      "summary": "Mental Health as Repair Balance: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_375_trauma_as_constraint_lock_in",
+    "tier": "core",
+    "tags": [
+      "stsvk_375",
+      "trauma",
+      "as",
+      "constraint",
+      "lock",
+      "in"
+    ],
+    "human": {
+      "summary": "Trauma as Constraint Lock-In: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_376_adaptation_vs_rigidity",
+    "tier": "core",
+    "tags": [
+      "stsvk_376",
+      "adaptation",
+      "vs",
+      "rigidity"
+    ],
+    "human": {
+      "summary": "Adaptation vs Rigidity: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_377_psychological_resilience_as_redundancy",
+    "tier": "core",
+    "tags": [
+      "stsvk_377",
+      "psychological",
+      "resilience",
+      "as",
+      "redundancy"
+    ],
+    "human": {
+      "summary": "Psychological Resilience as Redundancy: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_378_burnout_as_repair_saturation",
+    "tier": "core",
+    "tags": [
+      "stsvk_378",
+      "burnout",
+      "as",
+      "repair",
+      "saturation"
+    ],
+    "human": {
+      "summary": "Burnout as Repair Saturation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_379_identity_drift_in_humans",
+    "tier": "core",
+    "tags": [
+      "stsvk_379",
+      "identity",
+      "drift",
+      "in",
+      "humans"
+    ],
+    "human": {
+      "summary": "Identity Drift in Humans: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_380_psychological_collapse_modes",
+    "tier": "core",
+    "tags": [
+      "stsvk_380",
+      "psychological",
+      "collapse",
+      "modes"
+    ],
+    "human": {
+      "summary": "Psychological Collapse Modes: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_381_language_as_control_compression",
+    "tier": "core",
+    "tags": [
+      "stsvk_381",
+      "language",
+      "as",
+      "control",
+      "compression"
+    ],
+    "human": {
+      "summary": "Language as Control Compression: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_382_grammar_as_constraint_encoding",
+    "tier": "core",
+    "tags": [
+      "stsvk_382",
+      "grammar",
+      "as",
+      "constraint",
+      "encoding"
+    ],
+    "human": {
+      "summary": "Grammar as Constraint Encoding: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_383_semantic_drift_as_noise_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_383",
+      "semantic",
+      "drift",
+      "as",
+      "noise",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Semantic Drift as Noise Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_384_language_latency_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_384",
+      "language",
+      "latency",
+      "effects"
+    ],
+    "human": {
+      "summary": "Language Latency Effects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_385_writing_as_external_memory",
+    "tier": "core",
+    "tags": [
+      "stsvk_385",
+      "writing",
+      "as",
+      "external",
+      "memory"
+    ],
+    "human": {
+      "summary": "Writing as External Memory: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_386_mathematical_language_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_386",
+      "mathematical",
+      "language",
+      "stability"
+    ],
+    "human": {
+      "summary": "Mathematical Language Stability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_387_symbol_overload_failure",
+    "tier": "core",
+    "tags": [
+      "stsvk_387",
+      "symbol",
+      "overload",
+      "failure"
+    ],
+    "human": {
+      "summary": "Symbol Overload Failure: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_388_translation_as_invariant_mapping",
+    "tier": "core",
+    "tags": [
+      "stsvk_388",
+      "translation",
+      "as",
+      "invariant",
+      "mapping"
+    ],
+    "human": {
+      "summary": "Translation as Invariant Mapping: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_389_language_evolution_as_constraint_navigation",
+    "tier": "core",
+    "tags": [
+      "stsvk_389",
+      "language",
+      "evolution",
+      "as",
+      "constraint",
+      "navigation"
+    ],
+    "human": {
+      "summary": "Language Evolution as Constraint Navigation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_390_silence_as_information",
+    "tier": "core",
+    "tags": [
+      "stsvk_390",
+      "silence",
+      "as",
+      "information"
+    ],
+    "human": {
+      "summary": "Silence as Information: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_391_culture_as_shared_constraint_system",
+    "tier": "core",
+    "tags": [
+      "stsvk_391",
+      "culture",
+      "as",
+      "shared",
+      "constraint",
+      "system"
+    ],
+    "human": {
+      "summary": "Culture as Shared Constraint System: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_392_cultural_repair_mechanisms",
+    "tier": "core",
+    "tags": [
+      "stsvk_392",
+      "cultural",
+      "repair",
+      "mechanisms"
+    ],
+    "human": {
+      "summary": "Cultural Repair Mechanisms: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_393_cultural_entropy_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_393",
+      "cultural",
+      "entropy",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Cultural Entropy Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_394_cultural_latency_risks",
+    "tier": "core",
+    "tags": [
+      "stsvk_394",
+      "cultural",
+      "latency",
+      "risks"
+    ],
+    "human": {
+      "summary": "Cultural Latency Risks: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_395_cultural_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_395",
+      "cultural",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "Cultural Phase Transitions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_396_cultural_redundancy_and_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_396",
+      "cultural",
+      "redundancy",
+      "and",
+      "stability"
+    ],
+    "human": {
+      "summary": "Cultural Redundancy and Stability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_397_cultural_identity_preservation",
+    "tier": "core",
+    "tags": [
+      "stsvk_397",
+      "cultural",
+      "identity",
+      "preservation"
+    ],
+    "human": {
+      "summary": "Cultural Identity Preservation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_398_memetic_noise_propagation",
+    "tier": "core",
+    "tags": [
+      "stsvk_398",
+      "memetic",
+      "noise",
+      "propagation"
+    ],
+    "human": {
+      "summary": "Memetic Noise Propagation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_399_cultural_design_possibilities",
+    "tier": "core",
+    "tags": [
+      "stsvk_399",
+      "cultural",
+      "design",
+      "possibilities"
+    ],
+    "human": {
+      "summary": "Cultural Design Possibilities: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_400_culture_without_collapse",
+    "tier": "core",
+    "tags": [
+      "stsvk_400",
+      "culture",
+      "without",
+      "collapse"
+    ],
+    "human": {
+      "summary": "Culture Without Collapse: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE8] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_401_institutions_as_long_lived_control_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_401",
+      "institutions",
+      "as",
+      "long",
+      "lived",
+      "control",
+      "systems"
+    ],
+    "human": {
+      "summary": "[TODO] Institutions as Long-Lived Control Systems: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_402_institutional_repair_vs_reform",
+    "tier": "core",
+    "tags": [
+      "stsvk_402",
+      "institutional",
+      "repair",
+      "vs",
+      "reform"
+    ],
+    "human": {
+      "summary": "[TODO] Institutional Repair vs Reform: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_403_institutional_capture_dynamics",
+    "tier": "core",
+    "tags": [
+      "stsvk_403",
+      "institutional",
+      "capture",
+      "dynamics"
+    ],
+    "human": {
+      "summary": "[TODO] Institutional Capture Dynamics: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_404_institutional_latency_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_404",
+      "institutional",
+      "latency",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "[TODO] Institutional Latency Accumulation: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_405_institutional_knowledge_decay",
+    "tier": "core",
+    "tags": [
+      "stsvk_405",
+      "institutional",
+      "knowledge",
+      "decay"
+    ],
+    "human": {
+      "summary": "[TODO] Institutional Knowledge Decay: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_406_education_as_constraint_transmission",
+    "tier": "core",
+    "tags": [
+      "stsvk_406",
+      "education",
+      "as",
+      "constraint",
+      "transmission"
+    ],
+    "human": {
+      "summary": "[TODO] Education as Constraint Transmission: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_407_curriculum_drift_as_noise",
+    "tier": "core",
+    "tags": [
+      "stsvk_407",
+      "curriculum",
+      "drift",
+      "as",
+      "noise"
+    ],
+    "human": {
+      "summary": "[TODO] Curriculum Drift as Noise: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_408_collective_intelligence_thresholds",
+    "tier": "core",
+    "tags": [
+      "stsvk_408",
+      "collective",
+      "intelligence",
+      "thresholds"
+    ],
+    "human": {
+      "summary": "[TODO] Collective Intelligence Thresholds: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_409_collective_blindness_modes",
+    "tier": "core",
+    "tags": [
+      "stsvk_409",
+      "collective",
+      "blindness",
+      "modes"
+    ],
+    "human": {
+      "summary": "[TODO] Collective Blindness Modes: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_410_knowledge_system_collapse",
+    "tier": "core",
+    "tags": [
+      "stsvk_410",
+      "knowledge",
+      "system",
+      "collapse"
+    ],
+    "human": {
+      "summary": "[TODO] Knowledge System Collapse: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_411_distributed_human_intelligence",
+    "tier": "core",
+    "tags": [
+      "stsvk_411",
+      "distributed",
+      "human",
+      "intelligence"
+    ],
+    "human": {
+      "summary": "[TODO] Distributed Human Intelligence: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_412_hybrid_human_ai_cognition",
+    "tier": "core",
+    "tags": [
+      "stsvk_412",
+      "hybrid",
+      "human",
+      "ai",
+      "cognition"
+    ],
+    "human": {
+      "summary": "[TODO] Hybrid Human–AI Cognition: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_413_long_horizon_collective_planning",
+    "tier": "core",
+    "tags": [
+      "stsvk_413",
+      "long",
+      "horizon",
+      "collective",
+      "planning"
+    ],
+    "human": {
+      "summary": "[TODO] Long-Horizon Collective Planning: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_414_collective_memory_as_infrastructure",
+    "tier": "core",
+    "tags": [
+      "stsvk_414",
+      "collective",
+      "memory",
+      "as",
+      "infrastructure"
+    ],
+    "human": {
+      "summary": "[TODO] Collective Memory as Infrastructure: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_415_civilizational_learning_loops",
+    "tier": "core",
+    "tags": [
+      "stsvk_415",
+      "civilizational",
+      "learning",
+      "loops"
+    ],
+    "human": {
+      "summary": "[TODO] Civilizational Learning Loops: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_416_knowledge_repair_at_scale",
+    "tier": "core",
+    "tags": [
+      "stsvk_416",
+      "knowledge",
+      "repair",
+      "at",
+      "scale"
+    ],
+    "human": {
+      "summary": "[TODO] Knowledge Repair at Scale: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_417_truth_maintenance_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_417",
+      "truth",
+      "maintenance",
+      "systems"
+    ],
+    "human": {
+      "summary": "[TODO] Truth Maintenance Systems: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_418_collective_identity_without_centralization",
+    "tier": "core",
+    "tags": [
+      "stsvk_418",
+      "collective",
+      "identity",
+      "without",
+      "centralization"
+    ],
+    "human": {
+      "summary": "[TODO] Collective Identity Without Centralization: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_419_post_human_collective_minds",
+    "tier": "core",
+    "tags": [
+      "stsvk_419",
+      "post",
+      "human",
+      "collective",
+      "minds"
+    ],
+    "human": {
+      "summary": "[TODO] Post-Human Collective Minds: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_420_civilization_scale_consciousness",
+    "tier": "core",
+    "tags": [
+      "stsvk_420",
+      "civilization",
+      "scale",
+      "consciousness"
+    ],
+    "human": {
+      "summary": "[TODO] Civilization-Scale Consciousness: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 7: Cognition, Psychology, Language, Culture, Institutions, Collective Intelligence (361–420)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

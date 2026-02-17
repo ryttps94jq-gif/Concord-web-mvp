@@ -1,0 +1,6294 @@
+[
+  {
+    "id": "dtu_061_energy_transduction_constraint_cone_etcc",
+    "tier": "core",
+    "tags": [
+      "stsvk_061",
+      "energy",
+      "transduction",
+      "constraint",
+      "cone",
+      "etcc"
+    ],
+    "human": {
+      "summary": "Energy-Transduction Constraint Cone (ETCC): modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_062_transduction_state_vector_theory",
+    "tier": "core",
+    "tags": [
+      "stsvk_062",
+      "transduction",
+      "state",
+      "vector",
+      "theory"
+    ],
+    "human": {
+      "summary": "Transduction State Vector Theory: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_063_constraint_cones_as_feasibility_manifolds",
+    "tier": "core",
+    "tags": [
+      "stsvk_063",
+      "constraint",
+      "cones",
+      "as",
+      "feasibility",
+      "manifolds"
+    ],
+    "human": {
+      "summary": "Constraint Cones as Feasibility Manifolds: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_064_constraint_cones_vs_optimization_landscapes",
+    "tier": "core",
+    "tags": [
+      "stsvk_064",
+      "constraint",
+      "cones",
+      "vs",
+      "optimization",
+      "landscapes"
+    ],
+    "human": {
+      "summary": "Constraint Cones vs Optimization Landscapes: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_065_multi_axis_constraint_cones",
+    "tier": "core",
+    "tags": [
+      "stsvk_065",
+      "multi",
+      "axis",
+      "constraint",
+      "cones"
+    ],
+    "human": {
+      "summary": "Multi-Axis Constraint Cones: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_066_time_evolving_constraint_cones",
+    "tier": "core",
+    "tags": [
+      "stsvk_066",
+      "time",
+      "evolving",
+      "constraint",
+      "cones"
+    ],
+    "human": {
+      "summary": "Temporal substrates model is rate-separation: fast states relax to an attracting manifold; slow variables encode long-horizon drift and memory.",
+      "bullets": [
+        "Separate fast x and slow τ dynamics",
+        "Slow manifold M captures stable regimes",
+        "Recency/causality handled as constraints on τ evolution"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "ε≪1 for clean separation",
+        "Trajectories remain near M",
+        "Updates preserve causality constraints (no future leakage)"
+      ],
+      "claims": [
+        "Time is an explicit state variable",
+        "Slow dynamics explain lagged adaptation",
+        "Verification reduces to manifold distance + causality checks"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "τ": "internal time",
+          "t": "external time",
+          "ε": "rate separation"
+        },
+        "dynamics": "ẋ=F(x,τ); ṫ=1; ṫau=ε·G(x,τ), 0<ε≪1",
+        "constraints": [
+          "ε∈(0,1)",
+          "stay near slow manifold M"
+        ],
+        "potential": "V=dist((x,τ),M)",
+        "implication": "Fast relaxation to M then slow drift along M when ε≪1 and M attracting."
+      },
+      "primaryFormula": "ẋ=F(x,τ); ṫau=ε·G(x,τ), 0<ε≪1",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_067_constraint_cone_collapse_events",
+    "tier": "core",
+    "tags": [
+      "stsvk_067",
+      "constraint",
+      "cone",
+      "collapse",
+      "events"
+    ],
+    "human": {
+      "summary": "Constraint Cone Collapse Events: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_068_constraint_cone_attractor_regions",
+    "tier": "core",
+    "tags": [
+      "stsvk_068",
+      "constraint",
+      "cone",
+      "attractor",
+      "regions"
+    ],
+    "human": {
+      "summary": "Constraint Cone Attractor Regions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "θ": "params"
+        },
+        "dynamics": "x_{t+1}=F(x_t;θ)",
+        "constraints": [
+          "h(x)=0",
+          "g(x)≤0"
+        ],
+        "potential": "V=||F(x)-x||^2",
+        "implication": "If V non-increasing and bounded below, x approaches invariant set where V=0."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_069_constraint_cone_boundary_dynamics",
+    "tier": "core",
+    "tags": [
+      "stsvk_069",
+      "constraint",
+      "cone",
+      "boundary",
+      "dynamics"
+    ],
+    "human": {
+      "summary": "Constraint Cone Boundary Dynamics: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_070_constraint_cone_saturation",
+    "tier": "core",
+    "tags": [
+      "stsvk_070",
+      "constraint",
+      "cone",
+      "saturation"
+    ],
+    "human": {
+      "summary": "Constraint Cone Saturation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_071_emergent_intelligence_likelihood_index_eili",
+    "tier": "core",
+    "tags": [
+      "stsvk_071",
+      "emergent",
+      "intelligence",
+      "likelihood",
+      "index",
+      "eili"
+    ],
+    "human": {
+      "summary": "Emergent Intelligence Likelihood Index (EILI): modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_072_intelligence_threshold_surfaces",
+    "tier": "core",
+    "tags": [
+      "stsvk_072",
+      "intelligence",
+      "threshold",
+      "surfaces"
+    ],
+    "human": {
+      "summary": "Intelligence Threshold Surfaces: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_073_intelligence_scaling_ceilings",
+    "tier": "core",
+    "tags": [
+      "stsvk_073",
+      "intelligence",
+      "scaling",
+      "ceilings"
+    ],
+    "human": {
+      "summary": "Intelligence Scaling Ceilings: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_074_intelligence_density_vs_intelligence_speed",
+    "tier": "core",
+    "tags": [
+      "stsvk_074",
+      "intelligence",
+      "density",
+      "vs",
+      "speed"
+    ],
+    "human": {
+      "summary": "Intelligence Density vs Intelligence Speed: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_075_control_saturation_effects_on_cognition",
+    "tier": "core",
+    "tags": [
+      "stsvk_075",
+      "control",
+      "saturation",
+      "effects",
+      "on",
+      "cognition"
+    ],
+    "human": {
+      "summary": "Control Saturation Effects on Cognition: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_076_noise_dominated_cognitive_collapse",
+    "tier": "core",
+    "tags": [
+      "stsvk_076",
+      "noise",
+      "dominated",
+      "cognitive",
+      "collapse"
+    ],
+    "human": {
+      "summary": "Noise-Dominated Cognitive Collapse: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_077_latency_dominated_intelligence",
+    "tier": "core",
+    "tags": [
+      "stsvk_077",
+      "latency",
+      "dominated",
+      "intelligence"
+    ],
+    "human": {
+      "summary": "Latency-Dominated Intelligence: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_078_redundancy_driven_intelligence_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_078",
+      "redundancy",
+      "driven",
+      "intelligence",
+      "stability"
+    ],
+    "human": {
+      "summary": "Redundancy-Driven Intelligence Stability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_079_collective_intelligence_thresholds",
+    "tier": "core",
+    "tags": [
+      "stsvk_079",
+      "collective",
+      "intelligence",
+      "thresholds"
+    ],
+    "human": {
+      "summary": "Collective Intelligence Thresholds: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_080_intelligence_without_consciousness",
+    "tier": "core",
+    "tags": [
+      "stsvk_080",
+      "intelligence",
+      "without",
+      "consciousness"
+    ],
+    "human": {
+      "summary": "Intelligence Without Consciousness: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "substrate state",
+          "y": "experience proxy",
+          "π": "mapping"
+        },
+        "dynamics": "y = π(x); x_{t+1}=F(x_t,u_t)",
+        "constraints": [
+          "π preserves invariants (information/structure)",
+          "y well-defined on equivalence classes"
+        ],
+        "potential": "V=||π(F(x))-π(x)||",
+        "implication": "If π invariant-preserving and V small over time, experience is substrate-stable."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_081_longevity_feasibility_index_lfi",
+    "tier": "core",
+    "tags": [
+      "stsvk_081",
+      "longevity",
+      "feasibility",
+      "index",
+      "lfi"
+    ],
+    "human": {
+      "summary": "Longevity Feasibility Index (LFI): modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_082_repair_first_system_architecture",
+    "tier": "core",
+    "tags": [
+      "stsvk_082",
+      "repair",
+      "first",
+      "system",
+      "architecture"
+    ],
+    "human": {
+      "summary": "Repair-First System Architecture: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_083_deferred_entropy_accounting",
+    "tier": "core",
+    "tags": [
+      "stsvk_083",
+      "deferred",
+      "entropy",
+      "accounting"
+    ],
+    "human": {
+      "summary": "Deferred Entropy Accounting: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_084_longevity_ceiling_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_084",
+      "longevity",
+      "ceiling",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Longevity Ceiling Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_085_biological_repair_insufficiency",
+    "tier": "core",
+    "tags": [
+      "stsvk_085",
+      "biological",
+      "repair",
+      "insufficiency"
+    ],
+    "human": {
+      "summary": "Biological Repair Insufficiency: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_086_artificial_repair_supremacy",
+    "tier": "core",
+    "tags": [
+      "stsvk_086",
+      "artificial",
+      "repair",
+      "supremacy"
+    ],
+    "human": {
+      "summary": "Artificial Repair Supremacy: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_087_immortality_as_a_finite_engineering_problem",
+    "tier": "core",
+    "tags": [
+      "stsvk_087",
+      "immortality",
+      "as",
+      "a",
+      "finite",
+      "engineering",
+      "problem"
+    ],
+    "human": {
+      "summary": "Immortality as a Finite Engineering Problem: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_088_longevity_without_intelligence",
+    "tier": "core",
+    "tags": [
+      "stsvk_088",
+      "longevity",
+      "without",
+      "intelligence"
+    ],
+    "human": {
+      "summary": "Longevity Without Intelligence: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_089_intelligence_induced_aging_acceleration",
+    "tier": "core",
+    "tags": [
+      "stsvk_089",
+      "intelligence",
+      "induced",
+      "aging",
+      "acceleration"
+    ],
+    "human": {
+      "summary": "Intelligence-Induced Aging Acceleration: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_090_repair_saturation_failure_modes",
+    "tier": "core",
+    "tags": [
+      "stsvk_090",
+      "repair",
+      "saturation",
+      "failure",
+      "modes"
+    ],
+    "human": {
+      "summary": "Repair Saturation Failure Modes: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_091_high_intelligence_low_longevity_regime",
+    "tier": "core",
+    "tags": [
+      "stsvk_091",
+      "high",
+      "intelligence",
+      "low",
+      "longevity",
+      "regime"
+    ],
+    "human": {
+      "summary": "High-Intelligence / Low-Longevity Regime: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_092_low_intelligence_high_longevity_regime",
+    "tier": "core",
+    "tags": [
+      "stsvk_092",
+      "low",
+      "intelligence",
+      "high",
+      "longevity",
+      "regime"
+    ],
+    "human": {
+      "summary": "Low-Intelligence / High-Longevity Regime: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_093_high_intelligence_high_longevity_regime",
+    "tier": "core",
+    "tags": [
+      "stsvk_093",
+      "high",
+      "intelligence",
+      "longevity",
+      "regime"
+    ],
+    "human": {
+      "summary": "High-Intelligence / High-Longevity Regime: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_094_low_intelligence_low_longevity_regime",
+    "tier": "core",
+    "tags": [
+      "stsvk_094",
+      "low",
+      "intelligence",
+      "longevity",
+      "regime"
+    ],
+    "human": {
+      "summary": "Low-Intelligence / Low-Longevity Regime: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_095_regime_transition_thresholds",
+    "tier": "core",
+    "tags": [
+      "stsvk_095",
+      "regime",
+      "transition",
+      "thresholds"
+    ],
+    "human": {
+      "summary": "Regime Transition Thresholds: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_096_regime_lock_in_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_096",
+      "regime",
+      "lock",
+      "in",
+      "effects"
+    ],
+    "human": {
+      "summary": "Regime Lock-In Effects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_097_regime_boundary_exploration",
+    "tier": "core",
+    "tags": [
+      "stsvk_097",
+      "regime",
+      "boundary",
+      "exploration"
+    ],
+    "human": {
+      "summary": "Regime Boundary Exploration: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_098_regime_collapse_cascades",
+    "tier": "core",
+    "tags": [
+      "stsvk_098",
+      "regime",
+      "collapse",
+      "cascades"
+    ],
+    "human": {
+      "summary": "Regime Collapse Cascades: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_099_regime_stability_vs_adaptability",
+    "tier": "core",
+    "tags": [
+      "stsvk_099",
+      "regime",
+      "stability",
+      "vs",
+      "adaptability"
+    ],
+    "human": {
+      "summary": "Regime Stability vs Adaptability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_100_regime_selection_as_destiny",
+    "tier": "core",
+    "tags": [
+      "stsvk_100",
+      "regime",
+      "selection",
+      "as",
+      "destiny"
+    ],
+    "human": {
+      "summary": "Regime Selection as Destiny: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE2] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_101_embodiment_parameterization_theory",
+    "tier": "core",
+    "tags": [
+      "stsvk_101",
+      "embodiment",
+      "parameterization",
+      "theory"
+    ],
+    "human": {
+      "summary": "Embodiment Parameterization Theory: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_102_wet_chemistry_constraint_lock_in",
+    "tier": "core",
+    "tags": [
+      "stsvk_102",
+      "wet",
+      "chemistry",
+      "constraint",
+      "lock",
+      "in"
+    ],
+    "human": {
+      "summary": "Wet Chemistry Constraint Lock-In: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_103_non_chemical_embodiment_space",
+    "tier": "core",
+    "tags": [
+      "stsvk_103",
+      "non",
+      "chemical",
+      "embodiment",
+      "space"
+    ],
+    "human": {
+      "summary": "Non-Chemical Embodiment Space: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_104_modular_embodiment_advantage",
+    "tier": "core",
+    "tags": [
+      "stsvk_104",
+      "modular",
+      "embodiment",
+      "advantage"
+    ],
+    "human": {
+      "summary": "Modular Embodiment Advantage: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_105_distributed_embodiment_intelligence",
+    "tier": "core",
+    "tags": [
+      "stsvk_105",
+      "distributed",
+      "embodiment",
+      "intelligence"
+    ],
+    "human": {
+      "summary": "Distributed Embodiment Intelligence: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_106_embodiment_driven_cognitive_style",
+    "tier": "core",
+    "tags": [
+      "stsvk_106",
+      "embodiment",
+      "driven",
+      "cognitive",
+      "style"
+    ],
+    "human": {
+      "summary": "Embodiment-Driven Cognitive Style: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_107_sensory_bandwidth_constraints",
+    "tier": "core",
+    "tags": [
+      "stsvk_107",
+      "sensory",
+      "bandwidth",
+      "constraints"
+    ],
+    "human": {
+      "summary": "Sensory Bandwidth Constraints: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_108_actuator_density_and_agency",
+    "tier": "core",
+    "tags": [
+      "stsvk_108",
+      "actuator",
+      "density",
+      "and",
+      "agency"
+    ],
+    "human": {
+      "summary": "Actuator Density and Agency: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_109_embodiment_failure_surfaces",
+    "tier": "core",
+    "tags": [
+      "stsvk_109",
+      "embodiment",
+      "failure",
+      "surfaces"
+    ],
+    "human": {
+      "summary": "Embodiment Failure Surfaces: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_110_embodiment_replacement_pathways",
+    "tier": "core",
+    "tags": [
+      "stsvk_110",
+      "embodiment",
+      "replacement",
+      "pathways"
+    ],
+    "human": {
+      "summary": "Embodiment Replacement Pathways: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_111_intelligence_probability_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_111",
+      "intelligence",
+      "probability",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Intelligence Probability Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_112_environmental_constraint_mapping",
+    "tier": "core",
+    "tags": [
+      "stsvk_112",
+      "environmental",
+      "constraint",
+      "mapping"
+    ],
+    "human": {
+      "summary": "Environmental Constraint Mapping: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_113_energy_gradient_sufficiency",
+    "tier": "core",
+    "tags": [
+      "stsvk_113",
+      "energy",
+      "gradient",
+      "sufficiency"
+    ],
+    "human": {
+      "summary": "Energy Gradient Sufficiency: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_114_stability_window_theory",
+    "tier": "core",
+    "tags": [
+      "stsvk_114",
+      "stability",
+      "window",
+      "theory"
+    ],
+    "human": {
+      "summary": "Stability Window Theory: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_115_repair_friendly_environments",
+    "tier": "core",
+    "tags": [
+      "stsvk_115",
+      "repair",
+      "friendly",
+      "environments"
+    ],
+    "human": {
+      "summary": "Repair-Friendly Environments: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_116_high_flux_world_intelligence",
+    "tier": "core",
+    "tags": [
+      "stsvk_116",
+      "high",
+      "flux",
+      "world",
+      "intelligence"
+    ],
+    "human": {
+      "summary": "High-Flux World Intelligence: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_117_low_flux_world_cognition_limits",
+    "tier": "core",
+    "tags": [
+      "stsvk_117",
+      "low",
+      "flux",
+      "world",
+      "cognition",
+      "limits"
+    ],
+    "human": {
+      "summary": "Low-Flux World Cognition Limits: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_118_constraint_compatible_biospheres",
+    "tier": "core",
+    "tags": [
+      "stsvk_118",
+      "constraint",
+      "compatible",
+      "biospheres"
+    ],
+    "human": {
+      "summary": "Constraint-Compatible Biospheres: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_119_intelligence_as_environmental_response",
+    "tier": "core",
+    "tags": [
+      "stsvk_119",
+      "intelligence",
+      "as",
+      "environmental",
+      "response"
+    ],
+    "human": {
+      "summary": "Intelligence as Environmental Response: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_120_astrobiology_without_guesswork",
+    "tier": "core",
+    "tags": [
+      "stsvk_120",
+      "astrobiology",
+      "without",
+      "guesswork"
+    ],
+    "human": {
+      "summary": "Astrobiology Without Guesswork: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE3] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 2: ETCC Core, Indices, and Constraint Geometry (61–120)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

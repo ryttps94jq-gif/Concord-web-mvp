@@ -1,0 +1,6342 @@
+[
+  {
+    "id": "dtu_181_civilization_as_a_control_system",
+    "tier": "core",
+    "tags": [
+      "stsvk_181",
+      "civilization",
+      "as",
+      "a",
+      "control",
+      "system"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_182_civilization_level_constraint_cones",
+    "tier": "core",
+    "tags": [
+      "stsvk_182",
+      "civilization",
+      "level",
+      "constraint",
+      "cones"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_183_metabolic_civilization_theory",
+    "tier": "core",
+    "tags": [
+      "stsvk_183",
+      "metabolic",
+      "civilization",
+      "theory"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_184_repair_dominant_civilizations",
+    "tier": "core",
+    "tags": [
+      "stsvk_184",
+      "repair",
+      "dominant",
+      "civilizations"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_185_throughput_maximizing_civilizations",
+    "tier": "core",
+    "tags": [
+      "stsvk_185",
+      "throughput",
+      "maximizing",
+      "civilizations"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_186_civilization_latency_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_186",
+      "civilization",
+      "latency",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_187_control_density_vs_population_size",
+    "tier": "core",
+    "tags": [
+      "stsvk_187",
+      "control",
+      "density",
+      "vs",
+      "population",
+      "size"
+    ],
+    "human": {
+      "summary": "Control Density vs Population Size: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_188_distributed_civilization_models",
+    "tier": "core",
+    "tags": [
+      "stsvk_188",
+      "distributed",
+      "civilization",
+      "models"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_189_monolithic_civilization_fragility",
+    "tier": "core",
+    "tags": [
+      "stsvk_189",
+      "monolithic",
+      "civilization",
+      "fragility"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_190_civilization_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_190",
+      "civilization",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_191_governance_as_constraint_enforcement",
+    "tier": "core",
+    "tags": [
+      "stsvk_191",
+      "governance",
+      "as",
+      "constraint",
+      "enforcement"
+    ],
+    "human": {
+      "summary": "Governance as Constraint Enforcement: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_192_anti_capture_governance_structures",
+    "tier": "core",
+    "tags": [
+      "stsvk_192",
+      "anti",
+      "capture",
+      "governance",
+      "structures"
+    ],
+    "human": {
+      "summary": "Anti-Capture Governance Structures: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_193_governance_repair_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_193",
+      "governance",
+      "repair",
+      "systems"
+    ],
+    "human": {
+      "summary": "Governance Repair Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_194_latency_aware_governance",
+    "tier": "core",
+    "tags": [
+      "stsvk_194",
+      "latency",
+      "aware",
+      "governance"
+    ],
+    "human": {
+      "summary": "Latency-Aware Governance: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_195_redundant_governance_layers",
+    "tier": "core",
+    "tags": [
+      "stsvk_195",
+      "redundant",
+      "governance",
+      "layers"
+    ],
+    "human": {
+      "summary": "Redundant Governance Layers: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_196_modular_governance_architectures",
+    "tier": "core",
+    "tags": [
+      "stsvk_196",
+      "modular",
+      "governance",
+      "architectures"
+    ],
+    "human": {
+      "summary": "Modular Governance Architectures: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_197_governance_saturation_points",
+    "tier": "core",
+    "tags": [
+      "stsvk_197",
+      "governance",
+      "saturation",
+      "points"
+    ],
+    "human": {
+      "summary": "Governance Saturation Points: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_198_governance_entropy_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_198",
+      "governance",
+      "entropy",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Governance Entropy Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_199_adaptive_governance_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_199",
+      "adaptive",
+      "governance",
+      "systems"
+    ],
+    "human": {
+      "summary": "Adaptive Governance Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_200_governance_as_infrastructure",
+    "tier": "core",
+    "tags": [
+      "stsvk_200",
+      "governance",
+      "as",
+      "infrastructure"
+    ],
+    "human": {
+      "summary": "Governance as Infrastructure: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE4] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_201_economics_as_energy_allocation",
+    "tier": "core",
+    "tags": [
+      "stsvk_201",
+      "economics",
+      "as",
+      "energy",
+      "allocation"
+    ],
+    "human": {
+      "summary": "Economics as Energy Allocation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_202_economic_constraint_geometry",
+    "tier": "core",
+    "tags": [
+      "stsvk_202",
+      "economic",
+      "constraint",
+      "geometry"
+    ],
+    "human": {
+      "summary": "Economic Constraint Geometry: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_203_debt_as_deferred_entropy",
+    "tier": "core",
+    "tags": [
+      "stsvk_203",
+      "debt",
+      "as",
+      "deferred",
+      "entropy"
+    ],
+    "human": {
+      "summary": "Debt as Deferred Entropy: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_204_anti_debt_economic_architectures",
+    "tier": "core",
+    "tags": [
+      "stsvk_204",
+      "anti",
+      "debt",
+      "economic",
+      "architectures"
+    ],
+    "human": {
+      "summary": "Anti-Debt Economic Architectures: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_205_royalty_wheel_economics",
+    "tier": "core",
+    "tags": [
+      "stsvk_205",
+      "royalty",
+      "wheel",
+      "economics"
+    ],
+    "human": {
+      "summary": "Royalty Wheel Economics: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_206_capture_resistant_economic_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_206",
+      "capture",
+      "resistant",
+      "economic",
+      "systems"
+    ],
+    "human": {
+      "summary": "Capture-Resistant Economic Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_207_economic_repair_dominance",
+    "tier": "core",
+    "tags": [
+      "stsvk_207",
+      "economic",
+      "repair",
+      "dominance"
+    ],
+    "human": {
+      "summary": "Economic Repair Dominance: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_208_latency_in_financial_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_208",
+      "latency",
+      "in",
+      "financial",
+      "systems"
+    ],
+    "human": {
+      "summary": "Latency in Financial Systems: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_209_distributed_economic_models",
+    "tier": "core",
+    "tags": [
+      "stsvk_209",
+      "distributed",
+      "economic",
+      "models"
+    ],
+    "human": {
+      "summary": "Distributed Economic Models: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_210_economic_phase_transitions",
+    "tier": "core",
+    "tags": [
+      "stsvk_210",
+      "economic",
+      "phase",
+      "transitions"
+    ],
+    "human": {
+      "summary": "Economic Phase Transitions: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_211_ethics_as_constraint_satisfaction",
+    "tier": "core",
+    "tags": [
+      "stsvk_211",
+      "ethics",
+      "as",
+      "constraint",
+      "satisfaction"
+    ],
+    "human": {
+      "summary": "Ethics as Constraint Satisfaction: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_212_moral_failure_as_structural_failure",
+    "tier": "core",
+    "tags": [
+      "stsvk_212",
+      "moral",
+      "failure",
+      "as",
+      "structural"
+    ],
+    "human": {
+      "summary": "Moral Failure as Structural Failure: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_213_ethics_without_enforcement",
+    "tier": "core",
+    "tags": [
+      "stsvk_213",
+      "ethics",
+      "without",
+      "enforcement"
+    ],
+    "human": {
+      "summary": "Ethics Without Enforcement: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_214_ethical_saturation_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_214",
+      "ethical",
+      "saturation",
+      "effects"
+    ],
+    "human": {
+      "summary": "Ethical Saturation Effects: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_215_ethics_under_scale",
+    "tier": "core",
+    "tags": [
+      "stsvk_215",
+      "ethics",
+      "under",
+      "scale"
+    ],
+    "human": {
+      "summary": "Ethics Under Scale: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_216_repair_oriented_ethics",
+    "tier": "core",
+    "tags": [
+      "stsvk_216",
+      "repair",
+      "oriented",
+      "ethics"
+    ],
+    "human": {
+      "summary": "Repair-Oriented Ethics: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_217_ethical_latency_risks",
+    "tier": "core",
+    "tags": [
+      "stsvk_217",
+      "ethical",
+      "latency",
+      "risks"
+    ],
+    "human": {
+      "summary": "Ethical Latency Risks: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_218_ethics_as_long_term_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_218",
+      "ethics",
+      "as",
+      "long",
+      "term",
+      "stability"
+    ],
+    "human": {
+      "summary": "Ethics as Long-Term Stability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_219_cross_system_ethical_compatibility",
+    "tier": "core",
+    "tags": [
+      "stsvk_219",
+      "cross",
+      "system",
+      "ethical",
+      "compatibility"
+    ],
+    "human": {
+      "summary": "Cross-System Ethical Compatibility: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_220_ethics_as_civilization_infrastructure",
+    "tier": "core",
+    "tags": [
+      "stsvk_220",
+      "ethics",
+      "as",
+      "civilization",
+      "infrastructure"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "C": "capacity",
+          "D": "decay",
+          "R": "repair",
+          "T": "throughput"
+        },
+        "dynamics": "C_{t+1}=C_t+R_t-D_t; T_t≤C_t",
+        "constraints": [
+          "C≥0",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=max(0,C_min-C)",
+        "implication": "If E[R]≥E[D] and shocks bounded, then C stays above C_min with high probability."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_221_collapse_via_control_overload",
+    "tier": "core",
+    "tags": [
+      "stsvk_221",
+      "collapse",
+      "via",
+      "control",
+      "overload"
+    ],
+    "human": {
+      "summary": "Collapse via Control Overload: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_222_collapse_via_repair_neglect",
+    "tier": "core",
+    "tags": [
+      "stsvk_222",
+      "collapse",
+      "via",
+      "repair",
+      "neglect"
+    ],
+    "human": {
+      "summary": "Collapse via Repair Neglect: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_223_collapse_via_capture_lock_in",
+    "tier": "core",
+    "tags": [
+      "stsvk_223",
+      "collapse",
+      "via",
+      "capture",
+      "lock",
+      "in"
+    ],
+    "human": {
+      "summary": "Collapse via Capture Lock-In: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "D": "debt",
+          "B": "buffer",
+          "r": "interest",
+          "G": "spend",
+          "T": "revenue",
+          "R": "repair"
+        },
+        "dynamics": "dD/dt=r·D+(G-T); dB/dt=R-Dmg",
+        "constraints": [
+          "D≥0",
+          "B≥0",
+          "R≥0"
+        ],
+        "potential": "V=D+max(0,B_min-B)",
+        "implication": "If (T-G)≥r·D and E[R]≥E[Dmg], then debt stabilizes and buffer stays above threshold."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_224_collapse_via_latency_explosion",
+    "tier": "core",
+    "tags": [
+      "stsvk_224",
+      "collapse",
+      "via",
+      "latency",
+      "explosion"
+    ],
+    "human": {
+      "summary": "Collapse via Latency Explosion: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_225_collapse_via_resource_misallocation",
+    "tier": "core",
+    "tags": [
+      "stsvk_225",
+      "collapse",
+      "via",
+      "resource",
+      "misallocation"
+    ],
+    "human": {
+      "summary": "Collapse via Resource Misallocation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_226_collapse_via_noise_accumulation",
+    "tier": "core",
+    "tags": [
+      "stsvk_226",
+      "collapse",
+      "via",
+      "noise",
+      "accumulation"
+    ],
+    "human": {
+      "summary": "Collapse via Noise Accumulation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_227_collapse_via_over_optimization",
+    "tier": "core",
+    "tags": [
+      "stsvk_227",
+      "collapse",
+      "via",
+      "over",
+      "optimization"
+    ],
+    "human": {
+      "summary": "Collapse via Over-Optimization: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_228_collapse_via_boundary_violation",
+    "tier": "core",
+    "tags": [
+      "stsvk_228",
+      "collapse",
+      "via",
+      "boundary",
+      "violation"
+    ],
+    "human": {
+      "summary": "Collapse via Boundary Violation: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_229_collapse_via_identity_drift",
+    "tier": "core",
+    "tags": [
+      "stsvk_229",
+      "collapse",
+      "via",
+      "identity",
+      "drift"
+    ],
+    "human": {
+      "summary": "Collapse via Identity Drift: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_230_collapse_as_geometric_inevitability",
+    "tier": "core",
+    "tags": [
+      "stsvk_230",
+      "collapse",
+      "as",
+      "geometric",
+      "inevitability"
+    ],
+    "human": {
+      "summary": "Collapse as Geometric Inevitability: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_231_longevity_first_civilization_design",
+    "tier": "core",
+    "tags": [
+      "stsvk_231",
+      "longevity",
+      "first",
+      "civilization",
+      "design"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_232_low_entropy_civilization_architecture",
+    "tier": "core",
+    "tags": [
+      "stsvk_232",
+      "low",
+      "entropy",
+      "civilization",
+      "architecture"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_233_multi_timescale_civilization_control",
+    "tier": "core",
+    "tags": [
+      "stsvk_233",
+      "multi",
+      "timescale",
+      "civilization",
+      "control"
+    ],
+    "human": {
+      "summary": "Temporal substrates model is rate-separation: fast states relax to an attracting manifold; slow variables encode long-horizon drift and memory.",
+      "bullets": [
+        "Separate fast x and slow τ dynamics",
+        "Slow manifold M captures stable regimes",
+        "Recency/causality handled as constraints on τ evolution"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "ε≪1 for clean separation",
+        "Trajectories remain near M",
+        "Updates preserve causality constraints (no future leakage)"
+      ],
+      "claims": [
+        "Time is an explicit state variable",
+        "Slow dynamics explain lagged adaptation",
+        "Verification reduces to manifold distance + causality checks"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "τ": "internal time",
+          "t": "external time",
+          "ε": "rate separation"
+        },
+        "dynamics": "ẋ=F(x,τ); ṫ=1; ṫau=ε·G(x,τ), 0<ε≪1",
+        "constraints": [
+          "ε∈(0,1)",
+          "stay near slow manifold M"
+        ],
+        "potential": "V=dist((x,τ),M)",
+        "implication": "Fast relaxation to M then slow drift along M when ε≪1 and M attracting."
+      },
+      "primaryFormula": "ẋ=F(x,τ); ṫau=ε·G(x,τ), 0<ε≪1",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_234_modular_civilization_design",
+    "tier": "core",
+    "tags": [
+      "stsvk_234",
+      "modular",
+      "civilization",
+      "design"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_235_distributed_power_structures",
+    "tier": "core",
+    "tags": [
+      "stsvk_235",
+      "distributed",
+      "power",
+      "structures"
+    ],
+    "human": {
+      "summary": "Distributed Power Structures: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_236_repair_budgeted_civilizations",
+    "tier": "core",
+    "tags": [
+      "stsvk_236",
+      "repair",
+      "budgeted",
+      "civilizations"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "B": "integrity",
+          "D": "damage",
+          "R": "repair",
+          "S": "stress"
+        },
+        "dynamics": "dB/dt=R(B,S)-D(B,S)",
+        "constraints": [
+          "B∈[0,1]",
+          "R≥0",
+          "D≥0"
+        ],
+        "potential": "V=1-B",
+        "implication": "If R≥D+ε on [B0,1], then B increases toward 1 (repair-dominant)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_237_adaptive_boundary_management",
+    "tier": "core",
+    "tags": [
+      "stsvk_237",
+      "adaptive",
+      "boundary",
+      "management"
+    ],
+    "human": {
+      "summary": "Adaptive Boundary Management: modeled as constraint-driven dynamics; stable regimes correspond to invariant preservation and repair dominance.",
+      "bullets": [
+        "Define state variables",
+        "Define dynamics operator",
+        "Define invariants + potential"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "Feasible states satisfy constraints",
+        "Violations imply forbidden region or repair projection",
+        "Stability ↔ bounded potential"
+      ],
+      "claims": [
+        "Constraints dominate narrative",
+        "Stability is invariant preservation",
+        "Repair/feedback shifts regimes"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_238_civilization_identity_preservation",
+    "tier": "core",
+    "tags": [
+      "stsvk_238",
+      "civilization",
+      "identity",
+      "preservation"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_239_civilization_without_collapse_myth",
+    "tier": "core",
+    "tags": [
+      "stsvk_239",
+      "civilization",
+      "without",
+      "collapse",
+      "myth"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_240_civilization_as_a_designed_artifact",
+    "tier": "core",
+    "tags": [
+      "stsvk_240",
+      "civilization",
+      "as",
+      "a",
+      "designed",
+      "artifact"
+    ],
+    "human": {
+      "summary": "A self-feeding civilization is a positive-sum control loop where repair and reinvestment keep capacity above thresholds while avoiding capture.",
+      "bullets": [
+        "Capacity C grows via reinvestment",
+        "Decay D is bounded by maintenance",
+        "Anti-capture constraints bound concentration"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "State",
+          "definition": "Minimal variable set representing the system for this DTU."
+        },
+        {
+          "term": "Invariant",
+          "definition": "Constraint that must hold for feasibility/stability."
+        }
+      ],
+      "invariants": [
+        "E[R]≥E[D] (repair dominance)",
+        "C≥C_min for critical subsystems",
+        "Capture metric p≤p_max via decay/rotation"
+      ],
+      "claims": [
+        "Civilizational stability is maintainable with explicit constraints",
+        "Positive feedback is safe when bounded by invariants",
+        "Verification checks dominance inequalities"
+      ],
+      "examples": [
+        "[WAVE5] Example instances will be attached as child DTUs when needed."
+      ],
+      "nextActions": [
+        "Add child DTUs that instantiate this model with concrete parameters; add counterexample shadow DTUs."
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "x_{t+1}=F(x_t,u_t,w_t;θ)",
+        "constraints": [
+          "g_i(x)≤0",
+          "h_j(x)=0"
+        ],
+        "potential": "V(x)≥0",
+        "implication": "If ΔV≤-c||x||^2 outside neighborhood, trajectories enter neighborhood (stability)."
+      },
+      "primaryFormula": "C_{t+1}=C_t+R_t-D_t with constraints C≥C_min and p≤p_max",
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "state",
+          "params"
+        ],
+        "outputs": [
+          "ok",
+          "violations",
+          "metrics"
+        ],
+        "steps": [
+          "Compute one-step update",
+          "Evaluate constraints",
+          "Compute V and ΔV",
+          "ok=true if constraints satisfied and ΔV non-increasing (or rule-specific)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 4: Civilization Architectures, Governance, Economics, Structural Ethics (181–240)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.75
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

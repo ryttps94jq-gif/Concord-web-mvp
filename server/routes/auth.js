@@ -179,7 +179,7 @@ module.exports = function createAuthRouter({
         const decoded = jwt.decode(cookieToken);
         if (decoded?.jti) {
           const expiresAt = decoded.exp ? decoded.exp * 1000 : Date.now() + 7 * 86400000;
-          _TOKEN_BLACKLIST.revoke(decoded.jti, expiresAt);
+          _TOKEN_BLACKLIST.revoke(decoded.jti, expiresAt, decoded.userId || decoded.sub || (req.user && req.user.id));
         }
       } catch {}
     }
@@ -189,7 +189,7 @@ module.exports = function createAuthRouter({
     if (refreshCookie && jwt) {
       try {
         const decoded = jwt.decode(refreshCookie);
-        if (decoded?.jti) _TOKEN_BLACKLIST.revoke(decoded.jti, Date.now() + 30 * 86400000);
+        if (decoded?.jti) _TOKEN_BLACKLIST.revoke(decoded.jti, Date.now() + 30 * 86400000, decoded.userId || decoded.sub || (req.user && req.user.id));
         if (decoded?.family) _REFRESH_FAMILIES.delete(decoded.family);
       } catch {}
     }
@@ -241,7 +241,7 @@ module.exports = function createAuthRouter({
     }
 
     // Revoke old refresh token
-    _TOKEN_BLACKLIST.revoke(decoded.jti, decoded.exp ? decoded.exp * 1000 : Date.now() + 30 * 86400000);
+    _TOKEN_BLACKLIST.revoke(decoded.jti, decoded.exp ? decoded.exp * 1000 : Date.now() + 30 * 86400000, decoded.userId);
 
     // Issue new token pair (rotation)
     const user = AuthDB.getUser(decoded.userId);

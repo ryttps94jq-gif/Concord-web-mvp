@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "format": "seed-packs",
+  "generatedAt": "2026-02-17T14:02:47.104Z",
+  "totalDtus": 2001,
+  "packCount": 11,
+  "packs": [
+    {
+      "file": "dtus-root.json",
+      "label": "Root DTU",
+      "count": 1,
+      "sizeKB": 1.7,
+      "sha256": "dbeda8ab4e90ada510eeaefa2a72e791b0139711f06c81479ab303b278071229"
+    },
+    {
+      "file": "dtus-part1.json",
+      "label": "Part 1: Core First-Order + Immediate Geometries (1-60)",
+      "count": 60,
+      "sizeKB": 170.1,
+      "sha256": "b4d94e703cba2c1c68e9dc53f76f539fb3c34fbab5836483adf86dff57e41d2d"
+    },
+    {
+      "file": "dtus-part2.json",
+      "label": "Part 2: ETCC Core, Indices, and Constraint Geometry (61-120)",
+      "count": 60,
+      "sizeKB": 170.6,
+      "sha256": "0cec5fea82099b4f27d547874c3534be98180019f2f40facdc32ba29b8e5851f"
+    },
+    {
+      "file": "dtus-part3a.json",
+      "label": "Part 3a: Alien Intelligence Morphologies (121-180)",
+      "count": 60,
+      "sizeKB": 172.8,
+      "sha256": "6848094ecf640de241a2ebb62009652aee470f49199f6588892bee5e275c9fc5"
+    },
+    {
+      "file": "dtus-part3b.json",
+      "label": "Part 3b: Introspection + Cultural Procedural Layer (1001-2000)",
+      "count": 1000,
+      "sizeKB": 1589.1,
+      "sha256": "4d38233f977d3a30023eab4c288b3631e9f09ad7fa1a68316e6ff8e59e2d8a81"
+    },
+    {
+      "file": "dtus-part4.json",
+      "label": "Part 4: Civilization Architectures (181-240)",
+      "count": 60,
+      "sizeKB": 175.2,
+      "sha256": "6a585bcd14d6b619efdfac7a8d7d658b4751acdf42362726386ee0aabb078969"
+    },
+    {
+      "file": "dtus-part5.json",
+      "label": "Part 5: Climate, Ecology, Infrastructure (241-300)",
+      "count": 60,
+      "sizeKB": 171.6,
+      "sha256": "d4626612d6c9d03563b16236f155f296ec741eb224c489f8bff7876020026f9d"
+    },
+    {
+      "file": "dtus-part6.json",
+      "label": "Part 6: Mathematics, Computation, Physics (301-360)",
+      "count": 60,
+      "sizeKB": 173.2,
+      "sha256": "73416880ef67f673ad2da7acbadacca18d497877fdf33a791208dec2152597a3"
+    },
+    {
+      "file": "dtus-part7.json",
+      "label": "Part 7: Cognition, Psychology, Language (361-420)",
+      "count": 60,
+      "sizeKB": 155.6,
+      "sha256": "d06d4abae61184867b098aab057fbb0c5e4a8ce9fe1ed3ceb039a5fd51b76fbf"
+    },
+    {
+      "file": "dtus-part8.json",
+      "label": "Part 8: Meta-Closure, Recursive Self-Application (421-480)",
+      "count": 60,
+      "sizeKB": 122.3,
+      "sha256": "321d74bce56ef6e3a9f56e7bf79e49eb4f02e69b5bb88a7acef005f65eab297d"
+    },
+    {
+      "file": "dtus-unassigned.json",
+      "label": "Unassigned DTUs (481-1000)",
+      "count": 520,
+      "sizeKB": 953.6,
+      "sha256": "822098439dd778efdcb7444673222c7bdf8fbb9d9ec37d6509cec51f54aef934"
+    }
+  ]
+}

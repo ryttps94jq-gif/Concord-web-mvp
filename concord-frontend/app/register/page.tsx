@@ -72,9 +72,9 @@ export default function RegisterPage() {
 
         {/* Form card */}
         <div className="bg-lattice-surface border border-lattice-border rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-describedby={error ? "register-error" : undefined}>
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              <div id="register-error" role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -94,10 +94,12 @@ export default function RegisterPage() {
                 pattern="^[a-zA-Z0-9_-]+$"
                 minLength={3}
                 maxLength={50}
+                aria-invalid={!!error}
+                aria-describedby="username-hint"
                 className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
                 placeholder="Choose a username"
               />
-              <p className="text-gray-500 text-xs mt-1">3-50 characters, letters, numbers, underscores, hyphens</p>
+              <p id="username-hint" className="text-gray-500 text-xs mt-1">3-50 characters, letters, numbers, underscores, hyphens</p>
             </div>
 
             <div>
@@ -111,6 +113,7 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                aria-invalid={!!error}
                 className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
                 placeholder="you@example.com"
               />
@@ -129,6 +132,7 @@ export default function RegisterPage() {
                   required
                   minLength={12}
                   autoComplete="new-password"
+                  aria-invalid={!!error}
                   className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors pr-12"
                   placeholder="Minimum 12 characters"
                 />
@@ -136,6 +140,7 @@ export default function RegisterPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -154,6 +159,7 @@ export default function RegisterPage() {
                 required
                 minLength={12}
                 autoComplete="new-password"
+                aria-invalid={!!error}
                 className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
                 placeholder="Re-enter password"
               />

@@ -3271,40 +3271,144 @@ function verifyToken(token) {
 }
 
 // ---- Token Blacklist (Tier 1: Auth Hardening) ----
-// In-memory blacklist with SQLite persistence when available
+// In-memory blacklist with Redis support (when available) and SQLite persistence
 const _TOKEN_BLACKLIST = {
-  revoked: new Map(), // jti -> { revokedAt, expiresAt }
+  revoked: new Map(), // jti -> { revokedAt, expiresAt, userId }
 
-  revoke(jti, expiresAt) {
-    this.revoked.set(jti, { revokedAt: Date.now(), expiresAt: expiresAt || Date.now() + 7 * 86400000 });
-    // Persist to DB if available
+  /**
+   * Revoke a single token by JTI.
+   * Writes to in-memory Map (primary, synchronous), Redis (if connected), and SQLite (if available).
+   * @param {string} jti - Token identifier
+   * @param {number} [expiresAt] - Token expiry timestamp in ms
+   * @param {string} [userId] - User who owns this token (needed for revokeAllForUser)
+   */
+  revoke(jti, expiresAt, userId) {
+    const now = Date.now();
+    const exp = expiresAt || now + 7 * 86400000;
+    const entry = { revokedAt: now, expiresAt: exp, userId: userId || null };
+
+    // Primary: in-memory (synchronous — keeps verifyToken fast)
+    this.revoked.set(jti, entry);
+
+    // Redis: write-through for multi-instance consistency
+    if (redisClient) {
+      const ttlMs = exp - now;
+      if (ttlMs > 0) {
+        const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
+        const ttlSec = Math.ceil(ttlMs / 1000);
+        redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(err => {
+          console.error("[auth] Redis token blacklist write failed:", err.message);
+        });
+        // Track JTI in per-user set so revokeAllForUser can find them
+        if (userId) {
+          const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
+          redisClient.sAdd(userSetKey, jti).catch(() => {});
+          // Set TTL on the user set to auto-clean (use longest reasonable token lifetime)
+          redisClient.expire(userSetKey, Math.ceil(ttlMs / 1000) + 3600).catch(() => {});
+        }
+      }
+    }
+
+    // SQLite persistence
     if (db) {
       try {
         const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE token_hash = ?");
         stmt.run(jti);
-      } catch (err) { console.error('[auth] Token revocation failed:', err); }
+      } catch (err) { console.error("[auth] Token revocation failed:", err); }
     }
   },
 
+  /**
+   * Check if a token is revoked — synchronous, uses in-memory Map only.
+   * Redis data is synced into the Map on startup and on every revoke() call,
+   * so the in-memory Map is always authoritative for this process.
+   */
   isRevoked(jti) {
     return this.revoked.has(jti);
   },
 
-  // Revoke all tokens for a user (e.g., password change, security incident)
+  /**
+   * Revoke all tokens for a user (e.g., password change, security incident).
+   * Walks in-memory Map and (if Redis available) the per-user token set.
+   */
   revokeAllForUser(userId) {
+    const now = Date.now();
+
+    // SQLite: bulk revoke
     if (db) {
       try {
         const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE user_id = ?");
         stmt.run(userId);
-      } catch (err) { console.error('[auth] Bulk token revocation failed for user:', err); }
+      } catch (err) { console.error("[auth] Bulk token revocation failed for user:", err); }
     }
-    // Mark in-memory
+
+    // In-memory: mark all entries belonging to this user
     for (const [jti, entry] of this.revoked) {
-      if (entry.userId === userId) this.revoked.set(jti, { ...entry, revokedAt: Date.now() });
+      if (entry.userId === userId) {
+        this.revoked.set(jti, { ...entry, revokedAt: now });
+      }
+    }
+
+    // Redis: look up the user's token set and revoke each JTI
+    if (redisClient) {
+      const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
+      redisClient.sMembers(userSetKey).then(jtis => {
+        for (const jti of jtis) {
+          // Update the blacklist entry in Redis (keep existing TTL)
+          const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
+          redisClient.get(redisKey).then(raw => {
+            if (raw) {
+              try {
+                const entry = JSON.parse(raw);
+                entry.revokedAt = now;
+                const ttlSec = Math.max(1, Math.ceil((entry.expiresAt - now) / 1000));
+                redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(() => {});
+              } catch {}
+            }
+          }).catch(() => {});
+          // Also ensure it's in our in-memory Map
+          if (!this.revoked.has(jti)) {
+            this.revoked.set(jti, { revokedAt: now, expiresAt: now + 7 * 86400000, userId });
+          }
+        }
+      }).catch(err => {
+        console.error("[auth] Redis bulk revocation lookup failed:", err.message);
+      });
     }
   },
 
-  // Cleanup expired entries (tokens past their expiry don't need blacklisting)
+  /**
+   * Sync blacklisted tokens from Redis into the in-memory Map.
+   * Called once after Redis connects so this process knows about tokens
+   * revoked by other instances.
+   */
+  async syncFromRedis() {
+    if (!redisClient) return;
+    try {
+      const pattern = REDIS_CONFIG.prefix + "blacklist:*";
+      const keys = await redisClient.keys(pattern);
+      if (keys.length === 0) return;
+      const prefixLen = (REDIS_CONFIG.prefix + "blacklist:").length;
+      let synced = 0;
+      for (const key of keys) {
+        try {
+          const raw = await redisClient.get(key);
+          if (!raw) continue;
+          const entry = JSON.parse(raw);
+          const jti = key.slice(prefixLen);
+          if (!this.revoked.has(jti)) {
+            this.revoked.set(jti, entry);
+            synced++;
+          }
+        } catch {}
+      }
+      if (synced > 0) console.log(`[auth] Synced ${synced} revoked tokens from Redis`);
+    } catch (err) {
+      console.error("[auth] Failed to sync token blacklist from Redis:", err.message);
+    }
+  },
+
+  // Cleanup expired entries from in-memory Map (Redis handles its own TTL expiry)
   cleanup() {
     const now = Date.now();
     for (const [jti, entry] of this.revoked) {
@@ -3313,7 +3417,7 @@ const _TOKEN_BLACKLIST = {
   }
 };
 
-// Cleanup blacklist every hour
+// Cleanup in-memory blacklist every hour (Redis keys expire via TTL automatically)
 setInterval(() => _TOKEN_BLACKLIST.cleanup(), 3600000);
 
 // ---- Refresh Token Family Tracking (detects token theft via reuse) ----
@@ -4764,7 +4868,48 @@ try {
 const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null, source:"none" };
 
 async function tryLoadSeedDTUs() {
-  // 1. Try JSONL pack format first (preferred for large corpora)
+  // 1. Try JSON seed packs first (preferred — fastest, grouped by part)
+  const seedDir = path.join(DATA_DIR, "seed");
+  const seedManifestPath = path.join(seedDir, "manifest.json");
+  if (fs.existsSync(seedManifestPath)) {
+    try {
+      const t0 = Date.now();
+      const manifest = JSON.parse(fs.readFileSync(seedManifestPath, "utf-8"));
+      if (manifest.format === "seed-packs" && Array.isArray(manifest.packs)) {
+        const dtus = [];
+        let errors = 0;
+        for (const pack of manifest.packs) {
+          const packPath = path.join(seedDir, pack.file);
+          if (!fs.existsSync(packPath)) { errors++; continue; }
+          const content = fs.readFileSync(packPath, "utf-8");
+          const hash = crypto.createHash("sha256").update(content).digest("hex");
+          if (hash !== pack.sha256) {
+            console.warn(`[Seed-Pack] Hash mismatch: ${pack.file} (expected ${pack.sha256.slice(0,12)}, got ${hash.slice(0,12)})`);
+            errors++;
+            continue;
+          }
+          try {
+            const entries = JSON.parse(content);
+            if (Array.isArray(entries)) {
+              for (const entry of entries) dtus.push(entry);
+            }
+          } catch { errors++; }
+        }
+        if (dtus.length > 0) {
+          SEED_INFO.ok = true; SEED_INFO.loaded = true;
+          SEED_INFO.count = dtus.length; SEED_INFO.source = "seed-packs";
+          SEED_INFO.path = seedDir;
+          if (errors) SEED_INFO.error = `${errors} seed-pack error(s)`;
+          console.log(`[Seed-Pack] Loaded ${dtus.length} DTUs from ${manifest.packs.length} JSON packs in ${Date.now() - t0}ms`);
+          return dtus;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Seed-Pack] Failed to load seed packs: ${e.message}`);
+    }
+  }
+
+  // 2. Try legacy JSONL pack format (data/dtu-packs/)
   const packDir = path.join(DATA_DIR, "dtu-packs");
   const manifestPath = path.join(packDir, "manifest.json");
   if (fs.existsSync(manifestPath)) {
@@ -4772,7 +4917,7 @@ async function tryLoadSeedDTUs() {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
       const dtus = [];
       let errors = 0;
-      for (const chunk of manifest.chunks) {
+      for (const chunk of (manifest.chunks || [])) {
         const chunkPath = path.join(packDir, chunk.file);
         if (!fs.existsSync(chunkPath)) { errors++; continue; }
         const content = fs.readFileSync(chunkPath, "utf-8");
@@ -4792,17 +4937,18 @@ async function tryLoadSeedDTUs() {
         SEED_INFO.count = dtus.length; SEED_INFO.source = "dtu-packs";
         SEED_INFO.path = packDir;
         if (errors) SEED_INFO.error = `${errors} pack error(s)`;
-        console.log(`[DTU-Pack] Loaded ${dtus.length} DTUs from ${manifest.chunks.length} chunks`);
+        console.log(`[DTU-Pack] Loaded ${dtus.length} DTUs from ${manifest.chunks.length} JSONL chunks`);
         return dtus;
       }
     } catch (e) {
       console.warn(`[DTU-Pack] Failed to load packs: ${e.message}`);
     }
   }
-  // 2. Fallback to dtus.js monolithic import (deferred — logs startup tax)
+
+  // 3. Fallback to dtus.js monolithic import (deprecated — logs startup tax)
   try {
-    console.warn("[Seed] JSONL packs not found — falling back to monolithic dtus.js import.");
-    console.warn("[Seed] To reduce startup time + memory, run: node server/scripts/convert-dtus-to-packs.js");
+    console.warn("[Seed] JSON packs not found — falling back to monolithic dtus.js import (deprecated).");
+    console.warn("[Seed] To reduce startup time + memory, run: node server/scripts/convert-dtus-to-seed-packs.js");
     const t0 = Date.now();
     const mod = await import("./dtus.js");
     const seed = (mod?.dtus ?? mod?.default ?? mod?.DTUS ?? null);
@@ -4812,7 +4958,7 @@ async function tryLoadSeedDTUs() {
     SEED_INFO.loaded = true;
     SEED_INFO.count = arr.length;
     SEED_INFO.source = "dtus.js";
-    console.log(`[Seed] Loaded ${arr.length} DTUs from dtus.js in ${Date.now() - t0}ms`);
+    console.log(`[Seed] Loaded ${arr.length} DTUs from dtus.js in ${Date.now() - t0}ms (deprecated path)`);
     return arr;
   } catch (e) {
     SEED_INFO.ok = false;
@@ -15803,35 +15949,7 @@ app.post("/api/quality-pipeline/preview", (req, res) => {
   }
 });
 
-// Force reseed DTUs from dtus.js (useful for debugging empty state)
-// SECURITY: Requires owner/admin role to prevent unauthorized state resets
-app.post("/api/reseed", requireRole("owner", "admin"), async (req, res) => {
-  try {
-    const force = req.body?.force === true;
-    if (!force && STATE.dtus.size > 0) {
-      return res.json({ ok: false, error: "DTUs already exist. Pass { force: true } to reseed anyway.", currentCount: STATE.dtus.size });
-    }
-    const seeds = await tryLoadSeedDTUs();
-    if (!seeds.length) {
-      return res.json({ ok: false, error: SEED_INFO.error || "No seeds found in dtus.js", seedInfo: SEED_INFO });
-    }
-    let added = 0;
-    for (const s of seeds) {
-      // Scope Separation: reseeded DTUs enter Global scope (canonical knowledge)
-      s.scope = "global";
-      const d = toOptionADTU(s);
-      if (!STATE.dtus.has(d.id)) {
-        STATE.dtus.set(d.id, d);
-        added++;
-      }
-    }
-    saveStateDebounced();
-    log("reseed", "Manual reseed from dtus.js into Global scope", { added, total: STATE.dtus.size, scope: "global" });
-    return res.json({ ok: true, added, total: STATE.dtus.size, scope: "global", seedInfo: SEED_INFO });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
+// Reseed endpoint extracted to routes/operations.js
 
 // Time (authoritative; never uses LLM)
 app.get("/api/time", (req, res) => {
@@ -15884,269 +16002,19 @@ app.get("/api/state/latest", (req, res) => {
   }
 });
 
-// Abstraction governor status / controls
-app.get("/api/abstraction", (req, res) => {
-  try {
-    const snap = computeAbstractionSnapshot();
-    res.json({ ok:true, abstraction: { ...STATE.abstraction, metrics: { ...STATE.abstraction.metrics, ...snap } } });
-  } catch (e) {
-    res.json({ ok:false, error: String(e?.message||e) });
-  }
-});
+// Abstraction endpoints extracted to routes/operations.js
 
-app.post("/api/abstraction/upgrade", async (req, res) => {
-  try {
-    // force a local upgrade now
-    STATE.abstraction.lastUpgradeAt = null;
-    const r = await maybeRunLocalUpgrade();
-    res.json({ ok:true, result: r, abstraction: STATE.abstraction });
-  } catch (e) {
-    res.json({ ok:false, error: String(e?.message||e) });
-  }
-});
-
-// Manual consolidation trigger - creates MEGAs/HYPERs immediately
-app.post("/api/abstraction/consolidate", requireRole("owner", "admin"), async (req, res) => {
-  try {
-    const { maxMegas = 5, maxHypers = 2, force = false } = req.body || {};
-
-    // Optionally bypass usage requirement for testing/manual consolidation
-    if (force) {
-      STATE.abstraction.metrics = STATE.abstraction.metrics || {};
-      STATE.abstraction.metrics.totalUses = Math.max(STATE.abstraction.metrics.totalUses || 0, 30);
-    }
-
-    const ctx = makeCtx(req);
-    const result = await runAutoPromotion(ctx, { maxNewMegas: maxMegas, maxNewHypers: maxHypers });
-
-    res.json({
-      ok: true,
-      result,
-      message: result.made?.megas?.length || result.made?.hypers?.length
-        ? `Created ${result.made?.megas?.length || 0} MEGAs and ${result.made?.hypers?.length || 0} HYPERs`
-        : "No consolidation needed (insufficient clusters or already at budget)"
-    });
-  } catch (e) {
-    res.json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// ---- Queues (proposals + maintenance; never flood DTU library) ----
-app.get("/api/queues", (req,res)=>{
-  ensureQueues();
-  res.json({ ok:true, queues: Object.fromEntries(Object.entries(STATE.queues).map(([k,v])=>[k, v.slice(-500)])) });
-});
-
-app.post("/api/queues/:queue/propose", (req,res)=>{
-  ensureQueues();
-  const q = String(req.params.queue||"");
-  if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
-  const raw = (req.body&&typeof req.body==='object') ? req.body : {};
-  const { title, description, content, tags, priority, meta, proposerOrganId, type: itemType } = raw;
-  const item = { id: uid(`q_${q}`), createdAt: nowISO(), status: "queued", title, description, content, tags, priority, meta, proposerOrganId, type: itemType };
-  STATE.queues[q].push(item);
-  saveStateDebounced();
-  res.json({ ok:true, item });
-});
-
-app.post("/api/queues/:queue/decide", async (req,res)=>{
-  ensureQueues();
-  const q = String(req.params.queue||"");
-  if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
-  const { id, decision, note } = req.body||{};
-  const item = STATE.queues[q].find(x=>x && x.id===id);
-  if (!item) return res.status(404).json({ ok:false, error:"Queue item not found" });
-  const dec = String(decision||"").toLowerCase();
-  if (!['approve','decline','revise','promote'].includes(dec)) return res.status(400).json({ ok:false, error:"decision must be approve/decline/revise/promote" });
-
-  item.status = dec;
-  item.decidedAt = nowISO();
-  item.decisionNote = note || "";
-
-  // Promotion hook: approved DTU proposals become DTUs (lineage preserved)
-  let promoted = null;
-  if ((dec==='approve' || dec==='promote') && item.type === 'dtu_proposal' && item.payload && typeof item.payload==='object') {
-    const ctx = makeCtx(req);
-    const spec = { ...item.payload, source: item.payload.source || `queue.${q}`, allowRewrite: true };
-    const r = await runMacro('dtu','create', spec, ctx).catch(e=>({ ok:false, error:String(e?.message||e) }));
-    promoted = r;
-    item.promoted = r?.ok ? { dtuId: r.id || r.dtu?.id || null } : null;
-  }
-
-  saveStateDebounced();
-  res.json({ ok:true, item, promoted });
-});
+// Queues endpoints extracted to routes/operations.js
 
 
-// CRETI-first DTU view (no raw JSON by default)
-app.get("/api/dtu_view/:id", (req, res) => {
-  const id = req.params.id;
-  const d = STATE.dtus.get(id);
-  if (!d) return res.status(404).json({ ok:false, error:"DTU not found" });
-  return res.json({ ok:true, dtu: dtuForClient(d, { raw: req.query.raw === "1" }) });
-});
+// ---- DTU Endpoints (extracted to routes/dtus.js) ----
+require("./routes/dtus")(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, saveStateDebounced });
 
-
-// DTUs
-app.get("/api/dtus", async (req, res) => {
-  try {
-    const ctx = makeCtx(req);
-    const out = await runMacro("dtu","list",{ q:req.query.q, tier:req.query.tier || "any", limit:req.query.limit, offset:req.query.offset }, ctx);
-    res.json(out);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
-  }
-});
-app.get("/api/dtus/:id", async (req, res) => {
-  try {
-    const ctx = makeCtx(req);
-    const out = await runMacro("dtu","get",{ id:req.params.id }, ctx);
-    if (!out.ok) return res.status(404).json(out);
-    res.json(out);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
-  }
-});
-app.post("/api/dtus", async (req, res) => {
-  try {
-    const ctx = makeCtx(req);
-    const out = await runMacro("dtu","create", req.body || {}, ctx);
-    res.json(out);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
-  }
-});
-app.post("/api/dtus/saveSuggested", async (req, res) => {
-  try {
-    const ctx = makeCtx(req);
-    const out = await runMacro("dtu","saveSuggested", req.body || {}, ctx);
-    res.json(out);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
-  }
-});
-
-// Chat + Ask
-app.post("/api/chat", async (req, res) => {
-  const errorId = uid("err");
-  try {
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "chat";
-    const ctx = makeCtx(req);
-    // Chicken3: stream by default when enabled, while preserving an explicit full-response path.
-    // - ?full=1 forces classic JSON response
-    // - Accept: text/event-stream or ?stream=1 also forces streaming
-    const accept = String(req.headers.accept || "");
-    const wantsFull = (String(req.query.full || "") === "1") || accept.includes("application/json");
-    const wantsStream = (!wantsFull) ||
-      String(req.query.stream || "") === "1" ||
-      String(req.body.stream || "") === "1" ||
-      accept.includes("text/event-stream");
-
-    // Streaming upgrade (Chicken3): keep full-response compatibility unless stream is requested.
-    // This preserves existing clients while enabling event-stream when desired.
-    if (wantsStream) {
-      enforceEthosInvariant("chat_stream");
-      if (!STATE.__chicken3?.streamingEnabled) throw new Error("streaming disabled");
-
-      res.set({
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
-      });
-      res.flushHeaders?.();
-
-      const sse = (event, data) => {
-        try {
-          res.write(`event: ${event}\n`);
-          res.write(`data: ${JSON.stringify(data)}\n\n`);
-        } catch {}
-      };
-
-      // Lightweight chunker over a final answer (keeps architecture unchanged).
-      async function* chunkText(txt, size=240) {
-        const t = String(txt || "");
-        for (let i=0; i<t.length; i+=size) {
-          yield t.slice(i, i+size);
-          await new Promise(r => { setImmediate(r); }); // yield to event loop
-        }
-      }
-
-      sse("meta", { ok:true, mode: req._concordMode, sessionId: req.body.sessionId || null });
-      const out = await runMacro("chat","respond", req.body, ctx);
-
-      // Pick a best-effort text field for progressive display.
-      const answer = out?.answer ?? out?.content ?? out?.text ?? out?.message ?? out?.response ?? "";
-      for await (const delta of chunkText(answer)) {
-        sse("chunk", { delta });
-      }
-      sse("final", _withAck(out, req, ["state","logs","shadow"], ["/api/state/latest","/api/logs"], null, { panel: "chat" }));
-      kernelTick({ type: "USER_MSG", meta: { path: req.path, stream: true }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-      try { res.end(); } catch {}
-      return;
-    }
-
-    const out = await runMacro("chat","respond", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["state","logs","shadow"], ["/api/state/latest","/api/logs"], null, { panel: "chat" }),
-      req,
-      { panel: "chat" }
-    );
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    const out = { ok: false, error: msg, mode: req?.body?.mode || "chat", sessionId: req?._concordSessionId || req?.body?.sessionId, llmUsed: false };
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: 0, error: 0.5 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["logs"], ["/api/logs"], { id: errorId, status: "error" }, { panel: "chat", errorId }),
-      req,
-      { panel: "chat", errorId }
-    );
-  }
-});
-
-// Chicken3: SSE streaming chat (additive; does not replace /api/chat)
-// POST /api/chat/feedback — record user thumbs up/down
-app.post("/api/chat/feedback", async (req, res) => {
-  try {
-    const out = await runMacro("chat", "feedback", req.body, makeCtx(req));
-    return res.json(out);
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// GET /api/chat/conversations — list chat sessions for thread view
-app.get("/api/chat/conversations", (req, res) => {
-  try {
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const conversations = Array.from(STATE.sessions.entries())
-      .map(([id, sess]) => {
-        const msgs = sess.messages || [];
-        const lastMsg = msgs[msgs.length - 1];
-        const firstUserMsg = msgs.find(m => m.role === "user");
-        return {
-          id,
-          title: firstUserMsg?.content?.slice(0, 80) || `Session ${id.slice(0, 8)}`,
-          summary: lastMsg?.content?.slice(0, 120) || "",
-          lastMessage: lastMsg?.content?.slice(0, 200) || "",
-          messageCount: msgs.length,
-          createdAt: sess.createdAt || nowISO(),
-          updatedAt: lastMsg?.ts || sess.createdAt || nowISO(),
-        };
-      })
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, limit);
-    res.json({ ok: true, conversations });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
+// ---- Chat + Ask Endpoints (extracted to routes/chat.js) ----
+require("./routes/chat")(app, {
+  STATE, makeCtx, runMacro, enforceRequestInvariants, enforceEthosInvariant,
+  uid, kernelTick, uiJson, _withAck, _extractReply, clamp, nowISO,
+  saveStateDebounced, ETHOS_INVARIANTS
 });
 
 // GET /api/cognitive/status — combined status for all cognitive systems
@@ -16179,100 +16047,7 @@ app.get("/api/cognitive/status", (req, res) => {
   }
 });
 
-app.post("/api/chat/stream", async (req, res) => {
-  const errorId = uid("err");
-  try {
-    enforceEthosInvariant("chat_stream");
-    if (!STATE.__chicken3?.streamingEnabled) throw new Error("streaming disabled");
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "chat";
-    const ctx = makeCtx(req);
-
-    res.set({
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive"
-    });
-    res.flushHeaders?.();
-
-    const out = await runMacro("chat","respond", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path, stream: true }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-
-    const content = String(out?.content || out?.answer || out?.text || "");
-    // Deterministic chunking (local-first). If you later add true token-streaming LLM, swap this chunker.
-    const step = clamp(Number(req.body?.chunkSize || 220), 40, 1200);
-    for (let i = 0; i < content.length; i += step) {
-      const chunk = content.slice(i, i + step);
-      res.write(`data: ${JSON.stringify({ ok: true, chunk, done: false })}\n\n`);
-    }
-    // Final envelope (also contains full out for UI parity)
-    res.write(`data: ${JSON.stringify({ ok: true, done: true, out })}\n\n`);
-    return res.end();
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    try {
-      res.write(`data: ${JSON.stringify({ ok:false, error: msg, errorId, done:true })}\n\n`);
-      return res.end();
-    } catch {
-      return uiJson(res, { ok:false, error: msg, errorId }, req, { panel:"chat_stream", errorId });
-    }
-  }
-});
-
-// Chicken3: status + session opt-in
-app.get("/api/chicken3/status", (req, res) => {
-  try {
-    return uiJson(res, { ok:true, chicken3: STATE.__chicken3, ethos: ETHOS_INVARIANTS }, req, { panel:"chicken3_status" });
-  } catch (e) {
-    return uiJson(res, { ok:false, error: String(e?.message||e) }, req, { panel:"chicken3_status" });
-  }
-});
-
-app.post("/api/session/optin", (req, res) => {
-  try {
-    enforceEthosInvariant("optin");
-    const b = req.body || {};
-    const sid = String(b.sessionId || b.session || "");
-    if (!sid) return uiJson(res, { ok:false, error:"sessionId required" }, req, { panel:"optin" });
-    const s = STATE.sessions.get(sid) || { createdAt: nowISO(), messages: [] };
-    if (typeof b.cloudOptIn === "boolean") s.cloudOptIn = b.cloudOptIn;
-    if (typeof b.toolsOptIn === "boolean") s.toolsOptIn = b.toolsOptIn;
-    if (typeof b.multimodalOptIn === "boolean") s.multimodalOptIn = b.multimodalOptIn;
-    if (typeof b.voiceOptIn === "boolean") s.voiceOptIn = b.voiceOptIn;
-    STATE.sessions.set(sid, s);
-    saveStateDebounced();
-    return uiJson(res, { ok:true, sessionId: sid, flags: { cloudOptIn: !!s.cloudOptIn, toolsOptIn: !!s.toolsOptIn, multimodalOptIn: !!s.multimodalOptIn, voiceOptIn: !!s.voiceOptIn } }, req, { panel:"optin" });
-  } catch (e) {
-    return uiJson(res, { ok:false, error: String(e?.message||e) }, req, { panel:"optin" });
-  }
-});
-
-app.post("/api/ask", async (req, res) => {
-  const errorId = uid("err");
-  try {
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "ask";
-    const ctx = makeCtx(req);
-    const out = await runMacro("ask","answer", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: out?.ok?0.25:0, error: out?.ok?0:0.25 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "ask" }),
-      req,
-      { panel: "ask" }
-    );
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    const out = { ok: false, error: msg, mode: req?.body?.mode || "ask", sessionId: req?._concordSessionId || req?.body?.sessionId, llmUsed: false };
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: 0, error: 0.5 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["logs"], ["/api/logs"], { id: errorId, status: "error" }, { panel: "ask", errorId }),
-      req,
-      { panel: "ask", errorId }
-    );
-  }
-});
+// chat/stream, chicken3/status, session/optin, ask — extracted to routes/chat.js
 // Forge
 app.post("/api/forge/manual", async (req,res)=> {
   const out = await runMacro("forge","manual", req.body||{}, makeCtx(req));
@@ -16310,20 +16085,7 @@ app.post("/api/wrappers/run", async (req, res) => {
 
 
 
-// DTU maintenance
-app.post("/api/dtus/dedupe", async (req,res)=> {
-  const out = await runMacro("dtu","dedupeSweep", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "dtus_dedupe" }));
-});
-app.get("/api/megas", (req,res)=> {
-  const tier = "mega";
-  const out = dtusArray().filter(d => d.tier===tier).sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
-  res.json({ ok:true, megas: out });
-});
-app.get("/api/hypers", (req,res)=> {
-  const out = dtusArray().filter(d => d.tier==="hyper").sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
-  res.json({ ok:true, hypers: out });
-});
+// DTU maintenance routes extracted to routes/dtus.js
 // Layers
 app.get("/api/layers", async (req,res)=> res.json(await runMacro("layer","list", {}, makeCtx(req))));
 app.post("/api/layers", async (req,res)=> res.json(await runMacro("layer","create", req.body||{}, makeCtx(req))));
@@ -16525,285 +16287,13 @@ function startHeartbeat() {
 }
 startHeartbeat();
 
-// Organs + Growth endpoints
-app.get("/api/organs", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const organs = Array.from(STATE.organs.values()).map(o => ({
-    organId: o.organId,
-    resolution: o.resolution,
-    maturity: o.maturity,
-    wear: o.wear,
-    deps: o.deps,
-    desc: o.desc
-  }));
-  res.json({ ok:true, organs });
-});
-
-// === v3 identity/account + global + marketplace + ingest endpoints (explicit HTTP surface) ===
-// These wrap existing macro domains so frontend can wire cleanly without calling /api/macros/run directly.
-
-// GET /api/auth/me is already registered above (line ~14081) with full JWT validation.
-
-app.post("/api/auth/keys", async (req,res) => {
-  try {
-    const input = req.body || {};
-    return res.json(await runMacro("auth","createApiKey", input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-app.post("/api/orgs", async (req,res) => {
-  try { return res.json(await runMacro("org","create", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-// --- Research (engine dispatcher) ---
-app.post("/api/research/run", async (req,res) => {
-  try {
-    const engine = String(req.body?.engine || "math.exec");
-    const input = req.body?.input ?? req.body ?? {};
-    return res.json(await runMacro("research", engine, input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// --- Ingest (URL/text) ---
-app.post("/api/ingest/url", async (req,res) => {
-  try {
-    const url = String(req.body?.url||"").trim();
-    if (!url) return res.status(400).json({ ok:false, error:"url required" });
-    const out = await runMacro("crawl","fetch", { url }, makeCtx(req));
-    return res.json(out);
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-app.post("/api/ingest/text", (req,res) => {
-  try {
-    const text = String(req.body?.text||"").trim();
-    const title = String(req.body?.title||"").trim();
-    if (!text) return res.status(400).json({ ok:false, error:"text required" });
-    // Store as a source-like object in STATE.sources so it can be referenced later by id/hash.
-    const id = uid("src");
-    const contentHash = sha256Hex(text);
-    const src = { id, url: "", fetchedAt: nowISO(), contentHash, title: title || `Text source ${id}`, excerpt: text.slice(0,800), text, meta: { kind:"text", createdAt: nowISO() } };
-    STATE.sources.set(id, src);
-    return res.json({ ok:true, source: src });
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// Unified ingest endpoint (handles both text and URL based on input)
-app.post("/api/ingest", async (req, res) => {
-  try {
-    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
-
-    // Determine if this is text or URL ingest
-    if (url && String(url).trim()) {
-      // URL-based ingest
-      const out = await runMacro("crawl", "fetch", {
-        url: String(url).trim(),
-        tags: tags || [],
-        makeGlobal: makeGlobal || false,
-        declaredSourceType: declaredSourceType || "url"
-      }, makeCtx(req));
-      return res.json(out);
-    } else if (text && String(text).trim()) {
-      // Text-based ingest
-      const id = uid("src");
-      const contentHash = sha256Hex(String(text).trim());
-      const src = {
-        id,
-        url: "",
-        fetchedAt: nowISO(),
-        contentHash,
-        title: title || `Text source ${id}`,
-        excerpt: String(text).slice(0, 800),
-        text: String(text).trim(),
-        tags: tags || [],
-        isGlobal: makeGlobal || false,
-        declaredSourceType: declaredSourceType || "text",
-        meta: { kind: "text", createdAt: nowISO() }
-      };
-      STATE.sources.set(id, src);
-      saveStateDebounced();
-      return res.json({ ok: true, source: src });
-    } else {
-      return res.status(400).json({ ok: false, error: "Either 'text' or 'url' is required" });
-    }
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Queue-based ingest (adds to processing queue)
-app.post("/api/ingest/queue", (req, res) => {
-  try {
-    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
-
-    const queueItem = {
-      id: uid("ingest"),
-      type: url ? "url" : "text",
-      payload: { text, url, title, tags, makeGlobal, declaredSourceType },
-      status: "queued",
-      createdAt: nowISO(),
-      createdBy: req.user?.id || "anon"
-    };
-
-    ensureQueues();
-    STATE.queues.ingest = STATE.queues.ingest || [];
-    STATE.queues.ingest.push(queueItem);
-    saveStateDebounced();
-
-    return res.json({ ok: true, queued: true, item: queueItem });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Jobs status endpoint
-app.get("/api/jobs/status", (req, res) => {
-  try {
-    const jobs = Array.from(STATE.jobs.values());
-    const summary = {
-      total: jobs.length,
-      queued: jobs.filter(j => j.status === "queued").length,
-      running: jobs.filter(j => j.status === "running").length,
-      completed: jobs.filter(j => j.status === "completed").length,
-      failed: jobs.filter(j => j.status === "failed").length,
-      cancelled: jobs.filter(j => j.status === "cancelled").length
-    };
-    return res.json({
-      ok: true,
-      summary,
-      jobs: jobs.slice(0, 100).map(j => ({
-        id: j.id,
-        type: j.type,
-        status: j.status,
-        progress: j.progress || 0,
-        createdAt: j.createdAt,
-        updatedAt: j.updatedAt
-      }))
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Toggle job enabled/disabled
-app.post("/api/jobs/toggle", (req, res) => {
-  try {
-    const { job: jobName, enabled } = req.body || {};
-    if (!jobName) return res.status(400).json({ ok: false, error: "job name required" });
-
-    // Find jobs matching the name/type
-    let toggled = 0;
-    for (const [_id, job] of STATE.jobs) {
-      if (job.type === jobName || job.name === jobName) {
-        job.enabled = enabled !== false;
-        job.updatedAt = nowISO();
-        toggled++;
-      }
-    }
-
-    saveStateDebounced();
-    return res.json({ ok: true, toggled, enabled: enabled !== false });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// --- Global simulation / publish (explicit) ---
-app.post("/api/global/propose", async (req,res) => {
-  try { return res.json(await runMacro("global","propose", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-app.post("/api/global/publish", async (req,res) => {
-  try { return res.json(await runMacro("global","publish", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-app.get("/api/global/index", (req,res) => {
-  try {
-    const byId = STATE.globalIndex?.byId;
-    const byHash = STATE.globalIndex?.byHash;
-    return res.json({
-      ok:true,
-      counts: { byId: byId?.size||0, byHash: byHash?.size||0 },
-      sample: { ids: byId ? Array.from(byId.keys()).slice(0,50) : [], hashes: byHash ? Array.from(byHash.keys()).slice(0,50) : [] }
-    });
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// --- Marketplace simulation (explicit) ---
-app.post("/api/market/listing", async (req,res) => {
-  try { return res.json(await runMacro("market","listingCreate", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-app.get("/api/market/listings", async (req,res) => {
-  try {
-    const input = { limit: Number(req.query?.limit||50), offset: Number(req.query?.offset||0) };
-    return res.json(await runMacro("market","list", input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-app.post("/api/market/buy", async (req,res) => {
-  try { return res.json(await runMacro("market","buy", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-app.get("/api/market/library", async (req,res) => {
-  try { return res.json(await runMacro("market","library", {}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-});
-
-
-
-app.get("/api/organs/:id", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const id = String(req.params.id || "");
-  const o = STATE.organs.get(id);
-  if (!o) return res.status(404).json({ ok:false, error: "Organ not found" });
-  res.json({ ok:true, organ: o });
-});
-
-app.get("/api/growth", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  res.json({ ok:true, growth: STATE.growth });
-});
-
-
-app.get("/api/lattice/beacon", async (req, res) => {
-  try{
-    const ctx = makeCtx(req);
-    const out = await ctx.macro.run("lattice", "beacon", { threshold: req.query.threshold });
-    res.json(out);
-  } catch(e){
-    res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
-  }
-});
-
-app.post("/api/harness/run", async (req, res) => {
-  try{
-    const ctx = makeCtx(req);
-    const out = await ctx.macro.run("harness", "run", req.body || {});
-    res.json(out);
-  } catch(e){
-    res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
-  }
+// ---- Operations Endpoints (extracted to routes/operations.js) ----
+require("./routes/operations")(app, {
+  STATE, makeCtx, runMacro, _withAck, ensureOrganRegistry, ensureQueues,
+  dtusArray, uid, sha256Hex, nowISO, saveStateDebounced, requireRole,
+  PIPE, TEMPORAL_FRAMES, pipeListProposals, computeAbstractionSnapshot,
+  maybeRunLocalUpgrade, runAutoPromotion, tryLoadSeedDTUs, toOptionADTU,
+  SEED_INFO, kernelTick, uiJson
 });
 
 app.get("/api/metrics", (req, res) => {
@@ -16850,11 +16340,7 @@ startWeeklyCouncil();
 
 
 // ---- listen ----
-// ---- Pipeline proposals endpoints (organism install ledger) ----
-app.get("/api/proposals", (req,res) => {
-  const limit = Math.max(1, Math.min(200, Number(req.query.limit||50)));
-  res.json({ ok:true, proposals: pipeListProposals(limit), total: PIPE.proposals.size });
-});
+// Pipeline proposals endpoint extracted to routes/operations.js
 
 
 // ============================================================================
@@ -16863,693 +16349,14 @@ app.get("/api/proposals", (req,res) => {
 // - Safe: no changes to macro logic; only HTTP exposure
 // ============================================================================
 
-app.get("/api/style/:sessionId", async (req, res) => {
-  const out = await runMacro("style", "get", { sessionId: req.params.sessionId }, makeCtx(req));
-  return res.json(out);
-});
+// Style endpoints extracted to routes/operations.js
 
-app.post("/api/style/mutate", async (req, res) => {
-  const out = await runMacro("style", "mutate", req.body, makeCtx(req));
-  return res.json(out);
-});
+// Extended DTU endpoints extracted to routes/dtus.js
 
-app.put("/api/dtus/:id", async (req, res) => {
-  const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-});
+// verify, experiments, synth, heartbeat, system, temporal, proposals, jobs, agents — extracted to routes/operations.js
 
-// PATCH is an alias for PUT — frontend client.ts sends PATCH for partial updates
-app.patch("/api/dtus/:id", async (req, res) => {
-  const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-});
-
-app.delete("/api/dtus/:id", async (req, res) => {
-  // Note: You may need to create a dtu.delete macro first
-  const out = await runMacro("dtu", "delete", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/dtus/cluster", async (req, res) => {
-  const out = await runMacro("dtu", "cluster", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "cluster" }));
-});
-
-app.post("/api/dtus/reconcile", async (req, res) => {
-  const out = await runMacro("dtu", "reconcile", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "reconcile" }));
-});
-
-app.post("/api/dtus/define", async (req, res) => {
-  const out = await runMacro("dtu", "define", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "define" }));
-});
-
-app.get("/api/dtus/shadow", async (req, res) => {
-  const out = await runMacro("dtu", "listShadow", { limit: req.query.limit, q: req.query.q }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/dtus/gap-promote", async (req, res) => {
-  const out = await runMacro("dtu", "gapPromote", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "gap_promote" }));
-});
-
-app.get("/api/definitions", (req, res) => {
-  const dtus = dtusArray().filter(d => 
-    (d.tags || []).includes("definition") || 
-    /^def(inition)?:/i.test(d.title || "")
-  );
-  return res.json({ ok: true, definitions: dtus });
-});
-
-app.get("/api/definitions/:term", (req, res) => {
-  const term = String(req.params.term || "").toLowerCase();
-  const dtu = dtusArray().find(d => 
-    ((d.tags || []).includes("definition") || /^def(inition)?:/i.test(d.title || "")) &&
-    (d.meta?.term || "").toLowerCase() === term
-  );
-  if (!dtu) return res.status(404).json({ ok: false, error: "Definition not found" });
-  return res.json({ ok: true, definition: dtu });
-});
-
-app.post("/api/verify/feasibility", async (req, res) => {
-  const out = await runMacro("verify", "feasibility", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/verify/designScore", async (req, res) => {
-  const out = await runMacro("verify", "designScore", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/verify/conflictCheck", async (req, res) => {
-  const out = await runMacro("verify", "conflictCheck", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/verify/stressTest", async (req, res) => {
-  const out = await runMacro("verify", "stressTest", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/verify/deriveSecondOrder", async (req, res) => {
-  const out = await runMacro("verify", "deriveSecondOrder", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "derive" }));
-});
-
-app.post("/api/verify/lineageLink", async (req, res) => {
-  const out = await runMacro("verify", "lineageLink", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/experiments", async (req, res) => {
-  const out = await runMacro("experiment", "log", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "experiment" }));
-});
-
-app.get("/api/experiments", (req, res) => {
-  const experiments = dtusArray().filter(d => (d.tags || []).includes("experiment"));
-  return res.json({ ok: true, experiments });
-});
-
-app.get("/api/experiments/:id", (req, res) => {
-  const dtu = STATE.dtus.get(req.params.id);
-  if (!dtu || !(dtu.tags || []).includes("experiment")) {
-    return res.status(404).json({ ok: false, error: "Experiment not found" });
-  }
-  return res.json({ ok: true, experiment: dtu });
-});
-
-app.post("/api/synth/combine", async (req, res) => {
-  const out = await runMacro("synth", "combine", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "synth" }));
-});
-
-app.post("/api/evolution/dedupe", async (req, res) => {
-  const out = await runMacro("evolution", "dedupe", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "evolution_dedupe" }));
-});
-
-app.post("/api/heartbeat/tick", async (req, res) => {
-  const out = await runMacro("heartbeat", "tick", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/system/continuity", async (req, res) => {
-  const out = await runMacro("system", "continuity", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "continuity" }));
-});
-
-app.post("/api/system/gap-scan", async (req, res) => {
-  const out = await runMacro("system", "gapScan", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/system/promotion-tick", async (req, res) => {
-  const out = await runMacro("system", "promotionTick", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state", "queues"], ["/api/dtus", "/api/state/latest", "/api/queues"], null, { panel: "promotion" }));
-});
-
-app.get("/api/temporal/frames", (req, res) => {
-  const frames = Object.values(TEMPORAL_FRAMES);
-  return res.json({ ok: true, frames });
-});
-
-app.get("/api/proposals/:id", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/proposals/:id/approve", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  
-  proposal.status = "approved";
-  proposal.approvedAt = nowISO();
-  proposal.approvedBy = req.actor?.userId || "anon";
-  saveStateDebounced();
-  
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/proposals/:id/reject", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  
-  proposal.status = "rejected";
-  proposal.rejectedAt = nowISO();
-  proposal.rejectedBy = req.actor?.userId || "anon";
-  proposal.rejectReason = req.body?.reason || "";
-  saveStateDebounced();
-  
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/jobs/:id/cancel", (req, res) => {
-  const job = STATE.jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
-  
-  if (job.status === "running") {
-    return res.status(400).json({ ok: false, error: "Cannot cancel running job" });
-  }
-  
-  job.status = "cancelled";
-  job.updatedAt = nowISO();
-  saveStateDebounced();
-  
-  return res.json({ ok: true, job });
-});
-
-app.post("/api/jobs/:id/retry", (req, res) => {
-  const job = STATE.jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
-  
-  if (job.status !== "failed") {
-    return res.status(400).json({ ok: false, error: "Can only retry failed jobs" });
-  }
-  
-  job.status = "queued";
-  job.attempts = 0;
-  job.lastError = null;
-  job.runAt = nowISO();
-  job.updatedAt = nowISO();
-  saveStateDebounced();
-  
-  return res.json({ ok: true, job });
-});
-
-app.post("/api/agents", async (req, res) => {
-  const out = await runMacro("agent", "create", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/agents", (req, res) => {
-  const agents = Array.from(STATE.personas.values()).filter(p => 
-    p && p.goal // Simple heuristic: agents have goals
-  );
-  return res.json({ ok: true, agents });
-});
-
-app.get("/api/agents/:id", (req, res) => {
-  const agent = STATE.personas.get(req.params.id);
-  if (!agent || !agent.goal) {
-    return res.status(404).json({ ok: false, error: "Agent not found" });
-  }
-  return res.json({ ok: true, agent });
-});
-
-app.post("/api/agents/:id/enable", async (req, res) => {
-  const out = await runMacro("agent", "enable", { id: req.params.id, enabled: req.body.enabled }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/agents/:id/tick", async (req, res) => {
-  const out = await runMacro("agent", "tick", { id: req.params.id, prompt: req.body.prompt }, makeCtx(req));
-  return res.json(out);
-});
-
-// ===== EMERGENT AGENT GOVERNANCE API =====
-
-// Emergent management
-app.post("/api/emergent/register", async (req, res) => {
-  const out = await runMacro("emergent", "register", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/list", async (req, res) => {
-  const out = await runMacro("emergent", "list", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/:id", async (req, res) => {
-  const out = await runMacro("emergent", "get", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/:id/deactivate", async (req, res) => {
-  const out = await runMacro("emergent", "deactivate", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-// Dialogue sessions
-app.post("/api/emergent/session/create", async (req, res) => {
-  const out = await runMacro("emergent", "session.create", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/session/turn", async (req, res) => {
-  const out = await runMacro("emergent", "session.turn", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/session/complete", async (req, res) => {
-  const out = await runMacro("emergent", "session.complete", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/session/:id", async (req, res) => {
-  const out = await runMacro("emergent", "session.get", { sessionId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/session/run", async (req, res) => {
-  const out = await runMacro("emergent", "session.run", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-// Governance / promotion
-app.post("/api/emergent/review", async (req, res) => {
-  const out = await runMacro("emergent", "review", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/specialize", async (req, res) => {
-  const out = await runMacro("emergent", "specialize", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/outreach", async (req, res) => {
-  const out = await runMacro("emergent", "outreach", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/consent/check", async (req, res) => {
-  const out = await runMacro("emergent", "consent.check", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-// Growth
-app.post("/api/emergent/growth/patterns", async (req, res) => {
-  const out = await runMacro("emergent", "growth.patterns", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/growth/distill", async (req, res) => {
-  const out = await runMacro("emergent", "growth.distill", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-// Audit / status
-app.get("/api/emergent/status", async (req, res) => {
-  const out = await runMacro("emergent", "status", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/gate/trace", async (req, res) => {
-  const out = await runMacro("emergent", "gate.trace", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/bundle/:id", async (req, res) => {
-  const out = await runMacro("emergent", "bundle.get", { bundleId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/patterns", async (req, res) => {
-  const out = await runMacro("emergent", "patterns", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reputation/:id", async (req, res) => {
-  const out = await runMacro("emergent", "reputation", { emergentId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/schema", async (req, res) => {
-  const out = await runMacro("emergent", "schema", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// Lattice operations (READ / PROPOSE / COMMIT)
-app.get("/api/emergent/lattice/read/:id", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.read", { dtuId: req.params.id, readerId: req.query.readerId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/lattice/staging/:id", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.readStaging", { proposalId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/lattice/query", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.query", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/lattice/propose/dtu", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeDTU", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/lattice/propose/edit", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeEdit", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/lattice/propose/edge", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeEdge", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/lattice/commit", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.commit", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/lattice/reject", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.reject", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/lattice/proposals", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposals", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/lattice/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "lattice.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// Edge semantics
-app.post("/api/emergent/edge/create", async (req, res) => {
-  const out = await runMacro("emergent", "edge.create", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/edge/:id", async (req, res) => {
-  const out = await runMacro("emergent", "edge.get", { edgeId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/edge/query", async (req, res) => {
-  const out = await runMacro("emergent", "edge.query", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/edge/:id/update", async (req, res) => {
-  const out = await runMacro("emergent", "edge.update", { edgeId: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/edge/:id/remove", async (req, res) => {
-  const out = await runMacro("emergent", "edge.remove", { edgeId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/edge/neighborhood/:nodeId", async (req, res) => {
-  const out = await runMacro("emergent", "edge.neighborhood", { nodeId: req.params.nodeId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/edge/paths", async (req, res) => {
-  const out = await runMacro("emergent", "edge.paths", { fromId: req.query.fromId, toId: req.query.toId, maxDepth: req.query.maxDepth ? parseInt(req.query.maxDepth) : undefined }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/edge/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "edge.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// Activation / attention
-app.post("/api/emergent/activation/activate", async (req, res) => {
-  const out = await runMacro("emergent", "activation.activate", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/activation/spread", async (req, res) => {
-  const out = await runMacro("emergent", "activation.spread", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/activation/working-set/:sessionId", async (req, res) => {
-  const out = await runMacro("emergent", "activation.workingSet", { sessionId: req.params.sessionId, k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/activation/global", async (req, res) => {
-  const out = await runMacro("emergent", "activation.global", { k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/activation/decay", async (req, res) => {
-  const out = await runMacro("emergent", "activation.decay", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/activation/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "activation.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// Conflict-safe merge
-app.post("/api/emergent/merge/apply", async (req, res) => {
-  const out = await runMacro("emergent", "merge.apply", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/merge/resolve", async (req, res) => {
-  const out = await runMacro("emergent", "merge.resolve", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/merge/conflicts/:dtuId", async (req, res) => {
-  const out = await runMacro("emergent", "merge.conflicts", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/merge/timestamps/:dtuId", async (req, res) => {
-  const out = await runMacro("emergent", "merge.timestamps", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/merge/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "merge.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// Lattice journal
-app.post("/api/emergent/journal/append", async (req, res) => {
-  const out = await runMacro("emergent", "journal.append", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/by-type/:eventType", async (req, res) => {
-  const out = await runMacro("emergent", "journal.byType", { eventType: req.params.eventType, ...req.query }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/by-entity/:entityId", async (req, res) => {
-  const out = await runMacro("emergent", "journal.byEntity", { entityId: req.params.entityId, ...req.query }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/by-session/:sessionId", async (req, res) => {
-  const out = await runMacro("emergent", "journal.bySession", { sessionId: req.params.sessionId, ...req.query }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/recent", async (req, res) => {
-  const out = await runMacro("emergent", "journal.recent", { count: req.query.count ? parseInt(req.query.count) : undefined }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/explain/:dtuId", async (req, res) => {
-  const out = await runMacro("emergent", "journal.explain", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/journal/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "journal.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/journal/compact", async (req, res) => {
-  const out = await runMacro("emergent", "journal.compact", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-// Livable reality
-app.get("/api/emergent/reality/continuity/:emergentId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.continuity", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/cost/:emergentId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.cost", { emergentId: req.params.emergentId, domain: req.query.domain }, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/reality/consequences", async (req, res) => {
-  const out = await runMacro("emergent", "reality.consequences", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/needs", async (req, res) => {
-  const out = await runMacro("emergent", "reality.needs", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/suggest/:emergentId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.suggest", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/sociality", async (req, res) => {
-  const out = await runMacro("emergent", "reality.sociality", { emergentA: req.query.emergentA, emergentB: req.query.emergentB }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/explain/proposal/:proposalId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.explainProposal", { proposalId: req.params.proposalId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/explain/trust/:dtuId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.explainTrust", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/reality/belonging/:emergentId", async (req, res) => {
-  const out = await runMacro("emergent", "reality.belonging", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-});
-
-// Cognition scheduler
-app.post("/api/emergent/scheduler/item", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.createItem", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/scan", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.scan", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/queue", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.queue", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/dequeue", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.dequeue", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/expire", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.expire", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/rescore", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.rescore", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/weights", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.updateWeights", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/budget", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.budget", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/budget/check", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.checkBudget", req.query || {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/budget/update", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.updateBudget", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/allocate", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.allocate", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/allocation/:id", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.allocation", { allocationId: req.params.id }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/active", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.active", {}, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/turn", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.recordTurn", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/proposal", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.recordProposal", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.post("/api/emergent/scheduler/complete", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.complete", req.body, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/completed", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.completed", { limit: req.query.limit ? parseInt(req.query.limit) : undefined }, makeCtx(req));
-  return res.json(out);
-});
-
-app.get("/api/emergent/scheduler/metrics", async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.metrics", {}, makeCtx(req));
-  return res.json(out);
-});
-
-// ===== END EMERGENT API =====
+// ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
+app.use("/api/emergent", require("./routes/emergent")({ makeCtx, runMacro }));
 
 app.post("/api/papers", async (req, res) => {
   const out = await runMacro("paper", "create", req.body, makeCtx(req));
@@ -23928,7 +22735,11 @@ app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis",
 
 setTimeout(async () => {
   if (PG_CONFIG.enabled) { const pg = await initPostgres(); if (pg.ok) await runMigrations(); }
-  if (REDIS_CONFIG.enabled) await initRedis();
+  if (REDIS_CONFIG.enabled) {
+    await initRedis();
+    // Sync revoked tokens from Redis into in-memory blacklist for multi-instance consistency
+    if (redisClient) await _TOKEN_BLACKLIST.syncFromRedis();
+  }
 }, 1000);
 
 console.log("[Concord] Wave 9: Database Integrations loaded");

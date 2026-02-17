@@ -730,12 +730,12 @@ export default function GameLensPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs text-gray-400 border-b border-lattice-border">
-                  <th className="pb-3 pt-4 px-4 w-16">Rank</th>
-                  <th className="pb-3 pt-4">Player</th>
-                  <th className="pb-3 pt-4 text-right hidden md:table-cell">Title</th>
-                  <th className="pb-3 pt-4 text-right">Level</th>
-                  <th className="pb-3 pt-4 text-right">Achievements</th>
-                  <th className="pb-3 pt-4 text-right pr-4">XP</th>
+                  <th scope="col" className="pb-3 pt-4 px-4 w-16">Rank</th>
+                  <th scope="col" className="pb-3 pt-4">Player</th>
+                  <th scope="col" className="pb-3 pt-4 text-right hidden md:table-cell">Title</th>
+                  <th scope="col" className="pb-3 pt-4 text-right">Level</th>
+                  <th scope="col" className="pb-3 pt-4 text-right">Achievements</th>
+                  <th scope="col" className="pb-3 pt-4 text-right pr-4">XP</th>
                 </tr>
               </thead>
               <tbody>

@@ -66,9 +66,9 @@ function LoginForm() {
 
         {/* Form card */}
         <div className="bg-lattice-surface border border-lattice-border rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-describedby={error ? "login-error" : undefined}>
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              <div id="login-error" role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -85,6 +85,8 @@ function LoginForm() {
                 required
                 autoFocus
                 autoComplete="username"
+                aria-invalid={!!error}
+                aria-describedby={error ? "login-error" : undefined}
                 className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
                 placeholder="Enter username or email"
               />
@@ -119,10 +121,14 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               className="w-full py-3 bg-gradient-to-r from-neon-cyan to-neon-blue rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-neon-cyan/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="animate-pulse">Signing in...</span>
+                <>
+                  <span className="animate-pulse">Signing in...</span>
+                  <span className="sr-only">Signing in, please wait</span>
+                </>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
