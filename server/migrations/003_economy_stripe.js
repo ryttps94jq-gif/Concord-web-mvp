@@ -1,6 +1,9 @@
 // migrations/003_economy_stripe.js
 // Stripe integration tables: webhook idempotency + Connect accounts.
 
+export const id = "003";
+export const name = "economy_stripe";
+
 export function up(db) {
   db.exec(`
     -- Webhook idempotency: prevents double-processing of Stripe events.

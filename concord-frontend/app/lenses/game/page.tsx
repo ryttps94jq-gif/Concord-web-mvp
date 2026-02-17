@@ -344,7 +344,7 @@ export default function GameLensPage() {
   }, [leaderboardData]);
 
   const profile = profileData || INITIAL_PROFILE;
-  const xpHistory = profile.xpHistory || INITIAL_XP_HISTORY;
+  const xpHistory: { day: string; xp: number; label: string }[] = profile.xpHistory || INITIAL_XP_HISTORY;
   const xpMax = Math.max(1, ...xpHistory.map((d: { xp: number }) => d.xp));
   const level = profile.level || INITIAL_PROFILE.level;
   const progressPct = ((playerXp) / (profile.nextLevelXp || INITIAL_PROFILE.nextLevelXp)) * 100;

@@ -1,8 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { updateClockOffset } from '../offline/db';
-
-// Socket URL: uses NEXT_PUBLIC_SOCKET_URL in production, falls back to API server port (5050) for local dev
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+import { SOCKET_URL } from '@/lib/config';
 
 let socket: Socket | null = null;
 

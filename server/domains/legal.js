@@ -1,5 +1,5 @@
 export default function registerLegalActions(registerLensAction) {
-  registerLensAction("legal", "deadlineCheck", async (ctx, artifact, params) => {
+  registerLensAction("legal", "deadlineCheck", (ctx, artifact, params) => {
     const now = new Date();
     const items = artifact.data?.items || [];
     const upcoming = items.filter(i => {
@@ -14,7 +14,7 @@ export default function registerLegalActions(registerLensAction) {
     return { ok: true, upcoming, count: upcoming.length };
   });
 
-  registerLensAction("legal", "contractRenewal", async (ctx, artifact, params) => {
+  registerLensAction("legal", "contractRenewal", (ctx, artifact, _params) => {
     const expiryDate = artifact.data?.expiryDate ? new Date(artifact.data.expiryDate) : null;
     if (!expiryDate) return { ok: true, status: "no_expiry", message: "No expiry date set" };
     const now = new Date();
@@ -32,7 +32,7 @@ export default function registerLegalActions(registerLensAction) {
     };
   });
 
-  registerLensAction("legal", "conflictCheck", async (ctx, artifact, params) => {
+  registerLensAction("legal", "conflictCheck", (ctx, artifact, params) => {
     const parties = artifact.data?.parties || [];
     const client = artifact.data?.client || '';
     const opposingParty = artifact.data?.opposingParty || '';
@@ -47,7 +47,7 @@ export default function registerLegalActions(registerLensAction) {
     return { ok: true, conflicts, hasConflict: conflicts.length > 0, checkedAt: new Date().toISOString() };
   });
 
-  registerLensAction("legal", "complianceScore", async (ctx, artifact, params) => {
+  registerLensAction("legal", "complianceScore", (ctx, artifact, _params) => {
     const items = artifact.data?.requirements || [];
     if (items.length === 0) return { ok: true, score: 100, compliant: 0, overdue: 0, total: 0 };
     const now = new Date();

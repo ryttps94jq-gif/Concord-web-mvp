@@ -1,5 +1,5 @@
 export default function registerManufacturingActions(registerLensAction) {
-  registerLensAction("manufacturing", "scheduleOptimize", async (ctx, artifact, params) => {
+  registerLensAction("manufacturing", "scheduleOptimize", (ctx, artifact, _params) => {
     const workOrders = artifact.data?.workOrders || [artifact];
     const sorted = [...workOrders].sort((a, b) => {
       const pa = a.priority || 3; const pb = b.priority || 3;
@@ -10,7 +10,7 @@ export default function registerManufacturingActions(registerLensAction) {
     return { ok: true, sequence: sorted.map((wo, i) => ({ position: i + 1, id: wo.id || wo.title, priority: wo.priority, dueDate: wo.dueDate })), count: sorted.length };
   });
 
-  registerLensAction("manufacturing", "bomCost", async (ctx, artifact, params) => {
+  registerLensAction("manufacturing", "bomCost", (ctx, artifact, _params) => {
     const components = artifact.data?.components || [];
     let totalCost = 0;
     const breakdown = components.map(c => {
@@ -21,7 +21,7 @@ export default function registerManufacturingActions(registerLensAction) {
     return { ok: true, product: artifact.title, components: breakdown, totalCost: Math.round(totalCost * 100) / 100, componentCount: components.length };
   });
 
-  registerLensAction("manufacturing", "oeeCalculate", async (ctx, artifact, params) => {
+  registerLensAction("manufacturing", "oeeCalculate", (ctx, artifact, params) => {
     const plannedTime = artifact.data?.plannedTime || params.plannedTime || 480;
     const downtime = artifact.data?.downtime || params.downtime || 0;
     const idealCycleTime = artifact.data?.idealCycleTime || params.idealCycleTime || 1;
@@ -43,7 +43,7 @@ export default function registerManufacturingActions(registerLensAction) {
     };
   });
 
-  registerLensAction("manufacturing", "safetyRate", async (ctx, artifact, params) => {
+  registerLensAction("manufacturing", "safetyRate", (ctx, artifact, params) => {
     const incidents = artifact.data?.incidents || [];
     const hoursWorked = artifact.data?.hoursWorked || params.hoursWorked || 200000;
     const recordable = incidents.filter(i => i.oshaRecordable).length;

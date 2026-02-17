@@ -8,6 +8,9 @@
  *          studio_renders
  */
 
+export const id = "001";
+export const name = "core_tables";
+
 export function up(db) {
   db.exec(`
     -- ═══════════════════════════════════════════════════

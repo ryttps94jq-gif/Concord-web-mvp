@@ -3,10 +3,10 @@
 // re-runs idempotent settlement/fulfillment steps, and logs corrective actions.
 // Never edits history; always creates counter-entries (REVERSAL, ADJUSTMENT, MAKE_GOOD).
 
-import { findPurchasesByStatus, transitionPurchase, getPurchase, recordSettlement } from "./purchases.js";
+import { findPurchasesByStatus, transitionPurchase, getPurchase, recordSettlement as _recordSettlement } from "./purchases.js";
 import { checkRefIdProcessed, generateTxId, recordTransactionBatch } from "./ledger.js";
-import { getBalance } from "./balances.js";
-import { calculateFee, PLATFORM_ACCOUNT_ID } from "./fees.js";
+import { getBalance as _getBalance } from "./balances.js";
+import { calculateFee as _calculateFee, PLATFORM_ACCOUNT_ID as _PLATFORM_ACCOUNT_ID } from "./fees.js";
 import { economyAudit } from "./audit.js";
 
 /**

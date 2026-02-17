@@ -1,5 +1,5 @@
 export default function registerSecurityActions(registerLensAction) {
-  registerLensAction("security", "incidentTrend", async (ctx, artifact, params) => {
+  registerLensAction("security", "incidentTrend", (ctx, artifact, _params) => {
     const incidents = artifact.data?.incidents || [artifact.data];
     const byType = {};
     const byLocation = {};
@@ -15,7 +15,7 @@ export default function registerSecurityActions(registerLensAction) {
     return { ok: true, byType, byLocation, byMonth, totalIncidents: incidents.length, analyzedAt: new Date().toISOString() };
   });
 
-  registerLensAction("security", "patrolCoverage", async (ctx, artifact, params) => {
+  registerLensAction("security", "patrolCoverage", (ctx, artifact, _params) => {
     const checkpoints = artifact.data?.checkpoints || [];
     if (checkpoints.length === 0) return { ok: true, coverage: 0, completed: 0, total: 0 };
     const completed = checkpoints.filter(cp => cp.status === 'completed' || cp.checkedAt).length;
@@ -24,7 +24,7 @@ export default function registerSecurityActions(registerLensAction) {
     return { ok: true, patrol: artifact.title, coverage, completed, total: checkpoints.length, missed };
   });
 
-  registerLensAction("security", "threatMatrix", async (ctx, artifact, params) => {
+  registerLensAction("security", "threatMatrix", (ctx, artifact, _params) => {
     const threats = artifact.data?.threats || [artifact.data];
     const matrix = threats.map(t => {
       const severity = t.severity || 3;
@@ -43,7 +43,7 @@ export default function registerSecurityActions(registerLensAction) {
     return { ok: true, matrix, totalThreats: matrix.length, criticalCount: matrix.filter(m => m.riskLevel === 'critical').length };
   });
 
-  registerLensAction("security", "evidenceChain", async (ctx, artifact, params) => {
+  registerLensAction("security", "evidenceChain", (ctx, artifact, _params) => {
     const evidenceLog = artifact.data?.evidenceLog || [];
     let intact = true;
     const issues = [];

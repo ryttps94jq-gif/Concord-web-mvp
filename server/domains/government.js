@@ -1,5 +1,5 @@
 export default function registerGovernmentActions(registerLensAction) {
-  registerLensAction("government", "permitTimeline", async (ctx, artifact, params) => {
+  registerLensAction("government", "permitTimeline", (ctx, artifact, _params) => {
     const applicationDate = artifact.data?.applicationDate ? new Date(artifact.data.applicationDate) : null;
     const approvalDate = artifact.data?.approvalDate ? new Date(artifact.data.approvalDate) : null;
     let processingDays = null;
@@ -12,7 +12,7 @@ export default function registerGovernmentActions(registerLensAction) {
     return { ok: true, permitId: artifact.id, permitType, processingDays, benchmark, onTime: processingDays !== null ? processingDays <= benchmark : null };
   });
 
-  registerLensAction("government", "violationEscalation", async (ctx, artifact, params) => {
+  registerLensAction("government", "violationEscalation", (ctx, artifact, _params) => {
     const deadline = artifact.data?.complianceDeadline ? new Date(artifact.data.complianceDeadline) : null;
     const now = new Date();
     if (!deadline) return { ok: true, escalated: false, message: "No compliance deadline set" };
@@ -26,7 +26,7 @@ export default function registerGovernmentActions(registerLensAction) {
     return { ok: true, violationId: artifact.id, escalated: pastDeadline, daysPast, currentStatus: artifact.meta?.status };
   });
 
-  registerLensAction("government", "resourceStaging", async (ctx, artifact, params) => {
+  registerLensAction("government", "resourceStaging", (ctx, artifact, params) => {
     const zones = artifact.data?.zones || [];
     const resources = artifact.data?.resources || [];
     const threatType = artifact.data?.type || params.threatType || 'general';
@@ -39,7 +39,7 @@ export default function registerGovernmentActions(registerLensAction) {
     return { ok: true, threatType, staging, totalZones: zones.length, totalResources: resources.length, activationLevel: artifact.data?.activationLevel || 'standby' };
   });
 
-  registerLensAction("government", "retentionCheck", async (ctx, artifact, params) => {
+  registerLensAction("government", "retentionCheck", (ctx, artifact, _params) => {
     const retentionPeriod = artifact.data?.retentionPeriod || 7;
     const createdDate = artifact.data?.date ? new Date(artifact.data.date) : new Date(artifact.createdAt);
     const now = new Date();

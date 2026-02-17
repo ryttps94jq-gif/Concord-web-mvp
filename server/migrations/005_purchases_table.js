@@ -2,6 +2,9 @@
 // Purchase state machine table — tracks every purchase through its lifecycle.
 // Enables reconciliation, dispute handling, and crash recovery.
 
+export const id = "005";
+export const name = "purchases_table";
+
 export function up(db) {
   db.exec(`
     -- Purchase lifecycle state machine.

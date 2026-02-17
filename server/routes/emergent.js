@@ -200,7 +200,7 @@ module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
   });
 
   router.get("/edge/paths", async (req, res) => {
-    const out = await runMacro("emergent", "edge.paths", { fromId: req.query.fromId, toId: req.query.toId, maxDepth: req.query.maxDepth ? parseInt(req.query.maxDepth) : undefined }, makeCtx(req));
+    const out = await runMacro("emergent", "edge.paths", { fromId: req.query.fromId, toId: req.query.toId, maxDepth: req.query.maxDepth ? parseInt(req.query.maxDepth, 10) : undefined }, makeCtx(req));
     return res.json(out);
   });
 
@@ -221,12 +221,12 @@ module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
   });
 
   router.get("/activation/working-set/:sessionId", async (req, res) => {
-    const out = await runMacro("emergent", "activation.workingSet", { sessionId: req.params.sessionId, k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
+    const out = await runMacro("emergent", "activation.workingSet", { sessionId: req.params.sessionId, k: req.query.k ? parseInt(req.query.k, 10) : undefined }, makeCtx(req));
     return res.json(out);
   });
 
   router.get("/activation/global", async (req, res) => {
-    const out = await runMacro("emergent", "activation.global", { k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
+    const out = await runMacro("emergent", "activation.global", { k: req.query.k ? parseInt(req.query.k, 10) : undefined }, makeCtx(req));
     return res.json(out);
   });
 
@@ -288,7 +288,7 @@ module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
   });
 
   router.get("/journal/recent", async (req, res) => {
-    const out = await runMacro("emergent", "journal.recent", { count: req.query.count ? parseInt(req.query.count) : undefined }, makeCtx(req));
+    const out = await runMacro("emergent", "journal.recent", { count: req.query.count ? parseInt(req.query.count, 10) : undefined }, makeCtx(req));
     return res.json(out);
   });
 
@@ -435,7 +435,7 @@ module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
   });
 
   router.get("/scheduler/completed", async (req, res) => {
-    const out = await runMacro("emergent", "scheduler.completed", { limit: req.query.limit ? parseInt(req.query.limit) : undefined }, makeCtx(req));
+    const out = await runMacro("emergent", "scheduler.completed", { limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined }, makeCtx(req));
     return res.json(out);
   });
 

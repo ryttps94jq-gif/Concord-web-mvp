@@ -1,8 +1,9 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { updateClockOffset } from '../offline/db';
 import { useUIStore } from '@/store/ui';
+import { API_BASE_URL } from '@/lib/config';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+const BASE_URL = API_BASE_URL;
 
 /**
  * FE-004: Runtime validation of API base URL.

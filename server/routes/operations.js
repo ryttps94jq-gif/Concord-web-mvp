@@ -27,8 +27,8 @@ module.exports = function registerOperationRoutes(app, {
   tryLoadSeedDTUs,
   toOptionADTU,
   SEED_INFO,
-  kernelTick,
-  uiJson
+  kernelTick: _kernelTick,
+  uiJson: _uiJson
 }) {
 
   // Organs + Growth endpoints

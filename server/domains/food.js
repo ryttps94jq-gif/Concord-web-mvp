@@ -8,7 +8,7 @@ export default function registerFoodActions(registerLensAction) {
    * artifact.data.recipe: { name, baseYield, yieldUnit, ingredients: [{ name, quantity, unit }] }
    * params.targetYield — the desired new yield
    */
-  registerLensAction("food", "scaleRecipe", async (ctx, artifact, params) => {
+  registerLensAction("food", "scaleRecipe", (ctx, artifact, params) => {
     const recipe = artifact.data.recipe || artifact.data;
     const baseYield = parseFloat(recipe.baseYield || recipe.yield) || 1;
     const targetYield = parseFloat(params.targetYield);
@@ -59,7 +59,7 @@ export default function registerFoodActions(registerLensAction) {
    * artifact.data.menuItems: [{ name, ingredients: [{ name, quantity, unit, costPerUnit }], menuPrice }]
    * params.itemName — which menu item to cost (or cost all if omitted)
    */
-  registerLensAction("food", "costPlate", async (ctx, artifact, params) => {
+  registerLensAction("food", "costPlate", (ctx, artifact, params) => {
     const menuItems = artifact.data.menuItems || [];
     const targetName = params.itemName || null;
 
@@ -119,7 +119,7 @@ export default function registerFoodActions(registerLensAction) {
    * artifact.data.inventory: [{ item, quantity, unit, expiryDate, location }]
    * params.warningDays (default 3) — days before expiry to flag
    */
-  registerLensAction("food", "spoilageCheck", async (ctx, artifact, params) => {
+  registerLensAction("food", "spoilageCheck", (ctx, artifact, params) => {
     const inventory = artifact.data.inventory || [];
     const warningDays = params.warningDays != null ? params.warningDays : 3;
     const now = new Date();
@@ -177,7 +177,7 @@ export default function registerFoodActions(registerLensAction) {
    * artifact.data.beverages: [{ name, costPerOz, pourOz, menuPrice }]
    * params.itemName — optional filter
    */
-  registerLensAction("food", "pourCost", async (ctx, artifact, params) => {
+  registerLensAction("food", "pourCost", (ctx, artifact, params) => {
     const beverages = artifact.data.beverages || [];
     const targetName = params.itemName || null;
 

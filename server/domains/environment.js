@@ -1,5 +1,5 @@
 export default function registerEnvironmentActions(registerLensAction) {
-  registerLensAction("environment", "populationTrend", async (ctx, artifact, params) => {
+  registerLensAction("environment", "populationTrend", (ctx, artifact, _params) => {
     const surveys = artifact.data?.surveyData || [];
     if (surveys.length < 2) return { ok: true, trend: 'insufficient_data', surveys: surveys.length };
     const sorted = [...surveys].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -10,7 +10,7 @@ export default function registerEnvironmentActions(registerLensAction) {
     return { ok: true, species: artifact.title, trend, changePercent: Math.round(change * 10) / 10, firstCount: first, lastCount: last, dataPoints: surveys.length };
   });
 
-  registerLensAction("environment", "complianceCheck", async (ctx, artifact, params) => {
+  registerLensAction("environment", "complianceCheck", (ctx, artifact, params) => {
     const parameters = artifact.data?.parameters || [];
     const thresholds = params.thresholds || artifact.data?.thresholds || {};
     const results = parameters.map(p => {
@@ -22,7 +22,7 @@ export default function registerEnvironmentActions(registerLensAction) {
     return { ok: true, siteId: artifact.id, results, overallCompliant: allCompliant, violations: results.filter(r => !r.compliant).length, checkedAt: new Date().toISOString() };
   });
 
-  registerLensAction("environment", "trailCondition", async (ctx, artifact, params) => {
+  registerLensAction("environment", "trailCondition", (ctx, artifact, _params) => {
     const trails = artifact.data?.trails || [artifact.data];
     const prioritized = trails.map(t => {
       const condition = t.condition || 3;
@@ -34,7 +34,7 @@ export default function registerEnvironmentActions(registerLensAction) {
     return { ok: true, prioritized, total: prioritized.length };
   });
 
-  registerLensAction("environment", "diversionRate", async (ctx, artifact, params) => {
+  registerLensAction("environment", "diversionRate", (ctx, artifact, params) => {
     const totalWaste = artifact.data?.totalVolume || params.totalWaste || 0;
     const diverted = artifact.data?.divertedVolume || params.diverted || 0;
     const rate = totalWaste > 0 ? Math.round((diverted / totalWaste) * 100) : 0;

@@ -13,6 +13,7 @@ import { api } from '@/lib/api/client';
 import { Activity, Filter, RefreshCw, Undo2, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
+import { API_BASE_URL } from '@/lib/config';
 
 interface EventItem {
   id: string;
@@ -46,7 +47,7 @@ export function ActivityFeed() {
 
   // SSE for live updates with reconnection
   useEffect(() => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+    const baseUrl = API_BASE_URL;
     let es: EventSource | null = null;
     let retryTimeout: ReturnType<typeof setTimeout>;
     let retryDelay = 1000;

@@ -61,7 +61,7 @@ export default function HypothesisLensPage() {
 
   const addEvidence = useMutation({
     mutationFn: () => {
-      if (!selectedId) return Promise.reject('No hypothesis selected');
+      if (!selectedId) return Promise.reject(new Error('No hypothesis selected'));
       return apiHelpers.hypothesis.addEvidence(selectedId, {
         evidence: newEvidence,
         supports: evidenceSupports,

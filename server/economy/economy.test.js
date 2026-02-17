@@ -12,10 +12,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // Import economy modules
-import { recordTransaction, recordTransactionBatch, getTransactions, generateTxId } from "./ledger.js";
+import { recordTransaction, recordTransactionBatch, getTransactions, generateTxId as _generateTxId } from "./ledger.js";
 import { getBalance, hasSufficientBalance } from "./balances.js";
 import { calculateFee, PLATFORM_ACCOUNT_ID } from "./fees.js";
-import { validateAmount, validateBalance, validateUsers, validateTransfer } from "./validators.js";
+import { validateAmount, validateBalance as _validateBalance, validateUsers, validateTransfer } from "./validators.js";
 import { executeTransfer, executePurchase, executeMarketplacePurchase, executeReversal } from "./transfer.js";
 import { requestWithdrawal, approveWithdrawal, processWithdrawal, cancelWithdrawal } from "./withdrawals.js";
 

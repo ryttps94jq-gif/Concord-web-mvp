@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/config';
 import { Virtuoso } from 'react-virtuoso';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -143,7 +144,7 @@ export default function ChatLensPage() {
       }
 
       // Try streaming first, fall back to regular POST
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+      const apiUrl = API_BASE_URL;
       try {
         setIsStreaming(true);
         setStreamingContent('');

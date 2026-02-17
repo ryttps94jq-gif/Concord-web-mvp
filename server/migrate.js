@@ -1,174 +1,94 @@
 /**
- * Migration runner for Concord Cognitive Engine.
+ * Migration CLI & re-export for Concord Cognitive Engine.
  *
- * Manages schema_version table and applies numbered migrations in order.
- * Invoked at backend startup and via `npm run migrate`.
+ * Delegates all real work to ./migrations/runner.js.  This file serves as:
+ *   1. The CLI entry point   (`node migrate.js`, `node migrate.js --status`)
+ *   2. The import alias used by server.js
  *
  * Usage:
- *   node migrate.js            # Apply pending migrations
- *   node migrate.js --status   # Show current schema version
+ *   node migrate.js            # Apply all pending migrations
+ *   node migrate.js --status   # Show which migrations have been applied
  */
 
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  runMigrations,
+  getMigrationStatus,
+} from "./migrations/runner.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.join(__dirname, "migrations");
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
-const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "concord.db");
+// Re-export so server.js can `import { runMigrations } from "./migrate.js"`
+export { runMigrations, getMigrationStatus };
 
-let Database;
-try {
-  Database = (await import("better-sqlite3")).default;
-} catch {
-  // Will be handled below
-}
+// ---------------------------------------------------------------------------
+// CLI mode — only activates when this file is executed directly
+// ---------------------------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const isCli =
+  process.argv[1] &&
+  (process.argv[1] === __filename ||
+    process.argv[1].endsWith("migrate.js"));
 
-/**
- * Run all pending migrations against the given database instance.
- * If no db is provided, opens the default database.
- * Returns { appliedCount, currentVersion, error? }
- */
-export async function runMigrations(existingDb = null) {
-  if (!Database && !existingDb) {
-    console.warn("[Migrate] better-sqlite3 not available — skipping migrations");
-    return { appliedCount: 0, currentVersion: 0, error: "no-sqlite" };
+if (isCli) {
+  const __dirname = path.dirname(__filename);
+  const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+  const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "concord.db");
+
+  let Database;
+  try {
+    Database = (await import("better-sqlite3")).default;
+  } catch {
+    console.error("[Migrate] better-sqlite3 is not installed — cannot run migrations.");
+    process.exit(1);
   }
 
-  let db = existingDb;
-  let shouldClose = false;
-
-  if (!db) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    db = new Database(DB_PATH);
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    shouldClose = true;
-  }
+  // Open (or create) the database
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  const db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
 
   try {
-    // Ensure schema_version table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS schema_version (
-        version INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
+    if (process.argv.includes("--status")) {
+      // --status: display migration status
+      const status = await getMigrationStatus(db);
 
-    // Get current version
-    const row = db.prepare("SELECT MAX(version) as v FROM schema_version").get();
-    const currentVersion = row?.v || 0;
+      console.log("\n=== Migration Status ===\n");
 
-    // Read migration files (format: 001_name.js)
-    const migrationFiles = fs
-      .readdirSync(MIGRATIONS_DIR)
-      .filter((f) => f.match(/^\d{3}_.*\.js$/))
-      .sort();
-
-    let appliedCount = 0;
-
-    for (const file of migrationFiles) {
-      const version = parseInt(file.slice(0, 3), 10);
-      if (version <= currentVersion) continue;
-
-      const migrationPath = path.join(MIGRATIONS_DIR, file);
-      const migration = await import(`file://${migrationPath}`);
-
-      if (typeof migration.up !== "function") {
-        throw new Error(`Migration ${file} missing 'up' export`);
+      if (status.applied.length > 0) {
+        console.log("Applied migrations:");
+        for (const m of status.applied) {
+          console.log(`  [x] ${m.id}_${m.name}  (applied ${m.applied_at})`);
+        }
+      } else {
+        console.log("No migrations have been applied yet.");
       }
 
-      console.log(`[Migrate] Applying ${file}...`);
+      if (status.pending.length > 0) {
+        console.log(`\nPending migrations (${status.pending.length}):`);
+        for (const f of status.pending) {
+          console.log(`  [ ] ${f}`);
+        }
+      } else {
+        console.log("\nAll migrations are up to date.");
+      }
 
-      // Run migration inside a transaction
-      const tx = db.transaction(() => {
-        migration.up(db);
-        db.prepare(
-          "INSERT INTO schema_version (version, name) VALUES (?, ?)"
-        ).run(version, file.replace(/^\d{3}_/, "").replace(/\.js$/, ""));
-      });
-      tx();
-
-      appliedCount++;
-      console.log(`[Migrate] Applied ${file}`);
-    }
-
-    const finalRow = db
-      .prepare("SELECT MAX(version) as v FROM schema_version")
-      .get();
-    const finalVersion = finalRow?.v || 0;
-
-    if (appliedCount > 0) {
-      console.log(
-        `[Migrate] ${appliedCount} migration(s) applied. Schema version: ${finalVersion}`
-      );
+      console.log();
     } else {
-      console.log(`[Migrate] Schema up to date at version ${finalVersion}`);
-    }
+      // Default: run all pending migrations
+      const result = await runMigrations(db);
 
-    return { appliedCount, currentVersion: finalVersion };
+      if (result.applied.length === 0) {
+        console.log("[Migrate] Nothing to do — all migrations already applied.");
+      } else {
+        console.log(`[Migrate] Done. Applied: ${result.applied.join(", ")}`);
+      }
+    }
   } catch (e) {
-    console.error("[Migrate] Migration failed:", e.message);
-    return { appliedCount: 0, currentVersion: 0, error: e.message };
+    console.error("[Migrate] Fatal error:", e.message);
+    process.exit(1);
   } finally {
-    if (shouldClose && db) {
-      db.close();
-    }
-  }
-}
-
-/**
- * Show current schema status.
- */
-export function migrationStatus(existingDb = null) {
-  if (!Database && !existingDb) {
-    return { currentVersion: 0, migrations: [], error: "no-sqlite" };
-  }
-
-  let db = existingDb;
-  let shouldClose = false;
-
-  if (!db) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    db = new Database(DB_PATH);
-    shouldClose = true;
-  }
-
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS schema_version (
-        version INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
-
-    const rows = db
-      .prepare("SELECT version, name, applied_at FROM schema_version ORDER BY version")
-      .all();
-    const currentVersion = rows.length > 0 ? rows[rows.length - 1].version : 0;
-
-    return { currentVersion, migrations: rows };
-  } finally {
-    if (shouldClose && db) {
-      db.close();
-    }
-  }
-}
-
-// CLI mode
-if (process.argv[1] && process.argv[1].endsWith("migrate.js")) {
-  if (process.argv.includes("--status")) {
-    const status = await migrationStatus();
-    console.log("Schema version:", status.currentVersion);
-    if (status.migrations.length > 0) {
-      console.table(status.migrations);
-    } else {
-      console.log("No migrations applied yet.");
-    }
-  } else {
-    await runMigrations();
+    db.close();
   }
 }

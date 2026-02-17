@@ -10,12 +10,12 @@
  * - "No silent failures" guarantee
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useUIStore } from '@/store/ui';
 import { cn } from '@/lib/utils';
-import { Wifi, WifiOff, Shield, AlertTriangle, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wifi, WifiOff, Shield, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface StatusResponse {
   ok: boolean;

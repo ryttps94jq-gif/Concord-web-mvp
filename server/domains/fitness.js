@@ -1,5 +1,5 @@
 export default function registerFitnessActions(registerLensAction) {
-  registerLensAction("fitness", "progressionCalc", async (ctx, artifact, params) => {
+  registerLensAction("fitness", "progressionCalc", (ctx, artifact, _params) => {
     const exercises = artifact.data?.exercises || [];
     const recommendations = exercises.map(ex => {
       const weight = ex.weight || 0;
@@ -21,7 +21,7 @@ export default function registerFitnessActions(registerLensAction) {
     return { ok: true, recommendations };
   });
 
-  registerLensAction("fitness", "classUtilization", async (ctx, artifact, params) => {
+  registerLensAction("fitness", "classUtilization", (ctx, artifact, params) => {
     const capacity = artifact.data?.capacity || 0;
     const enrolled = artifact.data?.enrolled || 0;
     const attendanceLog = artifact.data?.attendanceLog || [];
@@ -38,7 +38,7 @@ export default function registerFitnessActions(registerLensAction) {
     return { ok: true, className: artifact.title, capacity, enrolled, avgAttendance, utilization, period, sessions: recentAttendance.length };
   });
 
-  registerLensAction("fitness", "periodization", async (ctx, artifact, params) => {
+  registerLensAction("fitness", "periodization", (ctx, artifact, params) => {
     const weeks = params.weeks || artifact.data?.weeks || 12;
     const goal = params.goal || artifact.data?.goal || 'general_fitness';
     const phases = [];
@@ -56,7 +56,7 @@ export default function registerFitnessActions(registerLensAction) {
     return { ok: true, program: artifact.title, goal, totalWeeks: weeks, phases };
   });
 
-  registerLensAction("fitness", "recruitProfile", async (ctx, artifact, params) => {
+  registerLensAction("fitness", "recruitProfile", (ctx, artifact, _params) => {
     const profile = {
       name: artifact.title,
       sport: artifact.data?.sport || 'Unknown',

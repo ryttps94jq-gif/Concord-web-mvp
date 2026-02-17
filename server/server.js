@@ -85,6 +85,13 @@ import { tickLocal, tickGlobal, tickMarketplace, tickAll, getHeartbeatMetrics } 
 import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
 import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransferRights, getRightsMetrics, computeContentHash as rightsContentHash } from "./emergent/atlas-rights.js";
+import { schemas as VALIDATION_SCHEMAS, validate } from "./validation/schemas.js";
+import { initTokens, createToken, createRefreshToken, verifyToken, _TOKEN_BLACKLIST, _REFRESH_FAMILIES, hashPassword, verifyPassword, generateApiKey, hashApiKey, verifyApiKey, setAuthCookie, clearAuthCookie, setRefreshCookie, generateCsrfToken, validateCsrfToken } from "./auth/tokens.js";
+
+// ---- Extracted Macro Modules ----
+import { MACROS, register, listDomains, listMacros, createRunMacro } from "./macros/registry.js";
+import { registerCognitiveMacros } from "./macros/cognitive.js";
+import { registerDomainMacros } from "./macros/domains.js";
 
 // ---- CJS interop for route modules (routes/*.js use module.exports) ----
 const require = createRequire(import.meta.url);
@@ -2803,11 +2810,15 @@ function initDatabase() {
 
 const _DB_READY = initDatabase();
 
+// Initialize auth/token infrastructure with runtime dependencies
+initTokens({ jwt, bcrypt, db, EFFECTIVE_JWT_SECRET, JWT_EXPIRES_IN, BCRYPT_ROUNDS, NODE_ENV, REFRESH_TOKEN_EXPIRES: process.env.REFRESH_TOKEN_EXPIRES || "30d", REFRESH_TOKEN_COOKIE });
+
 // ---- "Everything Real": Run schema migrations after DB init ----
 if (db) {
   try {
     const migrationResult = await runSchemaMigrations(db);
-    console.log(`[Concord] Schema version: ${migrationResult.currentVersion} (${migrationResult.appliedCount} new migrations)`);
+    const totalRun = migrationResult.applied.length + migrationResult.alreadyRun.length;
+    console.log(`[Concord] Migrations: ${totalRun} total, ${migrationResult.applied.length} newly applied`);
   } catch (e) {
     console.error("[Concord] Migration failed:", e.message);
   }
@@ -3245,292 +3256,9 @@ if (AuthDB.getUserCount() === 0 && bcrypt) {
   }
 }
 
-// Auth helper functions
-function createToken(userId, expiresIn = JWT_EXPIRES_IN) {
-  if (!jwt) return null;
-  const jti = crypto.randomBytes(16).toString("hex"); // Unique token ID for revocation
-  return jwt.sign({ userId, jti, iat: Math.floor(Date.now() / 1000) }, EFFECTIVE_JWT_SECRET, { expiresIn });
-}
-
-// ---- Refresh Token (Tier 1: Auth Hardening) ----
-const REFRESH_TOKEN_EXPIRES = process.env.REFRESH_TOKEN_EXPIRES || "30d";
+// Auth helper functions [extracted to ./auth/tokens.js]
 const REFRESH_TOKEN_COOKIE = "concord_refresh";
 
-function createRefreshToken(userId) {
-  if (!jwt) return null;
-  const jti = crypto.randomBytes(16).toString("hex");
-  const family = crypto.randomBytes(8).toString("hex"); // Token family for rotation detection
-  return jwt.sign({ userId, jti, family, type: "refresh", iat: Math.floor(Date.now() / 1000) }, EFFECTIVE_JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES });
-}
-
-function verifyToken(token) {
-  if (!jwt) return null;
-  try {
-    const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
-    // ---- Token Revocation Check (Tier 1: Auth Hardening) ----
-    if (decoded.jti && _TOKEN_BLACKLIST.isRevoked(decoded.jti)) {
-      return null; // Token has been revoked
-    }
-    return decoded;
-  } catch { return null; }
-}
-
-// ---- Token Blacklist (Tier 1: Auth Hardening) ----
-// In-memory blacklist with Redis support (when available) and SQLite persistence
-const _TOKEN_BLACKLIST = {
-  revoked: new Map(), // jti -> { revokedAt, expiresAt, userId }
-
-  /**
-   * Revoke a single token by JTI.
-   * Writes to in-memory Map (primary, synchronous), Redis (if connected), and SQLite (if available).
-   * @param {string} jti - Token identifier
-   * @param {number} [expiresAt] - Token expiry timestamp in ms
-   * @param {string} [userId] - User who owns this token (needed for revokeAllForUser)
-   */
-  revoke(jti, expiresAt, userId) {
-    const now = Date.now();
-    const exp = expiresAt || now + 7 * 86400000;
-    const entry = { revokedAt: now, expiresAt: exp, userId: userId || null };
-
-    // Primary: in-memory (synchronous — keeps verifyToken fast)
-    this.revoked.set(jti, entry);
-
-    // Redis: write-through for multi-instance consistency
-    if (redisClient) {
-      const ttlMs = exp - now;
-      if (ttlMs > 0) {
-        const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
-        const ttlSec = Math.ceil(ttlMs / 1000);
-        redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(err => {
-          console.error("[auth] Redis token blacklist write failed:", err.message);
-        });
-        // Track JTI in per-user set so revokeAllForUser can find them
-        if (userId) {
-          const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
-          redisClient.sAdd(userSetKey, jti).catch(() => {});
-          // Set TTL on the user set to auto-clean (use longest reasonable token lifetime)
-          redisClient.expire(userSetKey, Math.ceil(ttlMs / 1000) + 3600).catch(() => {});
-        }
-      }
-    }
-
-    // SQLite persistence
-    if (db) {
-      try {
-        const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE token_hash = ?");
-        stmt.run(jti);
-      } catch (err) { console.error("[auth] Token revocation failed:", err); }
-    }
-  },
-
-  /**
-   * Check if a token is revoked — synchronous, uses in-memory Map only.
-   * Redis data is synced into the Map on startup and on every revoke() call,
-   * so the in-memory Map is always authoritative for this process.
-   */
-  isRevoked(jti) {
-    return this.revoked.has(jti);
-  },
-
-  /**
-   * Revoke all tokens for a user (e.g., password change, security incident).
-   * Walks in-memory Map and (if Redis available) the per-user token set.
-   */
-  revokeAllForUser(userId) {
-    const now = Date.now();
-
-    // SQLite: bulk revoke
-    if (db) {
-      try {
-        const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE user_id = ?");
-        stmt.run(userId);
-      } catch (err) { console.error("[auth] Bulk token revocation failed for user:", err); }
-    }
-
-    // In-memory: mark all entries belonging to this user
-    for (const [jti, entry] of this.revoked) {
-      if (entry.userId === userId) {
-        this.revoked.set(jti, { ...entry, revokedAt: now });
-      }
-    }
-
-    // Redis: look up the user's token set and revoke each JTI
-    if (redisClient) {
-      const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
-      redisClient.sMembers(userSetKey).then(jtis => {
-        for (const jti of jtis) {
-          // Update the blacklist entry in Redis (keep existing TTL)
-          const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
-          redisClient.get(redisKey).then(raw => {
-            if (raw) {
-              try {
-                const entry = JSON.parse(raw);
-                entry.revokedAt = now;
-                const ttlSec = Math.max(1, Math.ceil((entry.expiresAt - now) / 1000));
-                redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(() => {});
-              } catch {}
-            }
-          }).catch(() => {});
-          // Also ensure it's in our in-memory Map
-          if (!this.revoked.has(jti)) {
-            this.revoked.set(jti, { revokedAt: now, expiresAt: now + 7 * 86400000, userId });
-          }
-        }
-      }).catch(err => {
-        console.error("[auth] Redis bulk revocation lookup failed:", err.message);
-      });
-    }
-  },
-
-  // Hydrate from SQLite on cold start (survives restarts without Redis)
-  syncFromSQLite() {
-    if (!db) return;
-    try {
-      const stmt = db.prepare("SELECT token_hash, user_id FROM sessions WHERE is_revoked = 1");
-      const rows = stmt.all();
-      let loaded = 0;
-      for (const row of rows) {
-        if (row.token_hash && !this.revoked.has(row.token_hash)) {
-          this.revoked.set(row.token_hash, {
-            revokedAt: Date.now(),
-            expiresAt: Date.now() + 7 * 86400000, // Default 7-day window
-            userId: row.user_id || null
-          });
-          loaded++;
-        }
-      }
-      if (loaded > 0) {
-        console.log(`[auth] Hydrated ${loaded} revoked tokens from SQLite`);
-      }
-    } catch (err) {
-      console.error('[auth] SQLite blacklist hydration failed:', err.message);
-    }
-  },
-
-  /**
-   * Sync blacklisted tokens from Redis into the in-memory Map.
-   * Called once after Redis connects so this process knows about tokens
-   * revoked by other instances.
-   */
-  async syncFromRedis() {
-    if (!redisClient) return;
-    try {
-      const pattern = REDIS_CONFIG.prefix + "blacklist:*";
-      const keys = await redisClient.keys(pattern);
-      if (keys.length === 0) return;
-      const prefixLen = (REDIS_CONFIG.prefix + "blacklist:").length;
-      let synced = 0;
-      for (const key of keys) {
-        try {
-          const raw = await redisClient.get(key);
-          if (!raw) continue;
-          const entry = JSON.parse(raw);
-          const jti = key.slice(prefixLen);
-          if (!this.revoked.has(jti)) {
-            this.revoked.set(jti, entry);
-            synced++;
-          }
-        } catch {}
-      }
-      if (synced > 0) console.log(`[auth] Synced ${synced} revoked tokens from Redis`);
-    } catch (err) {
-      console.error("[auth] Failed to sync token blacklist from Redis:", err.message);
-    }
-  },
-
-  // Cleanup expired entries from in-memory Map (Redis handles its own TTL expiry)
-  cleanup() {
-    const now = Date.now();
-    for (const [jti, entry] of this.revoked) {
-      if (now > entry.expiresAt) this.revoked.delete(jti);
-    }
-  }
-};
-
-// Cleanup in-memory blacklist every hour (Redis keys expire via TTL automatically)
-setInterval(() => _TOKEN_BLACKLIST.cleanup(), 3600000);
-
-// ---- Refresh Token Family Tracking (detects token theft via reuse) ----
-const _REFRESH_FAMILIES = new Map(); // family -> { userId, currentJti, rotatedAt }
-
-function hashPassword(password) {
-  if (!bcrypt) return null;
-  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
-}
-
-function verifyPassword(password, hash) {
-  if (!bcrypt) return false;
-  return bcrypt.compareSync(password, hash);
-}
-
-function generateApiKey() {
-  return `ck_${crypto.randomBytes(32).toString("hex")}`;
-}
-
-// SECURITY: Hash API keys for storage (only store hash, return raw key once on creation)
-function hashApiKey(apiKey) {
-  return crypto.createHash("sha256").update(apiKey).digest("hex");
-}
-
-function verifyApiKey(rawKey, hashedKey) {
-  const hash = hashApiKey(rawKey);
-  // Use timing-safe comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hashedKey));
-  } catch {
-    return false;
-  }
-}
-
-// ============================================================================
-// SECURITY: Cookie Configuration
-// ============================================================================
-const COOKIE_CONFIG = {
-  httpOnly: true,
-  secure: NODE_ENV === "production", // HTTPS only in production
-  sameSite: "strict", // CSRF protection
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: "/"
-};
-
-function setAuthCookie(res, token) {
-  res.cookie("concord_auth", token, COOKIE_CONFIG);
-}
-
-function clearAuthCookie(res) {
-  res.clearCookie("concord_auth", { path: "/" });
-  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
-}
-
-function setRefreshCookie(res, refreshToken) {
-  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
-    httpOnly: true,
-    secure: NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    path: "/"
-  });
-}
-
-// ============================================================================
-// SECURITY: CSRF Protection (Double-Submit Cookie Pattern)
-// Privacy-friendly: no server-side state, token derived from session
-// ============================================================================
-function generateCsrfToken(sessionId = "") {
-  // Generate a token based on a secret + session identifier
-  const secret = EFFECTIVE_JWT_SECRET.slice(0, 32);
-  const data = `${sessionId}:${Date.now()}`;
-  return crypto.createHmac("sha256", secret).update(data).digest("hex").slice(0, 32);
-}
-
-function validateCsrfToken(token, cookieToken) {
-  if (!token || !cookieToken) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(cookieToken));
-  } catch {
-    return false;
-  }
-}
 
 // CSRF middleware - validates token on state-changing requests
 function csrfMiddleware(req, res, next) {
@@ -3759,67 +3487,7 @@ function productionWriteAuthMiddleware(req, res, next) {
   return next();
 }
 
-// ---- Validation Schemas (Zod) ----
-const schemas = {};
-if (z) {
-  schemas.dtuCreate = z.object({
-    title: z.string().min(1).max(500),
-    content: z.string().max(100000).optional(),
-    tier: z.enum(["regular", "mega", "hyper"]).optional().default("regular"),
-    tags: z.array(z.string().max(50)).max(40).optional().default([]),
-    creti: z.string().max(50000).optional(),
-    source: z.string().max(100).optional()
-  });
-
-  schemas.dtuUpdate = z.object({
-    id: z.string().uuid(),
-    title: z.string().min(1).max(500).optional(),
-    content: z.string().max(100000).optional(),
-    tier: z.enum(["regular", "mega", "hyper"]).optional(),
-    tags: z.array(z.string().max(50)).max(40).optional(),
-    creti: z.string().max(50000).optional()
-  });
-
-  schemas.userRegister = z.object({
-    username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_-]+$/),
-    email: z.string().email(),
-    password: z.string().min(12).max(100)
-  });
-
-  schemas.userLogin = z.object({
-    username: z.string().optional(),
-    email: z.string().email().optional(),
-    password: z.string()
-  }).refine(d => d.username || d.email, { message: "Username or email required" });
-
-  schemas.apiKeyCreate = z.object({
-    name: z.string().min(1).max(100),
-    scopes: z.array(z.string()).optional().default(["read"])
-  });
-
-  schemas.pagination = z.object({
-    limit: z.coerce.number().min(1).max(1000).optional().default(50),
-    offset: z.coerce.number().min(0).optional().default(0),
-    q: z.string().max(500).optional()
-  });
-}
-
-// Validation middleware factory
-function validate(schemaName) {
-  return (req, res, next) => {
-    if (!z || !schemas[schemaName]) return next();
-    const result = schemas[schemaName].safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        ok: false,
-        error: "Validation failed",
-        details: result.error.errors
-      });
-    }
-    req.validated = result.data;
-    next();
-  };
-}
+// ---- Validation Schemas (Zod) ---- [extracted to ./validation/schemas.js]
 
 // ---- Metrics (Prometheus) ----
 const METRICS = {
@@ -5307,110 +4975,10 @@ async function governedCall(ctx, effectName, fn){
 }
 // ===== END CHICKEN2 CORE =====
 
-// ---- macro registry ----
-/**
- * Macros are deterministic callable blocks.
- * Signature: async (ctx, input) => output
- * ctx provides access to state, helpers, llm, and macro runner.
- */
-const MACROS = new Map(); // domain -> Map(name -> fn)
-
-function register(domain, name, fn, spec={}) {
-  if (!MACROS.has(domain)) MACROS.set(domain, new Map());
-  MACROS.get(domain).set(name, { fn, spec: { domain, name, ...spec } });
-}
-
-function listDomains() { return Array.from(MACROS.keys()).sort(); }
-function listMacros(domain) {
-  const d = MACROS.get(domain);
-  if (!d) return [];
-  return Array.from(d.values()).map(x => x.spec);
-}
-
-function runMacro(domain, name, input, ctx) {
-  // v3: permissioned cognition (macro-level ACL). Defaults open for local-first dev.
-  const actor = ctx?.actor || { role: "owner", scopes: ["*"] };
-  if (typeof globalThis.canRunMacro === "function" && !globalThis.canRunMacro(actor, domain, name)) {
-    throw new Error(`forbidden: ${domain}.${name}`);
-  }
-
-  // Chicken2: reality guard (full blast) with founder recovery valve
-  // NOTE: Read-only DTU hydration must never be blocked (frontend boot path).
-  const _path = ctx?.reqMeta?.path || "";
-  const _method = (ctx?.reqMeta?.method || "").toUpperCase();
-
-  const safeReadBypass =
-    _method === "GET" && (
-      // Absolute path-based safe reads (frontend boot must never be blocked)
-      _path === "/api/status" ||
-      _path.startsWith("/api/dtus") ||
-      _path.startsWith("/api/dtu") ||
-      _path.startsWith("/api/settings") ||
-      _path.startsWith("/api/lens") ||
-      _path.startsWith("/api/goals") ||
-      _path.startsWith("/api/growth") ||
-      _path.startsWith("/api/metrics") ||
-      _path.startsWith("/api/resonance") ||
-      _path.startsWith("/api/lattice") ||
-
-      // Domain/name allowlist for read-only macros (covers alternate routers)
-      (domain === "system" && (name === "status" || name === "getStatus")) ||
-      (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-      (domain === "settings" && (name === "get" || name === "status")) ||
-      (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
-      (domain === "goals" && (name === "list" || name === "get" || name === "status"))
-    );
-
-  if (!safeReadBypass) {
-    const c2 = inLatticeReality({ type:"macro", domain, name, input, ctx });
-    if (!c2.ok) {
-      // Founder valve: allow explicit override for one call if actor is founder/owner and passes ?override=1 on reqMeta or input.override=true
-      // Founder valve + safe-read bypass for frontend hydration (DTU/status reads)
-      const reqPath = String(ctx?.reqMeta?.path || ctx?.reqMeta?.pathname || ctx?.reqMeta?.originalUrl || ctx?.reqMeta?.url || "");
-      const reqMethod = String(ctx?.reqMeta?.method || "").toUpperCase();
-
-      const safeReadBypass =
-        reqMethod === "GET" && (
-          reqPath === "/api/status" ||
-          reqPath.startsWith("/api/dtus") ||
-          reqPath.startsWith("/api/dtu") ||
-          reqPath.startsWith("/api/settings") ||
-          reqPath.startsWith("/api/lens") ||
-          reqPath.startsWith("/api/goals") ||
-          reqPath.startsWith("/api/growth") ||
-          reqPath.startsWith("/api/metrics") ||
-          reqPath.startsWith("/api/resonance") ||
-          reqPath.startsWith("/api/lattice") ||
-
-          // Domain/name allowlist for read-only macros (covers alternate routers)
-          (domain === "system" && (name === "status" || name === "getStatus")) ||
-          (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-          (domain === "settings" && (name === "get" || name === "status")) ||
-          (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
-          (domain === "goals" && (name === "list" || name === "get" || name === "status"))
-        );
-
-      const internalTick =
-        !ctx?.reqMeta && (ctx?.internal === true || ["system","owner","founder"].includes(String(ctx?.actor?.role || "")));
-      const allowOverride =
-        safeReadBypass ||
-        internalTick ||
-        (_c2founderOverrideAllowed(ctx) && (ctx?.reqMeta?.override === true || input?.override === true));
-      _c2log("c2.guard", "inLatticeReality evaluated", { domain, name, ok: c2.ok, severity: c2.severity, reason: c2.reason, allowOverride });
-      if (!allowOverride) {
-        const err = new Error(`c2_guard_reject:${c2.reason}`);
-        err.meta = { c2 };
-        throw err;
-      }
-    }
-  }
-
-  const d = MACROS.get(domain);
-  if (!d) throw new Error(`macro domain not found: ${domain}`);
-  const m = d.get(name);
-  if (!m) throw new Error(`macro not found: ${domain}.${name}`);
-  return m.fn(ctx, input ?? {});
-}
+// ---- macro registry (extracted to ./macros/registry.js) ----
+// MACROS, register, listDomains, listMacros are imported from ./macros/registry.js
+// runMacro is created below via the factory function createRunMacro.
+const runMacro = createRunMacro({ inLatticeReality, _c2log, _c2founderOverrideAllowed, STATE });
 
 // ===== CHICKEN3: Meta-DTU helpers (additive, named per blueprint) =====
 function generateMetaProposal(ctx, input={}){

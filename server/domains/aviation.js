@@ -1,5 +1,5 @@
 export default function registerAviationActions(registerLensAction) {
-  registerLensAction("aviation", "currencyCheck", async (ctx, artifact, params) => {
+  registerLensAction("aviation", "currencyCheck", (ctx, artifact, _params) => {
     const certifications = artifact.data?.certifications || [];
     const medicalExpiry = artifact.data?.medicalExpiry ? new Date(artifact.data.medicalExpiry) : null;
     const now = new Date();
@@ -17,7 +17,7 @@ export default function registerAviationActions(registerLensAction) {
     return { ok: true, crewMember: artifact.title, checks, allCurrent, expiringSoon: checks.filter(c => c.daysRemaining !== null && c.daysRemaining <= 30 && c.daysRemaining > 0) };
   });
 
-  registerLensAction("aviation", "maintenanceDue", async (ctx, artifact, params) => {
+  registerLensAction("aviation", "maintenanceDue", (ctx, artifact, _params) => {
     const totalTime = artifact.data?.totalTime || 0;
     const lastAnnual = artifact.data?.lastAnnual ? new Date(artifact.data.lastAnnual) : null;
     const now = new Date();
@@ -36,7 +36,7 @@ export default function registerAviationActions(registerLensAction) {
     return { ok: true, aircraft: artifact.title, registration: artifact.data?.registration, totalTime, items, overdueCount: items.filter(i => i.overdue).length };
   });
 
-  registerLensAction("aviation", "hobbsLog", async (ctx, artifact, params) => {
+  registerLensAction("aviation", "hobbsLog", (ctx, artifact, _params) => {
     const flights = artifact.data?.flights || [];
     let totalTime = 0, picTime = 0, nightTime = 0, instrumentTime = 0, crossCountry = 0;
     flights.forEach(f => {
@@ -58,7 +58,7 @@ export default function registerAviationActions(registerLensAction) {
     };
   });
 
-  registerLensAction("aviation", "slipUtilization", async (ctx, artifact, params) => {
+  registerLensAction("aviation", "slipUtilization", (ctx, artifact, _params) => {
     const slips = artifact.data?.slips || [];
     if (slips.length === 0) return { ok: true, utilization: 0, occupied: 0, vacant: 0, total: 0 };
     const occupied = slips.filter(s => s.assignedVessel || s.status === 'occupied').length;

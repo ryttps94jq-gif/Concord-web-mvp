@@ -1,0 +1,25 @@
+# Concord Cognitive Engine — Code Owners
+# These owners are automatically requested for review on PRs.
+
+# Default — entire repo
+* @concord-team
+
+# Backend
+/server/ @concord-team
+/server/routes/ @concord-team
+/server/auth/ @concord-team
+/server/validation/ @concord-team
+
+# Frontend
+/concord-frontend/ @concord-team
+/concord-frontend/components/ @concord-team
+/concord-frontend/lib/ @concord-team
+
+# Infrastructure & DevOps
+/docker-compose.yml @concord-team
+/nginx/ @concord-team
+/.github/ @concord-team
+/monitoring/ @concord-team
+
+# Documentation & ADRs
+/docs/ @concord-team

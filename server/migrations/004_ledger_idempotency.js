@@ -3,6 +3,9 @@
 // All entries in a single settlement batch share the same ref_id.
 // A unique partial index prevents duplicate processing.
 
+export const id = "004";
+export const name = "ledger_idempotency";
+
 export function up(db) {
   db.exec(`
     -- Add ref_id column for idempotency (nullable — legacy rows won't have one)

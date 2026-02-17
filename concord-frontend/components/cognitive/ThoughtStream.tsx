@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/utils';
+import { SOCKET_URL } from '@/lib/config';
 
 type EventType = 'create' | 'update' | 'connect' | 'synthesis' | 'ai' | 'alert' | 'consolidate';
 
@@ -66,13 +67,13 @@ export function ThoughtStream({
   useEffect(() => {
     if (!realtime || isPaused) return;
 
-    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+    const socketUrl = SOCKET_URL;
     let socket: ReturnType<typeof import('socket.io-client').io> | null = null;
     let disposed = false;
 
     import('socket.io-client').then(({ io }) => {
       if (disposed) return;
-      socket = io(SOCKET_URL, {
+      socket = io(socketUrl, {
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: 3,

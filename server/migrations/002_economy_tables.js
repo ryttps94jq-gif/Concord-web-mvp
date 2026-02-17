@@ -1,6 +1,9 @@
 // migrations/002_economy_tables.js
 // Economy system tables: ledger (append-only), withdrawals (workflow).
 
+export const id = "002";
+export const name = "economy_tables";
+
 export function up(db) {
   db.exec(`
     -- Append-only ledger: source of truth for all economic activity.

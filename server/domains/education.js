@@ -9,7 +9,7 @@ export default function registerEducationActions(registerLensAction) {
    * artifact.data.weightScheme: [{ category, weight }] — weights should sum to 100
    * params.studentId — optional single student filter
    */
-  registerLensAction("education", "gradeCalculation", async (ctx, artifact, params) => {
+  registerLensAction("education", "gradeCalculation", (ctx, artifact, params) => {
     const students = artifact.data.students || [];
     const weightScheme = artifact.data.weightScheme || params.weightScheme || [];
     const targetId = params.studentId || null;
@@ -123,7 +123,7 @@ export default function registerEducationActions(registerLensAction) {
    * status: "present", "absent", "tardy", "excused"
    * params.startDate, params.endDate — optional period filter
    */
-  registerLensAction("education", "attendanceReport", async (ctx, artifact, params) => {
+  registerLensAction("education", "attendanceReport", (ctx, artifact, params) => {
     const attendance = artifact.data.attendance || [];
     const startDate = params.startDate ? new Date(params.startDate) : null;
     const endDate = params.endDate ? new Date(params.endDate) : null;
@@ -205,7 +205,7 @@ export default function registerEducationActions(registerLensAction) {
    * artifact.data.requirements: [{ requirementId, name, type, requiredUnits }]
    * artifact.data.completions: [{ requirementId, completedUnits, completedDate }]
    */
-  registerLensAction("education", "progressTrack", async (ctx, artifact, params) => {
+  registerLensAction("education", "progressTrack", (ctx, artifact, params) => {
     const requirements = artifact.data.requirements || [];
     const completions = artifact.data.completions || [];
 
@@ -273,7 +273,7 @@ export default function registerEducationActions(registerLensAction) {
    * artifact.data.schedules: [{ id, title, day, startTime, endTime, room, instructor }]
    * startTime/endTime in "HH:MM" 24-hour format
    */
-  registerLensAction("education", "scheduleConflict", async (ctx, artifact, params) => {
+  registerLensAction("education", "scheduleConflict", (ctx, artifact, _params) => {
     const schedules = artifact.data.schedules || [];
 
     function timeToMinutes(t) {

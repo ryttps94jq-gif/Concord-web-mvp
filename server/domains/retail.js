@@ -7,7 +7,7 @@ export default function registerRetailActions(registerLensAction) {
    * Flag products that have fallen below their reorder point.
    * artifact.data.products: [{ sku, name, onHand, reorderPoint, reorderQty, leadTimeDays, dailyUsage }]
    */
-  registerLensAction("retail", "reorderCheck", async (ctx, artifact, params) => {
+  registerLensAction("retail", "reorderCheck", (ctx, artifact, _params) => {
     const products = artifact.data.products || artifact.data.inventory || [];
 
     const needsReorder = [];
@@ -63,7 +63,7 @@ export default function registerRetailActions(registerLensAction) {
    * Calculate weighted pipeline value from deals/opportunities.
    * artifact.data.deals: [{ name, value, probability, stage, expectedCloseDate }]
    */
-  registerLensAction("retail", "pipelineValue", async (ctx, artifact, params) => {
+  registerLensAction("retail", "pipelineValue", (ctx, artifact, params) => {
     const deals = artifact.data.deals || artifact.data.opportunities || [];
     const includeClosed = params.includeClosed || false;
 
@@ -135,7 +135,7 @@ export default function registerRetailActions(registerLensAction) {
    * artifact.data.customers: [{ customerId, name, orders: [{ date, total }], acquisitionDate }]
    * params.customerId — compute for one customer (or all if omitted)
    */
-  registerLensAction("retail", "customerLTV", async (ctx, artifact, params) => {
+  registerLensAction("retail", "customerLTV", (ctx, artifact, params) => {
     const customers = artifact.data.customers || [];
     const targetId = params.customerId || null;
 
@@ -221,7 +221,7 @@ export default function registerRetailActions(registerLensAction) {
    * artifact.data.tickets: [{ ticketId, subject, priority, createdAt, resolvedAt, slaHours }]
    * params.defaultSlaHours — default SLA if not per-ticket (default 24)
    */
-  registerLensAction("retail", "slaStatus", async (ctx, artifact, params) => {
+  registerLensAction("retail", "slaStatus", (ctx, artifact, params) => {
     const tickets = artifact.data.tickets || [];
     const defaultSlaHours = params.defaultSlaHours || 24;
     const now = new Date();
