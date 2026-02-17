@@ -18,18 +18,40 @@ module.exports = function registerDomainRoutes(app, {
   uiJson,
   listDomains,
   listMacros,
-  dtusArray,
-  normalizeText,
+  dtusArray: _dtusArray,
+  normalizeText: _normalizeText,
   clamp,
-  nowISO,
+  nowISO: _nowISO,
   saveStateDebounced,
   retrieveDTUs,
-  isShadowDTU,
+  isShadowDTU: _isShadowDTU,
   fs,
   ensureExperienceLearning,
   ensureAttentionManager,
   ensureReflectionEngine
 }) {
+
+  // Express 4 doesn't forward async rejections to error handlers.
+  // Patch app methods so every async handler auto-catches and calls next(err).
+  const _origGet = app.get.bind(app);
+  const _origPost = app.post.bind(app);
+  const _origPut = app.put.bind(app);
+  const _origDelete = app.delete.bind(app);
+
+  function wrapAsync(handlers) {
+    return handlers.map(h => {
+      if (typeof h === "function" && h.constructor.name === "AsyncFunction") {
+        return (req, res, next) => h(req, res, next).catch(next);
+      }
+      return h;
+    });
+  }
+
+  // app.get(key) with one string arg is Express's settings getter — preserve that
+  app.get = (path, ...handlers) => handlers.length === 0 ? _origGet(path) : _origGet(path, ...wrapAsync(handlers));
+  app.post = (path, ...handlers) => _origPost(path, ...wrapAsync(handlers));
+  app.put = (path, ...handlers) => _origPut(path, ...wrapAsync(handlers));
+  app.delete = (path, ...handlers) => _origDelete(path, ...wrapAsync(handlers));
 
   // ---- Cognitive Status ----
   app.get("/api/cognitive/status", (req, res) => {
@@ -905,7 +927,7 @@ module.exports = function registerDomainRoutes(app, {
       createdAt: data.createdAt,
       messageCount: (data.messages || []).length,
       cloudOptIn: !!data.cloudOptIn,
-      lastActivity: (data.messages || [])[data.messages.length - 1]?.ts || data.createdAt
+      lastActivity: (data.messages || [])[(data.messages || []).length - 1]?.ts || data.createdAt
     }));
     return res.json({ ok: true, sessions });
   });
@@ -996,4 +1018,10 @@ module.exports = function registerDomainRoutes(app, {
     const out = await runMacro("llm", "embed", req.body, makeCtx(req));
     return res.json(out);
   });
+
+  // Restore original methods so the patch doesn't leak to other route files
+  app.get = _origGet;
+  app.post = _origPost;
+  app.put = _origPut;
+  app.delete = _origDelete;
 };

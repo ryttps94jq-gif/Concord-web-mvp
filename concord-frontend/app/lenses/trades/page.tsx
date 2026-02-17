@@ -32,17 +32,12 @@ import {
   Clock,
   Camera,
   Receipt,
-  ChevronDown,
-  ChevronRight,
   ArrowRight,
   PlayCircle,
-  PauseCircle,
   Milestone,
   GitBranch,
   FileCheck,
   Building,
-  Phone,
-  Mail,
   CreditCard,
   PieChart,
   Activity,
@@ -56,7 +51,6 @@ import {
   Printer,
   Send,
   Star,
-  Hash,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -647,7 +641,7 @@ export default function TradesLensPage() {
     return <span className={ds.badge(cfg.color)}>{cfg.label}</span>;
   };
 
-  const renderPhaseStatusBadge = (status: PhaseStatus) => {
+  const _renderPhaseStatusBadge = (status: PhaseStatus) => {
     const cfg = PHASE_STATUS_CONFIG[status];
     return <span className={ds.badge(cfg.color)}>{cfg.label}</span>;
   };

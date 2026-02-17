@@ -113,7 +113,7 @@ export default function SRSLensPage() {
   useLensNav('srs');
 
   const queryClient = useQueryClient();
-  const { isError: isError, error: error, refetch: refetch, items: cardItems, create: createCard } = useLensData<SRSItem>('srs', 'card', {
+  const { isError: isError, error: error, refetch: refetch, items: cardItems, create: _createCard } = useLensData<SRSItem>('srs', 'card', {
     seed: INITIAL_CARDS.map(c => ({ title: c.front, data: c as unknown as Record<string, unknown> })),
   });
   const persistedCards: SRSItem[] = cardItems.length > 0 ? cardItems.map(i => ({ ...(i.data as unknown as SRSItem), id: i.id })) : INITIAL_CARDS;

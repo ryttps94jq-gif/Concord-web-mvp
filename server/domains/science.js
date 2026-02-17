@@ -1,5 +1,5 @@
 export default function registerScienceActions(registerLensAction) {
-  registerLensAction("science", "chainOfCustody", async (ctx, artifact, params) => {
+  registerLensAction("science", "chainOfCustody", (ctx, artifact, _params) => {
     const custodyLog = artifact.data?.chainOfCustody || [];
     let intact = true;
     const gaps = [];
@@ -14,8 +14,8 @@ export default function registerScienceActions(registerLensAction) {
     return { ok: true, sampleId: artifact.id, sample: artifact.title, intact, transfers: custodyLog.length, gaps, verifiedAt: new Date().toISOString() };
   });
 
-  registerLensAction("science", "calibrationCheck", async (ctx, artifact, params) => {
-    const calibrationDate = artifact.data?.calibrationDate ? new Date(artifact.data.calibrationDate) : null;
+  registerLensAction("science", "calibrationCheck", (ctx, artifact, _params) => {
+    const _calibrationDate = artifact.data?.calibrationDate ? new Date(artifact.data.calibrationDate) : null;
     const nextCalibration = artifact.data?.nextCalibration ? new Date(artifact.data.nextCalibration) : null;
     const now = new Date();
     let status = 'unknown';
@@ -27,7 +27,7 @@ export default function registerScienceActions(registerLensAction) {
     return { ok: true, equipment: artifact.title, serial: artifact.data?.serial, lastCalibration: artifact.data?.calibrationDate, nextCalibration: artifact.data?.nextCalibration, status, daysUntilDue };
   });
 
-  registerLensAction("science", "dataExport", async (ctx, artifact, params) => {
+  registerLensAction("science", "dataExport", (ctx, artifact, params) => {
     const observations = artifact.data?.observations || [];
     const format = params.format || 'csv';
     let exportData;
@@ -46,7 +46,7 @@ export default function registerScienceActions(registerLensAction) {
     return { ok: true, format, records: observations.length, data: exportData, exportedAt: new Date().toISOString() };
   });
 
-  registerLensAction("science", "spatialCluster", async (ctx, artifact, params) => {
+  registerLensAction("science", "spatialCluster", (ctx, artifact, params) => {
     const observations = artifact.data?.observations || [];
     const radius = params.radiusKm || 1;
     const geoObs = observations.filter(o => o.gps);

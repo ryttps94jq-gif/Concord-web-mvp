@@ -32,21 +32,15 @@ import {
   Droplets,
   Wind,
   Weight,
-  TrendingUp,
-  TrendingDown,
   Minus,
-  ArrowRight,
   BarChart3,
   Target,
   RefreshCw,
   Download,
   Timer,
   AlertCircle,
-  CircleDot,
-  Eye,
   List,
   LayoutGrid,
-  Layers,
   BadgeCheck,
   Syringe,
   Beaker,
@@ -55,8 +49,6 @@ import {
   CalendarClock,
   ArrowUpRight,
   ArrowDownRight,
-  Hash,
-  Percent,
   ListChecks,
   CheckCircle2,
   PanelRightOpen,
@@ -1246,7 +1238,7 @@ export default function HealthcareLensPage() {
                 <div className="space-y-3">
                   {/* Lab panel quick stats */}
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    {Object.entries(LAB_PANELS).map(([key, panel]) => {
+                    {Object.entries(LAB_PANELS).map(([key, _panel]) => {
                       const count = filtered.filter(i => (i.data as unknown as HealthcareArtifact).testPanel === key).length;
                       if (count === 0) return null;
                       return (

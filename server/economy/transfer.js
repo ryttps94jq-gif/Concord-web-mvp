@@ -4,7 +4,7 @@
 
 import { recordTransactionBatch, generateTxId, checkRefIdProcessed } from "./ledger.js";
 import { calculateFee, PLATFORM_ACCOUNT_ID } from "./fees.js";
-import { validateTransfer, validateAmount, validateBalance, validateUsers } from "./validators.js";
+import { validateTransfer as _validateTransfer, validateAmount, validateBalance, validateUsers } from "./validators.js";
 
 /**
  * Execute an atomic transfer between two users.

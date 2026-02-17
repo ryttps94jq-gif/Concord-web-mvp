@@ -40,7 +40,7 @@ const mockComments = [
     content: 'This is the first comment',
     createdAt: new Date().toISOString(),
     resolved: false,
-    reactions: {},
+    reactions: {} as Record<string, string[]>,
     replies: [],
   },
   {
@@ -49,7 +49,7 @@ const mockComments = [
     content: 'A resolved comment',
     createdAt: new Date().toISOString(),
     resolved: true,
-    reactions: { '👍': ['user-1'] },
+    reactions: { '👍': ['user-1'] } as Record<string, string[]>,
     replies: [],
   },
 ];

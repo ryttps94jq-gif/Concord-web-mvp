@@ -64,8 +64,8 @@ export function verifyToken(token) {
 export const _TOKEN_BLACKLIST = {
   revoked: new Map(), // jti -> { revokedAt, expiresAt }
 
-  revoke(jti, expiresAt) {
-    this.revoked.set(jti, { revokedAt: Date.now(), expiresAt: expiresAt || Date.now() + 7 * 86400000 });
+  revoke(jti, expiresAt, userId) {
+    this.revoked.set(jti, { revokedAt: Date.now(), expiresAt: expiresAt || Date.now() + 7 * 86400000, userId: userId || null });
     // Persist to DB if available
     if (db) {
       try {

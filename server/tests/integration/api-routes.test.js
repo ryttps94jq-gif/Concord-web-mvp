@@ -614,7 +614,7 @@ describe("API Routes Integration", () => {
       const body2 = parseJSON(res2.body);
       assert.equal(body2.user.role, "member", "Second user should be member");
     } finally {
-      await new Promise((resolve) => freshServer.close(resolve));
+      await new Promise((resolve) => { freshServer.close(resolve); });
     }
   });
 });

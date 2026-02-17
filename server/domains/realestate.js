@@ -1,5 +1,5 @@
 export default function registerRealEstateActions(registerLensAction) {
-  registerLensAction("realestate", "capRate", async (ctx, artifact, params) => {
+  registerLensAction("realestate", "capRate", (ctx, artifact, params) => {
     const noi = artifact.data?.netOperatingIncome || params.noi || 0;
     const purchasePrice = artifact.data?.purchasePrice || params.purchasePrice || 0;
     if (purchasePrice === 0) return { ok: true, capRate: 0, error: "Purchase price cannot be zero" };
@@ -7,7 +7,7 @@ export default function registerRealEstateActions(registerLensAction) {
     return { ok: true, capRate: Math.round(capRate * 100) / 100, noi, purchasePrice, rating: capRate >= 8 ? 'excellent' : capRate >= 6 ? 'good' : capRate >= 4 ? 'fair' : 'low' };
   });
 
-  registerLensAction("realestate", "cashFlow", async (ctx, artifact, params) => {
+  registerLensAction("realestate", "cashFlow", (ctx, artifact, params) => {
     const rent = artifact.data?.rentAmount || params.monthlyRent || 0;
     const expenses = artifact.data?.monthlyExpenses || params.expenses || 0;
     const mortgage = artifact.data?.mortgagePayment || params.mortgage || 0;
@@ -23,7 +23,7 @@ export default function registerRealEstateActions(registerLensAction) {
     };
   });
 
-  registerLensAction("realestate", "closingTimeline", async (ctx, artifact, params) => {
+  registerLensAction("realestate", "closingTimeline", (ctx, artifact, params) => {
     const contractDate = artifact.data?.contractDate || params.contractDate || new Date().toISOString().split('T')[0];
     const base = new Date(contractDate);
     const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().split('T')[0]; };
@@ -42,7 +42,7 @@ export default function registerRealEstateActions(registerLensAction) {
     return { ok: true, timeline, totalDays: 30 };
   });
 
-  registerLensAction("realestate", "vacancyRate", async (ctx, artifact, params) => {
+  registerLensAction("realestate", "vacancyRate", (ctx, artifact, _params) => {
     const units = artifact.data?.units || [];
     if (units.length === 0) return { ok: true, vacancyRate: 0, occupied: 0, vacant: 0, total: 0 };
     const vacant = units.filter(u => u.status === 'vacant' || !u.tenant).length;

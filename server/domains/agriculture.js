@@ -181,7 +181,7 @@ export default function registerAgricultureActions(registerLensAction) {
       const hoursUntilDue = intervalHours - hoursSinceService;
 
       // Also check calendar-based interval
-      const calendarIntervalDays = parseInt(eq.calendarIntervalDays) || 365;
+      const calendarIntervalDays = parseInt(eq.calendarIntervalDays, 10) || 365;
       let daysSinceService = null;
       let daysUntilCalendarDue = null;
       if (lastService) {

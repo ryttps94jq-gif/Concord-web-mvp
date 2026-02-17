@@ -19,7 +19,7 @@ import {
   MIN_WITHDRAW_TOKENS, MAX_WITHDRAW_TOKENS_PER_DAY,
 } from "./stripe.js";
 import {
-  getPurchase, getPurchaseByRefId, getUserPurchases, getPurchaseHistory,
+  getPurchase, getPurchaseByRefId as _getPurchaseByRefId, getUserPurchases, getPurchaseHistory,
   transitionPurchase, findPurchasesByStatus,
 } from "./purchases.js";
 import {

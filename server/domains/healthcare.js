@@ -10,7 +10,7 @@ export default function registerHealthcareActions(registerLensAction) {
    * params.knownInteractions is an optional lookup array of
    * { pair: [rxcui1, rxcui2], severity, description }.
    */
-  registerLensAction("healthcare", "checkInteractions", async (ctx, artifact, params) => {
+  registerLensAction("healthcare", "checkInteractions", (ctx, artifact, params) => {
     const prescriptions = artifact.data.prescriptions || [];
     const knownInteractions = params.knownInteractions || artifact.data.knownInteractions || [];
 
@@ -67,7 +67,7 @@ export default function registerHealthcareActions(registerLensAction) {
    * A protocol matches when ALL of its triggerConditions are present in the
    * patient's active condition list.
    */
-  registerLensAction("healthcare", "protocolMatch", async (ctx, artifact, params) => {
+  registerLensAction("healthcare", "protocolMatch", (ctx, artifact, params) => {
     const conditions = (artifact.data.conditions || []).map((c) =>
       typeof c === "string" ? c : c.icd10 || c.code
     );
@@ -133,7 +133,7 @@ export default function registerHealthcareActions(registerLensAction) {
    * treatments stored in artifact.data.
    * Expects artifact.data.encounters, artifact.data.labs, artifact.data.treatments.
    */
-  registerLensAction("healthcare", "generateSummary", async (ctx, artifact, params) => {
+  registerLensAction("healthcare", "generateSummary", (ctx, artifact, params) => {
     const encounters = artifact.data.encounters || [];
     const labs = artifact.data.labs || [];
     const treatments = artifact.data.treatments || [];

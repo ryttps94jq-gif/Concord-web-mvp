@@ -1,5 +1,5 @@
 export default function registerNonprofitActions(registerLensAction) {
-  registerLensAction("nonprofit", "donorRetention", async (ctx, artifact, params) => {
+  registerLensAction("nonprofit", "donorRetention", (ctx, artifact, params) => {
     const givingHistory = artifact.data?.givingHistory || [];
     const currentYear = params.year || new Date().getFullYear();
     const priorYear = currentYear - 1;
@@ -10,7 +10,7 @@ export default function registerNonprofitActions(registerLensAction) {
     return { ok: true, retentionRate: rate, retained, priorTotal: priorDonors.size, currentTotal: currentDonors.size, period: `${priorYear}-${currentYear}` };
   });
 
-  registerLensAction("nonprofit", "grantReporting", async (ctx, artifact, params) => {
+  registerLensAction("nonprofit", "grantReporting", (ctx, artifact, _params) => {
     const deliverables = artifact.data?.deliverables || [];
     const metrics = artifact.data?.impactMetrics || [];
     const completed = deliverables.filter(d => d.status === 'completed').length;
@@ -28,7 +28,7 @@ export default function registerNonprofitActions(registerLensAction) {
     return { ok: true, report };
   });
 
-  registerLensAction("nonprofit", "volunteerMatch", async (ctx, artifact, params) => {
+  registerLensAction("nonprofit", "volunteerMatch", (ctx, artifact, params) => {
     const skills = artifact.data?.skills || [];
     const availability = artifact.data?.availability || [];
     const needs = params.programNeeds || [];
@@ -42,7 +42,7 @@ export default function registerNonprofitActions(registerLensAction) {
     return { ok: true, volunteer: artifact.title, matches, matchScore };
   });
 
-  registerLensAction("nonprofit", "campaignProgress", async (ctx, artifact, params) => {
+  registerLensAction("nonprofit", "campaignProgress", (ctx, artifact, _params) => {
     const goal = artifact.data?.goalAmount || 0;
     const raised = artifact.data?.raisedAmount || 0;
     const donorCount = artifact.data?.donorCount || 0;
