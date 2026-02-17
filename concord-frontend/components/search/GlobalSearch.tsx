@@ -45,6 +45,9 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
   const [scope, setScope] = useState<SearchScope>('all');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [filterTier, setFilterTier] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterSort, setFilterSort] = useState('relevance');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -79,9 +82,11 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
     const searchTimeout = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await api.get('/api/global/search', {
-          params: { q: query, scope, limit: 20 }
-        });
+        const params: Record<string, string | number> = { q: query, scope, limit: 20 };
+        if (filterTier) params.tier = filterTier;
+        if (filterDate) params.dateRange = filterDate;
+        if (filterSort && filterSort !== 'relevance') params.sort = filterSort;
+        const res = await api.get('/api/global/search', { params });
         const data = res.data;
         if (data.ok && Array.isArray(data.results)) {
           setResults(data.results);
@@ -97,7 +102,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
     }, 300);
 
     return () => clearTimeout(searchTimeout);
-  }, [query, scope]);
+  }, [query, scope, filterTier, filterDate, filterSort]);
 
   const handleSelect = useCallback((result: SearchResult) => {
     // Save to recent searches
@@ -258,7 +263,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                     <div className="p-4 grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Tier</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="">All tiers</option>
                           <option value="regular">Regular</option>
                           <option value="mega">Mega</option>
@@ -267,7 +272,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Date range</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="">Any time</option>
                           <option value="today">Today</option>
                           <option value="week">This week</option>
@@ -276,7 +281,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Sort by</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterSort} onChange={(e) => setFilterSort(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="relevance">Relevance</option>
                           <option value="recent">Most recent</option>
                           <option value="resonance">Resonance</option>

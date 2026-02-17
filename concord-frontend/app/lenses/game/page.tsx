@@ -206,9 +206,7 @@ export default function GameLensPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<MainTab>('dashboard');
   const [lbPeriod, setLbPeriod] = useState<LeaderboardPeriod>('alltime');
-  const [quests, setQuests] = useState<Quest[]>(INITIAL_QUESTS);
   const [shopItems, setShopItems] = useState<ShopItem[]>(SHOP_ITEMS);
-  const [achievements, setAchievements] = useState<Achievement[]>(INITIAL_ACHIEVEMENTS);
   const [playerXp, setPlayerXp] = useState(INITIAL_PROFILE.xp);
   const [expandedBranch, setExpandedBranch] = useState<SkillBranch | null>('production');
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
@@ -216,11 +214,41 @@ export default function GameLensPage() {
   const [unlockAnim, setUnlockAnim] = useState<string | null>(null);
   const [questFilter, setQuestFilter] = useState<'all' | 'daily' | 'weekly' | 'challenge'>('all');
 
-  const { isError: isError, error: error, refetch: refetch, items: _achievementItems } = useLensData('game', 'achievement', {
-    seed: INITIAL_ACHIEVEMENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
+  // Fetch achievements from backend
+  const { data: achievements = INITIAL_ACHIEVEMENTS, isError: isError, error: error, refetch: refetch } = useQuery({
+    queryKey: ['game-achievements'],
+    queryFn: () => api.get('/api/game/achievements').then(r => {
+      const achs = r.data?.achievements || [];
+      return achs.map((a: Record<string, unknown>) => ({
+        id: a.id || String(a.name),
+        name: String(a.name || a.id || ''),
+        description: String(a.description || ''),
+        icon: String(a.icon || '🏆'),
+        xpReward: Number(a.xpReward || a.reward || 0),
+        unlocked: Boolean(a.earned || a.unlocked),
+        progress: Number(a.progress || 0),
+        maxProgress: Number(a.maxProgress || a.target || 1),
+        rarity: (a.rarity as Achievement['rarity']) || 'common',
+      })) as Achievement[];
+    }).catch(() => INITIAL_ACHIEVEMENTS),
   });
-  const { isError: isError2, error: error2, refetch: refetch2, items: _questItems } = useLensData('game', 'quest', {
-    seed: INITIAL_QUESTS.map(q => ({ title: q.name, data: q as unknown as Record<string, unknown> })),
+
+  // Fetch challenges/quests from backend
+  const { data: quests = INITIAL_QUESTS, isError: isError2, error: error2, refetch: refetch2 } = useQuery({
+    queryKey: ['game-challenges'],
+    queryFn: () => api.get('/api/game/challenges').then(r => {
+      const chals = r.data?.challenges || [];
+      return chals.map((c: Record<string, unknown>) => ({
+        id: String(c.id || ''),
+        name: String(c.name || ''),
+        description: String(c.description || ''),
+        icon: '🎯',
+        xpReward: Number(c.reward || c.xpReward || 100),
+        difficulty: 'medium' as Quest['difficulty'],
+        type: 'challenge' as Quest['type'],
+        status: 'available' as QuestStatus,
+      })) as Quest[];
+    }).catch(() => INITIAL_QUESTS),
   });
 
   // Fetch profile from backend, fall back to initial data
@@ -251,15 +279,22 @@ export default function GameLensPage() {
     },
   });
 
+  // Local quest status overrides (optimistic UI)
+  const [questStatusOverrides, setQuestStatusOverrides] = useState<Record<string, QuestStatus>>({});
+  const effectiveQuests = useMemo(() =>
+    quests.map(q => questStatusOverrides[q.id] ? { ...q, status: questStatusOverrides[q.id] } : q),
+    [quests, questStatusOverrides]
+  );
+
   // Quest flow
   const acceptQuest = useCallback((id: string) => {
-    setQuests((prev) => prev.map((q) => (q.id === id ? { ...q, status: 'accepted' as QuestStatus } : q)));
+    setQuestStatusOverrides(prev => ({ ...prev, [id]: 'accepted' as QuestStatus }));
   }, []);
 
   const completeQuest = useCallback((id: string) => {
     const quest = quests.find((q) => q.id === id);
     if (!quest) return;
-    setQuests((prev) => prev.map((q) => (q.id === id ? { ...q, status: 'completed' as QuestStatus } : q)));
+    setQuestStatusOverrides(prev => ({ ...prev, [id]: 'completed' as QuestStatus }));
     setPlayerXp((prev) => prev + quest.xpReward);
     completeQuestMutation.mutate(id);
   }, [quests, completeQuestMutation]);
@@ -272,29 +307,36 @@ export default function GameLensPage() {
     setPlayerXp((prev) => prev - item.cost);
   }, [shopItems, playerXp]);
 
-  // Achievement unlock
+  // Achievement unlock (optimistic UI - will refresh from API on next fetch)
+  const [achievementOverrides, setAchievementOverrides] = useState<Record<string, boolean>>({});
+  const effectiveAchievements = useMemo(() =>
+    achievements.map(a => achievementOverrides[a.id] ? { ...a, unlocked: true, progress: a.maxProgress } : a),
+    [achievements, achievementOverrides]
+  );
   const triggerUnlock = useCallback((id: string) => {
-    setAchievements((prev) => prev.map((a) => (a.id === id ? { ...a, unlocked: true, progress: a.maxProgress } : a)));
+    setAchievementOverrides(prev => ({ ...prev, [id]: true }));
     setUnlockAnim(id);
     const ach = achievements.find((a) => a.id === id);
     if (ach) setPlayerXp((prev) => prev + ach.xpReward);
     setTimeout(() => setUnlockAnim(null), 2000);
   }, [achievements]);
 
-  // Create challenge
+  // Create custom challenge (local-only, added to local quest list)
+  const [localQuests, setLocalQuests] = useState<Quest[]>([]);
+  const allQuests = useMemo(() => [...effectiveQuests, ...localQuests], [effectiveQuests, localQuests]);
   const submitChallenge = useCallback(() => {
     if (!newChallenge.name.trim()) return;
     const id = `q-custom-${Date.now()}`;
-    setQuests((prev) => [...prev, { id, name: newChallenge.name, description: newChallenge.description, icon: '🎯', xpReward: newChallenge.xpReward, difficulty: newChallenge.difficulty, type: 'challenge', status: 'available' }]);
+    setLocalQuests((prev) => [...prev, { id, name: newChallenge.name, description: newChallenge.description, icon: '🎯', xpReward: newChallenge.xpReward, difficulty: newChallenge.difficulty, type: 'challenge', status: 'available' }]);
     setNewChallenge({ name: '', description: '', difficulty: 'medium', xpReward: 300 });
     setShowCreateChallenge(false);
   }, [newChallenge]);
 
   // Computed
   const filteredQuests = useMemo(() => {
-    if (questFilter === 'all') return quests;
-    return quests.filter((q) => q.type === questFilter);
-  }, [quests, questFilter]);
+    if (questFilter === 'all') return allQuests;
+    return allQuests.filter((q) => q.type === questFilter);
+  }, [allQuests, questFilter]);
 
   const sortedLeaderboard = useMemo(() => {
     const apiPlayers = leaderboardData || [];
@@ -404,7 +446,7 @@ export default function GameLensPage() {
             {[
               { label: 'Level', value: level, icon: Star, color: 'text-neon-purple' },
               { label: 'Total XP', value: (profile.totalXpEarned || playerXp).toLocaleString(), icon: Zap, color: 'text-neon-yellow' },
-              { label: 'Achievements', value: `${profile.achievements || achievements.filter(a => a.unlocked).length}/${profile.totalAchievements || achievements.length}`, icon: Trophy, color: 'text-neon-green' },
+              { label: 'Achievements', value: `${profile.achievements || effectiveAchievements.filter(a => a.unlocked).length}/${profile.totalAchievements || effectiveAchievements.length}`, icon: Trophy, color: 'text-neon-green' },
               { label: 'Day Streak', value: profile.streak || 0, icon: Flame, color: 'text-neon-pink' },
             ].map((s) => (
               <div key={s.label} className="lens-card text-center">
@@ -606,10 +648,10 @@ export default function GameLensPage() {
       {activeTab === 'achievements' && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <p className="text-sm text-gray-400">
-            {achievements.filter((a) => a.unlocked).length} of {achievements.length} achievements unlocked
+            {effectiveAchievements.filter((a) => a.unlocked).length} of {effectiveAchievements.length} achievements unlocked
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {achievements.map((ach) => (
+            {effectiveAchievements.map((ach) => (
               <motion.div
                 key={ach.id}
                 layout

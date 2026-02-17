@@ -34341,6 +34341,36 @@ function logTransaction(tx) {
 }
 
 // ---- Token Purchase System (1.46% fee) ----
+
+// GET /api/economic/config — return tiers and token packages for billing page
+app.get('/api/economic/config', (req, res) => {
+  res.json({
+    ok: true,
+    tiers: ECONOMIC_CONFIG.TIERS,
+    tokenPackages: ECONOMIC_CONFIG.TOKEN_PACKAGES,
+    marketplaceFee: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+    creatorShare: ECONOMIC_CONFIG.CREATOR_SHARE,
+  });
+});
+
+// GET /api/economic/wallet/:odId — return wallet info for billing page
+app.get('/api/economic/wallet/:odId', (req, res) => {
+  try {
+    const wallet = getWallet(req.params.odId);
+    const tracking = STATE.economic?.ingestTracking?.get(req.params.odId);
+    res.json({
+      ok: true,
+      balance: wallet.balance,
+      tier: wallet.tier,
+      tokensEarned: wallet.tokensEarned || 0,
+      tokensSpent: wallet.tokensSpent || 0,
+      ingestStatus: tracking ? { date: tracking.date, count: tracking.count } : null,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.post('/api/economic/tokens/purchase', async (req, res) => {
   try {
     const { odId, packageId } = req.body;
@@ -36150,6 +36180,16 @@ const LICENSE_TYPES = Object.freeze({
   'unlimited': { name: 'Unlimited License', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 300 },
   'exclusive': { name: 'Exclusive Rights', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 1000 },
   'free': { name: 'Free (CC-BY)', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 0 },
+});
+
+// GET /api/artistry/marketplace/art — list artwork assets for the art lens marketplace tab
+app.get('/api/artistry/marketplace/art', (req, res) => {
+  const art = ensureArtistryState();
+  const artworks = Array.from(art.assets.values())
+    .filter(a => a.status === 'active' && (a.type === 'artwork' || a.type === 'visual' || a.type === 'cover_art'))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, Number(req.query.limit) || 50);
+  res.json({ ok: true, artworks });
 });
 
 app.post('/api/artistry/marketplace/beats', (req, res) => {
