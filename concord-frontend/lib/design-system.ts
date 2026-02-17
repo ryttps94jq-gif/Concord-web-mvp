@@ -67,6 +67,20 @@ const grid2 = 'grid grid-cols-1 md:grid-cols-2 gap-4';
 const grid3 = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4';
 const grid4 = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4';
 
+/** Tab navigation */
+const tabBar =
+  'flex gap-1 border-b border-lattice-border px-4 overflow-x-auto no-scrollbar';
+
+const tabActive = (color: string = 'neon-blue') =>
+  `flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px text-${color} border-${color}`;
+
+const tabInactive =
+  'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px text-gray-400 border-transparent hover:text-white hover:border-gray-600 transition-colors';
+
+/** Focus ring utility — visible focus for keyboard navigation */
+const focusRing =
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-blue focus-visible:ring-offset-2 focus-visible:ring-offset-lattice-void';
+
 /** Overlays */
 const modalBackdrop = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-50';
 const modalContainer =
@@ -99,6 +113,10 @@ export const ds = {
   grid2,
   grid3,
   grid4,
+  tabBar,
+  tabActive,
+  tabInactive,
+  focusRing,
   modalBackdrop,
   modalContainer,
   modalPanel,

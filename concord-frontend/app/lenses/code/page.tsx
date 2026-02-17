@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
+import { CoreLensNav } from '@/components/common/CoreLensNav';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -725,6 +726,7 @@ export default function CodeLensPage() {
 
   return (
     <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-lattice-deep' : 'h-[calc(100vh-4rem)]'}`}>
+      <CoreLensNav coreLensId="code" />
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-lattice-border bg-lattice-surface/50">
         <div className="flex items-center gap-3">

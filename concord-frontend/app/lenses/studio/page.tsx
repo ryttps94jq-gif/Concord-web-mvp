@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
+import { CoreLensNav } from '@/components/common/CoreLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
@@ -718,6 +719,7 @@ export default function StudioLensPage() {
   }
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
+      <CoreLensNav coreLensId="studio" />
       {renderTransportBar()}
       {studioView === 'arrange' && renderArrangeView()}
       {studioView === 'mixer' && renderMixerView()}

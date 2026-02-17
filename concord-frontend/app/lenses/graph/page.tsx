@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
+import { CoreLensNav } from '@/components/common/CoreLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
@@ -858,7 +859,9 @@ export default function GraphLensPage() {
     );
   }
   return (
-    <div className="h-full flex bg-lattice-bg">
+    <div className="h-full flex flex-col bg-lattice-bg">
+      <CoreLensNav coreLensId="graph" />
+      <div className="flex-1 flex overflow-hidden">
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         <canvas
           ref={canvasRef}
@@ -1355,6 +1358,7 @@ export default function GraphLensPage() {
           </motion.aside>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }
