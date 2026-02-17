@@ -1,3 +1,18 @@
+/**
+ * @deprecated This monolithic file is deprecated in favor of the JSON seed packs
+ * in server/data/seed/. The server now loads DTUs from data/seed/manifest.json
+ * and the individual pack files (dtus-root.json, dtus-part1.json, etc.) which
+ * are significantly faster to parse than this 3.8 MB JavaScript module.
+ *
+ * This file is retained only as a fallback. If the JSON seed packs are present,
+ * this file will NOT be imported at startup.
+ *
+ * To regenerate the seed packs from this file:
+ *   node server/scripts/convert-dtus-to-seed-packs.js
+ *
+ * To regenerate this file from the seed packs (if needed):
+ *   Not yet implemented — the seed packs are now the canonical source.
+ */
 export const DTUS = [
   {
     "id": "dtu_root_fixed_point",
