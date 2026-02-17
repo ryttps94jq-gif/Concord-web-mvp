@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function GlobalError({
   error,
   reset,
@@ -34,12 +36,12 @@ export default function GlobalError({
             >
               Try Again
             </button>
-            <a
+            <Link
               href="/"
               className="px-6 py-2.5 border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
             >
               Go Home
-            </a>
+            </Link>
           </div>
           <p className="text-gray-600 text-xs mt-8">
             Your data remains safe — Concord operates sovereignty-first.

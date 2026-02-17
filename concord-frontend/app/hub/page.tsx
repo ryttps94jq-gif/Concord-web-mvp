@@ -12,7 +12,6 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CORE_LENSES,
-  LENS_REGISTRY,
   getAbsorbedLenses,
   getExtensionLenses,
   type LensEntry,
@@ -22,7 +21,7 @@ import {
 } from '@/lib/lens-registry';
 import { cn } from '@/lib/utils';
 import { ds } from '@/lib/design-system';
-import { Search, X, ChevronRight, ChevronDown, Puzzle, ArrowRight } from 'lucide-react';
+import { Search, X, ChevronDown, Puzzle, ArrowRight } from 'lucide-react';
 
 const EXTENSION_CATEGORIES: LensCategory[] = [
   'core', 'system', 'governance', 'science', 'ai', 'specialized', 'superlens',

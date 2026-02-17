@@ -10,8 +10,8 @@ import {
   Plus, Search, Filter, X, Edit3, Trash2, TrendingUp, DollarSign,
   BarChart3, AlertCircle, ChevronDown, ChevronRight, ArrowUpRight,
   ArrowDownRight, ListChecks, Calculator, Scale, Landmark, CreditCard,
-  Users, Calendar, Clock, FileText, CheckCircle, XCircle, Percent,
-  Hash, Layers, Eye, Download, RefreshCw, ArrowRight, Minus,
+  Users, Clock, FileText, CheckCircle, XCircle, Percent,
+  Layers, Download, RefreshCw, ArrowRight,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -357,7 +357,7 @@ export default function AccountingLensPage() {
     }, { gross: 0, deductions: 0, net: 0 });
   }, [payrollData.items]);
 
-  const rentRoll = useMemo(() => {
+  const _rentRoll = useMemo(() => {
     return items.reduce((s, p) => {
       if (currentType !== 'Property') return s;
       return s + ((p.data as unknown as Property).monthlyRent || 0);
