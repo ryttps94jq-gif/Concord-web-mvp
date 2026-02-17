@@ -25,9 +25,7 @@ import {
   Clock,
   Phone,
   Mail,
-  MapPin,
   DollarSign,
-  TrendingUp,
   Star,
   Bell,
   Heart,
@@ -39,10 +37,7 @@ import {
   Percent,
   Receipt,
   Tag,
-  Award,
   UserPlus,
-  ArrowUpRight,
-  FileText,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -213,8 +208,8 @@ export default function ServicesLensPage() {
 
   /* secondary data for dashboard */
   const { items: appointments } = useLensData<AppointmentData>('services', 'Appointment', { seed: [] });
-  const { items: clients } = useLensData<ClientData>('services', 'Client', { seed: [] });
-  const { items: serviceItems } = useLensData<ServiceItemData>('services', 'ServiceItem', { seed: [] });
+  const { items: _clients } = useLensData<ClientData>('services', 'Client', { seed: [] });
+  const { items: _serviceItems } = useLensData<ServiceItemData>('services', 'ServiceItem', { seed: [] });
   const { items: staff } = useLensData<StaffMemberData>('services', 'StaffMember', { seed: [] });
   const { items: transactions } = useLensData<TransactionData>('services', 'Transaction', { seed: [] });
   const { items: products } = useLensData<ProductData>('services', 'Product', { seed: [] });

@@ -8,7 +8,7 @@ export default function registerLogisticsActions(registerLensAction) {
    * artifact.data.stops: [{ stopId, name, lat, lng, timeWindowStart, timeWindowEnd, serviceMins }]
    * artifact.data.origin: { lat, lng } (starting point)
    */
-  registerLensAction("logistics", "optimizeRoute", async (ctx, artifact, params) => {
+  registerLensAction("logistics", "optimizeRoute", (ctx, artifact, params) => {
     const stops = artifact.data.stops || [];
     const origin = artifact.data.origin || params.origin || (stops.length > 0 ? { lat: stops[0].lat, lng: stops[0].lng } : null);
     const returnToOrigin = params.returnToOrigin !== false;
@@ -103,7 +103,7 @@ export default function registerLogisticsActions(registerLensAction) {
    * artifact.data.drivers: [{ driverId, name, logs: [{ date, drivingHours, onDutyHours, offDutyHours, sleeperHours }] }]
    * Regulations: 11-hour driving limit, 14-hour on-duty window, 60/70 hour 7/8-day limit
    */
-  registerLensAction("logistics", "hosCheck", async (ctx, artifact, params) => {
+  registerLensAction("logistics", "hosCheck", (ctx, artifact, params) => {
     const drivers = artifact.data.drivers || [];
     const cycleType = params.cycleType || "70-8"; // "60-7" or "70-8"
     const cycleDays = cycleType === "60-7" ? 7 : 8;
@@ -187,7 +187,7 @@ export default function registerLogisticsActions(registerLensAction) {
    * Flag vehicles past their service interval (mileage or calendar).
    * artifact.data.vehicles: [{ vehicleId, name, type, currentMileage, lastServiceMileage, serviceIntervalMiles, lastServiceDate, serviceIntervalDays }]
    */
-  registerLensAction("logistics", "maintenanceDue", async (ctx, artifact, params) => {
+  registerLensAction("logistics", "maintenanceDue", (ctx, artifact, _params) => {
     const vehicles = artifact.data.vehicles || [];
     const now = new Date();
 
@@ -203,7 +203,7 @@ export default function registerLogisticsActions(registerLensAction) {
       const milesUntilDue = intervalMiles - milesSinceService;
 
       const lastDate = vehicle.lastServiceDate ? new Date(vehicle.lastServiceDate) : null;
-      const intervalDays = parseInt(vehicle.serviceIntervalDays) || 90;
+      const intervalDays = parseInt(vehicle.serviceIntervalDays, 10) || 90;
       const daysSince = lastDate ? Math.floor((now - lastDate) / 86400000) : null;
       const daysUntilDue = daysSince !== null ? intervalDays - daysSince : null;
 
@@ -254,7 +254,7 @@ export default function registerLogisticsActions(registerLensAction) {
    * artifact.data.inventoryRecords: [{ sku, name, systemQty, physicalQty, location, unitCost }]
    * params.tolerancePct (default 2) — acceptable variance percentage
    */
-  registerLensAction("logistics", "inventoryAudit", async (ctx, artifact, params) => {
+  registerLensAction("logistics", "inventoryAudit", (ctx, artifact, params) => {
     const records = artifact.data.inventoryRecords || [];
     const tolerancePct = params.tolerancePct != null ? params.tolerancePct : 2;
 

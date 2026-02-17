@@ -20,7 +20,6 @@ import {
   Edit3,
   Trash2,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Clock,
   BarChart3,
@@ -36,16 +35,11 @@ import {
   ArrowDownRight,
   ListChecks,
   Layers,
-  Tag,
-  Hash,
-  Barcode,
   History,
   ShieldCheck,
   AlertTriangle,
   Timer,
-  MessageSquare,
   ThumbsUp,
-  ThumbsDown,
   RotateCcw,
   FileText,
   Zap,
@@ -55,21 +49,15 @@ import {
   Crown,
   Gem,
   Medal,
-  CircleDot,
   ArrowRight,
   PackageCheck,
   PackageX,
   RefreshCw,
   Send,
-  Eye,
   Calendar,
   MapPin,
-  MoreHorizontal,
   Copy,
   Printer,
-  Download,
-  Settings,
-  BoxIcon,
   Gauge,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
@@ -486,7 +474,7 @@ export default function RetailLensPage() {
           </div>
         </div>
         <div className="space-y-1">
-          {stageData.map((s, idx) => {
+          {stageData.map((s, _idx) => {
             const widthPct = Math.max(20, (s.count / maxCount) * 100);
             const color = LEAD_STATUS_COLORS[s.stage as LeadStatus] || 'gray-400';
             return (
@@ -763,8 +751,8 @@ export default function RetailLensPage() {
 
     const breachedCount = tickets.filter(t => t.sla.breached).length;
     const urgentCount = tickets.filter(t => t.sla.urgent && !t.sla.breached).length;
-    const onTrackCount = tickets.filter(t => !t.sla.urgent && !t.sla.breached).length;
-    const resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+    const _onTrackCount = tickets.filter(t => !t.sla.urgent && !t.sla.breached).length;
+    const _resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
     const slaCompliance = tickets.length > 0 ? Math.round(((tickets.length - breachedCount) / tickets.length) * 100) : 100;
     const avgSatisfaction = tickets.reduce((s, t) => s + (t.data.satisfactionScore || 0), 0) / (tickets.length || 1);
 
@@ -889,7 +877,7 @@ export default function RetailLensPage() {
 
     const criticalProducts = products.filter(p => p.stockoutRisk === 'critical');
     const highRiskProducts = products.filter(p => p.stockoutRisk === 'high');
-    const mediumRiskProducts = products.filter(p => p.stockoutRisk === 'medium');
+    const _mediumRiskProducts = products.filter(p => p.stockoutRisk === 'medium');
 
     return (
       <div className="space-y-4">

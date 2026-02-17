@@ -6,10 +6,10 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { useState, useMemo, useCallback } from 'react';
 import {
   FileText, Plus, Search, Calendar, FlaskConical, CheckCircle, AlertTriangle,
-  BookOpen, Lightbulb, TestTube, Beaker, Brain, Library, ChevronDown, ChevronRight,
-  X, Trash2, Edit3, Save, Download, Upload, Filter, BarChart3, Clock,
-  Link2, Eye, ArrowUpDown, Copy, FileDown, Quote, Hash, Target,
-  TrendingUp, TrendingDown, Minus, ListTree, PanelRightOpen, PanelRightClose,
+  BookOpen, Lightbulb, Beaker, Brain, Library, ChevronDown, ChevronRight,
+  X, Trash2, Edit3, Save, Download, BarChart3, Clock,
+  Link2, ArrowUpDown, Copy, FileDown, Quote, Hash, Target,
+  TrendingUp, TrendingDown, ListTree, PanelRightClose,
   RefreshCw, Sparkles, ShieldCheck, AlertCircle, type LucideIcon
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -77,7 +77,7 @@ interface CitationData {
   style?: 'apa' | 'mla' | 'chicago';
 }
 
-type AnyData = PaperData | HypothesisData | EvidenceData | ExperimentData | CitationData;
+type _AnyData = PaperData | HypothesisData | EvidenceData | ExperimentData | CitationData;
 
 // Helper type-safe data accessor
 function getData<T>(item: LensItem): T {
@@ -205,14 +205,14 @@ export default function PaperLensPage() {
   const [synthesisResult, setSynthesisResult] = useState<string | null>(null);
 
   // ---- Artifact type mapping for each tab ----
-  const typeForTab: Record<ModeTab, string> = {
+  const typeForTab: Record<ModeTab, string> = useMemo(() => ({
     papers: 'project',
     hypotheses: 'hypothesis',
     evidence: 'evidence',
     experiments: 'experiment',
     synthesis: 'project',
     bibliography: 'citation',
-  };
+  }), []);
 
   // ---- Data hooks ----
   const {
@@ -294,7 +294,7 @@ export default function PaperLensPage() {
   const toggleSection = useCallback((s: string) => {
     setExpandedSections(prev => {
       const next = new Set(prev);
-      next.has(s) ? next.delete(s) : next.add(s);
+      if (next.has(s)) { next.delete(s); } else { next.add(s); }
       return next;
     });
   }, []);
@@ -951,7 +951,7 @@ function PapersGrid({ items, onEdit, onSelect, onValidate, validationResults }: 
 }
 
 // ---- Hypotheses List ----
-function HypothesesList({ items, onSelect, allEvidence }: { items: LensItem[]; onSelect: (item: LensItem) => void; allEvidence: LensItem[] }) {
+function HypothesesList({ items, onSelect, allEvidence: _allEvidence }: { items: LensItem[]; onSelect: (item: LensItem) => void; allEvidence: LensItem[] }) {
   return (
     <div className="space-y-3">
       {items.map(item => {

@@ -1,5 +1,5 @@
 export default function registerInsuranceActions(registerLensAction) {
-  registerLensAction("insurance", "coverageGap", async (ctx, artifact, params) => {
+  registerLensAction("insurance", "coverageGap", (ctx, artifact, _params) => {
     const policies = artifact.data?.policies || [artifact.data];
     const coverageTypes = ['health', 'auto', 'home', 'life', 'liability', 'umbrella'];
     const coveredTypes = new Set(policies.map(p => (p.type || '').toLowerCase()));
@@ -12,7 +12,7 @@ export default function registerInsuranceActions(registerLensAction) {
     return { ok: true, coveredTypes: [...coveredTypes], gaps, gapCount: gaps.length, expiringSoon, totalPolicies: policies.length };
   });
 
-  registerLensAction("insurance", "premiumHistory", async (ctx, artifact, params) => {
+  registerLensAction("insurance", "premiumHistory", (ctx, artifact, _params) => {
     const renewals = artifact.data?.renewalHistory || [];
     if (renewals.length < 2) return { ok: true, history: renewals, trend: 'insufficient_data' };
     const sorted = [...renewals].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -29,7 +29,7 @@ export default function registerInsuranceActions(registerLensAction) {
     return { ok: true, policyNumber: artifact.data?.policyNumber, history: changes, averageChangePercent: avgChange, trend: avgChange > 2 ? 'increasing' : avgChange < -2 ? 'decreasing' : 'stable' };
   });
 
-  registerLensAction("insurance", "claimStatus", async (ctx, artifact, params) => {
+  registerLensAction("insurance", "claimStatus", (ctx, artifact, _params) => {
     const claims = artifact.data?.claims || [artifact.data];
     const now = new Date();
     const byStatus = {};
@@ -49,7 +49,7 @@ export default function registerInsuranceActions(registerLensAction) {
     return { ok: true, byStatus, aging, totalClaims: claims.length, totalAmount, openClaims: claims.filter(c => !['closed', 'paid', 'denied'].includes(c.status)).length };
   });
 
-  registerLensAction("insurance", "riskScore", async (ctx, artifact, params) => {
+  registerLensAction("insurance", "riskScore", (ctx, artifact, params) => {
     const probability = artifact.data?.probability || params.probability || 3;
     const impact = artifact.data?.impact || params.impact || 3;
     const score = probability * impact;

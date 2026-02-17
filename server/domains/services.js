@@ -1,5 +1,5 @@
 export default function registerServicesActions(registerLensAction) {
-  registerLensAction("services", "scheduleOptimize", async (ctx, artifact, params) => {
+  registerLensAction("services", "scheduleOptimize", (ctx, artifact, _params) => {
     const appointments = artifact.data?.appointments || [artifact.data];
     const sorted = [...appointments].sort((a, b) => {
       const ta = a.time || a.date || '';
@@ -17,7 +17,7 @@ export default function registerServicesActions(registerLensAction) {
     return { ok: true, optimizedOrder: sorted.map(a => ({ client: a.client, time: a.time, service: a.serviceType })), totalGapMinutes: totalGap, gaps };
   });
 
-  registerLensAction("services", "reminderGenerate", async (ctx, artifact, params) => {
+  registerLensAction("services", "reminderGenerate", (ctx, artifact, params) => {
     const appointments = artifact.data?.appointments || [artifact.data];
     const now = new Date();
     const hoursAhead = params.hoursAhead || 24;
@@ -36,7 +36,7 @@ export default function registerServicesActions(registerLensAction) {
     return { ok: true, reminders, count: reminders.length };
   });
 
-  registerLensAction("services", "revenueByProvider", async (ctx, artifact, params) => {
+  registerLensAction("services", "revenueByProvider", (ctx, artifact, params) => {
     const appointments = artifact.data?.appointments || [];
     const period = params.period || 30;
     const cutoff = new Date();
@@ -56,7 +56,7 @@ export default function registerServicesActions(registerLensAction) {
     return { ok: true, period, summary, totalRevenue: summary.reduce((s, p) => s + p.revenue, 0) };
   });
 
-  registerLensAction("services", "supplyCheck", async (ctx, artifact, params) => {
+  registerLensAction("services", "supplyCheck", (ctx, artifact, _params) => {
     const supplies = artifact.data?.materials || artifact.data?.supplies || [];
     const lowStock = supplies.filter(s => {
       const current = s.currentStock || s.quantity || 0;

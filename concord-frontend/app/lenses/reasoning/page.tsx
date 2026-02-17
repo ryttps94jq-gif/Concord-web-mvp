@@ -3,7 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
+import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +13,8 @@ import {
   Shield, AlertTriangle, AlertOctagon, BookOpen, BarChart3,
   ThumbsUp, ThumbsDown, Link2, FileText, Sparkles,
   Target, Scale, Eye, Layers, Zap, RefreshCw,
-  Download, X, Edit3, Trash2, Copy, Flag,
-  CircleDot, ArrowUpRight, MessageSquare, Filter, Hash
+  Download, X, Trash2, Flag,
+  CircleDot, ArrowUpRight, MessageSquare, Hash
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { ds } from '@/lib/design-system';
@@ -156,7 +156,7 @@ const PREMISE_STRENGTH_CONFIG: Record<PremiseStrength, { color: string; label: s
   refuted: { color: 'text-red-400', label: 'Refuted' },
 };
 
-const EVIDENCE_TYPE_ICONS: Record<EvidenceType, string> = {
+const _EVIDENCE_TYPE_ICONS: Record<EvidenceType, string> = {
   statistical: 'bar-chart',
   anecdotal: 'message',
   expert_testimony: 'user-check',

@@ -24,10 +24,10 @@ type ModeTab = 'dashboard' | 'work_orders' | 'bom' | 'quality' | 'scheduling' | 
 type ArtifactType = 'WorkOrder' | 'BOM' | 'QCInspection' | 'Schedule' | 'Machine' | 'SafetyItem';
 
 type WOStatus = 'planned' | 'released' | 'in_progress' | 'qc' | 'complete';
-type QCDisposition = 'accept' | 'reject' | 'hold' | 'rework';
+type _QCDisposition = 'accept' | 'reject' | 'hold' | 'rework';
 type MachineStatus = 'running' | 'idle' | 'maintenance' | 'down';
-type SafetyType = 'incident' | 'near_miss' | 'observation' | 'audit';
-type SafetySeverity = 'low' | 'medium' | 'high' | 'critical';
+type _SafetyType = 'incident' | 'near_miss' | 'observation' | 'audit';
+type _SafetySeverity = 'low' | 'medium' | 'high' | 'critical';
 
 const WO_STATUSES: WOStatus[] = ['planned', 'released', 'in_progress', 'qc', 'complete'];
 const SAFETY_STATUSES = ['reported', 'investigating', 'corrective_action', 'closed'] as const;
@@ -228,7 +228,7 @@ function BOMTreeNode({ node, depth = 0 }: { node: BOMNode; depth?: number }) {
 // ---------------------------------------------------------------------------
 function OEEGauge({ value, label, size = 'md' }: { value: number; label: string; size?: 'sm' | 'md' }) {
   const color = value >= 85 ? 'text-green-400' : value >= 65 ? 'text-amber-400' : 'text-red-400';
-  const bgColor = value >= 85 ? 'bg-green-400' : value >= 65 ? 'bg-amber-400' : 'bg-red-400';
+  const _bgColor = value >= 85 ? 'bg-green-400' : value >= 65 ? 'bg-amber-400' : 'bg-red-400';
   const dim = size === 'sm' ? 'w-16 h-16' : 'w-20 h-20';
 
   return (

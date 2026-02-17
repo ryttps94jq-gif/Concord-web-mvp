@@ -11,12 +11,12 @@ import {
   Palette, Camera, Image as ImageIcon, Tv, LayoutGrid, FileCheck,
   Plus, Search, Filter, X, Edit2, Trash2, Clock, Eye,
   TrendingUp, FileImage, Video, Aperture, ChevronRight,
-  DollarSign, Target, Users, MapPin, CalendarDays, Package,
-  CheckCircle2, AlertCircle, MessageSquare, Star, BarChart3,
+  DollarSign, Users, MapPin, CalendarDays,
+  CheckCircle2, MessageSquare, BarChart3,
   Clapperboard, Mic, FileText, Monitor, Printer, Globe,
-  Share2, Download, ArrowUpRight, ArrowDownRight, Minus,
-  FolderOpen, Layers, Zap, Send, ThumbsUp, ThumbsDown,
-  RotateCcw, Shield, Hash, Play, Gauge, Briefcase,
+  Share2, ArrowUpRight, ArrowDownRight, Minus,
+  FolderOpen, Layers, Zap, Send,
+  RotateCcw, Shield, Hash, Play, Gauge,
   CircleDot, ListChecks, ClipboardList, Receipt, PieChart,
 } from 'lucide-react';
 
@@ -956,7 +956,7 @@ export default function CreativeLensPage() {
   // ---------------------------------------------------------------------------
   const renderBudget = () => {
     const categories = ['talent', 'equipment', 'location', 'post_production', 'licensing'];
-    const projectBudgets = allProjects.map(p => {
+    const _projectBudgets = allProjects.map(p => {
       const d = p.data as Record<string, unknown>;
       const projectLines = filtered.filter(l => (l.data as Record<string, unknown>).project === String(d.client) + ' ' + p.title || String((l.data as Record<string, unknown>).project).includes(String(d.client)));
       const lineEstimated = projectLines.reduce((s, l) => s + Number((l.data as Record<string, unknown>).estimated || 0), 0);

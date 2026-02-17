@@ -46,7 +46,6 @@ import {
   History,
   Hash,
   Search,
-  Calendar,
   Target,
   Layers,
   CircleDot,
@@ -411,7 +410,7 @@ export default function CouncilLensPage() {
   const queryClient = useQueryClient();
 
   // ----- Lens persistence (auto-seeds on first use, syncs local state) -----
-  const { items: proposalLensItems, isLoading: proposalsLoading } = useLensData<Record<string, unknown>>('council', 'proposal', {
+  const { items: proposalLensItems, isLoading: _proposalsLoading } = useLensData<Record<string, unknown>>('council', 'proposal', {
     seed: INITIAL_PROPOSALS.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
   const { items: budgetLensItems } = useLensData<Record<string, unknown>>('council', 'budget', {
@@ -466,7 +465,7 @@ export default function CouncilLensPage() {
   const [showCreateBudgetItem, setShowCreateBudgetItem] = useState(false);
   const [showCreateCommittee, setShowCreateCommittee] = useState(false);
   const [showCreateDebate, setShowCreateDebate] = useState(false);
-  const [showCallVote, setShowCallVote] = useState<string | null>(null);
+  const [_showCallVote, _setShowCallVote] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProposalStatus | 'all'>('all');
   const [budgetScenario, setBudgetScenario] = useState<'current' | 'proposed' | 'alternative' | 'all'>('all');
@@ -494,7 +493,7 @@ export default function CouncilLensPage() {
     queryFn: () => api.get('/api/dtus').then(r => r.data),
   });
 
-  const debateMutation = useMutation({
+  const _debateMutation = useMutation({
     mutationFn: async (params: { dtuA: string; dtuB: string; topic: string }) => {
       const dtus: DTU[] = dtusData?.dtus || [];
       const dtuA = dtus.find((d: DTU) => d.id === params.dtuA);
@@ -519,7 +518,7 @@ export default function CouncilLensPage() {
   const runArtifact = useRunArtifact('council');
 
   const personas: Persona[] = personasData?.personas || [];
-  const dtus: DTU[] = dtusData?.dtus?.slice(0, 50) || [];
+  const _dtus: DTU[] = dtusData?.dtus?.slice(0, 50) || [];
 
   // ----- Computed -----
   const selectedProposal = selectedProposalId ? proposals.find(p => p.id === selectedProposalId) || null : null;

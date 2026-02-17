@@ -483,6 +483,6 @@ function generateMockRepos(): Repository[] {
   return [];
 }
 
-function generateMockCommits(): Commit[] {
+function _generateMockCommits(): Commit[] {
   return [];
 }

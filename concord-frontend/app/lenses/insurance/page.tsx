@@ -19,11 +19,8 @@ import {
   CheckCircle2,
   BarChart3,
   AlertTriangle,
-  Calendar,
-  Clock,
   Users,
   DollarSign,
-  TrendingUp,
   AlertCircle,
   Car,
   Home,
@@ -33,19 +30,13 @@ import {
   Activity,
   Calculator,
   Percent,
-  Award,
-  BookOpen,
   ClipboardList,
   RefreshCw,
   Scale,
   Receipt,
-  UserCheck,
   Wallet,
-  Target,
-  Eye,
   GraduationCap,
   ChevronRight,
-  Hash,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -252,7 +243,7 @@ export default function InsuranceLensPage() {
   /* secondary data for dashboard */
   const { items: policies } = useLensData<PolicyData>('insurance', 'Policy', { seed: [] });
   const { items: claims } = useLensData<ClaimData>('insurance', 'Claim', { seed: [] });
-  const { items: clients } = useLensData<InsuredClientData>('insurance', 'InsuredClient', { seed: [] });
+  const { items: _clients } = useLensData<InsuredClientData>('insurance', 'InsuredClient', { seed: [] });
   const { items: commissions } = useLensData<CommissionData>('insurance', 'Commission', { seed: [] });
   const { items: compliance } = useLensData<ComplianceItemData>('insurance', 'ComplianceItem', { seed: [] });
 

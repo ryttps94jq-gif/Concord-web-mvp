@@ -10,47 +10,27 @@ import {
   Shield,
   Plus,
   Search,
-  AlertTriangle,
   Route,
   Target,
-  FileSearch,
-  Cpu,
   MapPin,
-  Clock,
   Users,
   X,
   Edit3,
   Trash2,
   Filter,
   BarChart3,
-  Eye,
-  Lock,
-  Unlock,
-  Wifi,
   Camera,
-  Radio,
-  UserCheck,
   BadgeCheck,
   KeyRound,
   Scan,
-  Activity,
-  TrendingUp,
   AlertCircle,
-  ShieldAlert,
   ShieldCheck,
   Siren,
   Timer,
-  Zap,
   Server,
-  Monitor,
-  Cloud,
-  Globe,
-  Bug,
   Skull,
-  Crosshair,
   CheckCircle2,
   ChevronRight,
-  ArrowUpRight,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -67,7 +47,7 @@ type IncidentStatus = 'detected' | 'triaged' | 'contained' | 'eradicated' | 'rec
 type AssetType = 'server' | 'endpoint' | 'network' | 'cloud' | 'iot' | 'mobile';
 type AssetCriticality = 'critical' | 'high' | 'medium' | 'low';
 type PatchStatus = 'current' | 'pending' | 'overdue' | 'exempt';
-type AlertLevel = 'info' | 'low' | 'medium' | 'high' | 'critical';
+type _AlertLevel = 'info' | 'low' | 'medium' | 'high' | 'critical';
 type AccessLevel = 'public' | 'internal' | 'restricted' | 'confidential' | 'top_secret';
 
 interface IncidentData {

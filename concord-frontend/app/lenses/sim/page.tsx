@@ -7,13 +7,13 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
-  Play, Sliders, Zap, Clock, Target, Plus, Trash2, Copy, Download,
-  Upload, BarChart3, GitCompare, Library, ChevronDown, ChevronRight,
+  Play, Sliders, Clock, Plus, Trash2, Copy, Download,
+  Upload, BarChart3, GitCompare, Library, ChevronRight,
   GripVertical, Settings, FlaskConical, TrendingUp, Activity,
-  AlertTriangle, CheckCircle2, Pause, RotateCcw, ArrowUpDown,
+  AlertTriangle, CheckCircle2,
   Layers, FileJson, FileSpreadsheet, Save, FolderOpen, X,
-  Shuffle, Sigma, LineChart, Boxes, DollarSign, Bug, Users,
-  ShoppingCart, Microscope, Hash, ToggleLeft, ToggleRight, Info
+  Shuffle, Sigma, Boxes, DollarSign, Users,
+  Hash, ToggleLeft, ToggleRight, Info
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { ds } from '@/lib/design-system';
@@ -380,7 +380,7 @@ export default function SimLensPage() {
     [runArtifacts]
   );
 
-  const backendSims = simulations?.simulations || [];
+  const backendSims = useMemo(() => simulations?.simulations || [], [simulations]);
 
   const selectedScenario = useMemo(() =>
     scenarios.find(s => s.id === selectedScenarioId) || null,
@@ -1022,7 +1022,7 @@ export default function SimLensPage() {
                     </button>
                   </div>
                   <div className="space-y-3 mt-2">
-                    {editingScenario.variables.map((v, vi) => (
+                    {editingScenario.variables.map((v, _vi) => (
                       <div key={v.id} className={cn(ds.panel, 'p-3')}>
                         <div className="flex items-start gap-3">
                           <div className="flex-1 space-y-3">

@@ -11,8 +11,6 @@ import {
   Briefcase,
   FileText,
   ShieldCheck,
-  Upload,
-  Lightbulb,
   Plus,
   Search,
   X,
@@ -27,9 +25,6 @@ import {
   Timer,
   Receipt,
   UserCheck,
-  FolderOpen,
-  ChevronRight,
-  ChevronDown,
   Eye,
   Edit3,
   Link2,
@@ -37,18 +32,13 @@ import {
   Phone,
   Mail,
   Building,
-  CreditCard,
-  TrendingUp,
   CheckCircle2,
   XCircle,
   AlertCircle,
   BarChart3,
-  FileCheck,
   FileClock,
-  FileWarning,
   Hash,
   RefreshCw,
-  Send,
   Landmark,
   Shield,
   GraduationCap,
@@ -59,7 +49,6 @@ import {
   ScrollText,
   ArrowRight,
   Hourglass,
-  Target,
   CircleDot,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -78,7 +67,7 @@ type CalendarEventStatus = 'upcoming' | 'today' | 'overdue' | 'completed';
 type ContactType = 'client' | 'opposing_party' | 'witness' | 'expert' | 'judge' | 'opposing_counsel';
 type ContractStatus = 'draft' | 'review' | 'negotiation' | 'executed' | 'active' | 'expired' | 'terminated';
 type ComplianceStatus = 'compliant' | 'due_soon' | 'overdue' | 'under_review';
-type AnyStatus = CaseStatus | DocumentStatus | TimeEntryStatus | CalendarEventStatus | ContractStatus | ComplianceStatus | string;
+type _AnyStatus = CaseStatus | DocumentStatus | TimeEntryStatus | CalendarEventStatus | ContractStatus | ComplianceStatus | string;
 
 type DocumentType = 'motion' | 'brief' | 'contract' | 'evidence' | 'correspondence' | 'pleading' | 'discovery' | 'other';
 type MatterType = 'litigation' | 'corporate' | 'real_estate' | 'family' | 'criminal' | 'ip' | 'employment' | 'bankruptcy' | 'other';
@@ -777,7 +766,7 @@ export default function LegalLensPage() {
   const renderDashboard = () => {
     const cases = allByType('Case');
     const recentCases = cases.slice(0, 5);
-    const timeEntries = allByType('TimeEntry');
+    const _timeEntries = allByType('TimeEntry');
     const events = allByType('CalendarEvent');
     const compliance = allByType('ComplianceItem');
 

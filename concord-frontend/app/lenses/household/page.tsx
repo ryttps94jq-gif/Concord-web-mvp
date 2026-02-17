@@ -8,16 +8,16 @@ import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
   Home, Users, UtensilsCrossed, CheckSquare, Wrench, PawPrint,
-  CalendarHeart, Plus, Search, Filter, X, Edit3, Trash2,
-  ShoppingCart, RotateCcw, AlertTriangle, Clock, TrendingUp,
-  BarChart3, ListChecks, Calendar, Heart, ChevronDown,
-  DollarSign, Shield, Phone, Thermometer, Droplets,
-  Flame, Star, Award, ChevronLeft, ChevronRight, Eye,
+  Plus, Search, Filter, X, Edit3, Trash2,
+  ShoppingCart, RotateCcw, AlertTriangle, Clock,
+  Calendar, Heart,
+  DollarSign, Shield, Phone,
+  Star, Award, ChevronLeft, ChevronRight,
   CreditCard, PiggyBank, FileText, Stethoscope, Siren,
-  Dog, Pill, Activity, MapPin, CircleDot, Zap,
+  Dog, Pill, MapPin, Zap,
   Sun, Snowflake, Leaf, CloudRain, ClipboardList,
-  ArrowUpDown, CheckCircle2, Info, Beef, Coffee,
-  Moon, Pizza, Salad, Soup, Cake, Apple,
+  CheckCircle2, Coffee,
+  Salad, Soup, Cake,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -189,7 +189,7 @@ export default function HouseholdLensPage() {
   const { items: maintenanceItems } = useLensData<MaintenanceItem>('household', 'MaintenanceItem', { noSeed: true });
   const { items: calendarItems } = useLensData<CalendarEvent>('household', 'CalendarEvent', { noSeed: true });
   const { items: budgetItems } = useLensData<BudgetEntry>('household', 'BudgetEntry', { noSeed: true });
-  const { items: emergencyItems } = useLensData<EmergencyContact>('household', 'EmergencyContact', { noSeed: true });
+  const { items: _emergencyItems } = useLensData<EmergencyContact>('household', 'EmergencyContact', { noSeed: true });
   const { items: petItems } = useLensData<Pet>('household', 'Pet', { noSeed: true });
 
   const runAction = useRunArtifact('household');
@@ -998,7 +998,7 @@ export default function HouseholdLensPage() {
   /*  BUDGET / EXPENSE TAB                                             */
   /* ================================================================ */
   const renderBudget = () => {
-    const { byCategory, totalBudgeted, totalSpent } = monthlyBudget;
+    const { byCategory, totalBudgeted, totalSpent: _totalSpent } = monthlyBudget;
     const savingsItems = budgetItems.filter(i => (i.data as unknown as BudgetEntry).category === 'Savings');
     const incomeItems = budgetItems.filter(i => (i.data as unknown as BudgetEntry).entryType === 'income');
     const totalIncome = incomeItems.reduce((sum, i) => sum + ((i.data as unknown as BudgetEntry).amount || 0), 0);

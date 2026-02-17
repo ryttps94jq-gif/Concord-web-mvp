@@ -8,7 +8,7 @@ export default function registerTradesActions(registerLensAction) {
    * artifact.data.lineItems: [{ description, quantity, unitCost, category }]
    * params.markupPct (default 20), params.taxRate (default 0.08)
    */
-  registerLensAction("trades", "calculateEstimate", async (ctx, artifact, params) => {
+  registerLensAction("trades", "calculateEstimate", (ctx, artifact, params) => {
     const lineItems = artifact.data.lineItems || [];
     const markupPct = params.markupPct != null ? params.markupPct : 20;
     const taxRate = params.taxRate != null ? params.taxRate : 0.08;
@@ -75,7 +75,7 @@ export default function registerTradesActions(registerLensAction) {
    * params.stageName — the stage to schedule
    * params.requestedDate — preferred date (ISO)
    */
-  registerLensAction("trades", "scheduleInspection", async (ctx, artifact, params) => {
+  registerLensAction("trades", "scheduleInspection", (ctx, artifact, params) => {
     const permits = artifact.data.permits || [];
     const permitId = params.permitId;
     const stageName = params.stageName;
@@ -137,7 +137,7 @@ export default function registerTradesActions(registerLensAction) {
    * artifact.data.jobs: [{ jobId, name, status, materials: [{ item, quantity, unitCost }] }]
    * params.statusFilter (default "active") — which job statuses to include
    */
-  registerLensAction("trades", "materialsCost", async (ctx, artifact, params) => {
+  registerLensAction("trades", "materialsCost", (ctx, artifact, params) => {
     const jobs = artifact.data.jobs || [];
     const statusFilter = params.statusFilter || "active";
 

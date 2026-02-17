@@ -9,7 +9,7 @@ export default function registerHouseholdActions(registerLensAction) {
    * artifact.data.mealPlan: [{ day, meal, recipe, ingredients: [{ name, quantity, unit }] }]
    * artifact.data.pantry: [{ name, quantity, unit }] (optional)
    */
-  registerLensAction("household", "generateGroceryList", async (ctx, artifact, params) => {
+  registerLensAction("household", "generateGroceryList", (ctx, artifact, params) => {
     const mealPlan = artifact.data.mealPlan || [];
     const pantry = artifact.data.pantry || [];
     const categorize = params.categorize !== false;
@@ -96,7 +96,7 @@ export default function registerHouseholdActions(registerLensAction) {
    * artifact.data.maintenanceItems: [{ name, lastServiceDate, intervalDays, category, notes }]
    * params.lookaheadDays (default 30) — also flag items due soon
    */
-  registerLensAction("household", "maintenanceDue", async (ctx, artifact, params) => {
+  registerLensAction("household", "maintenanceDue", (ctx, artifact, params) => {
     const items = artifact.data.maintenanceItems || [];
     const lookaheadDays = params.lookaheadDays != null ? params.lookaheadDays : 30;
     const now = new Date();
@@ -107,7 +107,7 @@ export default function registerHouseholdActions(registerLensAction) {
 
     for (const item of items) {
       const lastService = item.lastServiceDate ? new Date(item.lastServiceDate) : null;
-      const interval = parseInt(item.intervalDays) || 365;
+      const interval = parseInt(item.intervalDays, 10) || 365;
 
       if (!lastService) {
         overdue.push({
@@ -182,7 +182,7 @@ export default function registerHouseholdActions(registerLensAction) {
    * artifact.data.members: [{ name, preferences }] or string[]
    * params.strategy — "round-robin" (default) or "random"
    */
-  registerLensAction("household", "choreRotation", async (ctx, artifact, params) => {
+  registerLensAction("household", "choreRotation", (ctx, artifact, params) => {
     const chores = artifact.data.chores || [];
     const rawMembers = artifact.data.members || [];
     const strategy = params.strategy || "round-robin";

@@ -7,14 +7,14 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
-  Heart, FileText, HeartHandshake, Megaphone, BarChart3, Users,
+  Heart, FileText, HeartHandshake, Megaphone, BarChart3,
   Plus, Search, Filter, X, Edit2, Trash2,
-  DollarSign, Award, Clock, TrendingUp, AlertTriangle, CheckCircle2,
-  Calendar, Mail, Phone, MapPin, Gift, Repeat, CreditCard,
-  Target, Briefcase, PieChart, ArrowUpRight, ArrowDownRight,
+  DollarSign, Clock, TrendingUp, AlertTriangle, CheckCircle2,
+  Calendar, Mail, Gift, Repeat,
+  Briefcase, PieChart, ArrowUpRight, ArrowDownRight,
   ChevronRight, ChevronDown, Eye, Download, Send, Bell,
-  Building2, User, HelpingHand, ClipboardList, Timer,
-  Wallet, BookOpen, Globe, Sparkles, LayoutDashboard,
+  Building2, User, HelpingHand, ClipboardList,
+  Wallet, Sparkles, LayoutDashboard,
   UserCheck, CalendarClock, RefreshCw, Banknote,
   FileBarChart, CircleDollarSign, ShieldCheck, Milestone,
 } from 'lucide-react';
@@ -35,7 +35,7 @@ type GiftPaymentMethod = 'check' | 'credit_card' | 'ach' | 'cash' | 'stock' | 'd
 const GRANT_STAGES: GrantStage[] = ['prospect', 'loi', 'application', 'submitted', 'awarded', 'reporting', 'closed', 'declined'];
 const CAMPAIGN_STATUSES: CampaignStatus[] = ['planning', 'active', 'completed', 'paused'];
 const GENERAL_STATUSES: GeneralStatus[] = ['active', 'inactive', 'pending', 'lapsed', 'prospect'];
-const DONOR_LEVELS: DonorLevel[] = ['major', 'mid', 'annual', 'sustaining', 'prospect', 'leadership', 'partner'];
+const _DONOR_LEVELS: DonorLevel[] = ['major', 'mid', 'annual', 'sustaining', 'prospect', 'leadership', 'partner'];
 const PAYMENT_METHODS: GiftPaymentMethod[] = ['check', 'credit_card', 'ach', 'cash', 'stock', 'daf', 'wire', 'crypto'];
 
 const STATUS_COLORS: Record<string, string> = {

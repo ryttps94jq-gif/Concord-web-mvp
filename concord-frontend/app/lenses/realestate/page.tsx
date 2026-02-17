@@ -7,11 +7,11 @@ import { ds } from '@/lib/design-system';
 import {
   Building2, Home, Eye, ArrowLeftRight, KeyRound, TrendingUp,
   Plus, Search, X, Trash2, MapPin, DollarSign, Calendar, User,
-  Bed, Bath, Ruler, ArrowUpRight, ClipboardList, Calculator,
+  Bed, Bath, Ruler, ArrowUpRight, Calculator,
   BarChart3, Wrench, Clock, CheckCircle2, AlertTriangle, Star,
-  Phone, Mail, FileText, ChevronRight, ChevronDown, Percent,
-  PiggyBank, Receipt, Shield, Tag, Hash, LandPlot, Hammer,
-  CircleDot, Users, ThumbsUp, ThumbsDown, Minus, Bell,
+  Phone, FileText, ChevronRight, ChevronDown, Percent,
+  PiggyBank, Receipt, Hash, LandPlot, Hammer,
+  CircleDot, Minus, Bell,
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -187,7 +187,7 @@ export default function RealEstateLensPage() {
   const [editingItem, setEditingItem] = useState<LensItem<RealEstateArtifact> | null>(null);
   const [showActionPanel, setShowActionPanel] = useState(false);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
-  const [selectedActionItem, setSelectedActionItem] = useState<string | null>(null);
+  const [selectedActionItem, _setSelectedActionItem] = useState<string | null>(null);
   const [expandedTxn, setExpandedTxn] = useState<string | null>(null);
   const [showInvestCalc, setShowInvestCalc] = useState(false);
 
