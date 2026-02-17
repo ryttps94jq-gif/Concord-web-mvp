@@ -927,6 +927,9 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['artistry-collab-sessions'] });
       onClose();
     },
+    onError: (err) => {
+      console.error('Failed to create session:', err instanceof Error ? err.message : err);
+    },
   });
 
   const projects: { id: string; title: string }[] = projectsData?.projects ?? [];

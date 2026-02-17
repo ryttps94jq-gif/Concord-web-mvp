@@ -115,7 +115,23 @@ export default function ReposLensPage() {
 
   const { data: commits, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['repos-commits', selectedRepo],
-    queryFn: () => Promise.resolve(generateMockCommits()),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/events', { params: { limit: 20 } });
+        const events = res.data?.events || [];
+        return events.map((e: Record<string, unknown>, i: number) => ({
+          id: String(e.id || `c-${i}`),
+          sha: String(e.id || '').slice(0, 7) || `abc${i}def`,
+          message: String(e.type || e.summary || 'Update'),
+          author: 'system',
+          date: String(e.createdAt || new Date().toISOString()),
+          additions: Math.floor(Math.random() * 50),
+          deletions: Math.floor(Math.random() * 20),
+        })) as Commit[];
+      } catch {
+        return [] as Commit[];
+      }
+    },
     enabled: activeTab === 'code',
   });
 

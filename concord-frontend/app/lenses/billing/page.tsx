@@ -47,6 +47,9 @@ export default function BillingPage() {
         window.location.href = data.url;
       }
     },
+    onError: (err) => {
+      console.error('Purchase failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   // Subscribe
@@ -60,6 +63,9 @@ export default function BillingPage() {
       if (data.url) {
         window.location.href = data.url;
       }
+    },
+    onError: (err) => {
+      console.error('Subscription failed:', err instanceof Error ? err.message : err);
     },
   });
 

@@ -252,6 +252,9 @@ export default function PaperLensPage() {
         }));
       }
     },
+    onError: (err) => {
+      console.error('Validation failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   // ---- Derived data ----

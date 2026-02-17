@@ -566,11 +566,17 @@ export default function FeedLensPage() {
       queryClient.invalidateQueries({ queryKey: ['feed-posts'] });
       setNewPost('');
     },
+    onError: (err) => {
+      console.error('Failed to create post:', err instanceof Error ? err.message : err);
+    },
   });
 
   const likeMutation = useMutation({
     mutationFn: (postId: string) => api.post(`/api/dtus/${postId}/like`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feed-posts'] }),
+    onError: (err) => {
+      console.error('Failed to like post:', err instanceof Error ? err.message : err);
+    },
   });
 
   const formatTime = useCallback((dateStr: string) => {

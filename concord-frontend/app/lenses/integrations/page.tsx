@@ -49,6 +49,9 @@ export default function IntegrationsLensPage() {
 
   const runAutomationMutation = useMutation({
     mutationFn: (id: string) => api.post(`/api/automations/${id}/run`, {}),
+    onError: (err) => {
+      console.error('Automation run failed:', err instanceof Error ? err.message : err);
+    },
   });
 
 

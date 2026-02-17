@@ -212,11 +212,17 @@ export default function WhiteboardLensPage() {
       setSelectedWbId(res.data.dtuId);
       setShowCreate(false);
     },
+    onError: (err) => {
+      console.error('Failed to create whiteboard:', err instanceof Error ? err.message : err);
+    },
   });
 
   const saveMutation = useMutation({
     mutationFn: (data: { elements: Element[] }) => api.put(`/api/whiteboard/${selectedWbId}`, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whiteboard', selectedWbId] }),
+    onError: (err) => {
+      console.error('Failed to save whiteboard:', err instanceof Error ? err.message : err);
+    },
   });
 
   /* load elements */

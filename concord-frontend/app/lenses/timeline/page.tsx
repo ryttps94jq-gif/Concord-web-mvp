@@ -119,24 +119,41 @@ export default function TimelineLensPage() {
 
   const { data: friends, isError: isError2, error: error2, refetch: refetch2,} = useQuery({
     queryKey: ['friends'],
-    queryFn: () => Promise.resolve([
-      { id: '1', name: 'Alice Chen', mutualFriends: 12, online: true },
-      { id: '2', name: 'Bob Smith', mutualFriends: 8, online: true },
-      { id: '3', name: 'Carol Davis', mutualFriends: 5, online: false },
-      { id: '4', name: 'David Lee', mutualFriends: 15, online: true },
-      { id: '5', name: 'Eve Wilson', mutualFriends: 3, online: false },
-    ] as Friend[]),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/personas', { params: { limit: 20 } });
+        const personas = res.data?.personas || [];
+        return personas.map((p: Record<string, unknown>, i: number) => ({
+          id: String(p.id || i),
+          name: String(p.name || `User ${i + 1}`),
+          mutualFriends: Math.floor(Math.random() * 15),
+          online: i % 2 === 0,
+        })) as Friend[];
+      } catch {
+        return [] as Friend[];
+      }
+    },
   });
 
   const { data: stories, isError: isError3, error: error3, refetch: refetch3,} = useQuery({
     queryKey: ['stories'],
-    queryFn: () => Promise.resolve([
-      { id: '1', author: { name: 'Your Story' }, viewed: false },
-      { id: '2', author: { name: 'Alice' }, viewed: false },
-      { id: '3', author: { name: 'Bob' }, viewed: true },
-      { id: '4', author: { name: 'Carol' }, viewed: false },
-      { id: '5', author: { name: 'David' }, viewed: true },
-    ] as Story[]),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/dtus', { params: { limit: 5, tags: 'story' } });
+        const dtus = res.data?.dtus || [];
+        const storyItems: Story[] = [
+          { id: 'yours', author: { name: 'Your Story' }, viewed: false },
+          ...dtus.map((d: Record<string, unknown>) => ({
+            id: String(d.id),
+            author: { name: String(d.authorName || 'User') },
+            viewed: false,
+          })),
+        ];
+        return storyItems;
+      } catch {
+        return [{ id: 'yours', author: { name: 'Your Story' }, viewed: false }] as Story[];
+      }
+    },
   });
 
   const postMutation = useMutation({

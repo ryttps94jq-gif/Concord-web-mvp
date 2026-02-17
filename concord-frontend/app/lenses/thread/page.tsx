@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
@@ -151,8 +151,6 @@ type ViewMode = 'tree' | 'timeline' | 'linear';
 export default function ThreadLensPage() {
   useLensNav('thread');
 
-  const [threads] = useState<Thread[]>(INITIAL_THREADS);
-  const [selectedThread, setSelectedThread] = useState<Thread | null>(INITIAL_THREADS[0]);
   const [selectedNode, setSelectedNode] = useState<ThreadNode | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
@@ -161,6 +159,51 @@ export default function ThreadLensPage() {
     queryKey: ['sessions'],
     queryFn: () => api.get('/api/state/latest').then((r) => r.data),
   });
+
+  // Build threads from chat conversations API, fall back to seed data
+  const { data: conversationsData } = useQuery({
+    queryKey: ['thread-conversations'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/chat/conversations', { params: { limit: 20 } });
+        return res.data?.conversations || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const threads: Thread[] = useMemo(() => {
+    const convs = conversationsData || [];
+    if (convs.length === 0) return INITIAL_THREADS;
+    return convs.map((c: Record<string, unknown>, i: number) => ({
+      id: String(c.id || `thread-${i}`),
+      name: String(c.title || c.summary || `Thread ${i + 1}`),
+      createdAt: new Date(c.createdAt as string || Date.now()),
+      updatedAt: new Date(c.updatedAt as string || Date.now()),
+      messageCount: Number(c.messageCount || 0),
+      branchCount: 1,
+      rootNode: {
+        id: `root-${c.id}`,
+        parentId: null,
+        content: String(c.lastMessage || c.summary || ''),
+        author: 'user',
+        timestamp: new Date(c.createdAt as string || Date.now()),
+        depth: 0,
+        children: [],
+      },
+    }));
+  }, [conversationsData]);
+
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+
+  // Auto-select first thread when data loads
+  useEffect(() => {
+    if (threads.length > 0 && !selectedThread) {
+      setSelectedThread(threads[0]);
+    }
+  }, [threads, selectedThread]);
+
   const isError2 = isError; const error2 = error; const refetch2 = refetch;
 
   const toggleNode = (nodeId: string) => {
