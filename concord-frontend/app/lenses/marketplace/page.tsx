@@ -423,6 +423,14 @@ export default function MarketplaceLensPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // New listing form state
+  const [newListingForm, setNewListingForm] = useState({
+    title: '', type: 'beat' as string, description: '', genre: '', tags: '',
+    basicPrice: '', premiumPrice: '', unlimitedPrice: '', exclusivePrice: '',
+  });
+  const [listingSubmitting, setListingSubmitting] = useState(false);
+  const [listingError, setListingError] = useState<string | null>(null);
+
   const { isError: isError, error: error, refetch: refetch, items: _listingItems, create: _createListing } = useLensData('marketplace', 'listing', {
     noSeed: true,
   });
@@ -537,6 +545,44 @@ export default function MarketplaceLensPage() {
   }, [previewItem]);
 
   const closePreview = useCallback(() => { setPreviewItem(null); setIsPlaying(false); }, []);
+
+  // Publish new listing to backend
+  const handlePublishListing = useCallback(async () => {
+    if (!newListingForm.title.trim() || listingSubmitting) return;
+    setListingSubmitting(true);
+    setListingError(null);
+    try {
+      const typeMap: Record<string, string> = {
+        'Beat': 'beat', 'Stem': 'stems', 'Sample Pack': 'sample-pack',
+        'Artwork': 'artwork', 'Plugin': 'plugin', 'Preset': 'preset',
+        'beat': 'beat', 'stem': 'stems', 'sample': 'sample-pack',
+        'artwork': 'artwork', 'plugin': 'plugin', 'preset': 'preset',
+      };
+      await api.post('/api/marketplace/submit', {
+        title: newListingForm.title.trim(),
+        type: typeMap[newListingForm.type] || 'beat',
+        description: newListingForm.description.trim(),
+        genre: newListingForm.genre.trim() || undefined,
+        tags: newListingForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+        licenses: {
+          basic: { price: Number(newListingForm.basicPrice) || 0 },
+          premium: { price: Number(newListingForm.premiumPrice) || 0 },
+          unlimited: { price: Number(newListingForm.unlimitedPrice) || 0 },
+          exclusive: { price: Number(newListingForm.exclusivePrice) || 0 },
+        },
+      });
+      setShowNewListing(false);
+      setNewListingForm({ title: '', type: 'beat', description: '', genre: '', tags: '', basicPrice: '', premiumPrice: '', unlimitedPrice: '', exclusivePrice: '' });
+      _queryClient.invalidateQueries({ queryKey: ['artistry-beats'] });
+      _queryClient.invalidateQueries({ queryKey: ['artistry-stems'] });
+      _queryClient.invalidateQueries({ queryKey: ['artistry-samples'] });
+      _queryClient.invalidateQueries({ queryKey: ['artistry-art'] });
+    } catch (err) {
+      setListingError(err instanceof Error ? err.message : 'Failed to publish listing');
+    } finally {
+      setListingSubmitting(false);
+    }
+  }, [newListingForm, listingSubmitting, _queryClient]);
 
   // Checkout — settles each cart item through the economy ledger
   const handleCheckout = useCallback(async () => {
@@ -842,32 +888,57 @@ export default function MarketplaceLensPage() {
                     <button onClick={() => setShowNewListing(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
                   </div>
                   <div className="space-y-3">
-                    <input placeholder="Title" className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
-                    <select className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
-                      <option>Beat</option><option>Stem</option><option>Sample Pack</option><option>Artwork</option><option>Plugin</option><option>Preset</option>
+                    <input placeholder="Title" value={newListingForm.title}
+                      onChange={e => setNewListingForm(f => ({ ...f, title: e.target.value }))}
+                      className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                    <select value={newListingForm.type}
+                      onChange={e => setNewListingForm(f => ({ ...f, type: e.target.value }))}
+                      className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm">
+                      <option value="beat">Beat</option><option value="stem">Stem</option><option value="sample">Sample Pack</option><option value="artwork">Artwork</option><option value="plugin">Plugin</option><option value="preset">Preset</option>
                     </select>
-                    <textarea placeholder="Description" rows={3}
+                    <textarea placeholder="Description" rows={3} value={newListingForm.description}
+                      onChange={e => setNewListingForm(f => ({ ...f, description: e.target.value }))}
                       className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none resize-none" />
                     <div className="grid grid-cols-2 gap-3">
-                      <input placeholder="Genre" className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
-                      <input placeholder="Tags (comma separated)" className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                      <input placeholder="Genre" value={newListingForm.genre}
+                        onChange={e => setNewListingForm(f => ({ ...f, genre: e.target.value }))}
+                        className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                      <input placeholder="Tags (comma separated)" value={newListingForm.tags}
+                        onChange={e => setNewListingForm(f => ({ ...f, tags: e.target.value }))}
+                        className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
                     </div>
                     <p className="text-xs text-gray-400 font-medium">Pricing per License Tier</p>
                     <div className="grid grid-cols-4 gap-2">
-                      {LICENSE_TIERS.map(t => (
-                        <div key={t.id} className="space-y-1">
-                          <label className={cn('text-[10px] font-medium', t.color)}>{t.name}</label>
-                          <input type="number" placeholder="$" className="w-full px-2 py-1.5 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
-                        </div>
-                      ))}
+                      {([
+                        { id: 'basic', field: 'basicPrice' as const },
+                        { id: 'premium', field: 'premiumPrice' as const },
+                        { id: 'unlimited', field: 'unlimitedPrice' as const },
+                        { id: 'exclusive', field: 'exclusivePrice' as const },
+                      ] as const).map(t => {
+                        const tier = LICENSE_TIERS.find(lt => lt.id === t.id)!;
+                        return (
+                          <div key={t.id} className="space-y-1">
+                            <label className={cn('text-[10px] font-medium', tier.color)}>{tier.name}</label>
+                            <input type="number" placeholder="$" value={newListingForm[t.field]}
+                              onChange={e => setNewListingForm(f => ({ ...f, [t.field]: e.target.value }))}
+                              className="w-full px-2 py-1.5 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none" />
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex items-center gap-2 p-4 border-2 border-dashed border-lattice-border rounded-lg justify-center text-gray-500 text-sm cursor-pointer hover:border-neon-purple/50 transition-colors">
                       <Upload className="w-5 h-5" /> Upload files
                     </div>
                   </div>
+                  {listingError && (
+                    <p className="text-xs text-red-400 bg-red-400/10 rounded-lg px-3 py-2">{listingError}</p>
+                  )}
                   <div className="flex items-center justify-end gap-2 pt-2">
-                    <button onClick={() => setShowNewListing(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
-                    <button onClick={() => setShowNewListing(false)} className="btn-neon purple text-sm">Publish Listing</button>
+                    <button onClick={() => { setShowNewListing(false); setListingError(null); }} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                    <button onClick={handlePublishListing} disabled={!newListingForm.title.trim() || listingSubmitting}
+                      className={cn('btn-neon purple text-sm', (!newListingForm.title.trim() || listingSubmitting) && 'opacity-50 cursor-not-allowed')}>
+                      {listingSubmitting ? 'Publishing...' : 'Publish Listing'}
+                    </button>
                   </div>
                 </motion.div>
               </motion.div>

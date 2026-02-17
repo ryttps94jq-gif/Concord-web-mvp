@@ -88,6 +88,8 @@ export default function TimelineLensPage() {
 
   const [_newPost, setNewPost] = useState('');
   const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postContent, setPostContent] = useState('');
 
   const { data: posts, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['timeline-posts'],
@@ -137,13 +139,23 @@ export default function TimelineLensPage() {
     ] as Story[]),
   });
 
-  const _postMutation = useMutation({
+  const postMutation = useMutation({
     mutationFn: (content: string) => api.post('/api/dtus', { content, tags: ['timeline'] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timeline-posts'] });
       setNewPost('');
+      setPostContent('');
+      setShowPostModal(false);
+    },
+    onError: (err) => {
+      console.error('Failed to create post:', err instanceof Error ? err.message : err);
     },
   });
+
+  const handleCreatePost = () => {
+    if (!postContent.trim() || postMutation.isPending) return;
+    postMutation.mutate(postContent.trim());
+  };
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -274,9 +286,9 @@ export default function TimelineLensPage() {
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex-shrink-0" />
               <button
                 className="flex-1 px-4 py-2.5 bg-[#3a3b3c] rounded-full text-left text-gray-400 hover:bg-[#4a4b4c] transition-colors"
-                onClick={() => {}}
+                onClick={() => setShowPostModal(true)}
               >
-                What's on your mind?
+                What&apos;s on your mind?
               </button>
             </div>
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
@@ -487,6 +499,63 @@ export default function TimelineLensPage() {
           </div>
         </aside>
       </div>
+
+      {/* Create Post Modal */}
+      <AnimatePresence>
+        {showPostModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowPostModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#242526] border border-gray-700 rounded-xl w-full max-w-lg p-6 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Create Post</h3>
+                <button onClick={() => setShowPostModal(false)} className="text-gray-400 hover:text-white">
+                  <MoreHorizontal className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex gap-3 items-start">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex-shrink-0" />
+                <textarea
+                  value={postContent}
+                  onChange={e => setPostContent(e.target.value)}
+                  placeholder="What's on your mind?"
+                  rows={4}
+                  autoFocus
+                  className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none resize-none text-lg"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-gray-700">
+                <div className="flex items-center gap-2">
+                  <button className="p-2 rounded-lg hover:bg-[#3a3b3c] text-green-500 transition-colors">
+                    <ImageIcon className="w-5 h-5" />
+                  </button>
+                  <button className="p-2 rounded-lg hover:bg-[#3a3b3c] text-yellow-500 transition-colors">
+                    <Smile className="w-5 h-5" />
+                  </button>
+                </div>
+                <button
+                  onClick={handleCreatePost}
+                  disabled={!postContent.trim() || postMutation.isPending}
+                  className={cn(
+                    'px-6 py-2 rounded-lg font-medium text-sm transition-colors',
+                    postContent.trim() && !postMutation.isPending
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  )}
+                >
+                  {postMutation.isPending ? 'Posting...' : 'Post'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

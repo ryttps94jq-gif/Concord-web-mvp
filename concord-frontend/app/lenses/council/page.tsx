@@ -515,6 +515,9 @@ export default function CouncilLensPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dtus'] });
     },
+    onError: (err) => {
+      console.error('Debate failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   const { isError, error, refetch, items: _proposalArtifacts, create: _createProposal } = useLensData('council', 'proposal', { noSeed: true });
