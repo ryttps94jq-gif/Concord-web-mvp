@@ -19,12 +19,12 @@
  *   npx tsx scripts/score-lenses.ts --failing     # Only show failing lenses
  */
 
-import { readdirSync, readFileSync, statSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 import { getAllLensIds } from '../lib/lens-registry';
 import { getLensManifest } from '../lib/lenses/manifest';
-import { getLensStatus, type LensStatusEntry } from '../lib/lenses/lens-status';
+import { getLensStatus } from '../lib/lenses/lens-status';
 import { GATE_PASS_THRESHOLD } from '../lib/lenses/product-lens-gate';
 
 // ── Configuration ───────────────────────────────────────────────

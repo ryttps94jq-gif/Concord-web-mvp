@@ -5,7 +5,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useUIStore } from '@/store/ui';
 import { usePathname } from 'next/navigation';
 
-function reasonToAction(reason?: string): string {
+function _reasonToAction(reason?: string): string {
   if (!reason) return 'Check request details and try again.';
   const normalized = reason.toLowerCase();
   if (normalized.includes('login required')) return 'Log in and retry the action.';
@@ -34,7 +34,7 @@ export function OperatorErrorBanner() {
       const timer = setTimeout(() => setDismissed(true), 8_000);
       return () => clearTimeout(timer);
     }
-  }, [latest?.id]);
+  }, [latest?.id, latest]);
 
   // Reset dismissed state when errors are cleared
   useEffect(() => {

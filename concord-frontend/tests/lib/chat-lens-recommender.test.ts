@@ -15,10 +15,7 @@ import {
   createSessionContext,
   extractSignals,
   classifyIntent,
-  checkTriggers,
-  scoreLenses,
   type SessionContext,
-  type IntentClass,
   LENS_RECOMMENDER_REGISTRY,
 } from '../../lib/lenses/chat-lens-recommender';
 

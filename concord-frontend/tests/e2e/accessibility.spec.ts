@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 // Helper to authenticate
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function authenticate(context: any) {
   await context.addCookies([{
     name: 'concord_session',

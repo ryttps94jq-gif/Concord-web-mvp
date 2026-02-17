@@ -112,6 +112,7 @@ describe('getCoreLensConfig', () => {
   });
 
   it('returns undefined for invalid id', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(getCoreLensConfig('invalid' as any)).toBeUndefined();
   });
 });

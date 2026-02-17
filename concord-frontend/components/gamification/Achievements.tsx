@@ -7,8 +7,6 @@ import {
   Trophy,
   Target,
   Flame,
-  Brain,
-  GitBranch,
   Clock,
   Sparkles,
   Crown,
