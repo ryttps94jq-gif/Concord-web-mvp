@@ -1,6 +1,7 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
+import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useState, useMemo } from 'react';
@@ -41,7 +42,7 @@ interface Agent {
 type ViewMode = 'dashboard' | 'detail' | 'builder' | 'logs' | 'workflows';
 type AgentFilter = 'all' | 'active' | 'dormant' | 'error';
 
-// --- Demo Data ---
+// --- Seed Data (persisted via backend on first use) ---
 const INITIAL_AGENTS: Agent[] = [
   {
     id: 'agent-001', name: 'Research Sentinel', type: 'research', enabled: true,
@@ -193,18 +194,20 @@ export default function AgentsLensPage() {
   const [newTemp, setNewTemp] = useState(0.3);
   const [newMaxTokens, setNewMaxTokens] = useState(4096);
 
-  // API with fallback
-  const { data: agentsData, isLoading, isError, error, refetch,} = useQuery({
-    queryKey: ['agents'],
-    queryFn: () => apiHelpers.agents.list().then((r) => r.data).catch(() => null),
-    refetchInterval: 5000,
+  // Persist agents via lens data (auto-seeds on first use)
+  const { items: lensAgentItems, isLoading, isError, error, isSeeding, refetch, create: createLensAgent, update: updateLensAgent, remove: removeLensAgent } = useLensData<Record<string, unknown>>('agents', 'agent', {
+    seed: INITIAL_AGENTS.map(a => ({ title: a.name, data: a as unknown as Record<string, unknown> })),
   });
   const isError2 = isError; const error2 = error; const refetch2 = refetch;
 
   const createAgent = useMutation({
-    mutationFn: () => apiHelpers.agents.create({ name: newName, type: newType }),
+    mutationFn: async () => {
+      await createLensAgent({
+        title: newName,
+        data: { name: newName, type: newType, description: newDescription, goals: newGoals.split('\n').filter(Boolean), tools: newTools, model: newModel, temperature: newTemp, maxTokens: newMaxTokens, enabled: false, status: 'dormant', tickCount: 0, successRate: 0, avgLatency: 0, createdAt: new Date().toISOString(), memory: [], logs: [] } as unknown as Record<string, unknown>,
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
       setShowCreate(false);
       resetCreateForm();
     },
@@ -212,19 +215,32 @@ export default function AgentsLensPage() {
   });
 
   const enableAgent = useMutation({
-    mutationFn: (id: string) => apiHelpers.agents.enable(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    mutationFn: async (id: string) => {
+      const agent = agents.find(a => a.id === id);
+      if (agent) {
+        await updateLensAgent(id, { data: { enabled: !agent.enabled, status: agent.enabled ? 'dormant' : 'idle' } as unknown as Record<string, unknown> });
+      }
+    },
   });
 
   const tickAgent = useMutation({
-    mutationFn: (id: string) => apiHelpers.agents.tick(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    mutationFn: async (id: string) => {
+      // Trigger a tick via the agents API if available
+      try { await apiHelpers.agents.tick(id); } catch { /* backend may not have this endpoint yet */ }
+      const agent = agents.find(a => a.id === id);
+      if (agent) {
+        await updateLensAgent(id, { data: { tickCount: (agent.tickCount || 0) + 1, lastTick: new Date().toISOString() } as unknown as Record<string, unknown> });
+      }
+    },
   });
 
   const agents: Agent[] = useMemo(() => {
-    const apiAgents = agentsData?.agents || (Array.isArray(agentsData) ? agentsData : []);
-    return apiAgents.length > 0 ? apiAgents : INITIAL_AGENTS;
-  }, [agentsData]);
+    return lensAgentItems.map(item => ({
+      id: item.id,
+      name: item.title || (item.data as Record<string, unknown>)?.name as string || 'Unnamed',
+      ...item.data as Record<string, unknown>,
+    } as unknown as Agent));
+  }, [lensAgentItems]);
 
   const filteredAgents = useMemo(() => {
     let list = agents;

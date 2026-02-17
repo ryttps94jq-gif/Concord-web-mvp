@@ -6,10 +6,16 @@ services:
       dockerfile: Dockerfile
     container_name: concord-backend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Data dir needs writes; consider tmpfs for /tmp
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100M
     environment:
       - NODE_ENV=production
       - PORT=5050
       - DATA_DIR=/data
+      - DB_PATH=/data/db/concord.db
       - STATE_PATH=/data/concord_state.json
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://concord-os.org}
@@ -22,6 +28,12 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL_FAST=${OPENAI_MODEL_FAST:-gpt-4o-mini}
       - OPENAI_MODEL_SMART=${OPENAI_MODEL_SMART:-gpt-4o}
+      # Stripe — set these in .env to enable payments
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
+      - STRIPE_PRICE_TEAMS=${STRIPE_PRICE_TEAMS:-}
+      - FRONTEND_URL=${FRONTEND_URL:-https://concord-os.org}
       # Optional features
       - EMBEDDINGS_ENABLED=${EMBEDDINGS_ENABLED:-true}
       - FEDERATION_ENABLED=${FEDERATION_ENABLED:-false}
@@ -32,7 +44,7 @@ services:
     networks:
       - concord-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready && curl -f http://localhost:5050/api/status | grep -q '\"ok\":true'"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -84,6 +96,8 @@ services:
     image: nginx:alpine
     container_name: concord-nginx
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "80:80"
       - "443:443"

@@ -23,10 +23,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build arguments for API and Socket URLs
-ARG NEXT_PUBLIC_API_URL=http://localhost:5050
-ARG NEXT_PUBLIC_SOCKET_URL=http://localhost:5050
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+# When omitted, Next.js reads .env.production (https://concord-os.org).
+# Override at build time: docker build --build-arg NEXT_PUBLIC_API_URL=https://...
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SOCKET_URL
 
 # Optional CI-only build controls (defaults keep full checks enabled)
 ARG CI_SKIP_TYPECHECK=0

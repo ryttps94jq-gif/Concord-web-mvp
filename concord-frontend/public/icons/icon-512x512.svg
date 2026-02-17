@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0a0e1a"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="196" r="72" fill="none" stroke="url(#g)" stroke-width="8"/>
+  <path d="M184 196 C184 152, 328 152, 328 196" fill="none" stroke="url(#g)" stroke-width="6" opacity="0.6"/>
+  <path d="M148 256 C148 180, 364 180, 364 256" fill="none" stroke="url(#g)" stroke-width="4" opacity="0.3"/>
+  <path d="M192 290 L256 350 L320 290" fill="none" stroke="url(#g)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="192" cy="290" r="10" fill="#06b6d4"/>
+  <circle cx="256" cy="350" r="10" fill="#8b5cf6"/>
+  <circle cx="320" cy="290" r="10" fill="#3b82f6"/>
+  <text x="256" y="420" text-anchor="middle" font-family="system-ui,sans-serif" font-size="42" font-weight="700" fill="white">CONCORD</text>
+</svg>

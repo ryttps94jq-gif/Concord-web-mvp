@@ -1,0 +1,80 @@
+[
+  {
+    "id": "dtu_root_fixed_point",
+    "tier": "core",
+    "tags": [
+      "root",
+      "fixed_point",
+      "identity",
+      "invariant"
+    ],
+    "human": {
+      "summary": "All stable structure arises from self-consistent fixed points under recursion.",
+      "bullets": [
+        "Identity=self-consistency",
+        "Stability=fixed-point behavior",
+        "Higher structure=invariant preservation"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "Fixed Point",
+          "definition": "x* such that f(x*)=x*."
+        }
+      ],
+      "invariants": [
+        "Stable identity requires f(x)=x",
+        "Self-reference collapses to fixed points/attractors"
+      ],
+      "claims": [
+        "Minimal fixed points form the basis of persistent structure.",
+        "Binary attractors {0,1} are simplest stable identities."
+      ],
+      "examples": [
+        "x^2-x=0 ⇔ x∈{0,1}"
+      ],
+      "nextActions": []
+    },
+    "machine": {
+      "kind": "formal_identity",
+      "math": {
+        "equation": "x^2 - x = 0",
+        "fixedPoints": [
+          "x = 0",
+          "x = 1"
+        ],
+        "interpretation": "Root fixed-point identity"
+      },
+      "verifier": {
+        "kind": "verifier",
+        "inputs": [
+          "x"
+        ],
+        "outputs": [
+          "ok",
+          "residual"
+        ],
+        "steps": [
+          "r=x^2-x",
+          "ok=true iff r==0 (or |r|<=tol)."
+        ]
+      }
+    },
+    "lineage": {
+      "parents": [],
+      "children": []
+    },
+    "source": "user",
+    "meta": {
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 1
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

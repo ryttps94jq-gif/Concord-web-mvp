@@ -296,37 +296,15 @@ function createDefaultScenario(): Scenario {
   };
 }
 
-// ─── Mock Seed for Demonstration ─────────────────────────────────────────────
+// ─── Empty results placeholder (shown when no simulation has been run) ────────
 
-function generateMockResults(): SimResults {
-  const outcomes: OutcomeBucket[] = [
-    { label: '< -20%', count: 45, percentage: 4.5 },
-    { label: '-20% to -10%', count: 89, percentage: 8.9 },
-    { label: '-10% to 0%', count: 156, percentage: 15.6 },
-    { label: '0% to 10%', count: 278, percentage: 27.8 },
-    { label: '10% to 20%', count: 234, percentage: 23.4 },
-    { label: '20% to 30%', count: 128, percentage: 12.8 },
-    { label: '> 30%', count: 70, percentage: 7.0 },
-  ];
+function getEmptyResults(): SimResults {
   return {
-    mean: 8.34, median: 7.21, stdDev: 14.67, min: -42.3, max: 68.9,
-    p5: -18.4, p25: -1.2, p75: 17.8, p95: 35.2,
-    outcomes,
-    sensitivity: [
-      { variable: 'Growth Rate', impact: 0.82, direction: 'positive' },
-      { variable: 'Market Volatility', impact: 0.64, direction: 'negative' },
-      { variable: 'Operating Margin', impact: 0.51, direction: 'positive' },
-      { variable: 'Initial Revenue', impact: 0.38, direction: 'positive' },
-      { variable: 'Time Horizon', impact: 0.22, direction: 'mixed' },
-    ],
-    riskAssessment: [
-      { outcome: 'Severe Loss (> -30%)', probability: 0.02, severity: 'critical' },
-      { outcome: 'Moderate Loss (-10% to -30%)', probability: 0.11, severity: 'high' },
-      { outcome: 'Minor Loss (0% to -10%)', probability: 0.16, severity: 'medium' },
-      { outcome: 'Break Even (near 0%)', probability: 0.12, severity: 'low' },
-      { outcome: 'Moderate Gain (0% to 20%)', probability: 0.39, severity: 'low' },
-      { outcome: 'High Gain (> 20%)', probability: 0.20, severity: 'low' },
-    ],
+    mean: 0, median: 0, stdDev: 0, min: 0, max: 0,
+    p5: 0, p25: 0, p75: 0, p95: 0,
+    outcomes: [],
+    sensitivity: [],
+    riskAssessment: [],
   };
 }
 
@@ -640,6 +618,15 @@ export default function SimLensPage() {
     });
   }, [editingScenario]);
 
+  // Use results from the selected run, or empty placeholder if no run selected
+  const runResults: SimResults = useMemo(() => {
+    if (selectedRun?.results) {
+      return selectedRun.results;
+    }
+    return getEmptyResults();
+  }, [selectedRun]);
+  const mockResultsForDisplay = runResults;
+
   // ── Error boundary ─────────────────────────────────────────────────────────
   if (isError || isError2) {
     return (
@@ -670,9 +657,6 @@ export default function SimLensPage() {
     setShowScenarioBuilder(true);
     setActiveTab('scenarios');
   };
-
-  // Mock results for demo -- in production, results would come from run artifacts
-  const mockResultsForDisplay = generateMockResults();
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ─── RENDER ────────────────────────────────────────────────────────────────

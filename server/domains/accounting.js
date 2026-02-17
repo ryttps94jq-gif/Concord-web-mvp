@@ -8,7 +8,7 @@ export default function registerAccountingActions(registerLensAction) {
    * artifact.data.accounts: [{ accountNumber, name, type, normalBalance, entries: [{ date, debit, credit, memo }] }]
    * params.asOfDate — optional cutoff date (ISO string)
    */
-  registerLensAction("accounting", "trialBalance", async (ctx, artifact, params) => {
+  registerLensAction("accounting", "trialBalance", (ctx, artifact, params) => {
     const accounts = artifact.data.accounts || [];
     const asOfDate = params.asOfDate ? new Date(params.asOfDate) : null;
 
@@ -67,7 +67,7 @@ export default function registerAccountingActions(registerLensAction) {
    * artifact.data.accounts: same as trialBalance
    * params.startDate, params.endDate — period boundaries
    */
-  registerLensAction("accounting", "profitLoss", async (ctx, artifact, params) => {
+  registerLensAction("accounting", "profitLoss", (ctx, artifact, params) => {
     const accounts = artifact.data.accounts || [];
     const startDate = params.startDate ? new Date(params.startDate) : new Date(new Date().getFullYear(), 0, 1);
     const endDate = params.endDate ? new Date(params.endDate) : new Date();
@@ -147,7 +147,7 @@ export default function registerAccountingActions(registerLensAction) {
    * Categorize unpaid invoices by age buckets: current, 1-30, 31-60, 61-90, 90+.
    * artifact.data.invoices: [{ invoiceId, customer, amount, issueDate, dueDate, paidDate }]
    */
-  registerLensAction("accounting", "invoiceAging", async (ctx, artifact, params) => {
+  registerLensAction("accounting", "invoiceAging", (ctx, artifact, params) => {
     const invoices = artifact.data.invoices || [];
     const now = params.asOfDate ? new Date(params.asOfDate) : new Date();
 
@@ -220,7 +220,7 @@ export default function registerAccountingActions(registerLensAction) {
    * artifact.data.budget: [{ category, planned, actual }]
    * params.period — label for the period
    */
-  registerLensAction("accounting", "budgetVariance", async (ctx, artifact, params) => {
+  registerLensAction("accounting", "budgetVariance", (ctx, artifact, params) => {
     const budget = artifact.data.budget || [];
     const period = params.period || "current";
 
@@ -279,7 +279,7 @@ export default function registerAccountingActions(registerLensAction) {
    * artifact.data.properties: [{ propertyId, address, units: [{ unitId, tenant, monthlyRent, leaseEnd, paidThrough }] }]
    * params.asOfMonth — "YYYY-MM" to check (defaults to current month)
    */
-  registerLensAction("accounting", "rentRoll", async (ctx, artifact, params) => {
+  registerLensAction("accounting", "rentRoll", (ctx, artifact, params) => {
     const properties = artifact.data.properties || [];
     const now = new Date();
     const asOfMonth = params.asOfMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;

@@ -142,8 +142,68 @@ jobs:
             NPM_CONFIG_FETCH_RETRIES=5
             NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
             NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
-            CI_SKIP_TYPECHECK=1
-            CI_SKIP_LINT_IN_BUILD=1
+            CI_SKIP_TYPECHECK=0
+            CI_SKIP_LINT_IN_BUILD=0
+
+  smoke-test:
+    name: Smoke Test (Everything Real)
+    runs-on: ubuntu-latest
+    needs: [lint-and-test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install server dependencies
+        working-directory: ./server
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
+
+      - name: Run migrations
+        working-directory: ./server
+        env:
+          DATA_DIR: /tmp/concord-test-data
+        run: node migrate.js
+
+      - name: Start server for smoke tests
+        working-directory: ./server
+        env:
+          NODE_ENV: ci
+          PORT: 5050
+          DATA_DIR: /tmp/concord-test-data
+          JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
+          ADMIN_PASSWORD: testpassword123
+          AUTH_MODE: public
+        run: |
+          node server.js > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:5050/ready > /dev/null 2>&1; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat server/server.log
+          exit 1
+
+      - name: Run smoke tests
+        run: bash server/scripts/smoke.sh http://localhost:5050
+
+      - name: Stop server
+        if: always()
+        working-directory: ./server
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) 2>/dev/null || true
+          fi
 
   integration-test:
     name: Integration Test

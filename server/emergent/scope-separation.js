@@ -347,7 +347,8 @@ export function promoteDtu(STATE, dtuId, targetScope, opts = {}) {
     }
   } else {
     // Downward influence (Global → Marketplace, Global → Local, etc.) always allowed
-    // per influence matrix
+    // per influence matrix — no checks needed
+    void 0;
   }
 
   // Founder override: always available, always logged

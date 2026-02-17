@@ -1,26 +1,70 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUIStore } from '@/store/ui';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { Search, Bell, User, Command, Activity, Zap, Menu } from 'lucide-react';
+import { disconnectSocket } from '@/lib/realtime/socket';
+import { getLensById } from '@/lib/lens-registry';
+import { Search, Bell, User, Command, Activity, Zap, Menu, LogOut, Settings, Shield } from 'lucide-react';
 import { SyncStatusDot } from '@/components/common/OfflineIndicator';
 import { useOnlineStatus } from '@/components/common/OfflineIndicator';
 
 export function Topbar() {
   const { sidebarCollapsed, setCommandPaletteOpen, activeLens, setSidebarOpen } = useUIStore();
   const { isOnline } = useOnlineStatus();
+  const router = useRouter();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const { data: resonance } = useQuery({
     queryKey: ['resonance-quick'],
     queryFn: () => api.get('/api/resonance/quick').then((r) => r.data),
     refetchInterval: 30000,
+    retry: false,
   });
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications-count'],
     queryFn: () => api.get('/api/notifications/count').then((r) => r.data),
+    retry: false,
   });
+
+  // Look up proper display name and icon from the lens registry
+  const lensEntry = activeLens ? getLensById(activeLens) : null;
+  const displayName = lensEntry?.name || (activeLens ? activeLens.charAt(0).toUpperCase() + activeLens.slice(1) : 'Dashboard');
+
+  // Close user menu on outside click or Escape
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [userMenuOpen]);
+
+  const handleLogout = async () => {
+    try {
+      await api.post('/api/auth/logout', {});
+    } catch {
+      // Logout even if the API call fails
+    }
+    disconnectSocket();
+    localStorage.removeItem('concord_entered');
+    localStorage.removeItem('concord_api_key');
+    window.location.href = '/login';
+  };
 
   return (
     <header
@@ -40,9 +84,15 @@ export function Topbar() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <h1 className="text-base lg:text-lg font-semibold capitalize truncate max-w-[120px] sm:max-w-none">
-          {activeLens || 'Dashboard'}
-        </h1>
+        <div className="flex items-center gap-2">
+          {lensEntry && (() => {
+            const LensIcon = lensEntry.icon;
+            return <LensIcon className="w-4 h-4 text-gray-400" />;
+          })()}
+          <h1 className="text-base lg:text-lg font-semibold truncate max-w-[120px] sm:max-w-none">
+            {displayName}
+          </h1>
+        </div>
       </div>
 
       {/* Center - Search (hidden on small mobile) */}
@@ -108,14 +158,52 @@ export function Topbar() {
         </button>
 
         {/* User Menu */}
-        <button
-          className="flex items-center gap-2 p-1.5 lg:p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
-          aria-label="User menu"
-        >
-          <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-neon-purple to-neon-blue flex items-center justify-center">
-            <User className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
-          </div>
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="flex items-center gap-2 p-1.5 lg:p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
+            aria-label="User menu"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="true"
+          >
+            <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-neon-purple to-neon-blue flex items-center justify-center">
+              <User className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+            </div>
+          </button>
+
+          {userMenuOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-48 bg-lattice-surface border border-lattice-border rounded-lg shadow-xl z-50 overflow-hidden"
+              role="menu"
+            >
+              <button
+                onClick={() => { setUserMenuOpen(false); router.push('/lenses/resonance'); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-lattice-elevated transition-colors"
+                role="menuitem"
+              >
+                <Shield className="w-4 h-4" />
+                System Health
+              </button>
+              <button
+                onClick={() => { setUserMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-lattice-elevated transition-colors"
+                role="menuitem"
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </button>
+              <div className="border-t border-lattice-border" />
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                role="menuitem"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

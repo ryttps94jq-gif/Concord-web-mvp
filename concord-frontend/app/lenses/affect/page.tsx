@@ -70,6 +70,9 @@ export default function AffectLensPage() {
       queryClient.invalidateQueries({ queryKey: ['affect-policy', sessionId] });
       queryClient.invalidateQueries({ queryKey: ['affect-events', sessionId] });
     },
+    onError: (err) => {
+      console.error('Failed to emit affect event:', err instanceof Error ? err.message : err);
+    },
   });
 
   const resetAffect = useMutation({
@@ -77,6 +80,9 @@ export default function AffectLensPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['affect-state', sessionId] });
       queryClient.invalidateQueries({ queryKey: ['affect-policy', sessionId] });
+    },
+    onError: (err) => {
+      console.error('Failed to reset affect:', err instanceof Error ? err.message : err);
     },
   });
 

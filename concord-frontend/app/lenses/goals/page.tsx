@@ -273,11 +273,17 @@ export default function GoalsLensPage() {
         priority: newPriority,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+    onError: (err) => {
+      console.error('Failed to create goal:', err instanceof Error ? err.message : err);
+    },
   });
 
   const autoPropose = useMutation({
     mutationFn: () => apiHelpers.goals.autoPropose(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+    onError: (err) => {
+      console.error('Auto-propose failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   // Computed stats

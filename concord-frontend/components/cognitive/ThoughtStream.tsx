@@ -62,27 +62,49 @@ export function ThoughtStream({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const streamRef = useRef<HTMLDivElement>(null);
 
-  // Simulate real-time events for demo
+  // Listen for real-time DTU events via WebSocket
   useEffect(() => {
     if (!realtime || isPaused) return;
 
-    const interval = setInterval(() => {
-      const types: EventType[] = ['create', 'update', 'connect', 'synthesis', 'ai', 'consolidate'];
-      const randomType = types[Math.floor(Math.random() * types.length)];
+    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+    let socket: ReturnType<typeof import('socket.io-client').io> | null = null;
+    let disposed = false;
 
-      const newEvent: ThoughtEvent = {
-        id: Date.now().toString(),
-        type: randomType,
-        title: getRandomTitle(randomType),
-        description: getRandomDescription(randomType),
-        timestamp: new Date(),
-        dtuId: `dtu-${Math.floor(Math.random() * 1000)}`
+    import('socket.io-client').then(({ io }) => {
+      if (disposed) return;
+      socket = io(SOCKET_URL, {
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 3,
+        transports: ['websocket', 'polling'],
+        withCredentials: true,
+      });
+
+      const push = (eventType: EventType, data: Record<string, unknown>) => {
+        const newEvent: ThoughtEvent = {
+          id: Date.now().toString(),
+          type: eventType,
+          title: (data.title as string) || getRandomTitle(eventType),
+          description: (data.content as string)?.slice(0, 120) || getRandomDescription(eventType),
+          timestamp: new Date(),
+          dtuId: (data.id as string) || (data.dtuId as string),
+        };
+        setEvents(prev => [newEvent, ...prev].slice(0, maxEvents));
       };
 
-      setEvents(prev => [newEvent, ...prev].slice(0, maxEvents));
-    }, 3000 + Math.random() * 5000);
+      socket.on('dtu:created', (d: Record<string, unknown>) => push('create', d));
+      socket.on('dtu:updated', (d: Record<string, unknown>) => push('update', d));
+      socket.on('dtu:deleted', (d: Record<string, unknown>) => push('consolidate', d));
+      socket.on('pipeline:completed', (d: Record<string, unknown>) => push('synthesis', d));
+    }).catch(() => {
+      // WebSocket unavailable — stream shows "No activity yet" naturally
+    });
 
-    return () => clearInterval(interval);
+    return () => {
+      disposed = true;
+      socket?.removeAllListeners();
+      socket?.disconnect();
+    };
   }, [realtime, isPaused, maxEvents]);
 
   const filteredEvents = filter === 'all'
@@ -293,7 +315,7 @@ function FilterTab({
   );
 }
 
-// Helper functions for demo
+// Fallback labels for WebSocket events that lack title/description
 function getRandomTitle(type: EventType): string {
   const titles: Record<EventType, string[]> = {
     create: ['New DTU created', 'Thought captured', 'Idea recorded'],

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLensData } from '@/lib/hooks/use-lens-data';
@@ -203,17 +203,30 @@ export default function ForumLensPage() {
   const [replyContent, setReplyContent] = useState('');
   const [postReplyContent, setPostReplyContent] = useState('');
 
-  const { isError: isError, error: error, refetch: refetch, items: _postItems, create: _createPost } = useLensData('forum', 'post', {
+  const { isError: isError, error: error, refetch: refetch, items: postItems, create: createForumPost } = useLensData('forum', 'post', {
     seed: INITIAL_POSTS.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
-  const { isError: isError2, error: error2, refetch: refetch2, items: _communityItems } = useLensData('forum', 'community', {
+  const { isError: isError2, error: error2, refetch: refetch2, items: communityItems } = useLensData('forum', 'community', {
     seed: INITIAL_COMMUNITIES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
   });
+
+  // Sync backend data into local state when available
+  useEffect(() => {
+    if (postItems.length > 0) {
+      setPosts(postItems.map(i => i.data as unknown as Post));
+    }
+  }, [postItems]);
+
+  useEffect(() => {
+    if (communityItems.length > 0) {
+      setCommunities(communityItems.map(i => i.data as unknown as Community));
+    }
+  }, [communityItems]);
 
   // API queries for real-data integration
   useQuery({ queryKey: ['forum-posts-api', selectedCommunity, sortMode], queryFn: () => api.get('/api/dtus', { params: { tags: selectedCommunity !== 'all' ? selectedCommunity : undefined, sort: sortMode === 'new' ? 'createdAt' : 'score', order: 'desc' } }).then(r => r.data) });
   useQuery({ queryKey: ['communities-api'], queryFn: () => api.get('/api/tags').then(r => r.data) });
-  const voteMutation = useMutation({ mutationFn: ({ postId, vote }: { postId: string; vote: number }) => api.post(`/api/dtus/${postId}/vote`, { vote }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['forum-posts-api'] }) });
+  const voteMutation = useMutation({ mutationFn: ({ postId, vote }: { postId: string; vote: number }) => api.post(`/api/dtus/${postId}/vote`, { vote }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['forum-posts-api'] }), onError: (err: Error) => { console.error('Vote failed:', err.message); } });
 
   // ----- Filtered & sorted posts -----
   const displayPosts = useMemo(() => {

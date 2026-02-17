@@ -436,34 +436,3 @@ function ContextMenuItem({
   );
 }
 
-// Generate demo DTUs
-export function generateDemoDTUs(count: number): DTU[] {
-  const titles = [
-    'Philosophy of Mind',
-    'Quantum Mechanics Intro',
-    'Neural Networks',
-    'Epistemology Notes',
-    'Cognitive Architecture',
-    'Memory Systems',
-    'Language Processing',
-    'Decision Theory'
-  ];
-
-  const tags = ['philosophy', 'science', 'cognition', 'research', 'notes', 'ideas'];
-  const tiers: DTU['tier'][] = ['regular', 'regular', 'regular', 'mega', 'hyper', 'shadow'];
-
-  return Array.from({ length: count }, (_, i) => ({
-    id: `dtu-${i}`,
-    title: `${titles[i % titles.length]} #${i + 1}`,
-    excerpt: 'This is a sample excerpt that provides a brief overview of the DTU content...',
-    tier: tiers[Math.floor(Math.random() * tiers.length)],
-    tags: Array.from({ length: Math.floor(Math.random() * 3) + 1 }, () =>
-      tags[Math.floor(Math.random() * tags.length)]
-    ),
-    createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-    resonance: Math.random(),
-    connectionCount: Math.floor(Math.random() * 10),
-    isFavorite: Math.random() > 0.8
-  }));
-}

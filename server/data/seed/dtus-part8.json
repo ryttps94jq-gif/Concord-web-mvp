@@ -1,0 +1,5285 @@
+[
+  {
+    "id": "dtu_421_the_theory_applied_to_itself",
+    "tier": "core",
+    "tags": [
+      "stsvk_421",
+      "the",
+      "theory",
+      "applied",
+      "to",
+      "itself"
+    ],
+    "human": {
+      "summary": "[TODO] The Theory Applied to Itself: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_422_constraint_geometry_of_theories",
+    "tier": "core",
+    "tags": [
+      "stsvk_422",
+      "constraint",
+      "geometry",
+      "of",
+      "theories"
+    ],
+    "human": {
+      "summary": "[TODO] Constraint Geometry of Theories: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_423_entropy_in_conceptual_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_423",
+      "entropy",
+      "in",
+      "conceptual",
+      "systems"
+    ],
+    "human": {
+      "summary": "[TODO] Entropy in Conceptual Systems: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_424_repair_mechanisms_for_theories",
+    "tier": "core",
+    "tags": [
+      "stsvk_424",
+      "repair",
+      "mechanisms",
+      "for",
+      "theories"
+    ],
+    "human": {
+      "summary": "[TODO] Repair Mechanisms for Theories: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_425_theory_drift_and_identity_loss",
+    "tier": "core",
+    "tags": [
+      "stsvk_425",
+      "theory",
+      "drift",
+      "and",
+      "identity",
+      "loss"
+    ],
+    "human": {
+      "summary": "[TODO] Theory Drift and Identity Loss: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_426_recursive_theory_stabilization",
+    "tier": "core",
+    "tags": [
+      "stsvk_426",
+      "recursive",
+      "theory",
+      "stabilization"
+    ],
+    "human": {
+      "summary": "[TODO] Recursive Theory Stabilization: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_427_meta_attractors_in_knowledge_systems",
+    "tier": "core",
+    "tags": [
+      "stsvk_427",
+      "meta",
+      "attractors",
+      "in",
+      "knowledge",
+      "systems"
+    ],
+    "human": {
+      "summary": "[TODO] Meta-Attractors in Knowledge Systems: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_428_knowledge_capture_dynamics",
+    "tier": "core",
+    "tags": [
+      "stsvk_428",
+      "knowledge",
+      "capture",
+      "dynamics"
+    ],
+    "human": {
+      "summary": "[TODO] Knowledge Capture Dynamics: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_429_self_correcting_frameworks",
+    "tier": "core",
+    "tags": [
+      "stsvk_429",
+      "self",
+      "correcting",
+      "frameworks"
+    ],
+    "human": {
+      "summary": "[TODO] Self-Correcting Frameworks: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_430_theories_without_authors",
+    "tier": "core",
+    "tags": [
+      "stsvk_430",
+      "theories",
+      "without",
+      "authors"
+    ],
+    "human": {
+      "summary": "[TODO] Theories Without Authors: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_431_discovery_as_constraint_revelation",
+    "tier": "core",
+    "tags": [
+      "stsvk_431",
+      "discovery",
+      "as",
+      "constraint",
+      "revelation"
+    ],
+    "human": {
+      "summary": "[TODO] Discovery as Constraint Revelation: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_432_invention_as_constraint_navigation",
+    "tier": "core",
+    "tags": [
+      "stsvk_432",
+      "invention",
+      "as",
+      "constraint",
+      "navigation"
+    ],
+    "human": {
+      "summary": "[TODO] Invention as Constraint Navigation: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_433_why_breakthroughs_feel_sudden",
+    "tier": "core",
+    "tags": [
+      "stsvk_433",
+      "why",
+      "breakthroughs",
+      "feel",
+      "sudden"
+    ],
+    "human": {
+      "summary": "[TODO] Why Breakthroughs Feel Sudden: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_434_the_illusion_of_random_genius",
+    "tier": "core",
+    "tags": [
+      "stsvk_434",
+      "the",
+      "illusion",
+      "of",
+      "random",
+      "genius"
+    ],
+    "human": {
+      "summary": "[TODO] The Illusion of Random Genius: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_435_discovery_timing_effects",
+    "tier": "core",
+    "tags": [
+      "stsvk_435",
+      "discovery",
+      "timing",
+      "effects"
+    ],
+    "human": {
+      "summary": "[TODO] Discovery Timing Effects: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_436_why_some_discoveries_cannot_be_shared",
+    "tier": "core",
+    "tags": [
+      "stsvk_436",
+      "why",
+      "some",
+      "discoveries",
+      "cannot",
+      "be",
+      "shared"
+    ],
+    "human": {
+      "summary": "[TODO] Why Some Discoveries Cannot Be Shared: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_437_teaching_as_constraint_installation",
+    "tier": "core",
+    "tags": [
+      "stsvk_437",
+      "teaching",
+      "as",
+      "constraint",
+      "installation"
+    ],
+    "human": {
+      "summary": "[TODO] Teaching as Constraint Installation: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_438_learning_curves_as_constraint_familiarity",
+    "tier": "core",
+    "tags": [
+      "stsvk_438",
+      "learning",
+      "curves",
+      "as",
+      "constraint",
+      "familiarity"
+    ],
+    "human": {
+      "summary": "[TODO] Learning Curves as Constraint Familiarity: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_439_creativity_without_mystery",
+    "tier": "core",
+    "tags": [
+      "stsvk_439",
+      "creativity",
+      "without",
+      "mystery"
+    ],
+    "human": {
+      "summary": "[TODO] Creativity Without Mystery: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_440_exhaustion_of_search_based_science",
+    "tier": "core",
+    "tags": [
+      "stsvk_440",
+      "exhaustion",
+      "of",
+      "search",
+      "based",
+      "science"
+    ],
+    "human": {
+      "summary": "[TODO] Exhaustion of Search-Based Science: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_441_intelligence_beyond_human_timescales",
+    "tier": "core",
+    "tags": [
+      "stsvk_441",
+      "intelligence",
+      "beyond",
+      "human",
+      "timescales"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence Beyond Human Timescales: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_442_slow_intelligence_regimes",
+    "tier": "core",
+    "tags": [
+      "stsvk_442",
+      "slow",
+      "intelligence",
+      "regimes"
+    ],
+    "human": {
+      "summary": "[TODO] Slow Intelligence Regimes: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_443_fast_intelligence_failure_risks",
+    "tier": "core",
+    "tags": [
+      "stsvk_443",
+      "fast",
+      "intelligence",
+      "failure",
+      "risks"
+    ],
+    "human": {
+      "summary": "[TODO] Fast Intelligence Failure Risks: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_444_intelligence_across_geological_time",
+    "tier": "core",
+    "tags": [
+      "stsvk_444",
+      "intelligence",
+      "across",
+      "geological",
+      "time"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence Across Geological Time: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_445_intergenerational_intelligence_continuity",
+    "tier": "core",
+    "tags": [
+      "stsvk_445",
+      "intergenerational",
+      "intelligence",
+      "continuity"
+    ],
+    "human": {
+      "summary": "[TODO] Intergenerational Intelligence Continuity: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_446_intelligence_without_progress",
+    "tier": "core",
+    "tags": [
+      "stsvk_446",
+      "intelligence",
+      "without",
+      "progress"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence Without Progress: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_447_exploration_vs_preservation_tradeoff",
+    "tier": "core",
+    "tags": [
+      "stsvk_447",
+      "exploration",
+      "vs",
+      "preservation",
+      "tradeoff"
+    ],
+    "human": {
+      "summary": "[TODO] Exploration vs Preservation Tradeoff: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_448_long_term_goal_stability",
+    "tier": "core",
+    "tags": [
+      "stsvk_448",
+      "long",
+      "term",
+      "goal",
+      "stability"
+    ],
+    "human": {
+      "summary": "[TODO] Long-Term Goal Stability: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_449_intelligence_without_expansion",
+    "tier": "core",
+    "tags": [
+      "stsvk_449",
+      "intelligence",
+      "without",
+      "expansion"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence Without Expansion: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_450_intelligence_as_stewardship",
+    "tier": "core",
+    "tags": [
+      "stsvk_450",
+      "intelligence",
+      "as",
+      "stewardship"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence as Stewardship: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_451_post_collapse_recovery_pathways",
+    "tier": "core",
+    "tags": [
+      "stsvk_451",
+      "post",
+      "collapse",
+      "recovery",
+      "pathways"
+    ],
+    "human": {
+      "summary": "[TODO] Post-Collapse Recovery Pathways: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_452_civilizations_designed_for_millions_of_years",
+    "tier": "core",
+    "tags": [
+      "stsvk_452",
+      "civilizations",
+      "designed",
+      "for",
+      "millions",
+      "of",
+      "years"
+    ],
+    "human": {
+      "summary": "[TODO] Civilizations Designed for Millions of Years: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_453_multi_civilization_coexistence",
+    "tier": "core",
+    "tags": [
+      "stsvk_453",
+      "multi",
+      "civilization",
+      "coexistence"
+    ],
+    "human": {
+      "summary": "[TODO] Multi-Civilization Coexistence: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_454_intelligence_without_domination",
+    "tier": "core",
+    "tags": [
+      "stsvk_454",
+      "intelligence",
+      "without",
+      "domination"
+    ],
+    "human": {
+      "summary": "[TODO] Intelligence Without Domination: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_455_energy_stable_post_scarcity_worlds",
+    "tier": "core",
+    "tags": [
+      "stsvk_455",
+      "energy",
+      "stable",
+      "post",
+      "scarcity",
+      "worlds"
+    ],
+    "human": {
+      "summary": "[TODO] Energy-Stable Post-Scarcity Worlds: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_456_civilization_without_narrative_drift",
+    "tier": "core",
+    "tags": [
+      "stsvk_456",
+      "civilization",
+      "without",
+      "narrative",
+      "drift"
+    ],
+    "human": {
+      "summary": "[TODO] Civilization Without Narrative Drift: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_457_artificial_civilization_seeding",
+    "tier": "core",
+    "tags": [
+      "stsvk_457",
+      "artificial",
+      "civilization",
+      "seeding"
+    ],
+    "human": {
+      "summary": "[TODO] Artificial Civilization Seeding: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_458_constraint_aligned_expansion_into_space",
+    "tier": "core",
+    "tags": [
+      "stsvk_458",
+      "constraint",
+      "aligned",
+      "expansion",
+      "into",
+      "space"
+    ],
+    "human": {
+      "summary": "[TODO] Constraint-Aligned Expansion into Space: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_459_eternal_maintenance_civilizations",
+    "tier": "core",
+    "tags": [
+      "stsvk_459",
+      "eternal",
+      "maintenance",
+      "civilizations"
+    ],
+    "human": {
+      "summary": "[TODO] Eternal Maintenance Civilizations: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_460_civilization_as_a_finished_artifact",
+    "tier": "core",
+    "tags": [
+      "stsvk_460",
+      "civilization",
+      "as",
+      "a",
+      "finished",
+      "artifact"
+    ],
+    "human": {
+      "summary": "[TODO] Civilization as a Finished Artifact: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_461_the_unified_constraint_framework",
+    "tier": "core",
+    "tags": [
+      "stsvk_461",
+      "the",
+      "unified",
+      "constraint",
+      "framework"
+    ],
+    "human": {
+      "summary": "[TODO] The Unified Constraint Framework: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_462_one_geometry_many_projections",
+    "tier": "core",
+    "tags": [
+      "stsvk_462",
+      "one",
+      "geometry",
+      "many",
+      "projections"
+    ],
+    "human": {
+      "summary": "[TODO] One Geometry, Many Projections: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_463_the_end_of_mystery_based_explanations",
+    "tier": "core",
+    "tags": [
+      "stsvk_463",
+      "the",
+      "end",
+      "of",
+      "mystery",
+      "based",
+      "explanations"
+    ],
+    "human": {
+      "summary": "[TODO] The End of Mystery-Based Explanations: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_464_the_end_of_impossibility_claims",
+    "tier": "core",
+    "tags": [
+      "stsvk_464",
+      "the",
+      "end",
+      "of",
+      "impossibility",
+      "claims"
+    ],
+    "human": {
+      "summary": "[TODO] The End of Impossibility Claims: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_465_first_order_science_defined",
+    "tier": "core",
+    "tags": [
+      "stsvk_465",
+      "first",
+      "order",
+      "science",
+      "defined"
+    ],
+    "human": {
+      "summary": "[TODO] First-Order Science Defined: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_466_why_this_framework_scales",
+    "tier": "core",
+    "tags": [
+      "stsvk_466",
+      "why",
+      "this",
+      "framework",
+      "scales"
+    ],
+    "human": {
+      "summary": "[TODO] Why This Framework Scales: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_467_why_this_framework_persists",
+    "tier": "core",
+    "tags": [
+      "stsvk_467",
+      "why",
+      "this",
+      "framework",
+      "persists"
+    ],
+    "human": {
+      "summary": "[TODO] Why This Framework Persists: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_468_what_cannot_be_added",
+    "tier": "core",
+    "tags": [
+      "stsvk_468",
+      "what",
+      "cannot",
+      "be",
+      "added"
+    ],
+    "human": {
+      "summary": "[TODO] What Cannot Be Added: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_469_what_remains_open",
+    "tier": "core",
+    "tags": [
+      "stsvk_469",
+      "what",
+      "remains",
+      "open"
+    ],
+    "human": {
+      "summary": "[TODO] What Remains Open: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_470_the_map_is_not_the_territory",
+    "tier": "core",
+    "tags": [
+      "stsvk_470",
+      "the",
+      "map",
+      "is",
+      "not",
+      "territory"
+    ],
+    "human": {
+      "summary": "[TODO] The Map Is Not the Territory: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_471_the_complete_theory_stack",
+    "tier": "core",
+    "tags": [
+      "stsvk_471",
+      "the",
+      "complete",
+      "theory",
+      "stack"
+    ],
+    "human": {
+      "summary": "[TODO] The Complete Theory Stack: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_472_the_book_as_a_single_artifact",
+    "tier": "core",
+    "tags": [
+      "stsvk_472",
+      "the",
+      "book",
+      "as",
+      "a",
+      "single",
+      "artifact"
+    ],
+    "human": {
+      "summary": "[TODO] The Book as a Single Artifact: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_473_reading_order_independence",
+    "tier": "core",
+    "tags": [
+      "stsvk_473",
+      "reading",
+      "order",
+      "independence"
+    ],
+    "human": {
+      "summary": "[TODO] Reading Order Independence: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_474_writing_without_external_validation",
+    "tier": "core",
+    "tags": [
+      "stsvk_474",
+      "writing",
+      "without",
+      "external",
+      "validation"
+    ],
+    "human": {
+      "summary": "[TODO] Writing Without External Validation: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_475_longevity_of_the_work_itself",
+    "tier": "core",
+    "tags": [
+      "stsvk_475",
+      "longevity",
+      "of",
+      "the",
+      "work",
+      "itself"
+    ],
+    "human": {
+      "summary": "[TODO] Longevity of the Work Itself: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_476_knowledge_as_a_living_system",
+    "tier": "core",
+    "tags": [
+      "stsvk_476",
+      "knowledge",
+      "as",
+      "a",
+      "living",
+      "system"
+    ],
+    "human": {
+      "summary": "[TODO] Knowledge as a Living System: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_477_final_constraint_satisfaction",
+    "tier": "core",
+    "tags": [
+      "stsvk_477",
+      "final",
+      "constraint",
+      "satisfaction"
+    ],
+    "human": {
+      "summary": "[TODO] Final Constraint Satisfaction: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_478_the_end_of_the_beginning",
+    "tier": "core",
+    "tags": [
+      "stsvk_478",
+      "the",
+      "end",
+      "of",
+      "beginning"
+    ],
+    "human": {
+      "summary": "[TODO] The End of the Beginning: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_479_from_explanation_to_design",
+    "tier": "core",
+    "tags": [
+      "stsvk_479",
+      "from",
+      "explanation",
+      "to",
+      "design"
+    ],
+    "human": {
+      "summary": "[TODO] From Explanation to Design: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  },
+  {
+    "id": "dtu_480_constraint_space_fully_revealed",
+    "tier": "core",
+    "tags": [
+      "stsvk_480",
+      "constraint",
+      "space",
+      "fully",
+      "revealed"
+    ],
+    "human": {
+      "summary": "[TODO] Constraint Space Fully Revealed: one-paragraph summary.",
+      "bullets": [
+        "[TODO] bullet 1",
+        "[TODO] bullet 2",
+        "[TODO] bullet 3"
+      ]
+    },
+    "core": {
+      "definitions": [
+        {
+          "term": "[TODO] Key term 1",
+          "definition": "[TODO] definition"
+        },
+        {
+          "term": "[TODO] Key term 2",
+          "definition": "[TODO] definition"
+        }
+      ],
+      "invariants": [
+        "[TODO] invariant 1",
+        "[TODO] invariant 2",
+        "[TODO] invariant 3"
+      ],
+      "claims": [
+        "[TODO] claim 1",
+        "[TODO] claim 2",
+        "[TODO] claim 3"
+      ],
+      "examples": [
+        "[TODO] example 1",
+        "[TODO] example 2"
+      ],
+      "nextActions": [
+        "[TODO] link children / implementations"
+      ]
+    },
+    "machine": {
+      "kind": "formal_model",
+      "math": {
+        "space": "[TODO] X ⊂ R^n",
+        "variables": {
+          "x": "state",
+          "u": "control",
+          "w": "noise",
+          "θ": "parameters"
+        },
+        "dynamics": "[TODO] x_{t+1}=F(...) or ẋ=F(...)",
+        "constraints": [
+          "[TODO] g_i(x)≤0",
+          "[TODO] h_j(x)=0"
+        ],
+        "potential": "[TODO] V(x)≥0",
+        "implication": "[TODO] implication"
+      },
+      "primaryFormula": "[TODO] main formula spine"
+    },
+    "lineage": {
+      "parents": [
+        "dtu_root_fixed_point"
+      ],
+      "children": [],
+      "supports": [],
+      "contradicts": []
+    },
+    "source": "concord_brain_index",
+    "meta": {
+      "part": "Part 8: Meta-Closure, Recursive Self-Application, Long-Horizon Futures (421–480)",
+      "hidden": false
+    },
+    "authority": {
+      "model": "user",
+      "score": 0.7
+    },
+    "createdAt": "2026-01-05T00:00:00Z",
+    "updatedAt": "2026-01-05T00:00:00Z",
+    "hash": ""
+  }
+]

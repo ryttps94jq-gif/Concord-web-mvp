@@ -322,18 +322,3 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-// Generate random users for demo
-export function generateDemoUsers(count: number): User[] {
-  const names = ['Alice', 'Bob', 'Carol', 'David', 'Eve', 'Frank', 'Grace', 'Henry'];
-  const colors = ['#22d3ee', '#a855f7', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#8b5cf6'];
-  const statuses: User['status'][] = ['active', 'idle', 'viewing'];
-  const locations = ['Graph View', 'DTU #42', 'Whiteboard', 'Schema Editor', 'Dashboard'];
-
-  return Array.from({ length: count }, (_, i) => ({
-    id: `user-${i}`,
-    name: names[i % names.length],
-    color: colors[i % colors.length],
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    location: locations[Math.floor(Math.random() * locations.length)]
-  }));
-}

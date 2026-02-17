@@ -135,7 +135,7 @@ export function SkeletonGraph({ className }: { className?: string }) {
           transition={{ duration: 2, repeat: Infinity, delay: 1 }}
         />
       </div>
-      {/* Fake nodes */}
+      {/* Placeholder skeleton nodes */}
       {[...Array(6)].map((_, i) => (
         <motion.div
           key={i}

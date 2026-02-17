@@ -1,0 +1,7 @@
+# Concord OS — concord-os.org
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /lenses/
+
+Sitemap: https://concord-os.org/sitemap.xml

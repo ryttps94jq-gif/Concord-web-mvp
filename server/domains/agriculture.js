@@ -8,7 +8,7 @@ export default function registerAgricultureActions(registerLensAction) {
    * artifact.data.fields: [{ fieldId, name, acreage, soilType, history: [{ year, season, crop, yieldPerAcre }] }]
    * artifact.data.rotationRules: [{ previousCrop, recommendedNext: [...], avoid: [...] }]
    */
-  registerLensAction("agriculture", "rotationPlan", async (ctx, artifact, params) => {
+  registerLensAction("agriculture", "rotationPlan", (ctx, artifact, params) => {
     const fields = artifact.data.fields || [];
     const rules = artifact.data.rotationRules || params.rotationRules || [];
 
@@ -31,8 +31,8 @@ export default function registerAgricultureActions(registerLensAction) {
 
       // Check rotation rules
       const rule = lastCrop ? rulesMap[lastCrop] : null;
-      let recommended = rule ? rule.recommended : [];
-      let avoid = rule ? rule.avoid : [];
+      const recommended = rule ? rule.recommended : [];
+      const avoid = rule ? rule.avoid : [];
 
       // Also avoid repeating any of the last 3 crops
       const avoidSet = new Set([...avoid, ...last3Crops]);
@@ -85,7 +85,7 @@ export default function registerAgricultureActions(registerLensAction) {
    * artifact.data.fields: same structure with history entries having yieldPerAcre and expectedYield
    * params.season, params.year — filter to a specific growing season
    */
-  registerLensAction("agriculture", "yieldAnalysis", async (ctx, artifact, params) => {
+  registerLensAction("agriculture", "yieldAnalysis", (ctx, artifact, params) => {
     const fields = artifact.data.fields || [];
     const targetYear = params.year || new Date().getFullYear();
     const targetSeason = params.season || null;
@@ -164,7 +164,7 @@ export default function registerAgricultureActions(registerLensAction) {
    * Flag equipment past its service interval.
    * artifact.data.equipment: [{ equipmentId, name, type, lastServiceDate, serviceIntervalHours, currentHours }]
    */
-  registerLensAction("agriculture", "equipmentDue", async (ctx, artifact, params) => {
+  registerLensAction("agriculture", "equipmentDue", (ctx, artifact, _params) => {
     const equipment = artifact.data.equipment || [];
     const now = new Date();
 
@@ -241,7 +241,7 @@ export default function registerAgricultureActions(registerLensAction) {
    * artifact.data.weatherForecast: [{ date, highTemp, lowTemp, precipInches, humidity }] (optional)
    * params.daysAhead (default 7)
    */
-  registerLensAction("agriculture", "waterSchedule", async (ctx, artifact, params) => {
+  registerLensAction("agriculture", "waterSchedule", (ctx, artifact, params) => {
     const fields = artifact.data.fields || [];
     const forecast = artifact.data.weatherForecast || [];
     const daysAhead = params.daysAhead || 7;

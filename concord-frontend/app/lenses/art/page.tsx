@@ -131,6 +131,9 @@ export default function ArtLensPage() {
       setUploadDescription('');
       setUploadTags('');
     },
+    onError: (err) => {
+      console.error('Upload failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   const createListingMutation = useMutation({
@@ -138,6 +141,9 @@ export default function ArtLensPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['art-marketplace'] });
       setShowCreateListing(false);
+    },
+    onError: (err) => {
+      console.error('Failed to create listing:', err instanceof Error ? err.message : err);
     },
   });
 

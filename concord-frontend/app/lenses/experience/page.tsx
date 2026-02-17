@@ -77,7 +77,7 @@ const PROFILE = {
 
 const INITIAL_PORTFOLIO: PortfolioItem[] = [];
 
-const INITIAL_SKILLS: SkillData[] = [];
+const SEED_SKILLS: SkillData[] = [];
 
 const INITIAL_HISTORY: HistoryItem[] = [];
 
@@ -214,12 +214,22 @@ export default function ExperienceLensPage() {
   const [activeTab, setActiveTab] = useState<TabId>('portfolio');
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioFilter>('all');
 
-  const { isError: isError, error: error, refetch: refetch, items: _portfolioItems } = useLensData('experience', 'portfolio', {
+  const { isError: isError, error: error, refetch: refetch, items: portfolioItems } = useLensData('experience', 'portfolio', {
     seed: INITIAL_PORTFOLIO.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
   });
-  const { isError: isError2, error: error2, refetch: refetch2, items: _skillItems } = useLensData('experience', 'skill', {
-    seed: INITIAL_SKILLS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
+  const { isError: isError2, error: error2, refetch: refetch2, items: skillItems } = useLensData('experience', 'skill', {
+    seed: SEED_SKILLS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
+
+  // Derive live data from backend items, falling back to initial constants
+  const portfolio: PortfolioItem[] = useMemo(() =>
+    portfolioItems.length > 0 ? portfolioItems.map(i => i.data as unknown as PortfolioItem) : INITIAL_PORTFOLIO,
+    [portfolioItems]
+  );
+  const skills: SkillData[] = useMemo(() =>
+    skillItems.length > 0 ? skillItems.map(i => i.data as unknown as SkillData) : SEED_SKILLS,
+    [skillItems]
+  );
 
   // Fetch real data in background for future use
   useQuery({
@@ -231,10 +241,10 @@ export default function ExperienceLensPage() {
   // --- Derived data ---
 
   const filteredPortfolio = useMemo(() => {
-    if (portfolioFilter === 'all') return INITIAL_PORTFOLIO;
-    if (portfolioFilter === 'collaborations') return INITIAL_PORTFOLIO.filter((p) => p.type === 'collaboration');
-    return INITIAL_PORTFOLIO.filter((p) => p.type === portfolioFilter.slice(0, -1) as PortfolioItemType);
-  }, [portfolioFilter]);
+    if (portfolioFilter === 'all') return portfolio;
+    if (portfolioFilter === 'collaborations') return portfolio.filter((p) => p.type === 'collaboration');
+    return portfolio.filter((p) => p.type === portfolioFilter.slice(0, -1) as PortfolioItemType);
+  }, [portfolioFilter, portfolio]);
 
   const groupedHistory = useMemo(() => {
     const groups: Record<string, HistoryItem[]> = {};
@@ -247,7 +257,7 @@ export default function ExperienceLensPage() {
 
   const skillsByCategory = useMemo(() => {
     const cats: Record<string, SkillData[]> = { technical: [], creative: [], business: [] };
-    for (const s of INITIAL_SKILLS) {
+    for (const s of skills) {
       cats[s.category].push(s);
     }
     return cats;
@@ -524,15 +534,15 @@ export default function ExperienceLensPage() {
                   {gridLevels.map((lv) => (
                     <polygon
                       key={lv}
-                      points={radarGridPoints(lv, 10, INITIAL_SKILLS.length, radarR, radarCx, radarCy)}
+                      points={radarGridPoints(lv, 10, skills.length, radarR, radarCx, radarCy)}
                       fill="none"
                       stroke="rgba(255,255,255,0.08)"
                       strokeWidth="1"
                     />
                   ))}
                   {/* Axis lines */}
-                  {INITIAL_SKILLS.map((_, i) => {
-                    const angle = (Math.PI * 2 * i) / INITIAL_SKILLS.length - Math.PI / 2;
+                  {skills.map((_, i) => {
+                    const angle = (Math.PI * 2 * i) / skills.length - Math.PI / 2;
                     const ex = radarCx + radarR * Math.cos(angle);
                     const ey = radarCy + radarR * Math.sin(angle);
                     return (
@@ -553,14 +563,14 @@ export default function ExperienceLensPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.6, ease: 'easeOut' }}
                     style={{ transformOrigin: `${radarCx}px ${radarCy}px` }}
-                    points={radarPoints(INITIAL_SKILLS, radarR, radarCx, radarCy)}
+                    points={radarPoints(skills, radarR, radarCx, radarCy)}
                     fill="rgba(168, 85, 247, 0.25)"
                     stroke="rgba(168, 85, 247, 0.8)"
                     strokeWidth="2"
                   />
                   {/* Dots at vertices */}
-                  {INITIAL_SKILLS.map((s, i) => {
-                    const angle = (Math.PI * 2 * i) / INITIAL_SKILLS.length - Math.PI / 2;
+                  {skills.map((s, i) => {
+                    const angle = (Math.PI * 2 * i) / skills.length - Math.PI / 2;
                     const r = (s.level / s.maxLevel) * radarR;
                     const dx = radarCx + r * Math.cos(angle);
                     const dy = radarCy + r * Math.sin(angle);
@@ -569,8 +579,8 @@ export default function ExperienceLensPage() {
                     );
                   })}
                   {/* Labels */}
-                  {INITIAL_SKILLS.map((s, i) => {
-                    const pos = radarLabelPos(i, INITIAL_SKILLS.length, radarR, radarCx, radarCy);
+                  {skills.map((s, i) => {
+                    const pos = radarLabelPos(i, skills.length, radarR, radarCx, radarCy);
                     return (
                       <text
                         key={s.id}
@@ -591,7 +601,7 @@ export default function ExperienceLensPage() {
               <div className="panel p-4 space-y-4">
                 <h3 className="text-sm font-semibold">Skill Levels</h3>
                 <motion.div className="space-y-3" variants={staggerParent} initial="hidden" animate="visible">
-                  {INITIAL_SKILLS.map((skill) => (
+                  {skills.map((skill) => (
                     <motion.div key={skill.id} variants={staggerChild} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

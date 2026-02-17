@@ -7,6 +7,12 @@ import { CommandPalette } from './CommandPalette';
 import { useUIStore } from '@/store/ui';
 import { Toasts } from '@/components/common/Toasts';
 import { OperatorErrorBanner } from '@/components/common/OperatorErrorBanner';
+import { SystemStatus } from '@/components/common/SystemStatus';
+import { SystemGuidePanel } from '@/components/guidance/SystemGuidePanel';
+import { FirstWinWizard } from '@/components/guidance/FirstWinWizard';
+import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { OfflineFallback } from '@/components/pwa/OfflineFallback';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -18,6 +24,13 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     setMounted(true);
+
+    // Register service worker for PWA support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // SW registration failed — offline caching won't work
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -36,7 +49,12 @@ export function AppShell({ children }: AppShellProps) {
   }, [commandPaletteOpen, setCommandPaletteOpen]);
 
   if (!mounted) {
-    return null;
+    // Minimal shell during hydration to prevent CLS flash
+    return (
+      <div className="flex h-screen overflow-hidden bg-lattice-void">
+        <div className="flex-1" />
+      </div>
+    );
   }
 
   // Full page mode: render children without shell chrome (for landing page, etc.)
@@ -68,7 +86,9 @@ export function AppShell({ children }: AppShellProps) {
             sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           }`}
         >
-          {children}
+          <LensErrorBoundary name="Main Content">
+            {children}
+          </LensErrorBoundary>
         </main>
       </div>
 
@@ -77,6 +97,11 @@ export function AppShell({ children }: AppShellProps) {
         onClose={() => setCommandPaletteOpen(false)}
       />
       <Toasts />
+      <SystemStatus />
+      <SystemGuidePanel />
+      <FirstWinWizard />
+      <OfflineFallback />
+      <InstallPrompt />
     </div>
   );
 }

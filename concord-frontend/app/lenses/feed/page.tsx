@@ -485,8 +485,8 @@ export default function FeedLensPage() {
   const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { isError: isError, error: error, refetch: refetch, items: _postLensItems, create: _createLensPost } = useLensData('feed', 'post', {
-    seed: [],
+  const { isError: isError, error: error, refetch: refetch, items: postLensItems, create: createLensPost } = useLensData<Record<string, unknown>>('feed', 'post', {
+    seed: INITIAL_POSTS.map(p => ({ title: p.content?.slice(0, 80) || p.id, data: p as unknown as Record<string, unknown> })),
   });
 
   // Fetch real DTU data with fallback to demo
@@ -525,8 +525,16 @@ export default function FeedLensPage() {
           });
         }
 
-        return serverPosts.length > 0 ? serverPosts : INITIAL_POSTS;
+        if (serverPosts.length > 0) return serverPosts;
+        // Fall back to persisted lens items if available
+        if (postLensItems.length > 0) {
+          return postLensItems.map(li => ({ id: li.id, ...(li.data as Record<string, unknown>) } as unknown as FeedPost));
+        }
+        return INITIAL_POSTS;
       } catch {
+        if (postLensItems.length > 0) {
+          return postLensItems.map(li => ({ id: li.id, ...(li.data as Record<string, unknown>) } as unknown as FeedPost));
+        }
         return INITIAL_POSTS;
       }
     },
@@ -558,11 +566,17 @@ export default function FeedLensPage() {
       queryClient.invalidateQueries({ queryKey: ['feed-posts'] });
       setNewPost('');
     },
+    onError: (err) => {
+      console.error('Failed to create post:', err instanceof Error ? err.message : err);
+    },
   });
 
   const likeMutation = useMutation({
     mutationFn: (postId: string) => api.post(`/api/dtus/${postId}/like`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feed-posts'] }),
+    onError: (err) => {
+      console.error('Failed to like post:', err instanceof Error ? err.message : err);
+    },
   });
 
   const formatTime = useCallback((dateStr: string) => {

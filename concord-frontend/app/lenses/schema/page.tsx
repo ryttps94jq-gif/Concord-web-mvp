@@ -25,12 +25,18 @@ export default function SchemaLensPage() {
       queryClient.invalidateQueries({ queryKey: ['schemas'] });
       setShowCreate(false);
     },
+    onError: (err) => {
+      console.error('Schema creation failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   const validateMutation = useMutation({
     mutationFn: (data: { schemaName: string; data: unknown }) =>
       api.post('/api/schema/validate', data),
     onSuccess: (result) => setValidationResult(result.data),
+    onError: (err) => {
+      setValidationResult({ valid: false, errors: [{ field: 'API', error: err instanceof Error ? err.message : 'Validation request failed' }] });
+    },
   });
 
   const handleValidate = () => {

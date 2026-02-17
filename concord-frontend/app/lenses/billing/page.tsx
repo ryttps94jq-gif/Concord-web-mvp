@@ -17,7 +17,7 @@ interface TokenPackage {
 }
 
 export default function BillingPage() {
-  const _queryClient = useQueryClient();
+  const queryClient = useQueryClient();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   // Get economic config
@@ -45,7 +45,12 @@ export default function BillingPage() {
     onSuccess: (data) => {
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
       }
+    },
+    onError: (err) => {
+      console.error('Purchase failed:', err instanceof Error ? err.message : err);
     },
   });
 
@@ -59,11 +64,17 @@ export default function BillingPage() {
     onSuccess: (data) => {
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
+        queryClient.invalidateQueries({ queryKey: ['economic-config'] });
       }
+    },
+    onError: (err) => {
+      console.error('Subscription failed:', err instanceof Error ? err.message : err);
     },
   });
 
-  const _tiers = config?.tiers || {};
+  const tiers = config?.tiers || {};
   const tokenPackages = config?.tokenPackages || [];
 
 
@@ -147,8 +158,8 @@ export default function BillingPage() {
               '100 tokens/month',
             ]}
             current={wallet?.tier === 'free'}
-            onSelect={() => {}}
-            disabled={true}
+            onSelect={() => subscribeMutation.mutate('free')}
+            disabled={wallet?.tier === 'free'}
           />
 
           {/* Pro Tier */}

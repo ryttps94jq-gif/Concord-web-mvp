@@ -1,9 +1,20 @@
 
+# Dependencies
+node_modules/
+
 # Server generated files
 server/node_modules/
 server/concord_state.json
 concord_state.json
 data/
+
+# Un-ignore seed pack directory (canonical DTU source, committed to repo)
+# gitignore requires un-ignoring each parent directory in the chain,
+# then re-ignoring siblings we don't want tracked.
+!server/data/
+server/data/*
+!server/data/seed/
+!server/data/seed/**
 
 # Next.js build output (when built from root)
 .next/

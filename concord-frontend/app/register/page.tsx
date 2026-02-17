@@ -1,0 +1,200 @@
+'use client';
+
+import { useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { api } from '@/lib/api/client';
+import { Brain, UserPlus, Eye, EyeOff } from 'lucide-react';
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Fetch CSRF token first
+      await api.get('/api/auth/csrf-token');
+      const res = await api.post('/api/auth/register', { username, email, password });
+      if (res.data?.ok) {
+        // Registration auto-sets auth cookies, go straight to dashboard
+        localStorage.setItem('concord_entered', 'true');
+        router.push('/');
+      } else {
+        setError(res.data?.error || 'Registration failed');
+      }
+    } catch (err: unknown) {
+      const axErr = err as { response?: { data?: { error?: string } } };
+      setError(axErr?.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-lattice-void flex items-center justify-center px-4">
+      {/* Background glow */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-neon-purple/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/3 w-96 h-96 bg-neon-cyan/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-blue flex items-center justify-center">
+              <Brain className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-3xl font-bold text-white">Concord</span>
+          </Link>
+          <p className="text-gray-400 mt-3">Create your sovereign account</p>
+        </div>
+
+        {/* Form card */}
+        <div className="bg-lattice-surface border border-lattice-border rounded-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-describedby={error ? "register-error" : undefined}>
+            {error && (
+              <div id="register-error" role="alert" aria-live="assertive" className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+                autoComplete="username"
+                pattern="^[a-zA-Z0-9_-]+$"
+                minLength={3}
+                maxLength={50}
+                aria-invalid={!!error}
+                aria-describedby="username-hint"
+                className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
+                placeholder="Choose a username"
+              />
+              <p id="username-hint" className="text-gray-500 text-xs mt-1">3-50 characters, letters, numbers, underscores, hyphens</p>
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                aria-invalid={!!error}
+                className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={12}
+                  autoComplete="new-password"
+                  aria-invalid={!!error}
+                  className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors pr-12"
+                  placeholder="Minimum 12 characters"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-300 mb-2">
+                Confirm Password
+              </label>
+              <input
+                id="confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={12}
+                autoComplete="new-password"
+                aria-invalid={!!error}
+                className="w-full px-4 py-3 bg-lattice-deep border border-lattice-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-neon-blue/50 focus:ring-1 focus:ring-neon-blue/30 transition-colors"
+                placeholder="Re-enter password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-neon-cyan to-neon-blue rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-neon-cyan/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <span className="animate-pulse">Creating account...</span>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  Create Account
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-gray-400 text-sm">
+              Already have an account?{' '}
+              <a href="/login" className="text-neon-cyan hover:text-neon-blue transition-colors font-medium">
+                Sign in
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <p className="text-center text-gray-500 text-xs mt-6">
+          First user becomes the owner with full administrative access.
+        </p>
+      </div>
+    </div>
+  );
+}

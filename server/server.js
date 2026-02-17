@@ -30,10 +30,38 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
+import { createRequire } from "module";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
 import { ConcordError, ValidationError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError, RateLimitError, ServiceUnavailableError, DatabaseError } from "./lib/errors.js";
 import { asyncHandler, createErrorMiddleware } from "./lib/async-handler.js";
+import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
+import configureMiddleware from "./middleware/index.js";
+
+// ---- "Everything Real" imports: migration runner + durable endpoints ----
+import { runMigrations as runSchemaMigrations } from "./migrate.js";
+import { registerDurableEndpoints } from "./durable.js";
+
+// ---- Guidance Layer v1: events, SSE, inspector, undo, suggestions ----
+import { registerGuidanceEndpoints } from "./guidance.js";
+
+// ---- Economy System: ledger, balances, transfers, withdrawals ----
+import {
+  registerEconomyEndpoints,
+  hasSufficientBalance,
+  calculateFee,
+  FEES,
+  PLATFORM_ACCOUNT_ID,
+  recordTransactionBatch,
+  generateTxId,
+  checkRefIdProcessed,
+  validateBalance as economyValidateBalance,
+  economyAudit,
+  auditCtx,
+  createPurchase,
+  transitionPurchase,
+  recordSettlement,
+} from "./economy/index.js";
 
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
@@ -60,19 +88,42 @@ import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFr
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
 import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransferRights, getRightsMetrics, computeContentHash as rightsContentHash } from "./emergent/atlas-rights.js";
 
+// ---- CJS interop for route modules (routes/*.js use module.exports) ----
+const require = createRequire(import.meta.url);
+
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
 
 // ---- Production dependencies (graceful loading) ----
+// SECURITY: In production, security dependencies MUST load or the server refuses to start.
+// In development, they are optional to allow lightweight local dev without all deps.
 let jwt = null, bcrypt = null, z = null, rateLimit = null, helmet = null, compression = null; const _promClient = null;
 let Database = null; // better-sqlite3
-try { jwt = (await import("jsonwebtoken")).default; } catch { /* optional dependency */ }
-try { bcrypt = (await import("bcryptjs")).default; } catch { /* optional dependency */ }
-try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* optional dependency */ }
-try { rateLimit = (await import("express-rate-limit")).default; } catch { /* optional dependency */ }
-try { helmet = (await import("helmet")).default; } catch { /* optional dependency */ }
-try { compression = (await import("compression")).default; } catch { /* optional dependency */ }
-try { Database = (await import("better-sqlite3")).default; } catch { /* optional dependency */ }
+const _isProduction = (process.env.NODE_ENV || "development") === "production";
+const _securityLoadErrors = [];
+try { jwt = (await import("jsonwebtoken")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`jsonwebtoken: ${e.message}`);
+}
+try { bcrypt = (await import("bcryptjs")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`bcryptjs: ${e.message}`);
+}
+try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* optional in all envs */ }
+try { rateLimit = (await import("express-rate-limit")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`express-rate-limit: ${e.message}`);
+}
+try { helmet = (await import("helmet")).default; } catch (e) {
+  if (_isProduction) _securityLoadErrors.push(`helmet: ${e.message}`);
+}
+try { compression = (await import("compression")).default; } catch { /* optional in all envs */ }
+try { Database = (await import("better-sqlite3")).default; } catch { /* optional - falls back to JSON */ }
+
+// CRITICAL: Refuse to start in production without security dependencies
+if (_isProduction && _securityLoadErrors.length > 0) {
+  console.error("\n[FATAL] Security dependencies failed to load in production:");
+  _securityLoadErrors.forEach(e => console.error(`  - ${e}`));
+  console.error("\nInstall missing packages: npm install jsonwebtoken bcryptjs express-rate-limit helmet\n");
+  process.exit(1);
+}
 
 // ---- dotenv (safe) ----
 const DOTENV = { loaded: false, path: null, error: null };
@@ -225,6 +276,10 @@ const _MARKETPLACE_ABUSE = {
   // Wash trade detection: track buyer-seller pairs
   tradeGraph: new Map(), // `${buyer}:${seller}` -> { count, lastAt }
 
+  // Size caps to prevent unbounded memory growth
+  MAX_SELLER_ENTRIES: 50000,
+  MAX_TRADE_ENTRIES: 100000,
+
   MAX_LISTINGS_PER_HOUR: 20,
   MAX_BUYS_PER_HOUR: 30,
   WASH_TRADE_THRESHOLD: 5, // same pair in 24h triggers flag
@@ -236,6 +291,11 @@ const _MARKETPLACE_ABUSE = {
     let entry = this.sellerActivity.get(sellerId);
     if (!entry || now - entry.windowStart > 3600000) {
       entry = { listCount: 0, buyCount: 0, windowStart: now };
+      // Evict oldest entries if at capacity
+      if (this.sellerActivity.size >= this.MAX_SELLER_ENTRIES) {
+        const firstKey = this.sellerActivity.keys().next().value;
+        this.sellerActivity.delete(firstKey);
+      }
       this.sellerActivity.set(sellerId, entry);
     }
     entry.listCount++;
@@ -247,6 +307,10 @@ const _MARKETPLACE_ABUSE = {
     let entry = this.sellerActivity.get(buyerId);
     if (!entry || now - entry.windowStart > 3600000) {
       entry = { listCount: 0, buyCount: 0, windowStart: now };
+      if (this.sellerActivity.size >= this.MAX_SELLER_ENTRIES) {
+        const firstKey = this.sellerActivity.keys().next().value;
+        this.sellerActivity.delete(firstKey);
+      }
       this.sellerActivity.set(buyerId, entry);
     }
     entry.buyCount++;
@@ -266,11 +330,15 @@ const _MARKETPLACE_ABUSE = {
       }
     }
 
-    // Record this trade
+    // Record this trade (with size cap)
     const existing = this.tradeGraph.get(key) || { count: 0, lastAt: 0 };
     if (now - existing.lastAt > DAY_MS) existing.count = 0;
     existing.count++;
     existing.lastAt = now;
+    if (!this.tradeGraph.has(key) && this.tradeGraph.size >= this.MAX_TRADE_ENTRIES) {
+      const firstKey = this.tradeGraph.keys().next().value;
+      this.tradeGraph.delete(firstKey);
+    }
     this.tradeGraph.set(key, existing);
 
     return { flagged: false };
@@ -362,6 +430,64 @@ function sanitizationMiddleware(req, res, next) {
   next();
 }
 
+// ---- Circuit Breaker for External Services ----
+// Prevents cascading failures when external APIs (LLM, Stripe, etc.) are down.
+// After THRESHOLD consecutive failures, the breaker "opens" and fast-fails for RESET_MS
+// before allowing a single probe request through.
+class CircuitBreaker {
+  constructor(name, { threshold = 5, resetMs = 30000 } = {}) {
+    this.name = name;
+    this.threshold = threshold;
+    this.resetMs = resetMs;
+    this.failures = 0;
+    this.state = "closed"; // closed | open | half-open
+    this.openedAt = 0;
+  }
+
+  async call(fn) {
+    if (this.state === "open") {
+      if (Date.now() - this.openedAt > this.resetMs) {
+        this.state = "half-open";
+      } else {
+        throw Object.assign(new Error(`Circuit breaker '${this.name}' is OPEN — fast-failing`), { code: "CIRCUIT_OPEN" });
+      }
+    }
+    try {
+      const result = await fn();
+      this._onSuccess();
+      return result;
+    } catch (err) {
+      this._onFailure();
+      throw err;
+    }
+  }
+
+  _onSuccess() {
+    this.failures = 0;
+    this.state = "closed";
+  }
+
+  _onFailure() {
+    this.failures++;
+    if (this.failures >= this.threshold) {
+      this.state = "open";
+      this.openedAt = Date.now();
+      structuredLog("warn", "circuit_breaker_opened", { name: this.name, failures: this.failures });
+    }
+  }
+
+  getState() {
+    return { name: this.name, state: this.state, failures: this.failures };
+  }
+}
+
+// Shared breakers for external services
+const BREAKERS = {
+  ollama: new CircuitBreaker("ollama", { threshold: 5, resetMs: 30000 }),
+  openai: new CircuitBreaker("openai", { threshold: 3, resetMs: 60000 }),
+  stripe: new CircuitBreaker("stripe", { threshold: 3, resetMs: 60000 }),
+};
+
 // ---- Graceful Shutdown ----
 let isShuttingDown = false;
 const shutdownCallbacks = [];
@@ -394,7 +520,7 @@ async function gracefulShutdown(signal) {
 
   // Give pending requests time to complete
   const timeout = Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000);
-  await new Promise(resolve => { setTimeout(resolve, Math.min(timeout, 1000)); });
+  await new Promise(resolve => { setTimeout(resolve, timeout); });
 
   console.log("[Shutdown] Graceful shutdown complete");
   process.exit(0);
@@ -408,8 +534,13 @@ process.on("uncaughtException", (err) => {
   gracefulShutdown("uncaughtException");
 });
 process.on("unhandledRejection", (reason, _promise) => {
-  structuredLog("error", "unhandled_rejection", { reason: String(reason) });
-  // Don't exit on unhandled rejection, just log it
+  structuredLog("fatal", "unhandled_rejection", { reason: String(reason), stack: String(reason?.stack || "") });
+  // In production, exit on unhandled rejection — the container orchestrator will restart us.
+  // Continuing after an unhandled rejection risks corrupted state.
+  if ((process.env.NODE_ENV || "development") === "production") {
+    console.error("[FATAL] Unhandled promise rejection in production — exiting to allow clean restart.");
+    process.exit(1);
+  }
 });
 
 // ---- Structured JSON Logging ----
@@ -1309,6 +1440,7 @@ function formatCrispResponse({ prompt: _prompt, mode: _mode, microDTUs, macroDTU
 
 // --- Session pattern history tracking (for variety mechanism) ---
 const _PATTERN_HISTORY = new Map(); // sessionId → [last 3 pattern names]
+const _PATTERN_HISTORY_MAX = 10000; // Cap to prevent unbounded memory growth
 
 function _trackPatternUsage(sessionId, patternNames) {
   const history = _PATTERN_HISTORY.get(sessionId) || [];
@@ -1316,6 +1448,13 @@ function _trackPatternUsage(sessionId, patternNames) {
   // Keep only last 3
   while (history.length > 3) history.shift();
   _PATTERN_HISTORY.set(sessionId, history);
+  // Evict oldest entries when map gets too large
+  if (_PATTERN_HISTORY.size > _PATTERN_HISTORY_MAX) {
+    const it = _PATTERN_HISTORY.keys();
+    for (let i = 0; i < _PATTERN_HISTORY.size - _PATTERN_HISTORY_MAX; i++) {
+      _PATTERN_HISTORY.delete(it.next().value);
+    }
+  }
 }
 
 function _getPatternHistory(sessionId) {
@@ -2577,7 +2716,7 @@ const STATE = {
 // ============================================================================
 
 // ---- SQLite Database for Auth & Audit ----
-const DB_PATH = path.join(DATA_DIR, "concord.db");
+const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "concord.db");
 let db = null;
 
 function initDatabase() {
@@ -2587,7 +2726,8 @@ function initDatabase() {
   }
 
   try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    // Ensure the DB parent directory exists (handles both /data/concord.db and /data/db/concord.db)
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL"); // Better performance
     db.pragma("foreign_keys = ON");
@@ -2664,6 +2804,16 @@ function initDatabase() {
 }
 
 const _DB_READY = initDatabase();
+
+// ---- "Everything Real": Run schema migrations after DB init ----
+if (db) {
+  try {
+    const migrationResult = await runSchemaMigrations(db);
+    console.log(`[Concord] Schema version: ${migrationResult.currentVersion} (${migrationResult.appliedCount} new migrations)`);
+  } catch (e) {
+    console.error("[Concord] Migration failed:", e.message);
+  }
+}
 
 // Register database close on shutdown
 if (db) {
@@ -3128,40 +3278,169 @@ function verifyToken(token) {
 }
 
 // ---- Token Blacklist (Tier 1: Auth Hardening) ----
-// In-memory blacklist with SQLite persistence when available
+// In-memory blacklist with Redis support (when available) and SQLite persistence
 const _TOKEN_BLACKLIST = {
-  revoked: new Map(), // jti -> { revokedAt, expiresAt }
+  revoked: new Map(), // jti -> { revokedAt, expiresAt, userId }
 
-  revoke(jti, expiresAt) {
-    this.revoked.set(jti, { revokedAt: Date.now(), expiresAt: expiresAt || Date.now() + 7 * 86400000 });
-    // Persist to DB if available
+  /**
+   * Revoke a single token by JTI.
+   * Writes to in-memory Map (primary, synchronous), Redis (if connected), and SQLite (if available).
+   * @param {string} jti - Token identifier
+   * @param {number} [expiresAt] - Token expiry timestamp in ms
+   * @param {string} [userId] - User who owns this token (needed for revokeAllForUser)
+   */
+  revoke(jti, expiresAt, userId) {
+    const now = Date.now();
+    const exp = expiresAt || now + 7 * 86400000;
+    const entry = { revokedAt: now, expiresAt: exp, userId: userId || null };
+
+    // Primary: in-memory (synchronous — keeps verifyToken fast)
+    this.revoked.set(jti, entry);
+
+    // Redis: write-through for multi-instance consistency
+    if (redisClient) {
+      const ttlMs = exp - now;
+      if (ttlMs > 0) {
+        const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
+        const ttlSec = Math.ceil(ttlMs / 1000);
+        redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(err => {
+          console.error("[auth] Redis token blacklist write failed:", err.message);
+        });
+        // Track JTI in per-user set so revokeAllForUser can find them
+        if (userId) {
+          const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
+          redisClient.sAdd(userSetKey, jti).catch(() => {});
+          // Set TTL on the user set to auto-clean (use longest reasonable token lifetime)
+          redisClient.expire(userSetKey, Math.ceil(ttlMs / 1000) + 3600).catch(() => {});
+        }
+      }
+    }
+
+    // SQLite persistence
     if (db) {
       try {
         const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE token_hash = ?");
         stmt.run(jti);
-      } catch {}
+      } catch (err) { console.error("[auth] Token revocation failed:", err); }
     }
   },
 
+  /**
+   * Check if a token is revoked — synchronous, uses in-memory Map only.
+   * Redis data is synced into the Map on startup and on every revoke() call,
+   * so the in-memory Map is always authoritative for this process.
+   */
   isRevoked(jti) {
     return this.revoked.has(jti);
   },
 
-  // Revoke all tokens for a user (e.g., password change, security incident)
+  /**
+   * Revoke all tokens for a user (e.g., password change, security incident).
+   * Walks in-memory Map and (if Redis available) the per-user token set.
+   */
   revokeAllForUser(userId) {
+    const now = Date.now();
+
+    // SQLite: bulk revoke
     if (db) {
       try {
         const stmt = db.prepare("UPDATE sessions SET is_revoked = 1 WHERE user_id = ?");
         stmt.run(userId);
-      } catch {}
+      } catch (err) { console.error("[auth] Bulk token revocation failed for user:", err); }
     }
-    // Mark in-memory
+
+    // In-memory: mark all entries belonging to this user
     for (const [jti, entry] of this.revoked) {
-      if (entry.userId === userId) this.revoked.set(jti, { ...entry, revokedAt: Date.now() });
+      if (entry.userId === userId) {
+        this.revoked.set(jti, { ...entry, revokedAt: now });
+      }
+    }
+
+    // Redis: look up the user's token set and revoke each JTI
+    if (redisClient) {
+      const userSetKey = REDIS_CONFIG.prefix + "user-tokens:" + userId;
+      redisClient.sMembers(userSetKey).then(jtis => {
+        for (const jti of jtis) {
+          // Update the blacklist entry in Redis (keep existing TTL)
+          const redisKey = REDIS_CONFIG.prefix + "blacklist:" + jti;
+          redisClient.get(redisKey).then(raw => {
+            if (raw) {
+              try {
+                const entry = JSON.parse(raw);
+                entry.revokedAt = now;
+                const ttlSec = Math.max(1, Math.ceil((entry.expiresAt - now) / 1000));
+                redisClient.setEx(redisKey, ttlSec, JSON.stringify(entry)).catch(() => {});
+              } catch {}
+            }
+          }).catch(() => {});
+          // Also ensure it's in our in-memory Map
+          if (!this.revoked.has(jti)) {
+            this.revoked.set(jti, { revokedAt: now, expiresAt: now + 7 * 86400000, userId });
+          }
+        }
+      }).catch(err => {
+        console.error("[auth] Redis bulk revocation lookup failed:", err.message);
+      });
     }
   },
 
-  // Cleanup expired entries (tokens past their expiry don't need blacklisting)
+  // Hydrate from SQLite on cold start (survives restarts without Redis)
+  syncFromSQLite() {
+    if (!db) return;
+    try {
+      const stmt = db.prepare("SELECT token_hash, user_id FROM sessions WHERE is_revoked = 1");
+      const rows = stmt.all();
+      let loaded = 0;
+      for (const row of rows) {
+        if (row.token_hash && !this.revoked.has(row.token_hash)) {
+          this.revoked.set(row.token_hash, {
+            revokedAt: Date.now(),
+            expiresAt: Date.now() + 7 * 86400000, // Default 7-day window
+            userId: row.user_id || null
+          });
+          loaded++;
+        }
+      }
+      if (loaded > 0) {
+        console.log(`[auth] Hydrated ${loaded} revoked tokens from SQLite`);
+      }
+    } catch (err) {
+      console.error('[auth] SQLite blacklist hydration failed:', err.message);
+    }
+  },
+
+  /**
+   * Sync blacklisted tokens from Redis into the in-memory Map.
+   * Called once after Redis connects so this process knows about tokens
+   * revoked by other instances.
+   */
+  async syncFromRedis() {
+    if (!redisClient) return;
+    try {
+      const pattern = REDIS_CONFIG.prefix + "blacklist:*";
+      const keys = await redisClient.keys(pattern);
+      if (keys.length === 0) return;
+      const prefixLen = (REDIS_CONFIG.prefix + "blacklist:").length;
+      let synced = 0;
+      for (const key of keys) {
+        try {
+          const raw = await redisClient.get(key);
+          if (!raw) continue;
+          const entry = JSON.parse(raw);
+          const jti = key.slice(prefixLen);
+          if (!this.revoked.has(jti)) {
+            this.revoked.set(jti, entry);
+            synced++;
+          }
+        } catch {}
+      }
+      if (synced > 0) console.log(`[auth] Synced ${synced} revoked tokens from Redis`);
+    } catch (err) {
+      console.error("[auth] Failed to sync token blacklist from Redis:", err.message);
+    }
+  },
+
+  // Cleanup expired entries from in-memory Map (Redis handles its own TTL expiry)
   cleanup() {
     const now = Date.now();
     for (const [jti, entry] of this.revoked) {
@@ -3170,7 +3449,7 @@ const _TOKEN_BLACKLIST = {
   }
 };
 
-// Cleanup blacklist every hour
+// Cleanup in-memory blacklist every hour (Redis keys expire via TTL automatically)
 setInterval(() => _TOKEN_BLACKLIST.cleanup(), 3600000);
 
 // ---- Refresh Token Family Tracking (detects token theft via reuse) ----
@@ -3264,9 +3543,12 @@ function csrfMiddleware(req, res, next) {
   const safeMethods = ["GET", "HEAD", "OPTIONS"];
   if (safeMethods.includes(req.method)) return next();
 
-  // Skip for public endpoints
-  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready"];
+  // Skip for public endpoints and core API paths (chat, lens operations)
+  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready", "/api/chat", "/api/lens"];
   if (csrfExempt.some(p => req.path.startsWith(p))) return next();
+
+  // In AUTH_MODE=public, skip CSRF — anonymous users have no session to protect
+  if (AUTH_MODE === "public") return next();
 
   // In development, CSRF is optional
   if (NODE_ENV !== "production") return next();
@@ -3465,10 +3747,12 @@ function requireRole(...roles) {
 }
 
 // Production write-auth: enforce authentication on all mutating requests in production
-// even in AUTH_MODE=public, to prevent accidental open-write deployments.
-const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics"];
+// unless AUTH_MODE=public, where anonymous writes are intentionally allowed.
+const WRITE_AUTH_PUBLIC_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/csrf-token", "/health", "/ready", "/metrics", "/api/chat", "/api/lens"];
 function productionWriteAuthMiddleware(req, res, next) {
   if (NODE_ENV !== "production") return next();
+  // AUTH_MODE=public explicitly allows anonymous access — skip write-auth gate
+  if (AUTH_MODE === "public") return next();
   const method = req.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
   if (WRITE_AUTH_PUBLIC_PATHS.some(p => req.path.startsWith(p))) return next();
@@ -4188,6 +4472,24 @@ async function tryInitWebSockets(server) {
     // Room management
     socket.on("room:join", ({ room }) => {
       if (room) {
+        // Authorization check: require authenticated user (in production)
+        if (!socket.data.userId && !socket.data.authenticated) {
+          console.warn('[ws] Unauthorized room join attempt:', { userId: socket.data.userId, room });
+          socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not authorized to join this room' });
+          return;
+        }
+
+        // For session-scoped rooms, verify the session exists and user has access
+        const sessionMatch = room.match(/^session:(.+)$/);
+        if (sessionMatch) {
+          const sessionId = sessionMatch[1];
+          if (!STATE.sessions.has(sessionId)) {
+            console.warn('[ws] Unauthorized room join attempt:', { userId: socket.data.userId, room });
+            socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not authorized to join this room' });
+            return;
+          }
+        }
+
         socket.join(room);
         socket.emit("room:joined", { room, ts: nowISO() });
       }
@@ -4204,6 +4506,13 @@ async function tryInitWebSockets(server) {
     socket.on("subscribe", ({ sessionId, orgId }) => {
       const c = REALTIME.clients.get(clientId);
       if (!c) return;
+
+      // Authorization check: require authenticated user (in production)
+      if (!socket.data.userId && !socket.data.authenticated) {
+        console.warn('[ws] Unauthorized subscribe attempt:', { userId: socket.data.userId, sessionId, orgId });
+        socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not authorized to subscribe' });
+        return;
+      }
 
       if (sessionId && STATE.sessions.has(sessionId)) {
         c.sessionId = sessionId;
@@ -4374,9 +4683,11 @@ function _hydrateState(obj) {
   put(STATE.dtus, obj.dtus);
   put(STATE.shadowDtus, obj.shadowDtus);
   // migration: DTUs created before tiers existed default to regular
+  // migration: DTUs created before scope separation default to global (seed/canonical data)
   for (const d of STATE.dtus.values()) {
     if (!d.tier) d.tier = "regular";
     if (!d.createdAt) d.createdAt = nowISO();
+    if (!d.scope) d.scope = (d.source === "user" || d.source === "chat") ? "local" : "global";
   }
   put(STATE.wrappers, obj.wrappers);
   put(STATE.layers, obj.layers);
@@ -4497,7 +4808,9 @@ function _normalizeSettingsDefaults() {
       if (typeof STATE.settings.speculativeGateEnabled !== "boolean") STATE.settings.speculativeGateEnabled = false;
       if (typeof STATE.settings.canonicalOnly !== "boolean") STATE.settings.canonicalOnly = true;
     }
-  } catch {}
+  } catch (e) {
+    structuredLog("warn", "settings_normalization_failed", { error: String(e?.message || e) });
+  }
 }
 
 function loadStateFromDisk() {
@@ -4568,7 +4881,9 @@ function saveStateDebounced() {
         }
       }
     }, 250);
-  } catch {}
+  } catch (e) {
+    structuredLog("error", "save_state_debounce_failed", { error: String(e?.message || e) });
+  }
 }
 
 const STATE_DISK = loadStateFromDisk();
@@ -4578,14 +4893,57 @@ try {
     if (__llmDefaultForcedRaw !== null) STATE.settings.llmDefault = DEFAULT_LLM_ON;
     else if ((process.env.OPENAI_API_KEY || "").trim()) STATE.settings.llmDefault = true;
   }
-} catch {}
+} catch (e) {
+  structuredLog("warn", "boot_normalization_failed", { error: String(e?.message || e) });
+}
 
 
 
 const SEED_INFO = { ok:false, loaded:false, count:0, path:"./dtus.js", error:null, source:"none" };
 
 async function tryLoadSeedDTUs() {
-  // 1. Try JSONL pack format first (preferred for large corpora)
+  // 1. Try JSON seed packs first (preferred — fastest, grouped by part)
+  const seedDir = path.join(DATA_DIR, "seed");
+  const seedManifestPath = path.join(seedDir, "manifest.json");
+  if (fs.existsSync(seedManifestPath)) {
+    try {
+      const t0 = Date.now();
+      const manifest = JSON.parse(fs.readFileSync(seedManifestPath, "utf-8"));
+      if (manifest.format === "seed-packs" && Array.isArray(manifest.packs)) {
+        const dtus = [];
+        let errors = 0;
+        for (const pack of manifest.packs) {
+          const packPath = path.join(seedDir, pack.file);
+          if (!fs.existsSync(packPath)) { errors++; continue; }
+          const content = fs.readFileSync(packPath, "utf-8");
+          const hash = crypto.createHash("sha256").update(content).digest("hex");
+          if (hash !== pack.sha256) {
+            console.warn(`[Seed-Pack] Hash mismatch: ${pack.file} (expected ${pack.sha256.slice(0,12)}, got ${hash.slice(0,12)})`);
+            errors++;
+            continue;
+          }
+          try {
+            const entries = JSON.parse(content);
+            if (Array.isArray(entries)) {
+              for (const entry of entries) dtus.push(entry);
+            }
+          } catch { errors++; }
+        }
+        if (dtus.length > 0) {
+          SEED_INFO.ok = true; SEED_INFO.loaded = true;
+          SEED_INFO.count = dtus.length; SEED_INFO.source = "seed-packs";
+          SEED_INFO.path = seedDir;
+          if (errors) SEED_INFO.error = `${errors} seed-pack error(s)`;
+          console.log(`[Seed-Pack] Loaded ${dtus.length} DTUs from ${manifest.packs.length} JSON packs in ${Date.now() - t0}ms`);
+          return dtus;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Seed-Pack] Failed to load seed packs: ${e.message}`);
+    }
+  }
+
+  // 2. Try legacy JSONL pack format (data/dtu-packs/)
   const packDir = path.join(DATA_DIR, "dtu-packs");
   const manifestPath = path.join(packDir, "manifest.json");
   if (fs.existsSync(manifestPath)) {
@@ -4593,7 +4951,7 @@ async function tryLoadSeedDTUs() {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
       const dtus = [];
       let errors = 0;
-      for (const chunk of manifest.chunks) {
+      for (const chunk of (manifest.chunks || [])) {
         const chunkPath = path.join(packDir, chunk.file);
         if (!fs.existsSync(chunkPath)) { errors++; continue; }
         const content = fs.readFileSync(chunkPath, "utf-8");
@@ -4620,10 +4978,11 @@ async function tryLoadSeedDTUs() {
       console.warn(`[DTU-Pack] Failed to load packs: ${e.message}`);
     }
   }
-  // 2. Fallback to dtus.js monolithic import (deferred — logs startup tax)
+
+  // 3. Fallback to dtus.js monolithic import (deprecated — logs startup tax)
   try {
-    console.warn("[Seed] JSONL packs not found — falling back to monolithic dtus.js import.");
-    console.warn("[Seed] To reduce startup time + memory, run: node server/scripts/convert-dtus-to-packs.js");
+    console.warn("[Seed] JSON packs not found — falling back to monolithic dtus.js import (deprecated).");
+    console.warn("[Seed] To reduce startup time + memory, run: node server/scripts/convert-dtus-to-seed-packs.js");
     const t0 = Date.now();
     const mod = await import("./dtus.js");
     const seed = (mod?.dtus ?? mod?.default ?? mod?.DTUS ?? null);
@@ -4991,11 +5350,19 @@ function runMacro(domain, name, input, ctx) {
       _path.startsWith("/api/dtus") ||
       _path.startsWith("/api/dtu") ||
       _path.startsWith("/api/settings") ||
+      _path.startsWith("/api/lens") ||
+      _path.startsWith("/api/goals") ||
+      _path.startsWith("/api/growth") ||
+      _path.startsWith("/api/metrics") ||
+      _path.startsWith("/api/resonance") ||
+      _path.startsWith("/api/lattice") ||
 
       // Domain/name allowlist for read-only macros (covers alternate routers)
       (domain === "system" && (name === "status" || name === "getStatus")) ||
       (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-      (domain === "settings" && (name === "get" || name === "status"))
+      (domain === "settings" && (name === "get" || name === "status")) ||
+      (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
+      (domain === "goals" && (name === "list" || name === "get" || name === "status"))
     );
 
   if (!safeReadBypass) {
@@ -5012,11 +5379,19 @@ function runMacro(domain, name, input, ctx) {
           reqPath.startsWith("/api/dtus") ||
           reqPath.startsWith("/api/dtu") ||
           reqPath.startsWith("/api/settings") ||
+          reqPath.startsWith("/api/lens") ||
+          reqPath.startsWith("/api/goals") ||
+          reqPath.startsWith("/api/growth") ||
+          reqPath.startsWith("/api/metrics") ||
+          reqPath.startsWith("/api/resonance") ||
+          reqPath.startsWith("/api/lattice") ||
 
           // Domain/name allowlist for read-only macros (covers alternate routers)
           (domain === "system" && (name === "status" || name === "getStatus")) ||
           (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-          (domain === "settings" && (name === "get" || name === "status"))
+          (domain === "settings" && (name === "get" || name === "status")) ||
+          (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
+          (domain === "goals" && (name === "list" || name === "get" || name === "status"))
         );
 
       const internalTick =
@@ -5559,11 +5934,17 @@ register("multimodal","vision_analyze", (ctx, input={}) => {
       model,
       messages: [{ role:"user", content: prompt, images: [imageB64] }]
     };
-    const r = await fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) }).catch(_e=>null);
-    if (r && r.ok) {
-      const j = await r.json().catch(()=>null);
-      const content = j?.message?.content || j?.response || "";
-      return { ok:true, content, source: "ollama_llava" };
+    try {
+      const r = await BREAKERS.ollama.call(() =>
+        fetch(`${OLLAMA_URL}/api/chat`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(60000) })
+      );
+      if (r && r.ok) {
+        const j = await r.json().catch(()=>null);
+        const content = j?.message?.content || j?.response || "";
+        return { ok:true, content, source: "ollama_llava" };
+      }
+    } catch (e) {
+      structuredLog("warn", "ollama_call_failed", { error: String(e?.message || e), circuit: BREAKERS.ollama.getState().state });
     }
   }
 
@@ -7154,7 +7535,7 @@ function makeCtx(req=null) {
 
   return {
     state: STATE,
-    actor: (req && req.actor) ? req.actor : { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] },
+    actor: (req && req.actor) ? req.actor : { userId: "anon", orgId: "public", role: AUTH_MODE === "public" ? "member" : "viewer", scopes: AUTH_MODE === "public" ? ["read", "write"] : ["read"] },
     env: {
       version: VERSION,
       llmReady: LLM_READY,
@@ -8585,6 +8966,31 @@ async function llmChat(messagesOrCtx, messagesOrOptions = {}, maybeOptions = {})
     return result;
   }
 
+  // GRC: Format through Grounded Recursive Closure pipeline
+  let grcResult = null;
+  if (GRC_MODULE && options.grc !== false) {
+    try {
+      grcResult = grcFormatAndValidate(
+        result.content,
+        {
+          dtuRefs: options.dtuRefs || [],
+          macroRefs: options.macroRefs || [],
+          stateRefs: options.stateRefs || [],
+          mode: options.grcMode || "governed-response",
+          invariantsApplied: options.invariantsApplied || [],
+          realitySnapshot: options.realitySnapshot || null,
+        },
+        {
+          inLatticeReality,
+          STATE,
+          affectState: null,
+        }
+      );
+    } catch (e) {
+      console.error("[GRC] Format failed, returning raw:", e?.message);
+    }
+  }
+
   // Format response to match OpenAI chat format (for compatibility)
   return {
     ok: true,
@@ -8594,7 +9000,10 @@ async function llmChat(messagesOrCtx, messagesOrOptions = {}, maybeOptions = {})
     }],
     source: result.source,
     polished: result.polished,
-    tokens: result.tokens
+    tokens: result.tokens,
+    grc: grcResult?.grc || null,
+    grcValid: grcResult?.ok || false,
+    grcRepairs: grcResult?.repairs || [],
   };
 }
 
@@ -10375,7 +10784,9 @@ async function maybeRunLocalUpgrade() {
 
   // Upgrade = deterministic retune + enforce budgets + auto-promotion + conservation check.
   enforceTierBudgets();
-  try { await runAutoPromotion(makeCtx(null), { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
+  const _upCtx = makeCtx(null);
+  _upCtx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
   const bp = applyConservationBackpressure();
   // Opportunistic self-repair: schedule maintenance if needed
   if (STATE.queues.maintenance.length < 25) {
@@ -10745,7 +11156,7 @@ register("dtu", "delete", (ctx, input) => {
 
   // Optionally notify federation
   if (_c3Federation.enabled) {
-    federationPublish("dtu:deleted", { id, deletedAt: nowISO() }).catch(() => {});
+    federationPublish("dtu:deleted", { id, deletedAt: nowISO() }).catch((err) => { console.error('[federation] Publish deletion failed:', err); });
   }
 
   ctx.log("dtu.delete", `Deleted DTU: ${dtu.title}`, { id });
@@ -11545,10 +11956,15 @@ let localReply = formatCrispResponse({
       _affSafety.strictness > 0.7 ? "Be cautious with uncertain claims." : "",
       _affCog.exploration > 0.6 ? "Explore alternative viewpoints." : "",
     ].filter(Boolean).join(" ") : "";
+    // GRC: Inject Grounded Recursive Closure system prompt when module is available
+    const _dtuTitles = focus.map(d => d.title || d.id).filter(Boolean);
+    const _grcSystemPrompt = GRC_MODULE
+      ? getGRCSystemPrompt({ dtus: _dtuTitles, mode })
+      : "";
     const system =
 `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.
 Mode: ${mode}.${_affectGuidance ? `\nTone: ${_affectGuidance}` : ""}
-When helpful, reference DTU titles in plain language (do not dump ids unless asked).`;
+When helpful, reference DTU titles in plain language (do not dump ids unless asked).${_grcSystemPrompt ? `\n\n${_grcSystemPrompt}` : ""}`;
     // Use fused context from quality pipeline if available; otherwise fall back to original assembly
     const dtuContext = (_fusedContext && _fusedContext.fusedContext)
       ? _fusedContext.fusedContext
@@ -11559,7 +11975,12 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     const messages = [
       { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${dtuContext}${_pipelineMeta}\n\nRespond naturally and propose next actions.` }
     ];
-    const r = await ctx.llm.chat({ system, messages, temperature: _llmTemp, maxTokens: _llmMaxTokens });
+    const r = await ctx.llm.chat({
+      system, messages, temperature: _llmTemp, maxTokens: _llmMaxTokens,
+      dtuRefs: _dtuTitles,
+      macroRefs: ["chat.respond"],
+      grcMode: mode,
+    });
     if (r.ok) {
       finalReply = r.content.trim() || localReply;
       llmUsed = true;
@@ -11605,8 +12026,32 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
   // persist session + any state mutations from this turn
   saveStateDebounced();
 
-  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })) };
-}, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement." });
+  // GRC: Format the final reply through the GRC pipeline (for both LLM and local responses)
+  let _grcOutput = null;
+  if (GRC_MODULE) {
+    try {
+      const _dtuTitlesForGRC = relevant.map(d => d.title || d.id).filter(Boolean);
+      const grcResult = grcFormatAndValidate(
+        finalReply,
+        {
+          dtuRefs: _dtuTitlesForGRC,
+          macroRefs: ["chat.respond"],
+          mode: mode,
+          invariantsApplied: ["NoNegativeValence", "RealityGateBeforeEffects"],
+          realitySnapshot: {
+            facts: relevant.length > 0 ? [`${relevant.length} DTU(s) retrieved for context`] : ["No DTUs matched query"],
+            assumptions: llmUsed ? ["LLM enhancement applied"] : ["Local-only deterministic response"],
+            unknowns: [],
+          },
+        },
+        { inLatticeReality, STATE }
+      );
+      _grcOutput = grcResult.ok ? grcResult.grc : null;
+    } catch {}
+  }
+
+  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })), grc: _grcOutput };
+}, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement. Outputs GRC v1 envelope." });
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -14525,6 +14970,43 @@ register("lattice", "birth_protocol", (ctx, input={}) => {
   return { ok:true, id, dtu, homeostasis: homeo };
 }, { summary:"Chicken2 birth protocol: sandboxed emergence with homeostasis threshold then DTU commit." });
 
+register("lattice", "resonance", (ctx, input={}) => {
+  // Lattice resonance: compute health metrics from Chicken2 and growth state
+  const c2 = STATE.__chicken2 || {};
+  const m = c2.metrics || {};
+  const g = STATE.growth || {};
+  return {
+    ok: true,
+    resonance: {
+      homeostasis: m.homeostasis ?? 1,
+      continuity: m.continuityAvg ?? 0,
+      suffering: m.suffering ?? 0,
+      contradictionLoad: m.contradictionLoad ?? 0,
+      repairRate: g.repair?.repairRate ?? 0.5,
+      accepts: m.accepts ?? 0,
+      rejections: m.rejections ?? 0,
+    },
+    timestamp: nowISO()
+  };
+});
+
+register("persona", "speak", (ctx, input={}) => {
+  const { personaId, text } = input;
+  if (!personaId) return { ok: false, error: "personaId required" };
+  const persona = STATE.personas.get(personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+  const reply = `[${persona.name}]: ${text || "..."}`;
+  return { ok: true, reply, persona: { id: persona.id, name: persona.name } };
+});
+
+register("persona", "animate", (ctx, input={}) => {
+  const { personaId, kind } = input;
+  if (!personaId) return { ok: false, error: "personaId required" };
+  const persona = STATE.personas.get(personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+  return { ok: true, animation: kind || "talk", persona: { id: persona.id, name: persona.name } };
+});
+
 register("persona", "create", (ctx, input={}) => {
   const name = String(input.name||"");
   if (!name) throw new Error("name required");
@@ -14641,623 +15123,121 @@ try {
 }
 // ===== END EMERGENT =====
 
+// ===== GRC: Grounded Recursive Closure v1 =====
+let GRC_MODULE = null;
+try {
+  const grcCtx = {
+    register,
+    STATE,
+    helpers: {
+      inLatticeReality,
+    },
+  };
+  GRC_MODULE = await initGRC(grcCtx);
+  if (GRC_MODULE) {
+    log("grc.init", `GRC v${GRC_MODULE.version} initialized: ${GRC_MODULE.macros.length} macros`);
+  }
+} catch (e) {
+  console.error("[GRC] Initialization failed:", e);
+  log("grc.init", "GRC initialization failed", { error: String(e?.message || e) });
+}
+// ===== END GRC =====
+
 const app = express();
 
-// ---- Production Middleware ----
-if (helmet) {app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      // Note: Next.js requires 'unsafe-inline' for its hydration scripts in production
-      // In a future update, consider using nonces via Next.js's built-in CSP support
-      scriptSrc: NODE_ENV === "production"
-        ? ["'self'", "'unsafe-inline'"] // Remove unsafe-eval in production
-        : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow eval in dev for HMR
-      styleSrc: ["'self'", "'unsafe-inline'"], // Required for styled-components/emotion
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "wss:", "ws:", ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim()) : [])],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      upgradeInsecureRequests: NODE_ENV === "production" ? [] : null,
-    },
-  },
-  crossOriginEmbedderPolicy: NODE_ENV === "production",
-  hsts: NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
-  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-  permissionsPolicy: {
-    features: {
-      camera: ["'none'"],
-      microphone: ["'self'"],
-      geolocation: ["'none'"],
-      payment: ["'none'"],
-    },
-  },
-}));} // Security headers
-if (compression) app.use(compression()); // Gzip compression
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(idempotencyMiddleware); // Category 2: Double-submit prevention via Idempotency-Key header
-
-// CORS configuration - uses ALLOWED_ORIGINS env var
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
-  : [];
-const corsOptions = {
-  origin: (origin, callback) => {
-    // SECURITY: In production, reject requests with no origin to prevent CSRF
-    // Only allow no-origin in development for tools like Postman/curl
-    if (!origin) {
-      if (NODE_ENV === "production") {
-        // In production, only allow specific trusted no-origin scenarios
-        // (e.g., same-origin requests from the backend itself)
-        console.warn("[CORS] Rejected request with no origin in production mode");
-        const err = new Error("Origin blocked");
-        err.code = "ORIGIN_BLOCKED";
-        err.reason = "Origin required in production";
-        return callback(err, false);
-      }
-      return callback(null, true);
-    }
-    // In development, allow localhost
-    if (NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
-      return callback(null, true);
-    }
-    // In production, check against allowed origins
-    if (allowedOrigins.length === 0) {
-      console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Rejecting cross-origin request from:", origin);
-      const err = new Error("Origin blocked");
-      err.code = "ORIGIN_BLOCKED";
-      err.reason = "No ALLOWED_ORIGINS configured";
-      return callback(err, false);
-    }
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    console.warn("[CORS] Rejected origin:", origin);
-    const err = new Error("Origin blocked");
-    err.code = "ORIGIN_BLOCKED";
-    err.reason = `Origin not allowed: ${origin}`;
-    return callback(err, false);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID", "X-CSRF-Token", "X-XSRF-Token", "X-Request-ID"],
-};
-app.use(cors(corsOptions));
-
-// Production middleware
-app.use(requestIdMiddleware); // Add request ID to all requests
-app.use(requestLoggerMiddleware); // Structured JSON logging
-app.use(sanitizationMiddleware); // Sanitize input
-
-if (rateLimiter) app.use(rateLimiter);
-app.use(metricsMiddleware);
-app.use(cookieParserMiddleware); // Parse cookies before auth
-app.use(authMiddleware);
-app.use(productionWriteAuthMiddleware); // Enforce auth on all writes in production
-app.use(csrfMiddleware); // CSRF protection after auth
-
-// ---- Health & Readiness Endpoints ----
-app.get("/health", (req, res) => {
-  res.json({
-    status: "healthy",
-    version: VERSION,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
+// ---- Production Middleware (extracted to ./middleware/index.js) ----
+configureMiddleware(app, {
+  express,
+  helmet,
+  cors,
+  compression,
+  rateLimiter,
+  idempotencyMiddleware,
+  requestIdMiddleware,
+  requestLoggerMiddleware,
+  sanitizationMiddleware,
+  metricsMiddleware,
+  cookieParserMiddleware,
+  authMiddleware,
+  productionWriteAuthMiddleware,
+  csrfMiddleware,
+  NODE_ENV,
 });
 
-app.get("/ready", (req, res) => {
-  const checks = {
-    state: STATE.dtus !== null,
-    macros: MACROS.size > 0
-  };
-  const ready = Object.values(checks).every(Boolean);
-  res.status(ready ? 200 : 503).json({
-    ready,
-    checks,
-    version: VERSION
-  });
+// ---- Global Async Safety Net ----
+// Wraps all async route handlers to catch unhandled promise rejections.
+// Without this, any async handler that throws without try/catch will leave
+// the request hanging forever (30s timeout for the user).
+{
+  const _origRoute = app.route.bind(app);
+  for (const method of ["get", "post", "put", "delete", "patch"]) {
+    const orig = app[method].bind(app);
+    app[method] = function (path, ...handlers) {
+      const wrapped = handlers.map(fn => {
+        if (fn && fn.constructor?.name === "AsyncFunction") {
+          return (req, res, next) => {
+            Promise.resolve(fn(req, res, next)).catch(err => {
+              const msg = String(err?.message || err);
+              log("async.error", `Unhandled async error on ${req.method} ${req.path}: ${msg}`, { stack: String(err?.stack || "").slice(0, 500) });
+              if (!res.headersSent) {
+                const status = msg.startsWith("forbidden") ? 403 : msg.includes("not found") ? 404 : 500;
+                res.status(status).json({ ok: false, error: msg });
+              }
+            });
+          };
+        }
+        return fn;
+      });
+      return orig(path, ...wrapped);
+    };
+  }
+}
+
+// ---- Health, Ready, Metrics, Status, Backup, Time, Weather, etc. (extracted to routes/system.js) ----
+require("./routes/system")(app, {
+  STATE, makeCtx, runMacro, requireRole, db, MACROS, VERSION, PORT, NODE_ENV,
+  LLM_READY, OPENAI_MODEL_FAST, OPENAI_MODEL_SMART, SEED_INFO, STATE_DISK,
+  USE_SQLITE_STATE, ENV_VALIDATION, AUTH_MODE, CAPS, METRICS, JWT_SECRET,
+  AUTH_USES_JWT, AUTH_USES_APIKEY, AuthDB, rateLimiter, helmet,
+  normalizeText, nowISO, clamp, dtusArray, isShadowDTU, saveStateDebounced,
+  listDomains, getLLMPipelineStatus, setLLMPipelineMode, llmPipeline,
+  getTimeInfo, getWeather, createBackup, listBackups, restoreBackup,
+  ensureOrganRegistry, ensureQueues, _getPatternHistory, classifyDomain,
+  _inferQueryIntent, CRETI_PROJECTION_RULES, searchIndexed, paginateResults,
+  auditLog
 });
 
-app.get("/metrics", asyncHandler(async (req, res) => {
-  if (!METRICS.enabled || !METRICS.registry) {
-    return res.status(501).json({ ok: false, error: "Metrics not enabled" });
-  }
-  try {
-    res.set("Content-Type", METRICS.registry.contentType);
-    res.end(await METRICS.registry.metrics());
-  } catch (e) {
-    res.status(500).json({ ok: false, error: String(e.message) });
-  }
+// ---- Auth Endpoints (extracted to routes/auth.js) ----
+app.use("/api/auth", require("./routes/auth")({
+  AuthDB,
+  AuditDB,
+  db,
+  jwt,
+  authRateLimiter,
+  _TOKEN_BLACKLIST,
+  _REFRESH_FAMILIES,
+  REFRESH_TOKEN_COOKIE,
+  NODE_ENV,
+  validate,
+  hashPassword,
+  verifyPassword,
+  createToken,
+  createRefreshToken,
+  verifyToken,
+  setAuthCookie,
+  setRefreshCookie,
+  clearAuthCookie,
+  auditLog,
+  generateApiKey,
+  hashApiKey,
+  requireRole,
+  generateCsrfToken,
+  uid,
+  structuredLog,
+  saveAuthData
 }));
 
-// ---- Auth Endpoints ----
-// Apply stricter rate limiting to auth endpoints
-const authRateLimitMiddleware = authRateLimiter || ((req, res, next) => next());
-
-app.post("/api/auth/register", authRateLimitMiddleware, validate("userRegister"), (req, res) => {
-  const { username, email, password } = req.validated || req.body;
-
-  // Check if registration is allowed
-  if (String(process.env.ALLOW_REGISTRATION || "true").toLowerCase() !== "true") {
-    return res.status(403).json({ ok: false, error: "Registration disabled" });
-  }
-
-  // Check for existing user
-  if (AuthDB.getUserByUsername(username)) {
-    return res.status(409).json({ ok: false, error: "Username taken" });
-  }
-  if (AuthDB.getUserByEmail(email)) {
-    return res.status(409).json({ ok: false, error: "Email taken" });
-  }
-
-  const userId = crypto.randomUUID();
-  const userCount = AuthDB.getUserCount();
-  const user = {
-    id: userId,
-    username,
-    email,
-    passwordHash: hashPassword(password),
-    role: userCount === 0 ? "owner" : "member",
-    scopes: userCount === 0 ? ["*"] : ["read", "write"],
-    createdAt: new Date().toISOString(),
-    lastLoginAt: null
-  };
-
-  AuthDB.createUser(user);
-
-  const token = createToken(userId);
-  const refreshToken = createRefreshToken(userId);
-
-  // SECURITY: Set httpOnly cookies for browser auth
-  setAuthCookie(res, token);
-  if (refreshToken) setRefreshCookie(res, refreshToken);
-
-  // Track refresh token family
-  try {
-    const decoded = jwt.decode(refreshToken);
-    if (decoded?.family) _REFRESH_FAMILIES.set(decoded.family, { userId, currentJti: decoded.jti, rotatedAt: Date.now() });
-  } catch {}
-
-  // Audit log registration
-  auditLog("auth", "register", {
-    userId,
-    username,
-    ip: req.ip,
-    userAgent: req.headers["user-agent"]
-  });
-
-  res.status(201).json({
-    ok: true,
-    user: { id: userId, username, email, role: user.role },
-    token // Also return token for non-browser clients
-  });
-});
-
-app.post("/api/auth/login", authRateLimitMiddleware, validate("userLogin"), (req, res) => {
-  const { username, email, password } = req.validated || req.body;
-
-  // Find user by username or email
-  let user = null;
-  if (username) {
-    user = AuthDB.getUserByUsername(username);
-  } else if (email) {
-    user = AuthDB.getUserByEmail(email);
-  }
-
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    // Audit failed login attempt
-    auditLog("auth", "login_failed", {
-      attemptedUser: username || email,
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-      requestId: req.id
-    });
-    return res.status(401).json({ ok: false, error: "Invalid credentials" });
-  }
-
-  AuthDB.updateUserLogin(user.id);
-
-  const token = createToken(user.id);
-  const refreshToken = createRefreshToken(user.id);
-
-  // SECURITY: Set httpOnly cookies for browser auth
-  setAuthCookie(res, token);
-  if (refreshToken) setRefreshCookie(res, refreshToken);
-
-  // Track refresh token family
-  try {
-    const decoded = jwt.decode(refreshToken);
-    if (decoded?.family) _REFRESH_FAMILIES.set(decoded.family, { userId: user.id, currentJti: decoded.jti, rotatedAt: Date.now() });
-  } catch {}
-
-  // Audit successful login
-  auditLog("auth", "login_success", {
-    userId: user.id,
-    username: user.username,
-    ip: req.ip,
-    userAgent: req.headers["user-agent"]
-  });
-
-  res.json({
-    ok: true,
-    user: { id: user.id, username: user.username, email: user.email, role: user.role },
-    token // Also return token for non-browser clients
-  });
-});
-
-app.get("/api/auth/me", (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
-  res.json({
-    ok: true,
-    user: {
-      id: req.user.id,
-      username: req.user.username,
-      email: req.user.email,
-      role: req.user.role,
-      scopes: req.user.scopes
-    }
-  });
-});
-
-// Logout - clears auth cookie + blacklists token (Tier 1: Auth Hardening)
-app.post("/api/auth/logout", (req, res) => {
-  // Blacklist current access token so it can't be replayed
-  const cookieToken = req.cookies?.concord_auth;
-  if (cookieToken && jwt) {
-    try {
-      const decoded = jwt.decode(cookieToken);
-      if (decoded?.jti) {
-        const expiresAt = decoded.exp ? decoded.exp * 1000 : Date.now() + 7 * 86400000;
-        _TOKEN_BLACKLIST.revoke(decoded.jti, expiresAt);
-      }
-    } catch {}
-  }
-
-  // Also revoke refresh token
-  const refreshCookie = req.cookies?.[REFRESH_TOKEN_COOKIE];
-  if (refreshCookie && jwt) {
-    try {
-      const decoded = jwt.decode(refreshCookie);
-      if (decoded?.jti) _TOKEN_BLACKLIST.revoke(decoded.jti, Date.now() + 30 * 86400000);
-      if (decoded?.family) _REFRESH_FAMILIES.delete(decoded.family);
-    } catch {}
-  }
-
-  // Audit logout
-  if (req.user) {
-    auditLog("auth", "logout", {
-      userId: req.user.id,
-      username: req.user.username,
-      ip: req.ip,
-      userAgent: req.headers["user-agent"]
-    });
-  }
-
-  // Clear auth cookies
-  clearAuthCookie(res);
-
-  res.json({ ok: true, message: "Logged out successfully" });
-});
-
-// ---- Refresh Token Endpoint (Tier 1: Auth Hardening) ----
-app.post("/api/auth/refresh", (req, res) => {
-  const refreshCookie = req.cookies?.[REFRESH_TOKEN_COOKIE];
-  if (!refreshCookie) {
-    return res.status(401).json({ ok: false, error: "No refresh token provided", code: "REFRESH_MISSING" });
-  }
-
-  const decoded = verifyToken(refreshCookie);
-  if (!decoded || decoded.type !== "refresh") {
-    clearAuthCookie(res);
-    return res.status(401).json({ ok: false, error: "Invalid or expired refresh token", code: "REFRESH_INVALID" });
-  }
-
-  // Check token family for theft detection (refresh token rotation)
-  const family = _REFRESH_FAMILIES.get(decoded.family);
-  if (family && family.currentJti !== decoded.jti) {
-    // This refresh token was already used! Possible token theft.
-    // Revoke the entire family and force re-login.
-    _TOKEN_BLACKLIST.revokeAllForUser(decoded.userId);
-    _REFRESH_FAMILIES.delete(decoded.family);
-    clearAuthCookie(res);
-    auditLog("security", "refresh_token_reuse", {
-      userId: decoded.userId,
-      family: decoded.family,
-      ip: req.ip,
-      userAgent: req.headers["user-agent"]
-    });
-    return res.status(401).json({ ok: false, error: "Token reuse detected. All sessions revoked for security.", code: "TOKEN_THEFT_DETECTED" });
-  }
-
-  // Revoke old refresh token
-  _TOKEN_BLACKLIST.revoke(decoded.jti, decoded.exp ? decoded.exp * 1000 : Date.now() + 30 * 86400000);
-
-  // Issue new token pair (rotation)
-  const user = AuthDB.getUser(decoded.userId);
-  if (!user) {
-    clearAuthCookie(res);
-    return res.status(401).json({ ok: false, error: "User not found" });
-  }
-
-  const newAccessToken = createToken(user.id);
-  const newRefreshToken = createRefreshToken(user.id);
-
-  setAuthCookie(res, newAccessToken);
-  if (newRefreshToken) setRefreshCookie(res, newRefreshToken);
-
-  // Update family tracking
-  try {
-    const newDecoded = jwt.decode(newRefreshToken);
-    if (newDecoded?.family) {
-      _REFRESH_FAMILIES.set(newDecoded.family, { userId: user.id, currentJti: newDecoded.jti, rotatedAt: Date.now() });
-    }
-  } catch {}
-
-  auditLog("auth", "token_refresh", { userId: user.id, ip: req.ip });
-
-  res.json({
-    ok: true,
-    user: { id: user.id, username: user.username, email: user.email, role: user.role },
-    token: newAccessToken
-  });
-});
-
-// ---- Revoke All Sessions (Tier 1: Auth Hardening) ----
-app.post("/api/auth/revoke-all-sessions", (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
-
-  _TOKEN_BLACKLIST.revokeAllForUser(req.user.id);
-
-  // Clear own family entries
-  for (const [family, entry] of _REFRESH_FAMILIES) {
-    if (entry.userId === req.user.id) _REFRESH_FAMILIES.delete(family);
-  }
-
-  auditLog("auth", "revoke_all_sessions", {
-    userId: req.user.id,
-    ip: req.ip,
-    userAgent: req.headers["user-agent"]
-  });
-
-  clearAuthCookie(res);
-  res.json({ ok: true, message: "All sessions revoked. Please log in again." });
-});
-
-// CSRF Token endpoint - provides token for state-changing requests
-app.get("/api/auth/csrf-token", (req, res) => {
-  const csrfToken = generateCsrfToken(req.user?.id || req.ip);
-
-  // Set CSRF cookie (readable by JS for double-submit pattern)
-  res.cookie("csrf_token", csrfToken, {
-    httpOnly: false, // JS needs to read this
-    secure: NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/"
-  });
-
-  res.json({ ok: true, csrfToken });
-});
-
-// Audit log endpoint (admin only) - uses SQLite for persistent logs
-app.get("/api/auth/audit-log", requireRole("owner", "admin"), (req, res) => {
-  const { limit = 100, offset = 0, category, action, userId, startDate, endDate } = req.query;
-
-  // Use AuditDB for SQLite-backed queries (falls back to memory)
-  const logs = AuditDB.query({
-    limit: Number(limit),
-    offset: Number(offset),
-    category,
-    action,
-    userId,
-    startDate,
-    endDate
-  });
-
-  const total = AuditDB.count({ category, userId });
-
-  res.json({
-    ok: true,
-    total,
-    offset: Number(offset),
-    limit: Number(limit),
-    persistent: db !== null, // Indicates if using SQLite
-    logs
-  });
-});
-
-app.post("/api/auth/api-keys", requireRole("owner", "admin"), validate("apiKeyCreate"), (req, res) => {
-  const { name, scopes } = req.validated || req.body;
-  const apiKey = generateApiKey();
-  const hashedKey = hashApiKey(apiKey);
-
-  // SECURITY: Store only the hash, not the raw key
-  AuthDB.createApiKey({
-    id: uid("apikey"),
-    userId: req.user.id,
-    name,
-    keyHash: hashedKey,
-    keyPrefix: apiKey.slice(0, 8),
-    scopes,
-    createdAt: new Date().toISOString(),
-    lastUsedAt: null
-  });
-
-  // Audit log API key creation
-  auditLog("api_key", "created", {
-    userId: req.user.id,
-    keyName: name,
-    ip: req.ip,
-    requestId: req.id
-  });
-
-  // Return the raw key ONCE - user must save it, we can't recover it
-  res.status(201).json({
-    ok: true,
-    apiKey, // Raw key - only returned once
-    name,
-    scopes,
-    warning: "Save this API key now. It cannot be retrieved again."
-  });
-});
-
-app.get("/api/auth/api-keys", (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
-
-  // Get keys for user (or all keys for owner)
-  const userKeys = req.user.role === "owner"
-    ? AuthDB.getAllApiKeys()
-    : AuthDB.getApiKeysByUser(req.user.id);
-
-  const keys = userKeys.map(data => ({
-    id: data.id,
-    keyPrefix: data.keyPrefix + "...",
-    name: data.name,
-    scopes: data.scopes,
-    createdAt: data.createdAt,
-    lastUsedAt: data.lastUsedAt
-  }));
-
-  res.json({ ok: true, apiKeys: keys });
-});
-
-app.delete("/api/auth/api-keys/:keyId", (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
-
-  const keyId = req.params.keyId;
-  const deleted = AuthDB.deleteApiKey(keyId, req.user.id);
-
-  if (deleted) {
-    auditLog("api_key", "deleted", {
-      userId: req.user.id,
-      keyId,
-      ip: req.ip,
-      requestId: req.id
-    });
-    return res.json({ ok: true });
-  }
-
-  res.status(404).json({ ok: false, error: "API key not found" });
-});
-
-// API Key Rotation - creates new key and invalidates old one atomically
-app.post("/api/auth/api-keys/:keyId/rotate", requireRole("owner", "admin"), (req, res) => {
-  const keyId = req.params.keyId;
-
-  // Find the existing key
-  const allKeys = AuthDB.getAllApiKeys();
-  const existingKey = allKeys.find(k => k.id === keyId && k.userId === req.user.id);
-
-  if (!existingKey) {
-    return res.status(404).json({ ok: false, error: "API key not found" });
-  }
-
-  // Generate new key
-  const newApiKey = generateApiKey();
-  const newHashedKey = hashApiKey(newApiKey);
-
-  // Create new key with same name and scopes
-  AuthDB.createApiKey({
-    id: uid("apikey"),
-    userId: req.user.id,
-    name: existingKey.name + " (rotated)",
-    keyHash: newHashedKey,
-    keyPrefix: newApiKey.slice(0, 8),
-    scopes: existingKey.scopes,
-    createdAt: new Date().toISOString(),
-    lastUsedAt: null
-  });
-
-  // Delete old key
-  AuthDB.deleteApiKey(keyId, req.user.id);
-
-  // Audit log rotation
-  auditLog("api_key", "rotated", {
-    userId: req.user.id,
-    oldKeyId: keyId,
-    newKeyPrefix: newApiKey.slice(0, 8),
-    ip: req.ip,
-    requestId: req.id
-  });
-
-  structuredLog("info", "api_key_rotated", {
-    userId: req.user.id,
-    keyName: existingKey.name
-  });
-
-  res.status(201).json({
-    ok: true,
-    apiKey: newApiKey,
-    warning: "Save this API key now. It cannot be retrieved again. The old key has been invalidated."
-  });
-});
-
-// Password change endpoint
-app.post("/api/auth/change-password", (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
-
-  const { currentPassword, newPassword } = req.body;
-
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({ ok: false, error: "Both current and new password required" });
-  }
-
-  if (newPassword.length < 12) {
-    return res.status(400).json({ ok: false, error: "New password must be at least 12 characters" });
-  }
-
-  // Verify current password
-  const user = AuthDB.getUser(req.user.id);
-  if (!user || !verifyPassword(currentPassword, user.passwordHash)) {
-    auditLog("auth", "password_change_failed", {
-      userId: req.user.id,
-      reason: "invalid_current_password",
-      ip: req.ip,
-      requestId: req.id
-    });
-    return res.status(401).json({ ok: false, error: "Current password is incorrect" });
-  }
-
-  // Update password in database
-  if (db) {
-    const stmt = db.prepare("UPDATE users SET password_hash = ? WHERE id = ?");
-    stmt.run(hashPassword(newPassword), req.user.id);
-  } else {
-    user.passwordHash = hashPassword(newPassword);
-    saveAuthData();
-  }
-
-  auditLog("auth", "password_changed", {
-    userId: req.user.id,
-    ip: req.ip,
-    requestId: req.id
-  });
-
-  structuredLog("info", "password_changed", { userId: req.user.id });
-
-  res.json({ ok: true, message: "Password changed successfully" });
-});
-
-// ---- Backup Endpoints ----
-app.post("/api/backup", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
-  const result = await createBackup(req.body.name);
-  res.json(result);
-}));
-
-app.get("/api/backups", requireRole("owner", "admin"), (req, res) => {
-  res.json(listBackups());
-});
-
-app.post("/api/backup/restore", requireRole("owner"), asyncHandler(async (req, res) => {
-  const result = await restoreBackup(req.body.path || req.body.name);
-  res.json(result);
-}));
+// Backup endpoints extracted to routes/system.js
 
 // ---- UI Response Contract (prevents raw JSON dumps to frontend) ----
 function _extractReply(out) {
@@ -15450,8 +15430,7 @@ function _withAck(out, req, mutated=[], reads=[], job=null, extra={}) {
   if (out && typeof out === "object") return { ...out, ok: (typeof out.ok==="boolean"?out.ok:true), ack };
   return { ok: true, result: out, ack };
 }
-// NOTE: CORS is configured above in Production Middleware section - do not add duplicate cors() here
-app.use(express.json({ limit: "2mb" }));
+// NOTE: CORS and express.json() are configured above in Production Middleware section
 
 // ---- v3: Auth/Org (local-first) + Macro ACL + Actor Context ----
 function sha256Hex(s) {
@@ -15484,14 +15463,33 @@ function ensureRootIdentity() {
   saveStateDebounced();
   console.log("\n=== Concord v3 Auth Bootstrap ===");
   console.log("Created root user/org. Use this API key for requests:");
-  console.log(`X-API-Key: ${rawKey}`);
+  if (NODE_ENV === "production") {
+    // In production, write key to a secure file instead of stdout (prevents log leakage)
+    const keyFilePath = path.join(DATA_DIR, ".root_api_key");
+    try {
+      fs.writeFileSync(keyFilePath, rawKey, { mode: 0o600 });
+      console.log(`API key written to: ${keyFilePath} (mode 600, owner-read only)`);
+      console.log("Retrieve it once, then delete the file for security.");
+    } catch {
+      console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED (set DATA_DIR to enable file-based key delivery)`);
+    }
+  } else {
+    console.log(`X-API-Key: ${rawKey}`);
+  }
   console.log("================================\n");
 }
 
 function getActorFromReq(req) {
   // Local-first API key auth: X-API-Key header or ?apiKey=...
   const raw = String(req?.headers?.["x-api-key"] || req?.query?.apiKey || "").trim();
-  if (!raw) return { ok: true, actor: { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] } };
+  // In AUTH_MODE=public, anonymous users get member role so all features are usable without login.
+  // In other modes, anonymous users (no API key) get viewer with read-only access.
+  if (!raw) {
+    if (AUTH_MODE === "public") {
+      return { ok: true, actor: { userId: "anon", orgId: "public", role: "member", scopes: ["read", "write"] } };
+    }
+    return { ok: true, actor: { userId: "anon", orgId: "public", role: "viewer", scopes: ["read"] } };
+  }
   const h = sha256Hex(raw);
   const key = Array.from(STATE.apiKeys.values()).find(k => k && !k.revokedAt && k.keyHash === h);
   if (!key) return { ok: false, error: "Invalid API key" };
@@ -15538,12 +15536,15 @@ const _ACL_MEMBER = { roles: ["member","admin","owner"], scopes: ["write","admin
 const _ACL_ADMIN  = { roles: ["admin","owner"], scopes: ["admin","*"] };
 const _ACL_OWNER  = { roles: ["owner"], scopes: ["*"] };
 
-// Public read macros (viewer+): frontend boot path, status checks, DTU browsing
+// Public read macros (viewer+): frontend boot path, status checks, DTU browsing, chat, lens reads
 for (const [d, n] of [
   ["system","status"],["system","getStatus"],
   ["dtu","list"],["dtu","get"],["dtu","search"],["dtu","recent"],["dtu","stats"],["dtu","count"],["dtu","export"],
   ["settings","get"],["settings","status"],
   ["chicken3","status"],
+  ["chat","respond"],["chat","feedback"],["chat","stream"],
+  ["goals","list"],["goals","get"],["goals","status"],
+  ["lattice","resonance"],["lattice","beacon"],
 ]) allowMacro(d, n, _ACL_PUB);
 
 // Member-level domains (authenticated user operations)
@@ -15595,9 +15596,19 @@ globalThis.canRunMacro = _canRunMacro;
 app.use((req, res, next) => {
   try {
     ensureRootIdentity();
-    const a = getActorFromReq(req);
-    if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
-    req.actor = a.actor;
+    // If JWT/cookie auth already authenticated the user, derive actor from req.user
+    if (req.user) {
+      req.actor = {
+        userId: req.user.id,
+        orgId: "default",
+        role: req.user.role || "member",
+        scopes: Array.isArray(req.user.scopes) && req.user.scopes.length ? req.user.scopes : ["read", "write"]
+      };
+    } else {
+      const a = getActorFromReq(req);
+      if (!a.ok) return res.status(401).json({ ok:false, error: a.error });
+      req.actor = a.actor;
+    }
   } catch (e) {
     return res.status(500).json({ ok:false, error: String(e?.message || e) });
   }
@@ -15640,8 +15651,8 @@ async function runJob(j) {
   saveStateDebounced();
 
   const ctx = makeCtx(null);
-  // adopt actor context if present
-  if (j.actor) ctx.actor = j.actor;
+  // adopt actor context if present; default to system actor for internal jobs
+  ctx.actor = j.actor || { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
 
   try {
     const [domain, name] = String(j.kind).split(".");
@@ -15694,713 +15705,27 @@ console.log(`- dotenvLoaded: ${DOTENV.loaded} (path=${DOTENV.path})`);
 console.log(`- llmReady: ${LLM_READY}`);
 console.log(`- authMode: ${AUTH_MODE} (jwt=${AUTH_USES_JWT}, apikey=${AUTH_USES_APIKEY})\n`);
 
-app.get("/", (req, res) => res.json({ ok:true, name:"Concord v2 Macro‑Max", version: VERSION }));
+// Root, status, LLM pipeline, quality-pipeline, time, weather, state/latest — extracted to routes/system.js
 
-// Status
-app.get("/api/status", (req, res) => {
-  res.json({
-    ok: true,
-    version: VERSION,
-    port: PORT,
-    nodeEnv: NODE_ENV,
-    uptime: process.uptime(),
-    dotenvLoaded: DOTENV.loaded,
-    dotenvPath: DOTENV.path,
-    llmReady: LLM_READY,
-    openaiModel: { fast: OPENAI_MODEL_FAST, smart: OPENAI_MODEL_SMART },
-    dtus: STATE.dtus.size,
-    wrappers: STATE.wrappers.size,
-    layers: STATE.layers.size,
-    personas: STATE.personas.size,
-    swarms: 0,
-    sims: STATE.lastSim ? 1 : 0,
-    macroDomains: listDomains(),
-    crawlQueue: STATE.crawlQueue.length,
-    settings: STATE.settings,
-    seed: SEED_INFO,
-    stateDisk: STATE_DISK,
-    // Production infrastructure status
-    infrastructure: {
-      database: {
-        type: db ? "sqlite" : "json",
-        ready: db ? true : false,
-        path: db ? DB_PATH : AUTH_PATH
-      },
-      stateBackend: {
-        type: USE_SQLITE_STATE ? "sqlite" : "json",
-        path: USE_SQLITE_STATE ? DB_PATH : STATE_PATH,
-      },
-      auth: {
-        mode: AUTH_MODE,
-        totalUsers: AuthDB.getUserCount(),
-        jwtConfigured: Boolean(JWT_SECRET),
-        usesJwt: AUTH_USES_JWT,
-        usesApiKey: AUTH_USES_APIKEY
-      },
-      security: {
-        csrfEnabled: NODE_ENV === "production",
-        rateLimitEnabled: Boolean(rateLimiter),
-        helmetEnabled: Boolean(helmet)
-      },
-      envValidation: ENV_VALIDATION,
-      llmPipeline: getLLMPipelineStatus(),
-      capabilities: CAPS
-    }
-  });
+
+// ---- DTU Endpoints (extracted to routes/dtus.js) ----
+require("./routes/dtus")(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, saveStateDebounced });
+
+// ---- Chat + Ask Endpoints (extracted to routes/chat.js) ----
+require("./routes/chat")(app, {
+  STATE, makeCtx, runMacro, enforceRequestInvariants, enforceEthosInvariant,
+  uid, kernelTick, uiJson, _withAck, _extractReply, clamp, nowISO,
+  saveStateDebounced, ETHOS_INVARIANTS
 });
 
-// LLM Pipeline API
-app.get("/api/llm/status", (req, res) => {
-  res.json({ ok: true, ...getLLMPipelineStatus() });
+// ---- Domain Routes (extracted to routes/domain.js) ----
+require("./routes/domain")(app, {
+  STATE, makeCtx, runMacro, _withAck, kernelTick, uiJson, listDomains, listMacros,
+  dtusArray, normalizeText, clamp, nowISO, saveStateDebounced, retrieveDTUs,
+  isShadowDTU, fs, ensureExperienceLearning, ensureAttentionManager, ensureReflectionEngine
 });
 
-app.post("/api/llm/generate", asyncHandler(async (req, res) => {
-  const { prompt, mode, temperature, maxTokens } = req.body || {};
-  if (!prompt) {
-    return res.status(400).json({ ok: false, error: "prompt required" });
-  }
-  const result = await llmPipeline(prompt, { mode, temperature, maxTokens });
-  res.json(result);
-}));
-
-app.post("/api/llm/mode", requireRole("owner", "admin"), (req, res) => {
-  const { mode } = req.body || {};
-  const result = setLLMPipelineMode(mode);
-  res.json(result);
-});
-
-// Quality Pipeline status endpoint
-app.get("/api/quality-pipeline/status", (req, res) => {
-  const sessionId = req.query.sessionId || "";
-  const shadowCount = STATE.shadowDtus ? STATE.shadowDtus.size : 0;
-  const patternShadows = Array.from(STATE.shadowDtus?.values() || []).filter(s => s?.machine?.kind === "pattern_shadow").length;
-  const history = sessionId ? _getPatternHistory(sessionId) : [];
-
-  res.json({
-    ok: true,
-    pipeline: {
-      version: "1.0.0",
-      patterns: {
-        P1: { name: "Shadow DTU Distillation", alwaysRun: false, condition: "shadow DTU matches exist" },
-        P2: { name: "CRETI Projection", alwaysRun: true, condition: "always" },
-        P3: { name: "Linguistic Spine Rewrite", alwaysRun: false, condition: "non-default style/affect" },
-        P4: { name: "Multi-Lens Convergence", alwaysRun: false, condition: "multi-domain query" },
-        P5: { name: "Contradiction Pre-Resolution", alwaysRun: false, condition: "conflict detected in set" },
-        P6: { name: "Resonance-Weighted Micro-Prompt", alwaysRun: true, condition: "always" }
-      },
-      shadowDtus: { total: shadowCount, patternShadows },
-      sessionHistory: history,
-      maxConcurrent: 3,
-      backendEnhancements: ["coherenceAudit", "shadowPromotion", "crispnessDecay"]
-    }
-  });
-});
-
-// Quality Pipeline dry-run: preview what patterns would be selected for a query
-app.post("/api/quality-pipeline/preview", (req, res) => {
-  try {
-    const { query, sessionId, mode } = req.body || {};
-    if (!query) return res.json({ ok: false, error: "Missing query" });
-
-    const sid = sessionId || "preview";
-    const pseudoDtu = { title: String(query).slice(0, 100), human: { summary: String(query).slice(0, 300) }, tags: [] };
-    const domain = classifyDomain(pseudoDtu);
-    const intent = _inferQueryIntent(query, mode || "explore");
-    const history = _getPatternHistory(sid);
-
-    res.json({
-      ok: true,
-      preview: {
-        queryIntent: intent,
-        domain,
-        recentPatterns: history,
-        projectionRules: CRETI_PROJECTION_RULES[intent] || CRETI_PROJECTION_RULES.default
-      }
-    });
-  } catch (e) {
-    res.json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Force reseed DTUs from dtus.js (useful for debugging empty state)
-// SECURITY: Requires owner/admin role to prevent unauthorized state resets
-app.post("/api/reseed", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
-  try {
-    const force = req.body?.force === true;
-    if (!force && STATE.dtus.size > 0) {
-      return res.json({ ok: false, error: "DTUs already exist. Pass { force: true } to reseed anyway.", currentCount: STATE.dtus.size });
-    }
-    const seeds = await tryLoadSeedDTUs();
-    if (!seeds.length) {
-      return res.json({ ok: false, error: SEED_INFO.error || "No seeds found in dtus.js", seedInfo: SEED_INFO });
-    }
-    let added = 0;
-    for (const s of seeds) {
-      // Scope Separation: reseeded DTUs enter Global scope (canonical knowledge)
-      s.scope = "global";
-      const d = toOptionADTU(s);
-      if (!STATE.dtus.has(d.id)) {
-        STATE.dtus.set(d.id, d);
-        added++;
-      }
-    }
-    saveStateDebounced();
-    log("reseed", "Manual reseed from dtus.js into Global scope", { added, total: STATE.dtus.size, scope: "global" });
-    return res.json({ ok: true, added, total: STATE.dtus.size, scope: "global", seedInfo: SEED_INFO });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-}));
-
-// Time (authoritative; never uses LLM)
-app.get("/api/time", (req, res) => {
-  try {
-    const tz = String(req.query.tz || "America/New_York");
-    return res.json({ ok:true, ...getTimeInfo(tz) });
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// Weather (authoritative; cached; never uses LLM)
-app.get("/api/weather", asyncHandler(async (req, res) => {
-  try {
-    const location = String(req.query.location || req.query.q || "Poughkeepsie, NY");
-    const tz = String(req.query.tz || "America/New_York");
-    const out = await getWeather(location, { timeZone: tz });
-    return res.json(out);
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-}));
-
-
-// State snapshot (frontend-friendly read after any macro)
-app.get("/api/state/latest", (req, res) => {
-  try {
-    const sessionId = normalizeText(req.query.sessionId || "default");
-    const sess = STATE.sessions.get(sessionId) || { createdAt: null, messages: [] };
-    const lastMessages = (sess.messages || []).slice(-20);
-    const latestDTUs = dtusArray().slice(0, 10).map(d => ({
-      id: d.id,
-      title: d.title,
-      tier: d.tier,
-      tags: d.tags || [],
-      createdAt: d.createdAt,
-      updatedAt: d.updatedAt
-    }));
-    res.json({
-      ok: true,
-      sessionId,
-      session: { createdAt: sess.createdAt || null, turns: lastMessages.length },
-      lastMessages,
-      latestDTUs,
-      lastSim: STATE.lastSim || null,
-      settings: STATE.settings
-    });
-  } catch (e) {
-    res.json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Abstraction governor status / controls
-app.get("/api/abstraction", (req, res) => {
-  try {
-    const snap = computeAbstractionSnapshot();
-    res.json({ ok:true, abstraction: { ...STATE.abstraction, metrics: { ...STATE.abstraction.metrics, ...snap } } });
-  } catch (e) {
-    res.json({ ok:false, error: String(e?.message||e) });
-  }
-});
-
-app.post("/api/abstraction/upgrade", asyncHandler(async (req, res) => {
-  try {
-    // force a local upgrade now
-    STATE.abstraction.lastUpgradeAt = null;
-    const r = await maybeRunLocalUpgrade();
-    res.json({ ok:true, result: r, abstraction: STATE.abstraction });
-  } catch (e) {
-    res.json({ ok:false, error: String(e?.message||e) });
-  }
-}));
-
-// Manual consolidation trigger - creates MEGAs/HYPERs immediately
-app.post("/api/abstraction/consolidate", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
-  try {
-    const { maxMegas = 5, maxHypers = 2, force = false } = req.body || {};
-
-    // Optionally bypass usage requirement for testing/manual consolidation
-    if (force) {
-      STATE.abstraction.metrics = STATE.abstraction.metrics || {};
-      STATE.abstraction.metrics.totalUses = Math.max(STATE.abstraction.metrics.totalUses || 0, 30);
-    }
-
-    const ctx = makeCtx(req);
-    const result = await runAutoPromotion(ctx, { maxNewMegas: maxMegas, maxNewHypers: maxHypers });
-
-    res.json({
-      ok: true,
-      result,
-      message: result.made?.megas?.length || result.made?.hypers?.length
-        ? `Created ${result.made?.megas?.length || 0} MEGAs and ${result.made?.hypers?.length || 0} HYPERs`
-        : "No consolidation needed (insufficient clusters or already at budget)"
-    });
-  } catch (e) {
-    res.json({ ok: false, error: String(e?.message || e) });
-  }
-}));
-
-// ---- Queues (proposals + maintenance; never flood DTU library) ----
-app.get("/api/queues", (req,res)=>{
-  ensureQueues();
-  res.json({ ok:true, queues: Object.fromEntries(Object.entries(STATE.queues).map(([k,v])=>[k, v.slice(-500)])) });
-});
-
-app.post("/api/queues/:queue/propose", (req,res)=>{
-  ensureQueues();
-  const q = String(req.params.queue||"");
-  if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
-  const item = { id: uid(`q_${q}`), createdAt: nowISO(), status: "queued", ...((req.body&&typeof req.body==='object')?req.body:{}) };
-  STATE.queues[q].push(item);
-  saveStateDebounced();
-  res.json({ ok:true, item });
-});
-
-app.post("/api/queues/:queue/decide", asyncHandler(async (req, res)=>{
-  ensureQueues();
-  const q = String(req.params.queue||"");
-  if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
-  const { id, decision, note } = req.body||{};
-  const item = STATE.queues[q].find(x=>x && x.id===id);
-  if (!item) return res.status(404).json({ ok:false, error:"Queue item not found" });
-  const dec = String(decision||"").toLowerCase();
-  if (!['approve','decline','revise','promote'].includes(dec)) return res.status(400).json({ ok:false, error:"decision must be approve/decline/revise/promote" });
-
-  item.status = dec;
-  item.decidedAt = nowISO();
-  item.decisionNote = note || "";
-
-  // Promotion hook: approved DTU proposals become DTUs (lineage preserved)
-  let promoted = null;
-  if ((dec==='approve' || dec==='promote') && item.type === 'dtu_proposal' && item.payload && typeof item.payload==='object') {
-    const ctx = makeCtx(req);
-    const spec = { ...item.payload, source: item.payload.source || `queue.${q}`, allowRewrite: true };
-    const r = await runMacro('dtu','create', spec, ctx).catch(e=>({ ok:false, error:String(e?.message||e) }));
-    promoted = r;
-    item.promoted = r?.ok ? { dtuId: r.id || r.dtu?.id || null } : null;
-  }
-
-  saveStateDebounced();
-  res.json({ ok:true, item, promoted });
-}));
-
-
-// CRETI-first DTU view (no raw JSON by default)
-app.get("/api/dtu_view/:id", (req, res) => {
-  const id = req.params.id;
-  const d = STATE.dtus.get(id);
-  if (!d) return res.status(404).json({ ok:false, error:"DTU not found" });
-  return res.json({ ok:true, dtu: dtuForClient(d, { raw: req.query.raw === "1" }) });
-});
-
-
-// DTUs
-app.get("/api/dtus", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","list",{ q:req.query.q, tier:req.query.tier || "any", limit:req.query.limit, offset:req.query.offset }, ctx);
-  res.json(out);
-}));
-app.get("/api/dtus/:id", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","get",{ id:req.params.id }, ctx);
-  if (!out.ok) return res.status(404).json(out);
-  res.json(out);
-}));
-app.post("/api/dtus", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","create", req.body || {}, ctx);
-  res.json(out);
-}));
-app.post("/api/dtus/saveSuggested", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("dtu","saveSuggested", req.body || {}, ctx);
-  res.json(out);
-}));
-
-// Chat + Ask
-app.post("/api/chat", asyncHandler(async (req, res) => {
-  const errorId = uid("err");
-  try {
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "chat";
-    const ctx = makeCtx(req);
-    // Chicken3: stream by default when enabled, while preserving an explicit full-response path.
-    // - ?full=1 forces classic JSON response
-    // - Accept: text/event-stream or ?stream=1 also forces streaming
-    const accept = String(req.headers.accept || "");
-    const wantsFull = (String(req.query.full || "") === "1") || accept.includes("application/json");
-    const wantsStream = (!wantsFull) ||
-      String(req.query.stream || "") === "1" ||
-      String(req.body.stream || "") === "1" ||
-      accept.includes("text/event-stream");
-
-    // Streaming upgrade (Chicken3): keep full-response compatibility unless stream is requested.
-    // This preserves existing clients while enabling event-stream when desired.
-    if (wantsStream) {
-      enforceEthosInvariant("chat_stream");
-      if (!STATE.__chicken3?.streamingEnabled) throw new Error("streaming disabled");
-
-      res.set({
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
-      });
-      res.flushHeaders?.();
-
-      const sse = (event, data) => {
-        try {
-          res.write(`event: ${event}\n`);
-          res.write(`data: ${JSON.stringify(data)}\n\n`);
-        } catch {}
-      };
-
-      // Lightweight chunker over a final answer (keeps architecture unchanged).
-      async function* chunkText(txt, size=240) {
-        const t = String(txt || "");
-        for (let i=0; i<t.length; i+=size) {
-          yield t.slice(i, i+size);
-          await new Promise(r => { setImmediate(r); }); // yield to event loop
-        }
-      }
-
-      sse("meta", { ok:true, mode: req._concordMode, sessionId: req.body.sessionId || null });
-      const out = await runMacro("chat","respond", req.body, ctx);
-
-      // Pick a best-effort text field for progressive display.
-      const answer = out?.answer ?? out?.content ?? out?.text ?? out?.message ?? out?.response ?? "";
-      for await (const delta of chunkText(answer)) {
-        sse("chunk", { delta });
-      }
-      sse("final", _withAck(out, req, ["state","logs","shadow"], ["/api/state/latest","/api/logs"], null, { panel: "chat" }));
-      kernelTick({ type: "USER_MSG", meta: { path: req.path, stream: true }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-      try { res.end(); } catch {}
-      return;
-    }
-
-    const out = await runMacro("chat","respond", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["state","logs","shadow"], ["/api/state/latest","/api/logs"], null, { panel: "chat" }),
-      req,
-      { panel: "chat" }
-    );
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    const out = { ok: false, error: msg, mode: req?.body?.mode || "chat", sessionId: req?._concordSessionId || req?.body?.sessionId, llmUsed: false };
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: 0, error: 0.5 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["logs"], ["/api/logs"], { id: errorId, status: "error" }, { panel: "chat", errorId }),
-      req,
-      { panel: "chat", errorId }
-    );
-  }
-}));
-
-// Chicken3: SSE streaming chat (additive; does not replace /api/chat)
-// POST /api/chat/feedback — record user thumbs up/down
-app.post("/api/chat/feedback", asyncHandler(async (req, res) => {
-  try {
-    const out = await runMacro("chat", "feedback", req.body, makeCtx(req));
-    return res.json(out);
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-}));
-
-// GET /api/cognitive/status — combined status for all cognitive systems
-app.get("/api/cognitive/status", (req, res) => {
-  try {
-    ensureExperienceLearning();
-    ensureAttentionManager();
-    ensureReflectionEngine();
-    return res.json({
-      ok: true,
-      experience: {
-        episodes: STATE.experienceLearning.episodes.length,
-        patterns: STATE.experienceLearning.patterns.size,
-        strategies: STATE.experienceLearning.strategies.size,
-      },
-      attention: {
-        focus: STATE.attention.focus,
-        activeThreads: Array.from(STATE.attention.threads.values()).filter(t => t.status === "active").length,
-        queueLength: STATE.attention.queue.length,
-      },
-      reflection: {
-        calibration: STATE.reflection.selfModel.confidenceCalibration,
-        strengths: STATE.reflection.selfModel.strengths,
-        weaknesses: STATE.reflection.selfModel.weaknesses,
-        reflections: STATE.reflection.reflections.length,
-      }
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-app.post("/api/chat/stream", asyncHandler(async (req, res) => {
-  const errorId = uid("err");
-  try {
-    enforceEthosInvariant("chat_stream");
-    if (!STATE.__chicken3?.streamingEnabled) throw new Error("streaming disabled");
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "chat";
-    const ctx = makeCtx(req);
-
-    res.set({
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive"
-    });
-    res.flushHeaders?.();
-
-    const out = await runMacro("chat","respond", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path, stream: true }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.2 } });
-
-
-// Chicken3: status + session opt-in (additive)
-app.get("/api/chicken3/status", (req, res) => {
-  try {
-    return uiJson(res, { ok:true, chicken3: STATE.__chicken3, ethos: ETHOS_INVARIANTS }, req, { panel:"chicken3_status" });
-  } catch (e) {
-    return uiJson(res, { ok:false, error: String(e?.message||e) }, req, { panel:"chicken3_status" });
-  }
-});
-
-app.post("/api/session/optin", (req, res) => {
-  try {
-    enforceEthosInvariant("optin");
-    const b = req.body || {};
-    const sid = String(b.sessionId || b.session || "");
-    if (!sid) return uiJson(res, { ok:false, error:"sessionId required" }, req, { panel:"optin" });
-    const s = STATE.sessions.get(sid) || { createdAt: nowISO(), messages: [] };
-    if (typeof b.cloudOptIn === "boolean") s.cloudOptIn = b.cloudOptIn;
-    if (typeof b.toolsOptIn === "boolean") s.toolsOptIn = b.toolsOptIn;
-    if (typeof b.multimodalOptIn === "boolean") s.multimodalOptIn = b.multimodalOptIn;
-    if (typeof b.voiceOptIn === "boolean") s.voiceOptIn = b.voiceOptIn;
-    STATE.sessions.set(sid, s);
-    saveStateDebounced();
-    return uiJson(res, { ok:true, sessionId: sid, flags: { cloudOptIn: !!s.cloudOptIn, toolsOptIn: !!s.toolsOptIn, multimodalOptIn: !!s.multimodalOptIn, voiceOptIn: !!s.voiceOptIn } }, req, { panel:"optin" });
-  } catch (e) {
-    return uiJson(res, { ok:false, error: String(e?.message||e) }, req, { panel:"optin" });
-  }
-});
-
-
-    const content = String(out?.content || out?.answer || out?.text || "");
-    // Deterministic chunking (local-first). If you later add true token-streaming LLM, swap this chunker.
-    const step = clamp(Number(req.body?.chunkSize || 220), 40, 1200);
-    for (let i = 0; i < content.length; i += step) {
-      const chunk = content.slice(i, i + step);
-      res.write(`data: ${JSON.stringify({ ok: true, chunk, done: false })}\n\n`);
-    }
-    // Final envelope (also contains full out for UI parity)
-    res.write(`data: ${JSON.stringify({ ok: true, done: true, out })}\n\n`);
-    return res.end();
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    try {
-      res.write(`data: ${JSON.stringify({ ok:false, error: msg, errorId, done:true })}\n\n`);
-      return res.end();
-    } catch {
-      return uiJson(res, { ok:false, error: msg, errorId }, req, { panel:"chat_stream", errorId });
-    }
-  }
-}));
-
-
-app.post("/api/ask", asyncHandler(async (req, res) => {
-  const errorId = uid("err");
-  try {
-    req.body = enforceRequestInvariants(req, req.body || {});
-    req._concordMode = req.body.mode || "ask";
-    const ctx = makeCtx(req);
-    const out = await runMacro("ask","answer", req.body, ctx);
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: out?.ok?0.25:0, error: out?.ok?0:0.25 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "ask" }),
-      req,
-      { panel: "ask" }
-    );
-  } catch (e) {
-    const msg = String(e?.message || e || "Unknown error");
-    const out = { ok: false, error: msg, mode: req?.body?.mode || "ask", sessionId: req?._concordSessionId || req?.body?.sessionId, llmUsed: false };
-    kernelTick({ type: "USER_MSG", meta: { path: req.path }, signals: { benefit: 0, error: 0.5 } });
-    return uiJson(
-      res,
-      _withAck(out, req, ["logs"], ["/api/logs"], { id: errorId, status: "error" }, { panel: "ask", errorId }),
-      req,
-      { panel: "ask", errorId }
-    );
-  }
-}));
-// Forge
-app.post("/api/forge/manual", asyncHandler(async (req, res)=> {
-  const out = await runMacro("forge","manual", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "forge_manual" }));
-}));
-app.post("/api/forge/hybrid", asyncHandler(async (req, res)=> {
-  const out = await runMacro("forge","hybrid", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "forge_hybrid" }));
-}));
-app.post("/api/forge/auto", asyncHandler(async (req, res)=> {
-  const out = await runMacro("forge","auto", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "forge_auto" }));
-}));
-
-// Swarm + Sim
-app.post("/api/swarm", asyncHandler(async (req, res)=> {
-  const out = await runMacro("swarm","run", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "swarm" }));
-}));
-app.post("/api/sim", asyncHandler(async (req, res)=> {
-  const out = await runMacro("sim","run", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "sim" }));
-}));
-app.get("/api/sim/:id", (req,res)=> res.json({ ok:true, note:"Single-run sims are stored as lastSim only in this v2 build.", lastSim: STATE.lastSim || null }));
-
-// Wrappers
-app.get("/api/wrappers", asyncHandler(async (req, res)=> res.json(await runMacro("wrapper","list", {}, makeCtx(req)))));
-app.post("/api/wrappers", asyncHandler(async (req, res)=> res.json(await runMacro("wrapper","create", req.body||{}, makeCtx(req)))));
-app.post("/api/wrappers/run", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("wrapper","run", req.body || {}, ctx);
-  kernelTick({ type: out?.ok ? "WRAPPER_RUN" : "VERIFIER_FAIL", meta: { path: req.path }, signals: { benefit: out?.ok?0.2:0, error: out?.ok?0:0.3 } });
-  return uiJson(res, _withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "wrapper_run" }), req, { panel: "wrapper_run" });
-}));
-
-
-
-// DTU maintenance
-app.post("/api/dtus/dedupe", asyncHandler(async (req, res)=> {
-  const out = await runMacro("dtu","dedupeSweep", req.body||{}, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "dtus_dedupe" }));
-}));
-app.get("/api/megas", (req,res)=> {
-  const tier = "mega";
-  const out = dtusArray().filter(d => d.tier===tier).sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
-  res.json({ ok:true, megas: out });
-});
-app.get("/api/hypers", (req,res)=> {
-  const out = dtusArray().filter(d => d.tier==="hyper").sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
-  res.json({ ok:true, hypers: out });
-});
-// Layers
-app.get("/api/layers", asyncHandler(async (req, res)=> res.json(await runMacro("layer","list", {}, makeCtx(req)))));
-app.post("/api/layers", asyncHandler(async (req, res)=> res.json(await runMacro("layer","create", req.body||{}, makeCtx(req)))));
-app.post("/api/layers/toggle", asyncHandler(async (req, res)=> res.json(await runMacro("layer","toggle", req.body||{}, makeCtx(req)))));
-
-// Personas
-app.get("/api/personas", asyncHandler(async (req, res)=> res.json(await runMacro("persona","list", {}, makeCtx(req)))));
-app.post("/api/personas", asyncHandler(async (req, res)=> res.json(await runMacro("persona","create", req.body||{}, makeCtx(req)))));
-
-// Persona interaction endpoints (speak + animate)
-app.post("/api/personas/:id/speak", asyncHandler(async (req, res) => {
-  const out = await runMacro("persona", "speak", { personaId: req.params.id, text: req.body?.text || "" }, makeCtx(req));
-  return res.json(out);
-}));
-app.post("/api/personas/:id/animate", asyncHandler(async (req, res) => {
-  const out = await runMacro("persona", "animate", { personaId: req.params.id, kind: req.body?.kind || "talk" }, makeCtx(req));
-  return res.json(out);
-}));
-
-// Macros registry + runner
-app.get("/api/macros/domains", (req,res)=> res.json({ ok:true, domains: listDomains() }));
-app.get("/api/macros/:domain", (req,res)=> res.json({ ok:true, domain:req.params.domain, macros: listMacros(req.params.domain) }));
-app.post("/api/macros/run", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const domain = req.body?.domain;
-  const name = req.body?.name;
-  const input = req.body?.input;
-  if (!domain || !name) return res.status(400).json({ ok:false, error:"domain and name required" });
-  try {
-    const out = await runMacro(domain, name, input, ctx);
-    kernelTick({ type: "MACRO_RUN", meta: { path: req.path, domain, name }, signals: { benefit: out?.ok?0.1:0, error: out?.ok?0:0.2 } });
-    return uiJson(res, _withAck(out, req, ["state","logs"], ["/api/state/latest","/api/logs"], null, { panel: "macro_run", domain, name }), req, { panel: "macro_run", domain, name });
-  } catch (e) {
-    kernelTick({ type: "ERROR", meta: { path: req.path, domain, name }, signals: { error: 0.4 } });
-    const msg = String(e?.message || e);
-    if (msg.startsWith("forbidden:")) {
-      const permission = msg.replace("forbidden:", "").trim();
-      return res.status(403).json({ ok:false, error: `Permission denied: ${permission}`, code: "PERMISSION_DENIED", permission });
-    }
-    return res.status(404).json({ ok:false, reply: msg, error: msg });
-  }
-}));
-
-// Interface + logs
-app.get("/api/interface/tabs", asyncHandler(async (req, res)=> res.json(await runMacro("interface","tabs", {}, makeCtx(req)))));
-app.get("/api/logs", asyncHandler(async (req, res)=> res.json(await runMacro("log","list", { limit: req.query.limit }, makeCtx(req)))));
-
-// Crawl + autocrawl
-app.post("/api/crawl", asyncHandler(async (req, res)=> {
-  const ctx = makeCtx(req);
-  const out = await runMacro("ingest","url", req.body||{}, ctx);
-  res.json(out);
-}));
-app.post("/api/autocrawl/queue", asyncHandler(async (req, res)=> {
-  const ctx = makeCtx(req);
-  const out = await runMacro("ingest","queue", req.body||{}, ctx);
-  res.json(out);
-}));
-
-// Settings
-app.get("/api/settings", asyncHandler(async (req, res)=> res.json(await runMacro("settings","get", {}, makeCtx(req)))));
-app.post("/api/settings", asyncHandler(async (req, res)=> res.json(await runMacro("settings","set", req.body||{}, makeCtx(req)))));
-
-// System: dream/autogen/evolution/synthesize
-app.post("/api/dream", asyncHandler(async (req, res)=> res.json(await runMacro("system","dream", req.body||{}, makeCtx(req)))));
-app.post("/api/autogen", asyncHandler(async (req, res)=> res.json(await runMacro("system","autogen", req.body||{}, makeCtx(req)))));
-app.post("/api/evolution", asyncHandler(async (req, res)=> res.json(await runMacro("system","evolution", req.body||{}, makeCtx(req)))));
-app.post("/api/synthesize", asyncHandler(async (req, res)=> res.json(await runMacro("system","synthesize", req.body||{}, makeCtx(req)))));
-
-// Misc
-app.post("/api/materials/test", asyncHandler(async (req, res)=> res.json(await runMacro("materials","test", req.body||{}, makeCtx(req)))));
-
-
-// Research (deterministic math + dimensional OS)
-app.post("/api/research/math", asyncHandler(async (req, res)=> res.json(await runMacro("research","math.exec", req.body||{}, makeCtx(req)))));
-
-app.post("/api/temporal/validate", asyncHandler(async (req, res)=> res.json(await runMacro("temporal","validate", req.body, makeCtx(req)))));
-app.post("/api/temporal/recency", asyncHandler(async (req, res)=> res.json(await runMacro("temporal","recency", req.body, makeCtx(req)))));
-app.post("/api/temporal/frame", asyncHandler(async (req, res)=> res.json(await runMacro("temporal","frame", req.body, makeCtx(req)))));
-app.post("/api/temporal/subjective", asyncHandler(async (req, res)=> res.json(await runMacro("temporal","subjective", req.body, makeCtx(req)))));
-app.post("/api/temporal/sim", asyncHandler(async (req, res)=> res.json(await runMacro("temporal","simTimeline", req.body, makeCtx(req)))));
-app.post("/api/dimensional/validate", asyncHandler(async (req, res)=> res.json(await runMacro("dimensional","validateContext", req.body||{}, makeCtx(req)))));
-app.post("/api/dimensional/invariance", asyncHandler(async (req, res)=> res.json(await runMacro("dimensional","checkInvariance", req.body||{}, makeCtx(req)))));
-app.post("/api/dimensional/scale", asyncHandler(async (req, res)=> res.json(await runMacro("dimensional","scaleTransform", req.body||{}, makeCtx(req)))));
-
-// Council enhancements
-app.post("/api/council/review-global", asyncHandler(async (req, res)=> res.json(await runMacro("council","reviewGlobal", req.body||{}, makeCtx(req)))));
-app.post("/api/council/weekly", asyncHandler(async (req, res)=> res.json(await runMacro("council","weeklyDebateTick", req.body||{}, makeCtx(req)))));
-
-// Scope Separation endpoints
-app.post("/api/scope/promote", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.promote", req.body||{}, makeCtx(req)))));
-app.post("/api/scope/validate-global", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.validateGlobal", req.body||{}, makeCtx(req)))));
-app.get("/api/scope/metrics", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.metrics", {}, makeCtx(req)))));
-app.get("/api/scope/dtus/:scope", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.listByScope", { scope: req.params.scope, limit: Number(req.query.limit||50) }, makeCtx(req)))));
-app.get("/api/scope/overrides", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.overrideLog", { limit: Number(req.query.limit||50) }, makeCtx(req)))));
-app.get("/api/scope/marketplace-analytics", asyncHandler(async (req, res)=> res.json(await runMacro("emergent","scope.marketplaceAnalytics", { limit: Number(req.query.limit||50) }, makeCtx(req)))));
-
-// Anonymous messaging (non-discoverable; requires manual contact exchange)
-app.post("/api/anon/create", asyncHandler(async (req, res)=> res.json(await runMacro("anon","create", req.body||{}, makeCtx(req)))));
-app.post("/api/anon/send", asyncHandler(async (req, res)=> res.json(await runMacro("anon","send", req.body||{}, makeCtx(req)))));
-app.post("/api/anon/inbox", asyncHandler(async (req, res)=> res.json(await runMacro("anon","inbox", req.body||{}, makeCtx(req)))));
-app.post("/api/anon/decrypt-local", asyncHandler(async (req, res)=> res.json(await runMacro("anon","decryptLocal", req.body||{}, makeCtx(req)))));
-
-// Error handler — ConcordError-aware with structured logging
+// Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
 
@@ -16441,28 +15766,31 @@ function startHeartbeat() {
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     const ctx = makeCtx(null);
+    // Heartbeat runs internal maintenance — elevate to system actor so admin-gated
+    // domains (ingest, system, emergent, etc.) are accessible.
+    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
 
     // process crawl queue once (Local scope only — ingest is local activity)
-    await runMacro("ingest","processQueueOnce", {}, ctx).catch(()=>{});
+    await runMacro("ingest","processQueueOnce", {}, ctx).catch((err) => { console.error('[system] Heartbeat ingest queue error:', err); });
 
     if (STATE.settings.autogenEnabled) {
-      await runMacro("system","autogen", {}, ctx).catch(()=>{});
+      await runMacro("system","autogen", {}, ctx).catch((err) => { console.error('[system] Heartbeat autogen error:', err); });
     }
     if (STATE.settings.dreamEnabled) {
-      await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch(()=>{});
+      await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch((err) => { console.error('[system] Heartbeat dream error:', err); });
     }
     if (STATE.settings.evolutionEnabled) {
-      await runMacro("system","evolution", {}, ctx).catch(()=>{});
+      await runMacro("system","evolution", {}, ctx).catch((err) => { console.error('[system] Heartbeat evolution error:', err); });
     }
     if (STATE.settings.synthEnabled) {
-      await runMacro("system","synthesize", {}, ctx).catch(()=>{});
+      await runMacro("system","synthesize", {}, ctx).catch((err) => { console.error('[system] Heartbeat synthesize error:', err); });
     }
 
     // v3: local self-upgrade (abstraction governor) at fixed cadence
-    try { await maybeRunLocalUpgrade(); } catch {}
+    try { await maybeRunLocalUpgrade(); } catch (err) { console.error('[system] Local self-upgrade error:', err); }
 
     // v5.5: capability bridge tick — beacon check + dedup scan + auto-hypothesis
-    try { await runMacro("emergent","bridge.heartbeatTick", {}, ctx).catch(()=>{}); } catch {}
+    try { await runMacro("emergent","bridge.heartbeatTick", {}, ctx).catch((err) => { console.error('[system] Emergent bridge heartbeat tick error:', err); }); } catch (err) { console.error('[system] Heartbeat tick error:', err); }
   }, ms);
   log("heartbeat", "Local scope tick started", { ms });
 
@@ -16474,8 +15802,9 @@ function startHeartbeat() {
     if (!STATE.settings.heartbeatEnabled) return;
     try {
       const ctx = makeCtx(null);
-      await runMacro("emergent","scope.globalTick", {}, ctx).catch(()=>{});
-    } catch { /* Global tick is best-effort */ }
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("emergent","scope.globalTick", {}, ctx).catch((err) => { console.error('[system] Global scope tick macro error:', err); });
+    } catch (err) { console.error('[system] Global scope tick error:', err); }
   }, globalMs);
   log("heartbeat", "Global scope tick started", { ms: globalMs });
 
@@ -16483,311 +15812,16 @@ function startHeartbeat() {
 }
 startHeartbeat();
 
-// Organs + Growth endpoints
-app.get("/api/organs", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const organs = Array.from(STATE.organs.values()).map(o => ({
-    organId: o.organId,
-    resolution: o.resolution,
-    maturity: o.maturity,
-    wear: o.wear,
-    deps: o.deps,
-    desc: o.desc
-  }));
-  res.json({ ok:true, organs });
+// ---- Operations Endpoints (extracted to routes/operations.js) ----
+require("./routes/operations")(app, {
+  STATE, makeCtx, runMacro, _withAck, ensureOrganRegistry, ensureQueues,
+  dtusArray, uid, sha256Hex, nowISO, saveStateDebounced, requireRole,
+  PIPE, TEMPORAL_FRAMES, pipeListProposals, computeAbstractionSnapshot,
+  maybeRunLocalUpgrade, runAutoPromotion, tryLoadSeedDTUs, toOptionADTU,
+  SEED_INFO, kernelTick, uiJson
 });
 
-// === v3 identity/account + global + marketplace + ingest endpoints (explicit HTTP surface) ===
-// These wrap existing macro domains so frontend can wire cleanly without calling /api/macros/run directly.
-
-// GET /api/auth/me is already registered above (line ~14081) with full JWT validation.
-
-app.post("/api/auth/keys", asyncHandler(async (req, res) => {
-  try {
-    const input = req.body || {};
-    return res.json(await runMacro("auth","createApiKey", input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-}));
-
-app.post("/api/orgs", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("org","create", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-// --- Research (engine dispatcher) ---
-app.post("/api/research/run", asyncHandler(async (req, res) => {
-  try {
-    const engine = String(req.body?.engine || "math.exec");
-    const input = req.body?.input ?? req.body ?? {};
-    return res.json(await runMacro("research", engine, input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-}));
-
-// --- Ingest (URL/text) ---
-app.post("/api/ingest/url", asyncHandler(async (req, res) => {
-  try {
-    const url = String(req.body?.url||"").trim();
-    if (!url) return res.status(400).json({ ok:false, error:"url required" });
-    const out = await runMacro("crawl","fetch", { url }, makeCtx(req));
-    return res.json(out);
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-}));
-
-app.post("/api/ingest/text", (req,res) => {
-  try {
-    const text = String(req.body?.text||"").trim();
-    const title = String(req.body?.title||"").trim();
-    if (!text) return res.status(400).json({ ok:false, error:"text required" });
-    // Store as a source-like object in STATE.sources so it can be referenced later by id/hash.
-    const id = uid("src");
-    const contentHash = sha256Hex(text);
-    const src = { id, url: "", fetchedAt: nowISO(), contentHash, title: title || `Text source ${id}`, excerpt: text.slice(0,800), text, meta: { kind:"text", createdAt: nowISO() } };
-    STATE.sources.set(id, src);
-    return res.json({ ok:true, source: src });
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// Unified ingest endpoint (handles both text and URL based on input)
-app.post("/api/ingest", asyncHandler(async (req, res) => {
-  try {
-    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
-
-    // Determine if this is text or URL ingest
-    if (url && String(url).trim()) {
-      // URL-based ingest
-      const out = await runMacro("crawl", "fetch", {
-        url: String(url).trim(),
-        tags: tags || [],
-        makeGlobal: makeGlobal || false,
-        declaredSourceType: declaredSourceType || "url"
-      }, makeCtx(req));
-      return res.json(out);
-    } else if (text && String(text).trim()) {
-      // Text-based ingest
-      const id = uid("src");
-      const contentHash = sha256Hex(String(text).trim());
-      const src = {
-        id,
-        url: "",
-        fetchedAt: nowISO(),
-        contentHash,
-        title: title || `Text source ${id}`,
-        excerpt: String(text).slice(0, 800),
-        text: String(text).trim(),
-        tags: tags || [],
-        isGlobal: makeGlobal || false,
-        declaredSourceType: declaredSourceType || "text",
-        meta: { kind: "text", createdAt: nowISO() }
-      };
-      STATE.sources.set(id, src);
-      saveStateDebounced();
-      return res.json({ ok: true, source: src });
-    } else {
-      return res.status(400).json({ ok: false, error: "Either 'text' or 'url' is required" });
-    }
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-}));
-
-// Queue-based ingest (adds to processing queue)
-app.post("/api/ingest/queue", (req, res) => {
-  try {
-    const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
-
-    const queueItem = {
-      id: uid("ingest"),
-      type: url ? "url" : "text",
-      payload: { text, url, title, tags, makeGlobal, declaredSourceType },
-      status: "queued",
-      createdAt: nowISO(),
-      createdBy: req.user?.id || "anon"
-    };
-
-    ensureQueues();
-    STATE.queues.ingest = STATE.queues.ingest || [];
-    STATE.queues.ingest.push(queueItem);
-    saveStateDebounced();
-
-    return res.json({ ok: true, queued: true, item: queueItem });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Jobs status endpoint
-app.get("/api/jobs/status", (req, res) => {
-  try {
-    const jobs = Array.from(STATE.jobs.values());
-    const summary = {
-      total: jobs.length,
-      queued: jobs.filter(j => j.status === "queued").length,
-      running: jobs.filter(j => j.status === "running").length,
-      completed: jobs.filter(j => j.status === "completed").length,
-      failed: jobs.filter(j => j.status === "failed").length,
-      cancelled: jobs.filter(j => j.status === "cancelled").length
-    };
-    return res.json({
-      ok: true,
-      summary,
-      jobs: jobs.slice(0, 100).map(j => ({
-        id: j.id,
-        type: j.type,
-        status: j.status,
-        progress: j.progress || 0,
-        createdAt: j.createdAt,
-        updatedAt: j.updatedAt
-      }))
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// Toggle job enabled/disabled
-app.post("/api/jobs/toggle", (req, res) => {
-  try {
-    const { job: jobName, enabled } = req.body || {};
-    if (!jobName) return res.status(400).json({ ok: false, error: "job name required" });
-
-    // Find jobs matching the name/type
-    let toggled = 0;
-    for (const [_id, job] of STATE.jobs) {
-      if (job.type === jobName || job.name === jobName) {
-        job.enabled = enabled !== false;
-        job.updatedAt = nowISO();
-        toggled++;
-      }
-    }
-
-    saveStateDebounced();
-    return res.json({ ok: true, toggled, enabled: enabled !== false });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
-
-// --- Global simulation / publish (explicit) ---
-app.post("/api/global/propose", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("global","propose", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-app.post("/api/global/publish", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("global","publish", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-app.get("/api/global/index", (req,res) => {
-  try {
-    const byId = STATE.globalIndex?.byId;
-    const byHash = STATE.globalIndex?.byHash;
-    return res.json({
-      ok:true,
-      counts: { byId: byId?.size||0, byHash: byHash?.size||0 },
-      sample: { ids: byId ? Array.from(byId.keys()).slice(0,50) : [], hashes: byHash ? Array.from(byHash.keys()).slice(0,50) : [] }
-    });
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-});
-
-// --- Marketplace simulation (explicit) ---
-app.post("/api/market/listing", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("market","listingCreate", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-app.get("/api/market/listings", asyncHandler(async (req, res) => {
-  try {
-    const input = { limit: Number(req.query?.limit||50), offset: Number(req.query?.offset||0) };
-    return res.json(await runMacro("market","list", input, makeCtx(req)));
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
-  }
-}));
-
-app.post("/api/market/buy", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("market","buy", req.body||{}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-app.get("/api/market/library", asyncHandler(async (req, res) => {
-  try { return res.json(await runMacro("market","library", {}, makeCtx(req))); }
-  catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-}));
-
-
-
-app.get("/api/organs/:id", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const id = String(req.params.id || "");
-  const o = STATE.organs.get(id);
-  if (!o) return res.status(404).json({ ok:false, error: "Organ not found" });
-  res.json({ ok:true, organ: o });
-});
-
-app.get("/api/growth", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  res.json({ ok:true, growth: STATE.growth });
-});
-
-
-app.get("/api/lattice/beacon", asyncHandler(async (req, res) => {
-  try{
-    const ctx = makeCtx(req);
-    const out = await ctx.macro.run("lattice", "beacon", { threshold: req.query.threshold });
-    res.json(out);
-  } catch(e){
-    res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
-  }
-}));
-
-app.post("/api/harness/run", asyncHandler(async (req, res) => {
-  try{
-    const ctx = makeCtx(req);
-    const out = await ctx.macro.run("harness", "run", req.body || {});
-    res.json(out);
-  } catch(e){
-    res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
-  }
-}));
-
-app.get("/api/metrics", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const c2 = STATE.__chicken2 || {};
-  res.json({ ok:true, metrics: c2.metrics, lastProof: c2.lastProof, recentLogs: (c2.logs||[]).slice(-50) });
-});
-
-app.get("/api/health/capabilities", (req, res) => {
-  ensureOrganRegistry();
-  ensureQueues();
-  const cap = {
-    version: VERSION,
-    llmReady: LLM_READY,
-    dtus: STATE.dtus.size,
-    wrappers: STATE.wrappers.size,
-    layers: STATE.layers.size,
-    personas: STATE.personas.size,
-    sessions: STATE.sessions.size,
-    organs: STATE.organs.size,
-    growth: STATE.growth,
-    abstraction: STATE.abstraction,
-  };
-  res.json({ ok:true, capabilities: cap });
-});
+// api/metrics and api/health/capabilities extracted to routes/system.js
 
 // ---- weekly council debates ----
 // (deduped) weeklyTimer declared earlier
@@ -16799,6 +15833,7 @@ function startWeeklyCouncil() {
   weeklyTimer = setInterval(async () => {
     if (STATE.settings.weeklyDebateEnabled === false) return;
     const ctx = makeCtx(null);
+    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
     await runMacro("council","weeklyDebateTick",{ topic: STATE.settings.weeklyDebateTopic || "Concord Weekly Synthesis" }, ctx).catch(()=>{});
   }, weekMs);
   log("council.weekly", "Weekly Council scheduler started", { everyMs: weekMs });
@@ -16807,11 +15842,7 @@ startWeeklyCouncil();
 
 
 // ---- listen ----
-// ---- Pipeline proposals endpoints (organism install ledger) ----
-app.get("/api/proposals", (req,res) => {
-  const limit = Math.max(1, Math.min(200, Number(req.query.limit||50)));
-  res.json({ ok:true, proposals: pipeListProposals(limit), total: PIPE.proposals.size });
-});
+// Pipeline proposals endpoint extracted to routes/operations.js
 
 
 // ============================================================================
@@ -16820,1641 +15851,48 @@ app.get("/api/proposals", (req,res) => {
 // - Safe: no changes to macro logic; only HTTP exposure
 // ============================================================================
 
-app.get("/api/style/:sessionId", asyncHandler(async (req, res) => {
-  const out = await runMacro("style", "get", { sessionId: req.params.sessionId }, makeCtx(req));
-  return res.json(out);
-}));
+// Style endpoints extracted to routes/operations.js
 
-app.post("/api/style/mutate", asyncHandler(async (req, res) => {
-  const out = await runMacro("style", "mutate", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Extended DTU endpoints extracted to routes/dtus.js
 
-app.put("/api/dtus/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-}));
+// verify, experiments, synth, heartbeat, system, temporal, proposals, jobs, agents — extracted to routes/operations.js
 
-// PATCH is an alias for PUT — frontend client.ts sends PATCH for partial updates
-app.patch("/api/dtus/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-}));
+// ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
+app.use("/api/emergent", require("./routes/emergent")({ makeCtx, runMacro }));
 
-app.delete("/api/dtus/:id", asyncHandler(async (req, res) => {
-  // Note: You may need to create a dtu.delete macro first
-  const out = await runMacro("dtu", "delete", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
+// papers, forge/fromSource, crawl, audit, lattice, persona, skill, intent, chicken3 — extracted to routes/domain.js
 
-app.post("/api/dtus/cluster", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "cluster", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "cluster" }));
-}));
+// Goals endpoints extracted to routes/domain.js
 
-app.post("/api/dtus/reconcile", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "reconcile", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "reconcile" }));
-}));
+// World Model endpoints extracted to routes/domain.js
 
-app.post("/api/dtus/define", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "define", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "define" }));
-}));
+// Semantic endpoints extracted to routes/domain.js
 
-app.get("/api/dtus/shadow", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "listShadow", { limit: req.query.limit, q: req.query.q }, makeCtx(req));
-  return res.json(out);
-}));
+// Transfer Learning endpoints extracted to routes/domain.js
 
-app.post("/api/dtus/gap-promote", asyncHandler(async (req, res) => {
-  const out = await runMacro("dtu", "gapPromote", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "gap_promote" }));
-}));
+// Experience Learning endpoints extracted to routes/domain.js
 
-app.get("/api/definitions", (req, res) => {
-  const dtus = dtusArray().filter(d => 
-    (d.tags || []).includes("definition") || 
-    /^def(inition)?:/i.test(d.title || "")
-  );
-  return res.json({ ok: true, definitions: dtus });
-});
+// Attention Management endpoints extracted to routes/domain.js
 
-app.get("/api/definitions/:term", (req, res) => {
-  const term = String(req.params.term || "").toLowerCase();
-  const dtu = dtusArray().find(d => 
-    ((d.tags || []).includes("definition") || /^def(inition)?:/i.test(d.title || "")) &&
-    (d.meta?.term || "").toLowerCase() === term
-  );
-  if (!dtu) return res.status(404).json({ ok: false, error: "Definition not found" });
-  return res.json({ ok: true, definition: dtu });
-});
+// Reflection Engine endpoints extracted to routes/domain.js
 
-app.post("/api/verify/feasibility", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "feasibility", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Commonsense endpoints extracted to routes/domain.js
 
-app.post("/api/verify/designScore", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "designScore", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Grounding endpoints extracted to routes/domain.js
 
-app.post("/api/verify/conflictCheck", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "conflictCheck", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Reasoning Chains endpoints extracted to routes/domain.js
 
-app.post("/api/verify/stressTest", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "stressTest", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Inference Engine endpoints extracted to routes/domain.js
 
-app.post("/api/verify/deriveSecondOrder", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "deriveSecondOrder", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "derive" }));
-}));
+// Hypothesis Engine endpoints extracted to routes/domain.js
 
-app.post("/api/verify/lineageLink", asyncHandler(async (req, res) => {
-  const out = await runMacro("verify", "lineageLink", req.body, makeCtx(req));
-  return res.json(out);
-}));
+// Metacognition endpoints extracted to routes/domain.js
 
-app.post("/api/experiments", asyncHandler(async (req, res) => {
-  const out = await runMacro("experiment", "log", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "experiment" }));
-}));
+// Explanation Engine endpoints extracted to routes/domain.js
 
-app.get("/api/experiments", (req, res) => {
-  const experiments = dtusArray().filter(d => (d.tags || []).includes("experiment"));
-  return res.json({ ok: true, experiments });
-});
+// Meta-Learning endpoints extracted to routes/domain.js
 
-app.get("/api/experiments/:id", (req, res) => {
-  const dtu = STATE.dtus.get(req.params.id);
-  if (!dtu || !(dtu.tags || []).includes("experiment")) {
-    return res.status(404).json({ ok: false, error: "Experiment not found" });
-  }
-  return res.json({ ok: true, experiment: dtu });
-});
-
-app.post("/api/synth/combine", asyncHandler(async (req, res) => {
-  const out = await runMacro("synth", "combine", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "synth" }));
-}));
-
-app.post("/api/evolution/dedupe", asyncHandler(async (req, res) => {
-  const out = await runMacro("evolution", "dedupe", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "evolution_dedupe" }));
-}));
-
-app.post("/api/heartbeat/tick", asyncHandler(async (req, res) => {
-  const out = await runMacro("heartbeat", "tick", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/system/continuity", asyncHandler(async (req, res) => {
-  const out = await runMacro("system", "continuity", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "continuity" }));
-}));
-
-app.post("/api/system/gap-scan", asyncHandler(async (req, res) => {
-  const out = await runMacro("system", "gapScan", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/system/promotion-tick", asyncHandler(async (req, res) => {
-  const out = await runMacro("system", "promotionTick", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state", "queues"], ["/api/dtus", "/api/state/latest", "/api/queues"], null, { panel: "promotion" }));
-}));
-
-app.get("/api/temporal/frames", (req, res) => {
-  const frames = Object.values(TEMPORAL_FRAMES);
-  return res.json({ ok: true, frames });
-});
-
-app.get("/api/proposals/:id", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/proposals/:id/approve", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  
-  proposal.status = "approved";
-  proposal.approvedAt = nowISO();
-  proposal.approvedBy = req.actor?.userId || "anon";
-  saveStateDebounced();
-  
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/proposals/:id/reject", (req, res) => {
-  const proposal = PIPE.proposals.get(req.params.id);
-  if (!proposal) return res.status(404).json({ ok: false, error: "Proposal not found" });
-  
-  proposal.status = "rejected";
-  proposal.rejectedAt = nowISO();
-  proposal.rejectedBy = req.actor?.userId || "anon";
-  proposal.rejectReason = req.body?.reason || "";
-  saveStateDebounced();
-  
-  return res.json({ ok: true, proposal });
-});
-
-app.post("/api/jobs/:id/cancel", (req, res) => {
-  const job = STATE.jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
-  
-  if (job.status === "running") {
-    return res.status(400).json({ ok: false, error: "Cannot cancel running job" });
-  }
-  
-  job.status = "cancelled";
-  job.updatedAt = nowISO();
-  saveStateDebounced();
-  
-  return res.json({ ok: true, job });
-});
-
-app.post("/api/jobs/:id/retry", (req, res) => {
-  const job = STATE.jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
-  
-  if (job.status !== "failed") {
-    return res.status(400).json({ ok: false, error: "Can only retry failed jobs" });
-  }
-  
-  job.status = "queued";
-  job.attempts = 0;
-  job.lastError = null;
-  job.runAt = nowISO();
-  job.updatedAt = nowISO();
-  saveStateDebounced();
-  
-  return res.json({ ok: true, job });
-});
-
-app.post("/api/agents", asyncHandler(async (req, res) => {
-  const out = await runMacro("agent", "create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/agents", (req, res) => {
-  const agents = Array.from(STATE.personas.values()).filter(p => 
-    p && p.goal // Simple heuristic: agents have goals
-  );
-  return res.json({ ok: true, agents });
-});
-
-app.get("/api/agents/:id", (req, res) => {
-  const agent = STATE.personas.get(req.params.id);
-  if (!agent || !agent.goal) {
-    return res.status(404).json({ ok: false, error: "Agent not found" });
-  }
-  return res.json({ ok: true, agent });
-});
-
-app.post("/api/agents/:id/enable", asyncHandler(async (req, res) => {
-  const out = await runMacro("agent", "enable", { id: req.params.id, enabled: req.body.enabled }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/agents/:id/tick", asyncHandler(async (req, res) => {
-  const out = await runMacro("agent", "tick", { id: req.params.id, prompt: req.body.prompt }, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== EMERGENT AGENT GOVERNANCE API =====
-
-// Emergent management
-app.post("/api/emergent/register", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "register", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/list", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "list", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "get", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/:id/deactivate", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "deactivate", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-// Dialogue sessions
-app.post("/api/emergent/session/create", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "session.create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/session/turn", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "session.turn", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/session/complete", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "session.complete", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/session/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "session.get", { sessionId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/session/run", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "session.run", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// Governance / promotion
-app.post("/api/emergent/review", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "review", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/specialize", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "specialize", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/outreach", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "outreach", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/consent/check", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "consent.check", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// Growth
-app.post("/api/emergent/growth/patterns", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "growth.patterns", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/growth/distill", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "growth.distill", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// Audit / status
-app.get("/api/emergent/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/gate/trace", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "gate.trace", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/bundle/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "bundle.get", { bundleId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/patterns", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "patterns", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reputation/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reputation", { emergentId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/schema", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "schema", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Lattice operations (READ / PROPOSE / COMMIT)
-app.get("/api/emergent/lattice/read/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.read", { dtuId: req.params.id, readerId: req.query.readerId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/lattice/staging/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.readStaging", { proposalId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/lattice/query", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.query", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/lattice/propose/dtu", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeDTU", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/lattice/propose/edit", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeEdit", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/lattice/propose/edge", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposeEdge", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/lattice/commit", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.commit", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/lattice/reject", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.reject", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/lattice/proposals", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.proposals", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/lattice/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "lattice.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Edge semantics
-app.post("/api/emergent/edge/create", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/edge/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.get", { edgeId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/edge/query", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.query", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/edge/:id/update", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.update", { edgeId: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/edge/:id/remove", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.remove", { edgeId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/edge/neighborhood/:nodeId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.neighborhood", { nodeId: req.params.nodeId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/edge/paths", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.paths", { fromId: req.query.fromId, toId: req.query.toId, maxDepth: req.query.maxDepth ? parseInt(req.query.maxDepth) : undefined }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/edge/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "edge.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Activation / attention
-app.post("/api/emergent/activation/activate", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.activate", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/activation/spread", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.spread", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/activation/working-set/:sessionId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.workingSet", { sessionId: req.params.sessionId, k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/activation/global", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.global", { k: req.query.k ? parseInt(req.query.k) : undefined }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/activation/decay", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.decay", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/activation/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "activation.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Conflict-safe merge
-app.post("/api/emergent/merge/apply", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "merge.apply", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/merge/resolve", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "merge.resolve", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/merge/conflicts/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "merge.conflicts", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/merge/timestamps/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "merge.timestamps", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/merge/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "merge.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Lattice journal
-app.post("/api/emergent/journal/append", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.append", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/by-type/:eventType", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.byType", { eventType: req.params.eventType, ...req.query }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/by-entity/:entityId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.byEntity", { entityId: req.params.entityId, ...req.query }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/by-session/:sessionId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.bySession", { sessionId: req.params.sessionId, ...req.query }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/recent", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.recent", { count: req.query.count ? parseInt(req.query.count) : undefined }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/explain/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.explain", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/journal/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/journal/compact", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "journal.compact", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// Livable reality
-app.get("/api/emergent/reality/continuity/:emergentId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.continuity", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/cost/:emergentId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.cost", { emergentId: req.params.emergentId, domain: req.query.domain }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/reality/consequences", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.consequences", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/needs", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.needs", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/suggest/:emergentId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.suggest", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/sociality", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.sociality", { emergentA: req.query.emergentA, emergentB: req.query.emergentB }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/explain/proposal/:proposalId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.explainProposal", { proposalId: req.params.proposalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/explain/trust/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.explainTrust", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/reality/belonging/:emergentId", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "reality.belonging", { emergentId: req.params.emergentId }, makeCtx(req));
-  return res.json(out);
-}));
-
-// Cognition scheduler
-app.post("/api/emergent/scheduler/item", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.createItem", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/scan", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.scan", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/queue", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.queue", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/dequeue", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.dequeue", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/expire", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.expire", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/rescore", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.rescore", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/weights", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.updateWeights", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/budget", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.budget", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/budget/check", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.checkBudget", req.query || {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/budget/update", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.updateBudget", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/allocate", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.allocate", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/allocation/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.allocation", { allocationId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/active", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.active", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/turn", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.recordTurn", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/proposal", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.recordProposal", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/emergent/scheduler/complete", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.complete", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/completed", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.completed", { limit: req.query.limit ? parseInt(req.query.limit) : undefined }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/emergent/scheduler/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("emergent", "scheduler.metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END EMERGENT API =====
-
-app.post("/api/papers", asyncHandler(async (req, res) => {
-  const out = await runMacro("paper", "create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/papers", (req, res) => {
-  const papers = Array.from(STATE.papers.values());
-  return res.json({ ok: true, papers });
-});
-
-app.get("/api/papers/:id", (req, res) => {
-  const paper = STATE.papers.get(req.params.id);
-  if (!paper) return res.status(404).json({ ok: false, error: "Paper not found" });
-  return res.json({ ok: true, paper });
-});
-
-app.post("/api/papers/:id/build", asyncHandler(async (req, res) => {
-  const out = await runMacro("paper", "build", { paperId: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/papers/:id/export", asyncHandler(async (req, res) => {
-  const out = await runMacro("paper", "export", { paperId: req.params.id, format: req.query.format || "md" }, makeCtx(req));
-  if (!out.ok) return res.status(500).json(out);
-  
-  // Serve the file
-  const fpath = out.file?.path;
-  if (fpath && fs.existsSync(fpath)) {
-    return res.sendFile(fpath);
-  }
-  return res.status(404).json({ ok: false, error: "Export file not found" });
-}));
-
-app.post("/api/forge/fromSource", asyncHandler(async (req, res) => {
-  const out = await runMacro("forge", "fromSource", req.body, makeCtx(req));
-  return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "forge_from_source" }));
-}));
-
-app.post("/api/crawl/enqueue", asyncHandler(async (req, res) => {
-  const out = await runMacro("crawl", "enqueue", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/crawl/fetch", asyncHandler(async (req, res) => {
-  const out = await runMacro("crawl", "fetch", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/audit", asyncHandler(async (req, res) => {
-  const out = await runMacro("audit", "query", { 
-    limit: req.query.limit, 
-    domain: req.query.domain,
-    contains: req.query.contains 
-  }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/lattice/birth", asyncHandler(async (req, res) => {
-  const out = await runMacro("lattice", "birth_protocol", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/persona/create", asyncHandler(async (req, res) => {
-  const out = await runMacro("persona", "create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/skill/create", asyncHandler(async (req, res) => {
-  const out = await runMacro("skill", "create", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/intent/rhythmic", asyncHandler(async (req, res) => {
-  const out = await runMacro("intent", "rhythmic_intent", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/chicken3/meta/propose", asyncHandler(async (req, res) => {
-  const out = await runMacro("chicken3", "meta_propose", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/chicken3/meta/commit", asyncHandler(async (req, res) => {
-  const out = await runMacro("chicken3", "meta_commit_quiet", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== GOAL SYSTEM API ENDPOINTS =====
-
-app.get("/api/goals/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "status", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/goals", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "list", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/goals/:goalId", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "get", { goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "propose", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/evaluate", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "evaluate", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/approve", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "approve", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/activate", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "activate", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/progress", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "progress", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/complete", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "complete", { goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/:goalId/abandon", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "abandon", { ...req.body, goalId: req.params.goalId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/auto-propose", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "auto_propose", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/goals/config", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "config", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/goals/config", asyncHandler(async (req, res) => {
-  const out = await runMacro("goals", "config", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END GOAL SYSTEM API ENDPOINTS =====
-
-// ===== WORLD MODEL API ENDPOINTS =====
-
-app.get("/api/worldmodel/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "status", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/entities", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "list_entities", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/entities", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "create_entity", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/entities/:entityId", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "get_entity", {
-    entityId: req.params.entityId,
-    includeRelations: req.query.relations !== "false"
-  }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.put("/api/worldmodel/entities/:entityId", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "update_entity", {
-    ...req.body,
-    entityId: req.params.entityId
-  }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.delete("/api/worldmodel/entities/:entityId", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "delete_entity", {
-    entityId: req.params.entityId
-  }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/relations", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "list_relations", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/relations", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "create_relation", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/simulate", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "simulate", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/simulations", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "list_simulations", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/simulations/:simId", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "get_simulation", {
-    simId: req.params.simId
-  }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/counterfactual", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "counterfactual", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/snapshot", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "snapshot", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/snapshots", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "list_snapshots", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/extract", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "extract_from_dtu", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/worldmodel/config", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "config", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/worldmodel/config", asyncHandler(async (req, res) => {
-  const out = await runMacro("worldmodel", "config", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END WORLD MODEL API ENDPOINTS =====
-
-// ===== SEMANTIC UNDERSTANDING API ENDPOINTS =====
-
-app.get("/api/semantic/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/similar", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "similar", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/embed", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "embed", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/intent", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "classify_intent", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/entities", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "extract_entities", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/roles", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "semantic_roles", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/semantic/compare", asyncHandler(async (req, res) => {
-  const out = await runMacro("semantic", "compare", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END SEMANTIC UNDERSTANDING API ENDPOINTS =====
-
-// ===== TRANSFER LEARNING API ENDPOINTS =====
-
-app.get("/api/transfer/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/transfer/classify-domain", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "classify_domain", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/transfer/extract-pattern", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "extract_pattern", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/transfer/patterns", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "list_patterns", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/transfer/analogies", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "find_analogies", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/transfer/apply", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "apply_pattern", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/transfer/history", asyncHandler(async (req, res) => {
-  const out = await runMacro("transfer", "list_transfers", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END TRANSFER LEARNING API ENDPOINTS =====
-
-// ===== EXPERIENCE LEARNING API ENDPOINTS =====
-
-app.get("/api/experience/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/experience/retrieve", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "retrieve", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/experience/patterns", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "patterns", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/experience/consolidate", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "consolidate", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/experience/strategies", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "strategies", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/experience/recent", asyncHandler(async (req, res) => {
-  const out = await runMacro("experience", "recent", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END EXPERIENCE LEARNING API ENDPOINTS =====
-
-// ===== ATTENTION MANAGEMENT API ENDPOINTS =====
-
-app.get("/api/attention/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/attention/thread", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "create_thread", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/attention/thread/complete", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "complete_thread", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/attention/threads", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "list_threads", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/attention/queue", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "queue", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/attention/background", asyncHandler(async (req, res) => {
-  const out = await runMacro("attention", "add_background", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END ATTENTION MANAGEMENT API ENDPOINTS =====
-
-// ===== REFLECTION ENGINE API ENDPOINTS =====
-
-app.get("/api/reflection/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("reflection", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/reflection/recent", asyncHandler(async (req, res) => {
-  const out = await runMacro("reflection", "recent", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/reflection/self-model", asyncHandler(async (req, res) => {
-  const out = await runMacro("reflection", "self_model", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/reflection/insights", asyncHandler(async (req, res) => {
-  const out = await runMacro("reflection", "insights", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/reflection/reflect", asyncHandler(async (req, res) => {
-  const out = await runMacro("reflection", "reflect_now", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END REFLECTION ENGINE API ENDPOINTS =====
-
-// ===== COMMONSENSE API ENDPOINTS =====
-
-app.get("/api/commonsense/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/commonsense/query", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "query", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/commonsense/facts", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "add_fact", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/commonsense/facts", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "list_facts", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/commonsense/surface/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "surface_assumptions", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/commonsense/assumptions/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("commonsense", "get_assumptions", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END COMMONSENSE API ENDPOINTS =====
-
-// ===== GROUNDING API ENDPOINTS =====
-
-app.get("/api/grounding/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/grounding/context", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "context", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/sensors", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "register_sensor", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/grounding/sensors", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "list_sensors", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/readings", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "record_reading", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/grounding/readings", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "recent_readings", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/ground/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "ground_dtu", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/calendar/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "link_calendar", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/actions", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "propose_action", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/grounding/actions/pending", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "pending_actions", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/grounding/actions/:actionId/approve", asyncHandler(async (req, res) => {
-  const out = await runMacro("grounding", "approve_action", { actionId: req.params.actionId }, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END GROUNDING API ENDPOINTS =====
-
-// ===== REASONING CHAINS API ENDPOINTS =====
-
-app.get("/api/reasoning/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/reasoning/chains", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "create_chain", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/reasoning/chains", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "list_chains", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/reasoning/chains/:chainId/steps", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "add_step", { ...req.body, chainId: req.params.chainId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/reasoning/chains/:chainId/conclude", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "conclude", { ...req.body, chainId: req.params.chainId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/reasoning/chains/:chainId/trace", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "get_trace", { chainId: req.params.chainId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/reasoning/steps/:stepId/validate", asyncHandler(async (req, res) => {
-  const out = await runMacro("reasoning", "validate_step", { stepId: req.params.stepId }, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END REASONING CHAINS API ENDPOINTS =====
-
-// ===== INFERENCE ENGINE API ENDPOINTS =====
-
-app.get("/api/inference/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/inference/facts", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "add_fact", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/inference/rules", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "add_rule", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/inference/query", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "query", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/inference/syllogism", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "syllogism", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/inference/forward-chain", asyncHandler(async (req, res) => {
-  const out = await runMacro("inference", "forward_chain", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END INFERENCE ENGINE API ENDPOINTS =====
-
-// ===== HYPOTHESIS ENGINE API ENDPOINTS =====
-
-app.get("/api/hypothesis/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/hypothesis", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "propose", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/hypothesis", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "list", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/hypothesis/:hypothesisId", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "get", { hypothesisId: req.params.hypothesisId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/hypothesis/:hypothesisId/experiment", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "design_experiment", { ...req.body, hypothesisId: req.params.hypothesisId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/hypothesis/:hypothesisId/evidence", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "record_evidence", { ...req.body, hypothesisId: req.params.hypothesisId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/hypothesis/:hypothesisId/evaluate", asyncHandler(async (req, res) => {
-  const out = await runMacro("hypothesis", "evaluate", { hypothesisId: req.params.hypothesisId }, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END HYPOTHESIS ENGINE API ENDPOINTS =====
-
-// ===== METACOGNITION API ENDPOINTS =====
-
-app.get("/api/metacognition/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/assess", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "assess", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/predict", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "predict", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/predictions/:predictionId/resolve", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "resolve_prediction", { ...req.body, predictionId: req.params.predictionId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metacognition/calibration", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "calibration", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/strategy", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "select_strategy", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metacognition/blindspots", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "blind_spots", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// Introspection endpoints
-app.post("/api/metacognition/introspect", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "introspect", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/analyze-failure/:predictionId", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "analyze_failure", { predictionId: req.params.predictionId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/adapt-strategy", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "adapt_strategy", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metacognition/introspection-status", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "introspection_status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metacognition/adjust-confidence", asyncHandler(async (req, res) => {
-  const out = await runMacro("metacognition", "adjust_confidence", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END METACOGNITION API ENDPOINTS =====
-
-// ===== EXPLANATION ENGINE API ENDPOINTS =====
-
-app.get("/api/explanation/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("explanation", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/explanation", asyncHandler(async (req, res) => {
-  const out = await runMacro("explanation", "generate", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/explanation/dtu/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("explanation", "explain_dtu", { ...req.body, dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/explanation/recent", asyncHandler(async (req, res) => {
-  const out = await runMacro("explanation", "recent", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END EXPLANATION ENGINE API ENDPOINTS =====
-
-// ===== META-LEARNING API ENDPOINTS =====
-
-app.get("/api/metalearning/status", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "status", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metalearning/strategies", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "define_strategy", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metalearning/strategies", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "list_strategies", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metalearning/strategies/:strategyId/outcome", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "record_outcome", { ...req.body, strategyId: req.params.strategyId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metalearning/strategies/:strategyId/adapt", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "adapt", { strategyId: req.params.strategyId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metalearning/strategies/best", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "best_strategy", req.query, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/metalearning/curriculum", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "curriculum", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/metalearning/adaptations", asyncHandler(async (req, res) => {
-  const out = await runMacro("metalearning", "adaptations", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-// ===== END META-LEARNING API ENDPOINTS =====
-
-app.post("/api/multimodal/vision", asyncHandler(async (req, res) => {
-  const out = await runMacro("multimodal", "vision_analyze", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/multimodal/image-gen", asyncHandler(async (req, res) => {
-  const out = await runMacro("multimodal", "image_generate", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/voice/transcribe", asyncHandler(async (req, res) => {
-  const out = await runMacro("voice", "transcribe", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/voice/tts", asyncHandler(async (req, res) => {
-  const out = await runMacro("voice", "tts", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/tools/web-search", asyncHandler(async (req, res) => {
-  const out = await runMacro("tools", "web_search", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/entity/terminal", asyncHandler(async (req, res) => {
-  const out = await runMacro("entity", "terminal", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/entity/terminal/approve", asyncHandler(async (req, res) => {
-  const out = await runMacro("entity", "terminal_approve", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/research/constants", asyncHandler(async (req, res) => {
-  const out = await runMacro("research", "physics.constants", { keys: req.query.keys?.split(',') }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/research/kinematics", asyncHandler(async (req, res) => {
-  const out = await runMacro("research", "physics.kinematics", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/research/truthgate", asyncHandler(async (req, res) => {
-  const out = await runMacro("research", "truthgate.check", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/sessions", (req, res) => {
-  const sessions = Array.from(STATE.sessions.entries()).map(([id, data]) => ({
-    sessionId: id,
-    createdAt: data.createdAt,
-    messageCount: (data.messages || []).length,
-    cloudOptIn: !!data.cloudOptIn,
-    lastActivity: (data.messages || [])[data.messages.length - 1]?.ts || data.createdAt
-  }));
-  return res.json({ ok: true, sessions });
-});
-
-app.get("/api/sessions/:id", (req, res) => {
-  const session = STATE.sessions.get(req.params.id);
-  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
-  return res.json({ ok: true, session });
-});
-
-app.delete("/api/sessions/:id", (req, res) => {
-  STATE.sessions.delete(req.params.id);
-  STATE.styleVectors.delete(req.params.id);
-  saveStateDebounced();
-  return res.json({ ok: true, deleted: req.params.id });
-});
-
-app.post("/api/search", (req, res) => {
-  const query = String(req.body.query || req.body.q || "");
-  const topK = clamp(Number(req.body.topK || req.body.k || 10), 1, 100);
-  const minScore = clamp(Number(req.body.minScore || 0.08), 0, 1);
-  
-  const results = retrieveDTUs(query, { topK, minScore, randomK: 0, oppositeK: 0 });
-  
-  return res.json({
-    ok: true,
-    query,
-    results: results.top.map(d => ({
-      id: d.id,
-      title: d.title,
-      tier: d.tier,
-      tags: d.tags,
-      excerpt: (d.cretiHuman || d.human?.summary || "").slice(0, 200)
-    })),
-    count: results.top.length
-  });
-});
-
-app.get("/api/stats", (req, res) => {
-  const stats = {
-    dtus: {
-      total: STATE.dtus.size,
-      byTier: {
-        regular: dtusArray().filter(d => d.tier === "regular").length,
-        mega: dtusArray().filter(d => d.tier === "mega").length,
-        hyper: dtusArray().filter(d => d.tier === "hyper").length,
-        shadow: STATE.shadowDtus.size
-      }
-    },
-    sessions: {
-      total: STATE.sessions.size,
-      active: Array.from(STATE.sessions.values()).filter(s => {
-        const last = (s.messages || [])[s.messages.length - 1];
-        return last && (Date.now() - new Date(last.ts).getTime()) < 3600000; // active in last hour
-      }).length
-    },
-    organs: {
-      total: STATE.organs.size,
-      healthy: Array.from(STATE.organs.values()).filter(o => o.status === "alive").length
-    },
-    growth: STATE.growth,
-    abstraction: {
-      enabled: STATE.abstraction.enabled,
-      metrics: STATE.abstraction.metrics,
-      ledger: STATE.abstraction.ledger
-    },
-    queues: Object.fromEntries(
-      Object.entries(STATE.queues || {}).map(([k, v]) => [k, v.length])
-    ),
-    jobs: {
-      total: STATE.jobs.size,
-      queued: Array.from(STATE.jobs.values()).filter(j => j.status === "queued").length,
-      running: Array.from(STATE.jobs.values()).filter(j => j.status === "running").length,
-      succeeded: Array.from(STATE.jobs.values()).filter(j => j.status === "succeeded").length,
-      failed: Array.from(STATE.jobs.values()).filter(j => j.status === "failed").length
-    }
-  };
-  
-  return res.json({ ok: true, stats });
-});
-
-app.get("/api/health", (req, res) => {
-  const health = {
-    status: "healthy",
-    version: VERSION,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    timestamp: nowISO(),
-    checks: {
-      state: STATE ? "ok" : "error",
-      dtus: STATE.dtus.size > 0 ? "ok" : "warning",
-      llm: LLM_READY ? "ok" : "disabled",
-      organs: STATE.organs.size > 0 ? "ok" : "warning",
-      growth: STATE.growth ? "ok" : "warning"
-    }
-  };
-  
-  const hasErrors = Object.values(health.checks).some(v => v === "error");
-  health.status = hasErrors ? "unhealthy" : "healthy";
-  
-  return res.status(hasErrors ? 503 : 200).json(health);
-});
-
-app.get("/api/health/deep", (req, res) => {
-  // Deep health check with more detailed diagnostics
-  const checks = [];
-  
-  // Check state integrity
-  checks.push({
-    name: "state_integrity",
-    status: STATE && typeof STATE === "object" ? "pass" : "fail",
-    details: { hasState: !!STATE }
-  });
-
-  const allPassed = checks.every(c => c.status === "pass");
-  return res.status(allPassed ? 200 : 503).json({
-    ok: allPassed,
-    status: allPassed ? "healthy" : "unhealthy",
-    checks,
-    timestamp: nowISO()
-  });
-});
+// Multimodal, voice, tools, entity, research, sessions, search, stats, health — extracted to routes/domain.js and routes/system.js
 
 // ===== END EXTENDED API ENDPOINTS =====
 
@@ -18779,6 +16217,11 @@ STATE.dtus.set = function(key, value) {
   SEARCH_INDEX.dirty = true;
   return _originalDtuSet(key, value);
 };
+
+// Force initial search index build so first queries don't hit cold index
+if (STATE.dtus.size > 0) {
+  rebuildSearchIndex();
+}
 
 // ---- Query DSL Parser ----
 function parseQueryDSL(queryString) {
@@ -19376,174 +16819,8 @@ function paginateResults(items, { page = 1, pageSize = 20 } = {}) {
   };
 }
 
-// ---- Enhanced API Endpoints for New Features ----
-app.get("/api/search/indexed", (req, res) => {
-  const q = String(req.query.q || "");
-  const limit = clamp(Number(req.query.limit || 20), 1, 100);
-  const results = searchIndexed(q, { limit });
-  return res.json({ ok: true, query: q, results, count: results.length });
-});
-
-app.get("/api/search/dsl", asyncHandler(async (req, res) => {
-  const out = await runMacro("search", "query", { q: req.query.q, limit: req.query.limit }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/search/reindex", asyncHandler(async (req, res) => {
-  const out = await runMacro("search", "reindex", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/llm/local", asyncHandler(async (req, res) => {
-  const out = await runMacro("llm", "local", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/llm/embed", asyncHandler(async (req, res) => {
-  const out = await runMacro("llm", "embed", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/export/markdown", asyncHandler(async (req, res) => {
-  const out = await runMacro("export", "markdown", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/export/obsidian", asyncHandler(async (req, res) => {
-  const out = await runMacro("export", "obsidian", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/export/json", asyncHandler(async (req, res) => {
-  const out = await runMacro("export", "json", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/import/json", asyncHandler(async (req, res) => {
-  const out = await runMacro("import", "json", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/import/markdown", asyncHandler(async (req, res) => {
-  const out = await runMacro("import", "markdown", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/plugins", asyncHandler(async (req, res) => {
-  const out = await runMacro("plugin", "list", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/plugins", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
-  const out = await runMacro("plugin", "register", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/council/vote", asyncHandler(async (req, res) => {
-  const out = await runMacro("council", "vote", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/council/tally/:dtuId", asyncHandler(async (req, res) => {
-  const out = await runMacro("council", "tally", { dtuId: req.params.dtuId }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.post("/api/council/credibility", asyncHandler(async (req, res) => {
-  const out = await runMacro("council", "credibility", req.body, makeCtx(req));
-  return res.json(out);
-}));
-
-// POST/GET /api/personas already registered above (lines ~15377-15378).
-
-app.put("/api/personas/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("persona", "update", { id: req.params.id, ...req.body }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.delete("/api/personas/:id", asyncHandler(async (req, res) => {
-  const out = await runMacro("persona", "delete", { id: req.params.id }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/admin/dashboard", asyncHandler(async (req, res) => {
-  const out = await runMacro("admin", "dashboard", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/admin/logs", asyncHandler(async (req, res) => {
-  const out = await runMacro("admin", "logs", { limit: req.query.limit, type: req.query.type }, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/admin/metrics", asyncHandler(async (req, res) => {
-  const out = await runMacro("admin", "metrics", {}, makeCtx(req));
-  return res.json(out);
-}));
-
-app.get("/api/dtus/paginated", (req, res) => {
-  const hasOffsetMode = req.query.limit !== undefined || req.query.offset !== undefined;
-  const page = clamp(Number(req.query.page || 1), 1, 10000);
-  const pageSize = clamp(Number(req.query.pageSize || req.query.limit || 20), 1, 100);
-  const offset = Math.max(Number(req.query.offset || 0), 0);
-  const tier = req.query.tier || null;
-  const query = String(req.query.query || req.query.search || "").trim().toLowerCase();
-  const tagsRaw = req.query.tags || req.query.tag || null;
-
-  let dtus = dtusArray();
-  if (tier) dtus = dtus.filter(d => d.tier === tier);
-  if (query) {
-    dtus = dtus.filter((d) => {
-      const haystack = `${d.title || ""} ${d.content || ""} ${d.human?.summary || ""} ${(d.tags || []).join(" ")}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }
-
-  if (tagsRaw) {
-    const tags = String(tagsRaw).split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
-    if (tags.length) {
-      dtus = dtus.filter((d) => (d.tags || []).some((t) => tags.includes(String(t).toLowerCase())));
-    }
-  }
-
-  if (hasOffsetMode) {
-    const total = dtus.length;
-    const items = dtus.slice(offset, offset + pageSize);
-    return res.json({
-      ok: true,
-      items,
-      total,
-      pagination: {
-        limit: pageSize,
-        offset,
-        total,
-        hasMore: offset + items.length < total,
-      },
-    });
-  }
-
-  const result = paginateResults(dtus, { page, pageSize });
-  return res.json({ ok: true, ...result, total: result.pagination.total });
-});
-
-app.post('/api/dtus/:id/sync-lens', (req, res) => {
-  const dtu = getDTU(req.params.id);
-  if (!dtu) return res.status(404).json({ ok: false, error: 'DTU not found' });
-
-  const lens = String(req.body?.lens || '').trim().toLowerCase();
-  if (!lens) return res.status(400).json({ ok: false, error: 'lens is required' });
-
-  const scopeTag = `scope:${String(req.body?.scope || 'global')}`;
-  const lensTag = `lens:${lens}`;
-  const currentTags = Array.isArray(dtu.tags) ? dtu.tags : [];
-  dtu.tags = Array.from(new Set([...currentTags, lensTag, scopeTag]));
-  dtu.updatedAt = Date.now();
-
-  STATE.dtus.set(dtu.id, dtu);
-  saveStateDebounced();
-
-  return res.json({ ok: true, dtu, synced: { lens, scope: String(req.body?.scope || 'global') } });
-});
+// Enhanced API endpoints (search, llm, export/import, plugins, council, personas, admin, dtus/paginated)
+// extracted to routes/domain.js and routes/system.js
 
 // ============================================================================
 // SCHEMA EVOLUTION & MIGRATION (Tier 2)
@@ -19862,6 +17139,7 @@ const OPENAPI_SPEC = {
   ]
 };
 
+// OpenAPI spec remains inline since it references OPENAPI_SPEC defined above
 app.get("/api/openapi.json", (req, res) => res.json(OPENAPI_SPEC));
 app.get("/api/docs", (req, res) => {
   res.send(`<!DOCTYPE html>
@@ -20870,42 +18148,7 @@ function registerLensAction(domain, action, handler) {
   LENS_ACTIONS.set(`${domain}.${action}`, handler);
 }
 
-// REST routes for generic lens artifacts
-app.get("/api/lens/:domain", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  const out = await runMacro("lens", "list", { domain: req.params.domain, type: req.query.type, search: req.query.search, tags: req.query.tags?.split(","), status: req.query.status, limit: Number(req.query.limit)||100, offset: Number(req.query.offset)||0 }, ctx);
-  res.json(out);
-}));
-app.get("/api/lens/:domain/:id", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "get", { id: req.params.id, domain: req.params.domain }, ctx));
-}));
-app.post("/api/lens/:domain", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "create", { domain: req.params.domain, ...req.body }, ctx));
-}));
-app.put("/api/lens/:domain/:id", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "update", { id: req.params.id, ...req.body }, ctx));
-}));
-app.delete("/api/lens/:domain/:id", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "delete", { id: req.params.id }, ctx));
-}));
-app.post("/api/lens/:domain/:id/run", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "run", { id: req.params.id, ...req.body }, ctx));
-}));
-app.get("/api/lens/:domain/:id/export", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "export", { id: req.params.id, format: req.query.format || "json" }, ctx));
-}));
-app.post("/api/lens/:domain/bulk", asyncHandler(async (req, res) => {
-  const ctx = makeCtx(req);
-  res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
-}));
-
-// Pipeline introspection endpoint
+// Pipeline introspection endpoint (must be before wildcard :domain routes)
 app.get("/api/lens/pipelines", (req, res) => {
   const pipelines = [];
   for (const [key, handlers] of LENS_PIPELINES) {
@@ -20917,13 +18160,97 @@ app.get("/api/lens/pipelines", (req, res) => {
   res.json({ ok: true, pipelines, count: pipelines.length });
 });
 
-// Domain index stats endpoint
+// Domain index stats endpoint (must be before wildcard :domain routes)
 app.get("/api/lens/stats", (req, res) => {
   const domains = {};
   for (const [domain, ids] of STATE.lensDomainIndex) {
     domains[domain] = ids.size;
   }
   res.json({ ok: true, domains, totalArtifacts: STATE.lensArtifacts.size, domainCount: STATE.lensDomainIndex.size });
+});
+
+// REST routes for generic lens artifacts
+// All routes wrapped in try/catch to prevent hanging requests on errors
+app.get("/api/lens/:domain", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("lens", "list", { domain: req.params.domain, type: req.query.type, search: req.query.search, tags: req.query.tags?.split(","), status: req.query.status, limit: Number(req.query.limit)||100, offset: Number(req.query.offset)||0 }, ctx);
+    res.json(out);
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.get("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "get", { id: req.params.id, domain: req.params.domain }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "create", { domain: req.params.domain, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.put("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "update", { id: req.params.id, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.delete("/api/lens/:domain/:id", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "delete", { id: req.params.id }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain/:id/run", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "run", { id: req.params.id, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.get("/api/lens/:domain/:id/export", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "export", { id: req.params.id, format: req.query.format || "json" }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
+});
+app.post("/api/lens/:domain/bulk", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    res.json(await runMacro("lens", "bulkCreate", { domain: req.params.domain, ...req.body }, ctx));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = msg.startsWith("forbidden") ? 403 : 500;
+    res.status(status).json({ ok: false, error: msg });
+  }
 });
 
 // ── Domain-Specific Lens Action Engines ──────────────────────────────────────
@@ -23787,14 +21114,50 @@ register("redis", "stats", async (_ctx, _input) => {
   catch (e) { return { ok: false, error: e.message }; }
 });
 
-app.get("/api/db/status", asyncHandler(async (req, res) => res.json(await runMacro("db", "status", {}, makeCtx(req)))));
-app.post("/api/db/migrate", asyncHandler(async (req, res) => res.json(await runMacro("db", "migrate", {}, makeCtx(req)))));
-app.post("/api/db/sync", asyncHandler(async (req, res) => res.json(await runMacro("db", "syncToPostgres", req.body, makeCtx(req)))));
-app.get("/api/redis/stats", asyncHandler(async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req)))));
+app.get("/api/db/status", async (req, res) => res.json(await runMacro("db", "status", {}, makeCtx(req))));
+app.post("/api/db/migrate", async (req, res) => res.json(await runMacro("db", "migrate", {}, makeCtx(req))));
+app.post("/api/db/sync", async (req, res) => res.json(await runMacro("db", "syncToPostgres", req.body, makeCtx(req))));
+// Database lens endpoints (query/tables/indexes) — graceful stubs when no DB connected
+app.post("/api/db/query", (req, res) => {
+  const q = String(req.body?.query || "").trim();
+  if (!q) return res.status(400).json({ ok: false, error: "query required" });
+  if (!db) return res.json({ ok: true, rows: [], columns: [], message: "No database connected. Set DATABASE_URL to enable." });
+  try {
+    const stmt = db.prepare(q);
+    if (q.toUpperCase().startsWith("SELECT") || q.toUpperCase().startsWith("PRAGMA") || q.toUpperCase().startsWith("EXPLAIN")) {
+      const rows = stmt.all();
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      res.json({ ok: true, rows, columns, rowCount: rows.length });
+    } else {
+      const info = stmt.run();
+      res.json({ ok: true, rows: [], columns: [], changes: info.changes });
+    }
+  } catch (e) { res.status(400).json({ ok: false, error: String(e?.message || e) }); }
+});
+app.get("/api/db/tables", (req, res) => {
+  if (!db) return res.json({ ok: true, tables: [] });
+  try {
+    const tables = db.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name").all();
+    res.json({ ok: true, tables });
+  } catch (e) { res.json({ ok: true, tables: [], error: String(e?.message || e) }); }
+});
+app.get("/api/db/indexes", (req, res) => {
+  if (!db) return res.json({ ok: true, indexes: [] });
+  try {
+    const indexes = db.prepare("SELECT name, tbl_name as tableName, sql FROM sqlite_master WHERE type='index' ORDER BY tbl_name, name").all();
+    res.json({ ok: true, indexes });
+  } catch (e) { res.json({ ok: true, indexes: [], error: String(e?.message || e) }); }
+});
+app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req))));
 
 setTimeout(async () => {
   if (PG_CONFIG.enabled) { const pg = await initPostgres(); if (pg.ok) await runMigrations(); }
-  if (REDIS_CONFIG.enabled) await initRedis();
+  // Hydrate blacklist from persistent storage
+  _TOKEN_BLACKLIST.syncFromSQLite();
+  if (REDIS_CONFIG.enabled) {
+    await initRedis();
+    if (redisClient) await _TOKEN_BLACKLIST.syncFromRedis();
+  }
 }, 1000);
 
 structuredLog("info", "module_loaded", { module: "Wave 9: Database Integrations" });
@@ -23996,6 +21359,34 @@ app.post("/api/dtus/:id/share", (req, res) => {
   const userId = req.user?.id || "anonymous";
   const result = createShareLink(req.params.id, userId, req.body);
   res.json(result);
+});
+
+// POST /api/dtus/:id/vote — up/down vote a DTU (forum)
+app.post("/api/dtus/:id/vote", (req, res) => {
+  try {
+    const dtu = STATE.dtus?.get?.(req.params.id) || (Array.isArray(STATE.dtuList) ? STATE.dtuList.find(d => d.id === req.params.id) : null);
+    if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+    const vote = Number(req.body?.vote) || 0;
+    if (!dtu.meta) dtu.meta = {};
+    dtu.meta.score = (dtu.meta.score || 0) + vote;
+    dtu.meta.votes = (dtu.meta.votes || 0) + 1;
+    res.json({ ok: true, score: dtu.meta.score, votes: dtu.meta.votes });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// POST /api/dtus/:id/like — like a DTU (feed/timeline)
+app.post("/api/dtus/:id/like", (req, res) => {
+  try {
+    const dtu = STATE.dtus?.get?.(req.params.id) || (Array.isArray(STATE.dtuList) ? STATE.dtuList.find(d => d.id === req.params.id) : null);
+    if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+    if (!dtu.meta) dtu.meta = {};
+    dtu.meta.likes = (dtu.meta.likes || 0) + 1;
+    res.json({ ok: true, likes: dtu.meta.likes });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
 });
 
 app.get("/api/shared/:token", (req, res) => {
@@ -25746,6 +23137,43 @@ app.post("/api/ml/infer", asyncHandler(async (req, res) => {
   }
 }));
 
+// POST /api/ml/train — queue a training job
+app.post("/api/ml/train", (req, res) => {
+  try {
+    const { mlJobs } = ensureMlState();
+    const { modelName, datasetId, epochs, learningRate } = req.body || {};
+    const jobId = `ml_job_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const job = {
+      id: jobId,
+      type: "train",
+      modelName: modelName || "custom_model",
+      datasetId: datasetId || null,
+      config: { epochs: epochs || 10, learningRate: learningRate || 0.001 },
+      status: "queued",
+      progress: 0,
+      createdAt: nowISO(),
+    };
+    mlJobs.set(jobId, job);
+    res.json({ ok: true, job });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// POST /api/ml/deploy/:modelId — deploy a model
+app.post("/api/ml/deploy/:modelId", (req, res) => {
+  try {
+    const { mlModels } = ensureMlState();
+    const model = mlModels.get(req.params.modelId);
+    if (!model) return res.status(404).json({ ok: false, error: "Model not found" });
+    model.status = "active";
+    model.deployedAt = nowISO();
+    res.json({ ok: true, model });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 // Game/gamification endpoints - computed from real DTU activity
 if (!STATE.gameProfiles) STATE.gameProfiles = new Map();
 
@@ -25807,6 +23235,26 @@ app.get("/api/game/leaderboard", (req, res) => {
     .sort((a, b) => b.xp - a.xp)
     .slice(0, 20);
   res.json({ ok: true, leaderboard: entries });
+});
+
+// POST /api/game/quests/:questId/complete — mark a quest complete and grant XP
+app.post("/api/game/quests/:questId/complete", (req, res) => {
+  try {
+    const userId = req.user?.id || "default";
+    if (!STATE.gameProfiles) STATE.gameProfiles = new Map();
+    if (!STATE.gameProfiles.has(userId)) {
+      STATE.gameProfiles.set(userId, { userId, xp: 0, level: 1, questsCompleted: 0, badges: [] });
+    }
+    const profile = STATE.gameProfiles.get(userId);
+    const xpGain = Number(req.body?.xpReward) || 100;
+    profile.xp = (profile.xp || 0) + xpGain;
+    profile.questsCompleted = (profile.questsCompleted || 0) + 1;
+    // Level up every 1000 XP
+    profile.level = Math.floor(profile.xp / 1000) + 1;
+    res.json({ ok: true, profile });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
 });
 
 // Notifications - sourced from real notification queue
@@ -25913,6 +23361,28 @@ app.get("/api/economy/status", (req, res) => {
     treasury: STATE.economic?.treasury || 0,
     listings: { total: listingCount, active: activeListings },
     participants: wallets.size,
+  });
+});
+
+// GET /api/economy/balance — return wallet balance for current user (marketplace)
+app.get("/api/economy/balance", (req, res) => {
+  ensureEconomicState();
+  const userId = req.query.user_id || req.user?.id || "default";
+  const wallet = STATE.economic.wallets.get(userId);
+  res.json({ ok: true, balance: wallet?.balance || 0, tier: wallet?.tier || "free" });
+});
+
+// GET /api/economy/fees — return marketplace fee schedule
+app.get("/api/economy/fees", (req, res) => {
+  res.json({
+    ok: true,
+    fees: {
+      MARKETPLACE_PURCHASE: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+      TOKEN_PURCHASE: ECONOMIC_CONFIG.TOKEN_PURCHASE_FEE,
+      CREATOR_SHARE: ECONOMIC_CONFIG.CREATOR_SHARE,
+      ROYALTY_SHARE: ECONOMIC_CONFIG.ROYALTY_SHARE,
+      TREASURY_SHARE: ECONOMIC_CONFIG.TREASURY_SHARE,
+    },
   });
 });
 
@@ -26235,9 +23705,10 @@ app.post("/api/credits/spend", requireAuth(), (req, res) => {
 app.get("/api/global/feed", (req, res) => {
   const { limit = 50, offset = 0, tier } = req.query;
 
-  // Get global DTUs (isGlobal flag or tier >= mega)
+  // Get global DTUs (isGlobal flag, scope=global, or tier >= mega)
   let globalDtus = Array.from(STATE.dtus?.values() || [])
-    .filter(d => d.isGlobal || d.tier === "mega" || d.tier === "hyper")
+    .filter(d => d.isGlobal || d.scope === "global" || d.tier === "mega" || d.tier === "hyper")
+    .filter(d => !isShadowDTU(d))
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   // Filter by tier if specified
@@ -27170,6 +24641,15 @@ structuredLog("info", "module_loaded", { detail: "Atlas Global + Platform v2: Al
 structuredLog("info", "module_loaded", { detail: "New modules: Atlas Epistemic Engine, Autogen v2, Council Protocol, Social Layer, Collaboration, RBAC, Analytics, Webhook" });
 structuredLog("info", "module_loaded", { detail: "Atlas v2 Default-On: Write Guard, Scope Router, 3-Lane Separation, Invariant Monitor, Heartbeats, Auto-Promote Gate" });
 
+// ── "Everything Real": Register durable DB-backed endpoints ──────────────────
+registerDurableEndpoints(app, db);
+
+// ── Guidance Layer v1: events, SSE, inspector, undo, suggestions ─────────────
+registerGuidanceEndpoints(app, db);
+
+// ── Economy System: ledger, balances, transfers, withdrawals ─────────────────
+registerEconomyEndpoints(app, db);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
@@ -27180,28 +24660,41 @@ const server = SHOULD_LISTEN ? app.listen(PORT, () => {
 }) : null;
 
 // Optional: enable thin realtime mirror (WebSockets) for queues/jobs/panels.
-try { await tryInitWebSockets(server); } catch {}
+try { await tryInitWebSockets(server); } catch (e) {
+  structuredLog("error", "websocket_init_failed", { error: String(e?.message || e), stack: String(e?.stack || "").slice(0, 500) });
+}
 
 
 // ---- Auto-promotion scheduler (offline-first, deterministic) ----
 try {
   // Run once shortly after boot, then every 6 hours.
-  setTimeout(async () => {
-    try { await runAutoPromotion(makeCtx(null), { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
-  }, 15_000);
+  const _promoActor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  let _promoRunning = false; // Guard against overlapping runs
+  const _runPromotion = async (opts) => {
+    if (_promoRunning) return;
+    _promoRunning = true;
+    try {
+      const c = makeCtx(null); c.actor = _promoActor;
+      await runAutoPromotion(c, opts);
+    } catch (e) {
+      structuredLog("warn", "auto_promotion_failed", { error: String(e?.message || e) });
+    } finally {
+      _promoRunning = false;
+    }
+  };
+  setTimeout(() => _runPromotion({ maxNewMegas: 3, maxNewHypers: 1 }), 15_000);
+  setInterval(() => _runPromotion({ maxNewMegas: 2, maxNewHypers: 0 }), 6 * 60 * 60 * 1000);
+} catch (e) {
+  structuredLog("warn", "auto_promotion_setup_failed", { error: String(e?.message || e) });
+}
 
-  setInterval(async () => {
-    try { await runAutoPromotion(makeCtx(null), { maxNewMegas: 2, maxNewHypers: 0 }); } catch {}
-  }, 6 * 60 * 60 * 1000);
-} catch {}
-
-process.on("SIGINT", () => {
-  console.log("\nShutting down Concord…");
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  if (weeklyTimer) clearInterval(weeklyTimer);
-  if (globalTickTimer) clearInterval(globalTickTimer);
-  server.close(() => process.exit(0));
-})
+// NOTE: Primary SIGINT/SIGTERM handlers are registered above via gracefulShutdown().
+// Register cleanup for timers as a shutdown callback instead of a duplicate handler.
+registerShutdownCallback(() => {
+  if (typeof heartbeatTimer !== "undefined" && heartbeatTimer) clearInterval(heartbeatTimer);
+  if (typeof weeklyTimer !== "undefined" && weeklyTimer) clearInterval(weeklyTimer);
+  if (typeof globalTickTimer !== "undefined" && globalTickTimer) clearInterval(globalTickTimer);
+});
 // ---- OrganMaturationKernel + Growth OS (v2 upgrade) ----
 
 // Organ definitions (authoritative; present at all times, no stubs)
@@ -33602,16 +31095,62 @@ function getWallet(odId) {
   return STATE.economic.wallets.get(odId);
 }
 
-function creditWallet(odId, amount, reason = '') {
+function creditWallet(odId, amount, reason = '', refId = null) {
+  // Idempotency: if refId provided, check if already processed
+  if (db && refId) {
+    const existing = checkRefIdProcessed(db, refId);
+    if (existing.exists) return getWallet(odId); // already done, no-op
+  }
+
   const wallet = getWallet(odId);
   wallet.balance += amount;
   wallet.tokensEarned += amount;
   wallet.updatedAt = Date.now();
-  logTransaction({ type: 'credit', odId, amount, reason, balance: wallet.balance });
+  logTransaction({ type: 'credit', odId, amount, reason, balance: wallet.balance, refId });
+  // Bridge to economy ledger if available
+  if (db && amount > 0) {
+    try {
+      db.prepare(`
+        INSERT INTO economy_ledger (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at, ref_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        generateTxId(), 'TRANSFER', null, odId, amount, 0, amount, 'complete',
+        JSON.stringify({ source: 'economic_wallet', reason, bridged: true }),
+        null, null, new Date().toISOString().replace('T', ' ').replace('Z', ''),
+        refId
+      );
+    } catch (e) {
+      // If ref_id column doesn't exist yet (pre-migration), fall back
+      if (e.message?.includes('ref_id')) {
+        try {
+          db.prepare(`
+            INSERT INTO economy_ledger (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            generateTxId(), 'TRANSFER', null, odId, amount, 0, amount, 'complete',
+            JSON.stringify({ source: 'economic_wallet', reason, bridged: true }),
+            null, null, new Date().toISOString().replace('T', ' ').replace('Z', '')
+          );
+        } catch (e2) {
+          console.error('[Economic→Ledger] Credit bridge failed (fallback):', e2.message);
+        }
+      } else if (e.message?.includes('UNIQUE constraint')) {
+        // Idempotent — already recorded
+      } else {
+        console.error('[Economic→Ledger] Credit bridge failed:', e.message);
+      }
+    }
+  }
   return wallet;
 }
 
-function debitWallet(odId, amount, reason = '') {
+function debitWallet(odId, amount, reason = '', refId = null) {
+  // Idempotency: if refId provided, check if already processed
+  if (db && refId) {
+    const existing = checkRefIdProcessed(db, refId);
+    if (existing.exists) return getWallet(odId); // already done, no-op
+  }
+
   const wallet = getWallet(odId);
   if (wallet.balance < amount) {
     throw new Error(`Insufficient balance: have ${wallet.balance}, need ${amount}`);
@@ -33619,7 +31158,40 @@ function debitWallet(odId, amount, reason = '') {
   wallet.balance -= amount;
   wallet.tokensSpent += amount;
   wallet.updatedAt = Date.now();
-  logTransaction({ type: 'debit', odId, amount, reason, balance: wallet.balance });
+  logTransaction({ type: 'debit', odId, amount, reason, balance: wallet.balance, refId });
+  // Bridge to economy ledger if available
+  if (db && amount > 0) {
+    try {
+      db.prepare(`
+        INSERT INTO economy_ledger (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at, ref_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        generateTxId(), 'TRANSFER', odId, null, amount, 0, amount, 'complete',
+        JSON.stringify({ source: 'economic_wallet', reason, bridged: true }),
+        null, null, new Date().toISOString().replace('T', ' ').replace('Z', ''),
+        refId
+      );
+    } catch (e) {
+      if (e.message?.includes('ref_id')) {
+        try {
+          db.prepare(`
+            INSERT INTO economy_ledger (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            generateTxId(), 'TRANSFER', odId, null, amount, 0, amount, 'complete',
+            JSON.stringify({ source: 'economic_wallet', reason, bridged: true }),
+            null, null, new Date().toISOString().replace('T', ' ').replace('Z', '')
+          );
+        } catch (e2) {
+          console.error('[Economic→Ledger] Debit bridge failed (fallback):', e2.message);
+        }
+      } else if (e.message?.includes('UNIQUE constraint')) {
+        // Idempotent — already recorded
+      } else {
+        console.error('[Economic→Ledger] Debit bridge failed:', e.message);
+      }
+    }
+  }
   return wallet;
 }
 
@@ -33637,7 +31209,37 @@ function logTransaction(tx) {
 }
 
 // ---- Token Purchase System (1.46% fee) ----
-app.post('/api/economic/tokens/purchase', asyncHandler(async (req, res) => {
+
+// GET /api/economic/config — return tiers and token packages for billing page
+app.get('/api/economic/config', (req, res) => {
+  res.json({
+    ok: true,
+    tiers: ECONOMIC_CONFIG.TIERS,
+    tokenPackages: ECONOMIC_CONFIG.TOKEN_PACKAGES,
+    marketplaceFee: ECONOMIC_CONFIG.MARKETPLACE_FEE,
+    creatorShare: ECONOMIC_CONFIG.CREATOR_SHARE,
+  });
+});
+
+// GET /api/economic/wallet/:odId — return wallet info for billing page
+app.get('/api/economic/wallet/:odId', (req, res) => {
+  try {
+    const wallet = getWallet(req.params.odId);
+    const tracking = STATE.economic?.ingestTracking?.get(req.params.odId);
+    res.json({
+      ok: true,
+      balance: wallet.balance,
+      tier: wallet.tier,
+      tokensEarned: wallet.tokensEarned || 0,
+      tokensSpent: wallet.tokensSpent || 0,
+      ingestStatus: tracking ? { date: tracking.date, count: tracking.count } : null,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post('/api/economic/tokens/purchase', async (req, res) => {
   try {
     const { odId, packageId } = req.body;
     if (!odId || !packageId) return res.status(400).json({ error: 'Missing odId or packageId' });
@@ -33693,7 +31295,7 @@ app.post('/api/economic/tokens/purchase', asyncHandler(async (req, res) => {
     console.error('[Economic] Token purchase error:', e);
     res.status(500).json({ error: e.message });
   }
-}));
+});
 
 // ---- Subscription Management ----
 app.post('/api/economic/subscribe', asyncHandler(async (req, res) => {
@@ -33747,7 +31349,7 @@ app.post('/api/economic/subscribe', asyncHandler(async (req, res) => {
 }));
 
 // ---- Stripe Webhook Handler ----
-app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
+app.post('/api/economic/webhook', async (req, res) => {
   const stripeClient = await getStripe();
   if (!stripeClient) return res.status(503).send('Stripe not configured');
 
@@ -33755,7 +31357,7 @@ app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), asy
   let event;
 
   try {
-    event = stripeClient.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
   } catch (e) {
     console.error('[Economic] Webhook signature verification failed:', e.message);
     return res.status(400).send(`Webhook Error: ${e.message}`);
@@ -33837,7 +31439,7 @@ app.post('/api/economic/webhook', express.raw({ type: 'application/json' }), asy
     console.error('[Economic] Webhook processing error:', e);
     res.status(500).json({ error: e.message });
   }
-}));
+});
 
 // ---- Universal Marketplace ----
 // Supports: DTUs, Lenses, Graphs, Templates, Simulations, Personas, Macros, Datasets, Integrations
@@ -33949,9 +31551,21 @@ app.patch('/api/economic/marketplace/listing/:listingId', (req, res) => {
 // Buy any asset
 app.post('/api/economic/marketplace/buy', (req, res) => {
   try {
-    const { odId, listingId } = req.body;
+    const { odId, listingId, purchaseId: clientPurchaseId } = req.body;
     if (!odId || !listingId) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Deterministic purchaseId for idempotency
+    const purchaseId = clientPurchaseId || `epur_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const refId = `economic_purchase:${purchaseId}`;
+
+    // Idempotency check
+    if (db) {
+      const existing = checkRefIdProcessed(db, refId);
+      if (existing.exists) {
+        return res.json({ success: true, idempotent: true, purchaseId, message: 'Purchase already processed' });
+      }
     }
 
     ensureEconomicState();
@@ -34002,10 +31616,10 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
     }
 
     // Debit buyer
-    debitWallet(odId, listing.price, `Purchase: ${listing.title}`);
+    debitWallet(odId, listing.price, `Purchase: ${listing.title}`, `${refId}:debit`);
 
     // Credit seller
-    creditWallet(listing.seller, creatorAmount, `Sale: ${listing.title}`);
+    creditWallet(listing.seller, creatorAmount, `Sale: ${listing.title}`, `${refId}:credit`);
 
     // Process royalty wheel (only for DTUs and other reference-able assets)
     if (royaltyAmount > 0 && listing.assetType === 'dtu') {
@@ -34052,6 +31666,22 @@ app.post('/api/economic/marketplace/buy', (req, res) => {
       treasuryAmount,
       marketplaceFee,
     });
+
+    // Bridge marketplace fee to economy ledger
+    if (db && marketplaceFee > 0) {
+      try {
+        const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
+        db.prepare(`
+          INSERT INTO economy_ledger (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          generateTxId(), 'FEE', null, PLATFORM_ACCOUNT_ID, marketplaceFee, 0, marketplaceFee, 'complete',
+          JSON.stringify({ source: 'economic_marketplace', listingId, sourceType: 'MARKETPLACE_PURCHASE', bridged: true }), null, null, now
+        );
+      } catch (e) {
+        console.error('[Economic→Ledger] Fee bridge failed:', e.message);
+      }
+    }
 
     res.json({
       success: true,
@@ -34881,6 +32511,7 @@ function ensureArtistryState() {
       aiSessions: new Map(),
       learningPaths: new Map(),
       genreProfiles: new Map(),
+      citationRoyaltyUsage: new Map(),  // citedAssetId → number of times royalties paid
       stats: {
         totalAssets: 0,
         totalProjects: 0,
@@ -34891,6 +32522,8 @@ function ensureArtistryState() {
       },
     };
   }
+  // Ensure citationRoyaltyUsage exists even if artistry state was created before this field was added
+  if (!STATE.artistry.citationRoyaltyUsage) STATE.artistry.citationRoyaltyUsage = new Map();
   return STATE.artistry;
 }
 
@@ -35417,23 +33050,39 @@ const LICENSE_TYPES = Object.freeze({
   'free': { name: 'Free (CC-BY)', streams: -1, copies: -1, musicVideos: -1, broadcasting: true, price: 0 },
 });
 
-app.post('/api/artistry/marketplace/beats', (req, res) => {
+// GET /api/artistry/marketplace/art — list artwork assets for the art lens marketplace tab
+app.get('/api/artistry/marketplace/art', (req, res) => {
   const art = ensureArtistryState();
-  const { title, assetId, bpm, key, genre, tags, licenses, ownerId, previewAssetId } = req.body;
-  const listingId = `beat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const listing = {
-    id: listingId, type: 'beat', title: title || 'Untitled Beat', assetId,
-    previewAssetId: previewAssetId || null, bpm: bpm || 120, key: key || null,
-    genre: genre || null, tags: tags || [], ownerId: ownerId || 'anon',
-    licenses: (licenses || ['basic', 'premium']).reduce((acc, lt) => {
-      if (LICENSE_TYPES[lt]) acc[lt] = { ...LICENSE_TYPES[lt], available: true };
-      return acc;
-    }, {}),
-    status: 'active', totalSales: 0, totalPlays: 0, rating: null, reviews: [],
-    createdAt: Date.now(), updatedAt: Date.now(),
-  };
-  art.beatStore.set(listingId, listing);
-  res.json({ ok: true, listing });
+  const artworks = Array.from(art.assets.values())
+    .filter(a => a.status === 'active' && (a.type === 'artwork' || a.type === 'visual' || a.type === 'cover_art'))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, Number(req.query.limit) || 50);
+  res.json({ ok: true, artworks });
+});
+
+app.post('/api/artistry/marketplace/beats', (req, res) => {
+  try {
+    const art = ensureArtistryState();
+    const { title, assetId, bpm, key, genre, tags, licenses, ownerId, previewAssetId } = req.body;
+    if (!ownerId) return res.status(400).json({ error: 'Missing ownerId' });
+    const listingId = `beat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const listing = {
+      id: listingId, type: 'beat', title: title || 'Untitled Beat', assetId,
+      previewAssetId: previewAssetId || null, bpm: bpm || 120, key: key || null,
+      genre: genre || null, tags: tags || [], ownerId: ownerId || 'anon',
+      licenses: (licenses || ['basic', 'premium']).reduce((acc, lt) => {
+        if (LICENSE_TYPES[lt]) acc[lt] = { ...LICENSE_TYPES[lt], available: true };
+        return acc;
+      }, {}),
+      status: 'active', totalSales: 0, totalPlays: 0, rating: null, reviews: [],
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    art.beatStore.set(listingId, listing);
+    res.json({ ok: true, listing });
+  } catch (err) {
+    console.error('[Artistry] Beat listing error:', err.message);
+    res.status(500).json({ error: 'listing_failed', detail: err.message });
+  }
 });
 
 app.get('/api/artistry/marketplace/beats', (req, res) => {
@@ -35454,16 +33103,23 @@ app.get('/api/artistry/marketplace/beats', (req, res) => {
 });
 
 app.post('/api/artistry/marketplace/stems', (req, res) => {
-  const art = ensureArtistryState();
-  const { title, assetIds, parentTrackId, genre, tags, price, ownerId } = req.body;
-  const listingId = `stem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  art.stemStore.set(listingId, {
-    id: listingId, type: 'stems', title: title || 'Untitled Stems', assetIds: assetIds || [],
-    parentTrackId: parentTrackId || null, genre: genre || null, tags: tags || [],
-    price: price || 50, ownerId: ownerId || 'anon', status: 'active', totalSales: 0,
-    createdAt: Date.now(), updatedAt: Date.now(),
-  });
-  res.json({ ok: true, listing: art.stemStore.get(listingId) });
+  try {
+    const art = ensureArtistryState();
+    const { title, assetIds, parentTrackId, genre, tags, price, ownerId } = req.body;
+    if (!ownerId) return res.status(400).json({ error: 'Missing ownerId' });
+    if (price != null && (typeof price !== 'number' || price < 0)) return res.status(400).json({ error: 'Invalid price' });
+    const listingId = `stem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    art.stemStore.set(listingId, {
+      id: listingId, type: 'stems', title: title || 'Untitled Stems', assetIds: assetIds || [],
+      parentTrackId: parentTrackId || null, genre: genre || null, tags: tags || [],
+      price: price || 50, ownerId: ownerId || 'anon', status: 'active', totalSales: 0,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    res.json({ ok: true, listing: art.stemStore.get(listingId) });
+  } catch (err) {
+    console.error('[Artistry] Stem listing error:', err.message);
+    res.status(500).json({ error: 'listing_failed', detail: err.message });
+  }
 });
 
 app.get('/api/artistry/marketplace/stems', (req, res) => {
@@ -35473,16 +33129,23 @@ app.get('/api/artistry/marketplace/stems', (req, res) => {
 });
 
 app.post('/api/artistry/marketplace/samples', (req, res) => {
-  const art = ensureArtistryState();
-  const { title, assetIds, sampleCount, genre, tags, price, description, ownerId } = req.body;
-  const listingId = `samp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  art.sampleStore.set(listingId, {
-    id: listingId, type: 'sample-pack', title: title || 'Untitled Sample Pack', assetIds: assetIds || [],
-    sampleCount: sampleCount || 0, genre: genre || null, tags: tags || [], price: price || 25,
-    description: description || '', ownerId: ownerId || 'anon', status: 'active',
-    totalSales: 0, totalDownloads: 0, createdAt: Date.now(), updatedAt: Date.now(),
-  });
-  res.json({ ok: true, listing: art.sampleStore.get(listingId) });
+  try {
+    const art = ensureArtistryState();
+    const { title, assetIds, sampleCount, genre, tags, price, description, ownerId } = req.body;
+    if (!ownerId) return res.status(400).json({ error: 'Missing ownerId' });
+    if (price != null && (typeof price !== 'number' || price < 0)) return res.status(400).json({ error: 'Invalid price' });
+    const listingId = `samp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    art.sampleStore.set(listingId, {
+      id: listingId, type: 'sample-pack', title: title || 'Untitled Sample Pack', assetIds: assetIds || [],
+      sampleCount: sampleCount || 0, genre: genre || null, tags: tags || [], price: price || 25,
+      description: description || '', ownerId: ownerId || 'anon', status: 'active',
+      totalSales: 0, totalDownloads: 0, createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    res.json({ ok: true, listing: art.sampleStore.get(listingId) });
+  } catch (err) {
+    console.error('[Artistry] Sample listing error:', err.message);
+    res.status(500).json({ error: 'listing_failed', detail: err.message });
+  }
 });
 
 app.get('/api/artistry/marketplace/samples', (req, res) => {
@@ -35492,17 +33155,24 @@ app.get('/api/artistry/marketplace/samples', (req, res) => {
 });
 
 app.post('/api/artistry/marketplace/art', (req, res) => {
-  const art = ensureArtistryState();
-  const { title, assetId, artType, style, tags, price, description, ownerId, dimensions } = req.body;
-  const listingId = `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  art.artStore.set(listingId, {
-    id: listingId, type: 'artwork', title: title || 'Untitled Artwork', assetId,
-    artType: artType || 'cover-art', style: style || 'digital', tags: tags || [],
-    price: price || 50, description: description || '', dimensions: dimensions || null,
-    ownerId: ownerId || 'anon', status: 'active', totalSales: 0,
-    createdAt: Date.now(), updatedAt: Date.now(),
-  });
-  res.json({ ok: true, listing: art.artStore.get(listingId) });
+  try {
+    const art = ensureArtistryState();
+    const { title, assetId, artType, style, tags, price, description, ownerId, dimensions } = req.body;
+    if (!ownerId) return res.status(400).json({ error: 'Missing ownerId' });
+    if (price != null && (typeof price !== 'number' || price < 0)) return res.status(400).json({ error: 'Invalid price' });
+    const listingId = `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    art.artStore.set(listingId, {
+      id: listingId, type: 'artwork', title: title || 'Untitled Artwork', assetId,
+      artType: artType || 'cover-art', style: style || 'digital', tags: tags || [],
+      price: price || 50, description: description || '', dimensions: dimensions || null,
+      ownerId: ownerId || 'anon', status: 'active', totalSales: 0,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    res.json({ ok: true, listing: art.artStore.get(listingId) });
+  } catch (err) {
+    console.error('[Artistry] Art listing error:', err.message);
+    res.status(500).json({ error: 'listing_failed', detail: err.message });
+  }
 });
 
 app.get('/api/artistry/marketplace/art', (req, res) => {
@@ -35537,28 +33207,443 @@ app.get('/api/artistry/marketplace/licenses', (_req, res) => {
   res.json({ ok: true, licenseTypes: LICENSE_TYPES });
 });
 
-app.post('/api/artistry/marketplace/purchase', (req, res) => {
-  const art = ensureArtistryState();
-  const { buyerId, listingId, listingType, licenseType } = req.body;
-  if (!buyerId || !listingId) return res.status(400).json({ error: 'Missing buyerId or listingId' });
-  const stores = { beat: art.beatStore, stems: art.stemStore, 'sample-pack': art.sampleStore, artwork: art.artStore };
-  const store = stores[listingType || 'beat'];
-  const listing = store?.get(listingId);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  const price = listing.licenses ? (listing.licenses[licenseType || 'basic']?.price || listing.price || 0) : (listing.price || 0);
-  const licenseId = `lic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  art.licenses.set(licenseId, {
-    id: licenseId, buyerId, listingId, listingType: listing.type, licenseType: licenseType || 'basic',
-    price, terms: LICENSE_TYPES[licenseType || 'basic'] || LICENSE_TYPES.basic,
-    status: 'active', purchasedAt: Date.now(),
-  });
-  listing.totalSales++;
-  const split = Array.from(art.splits.values()).find(s => s.assetId === listing.assetId);
-  if (split) {
-    for (const p of split.participants) { p.totalEarned = (p.totalEarned || 0) + Math.floor(price * p.percentage / 100); }
-    split.totalDistributed += price;
+// ── Citation Royalty Constants ───────────────────────────────────────────────
+const CITATION_ROYALTY_BASE_RATE = 0.30;    // 30% initial royalty for cited creators
+const CITATION_ROYALTY_DECAY = 0.85;        // Decay factor per usage
+const CITATION_ROYALTY_MIN_RATE = 0.00001;  // 0.001% minimum royalty rate
+
+/**
+ * Resolve all citation references for an asset.
+ * Checks both Concord Global (DTU references + social citations) and
+ * Artistry Global (asset cross-references).
+ * Returns array of { citedId, creatorId, source }.
+ */
+function resolveAssetCitations(listingAssetId) {
+  const citations = [];
+  const seen = new Set();
+
+  // 1. Concord Global — DTU references
+  const dtu = STATE.dtus?.get(listingAssetId);
+  if (dtu?.references?.length > 0) {
+    for (const refId of dtu.references) {
+      if (seen.has(refId)) continue;
+      const refDtu = STATE.dtus?.get(refId);
+      if (refDtu?.authorId) {
+        citations.push({ citedId: refId, creatorId: refDtu.authorId, source: 'concord_global' });
+        seen.add(refId);
+      }
+    }
   }
-  res.json({ ok: true, license: art.licenses.get(licenseId), paid: price });
+
+  // 2. Concord Global — Social layer cited-by (reverse: what does THIS asset cite?)
+  const social = STATE.social;
+  if (social?.citedBy) {
+    for (const [citedId, citers] of social.citedBy.entries()) {
+      if (seen.has(citedId)) continue;
+      if (citers.has(listingAssetId)) {
+        const citedDtu = STATE.dtus?.get(citedId);
+        if (citedDtu?.authorId) {
+          citations.push({ citedId, creatorId: citedDtu.authorId, source: 'concord_global' });
+          seen.add(citedId);
+        }
+      }
+    }
+  }
+
+  // 3. Artistry Global — asset cross-references
+  const art = ensureArtistryState();
+  const thisAsset = art.assets?.get(listingAssetId);
+  if (thisAsset?.references?.length > 0) {
+    for (const refId of thisAsset.references) {
+      if (seen.has(refId)) continue;
+      const refAsset = art.assets.get(refId);
+      if (refAsset?.ownerId) {
+        citations.push({ citedId: refId, creatorId: refAsset.ownerId, source: 'artistry_global' });
+        seen.add(refId);
+      }
+    }
+  }
+
+  // 4. Artistry Global — check remix lineage
+  if (art.remixes) {
+    for (const [, remix] of art.remixes.entries()) {
+      if (remix.derivedFrom === listingAssetId || remix.sourceId === listingAssetId) continue;
+      if (remix.derivedFrom && !seen.has(remix.derivedFrom)) {
+        // Check if current listing is a remix of another asset
+        const sourceAsset = art.assets?.get(remix.derivedFrom);
+        if (sourceAsset?.ownerId && remix.remixId === listingAssetId) {
+          citations.push({ citedId: remix.derivedFrom, creatorId: sourceAsset.ownerId, source: 'artistry_remix' });
+          seen.add(remix.derivedFrom);
+        }
+      }
+    }
+  }
+
+  return citations;
+}
+
+/**
+ * Compute the royalty rate for a cited asset based on how many times it has
+ * already generated royalties. Starts at 30%, decays per usage, never below 0.001%.
+ */
+function computeCitationRoyaltyRate(usageCount) {
+  return Math.max(
+    CITATION_ROYALTY_BASE_RATE * Math.pow(CITATION_ROYALTY_DECAY, usageCount),
+    CITATION_ROYALTY_MIN_RATE
+  );
+}
+
+app.post('/api/artistry/marketplace/purchase', (req, res) => {
+  try {
+    const art = ensureArtistryState();
+    const { buyerId, listingId, listingType, licenseType, purchaseId: clientPurchaseId } = req.body;
+    if (!buyerId || !listingId) return res.status(400).json({ error: 'Missing buyerId or listingId' });
+
+    // ── Deterministic purchaseId ────────────────────────────────────────
+    // Client can send a purchaseId for idempotency; otherwise server generates one.
+    const purchaseId = clientPurchaseId || `pur_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const refId = `purchase:${purchaseId}`;
+
+    // ── Idempotency check ───────────────────────────────────────────────
+    if (db) {
+      const existing = checkRefIdProcessed(db, refId);
+      if (existing.exists) {
+        // Already processed — return success with existing data
+        const existingLicense = Array.from(art.licenses.values()).find(
+          l => l.purchaseId === purchaseId
+        );
+        return res.json({
+          ok: true,
+          idempotent: true,
+          purchaseId,
+          license: existingLicense || null,
+          message: 'Purchase already processed',
+        });
+      }
+    }
+
+    // ── Lookup listing ──────────────────────────────────────────────────
+    const stores = { beat: art.beatStore, stems: art.stemStore, 'sample-pack': art.sampleStore, artwork: art.artStore };
+    const store = stores[listingType || 'beat'];
+    const listing = store?.get(listingId);
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+
+    const price = listing.licenses
+      ? (listing.licenses[licenseType || 'basic']?.price || listing.price || 0)
+      : (listing.price || 0);
+
+    const sellerId = listing.ownerId;
+    if (!sellerId) return res.status(400).json({ error: 'Listing has no owner' });
+    if (buyerId === sellerId) return res.status(400).json({ error: 'Cannot purchase your own listing' });
+
+    // ── State Machine: create purchase record ────────────────────────────
+    let purchaseRecord = null;
+    if (db) {
+      try {
+        purchaseRecord = createPurchase(db, {
+          purchaseId, buyerId, sellerId, listingId,
+          listingType: listingType || listing.type,
+          licenseType: licenseType || 'basic',
+          amount: price, source: 'artistry',
+        });
+      } catch (e) {
+        // If purchase_id already exists (idempotent retry), fetch existing
+        if (e.message?.includes('UNIQUE constraint')) {
+          // Already created — continue (idempotent)
+        } else {
+          console.error('[Artistry] Failed to create purchase record:', e.message);
+        }
+      }
+    }
+
+    // ── Economy Settlement (atomic, through ledger) ─────────────────────
+    let settlement = null;
+    if (db && price > 0) {
+      // 1. Validate buyer balance
+      const balCheck = economyValidateBalance(db, buyerId, price);
+      if (!balCheck.ok) {
+        // Transition to FAILED if purchase record exists
+        try { transitionPurchase(db, purchaseId, 'FAILED', { reason: 'insufficient_balance', actor: buyerId, errorMessage: balCheck.error }); } catch {}
+        return res.status(400).json({ error: balCheck.error, balance: balCheck.balance, required: balCheck.required });
+      }
+
+      // State Machine: transition to PAID (balance validated, about to settle)
+      try { transitionPurchase(db, purchaseId, 'PAID', { reason: 'balance_validated', actor: 'system' }); } catch {}
+
+      // 2. Calculate marketplace fee (5%)
+      const { fee: marketplaceFee } = calculateFee('MARKETPLACE_PURCHASE', price);
+      const afterFee = Math.round((price - marketplaceFee) * 100) / 100;
+
+      // 3. Resolve citations and compute royalties
+      const citations = resolveAssetCitations(listing.assetId);
+      const royaltyEntries = [];
+      let totalRoyalties = 0;
+
+      for (const citation of citations) {
+        // Skip if cited creator is the buyer (no self-royalty)
+        if (citation.creatorId === buyerId) continue;
+        // Skip if cited creator is the seller (already getting seller proceeds)
+        if (citation.creatorId === sellerId) continue;
+
+        const usageCount = art.citationRoyaltyUsage.get(citation.citedId) || 0;
+        const royaltyRate = computeCitationRoyaltyRate(usageCount);
+        const royaltyAmount = Math.max(Math.round(price * royaltyRate * 100) / 100, 0.01);
+
+        royaltyEntries.push({
+          citedId: citation.citedId,
+          creatorId: citation.creatorId,
+          source: citation.source,
+          amount: royaltyAmount,
+          rate: royaltyRate,
+          usageCount,
+        });
+        totalRoyalties += royaltyAmount;
+      }
+
+      // Cap total royalties so seller always gets at least 0.01
+      if (totalRoyalties > afterFee - 0.01) {
+        const scale = (afterFee - 0.01) / totalRoyalties;
+        totalRoyalties = 0;
+        for (const r of royaltyEntries) {
+          r.amount = Math.max(Math.round(r.amount * scale * 100) / 100, 0.01);
+          totalRoyalties += r.amount;
+        }
+        // Final cap: if still too much, trim last entries
+        while (totalRoyalties > afterFee - 0.01 && royaltyEntries.length > 0) {
+          totalRoyalties -= royaltyEntries.pop().amount;
+        }
+      }
+
+      const sellerNet = Math.round((afterFee - totalRoyalties) * 100) / 100;
+      const batchId = generateTxId();
+
+      // 4. Build all ledger entries atomically (all share the same refId for idempotency)
+      const entries = [];
+
+      // Debit: buyer pays full price
+      entries.push({
+        id: generateTxId(),
+        type: 'MARKETPLACE_PURCHASE',
+        from: buyerId,
+        to: sellerId,
+        amount: price,
+        fee: marketplaceFee,
+        net: sellerNet,
+        status: 'complete',
+        refId,
+        metadata: {
+          batchId, role: 'debit', listingId, listingType: listing.type,
+          licenseType: licenseType || 'basic', source: 'artistry',
+          purchaseId, totalRoyalties, royaltyCount: royaltyEntries.length,
+        },
+      });
+
+      // Credit: seller gets net (price - fee - royalties)
+      entries.push({
+        id: generateTxId(),
+        type: 'MARKETPLACE_PURCHASE',
+        from: null,
+        to: sellerId,
+        amount: sellerNet,
+        fee: 0,
+        net: sellerNet,
+        status: 'complete',
+        refId,
+        metadata: { batchId, role: 'credit', listingId, source: 'artistry', purchaseId },
+      });
+
+      // Platform fee
+      if (marketplaceFee > 0) {
+        entries.push({
+          id: generateTxId(),
+          type: 'FEE',
+          from: null,
+          to: PLATFORM_ACCOUNT_ID,
+          amount: marketplaceFee,
+          fee: 0,
+          net: marketplaceFee,
+          status: 'complete',
+          refId,
+          metadata: { batchId, role: 'fee', sourceType: 'MARKETPLACE_PURCHASE', listingId, source: 'artistry', purchaseId },
+        });
+      }
+
+      // Citation royalty payouts
+      for (const royalty of royaltyEntries) {
+        entries.push({
+          id: generateTxId(),
+          type: 'ROYALTY_PAYOUT',
+          from: null,
+          to: royalty.creatorId,
+          amount: royalty.amount,
+          fee: 0,
+          net: royalty.amount,
+          status: 'complete',
+          refId,
+          metadata: {
+            batchId, role: 'citation_royalty', listingId,
+            citedAssetId: royalty.citedId, citationSource: royalty.source,
+            royaltyRate: royalty.rate, usageCount: royalty.usageCount,
+            source: 'artistry', purchaseId,
+          },
+        });
+      }
+
+      // 5. Execute atomically — includes idempotency check inside the transaction
+      const doSettlement = db.transaction(() => {
+        // Double-check inside transaction for race condition safety
+        const dupe = checkRefIdProcessed(db, refId);
+        if (dupe.exists) return { idempotent: true, entries: dupe.entries };
+        return recordTransactionBatch(db, entries);
+      });
+
+      try {
+        const txResults = doSettlement();
+
+        // If idempotent (already processed), return existing result
+        if (txResults.idempotent) {
+          const existingLicense = Array.from(art.licenses.values()).find(
+            l => l.purchaseId === purchaseId
+          );
+          return res.json({
+            ok: true,
+            idempotent: true,
+            purchaseId,
+            license: existingLicense || null,
+            message: 'Purchase already settled',
+          });
+        }
+
+        settlement = {
+          batchId,
+          purchaseId,
+          transactions: txResults,
+          price,
+          marketplaceFee,
+          sellerNet,
+          totalRoyalties,
+          royalties: royaltyEntries.map(r => ({
+            citedId: r.citedId, creatorId: r.creatorId, amount: r.amount,
+            rate: r.rate, source: r.source,
+          })),
+        };
+
+        // State Machine: transition to SETTLED + snapshot settlement details
+        try {
+          transitionPurchase(db, purchaseId, 'SETTLED', { reason: 'ledger_committed', actor: 'system' });
+          recordSettlement(db, purchaseId, {
+            settlementBatchId: batchId,
+            marketplaceFee,
+            sellerNet,
+            totalRoyalties,
+            royaltyDetails: royaltyEntries.map(r => ({
+              citedId: r.citedId, creatorId: r.creatorId, amount: r.amount,
+              rate: r.rate, source: r.source,
+            })),
+          });
+        } catch (smErr) {
+          console.error('[Artistry] State machine update failed (settlement succeeded):', smErr.message);
+        }
+      } catch (err) {
+        // Check if it's a UNIQUE constraint violation (duplicate ref_id) — treat as idempotent
+        if (err.message?.includes('UNIQUE constraint') && err.message?.includes('ref_id')) {
+          const existingLicense = Array.from(art.licenses.values()).find(
+            l => l.purchaseId === purchaseId
+          );
+          return res.json({
+            ok: true,
+            idempotent: true,
+            purchaseId,
+            license: existingLicense || null,
+            message: 'Purchase already settled (constraint)',
+          });
+        }
+        console.error('[Artistry] Settlement failed:', err.message);
+        try { transitionPurchase(db, purchaseId, 'FAILED', { reason: 'settlement_error', actor: 'system', errorMessage: err.message }); } catch {}
+        return res.status(500).json({ error: 'settlement_failed', detail: err.message });
+      }
+
+      // Update citation usage counts (after successful settlement)
+      for (const royalty of royaltyEntries) {
+        art.citationRoyaltyUsage.set(
+          royalty.citedId,
+          (art.citationRoyaltyUsage.get(royalty.citedId) || 0) + 1
+        );
+      }
+
+      // Audit log (non-critical, don't fail the purchase if audit logging fails)
+      try {
+        economyAudit(db, {
+          action: 'artistry_marketplace_purchase',
+          userId: buyerId,
+          amount: price,
+          txId: batchId,
+          requestId: req.headers?.['x-request-id'],
+          ip: req.ip,
+          details: {
+            sellerId, listingId, listingType: listing.type,
+            licenseType: licenseType || 'basic',
+            marketplaceFee, sellerNet, totalRoyalties,
+            royaltyCount: royaltyEntries.length,
+          },
+        });
+      } catch (auditErr) {
+        console.error('[Artistry] Audit log failed (settlement succeeded):', auditErr.message);
+      }
+    }
+
+    // ── Entitlement (license creation) ──────────────────────────────────
+    const licenseId = `lic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    art.licenses.set(licenseId, {
+      id: licenseId, buyerId, listingId, listingType: listing.type,
+      licenseType: licenseType || 'basic',
+      price, terms: LICENSE_TYPES[licenseType || 'basic'] || LICENSE_TYPES.basic,
+      status: 'active', purchasedAt: Date.now(),
+      purchaseId,
+      settlementBatchId: settlement?.batchId || null,
+    });
+
+    // State Machine: transition to FULFILLED + record license ID
+    if (db) {
+      try {
+        transitionPurchase(db, purchaseId, 'FULFILLED', { reason: 'license_created', actor: 'system' });
+        recordSettlement(db, purchaseId, { licenseId });
+      } catch (smErr) {
+        console.error('[Artistry] State machine FULFILLED transition failed:', smErr.message);
+      }
+    }
+
+    // ── Update listing stats ────────────────────────────────────────────
+    listing.totalSales = (listing.totalSales || 0) + 1;
+
+    // ── Split accounting (in-memory) ────────────────────────────────────
+    const split = Array.from(art.splits.values()).find(s => s.assetId === listing.assetId);
+    if (split) {
+      for (const p of split.participants) {
+        p.totalEarned = (p.totalEarned || 0) + Math.floor(price * p.percentage / 100);
+      }
+      split.totalDistributed = (split.totalDistributed || 0) + price;
+    }
+
+    // ── Response ────────────────────────────────────────────────────────
+    res.json({
+      ok: true,
+      purchaseId,
+      license: art.licenses.get(licenseId),
+      paid: price,
+      settlement: settlement ? {
+        batchId: settlement.batchId,
+        purchaseId,
+        marketplaceFee: settlement.marketplaceFee,
+        sellerNet: settlement.sellerNet,
+        totalRoyalties: settlement.totalRoyalties,
+        royalties: settlement.royalties,
+      } : null,
+    });
+  } catch (err) {
+    console.error('[Artistry] Purchase error:', err.message);
+    res.status(500).json({ error: 'purchase_failed', detail: err.message });
+  }
 });
 
 structuredLog("info", "artistry_init", { detail: "Phase 8: Marketplace expansion initialized" });

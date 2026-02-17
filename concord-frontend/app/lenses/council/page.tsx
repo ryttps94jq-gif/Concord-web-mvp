@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLensData } from '@/lib/hooks/use-lens-data';
@@ -416,14 +416,55 @@ export default function CouncilLensPage() {
   useLensNav('council');
   const queryClient = useQueryClient();
 
-  // ----- Core State -----
-  const [activeTab, setActiveTab] = useState<CouncilTab>('proposals');
+  // ----- Lens persistence (auto-seeds on first use, syncs local state) -----
+  const { items: proposalLensItems, isLoading: proposalsLoading } = useLensData<Record<string, unknown>>('council', 'proposal', {
+    seed: INITIAL_PROPOSALS.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
+  });
+  const { items: budgetLensItems } = useLensData<Record<string, unknown>>('council', 'budget', {
+    seed: INITIAL_BUDGET_ITEMS.map(b => ({ title: b.description, data: b as unknown as Record<string, unknown> })),
+  });
+  const { items: stakeholderLensItems } = useLensData<Record<string, unknown>>('council', 'stakeholder', {
+    seed: INITIAL_STAKEHOLDERS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
+  });
+  const { items: committeeLensItems } = useLensData<Record<string, unknown>>('council', 'committee', {
+    seed: INITIAL_COMMITTEES.map(c => ({ title: c.name, data: c as unknown as Record<string, unknown> })),
+  });
+  const { items: auditLensItems } = useLensData<Record<string, unknown>>('council', 'audit', {
+    seed: INITIAL_AUDIT.map(a => ({ title: a.action, data: a as unknown as Record<string, unknown> })),
+  });
+  const { items: debateLensItems } = useLensData<Record<string, unknown>>('council', 'debate', {
+    seed: INITIAL_DEBATES.map(d => ({ title: d.topic, data: d as unknown as Record<string, unknown> })),
+  });
+
+  // Local state initialized from persisted lens data (falls back to seed data on first load)
   const [proposals, setProposals] = useState<Proposal[]>(INITIAL_PROPOSALS);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>(INITIAL_BUDGET_ITEMS);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>(INITIAL_STAKEHOLDERS);
   const [committees, setCommittees] = useState<Committee[]>(INITIAL_COMMITTEES);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(INITIAL_AUDIT);
   const [debates, setDebates] = useState<DebateSession[]>(INITIAL_DEBATES);
+
+  // Sync from backend when lens data loads
+  useEffect(() => {
+    if (proposalLensItems.length > 0) setProposals(proposalLensItems.map(i => ({ id: i.id, ...i.data } as unknown as Proposal)));
+  }, [proposalLensItems]);
+  useEffect(() => {
+    if (budgetLensItems.length > 0) setBudgetItems(budgetLensItems.map(i => ({ id: i.id, ...i.data } as unknown as BudgetItem)));
+  }, [budgetLensItems]);
+  useEffect(() => {
+    if (stakeholderLensItems.length > 0) setStakeholders(stakeholderLensItems.map(i => ({ id: i.id, ...i.data } as unknown as Stakeholder)));
+  }, [stakeholderLensItems]);
+  useEffect(() => {
+    if (committeeLensItems.length > 0) setCommittees(committeeLensItems.map(i => ({ id: i.id, ...i.data } as unknown as Committee)));
+  }, [committeeLensItems]);
+  useEffect(() => {
+    if (auditLensItems.length > 0) setAuditLog(auditLensItems.map(i => ({ id: i.id, ...i.data } as unknown as AuditEntry)));
+  }, [auditLensItems]);
+  useEffect(() => {
+    if (debateLensItems.length > 0) setDebates(debateLensItems.map(i => ({ id: i.id, ...i.data } as unknown as DebateSession)));
+  }, [debateLensItems]);
+
+  const [activeTab, setActiveTab] = useState<CouncilTab>('proposals');
 
   // ----- UI State -----
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
@@ -473,6 +514,9 @@ export default function CouncilLensPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dtus'] });
+    },
+    onError: (err) => {
+      console.error('Debate failed:', err instanceof Error ? err.message : err);
     },
   });
 

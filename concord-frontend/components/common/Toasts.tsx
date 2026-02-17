@@ -11,7 +11,7 @@ export function Toasts() {
   const removeToast = useUIStore((state) => state.removeToast);
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div role="region" aria-live="polite" aria-label="Notifications" className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}
@@ -80,6 +80,7 @@ function Toast({ type, message, duration = TOAST_DURATION, onClose }: ToastProps
       <button
         onClick={onClose}
         className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+        aria-label="Dismiss notification"
       >
         <X className="w-4 h-4 text-gray-400" />
       </button>

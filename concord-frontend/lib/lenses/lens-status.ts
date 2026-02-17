@@ -531,6 +531,20 @@ export const LENS_STATUS_MAP: LensStatusEntry[] = [
     postMergeRole: 'standalone',
     rationale: 'Mega platform dashboard. Infrastructure.',
   },
+  {
+    id: 'global',
+    status: 'system',
+    mergeTarget: null,
+    postMergeRole: 'standalone',
+    rationale: 'Global DTU/artifact browser. Platform infrastructure.',
+  },
+  {
+    id: 'hub',
+    status: 'system',
+    mergeTarget: null,
+    postMergeRole: 'standalone',
+    rationale: 'Lens discovery hub. Platform infrastructure.',
+  },
 
   // ═══════════════════════════════════════════════════════════════
   // REMAINING LENSES — classified for merge or standalone

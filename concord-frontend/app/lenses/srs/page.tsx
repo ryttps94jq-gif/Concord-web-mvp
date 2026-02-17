@@ -113,10 +113,10 @@ export default function SRSLensPage() {
   useLensNav('srs');
 
   const queryClient = useQueryClient();
-  const { isError: isError, error: error, refetch: refetch, items: _cardItems, create: _createCard } = useLensData<SRSItem>('srs', 'card', {
+  const { isError: isError, error: error, refetch: refetch, items: cardItems, create: createCard } = useLensData<SRSItem>('srs', 'card', {
     seed: INITIAL_CARDS.map(c => ({ title: c.front, data: c as unknown as Record<string, unknown> })),
   });
-  const _persistedCards: SRSItem[] = _cardItems.length > 0 ? _cardItems.map(i => ({ ...(i.data as unknown as SRSItem), id: i.id })) : INITIAL_CARDS;
+  const persistedCards: SRSItem[] = cardItems.length > 0 ? cardItems.map(i => ({ ...(i.data as unknown as SRSItem), id: i.id })) : INITIAL_CARDS;
   const [view, setView] = useState<ViewMode>('study');
   const [studyMode, setStudyMode] = useState<StudyMode>('normal');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -152,19 +152,23 @@ export default function SRSLensPage() {
   const addToSrs = useMutation({
     mutationFn: (dtuId: string) => apiHelpers.srs.add(dtuId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['srs-due'] }),
+    onError: (err) => { console.error('Failed to add to SRS:', err instanceof Error ? err.message : err); },
   });
 
   const reviewItem = useMutation({
     mutationFn: ({ dtuId, quality }: { dtuId: string; quality: number }) =>
       apiHelpers.srs.review(dtuId, { quality }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['srs-due'] }),
+    onError: (err) => { console.error('SRS review failed:', err instanceof Error ? err.message : err); },
   });
 
-  // Use API data or demo
+  // Use API data, persisted lens data, or demo fallback
   const allCards: SRSItem[] = useMemo(() => {
     const apiItems = dueData?.items || dueData?.due || (Array.isArray(dueData) ? dueData : []);
-    return apiItems.length > 0 ? apiItems : INITIAL_CARDS;
-  }, [dueData]);
+    if (apiItems.length > 0) return apiItems;
+    if (persistedCards.length > 0) return persistedCards;
+    return INITIAL_CARDS;
+  }, [dueData, persistedCards]);
 
   const decks: Deck[] = useMemo(() => {
     return INITIAL_DECKS.map(d => ({

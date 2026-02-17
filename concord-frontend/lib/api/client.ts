@@ -34,6 +34,30 @@ export const api: AxiosInstance = axios.create({
   withCredentials: true, // SECURITY: Include cookies in cross-origin requests
 });
 
+// ---- Retry with exponential backoff for transient server errors ----
+const MAX_RETRIES = 3;
+const RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const RETRY_BASE_DELAY_MS = 1000;
+
+api.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const config = error.config as InternalAxiosRequestConfig & { _retryCount?: number };
+  if (!config) return Promise.reject(error);
+
+  const status = error.response?.status;
+  const isRetryable = status && RETRY_STATUS_CODES.has(status);
+  const retryCount = config._retryCount || 0;
+
+  if (isRetryable && retryCount < MAX_RETRIES) {
+    config._retryCount = retryCount + 1;
+    const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount); // 1s, 2s, 4s
+    console.warn(`[API] Retrying ${config.method?.toUpperCase()} ${config.url} (attempt ${config._retryCount}/${MAX_RETRIES}) after ${delay}ms`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return api.request(config);
+  }
+
+  return Promise.reject(error);
+});
+
 // Helper to get CSRF token from cookie
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
@@ -122,9 +146,10 @@ api.interceptors.response.use(
       }
 
       if (status === 401 && typeof window !== 'undefined') {
-        // Redirect to login if not already on login page
+        // Redirect to login if not already on an auth page
         // Session is managed via httpOnly cookies, cleared by server
-        if (!window.location.pathname.includes('/login')) {
+        const path = window.location.pathname;
+        if (!path.includes('/login') && !path.includes('/register')) {
           window.location.href = '/login';
         }
       }
@@ -146,10 +171,12 @@ api.interceptors.response.use(
     }
 
     if (typeof window !== 'undefined') {
-      const data = error.response?.data as { error?: string; reason?: string; code?: string } | undefined;
+      const data = error.response?.data as { ok?: boolean; error?: string; reason?: string; code?: string } | undefined;
       const requestId = (error.response?.headers?.['x-request-id'] as string | undefined) ||
         (error.response?.headers?.['X-Request-ID'] as string | undefined);
       const reason = data?.reason || data?.error || (error.response?.status === 401 ? 'Login required' : error.message);
+
+      // Record error in store (deduplication handled by store)
       useUIStore.getState().addRequestError({
         path: error.config?.url,
         method: error.config?.method?.toUpperCase(),
@@ -160,8 +187,28 @@ api.interceptors.response.use(
         reason,
       });
 
-      if (error.response?.status === 401 && data?.code === 'AUTH_REQUIRED' && reason.toLowerCase().includes('api key')) {
-        useUIStore.getState().addToast({ type: 'warning', message: 'API key missing. Add x-api-key or switch AUTH_MODE.' });
+      // Surface API errors as toasts — but throttle to avoid flooding the UI.
+      // Only show toasts for user-facing errors, not background fetch failures.
+      const store = useUIStore.getState();
+      const toastStatus = error.response?.status;
+      const isBackgroundFetch = error.config?.method?.toUpperCase() === 'GET';
+      const existingToastCount = store.toasts.filter(t => t.type === 'error' || t.type === 'warning').length;
+      const shouldThrottle = existingToastCount >= 2;
+
+      if (!shouldThrottle) {
+        if (toastStatus === 401) {
+          store.addToast({ type: 'warning', message: 'Session expired. Please log in again.' });
+        } else if (toastStatus === 403) {
+          store.addToast({ type: 'error', message: "You don't have permission to do that." });
+        } else if (toastStatus === 429) {
+          store.addToast({ type: 'warning', message: 'Too many requests. Please wait a moment.' });
+        } else if (toastStatus && toastStatus >= 500 && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: 'Something went wrong on our end. Please try again.' });
+        } else if (!error.response && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: 'Unable to connect. Check your internet and try again.' });
+        } else if (data?.ok === false && data?.error && !isBackgroundFetch) {
+          store.addToast({ type: 'error', message: data.error.replace(/_/g, ' ') });
+        }
       }
     }
     return Promise.reject(error);
@@ -339,6 +386,198 @@ export const apiHelpers = {
   // Global feed
   global: {
     feed: () => api.get('/api/global/feed'),
+    // "Everything Real" paginated endpoints
+    dtusPaginated: (params?: { q?: string; limit?: number; offset?: number; visibility?: string; tier?: string }) =>
+      api.get('/api/dtus/paginated', { params }),
+    artifactsPaginated: (params?: { q?: string; limit?: number; offset?: number; type?: string; visibility?: string }) =>
+      api.get('/api/artifacts/paginated', { params }),
+    jobsPaginated: (params?: { q?: string; limit?: number; offset?: number; type?: string; status?: string }) =>
+      api.get('/api/jobs/paginated', { params }),
+    marketplacePaginated: (params?: { q?: string; limit?: number; offset?: number; visibility?: string }) =>
+      api.get('/api/marketplace/paginated', { params }),
+  },
+
+  // Durable artifacts (Everything Real)
+  durableArtifacts: {
+    upload: (data: { type?: string; title?: string; data: string; mime_type?: string; filename?: string; visibility?: string; owner_user_id?: string }) =>
+      api.post('/api/artifacts/upload', data),
+    download: (id: string, userId?: string) =>
+      api.get(`/api/artifacts/${id}/download`, { params: { user_id: userId }, responseType: 'blob' }),
+    info: (id: string) => api.get(`/api/artifacts/${id}/info`),
+  },
+
+  // Durable marketplace (Everything Real)
+  durableMarketplace: {
+    createListing: (data: { owner_user_id: string; title: string; description?: string; price_cents?: number; currency?: string; license_id?: string }) =>
+      api.post('/api/marketplace/listings', data),
+    attachAsset: (listingId: string, artifactId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/assets`, { artifact_id: artifactId }),
+    publish: (listingId: string) => api.post(`/api/marketplace/listings/${listingId}/publish`),
+    getListing: (id: string) => api.get(`/api/marketplace/listings/${id}`),
+    purchase: (listingId: string, userId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/purchase`, { user_id: userId }),
+  },
+
+  // Durable studio (Everything Real)
+  durableStudio: {
+    createProject: (data: { name?: string; bpm?: number; key?: string; scale?: string; genre?: string; owner_user_id?: string }) =>
+      api.post('/api/studio/projects', data),
+    listProjects: (params?: { owner_user_id?: string; limit?: number; offset?: number }) =>
+      api.get('/api/studio/projects', { params }),
+    getProject: (id: string) => api.get(`/api/studio/projects/${id}`),
+    updateProject: (id: string, data: Record<string, unknown>) => api.patch(`/api/studio/projects/${id}`, data),
+    addTrack: (projectId: string, data: { name?: string; type?: string; instrument_id?: string }) =>
+      api.post(`/api/studio/projects/${projectId}/tracks`, data),
+    addClip: (projectId: string, trackId: string, data: Record<string, unknown>) =>
+      api.post(`/api/studio/projects/${projectId}/tracks/${trackId}/clips`, data),
+    addEffects: (projectId: string, trackId: string, chain: unknown[]) =>
+      api.post(`/api/studio/projects/${projectId}/tracks/${trackId}/effects`, { chain }),
+    render: (projectId: string, data?: { format?: string; settings?: Record<string, unknown> }) =>
+      api.post(`/api/studio/${projectId}/render`, data),
+    vocalAnalyze: (data: { project_id: string; track_id: string; owner_user_id?: string }) =>
+      api.post('/api/studio/vocal/analyze', data),
+    vocalProcess: (data: { project_id: string; track_id: string; corrections?: string[]; owner_user_id?: string }) =>
+      api.post('/api/studio/vocal/process', data),
+    masterJob: (data: { project_id: string; preset?: string; target_lufs?: number; format?: string; owner_user_id?: string }) =>
+      api.post('/api/studio/master/job', data),
+  },
+
+  // Durable distribution (Everything Real)
+  durableDistribution: {
+    createRelease: (data: { artifact_id: string; title?: string; artist_name?: string; license_terms?: string; visibility?: string; owner_user_id?: string }) =>
+      api.post('/api/distribution/releases', data),
+  },
+
+  // Lens items sync
+  lensItems: {
+    sync: (data: { lens_id: string; artifact_id?: string; dtu_id?: string; owner_user_id?: string; metadata?: Record<string, unknown> }) =>
+      api.post('/api/lens-items/sync', data),
+    list: (lensId: string) => api.get(`/api/lens-items/${lensId}`),
+  },
+
+  // Events log
+  eventsLog: {
+    list: (params?: { type?: string; limit?: number; offset?: number }) =>
+      api.get('/api/events/log', { params }),
+  },
+
+  // Schema version
+  schemaVersion: {
+    get: () => api.get('/api/schema/version'),
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Guidance Layer v1
+  // ═══════════════════════════════════════════════════════════════
+
+  guidance: {
+    // System health
+    health: () => api.get('/api/system/health'),
+
+    // Enhanced paginated events with scope/type filters
+    eventsPaginated: (params?: { type?: string; scope?: string; entityType?: string; entityId?: string; limit?: number; offset?: number }) =>
+      api.get('/api/events/paginated', { params }),
+
+    // Object Inspector
+    inspect: (entityType: string, entityId: string) =>
+      api.get(`/api/inspect/${entityType}/${entityId}`),
+
+    // Undo
+    undo: (undoToken: string, userId?: string) =>
+      api.post('/api/undo', { undoToken, user_id: userId }),
+
+    // Action preview (dry-run)
+    previewAction: (data: { action: string; entityType?: string; entityId?: string; params?: Record<string, unknown> }) =>
+      api.post('/api/preview-action', data),
+
+    // Context suggestions
+    suggestions: (lens?: string, userId?: string) =>
+      api.get('/api/guidance/suggestions', { params: { lens, user_id: userId } }),
+
+    // First-win wizard status
+    firstWin: () => api.get('/api/guidance/first-win'),
+
+    // Guided DTU CRUD (with undo tokens)
+    createDtu: (data: { title?: string; body?: Record<string, unknown>; tags?: string[]; visibility?: string; tier?: string; owner_user_id?: string }) =>
+      api.post('/api/dtus/guided', data),
+    updateDtu: (id: string, data: Record<string, unknown>) =>
+      api.put(`/api/dtus/guided/${id}`, data),
+    deleteDtu: (id: string) =>
+      api.delete(`/api/dtus/guided/${id}`),
+
+    // Guided lens sync (with undo)
+    syncLensItem: (data: { lens_id: string; artifact_id?: string; dtu_id?: string; owner_user_id?: string; metadata?: Record<string, unknown> }) =>
+      api.post('/api/lens-items/guided-sync', data),
+
+    // Guided marketplace publish (with undo)
+    publishListing: (listingId: string) =>
+      api.post(`/api/marketplace/listings/${listingId}/guided-publish`),
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Economy System
+  // ═══════════════════════════════════════════════════════════════
+
+  economy: {
+    // Balance
+    balance: (userId?: string) =>
+      api.get('/api/economy/balance', { params: { user_id: userId } }),
+
+    // Transaction history
+    history: (params?: { user_id?: string; type?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/history', { params }),
+
+    // Token purchase
+    buy: (data: { user_id?: string; amount: number; source?: string }) =>
+      api.post('/api/economy/buy', data),
+
+    // Transfer
+    transfer: (data: { from?: string; to: string; amount: number; metadata?: Record<string, unknown> }) =>
+      api.post('/api/economy/transfer', data),
+
+    // Marketplace purchase
+    marketplacePurchase: (data: { buyer_id?: string; seller_id: string; amount: number; listing_id?: string }) =>
+      api.post('/api/economy/marketplace-purchase', data),
+
+    // Withdrawals
+    withdraw: (data: { user_id?: string; amount: number }) =>
+      api.post('/api/economy/withdraw', data),
+    withdrawals: (params?: { user_id?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/withdrawals', { params }),
+    cancelWithdrawal: (withdrawalId: string, userId?: string) =>
+      api.post(`/api/economy/withdrawals/${withdrawalId}/cancel`, { user_id: userId }),
+
+    // Info
+    fees: () => api.get('/api/economy/fees'),
+    platformBalance: () => api.get('/api/economy/platform-balance'),
+    integrity: () => api.get('/api/economy/integrity'),
+
+    // Admin
+    adminTransactions: (params?: { type?: string; status?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/admin/transactions', { params }),
+    adminWithdrawals: (params?: { status?: string; limit?: number; offset?: number }) =>
+      api.get('/api/economy/admin/withdrawals', { params }),
+    adminApproveWithdrawal: (withdrawalId: string, reviewerId?: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/approve`, { reviewer_id: reviewerId }),
+    adminRejectWithdrawal: (withdrawalId: string, reviewerId?: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/reject`, { reviewer_id: reviewerId }),
+    adminProcessWithdrawal: (withdrawalId: string) =>
+      api.post(`/api/economy/admin/withdrawals/${withdrawalId}/process`),
+    adminReverse: (transactionId: string, reason?: string) =>
+      api.post('/api/economy/admin/reverse', { transaction_id: transactionId, reason }),
+
+    // Stripe Checkout
+    createCheckout: (tokens: number, userId?: string) =>
+      api.post('/api/economy/buy/checkout', { tokens, user_id: userId }),
+
+    // Economy config (Stripe enabled, fee schedule, limits)
+    config: () => api.get('/api/economy/config'),
+
+    // Stripe Connect
+    connectStripe: (userId?: string) =>
+      api.post('/api/stripe/connect/onboard', { user_id: userId }),
+    connectStatus: (userId?: string) =>
+      api.get('/api/stripe/connect/status', { params: { user_id: userId } }),
   },
 
   // Macros
@@ -1231,12 +1470,8 @@ export const apiHelpers = {
   },
 };
 
-// Initialize CSRF token on page load (browser only)
-if (typeof window !== 'undefined') {
-  // Fetch CSRF token when the module loads
-  api.get('/api/auth/csrf-token').catch(() => {
-    // Silent fail - token will be fetched on first state-changing request
-  });
-}
+// CSRF token is fetched lazily before the first state-changing request.
+// Do NOT auto-fetch on module load — that fires before the user logs in
+// and generates error toasts/banners that block the login UI.
 
 export default api;

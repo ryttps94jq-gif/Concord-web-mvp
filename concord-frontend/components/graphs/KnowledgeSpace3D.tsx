@@ -358,32 +358,3 @@ export function KnowledgeSpace3D({
   );
 }
 
-// Helper to generate demo data
-export function generateDemoNodes(count: number): Node3D[] {
-  const tiers: Node3D['tier'][] = ['regular', 'mega', 'hyper', 'shadow'];
-  const nodes: Node3D[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const t = i / count;
-    const radius = 5 + t * 15;
-    const angle = t * Math.PI * 8;
-    const tier = tiers[Math.floor(Math.random() * (i < count * 0.1 ? 4 : i < count * 0.3 ? 3 : 2))];
-
-    nodes.push({
-      id: `node-${i}`,
-      label: `DTU ${i + 1}`,
-      tier,
-      position: [
-        Math.cos(angle) * radius + (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 8,
-        Math.sin(angle) * radius + (Math.random() - 0.5) * 3
-      ],
-      connections: Array.from({ length: Math.floor(Math.random() * 3) + 1 }, () =>
-        `node-${Math.floor(Math.random() * count)}`
-      ).filter(id => id !== `node-${i}`),
-      resonance: Math.random()
-    });
-  }
-
-  return nodes;
-}

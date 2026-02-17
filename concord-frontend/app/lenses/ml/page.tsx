@@ -249,6 +249,12 @@ export default function MLLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: expItems } = useLensData<Experiment>('ml', 'experiment', {
     seed: INITIAL_EXPERIMENTS.map(e => ({ title: e.name, data: e as unknown as Record<string, unknown> })),
   });
+  const { items: datasetItems } = useLensData<Dataset>('ml', 'dataset', {
+    seed: INITIAL_DATASETS.map(d => ({ title: d.name, data: d as unknown as Record<string, unknown> })),
+  });
+  const { items: deploymentItems } = useLensData<Deployment>('ml', 'deployment', {
+    seed: INITIAL_DEPLOYMENTS.map(d => ({ title: d.modelName, data: d as unknown as Record<string, unknown> })),
+  });
   const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
   const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
   const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
@@ -294,9 +300,9 @@ export default function MLLensPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ml-models'] })
   });
 
-  // Data
-  const datasets = INITIAL_DATASETS;
-  const deployments = INITIAL_DEPLOYMENTS;
+  // Data - sourced from persistent backend
+  const datasets: Dataset[] = datasetItems.length > 0 ? datasetItems.map(i => ({ ...(i.data as unknown as Dataset), id: i.id })) : INITIAL_DATASETS;
+  const deployments: Deployment[] = deploymentItems.length > 0 ? deploymentItems.map(i => ({ ...(i.data as unknown as Deployment), id: i.id })) : INITIAL_DEPLOYMENTS;
   const metrics = metricsData || { gpuUsage: 0, memoryUsage: 0, totalInferences: 0, avgLatency: 0 };
 
   // Filtered data

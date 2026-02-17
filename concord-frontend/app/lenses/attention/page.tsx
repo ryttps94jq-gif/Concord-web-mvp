@@ -55,6 +55,9 @@ export default function AttentionLensPage() {
       queryClient.invalidateQueries({ queryKey: ['attention-status'] });
       setNewDesc('');
     },
+    onError: (err) => {
+      console.error('Failed to create thread:', err instanceof Error ? err.message : err);
+    },
   });
 
   const completeThread = useMutation({
@@ -62,6 +65,9 @@ export default function AttentionLensPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attention-threads'] });
       queryClient.invalidateQueries({ queryKey: ['attention-status'] });
+    },
+    onError: (err) => {
+      console.error('Failed to complete thread:', err instanceof Error ? err.message : err);
     },
   });
 

@@ -3,6 +3,18 @@
  *
  * Provides structured, typed errors with error codes, HTTP status mapping,
  * and context preservation through the call stack.
+ *
+ * Usage:
+ *   import { ValidationError, AuthError, NotFoundError } from './lib/errors.js';
+ *
+ *   throw new ValidationError('Email is required', { field: 'email' });
+ *   throw new AuthError('Token expired');
+ *   throw new NotFoundError('DTU', 'abc123');
+ *
+ * In error middleware:
+ *   if (err instanceof ConcordError) {
+ *     return res.status(err.statusCode).json(err.toJSON());
+ *   }
  */
 
 /**
@@ -33,7 +45,7 @@ export class ConcordError extends Error {
       ok: false,
       error: this.message,
       code: this.code,
-      ...(Object.keys(this.context).length > 0 ? { context: this.context } : {}),
+      ...(this.context && Object.keys(this.context).length > 0 ? { context: this.context } : {}),
     };
   }
 }
@@ -54,6 +66,9 @@ export class AuthenticationError extends ConcordError {
   }
 }
 
+/** 401 — alias for AuthenticationError. */
+export { AuthenticationError as AuthError };
+
 /** 403 — authenticated but not authorized for this action. */
 export class AuthorizationError extends ConcordError {
   constructor(message = "Insufficient permissions", context = {}) {
@@ -61,6 +76,9 @@ export class AuthorizationError extends ConcordError {
     this.name = "AuthorizationError";
   }
 }
+
+/** 403 — alias for AuthorizationError. */
+export { AuthorizationError as ForbiddenError };
 
 /** 404 — requested resource doesn't exist. */
 export class NotFoundError extends ConcordError {
@@ -108,4 +126,29 @@ export class DatabaseError extends ConcordError {
     super(message, { code: "DATABASE_ERROR", statusCode: 500, context });
     this.name = "DatabaseError";
   }
+}
+
+/** 500 — alias for generic server error. */
+export class ServerError extends ConcordError {
+  constructor(message = "Internal server error", statusCode = 500) {
+    super(message, { code: "SERVER_ERROR", statusCode });
+    this.name = "ServerError";
+  }
+}
+
+/**
+ * Express error handler middleware that knows about ConcordError subclasses.
+ *
+ * Usage: app.use(concordErrorHandler);
+ */
+export function concordErrorHandler(err, req, res, _next) {
+  if (res.headersSent) return;
+
+  if (err instanceof ConcordError) {
+    return res.status(err.statusCode).json(err.toJSON());
+  }
+
+  // Fallback for unknown errors
+  const msg = String(err?.message || err || 'Unknown error');
+  res.status(500).json({ ok: false, error: msg, code: 'INTERNAL_ERROR' });
 }

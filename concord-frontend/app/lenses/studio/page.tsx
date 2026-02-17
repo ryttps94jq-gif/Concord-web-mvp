@@ -199,14 +199,18 @@ export default function StudioLensPage() {
 
   const masterMutation = useMutation({
     mutationFn: () => api.post('/api/artistry/studio/master', { projectId: activeProjectId }),
+    onSuccess: () => refetchProject(),
+    onError: (err) => { console.error('Mastering failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiAnalyzeMutation = useMutation({
     mutationFn: () => api.post('/api/artistry/ai/analyze-project', { projectId: activeProjectId }),
+    onError: (err) => { console.error('AI analysis failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiSessionMutation = useMutation({
     mutationFn: (question: string) => api.post('/api/artistry/ai/session', { projectId: activeProjectId, question }),
+    onError: (err) => { console.error('AI session failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiChordsMutation = useMutation({
@@ -215,6 +219,7 @@ export default function StudioLensPage() {
       scale: (activeProject as Project)?.scale || 'major',
       genre: (activeProject as Project)?.genre,
     }),
+    onError: (err) => { console.error('Chord suggestions failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiDrumsMutation = useMutation({
@@ -222,6 +227,7 @@ export default function StudioLensPage() {
       bpm: (activeProject as Project)?.bpm || 120,
       genre: (activeProject as Project)?.genre || 'electronic',
     }),
+    onError: (err) => { console.error('Drum suggestions failed:', err instanceof Error ? err.message : err); },
   });
 
   const handleCreateProject = useCallback(() => {
@@ -620,7 +626,7 @@ export default function StudioLensPage() {
   // No project selected view
   if (!activeProjectId) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
+      <div className="h-full flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-3">
           <div className="flex items-center gap-2">
             <Headphones className="w-6 h-6 text-neon-cyan" />
@@ -711,7 +717,7 @@ export default function StudioLensPage() {
     );
   }
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
+    <div className="h-full flex flex-col bg-gradient-to-b from-cyan-900/10 to-black">
       {renderTransportBar()}
       {studioView === 'arrange' && renderArrangeView()}
       {studioView === 'mixer' && renderMixerView()}

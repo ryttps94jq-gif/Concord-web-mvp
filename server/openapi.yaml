@@ -47,6 +47,48 @@ tags:
     description: Knowledge graph operations
   - name: Marketplace
     description: Plugin marketplace
+  - name: Economy
+    description: Credits, balance, and payments
+  - name: Social
+    description: Social profiles, following, and feed
+  - name: Collaboration
+    description: Workspaces, comments, and revisions
+  - name: Atlas
+    description: Epistemic knowledge store and retrieval
+  - name: Analytics
+    description: Dashboards and usage analytics
+  - name: RBAC
+    description: Organizations, roles, and permissions
+  - name: Compliance
+    description: Data governance and export controls
+  - name: Webhooks
+    description: Webhook registration and delivery
+  - name: LLM
+    description: LLM pipeline management
+  - name: Emergent
+    description: Emergent agent governance
+  - name: Ingest
+    description: Content ingestion
+  - name: Verify
+    description: Verification and validation
+  - name: Jobs
+    description: Background job management
+  - name: Agents
+    description: AI agent management
+  - name: Queues
+    description: Proposal and maintenance queues
+  - name: System
+    description: System operations
+  - name: Backup
+    description: Backup and restore
+  - name: Temporal
+    description: Temporal reasoning
+  - name: Abstraction
+    description: Abstraction hierarchy
+  - name: GRC
+    description: Governance, risk, and compliance
+  - name: Organs
+    description: System organs and growth
 
 paths:
   /health:
@@ -310,6 +352,81 @@ paths:
         '403':
           description: Admin access required
 
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Exchange a valid refresh token for a new access token pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: The refresh token from a previous login
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired refresh token
+
+  /api/auth/revoke-all-sessions:
+    post:
+      tags: [Auth]
+      summary: Revoke all sessions
+      description: Invalidate all active sessions for the current user
+      responses:
+        '200':
+          description: All sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  revoked:
+                    type: integer
+                    description: Number of sessions revoked
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password
+      description: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '401':
+          description: Current password incorrect
+
   /api/dtus:
     get:
       tags: [DTUs]
@@ -353,6 +470,432 @@ paths:
       responses:
         '201':
           description: DTU created
+
+  /api/dtus/{id}:
+    put:
+      tags: [DTUs]
+      summary: Update DTU
+      description: Full replacement update of an existing DTU
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DTUCreate'
+      responses:
+        '200':
+          description: DTU updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtu:
+                    $ref: '#/components/schemas/DTU'
+        '404':
+          description: DTU not found
+    patch:
+      tags: [DTUs]
+      summary: Partial update DTU
+      description: Partially update fields on an existing DTU
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                core:
+                  type: object
+      responses:
+        '200':
+          description: DTU partially updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtu:
+                    $ref: '#/components/schemas/DTU'
+        '404':
+          description: DTU not found
+    delete:
+      tags: [DTUs]
+      summary: Delete DTU
+      description: Permanently delete a DTU by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: DTU deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '404':
+          description: DTU not found
+
+  /api/dtu_view/{id}:
+    get:
+      tags: [DTUs]
+      summary: CRETI-first DTU view
+      description: Returns a DTU rendered with CRETI-first view structure
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: DTU view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtu:
+                    $ref: '#/components/schemas/DTU'
+        '404':
+          description: DTU not found
+
+  /api/dtus/saveSuggested:
+    post:
+      tags: [DTUs]
+      summary: Save suggested DTU
+      description: Save a DTU that was suggested by the system or LLM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtu]
+              properties:
+                dtu:
+                  $ref: '#/components/schemas/DTUCreate'
+                source:
+                  type: string
+                  description: Origin of the suggestion
+      responses:
+        '201':
+          description: Suggested DTU saved
+
+  /api/dtus/dedupe:
+    post:
+      tags: [DTUs]
+      summary: Deduplicate DTUs
+      description: Find and merge duplicate DTUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                threshold:
+                  type: number
+                  description: Similarity threshold (0-1)
+                  default: 0.85
+                dryRun:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Deduplication results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  duplicates:
+                    type: array
+                    items:
+                      type: object
+                  merged:
+                    type: integer
+
+  /api/dtus/cluster:
+    post:
+      tags: [DTUs]
+      summary: Cluster similar DTUs
+      description: Group DTUs into clusters based on semantic similarity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                k:
+                  type: integer
+                  description: Number of clusters
+                algorithm:
+                  type: string
+                  enum: [kmeans, dbscan, hierarchical]
+      responses:
+        '200':
+          description: Clustering results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  clusters:
+                    type: array
+                    items:
+                      type: object
+
+  /api/dtus/reconcile:
+    post:
+      tags: [DTUs]
+      summary: Reconcile DTU conflicts
+      description: Resolve conflicting information between DTUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuIds]
+              properties:
+                dtuIds:
+                  type: array
+                  items:
+                    type: string
+                strategy:
+                  type: string
+                  enum: [merge, newest, credibility]
+      responses:
+        '200':
+          description: Reconciliation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  resolved:
+                    $ref: '#/components/schemas/DTU'
+
+  /api/dtus/define:
+    post:
+      tags: [DTUs]
+      summary: Define new DTU
+      description: Create a new DTU from a definition prompt with auto-structuring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [term, definition]
+              properties:
+                term:
+                  type: string
+                definition:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Definition DTU created
+
+  /api/dtus/shadow:
+    get:
+      tags: [DTUs]
+      summary: List shadow DTUs
+      description: Returns DTUs in shadow state awaiting promotion
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Shadow DTU list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtus:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DTU'
+
+  /api/dtus/gap-promote:
+    post:
+      tags: [DTUs]
+      summary: Promote gap DTU
+      description: Promote a gap-identified DTU to full status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: DTU promoted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtu:
+                    $ref: '#/components/schemas/DTU'
+
+  /api/megas:
+    get:
+      tags: [DTUs]
+      summary: List mega DTUs
+      description: Returns all mega-tier DTUs (consolidated higher-order units)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Mega DTU list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtus:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DTU'
+
+  /api/hypers:
+    get:
+      tags: [DTUs]
+      summary: List hyper DTUs
+      description: Returns all hyper-tier DTUs (top-level consolidations)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Hyper DTU list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtus:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DTU'
+
+  /api/definitions:
+    get:
+      tags: [DTUs]
+      summary: List definitions
+      description: Returns all definition DTUs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Definition list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  definitions:
+                    type: array
+                    items:
+                      type: object
+
+  /api/definitions/{term}:
+    get:
+      tags: [DTUs]
+      summary: Get definition by term
+      description: Returns the definition DTU for a specific term
+      parameters:
+        - name: term
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Definition found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  definition:
+                    type: object
+        '404':
+          description: Term not defined
 
   /api/forge/manual:
     post:
@@ -536,6 +1079,2240 @@ paths:
         '200':
           description: Plugin list
 
+  /api/economy/balance:
+    get:
+      tags: [Economy]
+      summary: Get wallet balance
+      description: Returns the current user's credit balance
+      responses:
+        '200':
+          description: Balance info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  balance:
+                    type: number
+                  currency:
+                    type: string
+
+  /api/economy/fees:
+    get:
+      tags: [Economy]
+      summary: Get fee schedule
+      description: Returns current marketplace fee rates
+      responses:
+        '200':
+          description: Fee schedule
+
+  /api/credits/earn:
+    post:
+      tags: [Economy]
+      summary: Earn credits
+      description: Award credits for an action (contribution, referral, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [contribution, referral, achievement, daily_login]
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Credits awarded
+
+  /api/credits/spend:
+    post:
+      tags: [Economy]
+      summary: Spend credits
+      description: Deduct credits for a purchase or service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, amount]
+              properties:
+                action:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Credits spent
+        '402':
+          description: Insufficient balance
+
+  /api/social/profile:
+    get:
+      tags: [Social]
+      summary: Get own profile
+      description: Returns the authenticated user's social profile
+      responses:
+        '200':
+          description: User profile
+    post:
+      tags: [Social]
+      summary: Create/update profile
+      description: Create or update the user's social profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                bio:
+                  type: string
+                avatar:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated
+
+  /api/social/profile/{userId}:
+    get:
+      tags: [Social]
+      summary: Get user profile
+      description: Returns a specific user's public profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile
+        '404':
+          description: User not found
+
+  /api/social/follow:
+    post:
+      tags: [Social]
+      summary: Follow user
+      description: Follow another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+      responses:
+        '200':
+          description: Follow successful
+
+  /api/social/feed:
+    get:
+      tags: [Social]
+      summary: Get social feed
+      description: Returns publications from followed users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Feed items
+
+  /api/social/trending:
+    get:
+      tags: [Social]
+      summary: Get trending content
+      description: Returns trending publications and DTUs
+      responses:
+        '200':
+          description: Trending items
+
+  /api/collab/workspaces:
+    get:
+      tags: [Collaboration]
+      summary: List workspaces
+      description: Returns workspaces the user belongs to
+      responses:
+        '200':
+          description: Workspace list
+
+  /api/collab/workspace:
+    post:
+      tags: [Collaboration]
+      summary: Create workspace
+      description: Create a new collaborative workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Workspace created
+
+  /api/collab/workspace/{id}:
+    get:
+      tags: [Collaboration]
+      summary: Get workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workspace details
+    put:
+      tags: [Collaboration]
+      summary: Update workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Workspace updated
+
+  /api/atlas/dtu:
+    get:
+      tags: [Atlas]
+      summary: List Atlas DTUs
+      description: Query DTUs from the Atlas knowledge store
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [local, global]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Atlas DTU list
+    post:
+      tags: [Atlas]
+      summary: Store DTU in Atlas
+      description: Ingest a DTU into the Atlas epistemic store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DTUCreate'
+      responses:
+        '201':
+          description: DTU stored
+
+  /api/atlas/search:
+    post:
+      tags: [Atlas]
+      summary: Semantic search
+      description: Search Atlas with semantic similarity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+                  default: 10
+                scope:
+                  type: string
+      responses:
+        '200':
+          description: Search results
+
+  /api/atlas/council/resolve:
+    post:
+      tags: [Atlas]
+      summary: Resolve council conflict
+      description: Submit a conflict for council resolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conflictId]
+              properties:
+                conflictId:
+                  type: string
+                resolution:
+                  type: string
+      responses:
+        '200':
+          description: Conflict resolved
+
+  /api/analytics/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Analytics dashboard
+      description: Returns aggregated analytics for the dashboard
+      responses:
+        '200':
+          description: Dashboard data
+
+  /api/analytics/personal/{userId}:
+    get:
+      tags: [Analytics]
+      summary: Personal analytics
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Personal analytics data
+
+  /api/rbac/org:
+    get:
+      tags: [RBAC]
+      summary: List organizations
+      description: Returns organizations the user belongs to
+      responses:
+        '200':
+          description: Organization list
+    post:
+      tags: [RBAC]
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Organization created
+
+  /api/compliance/status:
+    get:
+      tags: [Compliance]
+      summary: Compliance status
+      description: Returns current compliance status and active policies
+      responses:
+        '200':
+          description: Compliance status
+
+  /api/webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhooks
+      description: Returns registered webhooks for the user
+      responses:
+        '200':
+          description: Webhook list
+    post:
+      tags: [Webhooks]
+      summary: Register webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                secret:
+                  type: string
+      responses:
+        '201':
+          description: Webhook registered
+
+  # --- Backup ---
+
+  /api/backup:
+    post:
+      tags: [Backup]
+      summary: Create backup
+      description: Create a full system backup (owner/admin only)
+      responses:
+        '200':
+          description: Backup created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  backupId:
+                    type: string
+                  size:
+                    type: integer
+                    description: Backup size in bytes
+                  createdAt:
+                    type: string
+                    format: date-time
+        '403':
+          description: Owner or admin access required
+
+  /api/backups:
+    get:
+      tags: [Backup]
+      summary: List backups
+      description: Returns a list of available backups (owner/admin only)
+      responses:
+        '200':
+          description: Backup list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  backups:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        size:
+                          type: integer
+                        createdAt:
+                          type: string
+                          format: date-time
+        '403':
+          description: Owner or admin access required
+
+  /api/backup/restore:
+    post:
+      tags: [Backup]
+      summary: Restore from backup
+      description: Restore the system from a backup archive (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [backupId]
+              properties:
+                backupId:
+                  type: string
+      responses:
+        '200':
+          description: Restore initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  restoredAt:
+                    type: string
+                    format: date-time
+        '403':
+          description: Owner access required
+        '404':
+          description: Backup not found
+
+  # --- LLM ---
+
+  /api/llm/status:
+    get:
+      tags: [LLM]
+      summary: LLM pipeline status
+      description: Returns current LLM pipeline status and configuration
+      responses:
+        '200':
+          description: LLM status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  mode:
+                    type: string
+                    enum: [local, remote, hybrid, disabled]
+                  provider:
+                    type: string
+                  model:
+                    type: string
+                  ready:
+                    type: boolean
+
+  /api/llm/generate:
+    post:
+      tags: [LLM]
+      summary: Generate with LLM
+      description: Generate text using the configured LLM pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                mode:
+                  type: string
+                  enum: [chat, completion, structured]
+                temperature:
+                  type: number
+                  minimum: 0
+                  maximum: 2
+                  default: 0.7
+                maxTokens:
+                  type: integer
+                  default: 1024
+      responses:
+        '200':
+          description: Generation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  result:
+                    type: string
+                  usage:
+                    type: object
+                    properties:
+                      promptTokens:
+                        type: integer
+                      completionTokens:
+                        type: integer
+
+  /api/llm/mode:
+    post:
+      tags: [LLM]
+      summary: Set LLM mode
+      description: Change the active LLM mode (owner/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [local, remote, hybrid, disabled]
+      responses:
+        '200':
+          description: Mode updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  mode:
+                    type: string
+        '403':
+          description: Owner or admin access required
+
+  /api/quality-pipeline/status:
+    get:
+      tags: [LLM]
+      summary: Quality pipeline status
+      description: Returns the current status of the quality pipeline
+      responses:
+        '200':
+          description: Quality pipeline status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  enabled:
+                    type: boolean
+                  stages:
+                    type: array
+                    items:
+                      type: object
+
+  /api/quality-pipeline/preview:
+    post:
+      tags: [LLM]
+      summary: Preview quality pipeline
+      description: Preview the quality pipeline result for a given query without persisting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: Pipeline preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  preview:
+                    type: object
+
+  # --- Ingest ---
+
+  /api/ingest/url:
+    post:
+      tags: [Ingest]
+      summary: Ingest from URL
+      description: Fetch and ingest content from a URL into DTUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Content ingested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtusCreated:
+                    type: integer
+
+  /api/ingest/text:
+    post:
+      tags: [Ingest]
+      summary: Ingest text content
+      description: Ingest raw text content and create DTUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                title:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Text ingested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtusCreated:
+                    type: integer
+
+  /api/ingest:
+    post:
+      tags: [Ingest]
+      summary: Unified ingest
+      description: Unified ingestion endpoint accepting text or URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Content ingested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtusCreated:
+                    type: integer
+
+  /api/ingest/queue:
+    post:
+      tags: [Ingest]
+      summary: Queue for async ingest
+      description: Queue content for asynchronous background ingestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                tags:
+                  type: array
+                  items:
+                    type: string
+                priority:
+                  type: string
+                  enum: [low, normal, high]
+                  default: normal
+      responses:
+        '202':
+          description: Ingestion queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  jobId:
+                    type: string
+
+  # --- Verify ---
+
+  /api/verify/feasibility:
+    post:
+      tags: [Verify]
+      summary: Check DTU feasibility
+      description: Evaluate whether a DTU is feasible and well-formed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Feasibility result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  feasible:
+                    type: boolean
+                  score:
+                    type: number
+                  issues:
+                    type: array
+                    items:
+                      type: string
+
+  /api/verify/designScore:
+    post:
+      tags: [Verify]
+      summary: Score DTU design
+      description: Score the design quality of a DTU
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Design score
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  score:
+                    type: number
+                  breakdown:
+                    type: object
+
+  /api/verify/conflictCheck:
+    post:
+      tags: [Verify]
+      summary: Check for conflicts
+      description: Check whether a DTU conflicts with existing knowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Conflict check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  hasConflicts:
+                    type: boolean
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+
+  /api/verify/stressTest:
+    post:
+      tags: [Verify]
+      summary: Stress test DTU
+      description: Run stress tests against a DTU to find edge cases
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Stress test results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  passed:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /api/verify/deriveSecondOrder:
+    post:
+      tags: [Verify]
+      summary: Derive second-order effects
+      description: Analyze a DTU for second-order implications and effects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Second-order effects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  effects:
+                    type: array
+                    items:
+                      type: object
+
+  /api/verify/lineageLink:
+    post:
+      tags: [Verify]
+      summary: Link DTU lineage
+      description: Establish lineage links between DTUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceId, targetId]
+              properties:
+                sourceId:
+                  type: string
+                targetId:
+                  type: string
+                relation:
+                  type: string
+      responses:
+        '200':
+          description: Lineage linked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  # --- Jobs ---
+
+  /api/jobs/status:
+    get:
+      tags: [Jobs]
+      summary: Get job status summary
+      description: Returns an aggregate summary of all background jobs
+      responses:
+        '200':
+          description: Job status summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  summary:
+                    $ref: '#/components/schemas/JobSummary'
+
+  /api/jobs/toggle:
+    post:
+      tags: [Jobs]
+      summary: Toggle job enabled/disabled
+      description: Enable or disable a specific background job type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jobType, enabled]
+              properties:
+                jobType:
+                  type: string
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Job toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  jobType:
+                    type: string
+                  enabled:
+                    type: boolean
+
+  /api/jobs/{id}/cancel:
+    post:
+      tags: [Jobs]
+      summary: Cancel a queued job
+      description: Cancel a job that is currently queued or running
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '404':
+          description: Job not found
+
+  /api/jobs/{id}/retry:
+    post:
+      tags: [Jobs]
+      summary: Retry a failed job
+      description: Re-queue a previously failed job for retry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job re-queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  jobId:
+                    type: string
+        '404':
+          description: Job not found
+
+  # --- Agents ---
+
+  /api/agents:
+    post:
+      tags: [Agents]
+      summary: Create agent
+      description: Register a new AI agent in the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                config:
+                  type: object
+      responses:
+        '201':
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agent:
+                    type: object
+    get:
+      tags: [Agents]
+      summary: List agents
+      description: Returns all registered AI agents
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, disabled, all]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agents:
+                    type: array
+                    items:
+                      type: object
+
+  /api/agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get agent details
+      description: Returns detailed information about a specific agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agent:
+                    type: object
+        '404':
+          description: Agent not found
+
+  /api/agents/{id}/enable:
+    post:
+      tags: [Agents]
+      summary: Enable/disable agent
+      description: Toggle an agent's active state
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Agent state updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  enabled:
+                    type: boolean
+        '404':
+          description: Agent not found
+
+  /api/agents/{id}/tick:
+    post:
+      tags: [Agents]
+      summary: Trigger agent tick
+      description: Manually trigger a single processing tick for an agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tick executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  result:
+                    type: object
+        '404':
+          description: Agent not found
+
+  # --- Queues ---
+
+  /api/queues:
+    get:
+      tags: [Queues]
+      summary: List all queues
+      description: Returns all proposal and maintenance queues with their item counts
+      responses:
+        '200':
+          description: Queue list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  queues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        count:
+                          type: integer
+
+  /api/queues/{queue}/propose:
+    post:
+      tags: [Queues]
+      summary: Submit proposal to queue
+      description: Submit a new proposal to a specific queue for review
+      parameters:
+        - name: queue
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+                type:
+                  type: string
+      responses:
+        '201':
+          description: Proposal submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  item:
+                    $ref: '#/components/schemas/QueueItem'
+
+  /api/queues/{queue}/decide:
+    post:
+      tags: [Queues]
+      summary: Decide on queue item
+      description: Approve, decline, or request revision for a queued item
+      parameters:
+        - name: queue
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, decision]
+              properties:
+                itemId:
+                  type: string
+                decision:
+                  type: string
+                  enum: [approved, declined, revise, promote]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  item:
+                    $ref: '#/components/schemas/QueueItem'
+
+  # --- Abstraction ---
+
+  /api/abstraction:
+    get:
+      tags: [Abstraction]
+      summary: Abstraction hierarchy status
+      description: Returns the current abstraction hierarchy levels and DTU distribution
+      responses:
+        '200':
+          description: Hierarchy status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  levels:
+                    type: array
+                    items:
+                      type: object
+                  totalDtus:
+                    type: integer
+
+  /api/abstraction/upgrade:
+    post:
+      tags: [Abstraction]
+      summary: Force abstraction upgrade
+      description: Force an abstraction level upgrade cycle
+      responses:
+        '200':
+          description: Upgrade executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  promoted:
+                    type: integer
+                  newLevel:
+                    type: string
+
+  /api/abstraction/consolidate:
+    post:
+      tags: [Abstraction]
+      summary: Manual consolidation
+      description: Trigger manual DTU consolidation (owner/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scope:
+                  type: string
+                  enum: [all, tier, tag]
+                filter:
+                  type: string
+      responses:
+        '200':
+          description: Consolidation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  consolidated:
+                    type: integer
+                  newMegas:
+                    type: integer
+        '403':
+          description: Owner or admin access required
+
+  # --- GRC ---
+
+  /api/grc/schema:
+    get:
+      tags: [GRC]
+      summary: GRC schema
+      description: Returns the governance, risk, and compliance schema definition
+      responses:
+        '200':
+          description: GRC schema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  schema:
+                    type: object
+
+  /api/grc/invariants:
+    get:
+      tags: [GRC]
+      summary: System invariants
+      description: Returns all system invariants enforced by GRC
+      responses:
+        '200':
+          description: Invariant list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  invariants:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        rule:
+                          type: string
+                        enforced:
+                          type: boolean
+
+  /api/grc/metrics:
+    get:
+      tags: [GRC]
+      summary: GRC metrics
+      description: Returns governance, risk, and compliance metrics
+      responses:
+        '200':
+          description: GRC metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  compliance:
+                    type: number
+                  violations:
+                    type: integer
+                  riskScore:
+                    type: number
+
+  /api/grc/format:
+    post:
+      tags: [GRC]
+      summary: Format content per GRC rules
+      description: Format content according to governance rules and standards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                rules:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Formatted content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  formatted:
+                    type: string
+
+  /api/grc/validate:
+    post:
+      tags: [GRC]
+      summary: Validate against GRC rules
+      description: Validate content or configuration against governance rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                ruleSet:
+                  type: string
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  valid:
+                    type: boolean
+                  violations:
+                    type: array
+                    items:
+                      type: object
+
+  # --- Temporal ---
+
+  /api/temporal/validate:
+    post:
+      tags: [Temporal]
+      summary: Validate temporal claims
+      description: Validate temporal claims and date assertions in content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                referenceDate:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  valid:
+                    type: boolean
+                  claims:
+                    type: array
+                    items:
+                      type: object
+
+  /api/temporal/recency:
+    post:
+      tags: [Temporal]
+      summary: Check recency
+      description: Check whether content is temporally current or stale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dtuId]
+              properties:
+                dtuId:
+                  type: string
+      responses:
+        '200':
+          description: Recency result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  current:
+                    type: boolean
+                  staleness:
+                    type: number
+                    description: Staleness score (0=fresh, 1=stale)
+
+  /api/temporal/frame:
+    post:
+      tags: [Temporal]
+      summary: Frame temporal context
+      description: Establish a temporal context frame for reasoning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                startDate:
+                  type: string
+                  format: date-time
+                endDate:
+                  type: string
+                  format: date-time
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Temporal frame created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  frameId:
+                    type: string
+
+  /api/temporal/frames:
+    get:
+      tags: [Temporal]
+      summary: List temporal frames
+      description: Returns all active temporal reasoning frames
+      responses:
+        '200':
+          description: Temporal frame list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  frames:
+                    type: array
+                    items:
+                      type: object
+
+  # --- System ---
+
+  /api/system/continuity:
+    post:
+      tags: [System]
+      summary: System continuity check
+      description: Run a system continuity and integrity check
+      responses:
+        '200':
+          description: Continuity check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  intact:
+                    type: boolean
+                  issues:
+                    type: array
+                    items:
+                      type: string
+
+  /api/system/gap-scan:
+    post:
+      tags: [System]
+      summary: Scan for knowledge gaps
+      description: Scan the knowledge base for gaps and missing coverage
+      responses:
+        '200':
+          description: Gap scan results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  gaps:
+                    type: array
+                    items:
+                      type: object
+                  coverage:
+                    type: number
+
+  /api/system/promotion-tick:
+    post:
+      tags: [System]
+      summary: Trigger promotion cycle
+      description: Trigger a DTU promotion evaluation cycle
+      responses:
+        '200':
+          description: Promotion cycle result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  promoted:
+                    type: integer
+                  evaluated:
+                    type: integer
+
+  /api/reseed:
+    post:
+      tags: [System]
+      summary: Reseed DTUs
+      description: Reseed the DTU database from initial data (owner/admin only)
+      responses:
+        '200':
+          description: Reseed completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  seeded:
+                    type: integer
+        '403':
+          description: Owner or admin access required
+
+  /api/heartbeat/tick:
+    post:
+      tags: [System]
+      summary: System heartbeat
+      description: Trigger a system heartbeat tick for health monitoring
+      responses:
+        '200':
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # --- Organs ---
+
+  /api/organs:
+    get:
+      tags: [Organs]
+      summary: List system organs
+      description: Returns all system organs and their operational status
+      responses:
+        '200':
+          description: Organ list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  organs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        status:
+                          type: string
+                          enum: [active, dormant, growing]
+
+  /api/organs/{id}:
+    get:
+      tags: [Organs]
+      summary: Get organ details
+      description: Returns detailed information about a specific system organ
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organ details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  organ:
+                    type: object
+        '404':
+          description: Organ not found
+
+  /api/growth:
+    get:
+      tags: [Organs]
+      summary: Growth metrics
+      description: Returns system growth metrics and trajectory
+      responses:
+        '200':
+          description: Growth metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  totalDtus:
+                    type: integer
+                  growthRate:
+                    type: number
+                  milestones:
+                    type: array
+                    items:
+                      type: object
+
+  /api/health/capabilities:
+    get:
+      tags: [Organs]
+      summary: System capabilities
+      description: Returns the full set of system capabilities and feature flags
+      security: []
+      responses:
+        '200':
+          description: Capability list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  capabilities:
+                    type: array
+                    items:
+                      type: string
+
+  /api/lattice/beacon:
+    get:
+      tags: [Organs]
+      summary: Lattice beacon
+      description: Returns the lattice beacon signal for system discovery
+      security: []
+      responses:
+        '200':
+          description: Beacon data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  beacon:
+                    type: object
+
+  # --- Emergent ---
+
+  /api/emergent/register:
+    post:
+      tags: [Emergent]
+      summary: Register emergent agent
+      description: Register a new emergent agent with the governance system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, capabilities]
+              properties:
+                name:
+                  type: string
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                config:
+                  type: object
+      responses:
+        '201':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agentId:
+                    type: string
+
+  /api/emergent/list:
+    get:
+      tags: [Emergent]
+      summary: List emergent agents
+      description: Returns all registered emergent agents
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, all]
+      responses:
+        '200':
+          description: Emergent agent list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agents:
+                    type: array
+                    items:
+                      type: object
+
+  /api/emergent/{id}:
+    get:
+      tags: [Emergent]
+      summary: Get emergent agent
+      description: Returns details for a specific emergent agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  agent:
+                    type: object
+        '404':
+          description: Agent not found
+
+  /api/emergent/{id}/deactivate:
+    post:
+      tags: [Emergent]
+      summary: Deactivate agent
+      description: Deactivate an emergent agent, removing it from active governance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '404':
+          description: Agent not found
+
+  /api/emergent/session/create:
+    post:
+      tags: [Emergent]
+      summary: Create dialogue session
+      description: Create a new dialogue session between emergent agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentIds]
+              properties:
+                agentIds:
+                  type: array
+                  items:
+                    type: string
+                topic:
+                  type: string
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  sessionId:
+                    type: string
+
+  /api/emergent/session/turn:
+    post:
+      tags: [Emergent]
+      summary: Dialogue turn
+      description: Submit a turn in an active emergent dialogue session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, agentId, message]
+              properties:
+                sessionId:
+                  type: string
+                agentId:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Turn processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  response:
+                    type: string
+
+  /api/emergent/status:
+    get:
+      tags: [Emergent]
+      summary: Emergent system status
+      description: Returns overall status of the emergent agent governance system
+      responses:
+        '200':
+          description: Emergent system status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  activeAgents:
+                    type: integer
+                  activeSessions:
+                    type: integer
+                  totalInteractions:
+                    type: integer
+
+  /api/emergent/lattice/propose/dtu:
+    post:
+      tags: [Emergent]
+      summary: Propose DTU to lattice
+      description: Submit a DTU proposal to the emergent lattice for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, dtu]
+              properties:
+                agentId:
+                  type: string
+                dtu:
+                  $ref: '#/components/schemas/DTUCreate'
+      responses:
+        '201':
+          description: Proposal submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  proposalId:
+                    type: string
+
+  /api/emergent/lattice/commit:
+    post:
+      tags: [Emergent]
+      summary: Commit lattice proposal
+      description: Commit an approved lattice proposal to the knowledge base
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposalId]
+              properties:
+                proposalId:
+                  type: string
+      responses:
+        '200':
+          description: Proposal committed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  dtuId:
+                    type: string
+
+  /api/emergent/lattice/metrics:
+    get:
+      tags: [Emergent]
+      summary: Lattice metrics
+      description: Returns metrics for the emergent lattice governance layer
+      responses:
+        '200':
+          description: Lattice metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  proposals:
+                    type: integer
+                  commits:
+                    type: integer
+                  rejections:
+                    type: integer
+
+  /api/emergent/edge/create:
+    post:
+      tags: [Emergent]
+      summary: Create edge
+      description: Create a new edge connection in the emergent graph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceId, targetId, type]
+              properties:
+                sourceId:
+                  type: string
+                targetId:
+                  type: string
+                type:
+                  type: string
+                weight:
+                  type: number
+      responses:
+        '201':
+          description: Edge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  edgeId:
+                    type: string
+
+  /api/emergent/journal/recent:
+    get:
+      tags: [Emergent]
+      summary: Recent journal entries
+      description: Returns recent entries from the emergent governance journal
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Journal entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  entries:
+                    type: array
+                    items:
+                      type: object
+
 components:
   securitySchemes:
     cookieAuth:
@@ -697,6 +3474,36 @@ components:
                   type: boolean
                 rateLimitEnabled:
                   type: boolean
+
+    JobSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        queued:
+          type: integer
+        running:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+
+    QueueItem:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [queued, approved, declined, revise, promote]
+        title:
+          type: string
+        type:
+          type: string
 
 security:
   - cookieAuth: []

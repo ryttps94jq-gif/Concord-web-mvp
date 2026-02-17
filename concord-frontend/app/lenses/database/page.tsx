@@ -394,10 +394,16 @@ export default function DatabaseLensPage() {
   const migrateMutation = useMutation({
     mutationFn: () => api.post('/api/db/migrate', {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['db-tables'] }),
+    onError: (err) => {
+      console.error('Migration failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   const syncMutation = useMutation({
     mutationFn: () => api.post('/api/db/sync', { batchSize: 100 }),
+    onError: (err) => {
+      console.error('Sync failed:', err instanceof Error ? err.message : err);
+    },
   });
 
   const executeQuery = useMutation({

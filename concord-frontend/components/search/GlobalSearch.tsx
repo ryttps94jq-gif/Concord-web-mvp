@@ -15,6 +15,7 @@ import {
   Filter,
   Sparkles
 } from 'lucide-react';
+import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 interface SearchResult {
@@ -44,6 +45,9 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
   const [scope, setScope] = useState<SearchScope>('all');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [filterTier, setFilterTier] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterSort, setFilterSort] = useState('relevance');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -78,47 +82,27 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
     const searchTimeout = setTimeout(async () => {
       setLoading(true);
       try {
-        // In real implementation, call search API
-        // const res = await api.search({ query, scope });
-
-        // Simulated results
-        const mockResults: SearchResult[] = [
-          {
-            id: '1',
-            type: 'dtu',
-            title: `DTU matching "${query}"`,
-            excerpt: 'This is a sample result excerpt that shows matching content...',
-            tier: 'regular',
-            tags: ['philosophy', 'cognition'],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '2',
-            type: 'dtu',
-            title: `Another result for "${query}"`,
-            excerpt: 'Another matching document with relevant content...',
-            tier: 'mega',
-            tags: ['research'],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '3',
-            type: 'tag',
-            title: query.toLowerCase(),
-            excerpt: '15 DTUs tagged'
-          }
-        ];
-
-        setResults(mockResults);
+        const params: Record<string, string | number> = { q: query, scope, limit: 20 };
+        if (filterTier) params.tier = filterTier;
+        if (filterDate) params.dateRange = filterDate;
+        if (filterSort && filterSort !== 'relevance') params.sort = filterSort;
+        const res = await api.get('/api/global/search', { params });
+        const data = res.data;
+        if (data.ok && Array.isArray(data.results)) {
+          setResults(data.results);
+        } else {
+          setResults([]);
+        }
       } catch (error) {
         console.error('Search failed:', error);
+        setResults([]);
       } finally {
         setLoading(false);
       }
     }, 300);
 
     return () => clearTimeout(searchTimeout);
-  }, [query, scope]);
+  }, [query, scope, filterTier, filterDate, filterSort]);
 
   const handleSelect = useCallback((result: SearchResult) => {
     // Save to recent searches
@@ -279,7 +263,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                     <div className="p-4 grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Tier</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="">All tiers</option>
                           <option value="regular">Regular</option>
                           <option value="mega">Mega</option>
@@ -288,7 +272,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Date range</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="">Any time</option>
                           <option value="today">Today</option>
                           <option value="week">This week</option>
@@ -297,7 +281,7 @@ export function GlobalSearch({ isOpen, onClose, onSelect }: GlobalSearchProps) {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Sort by</label>
-                        <select className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
+                        <select value={filterSort} onChange={(e) => setFilterSort(e.target.value)} className="w-full bg-lattice-surface border border-lattice-border rounded px-2 py-1.5 text-sm text-white">
                           <option value="relevance">Relevance</option>
                           <option value="recent">Most recent</option>
                           <option value="resonance">Resonance</option>

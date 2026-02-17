@@ -21,6 +21,7 @@ export function Modal({
   showCloseButton = true,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   // Close on escape key
   useEffect(() => {
@@ -31,6 +32,7 @@ export function Modal({
     };
 
     if (isOpen) {
+      triggerRef.current = document.activeElement as HTMLElement;
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     }
@@ -38,6 +40,10 @@ export function Modal({
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
+      // Restore focus to trigger element
+      if (triggerRef.current && typeof triggerRef.current.focus === 'function') {
+        triggerRef.current.focus();
+      }
     };
   }, [isOpen, onClose]);
 

@@ -176,6 +176,7 @@ export function CommentThread({
                       key={emoji}
                       onClick={() => onReact(comment.id, emoji)}
                       className="p-1 text-xs hover:bg-lattice-surface rounded transition-colors"
+                      aria-label={`React with ${emoji}`}
                     >
                       {emoji}
                     </button>
@@ -216,6 +217,7 @@ export function CommentThread({
                         onClick={() => handleSubmit(comment.id)}
                         disabled={!newComment.trim()}
                         className="p-2 bg-neon-cyan text-black rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Send reply"
                       >
                         <Send className="w-4 h-4" />
                       </button>
@@ -308,6 +310,7 @@ export function CommentThread({
               onClick={() => handleSubmit()}
               disabled={!newComment.trim() || !!replyingTo}
               className="p-2 bg-neon-cyan text-black rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neon-cyan/90 transition-colors"
+              aria-label="Send comment"
             >
               <Send className="w-4 h-4" />
             </button>
