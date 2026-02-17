@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Lightbulb,
@@ -216,6 +216,12 @@ export default function BoardLensPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
+  // --- Keyboard navigation state ---
+  const [focusedCol, setFocusedCol] = useState(0);
+  const [focusedCard, setFocusedCard] = useState(0);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   // --- filtered tasks ---
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -319,6 +325,74 @@ export default function BoardLensPage() {
       return { ...prev, subtasks: updatedSubs, progress };
     });
   }, [tasks, updateLens]);
+
+  // --- Keyboard navigation handler for the board ---
+  const handleBoardKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Only handle keyboard nav when not typing in an input/select
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    const colTasks = getTasksByStatus(columns[focusedCol].id);
+
+    switch (e.key) {
+      case 'ArrowRight': {
+        e.preventDefault();
+        const nextCol = Math.min(focusedCol + 1, columns.length - 1);
+        setFocusedCol(nextCol);
+        setFocusedCard(0);
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        const prevCol = Math.max(focusedCol - 1, 0);
+        setFocusedCol(prevCol);
+        setFocusedCard(0);
+        break;
+      }
+      case 'ArrowDown': {
+        e.preventDefault();
+        setFocusedCard((prev) => Math.min(prev + 1, colTasks.length - 1));
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        setFocusedCard((prev) => Math.max(prev - 1, 0));
+        break;
+      }
+      case 'Enter': {
+        e.preventDefault();
+        if (colTasks.length > 0 && focusedCard < colTasks.length) {
+          setSelectedTask(colTasks[focusedCard]);
+        }
+        break;
+      }
+      case 'Escape': {
+        e.preventDefault();
+        setSelectedTask(null);
+        break;
+      }
+      default:
+        break;
+    }
+  }, [focusedCol, focusedCard, getTasksByStatus, setSelectedTask]);
+
+  // Keep focused card in bounds when filtered tasks change
+  useEffect(() => {
+    const colTasks = getTasksByStatus(columns[focusedCol].id);
+    if (focusedCard >= colTasks.length && colTasks.length > 0) {
+      setFocusedCard(colTasks.length - 1);
+    }
+  }, [filteredTasks, focusedCol, focusedCard, getTasksByStatus]);
+
+  // Scroll focused card into view
+  useEffect(() => {
+    const colTasks = getTasksByStatus(columns[focusedCol].id);
+    if (colTasks.length > 0 && focusedCard < colTasks.length) {
+      const key = `${columns[focusedCol].id}-${focusedCard}`;
+      const el = cardRefs.current.get(key);
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focusedCol, focusedCard, getTasksByStatus]);
 
   // -----------------------------------------------------------------------
   // Render
@@ -495,17 +569,28 @@ export default function BoardLensPage() {
 
         {/* Board columns */}
         <div className="flex-1 overflow-x-auto px-6 pb-6">
-          <div className="flex gap-4 h-full min-w-max">
+          <div
+            ref={boardRef}
+            className="flex gap-4 h-full min-w-max"
+            role="grid"
+            aria-label="Production board"
+            tabIndex={0}
+            onKeyDown={handleBoardKeyDown}
+          >
             {columns.map((column) => {
               const colTasks = getTasksByStatus(column.id);
               const ColIcon = column.icon;
               const isOver = dragOverColumn === column.id;
+              const colIndex = columns.indexOf(column);
               return (
                 <div
                   key={column.id}
+                  role="group"
+                  aria-label={`${column.name} column, ${colTasks.length} tasks`}
                   className={cn(
                     'flex flex-col w-72 rounded-xl border transition-all',
-                    isOver ? `${column.border} ${column.bg}` : 'border-white/[0.06] bg-white/[0.02]'
+                    isOver ? `${column.border} ${column.bg}` : 'border-white/[0.06] bg-white/[0.02]',
+                    focusedCol === colIndex && 'ring-1 ring-purple-500/40'
                   )}
                   onDragOver={(e) => handleDragOver(e, column.id)}
                   onDragLeave={handleDragLeave}
@@ -543,17 +628,29 @@ export default function BoardLensPage() {
                   </div>
 
                   {/* Tasks */}
-                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
-                    {colTasks.map((task) => (
+                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2" role="list" aria-label={`${column.name} tasks`}>
+                    {colTasks.map((task, cardIndex) => {
+                      const isFocused = focusedCol === colIndex && focusedCard === cardIndex;
+                      return (
                       <motion.div
                         key={task.id}
+                        ref={(el) => {
+                          if (el) cardRefs.current.set(`${column.id}-${cardIndex}`, el);
+                        }}
                         layout
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="group rounded-lg bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.15] p-3 cursor-grab active:cursor-grabbing transition-colors"
+                        role="listitem"
+                        aria-label={`${task.title}, ${priorityConfig[task.priority].label} priority, ${task.progress}% complete`}
+                        tabIndex={isFocused ? 0 : -1}
+                        className={cn(
+                          'group rounded-lg bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.15] p-3 cursor-grab active:cursor-grabbing transition-colors',
+                          isFocused && 'ring-2 ring-purple-500 border-purple-500/50'
+                        )}
                         draggable
                         onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, task.id)}
                         onClick={() => setSelectedTask(task)}
+                        onFocus={() => { setFocusedCol(colIndex); setFocusedCard(cardIndex); }}
                       >
                         {/* Top row: priority dot + title */}
                         <div className="flex items-start gap-2">
@@ -642,7 +739,8 @@ export default function BoardLensPage() {
                           </div>
                         </div>
                       </motion.div>
-                    ))}
+                    );
+                    })}
 
                     {/* Empty state for drop zone */}
                     {colTasks.length === 0 && (
