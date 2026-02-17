@@ -298,14 +298,20 @@ export default function VoiceLensPage() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: async ({ transcript }: { transcript?: string }) => {
+    mutationFn: async ({ transcript, audioBlob }: { transcript?: string; audioBlob?: Blob }) => {
       const formData = new FormData();
-      formData.append('audio', new Blob(), 'recording.webm');
+      // Use actual recorded audio blob if available, otherwise send transcript-only
+      if (audioBlob && audioBlob.size > 0) {
+        formData.append('audio', audioBlob, 'recording.webm');
+      }
       if (transcript) formData.append('transcript', transcript);
       return apiHelpers.voice.ingest(formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dtus'] });
+    },
+    onError: (err) => {
+      console.error('Failed to save voice DTU:', err);
     },
   });
 
@@ -580,7 +586,16 @@ export default function VoiceLensPage() {
 
           {/* Transport controls */}
           <div className="flex items-center gap-3 mb-8">
-            <button onClick={() => {}} className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+            <button
+              onClick={() => {
+                if (takes.length === 0) return;
+                const currentIdx = takes.findIndex(t => t.id === activeTakeId);
+                const prevIdx = currentIdx > 0 ? currentIdx - 1 : takes.length - 1;
+                setActiveTakeId(takes[prevIdx].id);
+              }}
+              disabled={takes.length === 0}
+              className={cn('p-2.5 rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors', takes.length === 0 && 'opacity-40 cursor-not-allowed')}
+            >
               <SkipBack className="w-5 h-5" />
             </button>
             <button
@@ -610,7 +625,16 @@ export default function VoiceLensPage() {
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
             </button>
-            <button onClick={() => {}} className="p-2.5 rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+            <button
+              onClick={() => {
+                if (takes.length === 0) return;
+                const currentIdx = takes.findIndex(t => t.id === activeTakeId);
+                const nextIdx = currentIdx < takes.length - 1 ? currentIdx + 1 : 0;
+                setActiveTakeId(takes[nextIdx].id);
+              }}
+              disabled={takes.length === 0}
+              className={cn('p-2.5 rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors', takes.length === 0 && 'opacity-40 cursor-not-allowed')}
+            >
               <SkipForward className="w-5 h-5" />
             </button>
           </div>

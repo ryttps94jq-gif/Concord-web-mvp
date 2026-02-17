@@ -164,7 +164,70 @@ export default function ChatLensPage() {
       queryClient.invalidateQueries({ queryKey: ['cognitive-status'] });
       setInput('');
     },
+    onError: (err) => {
+      // Show error as a system message so user knows what happened
+      const errorMsg: Message = {
+        id: `err-${Date.now()}`,
+        role: 'system',
+        content: `Failed to send message: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        timestamp: new Date().toISOString()
+      };
+      if (!selectedConversation) {
+        setLocalMessages(prev => [...prev, errorMsg]);
+      }
+    },
   });
+
+  // Regenerate — resend the last user message to get a new response
+  const regenerateMutation = useMutation({
+    mutationFn: async (lastUserContent: string) => {
+      const response = await api.post('/api/chat', {
+        message: lastUserContent,
+        mode: aiMode.id,
+        sessionId: selectedConversation,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const assistantMsg: Message = {
+        id: `asst-regen-${Date.now()}`,
+        role: 'assistant',
+        content: data.reply || data.answer || 'No response',
+        timestamp: new Date().toISOString(),
+        refs: data.refs
+      };
+      if (!selectedConversation) {
+        // Remove last assistant message and add new one
+        setLocalMessages(prev => {
+          const lastAssistantIdx = [...prev].reverse().findIndex(m => m.role === 'assistant');
+          if (lastAssistantIdx === -1) return [...prev, assistantMsg];
+          const idx = prev.length - 1 - lastAssistantIdx;
+          return [...prev.slice(0, idx), assistantMsg];
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['cognitive-status'] });
+    },
+    onError: (err) => {
+      const errorMsg: Message = {
+        id: `err-${Date.now()}`,
+        role: 'system',
+        content: `Regeneration failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString()
+      };
+      if (!selectedConversation) {
+        setLocalMessages(prev => [...prev, errorMsg]);
+      }
+    },
+  });
+
+  const handleRegenerate = () => {
+    // Find the last user message to resend
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMsg && !regenerateMutation.isPending) {
+      regenerateMutation.mutate(lastUserMsg.content);
+    }
+  };
 
   // Feedback mutation — sends thumbs up/down to backend
   const feedbackMutation = useMutation({
@@ -479,7 +542,12 @@ export default function ChatLensPage() {
                       >
                         <ThumbsDown className={cn('w-3 h-3', feedbackState[message.id] === 'down' && 'fill-current')} />
                       </button>
-                      <button className="hover:text-white transition-colors opacity-50 cursor-not-allowed" title="Regenerate (not yet wired)">
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={regenerateMutation.isPending}
+                        className={cn('hover:text-white transition-colors', regenerateMutation.isPending && 'animate-spin')}
+                        title="Regenerate response"
+                      >
                         <RefreshCw className="w-3 h-3" />
                       </button>
                     </>
@@ -489,7 +557,7 @@ export default function ChatLensPage() {
             </div>
           ))}
 
-          {sendMutation.isPending && (
+          {(sendMutation.isPending || regenerateMutation.isPending) && (
             <div className="flex gap-4">
               <div className="w-10 h-10 rounded-lg bg-neon-cyan/20 flex items-center justify-center flex-shrink-0">
                 <Bot className="w-5 h-5 text-neon-cyan animate-pulse" />

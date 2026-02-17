@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -222,13 +222,33 @@ export default function GameLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: _questItems } = useLensData('game', 'quest', {
     seed: INITIAL_QUESTS.map(q => ({ title: q.name, data: q as unknown as Record<string, unknown> })),
   });
-  const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
-  const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
 
-  // API queries -- fall back to demo data when backend is unavailable
+  // Fetch profile from backend, fall back to initial data
+  const { data: profileData, isError: isError3, error: error3, refetch: refetch3 } = useQuery({
+    queryKey: ['game-profile'],
+    queryFn: () => api.get('/api/game/profile').then(r => r.data).catch(() => INITIAL_PROFILE),
+  });
+
+  // Fetch leaderboard from backend
+  const { data: leaderboardData, isError: isError4, error: error4, refetch: refetch4 } = useQuery({
+    queryKey: ['game-leaderboard', lbPeriod],
+    queryFn: () => api.get('/api/game/leaderboard', { params: { period: lbPeriod } }).then(r => r.data?.players || []).catch(() => []),
+  });
+
+  // Sync profile data into local state when available
+  useEffect(() => {
+    if (profileData?.xp && profileData.xp !== playerXp) {
+      setPlayerXp(profileData.xp);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileData]);
+
   const completeQuestMutation = useMutation({
     mutationFn: (questId: string) => api.post(`/api/game/quests/${questId}/complete`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game-profile'] }),
+    onError: (err) => {
+      console.error('Failed to complete quest:', err instanceof Error ? err.message : err);
+    },
   });
 
   // Quest flow
@@ -277,12 +297,15 @@ export default function GameLensPage() {
   }, [quests, questFilter]);
 
   const sortedLeaderboard = useMemo(() => {
-    return [...INITIAL_LEADERBOARD].sort((a, b) => b.xp - a.xp);
-  }, []);
+    const apiPlayers = leaderboardData || [];
+    return apiPlayers.length > 0 ? [...apiPlayers].sort((a: LeaderboardPlayer, b: LeaderboardPlayer) => b.xp - a.xp) : [...INITIAL_LEADERBOARD].sort((a, b) => b.xp - a.xp);
+  }, [leaderboardData]);
 
-  const xpMax = Math.max(...INITIAL_XP_HISTORY.map((d) => d.xp));
-  const level = INITIAL_PROFILE.level;
-  const progressPct = ((playerXp) / INITIAL_PROFILE.nextLevelXp) * 100;
+  const profile = profileData || INITIAL_PROFILE;
+  const xpHistory = profile.xpHistory || INITIAL_XP_HISTORY;
+  const xpMax = Math.max(1, ...xpHistory.map((d: { xp: number }) => d.xp));
+  const level = profile.level || INITIAL_PROFILE.level;
+  const progressPct = ((playerXp) / (profile.nextLevelXp || INITIAL_PROFILE.nextLevelXp)) * 100;
 
   const TABS: { id: MainTab; label: string; icon: typeof Trophy }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -326,7 +349,7 @@ export default function GameLensPage() {
           </div>
           <div className="flex items-center gap-1 text-neon-pink font-mono text-sm">
             <Flame className="w-4 h-4" />
-            {INITIAL_PROFILE.streak}d streak
+            {profile.streak}d streak
           </div>
           <div className="flex items-center gap-1 text-neon-cyan font-mono text-sm">
             <Star className="w-4 h-4" />
@@ -339,7 +362,7 @@ export default function GameLensPage() {
       <div className="panel p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-400">Progress to Level {level + 1}</span>
-          <span className="text-sm font-mono text-white">{playerXp.toLocaleString()} / {INITIAL_PROFILE.nextLevelXp.toLocaleString()} XP</span>
+          <span className="text-sm font-mono text-white">{playerXp.toLocaleString()} / {(profile.nextLevelXp || 1000).toLocaleString()} XP</span>
         </div>
         <div className="h-3 bg-lattice-bg rounded-full overflow-hidden">
           <motion.div
@@ -380,9 +403,9 @@ export default function GameLensPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Level', value: level, icon: Star, color: 'text-neon-purple' },
-              { label: 'Total XP', value: INITIAL_PROFILE.totalXpEarned.toLocaleString(), icon: Zap, color: 'text-neon-yellow' },
-              { label: 'Achievements', value: `${INITIAL_PROFILE.achievements}/${INITIAL_PROFILE.totalAchievements}`, icon: Trophy, color: 'text-neon-green' },
-              { label: 'Day Streak', value: INITIAL_PROFILE.streak, icon: Flame, color: 'text-neon-pink' },
+              { label: 'Total XP', value: (profile.totalXpEarned || playerXp).toLocaleString(), icon: Zap, color: 'text-neon-yellow' },
+              { label: 'Achievements', value: `${profile.achievements || achievements.filter(a => a.unlocked).length}/${profile.totalAchievements || achievements.length}`, icon: Trophy, color: 'text-neon-green' },
+              { label: 'Day Streak', value: profile.streak || 0, icon: Flame, color: 'text-neon-pink' },
             ].map((s) => (
               <div key={s.label} className="lens-card text-center">
                 <s.icon className={cn('w-8 h-8 mx-auto mb-2', s.color)} />
@@ -395,10 +418,10 @@ export default function GameLensPage() {
           {/* Secondary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Quests Done', value: INITIAL_PROFILE.questsCompleted, icon: Target, color: 'text-neon-cyan' },
-              { label: 'Challenges Won', value: INITIAL_PROFILE.challengesWon, icon: Crown, color: 'text-neon-yellow' },
-              { label: 'Completion Rate', value: `${INITIAL_PROFILE.completionRate}%`, icon: Activity, color: 'text-neon-green' },
-              { label: 'Global Rank', value: `#${INITIAL_PROFILE.rank}`, icon: ArrowUp, color: 'text-neon-blue' },
+              { label: 'Quests Done', value: profile.questsCompleted || quests.filter(q => q.status === 'completed').length, icon: Target, color: 'text-neon-cyan' },
+              { label: 'Challenges Won', value: profile.challengesWon || 0, icon: Crown, color: 'text-neon-yellow' },
+              { label: 'Completion Rate', value: `${profile.completionRate || 0}%`, icon: Activity, color: 'text-neon-green' },
+              { label: 'Global Rank', value: `#${profile.rank || '--'}`, icon: ArrowUp, color: 'text-neon-blue' },
             ].map((s) => (
               <div key={s.label} className="lens-card text-center">
                 <s.icon className={cn('w-6 h-6 mx-auto mb-1', s.color)} />
@@ -412,14 +435,14 @@ export default function GameLensPage() {
           <div className="panel p-4">
             <h3 className="text-sm font-semibold text-gray-300 mb-3">This Week&apos;s XP</h3>
             <div className="flex items-end gap-2 h-32">
-              {INITIAL_XP_HISTORY.map((d) => (
+              {xpHistory.map((d) => (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-xs text-gray-500 font-mono">{d.xp}</span>
                   <motion.div
                     className="w-full rounded-t bg-gradient-to-t from-neon-purple to-neon-cyan"
                     initial={{ height: 0 }}
                     animate={{ height: `${(d.xp / xpMax) * 100}%` }}
-                    transition={{ duration: 0.6, delay: 0.05 * INITIAL_XP_HISTORY.indexOf(d) }}
+                    transition={{ duration: 0.6, delay: 0.05 * xpHistory.indexOf(d) }}
                   />
                   <span className="text-xs text-gray-400">{d.day}</span>
                 </div>
@@ -754,9 +777,9 @@ export default function GameLensPage() {
           {/* Bar Chart */}
           <div className="panel p-6">
             <h3 className="font-semibold text-white mb-1">XP Earned This Week</h3>
-            <p className="text-xs text-gray-400 mb-6">Total: {INITIAL_XP_HISTORY.reduce((s, d) => s + d.xp, 0).toLocaleString()} XP</p>
+            <p className="text-xs text-gray-400 mb-6">Total: {xpHistory.reduce((s, d) => s + d.xp, 0).toLocaleString()} XP</p>
             <div className="flex items-end gap-3 h-48">
-              {INITIAL_XP_HISTORY.map((d, i) => (
+              {xpHistory.map((d, i) => (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
                   <span className="text-xs text-gray-400 font-mono">{d.xp}</span>
                   <motion.div
@@ -774,19 +797,19 @@ export default function GameLensPage() {
           {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-yellow">{INITIAL_PROFILE.totalXpEarned.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-neon-yellow">{(profile.totalXpEarned || playerXp).toLocaleString()}</p>
               <p className="text-xs text-gray-400 mt-1">Lifetime XP</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-cyan">{Math.round(INITIAL_XP_HISTORY.reduce((s, d) => s + d.xp, 0) / 7)}</p>
+              <p className="text-2xl font-bold text-neon-cyan">{Math.round(xpHistory.reduce((s: number, d: { xp: number }) => s + d.xp, 0) / Math.max(xpHistory.length, 1))}</p>
               <p className="text-xs text-gray-400 mt-1">Avg Daily XP</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-green">{Math.max(...INITIAL_XP_HISTORY.map((d) => d.xp))}</p>
+              <p className="text-2xl font-bold text-neon-green">{xpHistory.length > 0 ? Math.max(...xpHistory.map((d: { xp: number }) => d.xp)) : 0}</p>
               <p className="text-xs text-gray-400 mt-1">Best Day</p>
             </div>
             <div className="lens-card text-center">
-              <p className="text-2xl font-bold text-neon-pink">{INITIAL_PROFILE.longestStreak}d</p>
+              <p className="text-2xl font-bold text-neon-pink">{profile.longestStreak || 0}d</p>
               <p className="text-xs text-gray-400 mt-1">Longest Streak</p>
             </div>
           </div>

@@ -147,8 +147,8 @@ export default function BillingPage() {
               '100 tokens/month',
             ]}
             current={wallet?.tier === 'free'}
-            onSelect={() => {}}
-            disabled={true}
+            onSelect={() => subscribeMutation.mutate('free')}
+            disabled={wallet?.tier === 'free'}
           />
 
           {/* Pro Tier */}
