@@ -262,7 +262,7 @@ export function computeStructuralScore(atlasDtu) {
 
 function scoreSchemaCompleteness(dtu) {
   let present = 0;
-  let required = 6;
+  const required = 6;
   if (dtu.title) present++;
   if (dtu.domainType) present++;
   if (dtu.epistemicClass) present++;

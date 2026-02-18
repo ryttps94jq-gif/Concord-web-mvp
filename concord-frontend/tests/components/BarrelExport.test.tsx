@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children }: any) => children,
+  default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -24,7 +24,7 @@ vi.mock('@tanstack/react-query', () => ({
   useMutation: () => ({ mutate: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   QueryClient: vi.fn(),
-  QueryClientProvider: ({ children }: any) => children,
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('@/lib/api/client', () => ({
@@ -55,7 +55,7 @@ vi.mock('@/lib/design-system', () => ({
 }));
 
 vi.mock('@/lib/utils', () => ({
-  cn: (...args: any[]) => args.filter(Boolean).join(' '),
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
 vi.mock('@/lib/lens-registry', () => ({
@@ -70,8 +70,8 @@ vi.mock('@/lib/lens-registry', () => ({
 }));
 
 vi.mock('framer-motion', () => ({
-  motion: new Proxy({}, { get: (_, tag) => (props: any) => { const { children, ...rest } = props; return null; } }),
-  AnimatePresence: ({ children }: any) => children,
+  motion: new Proxy({}, { get: () => () => null }),
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   useAnimation: () => ({ start: vi.fn() }),
   useMotionValue: () => ({ get: () => 0, set: vi.fn() }),
 }));

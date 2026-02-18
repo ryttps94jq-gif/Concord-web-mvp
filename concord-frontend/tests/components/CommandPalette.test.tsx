@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock lens-registry — icon must be defined inside the factory since vi.mock is hoisted
 vi.mock('@/lib/lens-registry', () => {
-  const Icon = (props: any) => Object.assign(document.createElement('span'), { className: props?.className || '' });
+  const _Icon = (props: { className?: string }) => Object.assign(document.createElement('span'), { className: props?.className || '' });
   return {
     getCommandPaletteLenses: () => [
       {

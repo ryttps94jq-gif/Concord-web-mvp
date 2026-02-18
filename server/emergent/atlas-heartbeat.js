@@ -12,14 +12,12 @@
 
 import {
   SCOPES,
-  getStrictnessProfile,
-  GLOBAL_STATUS,
   DUP_THRESH,
 } from "./atlas-config.js";
 import { getAtlasState } from "./atlas-epistemic.js";
-import { recomputeScores, searchAtlasDtus, getContradictions, promoteAtlasDtu } from "./atlas-store.js";
-import { findNearDuplicates, runAntiGamingScan } from "./atlas-antigaming.js";
-import { getDtuScope, getScopeMetrics } from "./atlas-scope-router.js";
+import { recomputeScores, promoteAtlasDtu } from "./atlas-store.js";
+import { findNearDuplicates } from "./atlas-antigaming.js";
+import { getDtuScope } from "./atlas-scope-router.js";
 import { runAutoPromoteGate } from "./atlas-write-guard.js";
 
 // ── Tick State ──────────────────────────────────────────────────────────────
@@ -67,7 +65,7 @@ export function tickLocal(STATE) {
       }
     }
 
-  } catch (err) {
+  } catch {
     _tickState.local.errors++;
   } finally {
     _locks.local = false;
@@ -173,7 +171,7 @@ export function tickGlobal(STATE) {
       }
     }
 
-  } catch (err) {
+  } catch {
     _tickState.global.errors++;
   } finally {
     _locks.global = false;
@@ -245,7 +243,7 @@ export function tickMarketplace(STATE) {
       byAuthor.get(authorId).push(dtu);
     }
 
-    for (const [authorId, dtus] of byAuthor) {
+    for (const [_authorId, dtus] of byAuthor) {
       if (dtus.length < 2) continue;
       // Check each pair for high similarity (potential duplicate listing fraud)
       for (let i = 0; i < dtus.length - 1 && i < 5; i++) {
@@ -266,7 +264,7 @@ export function tickMarketplace(STATE) {
     }
     _tickState.market.fraudChecks += results.fraudDetected;
 
-  } catch (err) {
+  } catch {
     _tickState.market.errors++;
   } finally {
     _locks.market = false;

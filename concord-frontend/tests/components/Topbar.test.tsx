@@ -61,7 +61,7 @@ vi.mock('@/components/common/OfflineIndicator', () => ({
 // Mock UI store
 const mockSetCommandPaletteOpen = vi.fn();
 const mockSetSidebarOpen = vi.fn();
-const mockUIStoreState: Record<string, any> = {
+const mockUIStoreState: Record<string, unknown> = {
   sidebarCollapsed: false,
   setCommandPaletteOpen: mockSetCommandPaletteOpen,
   activeLens: 'chat',
@@ -69,7 +69,7 @@ const mockUIStoreState: Record<string, any> = {
 };
 
 vi.mock('@/store/ui', () => ({
-  useUIStore: (selector?: (s: any) => any) => {
+  useUIStore: (selector?: (s: Record<string, unknown>) => unknown) => {
     if (typeof selector === 'function') return selector(mockUIStoreState);
     return mockUIStoreState;
   },
@@ -83,9 +83,11 @@ function createWrapper() {
       queries: { retry: false },
     },
   });
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'TestWrapper';
+  return Wrapper;
 }
 
 describe('Topbar', () => {
