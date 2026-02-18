@@ -118,7 +118,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./server
           push: false
@@ -131,7 +131,7 @@ jobs:
             NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 
       - name: Build frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./concord-frontend
           push: false
