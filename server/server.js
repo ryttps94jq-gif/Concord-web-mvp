@@ -12784,7 +12784,7 @@ register("system", "dream", async (ctx, input) => {
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to dream from. Seed dtus.js first." };
 
   const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
     : null;
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
@@ -12809,12 +12809,12 @@ register("system", "dream", async (ctx, input) => {
   return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
-register("system", "autogen", async (ctx, input) => {
+register("system", "autogen", async (ctx, _input) => {
   // Autogen: signal-driven 6-stage pipeline (no longer "last 8 DTUs")
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to autogen from." };
 
   const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
     : null;
 
   // Run pipeline without a variant — picks best intent from lattice signals
@@ -12848,7 +12848,7 @@ register("system", "evolution", async (ctx, input) => {
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to evolve." };
 
   const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
     : null;
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
@@ -13031,7 +13031,7 @@ register("system", "synthesize", async (ctx, input) => {
   if (!STATE.dtus.size) return { ok: false, error: "Need at least 2 mega DTUs to synthesize a hyper DTU, or DTUs for conflict resolution." };
 
   const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? async (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
+    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
     : null;
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
@@ -15097,7 +15097,7 @@ register("lattice", "birth_protocol", (ctx, input={}) => {
   return { ok:true, id, dtu, homeostasis: homeo };
 }, { summary:"Chicken2 birth protocol: sandboxed emergence with homeostasis threshold then DTU commit." });
 
-register("lattice", "resonance", (ctx, input={}) => {
+register("lattice", "resonance", (ctx, _input={}) => {
   // Lattice resonance: compute health metrics from Chicken2 and growth state
   const c2 = STATE.__chicken2 || {};
   const m = c2.metrics || {};
@@ -18164,7 +18164,7 @@ registerLensPipeline("education", "generate_quiz", "srs", (src, result) => {
   return {
     type: "deck",
     title: `Study Deck: ${src.title}`,
-    data: { cards: result.quiz.questions.map((q, i) => ({ id: uid("card"), front: q.question || q.text, back: q.answer || q.correctAnswer || "", tags: [src.data?.subject || "general"], difficulty: q.difficulty || 0.5, interval: 1, repetitions: 0 })) },
+    data: { cards: result.quiz.questions.map((q, _i) => ({ id: uid("card"), front: q.question || q.text, back: q.answer || q.correctAnswer || "", tags: [src.data?.subject || "general"], difficulty: q.difficulty || 0.5, interval: 1, repetitions: 0 })) },
     meta: { status: "active", tags: ["education-pipeline", src.data?.subject || "general"] }
   };
 });
@@ -18387,7 +18387,7 @@ app.post("/api/lens/:domain/bulk", async (req, res) => {
 // These are invoked through the generic lens.run macro + /api/lens/:domain/:id/run
 
 // === Paper (Research) ===
-registerLensAction("paper", "validate", async (ctx, artifact, params) => {
+registerLensAction("paper", "validate", async (ctx, artifact, _params) => {
   const claims = artifact.data?.claims || [];
 
   // v5.5: Run empirical gates on each claim for math/units/constants checking
@@ -18426,7 +18426,7 @@ registerLensAction("paper", "validate", async (ctx, artifact, params) => {
     } : null,
   };
 });
-registerLensAction("paper", "synthesize", async (ctx, artifact, params) => {
+registerLensAction("paper", "synthesize", (ctx, artifact, _params) => {
   const claims = artifact.data?.claims || [];
   const validatedCount = claims.filter(c => c.validated).length;
   const withEvidence = claims.filter(c => (c.evidence || c.sources || []).length > 0).length;
