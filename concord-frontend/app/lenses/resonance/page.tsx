@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useLensData } from '@/lib/hooks/use-lens-data';
-import { ResonanceEmpireGraph } from '@/components/graphs/ResonanceEmpireGraph';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Waves,
@@ -19,661 +17,734 @@ import {
   TrendingDown,
   Minus,
   RefreshCw,
-  Bell,
-  BarChart3,
-  LineChart,
-  PieChart,
-  EyeOff
+  Radio,
+  Scan,
+  GitBranch,
+  Layers,
+  Eye,
+  Target,
+  Crosshair,
+  Signal,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
-type TimeRange = '1h' | '24h' | '7d' | '30d';
-type ViewMode = 'dashboard' | 'metrics' | 'graph' | 'alerts';
+// ============================================================================
+// Types
+// ============================================================================
 
-interface HealthMetric {
-  id: string;
-  name: string;
-  value: number;
-  unit: string;
-  trend: 'up' | 'down' | 'stable';
-  status: 'healthy' | 'warning' | 'critical';
-  threshold: { warning: number; critical: number };
-  history: number[];
+interface ResonancePair {
+  a: { id: string; title: string; domain: string };
+  b: { id: string; title: string; domain: string };
+  invOverlap: number;
+  tokOverlap: number;
+  resonance: number;
+  sharedInvariants: string[];
 }
 
-interface Alert {
-  id: string;
-  type: 'warning' | 'critical' | 'info';
-  message: string;
-  metric: string;
-  value: number;
-  timestamp: Date;
-  acknowledged: boolean;
-}
-
-const SEED_ALERTS: Alert[] = [];
-
-export default function ResonanceLensPage() {
-  useLensNav('resonance');
-
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
-  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [showAlerts, setShowAlerts] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const { isError: isError, error: error, refetch: refetch, items: _alertItems, update: _updateAlert } = useLensData('resonance', 'alert', {
-    seed: SEED_ALERTS.map(a => ({ title: a.type, data: a as unknown as Record<string, unknown> })),
-  });
-
-  const { data: growth, refetch: _refetchGrowth, isError: isError2, error: error2,} = useQuery({
-    queryKey: ['growth'],
-    queryFn: () => api.get('/api/growth').then((r) => r.data),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const { data: metrics, refetch: _refetchMetrics, isError: isError3, error: error3,} = useQuery({
-    queryKey: ['metrics'],
-    queryFn: () => api.get('/api/metrics').then((r) => r.data),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const homeostasis = growth?.growth?.homeostasis || 0;
-  const bioAge = growth?.growth?.bioAge || 0;
-  const coherence = metrics?.metrics?.coherenceAvg || 0;
-  const continuity = metrics?.metrics?.continuityAvg || 0;
-  const stressAcute = growth?.growth?.stress?.acute || 0;
-  const stressChronic = growth?.growth?.stress?.chronic || 0;
-  const repairRate = growth?.growth?.maintenance?.repairRate || 0.5;
-  const _contradictionLoad = growth?.growth?.functionalDecline?.contradictionLoad || 0;
-
-  const healthMetrics: HealthMetric[] = useMemo(() => [
-    {
-      id: 'homeostasis',
-      name: 'Homeostasis',
-      value: homeostasis,
-      unit: '%',
-      trend: homeostasis > 0.7 ? 'up' : homeostasis < 0.5 ? 'down' : 'stable',
-      status: homeostasis > 0.7 ? 'healthy' : homeostasis > 0.4 ? 'warning' : 'critical',
-      threshold: { warning: 0.5, critical: 0.3 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.3 + 0.6),
-    },
-    {
-      id: 'coherence',
-      name: 'Coherence',
-      value: coherence,
-      unit: '%',
-      trend: 'stable',
-      status: coherence > 0.6 ? 'healthy' : coherence > 0.3 ? 'warning' : 'critical',
-      threshold: { warning: 0.4, critical: 0.2 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.2 + 0.5),
-    },
-    {
-      id: 'continuity',
-      name: 'Continuity',
-      value: continuity,
-      unit: '%',
-      trend: 'up',
-      status: continuity > 0.5 ? 'healthy' : continuity > 0.3 ? 'warning' : 'critical',
-      threshold: { warning: 0.35, critical: 0.2 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.25 + 0.45),
-    },
-    {
-      id: 'stressAcute',
-      name: 'Acute Stress',
-      value: stressAcute,
-      unit: '%',
-      trend: stressAcute < 0.3 ? 'down' : 'up',
-      status: stressAcute < 0.3 ? 'healthy' : stressAcute < 0.6 ? 'warning' : 'critical',
-      threshold: { warning: 0.4, critical: 0.7 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.4 + 0.1),
-    },
-    {
-      id: 'stressChronic',
-      name: 'Chronic Stress',
-      value: stressChronic,
-      unit: '%',
-      trend: stressChronic < 0.2 ? 'down' : 'stable',
-      status: stressChronic < 0.2 ? 'healthy' : stressChronic < 0.4 ? 'warning' : 'critical',
-      threshold: { warning: 0.25, critical: 0.5 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.2 + 0.1),
-    },
-    {
-      id: 'repairRate',
-      name: 'Repair Rate',
-      value: repairRate,
-      unit: '%',
-      trend: repairRate > 0.5 ? 'up' : 'stable',
-      status: repairRate > 0.5 ? 'healthy' : repairRate > 0.3 ? 'warning' : 'critical',
-      threshold: { warning: 0.35, critical: 0.2 },
-      history: Array.from({ length: 24 }, () => Math.random() * 0.3 + 0.4),
-    },
-  ], [homeostasis, coherence, continuity, stressAcute, stressChronic, repairRate]);
-
-  const unacknowledgedAlerts = alerts.filter((a) => !a.acknowledged);
-
-  const acknowledgeAlert = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a))
-    );
+interface BoundaryScan {
+  ok: boolean;
+  signal: number;
+  classification: string;
+  timestamp: string;
+  frontier: { size: number; density: number; avgCrispness: number };
+  interior: { size: number; avgCrispness: number };
+  gradient: number;
+  coherenceDirection: number;
+  crossDomainAlignment: {
+    domainsScanned: number;
+    pairsFound: number;
+    topResonance: number;
+    avgResonance: number;
+    topPairs: ResonancePair[];
   };
+}
 
-  // Animated pulse visualization
+interface HistoryPoint {
+  signal: number;
+  classification: string;
+  gradient: number;
+  coherence: number;
+  pairs: number;
+  topResonance: number;
+  frontier: number;
+  timestamp: string;
+}
+
+type ViewMode = 'live' | 'pairs' | 'history' | 'health';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const CLASSIFICATION_META: Record<string, { label: string; color: string; glow: string }> = {
+  strong_resonance: { label: 'STRONG RESONANCE', color: '#00ffc8', glow: 'rgba(0, 255, 200, 0.4)' },
+  moderate_resonance: { label: 'MODERATE SIGNAL', color: '#a855f7', glow: 'rgba(168, 85, 247, 0.3)' },
+  weak_signal: { label: 'WEAK SIGNAL', color: '#eab308', glow: 'rgba(234, 179, 8, 0.2)' },
+  noise_floor: { label: 'NOISE FLOOR', color: '#6b7280', glow: 'rgba(107, 114, 128, 0.1)' },
+};
+
+// ============================================================================
+// Resonance Field Canvas — Animated boundary visualization
+// ============================================================================
+
+function ResonanceFieldCanvas({
+  signal,
+  gradient,
+  coherence,
+  classification,
+  scanning,
+}: {
+  signal: number;
+  gradient: number;
+  coherence: number;
+  classification: string;
+  scanning: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef(0);
+  const timeRef = useRef(0);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || viewMode !== 'dashboard') return;
-
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationId: number;
-    let time = 0;
+    let animId: number;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth * 2;
+      canvas.height = canvas.offsetHeight * 2;
+      ctx.scale(2, 2);
+    };
+    resize();
+    window.addEventListener('resize', resize);
 
     const draw = () => {
-      const { width, height } = canvas;
-      ctx.clearRect(0, 0, width, height);
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+      const cx = w / 2;
+      const cy = h / 2;
+      const t = timeRef.current;
 
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const maxRadius = Math.min(width, height) / 2 - 20;
+      ctx.clearRect(0, 0, w, h);
 
-      // Draw resonance rings
-      for (let i = 0; i < 5; i++) {
-        const radius = maxRadius * (0.2 + i * 0.2);
-        const alpha = 0.1 + Math.sin(time * 0.02 + i) * 0.05;
+      const meta = CLASSIFICATION_META[classification] || CLASSIFICATION_META.noise_floor;
+
+      // --- Background field ---
+      const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.6);
+      bgGrad.addColorStop(0, `rgba(10, 10, 20, 0.95)`);
+      bgGrad.addColorStop(0.5, `rgba(5, 5, 15, 0.98)`);
+      bgGrad.addColorStop(1, `rgba(0, 0, 5, 1)`);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // --- Boundary rings (the constraint gradient visualization) ---
+      const ringCount = 8;
+      for (let i = 0; i < ringCount; i++) {
+        const baseRadius = (Math.min(w, h) * 0.35) * ((i + 1) / ringCount);
+        const wobble = Math.sin(t * 0.015 + i * 0.8) * (gradient * 15);
+        const radius = baseRadius + wobble;
+
+        const boundaryProximity = i / ringCount;
+        const alpha = (0.03 + signal * 0.12) * (0.3 + boundaryProximity * 0.7);
 
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 212, 255, ${alpha})`;
-        ctx.lineWidth = 2;
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = meta.color;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = 1 + boundaryProximity * 2;
         ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
-      // Draw pulsing core
-      const pulseSize = 30 + Math.sin(time * 0.05) * 10;
-      const gradient = ctx.createRadialGradient(
-        centerX, centerY, 0,
-        centerX, centerY, pulseSize
-      );
-      gradient.addColorStop(0, `rgba(0, 212, 255, ${0.8 + homeostasis * 0.2})`);
-      gradient.addColorStop(0.5, `rgba(168, 85, 247, ${0.4 + coherence * 0.3})`);
-      gradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+      // --- Cross-domain alignment threads ---
+      const threadCount = Math.floor(signal * 12);
+      for (let i = 0; i < threadCount; i++) {
+        const angle1 = (i / threadCount) * Math.PI * 2 + t * 0.003;
+        const angle2 = angle1 + Math.PI * (0.3 + coherence * 0.7);
+        const r1 = Math.min(w, h) * 0.15;
+        const r2 = Math.min(w, h) * (0.25 + gradient * 0.15);
 
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, pulseSize, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+        const x1 = cx + Math.cos(angle1) * r1;
+        const y1 = cy + Math.sin(angle1) * r1;
+        const x2 = cx + Math.cos(angle2) * r2;
+        const y2 = cy + Math.sin(angle2) * r2;
 
-      // Draw metric indicators
-      healthMetrics.slice(0, 6).forEach((metric, idx) => {
-        const angle = (idx / 6) * Math.PI * 2 - Math.PI / 2;
-        const indicatorRadius = maxRadius * 0.7;
-        const x = centerX + Math.cos(angle) * indicatorRadius;
-        const y = centerY + Math.sin(angle) * indicatorRadius;
-
-        const color = metric.status === 'healthy'
-          ? 'rgba(34, 197, 94, 0.8)'
-          : metric.status === 'warning'
-          ? 'rgba(234, 179, 8, 0.8)'
-          : 'rgba(239, 68, 68, 0.8)';
+        const ctrlX = cx + Math.cos((angle1 + angle2) / 2) * (r1 + r2) * 0.3;
+        const ctrlY = cy + Math.sin((angle1 + angle2) / 2) * (r1 + r2) * 0.3;
 
         ctx.beginPath();
-        ctx.arc(x, y, 8 + metric.value * 10, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(ctrlX, ctrlY, x2, y2);
+        ctx.strokeStyle = meta.color;
+        ctx.globalAlpha = 0.1 + signal * 0.15;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        [{ x: x1, y: y1 }, { x: x2, y: y2 }].forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2 + signal * 2, 0, Math.PI * 2);
+          ctx.fillStyle = meta.color;
+          ctx.globalAlpha = 0.4 + signal * 0.4;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+      }
+
+      // --- Core pulse (the signal strength) ---
+      const pulseBase = 20 + signal * 30;
+      const pulse = pulseBase + Math.sin(t * 0.04) * (5 + signal * 10);
+
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulse);
+      coreGrad.addColorStop(0, meta.color);
+      coreGrad.addColorStop(0.4, meta.glow);
+      coreGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
+      ctx.fillStyle = coreGrad;
+      ctx.fill();
+
+      // --- Scan sweep (when actively scanning) ---
+      if (scanning) {
+        const sweepAngle = (t * 0.05) % (Math.PI * 2);
+        const sweepRadius = Math.min(w, h) * 0.4;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, sweepRadius, sweepAngle, sweepAngle + 0.3);
+        ctx.closePath();
+
+        const sweepGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, sweepRadius);
+        sweepGrad.addColorStop(0, 'rgba(0, 255, 200, 0.15)');
+        sweepGrad.addColorStop(1, 'rgba(0, 255, 200, 0)');
+        ctx.fillStyle = sweepGrad;
         ctx.fill();
-      });
+      }
 
-      time++;
-      animationId = requestAnimationFrame(draw);
+      // --- x² - x = 0 fixed point markers (x=0 and x=1) ---
+      const x0Radius = Math.min(w, h) * 0.38;
+      ctx.beginPath();
+      ctx.arc(cx, cy, x0Radius, 0, Math.PI * 2);
+      ctx.setLineDash([4, 8]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const x1Radius = Math.min(w, h) * 0.12;
+      ctx.beginPath();
+      ctx.arc(cx, cy, x1Radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 255, 255, 0.15)`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.textAlign = 'center';
+      ctx.fillText('x = 0', cx, cy - x0Radius - 6);
+      ctx.fillText('x = 1', cx, cy - x1Radius - 6);
+
+      timeRef.current += 1;
+      animId = requestAnimationFrame(draw);
     };
 
-    const handleResize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
     draw();
-
     return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resize);
     };
-  }, [viewMode, homeostasis, coherence, healthMetrics]);
+  }, [signal, gradient, coherence, classification, scanning]);
 
-  const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
-    switch (trend) {
-      case 'up': return <TrendingUp className="w-4 h-4 text-green-400" />;
-      case 'down': return <TrendingDown className="w-4 h-4 text-red-400" />;
-      default: return <Minus className="w-4 h-4 text-gray-400" />;
-    }
-  };
+  return <canvas ref={canvasRef} className="w-full h-full" />;
+}
 
-  const getStatusColor = (status: 'healthy' | 'warning' | 'critical') => {
-    switch (status) {
-      case 'healthy': return 'text-green-400 bg-green-400/20 border-green-400/30';
-      case 'warning': return 'text-yellow-400 bg-yellow-400/20 border-yellow-400/30';
-      case 'critical': return 'text-red-400 bg-red-400/20 border-red-400/30';
-    }
-  };
+// ============================================================================
+// Signal Meter — Vertical bar showing current resonance strength
+// ============================================================================
 
+function SignalMeter({ value, label }: { value: number; label: string }) {
+  const pct = Math.min(100, Math.max(0, value * 100));
+  const hue = value > 0.7 ? 160 : value > 0.4 ? 270 : value > 0.15 ? 45 : 0;
+  const color = `hsl(${hue}, 80%, 60%)`;
 
-  if (isError || isError2 || isError3) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
-        <ErrorState error={error?.message || error2?.message || error3?.message} onRetry={() => { refetch(); }} />
-      </div>
-    );
-  }
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-3 h-24 bg-[#0a0a14] rounded-full overflow-hidden relative border border-white/5">
+        <motion.div
+          className="absolute bottom-0 w-full rounded-full"
+          style={{ backgroundColor: color }}
+          initial={{ height: 0 }}
+          animate={{ height: `${pct}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </div>
+      <span className="text-[10px] text-gray-500 font-mono">{label}</span>
+      <span className="text-xs font-mono" style={{ color }}>{pct.toFixed(0)}%</span>
+    </div>
+  );
+}
+
+// ============================================================================
+// Resonance Pair Card — Shows a single cross-domain alignment
+// ============================================================================
+
+function PairCard({ pair, rank }: { pair: ResonancePair; rank: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const meta = pair.resonance > 0.3
+    ? CLASSIFICATION_META.strong_resonance
+    : pair.resonance > 0.1
+      ? CLASSIFICATION_META.moderate_resonance
+      : CLASSIFICATION_META.weak_signal;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: rank * 0.05 }}
+      className="border border-white/5 rounded-lg p-3 hover:border-white/10 transition-colors cursor-pointer"
+      style={{ background: `linear-gradient(135deg, rgba(10,10,20,0.9), ${meta.glow.replace(')', ',0.05)')})` }}
+      onClick={() => setExpanded(!expanded)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: meta.glow, color: meta.color }}>
+              {pair.a.domain}
+            </span>
+            <GitBranch className="w-3 h-3 text-gray-600" />
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: meta.glow, color: meta.color }}>
+              {pair.b.domain}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 truncate">{pair.a.title}</p>
+          <p className="text-xs text-gray-400 truncate">{pair.b.title}</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-lg font-mono font-bold" style={{ color: meta.color }}>
+            {(pair.resonance * 100).toFixed(1)}
+          </p>
+          <p className="text-[10px] text-gray-600">resonance</p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
+              <div className="flex gap-4 text-[11px]">
+                <span className="text-gray-500">
+                  Invariant overlap: <span className="text-white font-mono">{(pair.invOverlap * 100).toFixed(1)}%</span>
+                </span>
+                <span className="text-gray-500">
+                  Semantic distance: <span className="text-white font-mono">{((1 - pair.tokOverlap) * 100).toFixed(1)}%</span>
+                </span>
+              </div>
+              {pair.sharedInvariants.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-gray-600 mb-1">Shared invariants:</p>
+                  {pair.sharedInvariants.map((inv, i) => (
+                    <p key={i} className="text-[11px] text-gray-400 font-mono pl-2 border-l border-white/10">
+                      {inv}
+                    </p>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-gray-600 italic">
+                High invariant overlap + low semantic overlap = alignment from constraint geometry, not content.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// History Sparkline
+// ============================================================================
+
+function HistorySparkline({ readings }: { readings: HistoryPoint[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || readings.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    const padding = 4;
+
+    const maxSignal = Math.max(...readings.map(r => r.signal), 0.1);
+
+    ctx.beginPath();
+    readings.forEach((r, i) => {
+      const x = padding + (i / (readings.length - 1)) * (w - padding * 2);
+      const y = h - padding - (r.signal / maxSignal) * (h - padding * 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#00ffc8';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const lastX = padding + ((readings.length - 1) / (readings.length - 1)) * (w - padding * 2);
+    ctx.lineTo(lastX, h);
+    ctx.lineTo(padding, h);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(0, 255, 200, 0.15)');
+    grad.addColorStop(1, 'rgba(0, 255, 200, 0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }, [readings]);
+
+  return <canvas ref={canvasRef} className="w-full h-full" />;
+}
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
+
+export default function ResonanceBoundaryPage() {
+  useLensNav('resonance');
+
+  const queryClient = useQueryClient();
+  const [viewMode, setViewMode] = useState<ViewMode>('live');
+  const [autoScan, setAutoScan] = useState(false);
+
+  // Fetch latest boundary scan
+  const { data: scan, isLoading: scanLoading, refetch: refetchScan } = useQuery<BoundaryScan>({
+    queryKey: ['resonance-boundary'],
+    queryFn: () => api.get('/api/resonance/boundary').then(r => r.data),
+    refetchInterval: autoScan ? 15000 : false,
+  });
+
+  // Fetch history
+  const { data: historyData } = useQuery<{ readings: HistoryPoint[] }>({
+    queryKey: ['resonance-history'],
+    queryFn: () => api.get('/api/resonance/history?limit=100').then(r => r.data),
+    refetchInterval: 30000,
+  });
+
+  // Fetch existing health metrics
+  const { data: growth } = useQuery({
+    queryKey: ['growth'],
+    queryFn: () => api.get('/api/growth').then(r => r.data),
+    refetchInterval: 10000,
+  });
+
+  // Scan mutation (stores result)
+  const scanMutation = useMutation({
+    mutationFn: () => api.post('/api/resonance/scan', {}).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resonance-boundary'] });
+      queryClient.invalidateQueries({ queryKey: ['resonance-history'] });
+    },
+  });
+
+  const runScan = useCallback(() => {
+    scanMutation.mutate();
+  }, [scanMutation]);
+
+  const signal = scan?.signal ?? 0;
+  const classification = scan?.classification ?? 'noise_floor';
+  const meta = CLASSIFICATION_META[classification] || CLASSIFICATION_META.noise_floor;
+  const history = historyData?.readings ?? [];
+  const isScanning = scanMutation.isPending || scanLoading;
+
+  const homeostasis = growth?.growth?.homeostasis ?? 0;
+  const repairRate = growth?.growth?.maintenance?.repairRate ?? 0.5;
+
+  return (
+    <div className="h-[calc(100vh-4rem)] flex flex-col" style={{ background: '#050510' }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-lattice-border">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-white/5"
+        style={{ background: 'rgba(5, 5, 16, 0.95)' }}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🌊</span>
+          <Radio className="w-5 h-5" style={{ color: meta.color }} />
           <div>
-            <h1 className="text-xl font-bold">Resonance Lens</h1>
-            <p className="text-sm text-gray-400">
-              System coherence, homeostasis, and lattice health monitoring
+            <h1 className="text-lg font-bold tracking-tight" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              Resonance Interface
+            </h1>
+            <p className="text-[11px] text-gray-600">
+              x&sup2; &minus; x = 0 &middot; boundary detection &middot; constraint alignment
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Time Range */}
-          <div className="flex items-center gap-1 bg-lattice-surface rounded-lg p-1">
-            {(['1h', '24h', '7d', '30d'] as TimeRange[]).map((range) => (
+        <div className="flex items-center gap-3">
+          {/* View tabs */}
+          <div className="flex items-center gap-0.5 bg-white/[0.03] rounded-lg p-0.5">
+            {([
+              { id: 'live' as ViewMode, icon: Crosshair, label: 'Live' },
+              { id: 'pairs' as ViewMode, icon: GitBranch, label: 'Pairs' },
+              { id: 'history' as ViewMode, icon: Activity, label: 'History' },
+              { id: 'health' as ViewMode, icon: Heart, label: 'Health' },
+            ]).map(tab => (
               <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  timeRange === range
-                    ? 'bg-neon-cyan text-black font-medium'
-                    : 'text-gray-400 hover:text-white'
+                key={tab.id}
+                onClick={() => setViewMode(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all ${
+                  viewMode === tab.id
+                    ? 'text-white bg-white/[0.08]'
+                    : 'text-gray-600 hover:text-gray-400'
                 }`}
               >
-                {range}
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
               </button>
             ))}
           </div>
 
-          {/* View Mode */}
-          <div className="flex items-center gap-1 bg-lattice-surface rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('dashboard')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'dashboard' ? 'bg-lattice-elevated text-neon-cyan' : 'text-gray-400'
-              }`}
-              title="Dashboard"
-            >
-              <BarChart3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('metrics')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'metrics' ? 'bg-lattice-elevated text-neon-cyan' : 'text-gray-400'
-              }`}
-              title="Metrics"
-            >
-              <LineChart className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('graph')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'graph' ? 'bg-lattice-elevated text-neon-cyan' : 'text-gray-400'
-              }`}
-              title="Graph"
-            >
-              <PieChart className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('alerts')}
-              className={`p-2 rounded-md transition-colors relative ${
-                viewMode === 'alerts' ? 'bg-lattice-elevated text-neon-cyan' : 'text-gray-400'
-              }`}
-              title="Alerts"
-            >
-              <Bell className="w-4 h-4" />
-              {unacknowledgedAlerts.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {unacknowledgedAlerts.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Controls */}
+          {/* Scan button */}
           <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`p-2 rounded-lg transition-colors ${
-              autoRefresh ? 'bg-neon-green/20 text-neon-green' : 'bg-lattice-elevated text-gray-400'
-            }`}
-            title={autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+            onClick={runScan}
+            disabled={isScanning}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all border"
+            style={{
+              borderColor: isScanning ? 'rgba(255,255,255,0.05)' : meta.color + '40',
+              color: isScanning ? '#666' : meta.color,
+              background: isScanning ? 'rgba(255,255,255,0.02)' : meta.glow.replace(')', ',0.08)'),
+            }}
           >
-            <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
+            <Scan className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+            {isScanning ? 'Scanning...' : 'Scan Boundary'}
+          </button>
+
+          {/* Auto-scan toggle */}
+          <button
+            onClick={() => setAutoScan(!autoScan)}
+            className={`p-2 rounded-lg transition-all ${
+              autoScan
+                ? 'bg-[#00ffc8]/10 text-[#00ffc8]'
+                : 'bg-white/[0.02] text-gray-600'
+            }`}
+            title={autoScan ? 'Auto-scan ON (15s)' : 'Auto-scan OFF'}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${autoScan ? 'animate-spin' : ''}`}
+              style={{ animationDuration: '3s' }} />
           </button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {viewMode === 'dashboard' && (
-            <div className="space-y-6">
-              {/* Primary Metrics Row */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <PrimaryMetricCard
-                  icon={<Heart className="w-6 h-6" />}
-                  label="Homeostasis"
-                  value={homeostasis}
-                  color="green"
-                  description="Overall system balance"
-                />
-                <PrimaryMetricCard
-                  icon={<Brain className="w-6 h-6" />}
-                  label="Coherence"
-                  value={coherence}
-                  color="blue"
-                  description="Knowledge graph coherence"
-                />
-                <PrimaryMetricCard
-                  icon={<Zap className="w-6 h-6" />}
-                  label="Continuity"
-                  value={continuity}
-                  color="purple"
-                  description="Temporal consistency"
-                />
-                <PrimaryMetricCard
-                  icon={<Activity className="w-6 h-6" />}
-                  label="Bio Age"
-                  value={bioAge / 100}
-                  color="cyan"
-                  description={`${bioAge.toFixed(1)} days`}
-                  showAsRaw
-                  rawValue={bioAge.toFixed(1)}
-                />
+        {/* ================================================================ */}
+        {/* LEFT: Signal meters */}
+        {/* ================================================================ */}
+        <aside className="w-20 border-r border-white/5 flex flex-col items-center py-4 gap-3"
+          style={{ background: 'rgba(5, 5, 16, 0.98)' }}>
+          <SignalMeter value={signal} label="signal" />
+          <SignalMeter value={scan?.gradient ?? 0} label="∇C" />
+          <SignalMeter value={Math.max(0, scan?.coherenceDirection ?? 0)} label="coher" />
+          <SignalMeter value={scan?.frontier?.density ?? 0} label="front" />
+          <div className="flex-1" />
+          <SignalMeter value={homeostasis} label="homeo" />
+          <SignalMeter value={repairRate} label="repair" />
+        </aside>
+
+        {/* ================================================================ */}
+        {/* CENTER: Main content */}
+        {/* ================================================================ */}
+        <main className="flex-1 overflow-y-auto">
+          {viewMode === 'live' && (
+            <div className="h-full flex flex-col">
+              {/* Classification banner */}
+              <div className="px-6 py-3 flex items-center justify-between"
+                style={{ background: meta.glow.replace(')', ',0.05)') }}>
+                <div className="flex items-center gap-3">
+                  <Signal className="w-4 h-4" style={{ color: meta.color }} />
+                  <span className="text-sm font-mono font-bold tracking-wider" style={{ color: meta.color }}>
+                    {meta.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-xs font-mono text-gray-500">
+                  <span>Signal: <span className="text-white">{(signal * 100).toFixed(1)}%</span></span>
+                  <span>Gradient: <span className="text-white">{((scan?.gradient ?? 0) * 100).toFixed(1)}%</span></span>
+                  <span>Pairs: <span className="text-white">{scan?.crossDomainAlignment?.pairsFound ?? 0}</span></span>
+                  <span>Domains: <span className="text-white">{scan?.crossDomainAlignment?.domainsScanned ?? 0}</span></span>
+                </div>
               </div>
 
-              {/* Resonance Visualization */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="panel p-4">
-                  <h3 className="font-semibold mb-4 flex items-center gap-2">
-                    <Waves className="w-4 h-4 text-neon-cyan" />
-                    Resonance Pulse
-                  </h3>
-                  <div className="h-[300px] relative">
-                    <canvas ref={canvasRef} className="w-full h-full" />
+              {/* Resonance field visualization */}
+              <div className="flex-1 relative">
+                <ResonanceFieldCanvas
+                  signal={signal}
+                  gradient={scan?.gradient ?? 0}
+                  coherence={scan?.coherenceDirection ?? 0}
+                  classification={classification}
+                  scanning={isScanning}
+                />
+
+                {/* Signal readout overlay */}
+                <div className="absolute top-4 left-4 space-y-2">
+                  <div className="text-5xl font-mono font-bold tracking-tighter" style={{ color: meta.color }}>
+                    {(signal * 100).toFixed(1)}
+                  </div>
+                  <div className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">
+                    Boundary Signal Strength
                   </div>
                 </div>
 
-                <div className="panel p-4">
-                  <h3 className="font-semibold mb-4 flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-neon-purple" />
-                    Health Indicators
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {healthMetrics.map((metric) => (
-                      <div
-                        key={metric.id}
-                        className={`p-3 rounded-lg border ${getStatusColor(metric.status)}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">{metric.name}</span>
-                          {getTrendIcon(metric.trend)}
-                        </div>
-                        <p className="text-2xl font-bold font-mono">
-                          {(metric.value * 100).toFixed(1)}{metric.unit}
-                        </p>
-                        {/* Mini sparkline */}
-                        <div className="h-8 flex items-end gap-0.5 mt-2">
-                          {metric.history.slice(-12).map((v, i) => (
-                            <div
-                              key={i}
-                              className="flex-1 bg-current opacity-40 rounded-t"
-                              style={{ height: `${v * 100}%` }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                {/* Frontier stats overlay */}
+                <div className="absolute bottom-4 left-4 text-[11px] font-mono text-gray-600 space-y-1">
+                  <p>Frontier DTUs: {scan?.frontier?.size ?? '\u2014'} / Interior: {scan?.interior?.size ?? '\u2014'}</p>
+                  <p>Frontier crispness: {((scan?.frontier?.avgCrispness ?? 0) * 100).toFixed(1)}%</p>
+                  <p>Interior crispness: {((scan?.interior?.avgCrispness ?? 0) * 100).toFixed(1)}%</p>
+                  <p>Coherence direction: {scan?.coherenceDirection?.toFixed(3) ?? '\u2014'}</p>
+                </div>
+
+                {/* Top pair preview */}
+                {scan?.crossDomainAlignment?.topPairs?.[0] && (
+                  <div className="absolute bottom-4 right-4 max-w-xs">
+                    <p className="text-[10px] text-gray-600 mb-1">Strongest cross-domain alignment:</p>
+                    <div className="text-[11px] font-mono p-2 rounded border border-white/5"
+                      style={{ background: 'rgba(5,5,16,0.9)' }}>
+                      <p style={{ color: meta.color }}>
+                        {scan.crossDomainAlignment.topPairs[0].a.domain} &harr; {scan.crossDomainAlignment.topPairs[0].b.domain}
+                      </p>
+                      <p className="text-gray-500 truncate">{scan.crossDomainAlignment.topPairs[0].a.title}</p>
+                      <p className="text-gray-500 truncate">{scan.crossDomainAlignment.topPairs[0].b.title}</p>
+                    </div>
                   </div>
+                )}
+
+                {/* History sparkline overlay */}
+                {history.length > 1 && (
+                  <div className="absolute top-4 right-4 w-48 h-16">
+                    <HistorySparkline readings={history.slice(-50)} />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'pairs' && (
+            <div className="p-6 space-y-3">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-bold">Cross-Domain Alignments</h2>
+                  <p className="text-[11px] text-gray-600">
+                    DTU pairs from different domains sharing invariant structure without semantic overlap
+                  </p>
                 </div>
+                <span className="text-xs font-mono text-gray-600">
+                  {scan?.crossDomainAlignment?.pairsFound ?? 0} pairs across {scan?.crossDomainAlignment?.domainsScanned ?? 0} domains
+                </span>
               </div>
 
-              {/* Resonance Field Graph */}
-              <div className="panel p-4">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <Waves className="w-4 h-4 text-neon-cyan" />
-                  Resonance Field
-                </h3>
-                <div className="h-[400px]">
-                  <ResonanceEmpireGraph />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'metrics' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {healthMetrics.map((metric) => (
-                  <motion.div
-                    key={metric.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="panel p-4"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold">{metric.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(metric.status)}`}>
-                        {metric.status}
-                      </span>
-                    </div>
-                    <p className="text-4xl font-bold font-mono mb-4">
-                      {(metric.value * 100).toFixed(1)}
-                      <span className="text-lg text-gray-400">{metric.unit}</span>
-                    </p>
-                    <div className="h-20 flex items-end gap-1">
-                      {metric.history.map((v, i) => (
-                        <div
-                          key={i}
-                          className={`flex-1 rounded-t transition-all ${
-                            metric.status === 'healthy'
-                              ? 'bg-green-500/60'
-                              : metric.status === 'warning'
-                              ? 'bg-yellow-500/60'
-                              : 'bg-red-500/60'
-                          }`}
-                          style={{ height: `${v * 100}%` }}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                      <span>Threshold: {(metric.threshold.warning * 100).toFixed(0)}%</span>
-                      <span className="flex items-center gap-1">
-                        {getTrendIcon(metric.trend)}
-                        {metric.trend}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'graph' && (
-            <div className="panel p-4 h-[calc(100vh-12rem)]">
-              <ResonanceEmpireGraph />
-            </div>
-          )}
-
-          {viewMode === 'alerts' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">System Alerts</h2>
-                <button
-                  onClick={() => setAlerts((prev) => prev.map((a) => ({ ...a, acknowledged: true })))}
-                  className="text-sm text-neon-cyan hover:underline"
-                >
-                  Acknowledge All
-                </button>
-              </div>
-
-              {alerts.length === 0 ? (
-                <div className="panel p-12 text-center text-gray-500">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>No alerts to display</p>
+              {(scan?.crossDomainAlignment?.topPairs ?? []).length === 0 ? (
+                <div className="text-center py-16 text-gray-600">
+                  <Target className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No cross-domain alignments detected</p>
+                  <p className="text-xs mt-1">Run a scan to probe the boundary</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {alerts.map((alert) => (
-                    <motion.div
-                      key={alert.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`panel p-4 border-l-4 ${
-                        alert.type === 'critical'
-                          ? 'border-l-red-500'
-                          : alert.type === 'warning'
-                          ? 'border-l-yellow-500'
-                          : 'border-l-blue-500'
-                      } ${alert.acknowledged ? 'opacity-50' : ''}`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle
-                            className={`w-5 h-5 mt-0.5 ${
-                              alert.type === 'critical'
-                                ? 'text-red-500'
-                                : alert.type === 'warning'
-                                ? 'text-yellow-500'
-                                : 'text-blue-500'
-                            }`}
-                          />
-                          <div>
-                            <p className="font-medium">{alert.message}</p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              {alert.metric}: {(alert.value * 100).toFixed(1)}% · {alert.timestamp.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                        {!alert.acknowledged && (
-                          <button
-                            onClick={() => acknowledgeAlert(alert.id)}
-                            className="text-sm text-neon-cyan hover:underline"
-                          >
-                            Acknowledge
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
+                  {scan!.crossDomainAlignment.topPairs.map((pair, i) => (
+                    <PairCard key={`${pair.a.id}-${pair.b.id}`} pair={pair} rank={i} />
                   ))}
                 </div>
               )}
             </div>
           )}
-        </main>
 
-        {/* Alerts Sidebar */}
-        <AnimatePresence>
-          {showAlerts && viewMode !== 'alerts' && unacknowledgedAlerts.length > 0 && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="border-l border-lattice-border bg-lattice-surface/50 overflow-hidden"
-            >
-              <div className="w-70 p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-neon-yellow" />
-                    Active Alerts
-                  </h3>
-                  <button
-                    onClick={() => setShowAlerts(false)}
-                    className="p-1 rounded hover:bg-lattice-elevated text-gray-400"
-                  >
-                    <EyeOff className="w-4 h-4" />
-                  </button>
+          {viewMode === 'history' && (
+            <div className="p-6 space-y-4">
+              <h2 className="text-sm font-bold">Signal History</h2>
+
+              {history.length === 0 ? (
+                <div className="text-center py-16 text-gray-600">
+                  <Activity className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No history yet</p>
+                  <p className="text-xs mt-1">Run scans to build a signal timeline</p>
                 </div>
-                <div className="space-y-2">
-                  {unacknowledgedAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={`p-3 rounded-lg border ${
-                        alert.type === 'critical'
-                          ? 'border-red-500/30 bg-red-500/10'
-                          : alert.type === 'warning'
-                          ? 'border-yellow-500/30 bg-yellow-500/10'
-                          : 'border-blue-500/30 bg-blue-500/10'
-                      }`}
-                    >
-                      <p className="text-sm font-medium">{alert.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {alert.timestamp.toLocaleTimeString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.aside>
+              ) : (
+                <>
+                  <div className="h-40 border border-white/5 rounded-lg overflow-hidden p-2"
+                    style={{ background: 'rgba(5,5,16,0.8)' }}>
+                    <HistorySparkline readings={history} />
+                  </div>
+
+                  <div className="space-y-1">
+                    {[...history].reverse().slice(0, 30).map((r, i) => {
+                      const rmeta = CLASSIFICATION_META[r.classification] || CLASSIFICATION_META.noise_floor;
+                      return (
+                        <div key={i} className="flex items-center gap-3 text-xs font-mono py-1.5 px-3 rounded hover:bg-white/[0.02]">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: rmeta.color }} />
+                          <span className="text-gray-600 w-36 flex-shrink-0">
+                            {new Date(r.timestamp).toLocaleString()}
+                          </span>
+                          <span className="w-16 text-right" style={{ color: rmeta.color }}>
+                            {(r.signal * 100).toFixed(1)}%
+                          </span>
+                          <span className="flex-1 text-gray-600 text-[10px]">{rmeta.label}</span>
+                          <span className="text-gray-700">{r.pairs}p</span>
+                          <span className="text-gray-700">&nabla;{(r.gradient * 100).toFixed(0)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           )}
-        </AnimatePresence>
+
+          {viewMode === 'health' && (
+            <div className="p-6 space-y-4">
+              <h2 className="text-sm font-bold">Lattice Health</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  { label: 'Homeostasis', value: homeostasis, icon: Heart },
+                  { label: 'Repair Rate', value: repairRate, icon: Shield },
+                  { label: 'Frontier Density', value: scan?.frontier?.density ?? 0, icon: Layers },
+                  { label: 'Constraint Gradient', value: scan?.gradient ?? 0, icon: TrendingUp },
+                  { label: 'Coherence Direction', value: Math.max(0, scan?.coherenceDirection ?? 0), icon: Eye },
+                  { label: 'Boundary Signal', value: signal, icon: Radio },
+                ].map(m => (
+                  <div key={m.label} className="p-3 rounded-lg border border-white/5"
+                    style={{ background: 'rgba(10,10,20,0.8)' }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] text-gray-500">{m.label}</span>
+                      <m.icon className="w-3.5 h-3.5 text-gray-700" />
+                    </div>
+                    <p className="text-2xl font-mono font-bold text-white">
+                      {(m.value * 100).toFixed(1)}<span className="text-sm text-gray-600">%</span>
+                    </p>
+                    <div className="h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{
+                          backgroundColor: m.value > 0.7 ? '#00ffc8' : m.value > 0.4 ? '#a855f7' : m.value > 0.15 ? '#eab308' : '#6b7280',
+                        }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${m.value * 100}%` }}
+                        transition={{ duration: 0.6 }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
-  );
-}
-
-function PrimaryMetricCard({
-  icon,
-  label,
-  value,
-  color,
-  description,
-  showAsRaw,
-  rawValue,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  color: 'green' | 'blue' | 'purple' | 'cyan';
-  description: string;
-  showAsRaw?: boolean;
-  rawValue?: string;
-}) {
-  const colorClasses = {
-    green: 'text-sovereignty-locked bg-sovereignty-locked/20 border-sovereignty-locked/30',
-    blue: 'text-neon-blue bg-neon-blue/20 border-neon-blue/30',
-    purple: 'text-neon-purple bg-neon-purple/20 border-neon-purple/30',
-    cyan: 'text-neon-cyan bg-neon-cyan/20 border-neon-cyan/30',
-  };
-
-  const percentage = Math.min(100, Math.max(0, value * 100));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className={`panel p-4 border ${colorClasses[color]}`}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-gray-400 text-sm">{label}</span>
-        <span className={colorClasses[color].split(' ')[0]}>{icon}</span>
-      </div>
-      <p className="text-3xl font-bold font-mono mb-2">
-        {showAsRaw && rawValue ? rawValue : `${percentage.toFixed(1)}%`}
-      </p>
-      <div className="h-2 bg-lattice-deep rounded-full overflow-hidden mb-2">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-          className={`h-full ${colorClasses[color].split(' ')[1].replace('/20', '')}`}
-        />
-      </div>
-      <p className="text-xs text-gray-500">{description}</p>
-    </motion.div>
   );
 }

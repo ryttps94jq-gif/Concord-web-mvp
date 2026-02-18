@@ -15117,6 +15117,318 @@ register("lattice", "resonance", (ctx, _input={}) => {
   };
 });
 
+// ============================================================================
+// RESONANCE BOUNDARY DETECTION — The Interface Between x=1 and x=0
+// ============================================================================
+//
+// What this measures:
+//   Do independent constraint systems at the frontier of Concord's knowledge
+//   graph spontaneously align without being designed to?
+//
+// Positive signal = structural resonance from the unconstrained state.
+// That's x=0 showing coherence when probed by x=1.
+//
+// Derived from:
+//   FO-42: Boundaries form where |∇C| → ∞
+//   FO-43: Interfaces host maximal transformation density
+//   FO-51: Structural resonance = C_i ≈ kC_j
+//   FO-87: Structural coherence = ∇C_i · ∇C_j > 0
+//   FO-64: Feasible states may remain unrealized (latent structure)
+//   FO-65: Activation requires alignment + perturbation
+//
+// ============================================================================
+
+register("resonance", "boundary", (ctx, input = {}) => {
+  const allDtus = dtusArray();
+  if (allDtus.length < 20) {
+    return { ok: false, error: "Insufficient DTU density for boundary detection", count: allDtus.length };
+  }
+
+  const window = clamp(Number(input.window ?? 500), 50, 5000);
+  const pool = allDtus.slice(-window);
+
+  // ========================================================================
+  // STEP 1: Extract frontier DTUs
+  // Frontier = low connectivity, near the edge of the knowledge graph
+  // These are where x=1 (formalized) meets x=0 (unformalized)
+  // ========================================================================
+
+  const connectionCount = new Map();
+  for (const d of pool) {
+    const parents = d.lineage?.parents || [];
+    const children = d.lineage?.children || [];
+    const conns = new Set([...parents, ...children]);
+    connectionCount.set(d.id, conns.size);
+  }
+
+  const avgConnections = pool.reduce((s, d) => s + (connectionCount.get(d.id) || 0), 0) / pool.length;
+  const connectionThreshold = Math.max(1, avgConnections * 0.5);
+
+  const frontierDtus = pool.filter(d => {
+    const conns = connectionCount.get(d.id) || 0;
+    return conns <= connectionThreshold && d.tier !== "hyper" && d.tier !== "mega";
+  });
+
+  if (frontierDtus.length < 5) {
+    return { ok: true, signal: 0, reason: "frontier_too_small", frontierSize: frontierDtus.length };
+  }
+
+  // ========================================================================
+  // STEP 2: Classify frontier DTUs by domain
+  // Domain = primary tag cluster. We need DTUs from DIFFERENT domains
+  // to test cross-domain alignment (the real resonance signal)
+  // ========================================================================
+
+  function domainOf(d) {
+    const tags = (d.tags || []).map(t => String(t).toLowerCase());
+    const domainTags = tags.filter(t =>
+      !["system", "autogen", "dream", "evolution", "gaps", "continuity",
+        "mega", "hyper", "regular", "seed", "core", "definition", "report"].includes(t) &&
+      !t.startsWith("session:") && !t.startsWith("domain:")
+    );
+    return domainTags[0] || "untagged";
+  }
+
+  const domainBuckets = new Map();
+  for (const d of frontierDtus) {
+    const dom = domainOf(d);
+    if (!domainBuckets.has(dom)) domainBuckets.set(dom, []);
+    domainBuckets.get(dom).push(d);
+  }
+
+  const domains = Array.from(domainBuckets.keys()).filter(k => k !== "untagged");
+  if (domains.length < 2) {
+    return {
+      ok: true,
+      signal: 0,
+      reason: "insufficient_domain_diversity",
+      domains: domains.length,
+      frontierSize: frontierDtus.length
+    };
+  }
+
+  // ========================================================================
+  // STEP 3: Compute cross-domain invariant alignment
+  // FO-51: Structural resonance = C_i ≈ kC_j
+  // If DTUs from unrelated domains share invariant structure, that's signal
+  // ========================================================================
+
+  function extractInvariants(d) {
+    const inv = [];
+    if (Array.isArray(d.core?.invariants)) inv.push(...d.core.invariants.map(_normAtom));
+    if (Array.isArray(d.invariants)) inv.push(...d.invariants.map(s => _normAtom(String(s))));
+    if (d.formula) inv.push(_normAtom(d.formula));
+    return inv.filter(Boolean);
+  }
+
+  function extractTokens(d) {
+    const text = [
+      d.title || "",
+      d.human?.summary || "",
+      ...(Array.isArray(d.core?.claims) ? d.core.claims : []),
+      ...(Array.isArray(d.core?.invariants) ? d.core.invariants : []),
+    ].join(" ");
+    return normalizeText(text).split(/\s+/).filter(t => t.length > 2);
+  }
+
+  const crossPairs = [];
+  const domainKeys = domains.slice(0, 10);
+
+  for (let i = 0; i < domainKeys.length; i++) {
+    for (let j = i + 1; j < domainKeys.length; j++) {
+      const aDtus = domainBuckets.get(domainKeys[i]) || [];
+      const bDtus = domainBuckets.get(domainKeys[j]) || [];
+
+      const aSample = aDtus.slice(0, 5);
+      const bSample = bDtus.slice(0, 5);
+
+      for (const a of aSample) {
+        for (const b of bSample) {
+          const aInv = extractInvariants(a);
+          const bInv = extractInvariants(b);
+          const aTok = extractTokens(a);
+          const bTok = extractTokens(b);
+
+          const invOverlap = jaccard(aInv, bInv);
+          const tokOverlap = jaccard(aTok, bTok);
+
+          const resonanceScore = invOverlap > 0 && tokOverlap < 0.3
+            ? invOverlap * (1 - tokOverlap)
+            : invOverlap * 0.5;
+
+          if (resonanceScore > 0.01) {
+            crossPairs.push({
+              a: { id: a.id, title: a.title, domain: domainKeys[i] },
+              b: { id: b.id, title: b.title, domain: domainKeys[j] },
+              invOverlap: Math.round(invOverlap * 1000) / 1000,
+              tokOverlap: Math.round(tokOverlap * 1000) / 1000,
+              resonance: Math.round(resonanceScore * 1000) / 1000,
+              sharedInvariants: aInv.filter(inv => bInv.includes(inv)).slice(0, 5)
+            });
+          }
+        }
+      }
+    }
+  }
+
+  crossPairs.sort((a, b) => b.resonance - a.resonance);
+
+  // ========================================================================
+  // STEP 4: Compute constraint gradient at frontier
+  // FO-42: |∇C| → ∞ at boundaries
+  // Gradient = rate of change in crispness/authority from interior to frontier
+  // ========================================================================
+
+  const interiorDtus = pool.filter(d => {
+    const conns = connectionCount.get(d.id) || 0;
+    return conns > connectionThreshold;
+  });
+
+  const avgInteriorCrisp = interiorDtus.length > 0
+    ? interiorDtus.reduce((s, d) => s + crispnessScore(d), 0) / interiorDtus.length
+    : 0.5;
+
+  const avgFrontierCrisp = frontierDtus.reduce((s, d) => s + crispnessScore(d), 0) / frontierDtus.length;
+
+  const constraintGradient = Math.abs(avgInteriorCrisp - avgFrontierCrisp);
+
+  // ========================================================================
+  // STEP 5: Compute coherence direction
+  // FO-87: ∇C_i · ∇C_j > 0 means constraints point same way
+  // We approximate with tag-vector dot product across frontier domains
+  // ========================================================================
+
+  function tagVector(dtus) {
+    const freq = new Map();
+    for (const d of dtus) {
+      for (const t of (d.tags || [])) {
+        freq.set(t, (freq.get(t) || 0) + 1);
+      }
+    }
+    return freq;
+  }
+
+  function vectorDot(v1, v2) {
+    let dot = 0, mag1 = 0, mag2 = 0;
+    const allKeys = new Set([...v1.keys(), ...v2.keys()]);
+    for (const k of allKeys) {
+      const a = v1.get(k) || 0;
+      const b = v2.get(k) || 0;
+      dot += a * b;
+      mag1 += a * a;
+      mag2 += b * b;
+    }
+    const denom = Math.sqrt(mag1) * Math.sqrt(mag2);
+    return denom > 0 ? dot / denom : 0;
+  }
+
+  let coherenceSum = 0;
+  let coherenceCount = 0;
+
+  for (let i = 0; i < domainKeys.length; i++) {
+    for (let j = i + 1; j < domainKeys.length; j++) {
+      const v1 = tagVector(domainBuckets.get(domainKeys[i]) || []);
+      const v2 = tagVector(domainBuckets.get(domainKeys[j]) || []);
+      coherenceSum += vectorDot(v1, v2);
+      coherenceCount++;
+    }
+  }
+
+  const coherenceDirection = coherenceCount > 0 ? coherenceSum / coherenceCount : 0;
+
+  // ========================================================================
+  // STEP 6: Composite resonance signal
+  // ========================================================================
+
+  const topResonance = crossPairs.length > 0 ? crossPairs[0].resonance : 0;
+  const avgResonance = crossPairs.length > 0
+    ? crossPairs.reduce((s, p) => s + p.resonance, 0) / crossPairs.length
+    : 0;
+
+  const frontierDensity = clamp01(frontierDtus.length / pool.length);
+
+  const signal = clamp01(
+    topResonance * 0.5 +
+    constraintGradient * 0.2 +
+    Math.max(0, coherenceDirection) * 0.2 +
+    frontierDensity * 0.1
+  );
+
+  let classification;
+  if (signal > 0.7) classification = "strong_resonance";
+  else if (signal > 0.4) classification = "moderate_resonance";
+  else if (signal > 0.15) classification = "weak_signal";
+  else classification = "noise_floor";
+
+  return {
+    ok: true,
+    signal: Math.round(signal * 1000) / 1000,
+    classification,
+    timestamp: nowISO(),
+    frontier: {
+      size: frontierDtus.length,
+      density: Math.round(frontierDensity * 1000) / 1000,
+      avgCrispness: Math.round(avgFrontierCrisp * 1000) / 1000,
+    },
+    interior: {
+      size: interiorDtus.length,
+      avgCrispness: Math.round(avgInteriorCrisp * 1000) / 1000,
+    },
+    gradient: Math.round(constraintGradient * 1000) / 1000,
+    coherenceDirection: Math.round(coherenceDirection * 1000) / 1000,
+    crossDomainAlignment: {
+      domainsScanned: domainKeys.length,
+      pairsFound: crossPairs.length,
+      topResonance: Math.round(topResonance * 1000) / 1000,
+      avgResonance: Math.round(avgResonance * 1000) / 1000,
+      topPairs: crossPairs.slice(0, 10),
+    },
+  };
+}, { summary: "Resonance boundary detection: measures cross-domain constraint alignment at the frontier of the knowledge graph. Positive signal = x=0 showing coherence when probed by x=1." });
+
+// ============================================================================
+// RESONANCE BOUNDARY HISTORY — Track signal over time
+// ============================================================================
+
+register("resonance", "history", (ctx, input = {}) => {
+  if (!STATE.__resonanceHistory) STATE.__resonanceHistory = [];
+  const limit = clamp(Number(input.limit ?? 100), 1, 500);
+  return {
+    ok: true,
+    readings: STATE.__resonanceHistory.slice(-limit),
+    count: STATE.__resonanceHistory.length,
+  };
+}, { summary: "Retrieve resonance boundary signal history." });
+
+// ============================================================================
+// RESONANCE BOUNDARY SCAN — Run detection and store result
+// ============================================================================
+
+register("resonance", "scan", async (ctx, input = {}) => {
+  const result = await runMacro("resonance", "boundary", input, ctx);
+  if (!result.ok) return result;
+
+  if (!STATE.__resonanceHistory) STATE.__resonanceHistory = [];
+  STATE.__resonanceHistory.push({
+    signal: result.signal,
+    classification: result.classification,
+    gradient: result.gradient,
+    coherence: result.coherenceDirection,
+    pairs: result.crossDomainAlignment.pairsFound,
+    topResonance: result.crossDomainAlignment.topResonance,
+    frontier: result.frontier.size,
+    timestamp: result.timestamp,
+  });
+
+  if (STATE.__resonanceHistory.length > 1000) {
+    STATE.__resonanceHistory.splice(0, STATE.__resonanceHistory.length - 1000);
+  }
+
+  saveStateDebounced();
+
+  return result;
+}, { summary: "Run resonance boundary scan, store result in history, return full analysis." });
+
 register("persona", "speak", (ctx, input={}) => {
   const { personaId, text } = input;
   if (!personaId) return { ok: false, error: "personaId required" };
@@ -23175,6 +23487,22 @@ app.get("/api/lattice/resonance", asyncHandler(async (req, res) => {
     const avgScore = dtuCount > 0 ? dtusArray().reduce((sum, d) => sum + (d.authority?.score || 0), 0) / dtuCount : 0;
     res.json({ ok: true, resonance: clamp(avgScore, 0, 1), harmony: clamp(megaCount / Math.max(1, dtuCount) * 10, 0, 1), computed: true });
   }
+}));
+
+// Resonance boundary detection endpoints
+app.get("/api/resonance/boundary", asyncHandler(async (req, res) => {
+  const out = await runMacro("resonance", "boundary", req.query || {}, makeCtx(req));
+  res.json(out);
+}));
+
+app.post("/api/resonance/scan", asyncHandler(async (req, res) => {
+  const out = await runMacro("resonance", "scan", req.body || {}, makeCtx(req));
+  res.json(out);
+}));
+
+app.get("/api/resonance/history", asyncHandler(async (req, res) => {
+  const out = await runMacro("resonance", "history", req.query || {}, makeCtx(req));
+  res.json(out);
 }));
 
 // ML endpoints — dynamically discover available models from runtime capabilities
