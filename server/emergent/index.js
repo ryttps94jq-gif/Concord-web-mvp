@@ -216,7 +216,7 @@ import {
 // ── Injection Defense (Risk Category 2) ─────────────────────────────────────
 
 import {
-  INJECTION_TYPES, ALL_INJECTION_TYPES, THREAT_LEVELS,
+  ALL_INJECTION_TYPES, THREAT_LEVELS,
   scanContent, scanDtu, checkCrossLensLeak,
   addCustomPattern, getInjectionMetrics, getInjectionIncidents,
 } from "./injection-defense.js";
@@ -224,7 +224,7 @@ import {
 // ── Drift Monitor (Risk Category 3) ─────────────────────────────────────────
 
 import {
-  DRIFT_TYPES, ALL_DRIFT_TYPES, DRIFT_SEVERITY,
+  ALL_DRIFT_TYPES, DRIFT_SEVERITY,
   runDriftScan, getDriftAlerts, updateDriftThresholds,
   getDriftMetrics, getSnapshots,
 } from "./drift-monitor.js";
@@ -249,16 +249,16 @@ import {
 // ── Content Shield (Risk Category 6) ────────────────────────────────────────
 
 import {
-  PII_TYPES, ALL_PII_TYPES, ADVICE_DOMAINS, ALL_ADVICE_DOMAINS, CONTENT_RISK,
+  ALL_PII_TYPES, ALL_ADVICE_DOMAINS, CONTENT_RISK,
   detectPii, detectCopyrightSignals, checkAdviceFraming, scanContentFull,
-  setDisclaimer, getDisclaimer, getAllDisclaimers,
+  setDisclaimer, getAllDisclaimers,
   updateContentShieldConfig, getContentShieldMetrics,
 } from "./content-shield.js";
 
 // ── Action Slots (UX Architecture) ──────────────────────────────────────────
 
 import {
-  SLOT_POSITIONS, ALL_SLOT_POSITIONS, RESULT_STATES, ALL_RESULT_STATES,
+  ALL_SLOT_POSITIONS, ALL_RESULT_STATES,
   registerSlotConfig, getSlotConfig, getAllSlotConfigs, getSlotLabel,
   recordInvocation, makeResult, unregisterSlotConfig,
   getInvocations, getResultDistribution, auditSlotCoverage,
@@ -268,11 +268,10 @@ import {
 // ── Autogen Pipeline (6-Stage Knowledge Synthesis) ───────────────────────────
 
 import {
-  INTENTS, ALL_INTENTS, VARIANT_INTENTS, ESCALATION_REASONS,
+  ALL_INTENTS, VARIANT_INTENTS, ESCALATION_REASONS,
   ensurePipelineState,
   selectIntent, buildRetrievalPack,
   builderPhase, criticPhase, synthesizerPhase,
-  buildOllamaPrompt, applyOllamaShaping,
   noveltyCheck, determineWritePolicy,
   runPipeline as runAutogenPipeline,
   getPipelineMetrics,
@@ -285,14 +284,13 @@ import {
   checkUnits, invarianceCheck,
   PHYS_CONSTANTS,
   extractNumericClaims, extractMathExpressions, extractConstantReferences,
-  mathGate, unitGate, constantsGate,
   runEmpiricalGates, getEmpiricalGateInfo,
 } from "./empirical-gates.js";
 
 // ── Scope Separation (Global / Marketplace / Local) ─────────────────────────
 
 import {
-  SCOPES, ALL_SCOPES, DTU_CLASSES, ALL_DTU_CLASSES,
+  SCOPES, ALL_SCOPES, ALL_DTU_CLASSES,
   HEARTBEAT_CONFIG,
   checkInfluence, isValidScope, isUpwardPromotion,
   ensureScopeState, assignScope, getDtuScope,

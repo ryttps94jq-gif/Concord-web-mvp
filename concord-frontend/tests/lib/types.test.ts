@@ -129,7 +129,7 @@ describe('lib/types/lens.ts exports', () => {
 
   it('each category has a non-empty label', async () => {
     const mod = await import('@/lib/types/lens');
-    for (const [key, value] of Object.entries(mod.LENS_CATEGORIES)) {
+    for (const [_key, value] of Object.entries(mod.LENS_CATEGORIES)) {
       expect(value.label.length).toBeGreaterThan(0);
       expect(value.color.length).toBeGreaterThan(0);
     }
