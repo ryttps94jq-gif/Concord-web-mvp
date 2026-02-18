@@ -351,7 +351,6 @@ export function checkAdviceFraming(STATE, content, opts = {}) {
   }
 
   const detectedDomains = [];
-  const lower = content.toLowerCase();
 
   // Legal advice patterns
   const legalPatterns = [

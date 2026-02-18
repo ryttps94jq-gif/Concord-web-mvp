@@ -6,7 +6,7 @@ import {
   getDomainRelations,
   getDomainsWithSchemas,
 } from '@/lib/lenses/domain-schemas';
-import type { DomainSchema, EntityDef, RelationDef } from '@/lib/lenses/domain-schemas';
+
 
 describe('DOMAIN_SCHEMAS', () => {
   it('is a non-empty array', () => {

@@ -196,7 +196,7 @@ function detectGoodharting(STATE, es, store, snapshot) {
 
   // Check: outcomes vs scores divergence
   if (snapshot.outcomeStats) {
-    const { positiveCount, negativeCount, totalRecorded } = snapshot.outcomeStats;
+    const { positiveCount, negativeCount: _negativeCount, totalRecorded } = snapshot.outcomeStats;
     if (totalRecorded > 20) {
       const successRate = positiveCount / totalRecorded;
       if (snapshot.avgCoherence > 0.7 && successRate < 0.4) {
@@ -299,7 +299,7 @@ function detectCapabilityCreep(es, store, snapshot) {
  *
  * This directly supports IMM-004: "No self-reinforcing delusion loops."
  */
-function detectSelfReference(STATE, es, store) {
+function detectSelfReference(STATE, es, _store) {
   const alerts = [];
   const evidenceStore = es._evidence;
   if (!evidenceStore) return alerts;

@@ -16,7 +16,6 @@
 
 import {
   SESSION_LIMITS,
-  EMERGENT_ROLES,
   MEMORY_POLICIES,
 } from "./schema.js";
 
@@ -35,10 +34,7 @@ import {
 import {
   extractPatterns,
   distillSession,
-  processReputationShift,
 } from "./growth.js";
-
-import { reviewBundle } from "./governance.js";
 
 // ── Orchestrated Session Runner ─────────────────────────────────────────────
 

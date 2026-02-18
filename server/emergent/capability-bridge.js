@@ -391,7 +391,7 @@ export function runBeaconCheck(STATE) {
   // Check 3: Hypothesis engine not stalling (if initialized)
   if (STATE.hypothesisEngine) {
     const he = STATE.hypothesisEngine;
-    const hypCount = he.hypotheses instanceof Map ? he.hypotheses.size : 0;
+    const _hypCount = he.hypotheses instanceof Map ? he.hypotheses.size : 0;
     const proposed = he.stats?.proposed || 0;
     const decided = (he.stats?.supported || 0) + (he.stats?.refuted || 0) + (he.stats?.inconclusive || 0);
     const ratio = proposed > 0 ? decided / proposed : 1;

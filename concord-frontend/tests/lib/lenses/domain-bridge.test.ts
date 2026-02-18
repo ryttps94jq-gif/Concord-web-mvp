@@ -6,7 +6,6 @@ import {
   getFleetParityReport,
   getFleetSummary,
 } from '@/lib/lenses/domain-bridge';
-import type { DomainProfile, CompetitorParityScore } from '@/lib/lenses/domain-bridge';
 
 describe('getDomainProfile', () => {
   it('returns full profile for healthcare (all 5 dimensions)', () => {

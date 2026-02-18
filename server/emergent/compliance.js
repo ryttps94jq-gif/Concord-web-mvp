@@ -122,7 +122,7 @@ export function setExportControls(STATE, resourceId, controls) {
 /**
  * Check if a resource can be exported.
  */
-export function checkExportAllowed(STATE, resourceId, format = "json", requestor = null) {
+export function checkExportAllowed(STATE, resourceId, format = "json", _requestor = null) {
   const compliance = getComplianceState(STATE);
   compliance.metrics.exportChecks++;
 

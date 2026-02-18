@@ -3,7 +3,6 @@ import {
   ENDPOINT_INVENTORY,
   getInventoryPaths,
   isEndpointKnown,
-  type EndpointEntry,
 } from '@/lib/api/endpoint-inventory';
 
 describe('ENDPOINT_INVENTORY', () => {

@@ -14,14 +14,14 @@ vi.mock('lucide-react', () => ({
 const mockRemoveToast = vi.fn();
 const mockAddToast = vi.fn();
 const mockUIStoreState = {
-  toasts: [] as any[],
+  toasts: [] as unknown[],
   removeToast: mockRemoveToast,
   addToast: mockAddToast,
 };
 
 vi.mock('@/store/ui', () => ({
   useUIStore: Object.assign(
-    (selector: (s: any) => any) => selector(mockUIStoreState),
+    (selector: (s: Record<string, unknown>) => unknown) => selector(mockUIStoreState as unknown as Record<string, unknown>),
     {
       getState: () => mockUIStoreState,
     }

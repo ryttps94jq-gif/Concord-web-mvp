@@ -747,7 +747,7 @@ export function determineWritePolicy(candidate, criticResult, noveltyResult) {
 
   // Default: shadow tier
   let tier = "shadow";
-  let needsCouncilVote = true;
+  const needsCouncilVote = true;
   let needsHumanPush = true;
   let reason = "default_shadow_policy";
 

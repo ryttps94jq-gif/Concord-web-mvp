@@ -212,7 +212,7 @@ export function getComments(STATE, dtuId, options = {}) {
   const thread = collab.comments.get(dtuId);
   if (!thread) return { ok: true, dtuId, comments: [], total: 0 };
 
-  let comments = thread.comments;
+  const comments = thread.comments;
 
   // Build tree structure if requested
   if (options.tree) {
