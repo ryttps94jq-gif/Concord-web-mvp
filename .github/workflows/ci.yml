@@ -63,7 +63,7 @@ jobs:
           echo "If this step passed, all thresholds are met."
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: concord-frontend/coverage/
@@ -329,7 +329,7 @@ jobs:
         run: npx playwright test --project=chromium --project=firefox
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: playwright-report
