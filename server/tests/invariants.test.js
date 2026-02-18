@@ -9,12 +9,11 @@ import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
 import { initAtlasState, getAtlasState, ATLAS_STATUS } from "../emergent/atlas-epistemic.js";
-import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, getDtuScope, getScopeMetrics } from "../emergent/atlas-scope-router.js";
+import { initScopeState, scopedWrite, createSubmission, getDtuScope } from "../emergent/atlas-scope-router.js";
 import { applyWrite, WRITE_OPS } from "../emergent/atlas-write-guard.js";
-import { chatRetrieve, saveAsDtu, publishToGlobal } from "../emergent/atlas-chat.js";
-import { canUse, validateDerivativeRights, getOrigin, verifyOriginIntegrity, resolveLicense, computeContentHash } from "../emergent/atlas-rights.js";
+import { chatRetrieve } from "../emergent/atlas-chat.js";
+import { canUse, getOrigin, verifyOriginIntegrity, computeContentHash } from "../emergent/atlas-rights.js";
 import { SCOPES, LICENSE_TYPES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
-import { retrieve } from "../emergent/atlas-retrieval.js";
 
 function makeTestState() {
   const STATE = { dtus: new Map(), shadowDtus: new Map(), sessions: new Map(), users: new Map(), orgs: new Map(), __emergent: null };

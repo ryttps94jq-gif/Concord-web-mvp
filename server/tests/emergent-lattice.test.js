@@ -24,7 +24,6 @@ import assert from "node:assert/strict";
 
 import {
   OP_CLASS,
-  getLatticeOps,
   readDTU,
   readStaging,
   queryLattice,
@@ -40,7 +39,6 @@ import {
 // ── Edge imports ─────────────────────────────────────────────────────────────
 
 import {
-  EDGE_TYPES,
   ALL_EDGE_TYPES,
   createEdge,
   getEdge,
@@ -107,7 +105,6 @@ import {
 import {
   getEmergentState,
   registerEmergent,
-  getReputation,
 } from "../emergent/store.js";
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────
@@ -174,7 +171,7 @@ describe("Lattice Operations", () => {
   describe("READ operations", () => {
     it("should read a DTU from canonical lattice", () => {
       const STATE = freshState();
-      const dtu = addDTU(STATE, { id: "dtu_read_test" });
+      const _dtu = addDTU(STATE, { id: "dtu_read_test" });
       const result = readDTU(STATE, "dtu_read_test", "reader1");
       assert.ok(result.ok);
       assert.equal(result.source, "canonical");
@@ -1240,7 +1237,7 @@ describe("Safety Invariants (v2)", () => {
     const STATE = freshState();
     getEmergentState(STATE);
     addDTU(STATE, { id: "dtu_protected" });
-    const orig = STATE.dtus.get("dtu_protected");
+    const _orig = STATE.dtus.get("dtu_protected");
 
     fieldLevelMerge(STATE, "dtu_protected", { id: "new_id", timestamp: "hacked", ownerId: "attacker" }, "em_bad");
 

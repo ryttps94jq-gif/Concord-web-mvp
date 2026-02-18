@@ -102,7 +102,7 @@ export class LocalVolumeAdapter extends StorageAdapter {
     };
   }
 
-  async get(uri) {
+  get(uri) {
     const filePath = this._uriToFilePath(uri);
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${uri}`);
@@ -134,7 +134,7 @@ export class LocalVolumeAdapter extends StorageAdapter {
     };
   }
 
-  async remove(uri) {
+  remove(uri) {
     const filePath = this._uriToFilePath(uri);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -143,7 +143,7 @@ export class LocalVolumeAdapter extends StorageAdapter {
     return false;
   }
 
-  async exists(uri) {
+  exists(uri) {
     const filePath = this._uriToFilePath(uri);
     return fs.existsSync(filePath);
   }

@@ -13,12 +13,12 @@ import assert from "node:assert/strict";
 
 // ── Module imports ──────────────────────────────────────────────────────────
 
-import { initAtlasState, getAtlasState } from "../emergent/atlas-epistemic.js";
-import { initScopeState, scopedWrite, createSubmission, getDtuScope } from "../emergent/atlas-scope-router.js";
+import { initAtlasState } from "../emergent/atlas-epistemic.js";
+import { initScopeState } from "../emergent/atlas-scope-router.js";
 import { applyWrite, WRITE_OPS } from "../emergent/atlas-write-guard.js";
 import { chatRetrieve, saveAsDtu } from "../emergent/atlas-chat.js";
-import { canUse, validateLicense, validateDerivativeRights, computeContentHash } from "../emergent/atlas-rights.js";
-import { SCOPES, LICENSE_TYPES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
+import { canUse, validateLicense, computeContentHash } from "../emergent/atlas-rights.js";
+import { LICENSE_TYPES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
 
 // ── Test STATE factory ──────────────────────────────────────────────────────
 
@@ -386,7 +386,7 @@ describe("Fuzz: Rights canUse — 100 random checks", () => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe("Fuzz: validateLicense — 50 random license checks", () => {
-  const STATE = makeTestState();
+  const _STATE = makeTestState();
 
   it("should never throw and always return { ok: boolean } for 50 random license checks", () => {
     const allLicenseTypes = [...Object.values(LICENSE_TYPES)];

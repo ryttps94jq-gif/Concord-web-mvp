@@ -18,7 +18,7 @@
  *  14. Helper functions (conflict detection, tag groups, etc.)
  */
 
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import crypto from "node:crypto";
@@ -774,7 +774,7 @@ describe("Autogen Pipeline — Full Pipeline", () => {
   it("handles ollama callback when provided", async () => {
     const state = seedState(freshState(), 15);
     let ollamaCalled = false;
-    const mockOllama = async (prompt, opts) => {
+    const mockOllama = (_prompt, _opts) => {
       ollamaCalled = true;
       return {
         ok: true,
@@ -789,7 +789,7 @@ describe("Autogen Pipeline — Full Pipeline", () => {
 
   it("handles ollama failure gracefully", async () => {
     const state = seedState(freshState(), 15);
-    const mockOllama = async () => { throw new Error("connection refused"); };
+    const mockOllama = () => { throw new Error("connection refused"); };
     const result = await runPipeline(state, { callOllama: mockOllama });
     assert.equal(result.ok, true); // Pipeline still succeeds without Ollama
     assert.ok(result.trace.stages.ollamaShaping.error);
@@ -847,9 +847,9 @@ describe("Autogen Pipeline — Full Pipeline", () => {
         meta: {},
       }));
     }
-    let cloudCalled = false;
+    let _cloudCalled = false;
     const result = await runPipeline(state, {
-      callCloud: async () => { cloudCalled = true; return { ok: true, content: "" }; },
+      callCloud: () => { _cloudCalled = true; return { ok: true, content: "" }; },
     });
     // Pipeline completes regardless
     if (result.ok) {

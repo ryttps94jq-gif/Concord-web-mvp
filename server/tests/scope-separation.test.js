@@ -21,7 +21,7 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  SCOPES, ALL_SCOPES, DTU_CLASSES, ALL_DTU_CLASSES,
+  SCOPES, ALL_SCOPES, ALL_DTU_CLASSES,
   HEARTBEAT_CONFIG,
   checkInfluence, isValidScope, isUpwardPromotion,
   ensureScopeState, assignScope, getDtuScope,
@@ -731,7 +731,7 @@ describe("Query Helpers", () => {
   });
 
   it("getPromotionHistory: returns records", () => {
-    const dtu = addDtu(STATE, makeDtu({ id: "promo_test", scope: "local", title: "Promo Test" }));
+    const _dtu = addDtu(STATE, makeDtu({ id: "promo_test", scope: "local", title: "Promo Test" }));
     promoteDtu(STATE, "promo_test", "marketplace", { actorId: "user_1" });
     const r = getPromotionHistory(STATE, "promo_test");
     assert.ok(r.ok);
@@ -739,7 +739,7 @@ describe("Query Helpers", () => {
   });
 
   it("getOverrideLog: returns records", () => {
-    const dtu = addDtu(STATE, makeDtu({ id: "override_test", scope: "local", title: "Override" }));
+    const _dtu = addDtu(STATE, makeDtu({ id: "override_test", scope: "local", title: "Override" }));
     promoteDtu(STATE, "override_test", "marketplace", {
       actorId: "founder",
       override: true,

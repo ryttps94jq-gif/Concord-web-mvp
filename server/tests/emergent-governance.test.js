@@ -27,11 +27,8 @@ import {
   CAPABILITIES,
   CONFIDENCE_LABELS,
   ALL_CONFIDENCE_LABELS,
-  INTENT_TYPES,
   SESSION_LIMITS,
   MEMORY_POLICIES,
-  GATE_RULES,
-  TIER_THRESHOLDS,
   validateEmergent,
   validateTurnStructure,
   contentHash,
@@ -46,18 +43,10 @@ import {
   getEmergent,
   listEmergents,
   deactivateEmergent,
-  createSession,
   getSession,
-  completeSession,
-  storeOutputBundle,
-  getOutputBundle,
-  storeGateTrace,
-  getGateTrace,
   getGateTracesForSession,
   getReputation,
   updateReputation,
-  storePattern,
-  getPatterns,
   checkRate,
 } from "../emergent/store.js";
 
@@ -71,7 +60,6 @@ import {
   gateNoveltyCheck,
   gateRiskCheck,
   gateEconomicCheck,
-  gateRateLimit,
   runAllGates,
 } from "../emergent/gates.js";
 
@@ -1151,7 +1139,7 @@ describe("Safety Invariants", () => {
   it("INVARIANT 4: No self-reinforcing delusion loops (anti-echo)", () => {
     // Sessions without critics should be flagged
     const STATE = freshState();
-    const es = getEmergentState(STATE);
+    const _es = getEmergentState(STATE);
 
     // Manually create a session without a critic
     const session = {
@@ -1226,7 +1214,7 @@ describe("Safety Invariants", () => {
 
     // Under 5 turns: anti-echo is lenient
     const shortSession = { ...session, turns: Array(4).fill({ intent: "suggestion" }) };
-    const pass = gateAntiEcho(shortSession);
+    const _pass = gateAntiEcho(shortSession);
     // At 4 turns, no critic check required yet
 
     // At 5+ turns: must have critic

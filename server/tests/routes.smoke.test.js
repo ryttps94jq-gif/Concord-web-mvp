@@ -8,15 +8,15 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
-import { initAtlasState, getAtlasState } from "../emergent/atlas-epistemic.js";
-import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "../emergent/atlas-scope-router.js";
-import { applyWrite, WRITE_OPS, runAutoPromoteGate, getWriteGuardLog, getWriteGuardMetrics } from "../emergent/atlas-write-guard.js";
+import { initAtlasState } from "../emergent/atlas-epistemic.js";
+import { initScopeState, scopedWrite, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "../emergent/atlas-scope-router.js";
+import { applyWrite, WRITE_OPS, getWriteGuardLog, getWriteGuardMetrics } from "../emergent/atlas-write-guard.js";
 import { retrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "../emergent/atlas-retrieval.js";
-import { chatRetrieve, saveAsDtu, publishToGlobal, getChatMetrics, recordChatExchange, getChatSession } from "../emergent/atlas-chat.js";
-import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, getRightsMetrics, computeContentHash } from "../emergent/atlas-rights.js";
+import { chatRetrieve, saveAsDtu, getChatMetrics, recordChatExchange, getChatSession } from "../emergent/atlas-chat.js";
+import { canUse, generateCitation, getOrigin, getRightsMetrics, computeContentHash } from "../emergent/atlas-rights.js";
 import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "../emergent/atlas-heartbeat.js";
 import { getInvariantMetrics, getInvariantLog } from "../emergent/atlas-invariants.js";
-import { SCOPES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
+import { SCOPES } from "../emergent/atlas-config.js";
 
 function makeTestState() {
   const STATE = { dtus: new Map(), shadowDtus: new Map(), sessions: new Map(), users: new Map(), orgs: new Map(), __emergent: null };

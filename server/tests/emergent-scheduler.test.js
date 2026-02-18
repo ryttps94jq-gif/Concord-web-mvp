@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 
 import {
   WORK_ITEM_TYPES, ALL_WORK_ITEM_TYPES, STOP_REASONS,
-  DEFAULT_WEIGHTS, DEFAULT_BUDGET,
+  DEFAULT_WEIGHTS,
   getScheduler,
   createWorkItem, scanAndCreateWorkItems,
   computePriority, rescoreQueue, updateWeights,

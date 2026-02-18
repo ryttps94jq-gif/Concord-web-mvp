@@ -104,7 +104,7 @@ after(() => { stopServer(); });
 
 describe('Storage Parity: Auth Operations', () => {
   let tokenA = null;
-  let tokenB = null;
+  let _tokenB = null;
 
   it('should report infrastructure status with storage type', async () => {
     const { status, data } = await api('GET', '/api/status');
@@ -121,10 +121,10 @@ describe('Storage Parity: Auth Operations', () => {
   });
 
   it('should register user B', async () => {
-    const { status, data } = await api('POST', '/api/auth/register', TEST_USERS[1]);
-    assert.strictEqual(status, 200, `Register failed: ${JSON.stringify(data)}`);
-    assert.ok(data.ok || data.token, 'Registration should succeed');
-    tokenB = data.token || null;
+    const { status, data: _data } = await api('POST', '/api/auth/register', TEST_USERS[1]);
+    assert.strictEqual(status, 200, `Register failed: ${JSON.stringify(_data)}`);
+    assert.ok(_data.ok || _data.token, 'Registration should succeed');
+    _tokenB = _data.token || null;
   });
 
   it('should reject duplicate username', async () => {
@@ -167,7 +167,7 @@ describe('Storage Parity: Auth Operations', () => {
 
   it('should list API keys for authenticated user', async () => {
     if (!tokenA) return;
-    const { status, data } = await api('GET', '/api/auth/api-keys', null, {
+    const { status, data: _data } = await api('GET', '/api/auth/api-keys', null, {
       Authorization: `Bearer ${tokenA}`,
     });
     assert.ok(status === 200 || status === 403, `API keys endpoint: ${status}`);
@@ -249,7 +249,7 @@ describe('Storage Parity: Macro ACL Enforcement', () => {
   });
 
   it('should allow public read macros without auth', async () => {
-    const { status, data } = await api('GET', '/api/status');
+    const { status, data: _data } = await api('GET', '/api/status');
     assert.strictEqual(status, 200, 'Public read macros should work without auth');
   });
 });

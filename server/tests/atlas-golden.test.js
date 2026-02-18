@@ -15,18 +15,18 @@
  *   9. Claim lanes: INTERPRETATION claim cannot have PROVEN evidence tier
  */
 
-import { describe, it, before, after } from "node:test";
+import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
 // ── Module imports ──────────────────────────────────────────────────────────
 
-import { initAtlasState, getAtlasState, ATLAS_STATUS, CLAIM_TYPES, EPISTEMIC_CLASSES } from "../emergent/atlas-epistemic.js";
-import { createAtlasDtu, promoteAtlasDtu, addAtlasLink, recomputeScores, getContradictions } from "../emergent/atlas-store.js";
+import { initAtlasState, getAtlasState } from "../emergent/atlas-epistemic.js";
+import { createAtlasDtu, promoteAtlasDtu, addAtlasLink, getContradictions } from "../emergent/atlas-store.js";
 import { detectLineageCycle } from "../emergent/atlas-antigaming.js";
 import { runAutoPromoteGate, applyWrite, WRITE_OPS, ingestAutogenCandidate } from "../emergent/atlas-write-guard.js";
 import { initScopeState, scopedWrite, getDtuScope, createSubmission, getScopeMetrics } from "../emergent/atlas-scope-router.js";
-import { assertInvariant, assertClaimLanes, assertNoCitedFactGaps, resetInvariantMetrics } from "../emergent/atlas-invariants.js";
-import { SCOPES, AUTO_PROMOTE_THRESHOLDS, LOCAL_STATUS, GLOBAL_STATUS } from "../emergent/atlas-config.js";
+import { assertClaimLanes, resetInvariantMetrics } from "../emergent/atlas-invariants.js";
+import { SCOPES } from "../emergent/atlas-config.js";
 import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "../emergent/atlas-heartbeat.js";
 import { retrieve as atlasRetrieve } from "../emergent/atlas-retrieval.js";
 
@@ -109,7 +109,7 @@ describe("Golden 1: Promotion Gate", () => {
     assert.ok(result.ok, "DTU should be created (in DRAFT)");
 
     // Promote to PROPOSED first
-    const proposed = promoteAtlasDtu(STATE, result.dtu.id, "PROPOSED", "test");
+    promoteAtlasDtu(STATE, result.dtu.id, "PROPOSED", "test");
 
     // Try to verify — should fail because uncited facts exist
     const gate = runAutoPromoteGate(STATE, result.dtu, SCOPES.GLOBAL);
@@ -184,7 +184,6 @@ describe("Golden 2: Contradiction Gate", () => {
     // if HIGH severity AND source has higher confidence AND target is VERIFIED → dispute target
     // In our case, dtu1 is VERIFIED with higher confidence, so dtu1 might get disputed
     // OR dtu2 (the new one) should be marked as DISPUTED
-    const d2 = atlas.dtus.get(dtu2.dtu.id);
     const contras = getContradictions(STATE, dtu2.dtu.id);
     assert.ok(contras.ok, "Should get contradictions");
     assert.ok(contras.contradictions.length > 0, "Should have at least one contradiction");
@@ -656,7 +655,6 @@ describe("Golden 14: Store-Level Lane", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { chatRetrieve, saveAsDtu, publishToGlobal, getChatMetrics, recordChatExchange, getChatSession } from "../emergent/atlas-chat.js";
-import { CHAT_PROFILE } from "../emergent/atlas-config.js";
 
 describe("Golden 15: Chat Loose Mode — Fast Pipeline", () => {
   let STATE;
@@ -867,12 +865,12 @@ describe("Golden 19: Chat Session Tracking", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import {
-  computeContentHash, canonicalizeContent, computeEvidenceHash, computeLineageHash,
+  computeContentHash,
   resolveLicense, validateLicense, canUse, validateDerivativeRights,
-  validateMarketplaceListing, recordOrigin, getOrigin, verifyOriginIntegrity,
-  generateCitation, grantTransferRights, stampArtifactRights, getRightsMetrics,
+  getOrigin, verifyOriginIntegrity,
+  generateCitation, grantTransferRights,
 } from "../emergent/atlas-rights.js";
-import { LICENSE_TYPES, LICENSE_PROFILES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
+import { LICENSE_TYPES, RIGHTS_ACTIONS } from "../emergent/atlas-config.js";
 
 describe("Golden 20: Content Hashing + Proof of Origin", () => {
   let STATE;
@@ -951,7 +949,7 @@ describe("Golden 21: License Defaults by Lane", () => {
   });
 
   it("should require explicit license for Marketplace (no default)", () => {
-    const { license_type, isDefault } = resolveLicense({}, "marketplace");
+    const { isDefault } = resolveLicense({}, "marketplace");
     // Marketplace has null default, falls back to PERSONAL
     assert.ok(isDefault, "Should be a fallback default since marketplace has no auto-default");
   });

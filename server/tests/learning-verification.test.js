@@ -18,29 +18,28 @@ import assert from "node:assert/strict";
 // ── Stage 1-2: Outcomes + Learning ──────────────────────────────────────────
 
 import {
-  OUTCOME_SIGNALS, ALL_OUTCOME_SIGNALS,
-  recordOutcome, getOutcomesForWorkItem, getOutcomesForAllocation,
+  OUTCOME_SIGNALS,
+  recordOutcome, getOutcomesForWorkItem,
   getOutcomesForEmergent, getOutcomeStats,
-  runWeightLearning, getAssignmentRecommendations, getWeightHistory,
+  runWeightLearning, getAssignmentRecommendations,
 } from "../emergent/outcomes.js";
 
 // ── Stage 3: Skills ─────────────────────────────────────────────────────────
 
 import {
-  SKILL_TYPES, ALL_SKILL_TYPES, SKILL_MATURITY,
+  SKILL_TYPES, SKILL_MATURITY,
   createReasoningTemplate, createMacroPlaybook, createTestBundle,
-  recordSkillApplication, getSkill, querySkills, findMatchingSkills,
-  distillPatternsToSkills, deprecateSkill, getSkillMetrics,
+  recordSkillApplication, getSkill, findMatchingSkills,
 } from "../emergent/skills.js";
 
 // ── Stage 4: Projects ───────────────────────────────────────────────────────
 
 import {
-  PROJECT_STATUS, NODE_STATUS,
+  PROJECT_STATUS,
   createProject, addNode, startProject,
-  getReadyNodes, scheduleReadyNodes, completeNode, failNode,
-  pauseProject, resumeProject, cancelProject,
-  getProject, listProjects, getProjectMetrics,
+  getReadyNodes, completeNode, failNode,
+  pauseProject, resumeProject,
+  getProject,
 } from "../emergent/projects.js";
 
 // ── Stage 5: Institutional Memory ───────────────────────────────────────────
@@ -48,26 +47,25 @@ import {
 import {
   MEMORY_CATEGORIES,
   recordObservation, recordFailure, recordSuccess,
-  createAdvisory, getActiveAdvisories, acknowledgeAdvisory, dismissAdvisory,
-  queryObservations, getFailureRates, getRecurrences, getStabilityMap,
-  getInstitutionalMemoryMetrics,
+  createAdvisory, getActiveAdvisories, dismissAdvisory,
+  getFailureRates, getRecurrences,
 } from "../emergent/institutional-memory.js";
 
 // ── Stage 6: Evidence + Truth Maintenance ───────────────────────────────────
 
 import {
   EPISTEMIC_STATUS, EVIDENCE_TYPES,
-  attachEvidence, getEvidenceForDtu, supersedeEvidence,
-  recomputeEpistemicStatus, deprecateDtu, retractDtu,
-  getMaintenanceHistory, getDtusByStatus, getConfidenceMap, getEvidenceMetrics,
+  attachEvidence, getEvidenceForDtu,
+  deprecateDtu, retractDtu,
+  getMaintenanceHistory, getDtusByStatus,
 } from "../emergent/evidence.js";
 
 // ── Stage 6: Verification Pipelines ─────────────────────────────────────────
 
 import {
   CHECK_TYPES, CHECK_RESULTS,
-  createPipeline, getPipeline, listPipelines,
-  runPipeline, verifyDtu, getVerificationHistory, getVerificationMetrics,
+  createPipeline,
+  runPipeline, verifyDtu,
 } from "../emergent/verification-pipeline.js";
 
 // ── Stage 8: Goals ──────────────────────────────────────────────────────────
@@ -75,17 +73,17 @@ import {
 import {
   GOAL_TYPES,
   scanForGoals, scheduleGoal, completeGoal, dismissGoal,
-  getActiveGoals, updateThresholds, getGoalMetrics,
+  updateThresholds,
 } from "../emergent/goals.js";
 
 // ── Stage 9: Constitution ───────────────────────────────────────────────────
 
 import {
-  RULE_TIERS, RULE_CATEGORIES, VIOLATION_SEVERITY,
+  RULE_TIERS, RULE_CATEGORIES,
   getConstitutionStore,
   addRule, amendRule, deactivateRule,
-  checkRules, getRules, getRule,
-  getAmendmentHistory, getViolationHistory, getConstitutionMetrics,
+  checkRules, getRules,
+  getAmendmentHistory, getConstitutionMetrics,
 } from "../emergent/constitution.js";
 
 // ── Shared dependencies ─────────────────────────────────────────────────────
@@ -505,7 +503,7 @@ describe("Stage 4: Long-Horizon Projects", () => {
       const { project } = createProject(STATE, { name: "Test" });
 
       const r1 = addNode(STATE, project.projectId, { name: "Root 1" });
-      const r2 = addNode(STATE, project.projectId, { name: "Root 2" });
+      const _r2 = addNode(STATE, project.projectId, { name: "Root 2" });
       addNode(STATE, project.projectId, { name: "Dependent", prerequisites: [r1.node.nodeId] });
 
       const startResult = startProject(STATE, project.projectId);
@@ -555,7 +553,7 @@ describe("Stage 4: Long-Horizon Projects", () => {
       const { project } = createProject(STATE, { name: "Fail Test" });
 
       const r1 = addNode(STATE, project.projectId, { name: "Will Fail" });
-      const r2 = addNode(STATE, project.projectId, { name: "Blocked", prerequisites: [r1.node.nodeId] });
+      const _r2 = addNode(STATE, project.projectId, { name: "Blocked", prerequisites: [r1.node.nodeId] });
 
       startProject(STATE, project.projectId);
       failNode(STATE, project.projectId, r1.node.nodeId, "test failure");

@@ -8,7 +8,7 @@
  * to validate the auth logic without needing a running server.
  */
 
-import { describe, it, before, after } from "node:test";
+import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
 // We test the auth functions from server.js by importing them.
@@ -64,7 +64,7 @@ describe("E2E Auth Flow", () => {
   function me(token) {
     if (!token) return { ok: false, status: 401, error: "No token" };
     try {
-      const payload = verifyToken(token);
+      const _payload = verifyToken(token);
       const userId = sessions.get(token);
       if (!userId) return { ok: false, status: 401, error: "Session expired" };
       const user = [...users.values()].find(u => u.id === userId);

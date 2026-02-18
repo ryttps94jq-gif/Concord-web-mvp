@@ -41,7 +41,7 @@ function createHarness() {
     return artifact;
   }
 
-  async function runAction(domain, action, artifact, params = {}) {
+  function runAction(domain, action, artifact, params = {}) {
     const handler = actions.get(`${domain}.${action}`);
     if (!handler) throw new Error(`No handler for ${domain}.${action}`);
     const ctx = { actor: { userId: "test-user" } };

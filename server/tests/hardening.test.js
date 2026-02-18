@@ -16,40 +16,40 @@ import assert from "node:assert/strict";
 // ── Module imports ──────────────────────────────────────────────────────────
 
 import {
-  COST_TIERS, ALL_COST_TIERS,
+  COST_TIERS,
   getThreatStore, registerRouteCost, registerRouteCosts, getRouteCost,
   checkRateLimit, checkCostBudget,
   auditEndpoints, analyzeUserActivity,
-  blockUser, unblockUser, updateThreatConfig, getThreatMetrics,
+  blockUser, unblockUser, getThreatMetrics,
 } from "../emergent/threat-surface.js";
 
 import {
-  INJECTION_TYPES, ALL_INJECTION_TYPES, THREAT_LEVELS,
-  getInjectionStore, scanContent, scanDtu, checkCrossLensLeak,
-  addCustomPattern, getInjectionMetrics, getInjectionIncidents,
+  INJECTION_TYPES, THREAT_LEVELS,
+  scanContent, scanDtu, checkCrossLensLeak,
+  addCustomPattern, getInjectionMetrics,
 } from "../emergent/injection-defense.js";
 
 import {
-  DRIFT_TYPES, ALL_DRIFT_TYPES, DRIFT_SEVERITY,
+  DRIFT_TYPES,
   getDriftStore, runDriftScan, getDriftAlerts, updateDriftThresholds,
   getDriftMetrics, getSnapshots,
 } from "../emergent/drift-monitor.js";
 
 import {
   CURRENT_DTU_SCHEMA_VERSION,
-  getSchemaGuardStore, validateDtuSchema, migrateDtu, scanForMigrations,
+  validateDtuSchema, migrateDtu, scanForMigrations,
   validateMergeResult, recordTimestamp, verifyEventOrdering,
   getSchemaGuardMetrics,
 } from "../emergent/schema-guard.js";
 
 import {
   HEALTH_STATUS,
-  getDeepHealthStore, runDeepHealthCheck, getHealthHistory,
+  runDeepHealthCheck, getHealthHistory,
   getDegradationHistory, updateHealthThresholds, getDeepHealthMetrics,
 } from "../emergent/deep-health.js";
 
 import {
-  PII_TYPES, ALL_PII_TYPES, ADVICE_DOMAINS, ALL_ADVICE_DOMAINS, CONTENT_RISK,
+  PII_TYPES, ADVICE_DOMAINS, CONTENT_RISK,
   getContentShieldStore, detectPii, detectCopyrightSignals, checkAdviceFraming,
   scanContentFull, setDisclaimer, getDisclaimer, getAllDisclaimers,
   updateContentShieldConfig, getContentShieldMetrics,
@@ -453,7 +453,7 @@ describe("Drift Monitor", () => {
     });
 
     it("should set baseline capabilities on first scan", () => {
-      const result = runDriftScan(STATE);
+      const _result = runDriftScan(STATE);
       const store = getDriftStore(STATE);
       assert.ok(store.baselineCapabilities);
       assert.ok("macroCount" in store.baselineCapabilities);
@@ -480,7 +480,7 @@ describe("Drift Monitor", () => {
     });
 
     it("should reject non-numeric threshold values", () => {
-      const result = updateDriftThresholds(STATE, { maxNoveltyWithoutEvidence: "not a number" });
+      const _result = updateDriftThresholds(STATE, { maxNoveltyWithoutEvidence: "not a number" });
       const store = getDriftStore(STATE);
       assert.notEqual(store.thresholds.maxNoveltyWithoutEvidence, "not a number");
     });
