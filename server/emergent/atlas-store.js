@@ -6,12 +6,11 @@
  */
 
 import crypto from "crypto";
-import { getEmergentState } from "./store.js";
+import { getEmergentState as _getEmergentState } from "./store.js";
 import {
-  ATLAS_STATUS, CLAIM_TYPES, SOURCE_TIERS, EVIDENCE_TIERS,
-  DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, canTransition,
+  ATLAS_STATUS, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, canTransition,
   computeAtlasScores, explainScores, validateAtlasDtu,
-  getThresholds, getEpistemicClass, initAtlasState, getAtlasState,
+  getThresholds, getEpistemicClass, getAtlasState,
 } from "./atlas-epistemic.js";
 
 // ── Atlas DTU ID generator ───────────────────────────────────────────────

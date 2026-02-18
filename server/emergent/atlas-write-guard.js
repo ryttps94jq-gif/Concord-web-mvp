@@ -14,21 +14,15 @@
 
 import {
   SCOPES,
-  STRICTNESS_PROFILES,
   VALIDATION_LEVEL,
-  AUTO_PROMOTE_THRESHOLDS,
   DUP_THRESH,
   ATLAS_SCHEMA_VERSION,
-  getInitialStatus,
   getAutoPromoteConfig,
   getStrictnessProfile,
   canLaneTransition,
 } from "./atlas-config.js";
 import {
-  validateAtlasDtu,
-  computeAtlasScores,
   getAtlasState,
-  ATLAS_STATUS,
   CLAIM_TYPES,
   getEpistemicClass,
   DOMAIN_TYPE_SET,
@@ -38,14 +32,10 @@ import { createAtlasDtu, promoteAtlasDtu, recomputeScores, contentHash } from ".
 import { runAntiGamingScan, findNearDuplicates, detectLineageCycle } from "./atlas-antigaming.js";
 import { stampArtifactRights, recordOrigin, validateDerivativeRights } from "./atlas-rights.js";
 import {
-  assertInvariant,
   assertTyped,
   assertClaimLanes,
   assertNoCitedFactGaps,
-  assertNoCycle,
-  assertNotDuplicate,
   assertModelAssumptions,
-  assertSoft,
 } from "./atlas-invariants.js";
 
 // ── Write operations ────────────────────────────────────────────────────────
@@ -330,7 +320,7 @@ function _guardedUpdate(STATE, payload, ctx, profile, isHard) {
 
 // ── Internal: Guarded Promote (the ONLY path to VERIFIED) ───────────────────
 
-function _guardedPromote(STATE, payload, ctx, profile, isHard) {
+function _guardedPromote(STATE, payload, ctx, profile, _isHard) {
   const scope = ctx.scope || SCOPES.GLOBAL;
   const atlas = getAtlasState(STATE);
   const { dtuId, targetStatus } = payload;
@@ -392,8 +382,7 @@ function _guardedPromote(STATE, payload, ctx, profile, isHard) {
  * Rule-based gate. Returns { pass: boolean, reason: string, suggestedStatus: string }.
  * A DTU passes ONLY if ALL conditions are met.
  */
-export function runAutoPromoteGate(STATE, dtu, scope = SCOPES.GLOBAL) {
-  const atlas = getAtlasState(STATE);
+export function runAutoPromoteGate(STATE, dtu, _scope = SCOPES.GLOBAL) {
   const eClass = dtu.epistemicClass;
   const config = getAutoPromoteConfig(eClass);
   const checks = [];

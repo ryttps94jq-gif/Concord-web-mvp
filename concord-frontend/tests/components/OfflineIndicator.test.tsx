@@ -4,10 +4,10 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 // Mock framer-motion to render plain elements
 vi.mock('framer-motion', () => ({
   motion: {
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children}</button>,
+    div: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children}</div>,
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock lucide-react

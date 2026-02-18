@@ -18,13 +18,13 @@ vi.mock('lucide-react', () => ({
 // Mock UI store
 const mockClearRequestErrors = vi.fn();
 const mockUIStoreState = {
-  requestErrors: [] as any[],
+  requestErrors: [] as unknown[],
   clearRequestErrors: mockClearRequestErrors,
   authPosture: { mode: 'jwt', usesJwt: true, usesApiKey: false },
 };
 
 vi.mock('@/store/ui', () => ({
-  useUIStore: (selector: (s: any) => any) => selector(mockUIStoreState),
+  useUIStore: (selector: (s: Record<string, unknown>) => unknown) => selector(mockUIStoreState as unknown as Record<string, unknown>),
 }));
 
 import { OperatorErrorBanner } from '@/components/common/OperatorErrorBanner';

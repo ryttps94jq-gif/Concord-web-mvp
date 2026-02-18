@@ -24,9 +24,9 @@ vi.mock('@/lib/api/client', () => ({
 
 // Control useQuery return value
 const mockQueryReturn = {
-  data: { ok: true, version: '5.0.0', infrastructure: { auth: { mode: 'jwt' } } } as any,
+  data: { ok: true, version: '5.0.0', infrastructure: { auth: { mode: 'jwt' } } } as Record<string, unknown>,
   isError: false,
-  error: null as any,
+  error: null as unknown,
 };
 
 vi.mock('@tanstack/react-query', () => ({
@@ -36,13 +36,13 @@ vi.mock('@tanstack/react-query', () => ({
 // Mock UI store
 const mockClearRequestErrors = vi.fn();
 const mockUIStoreState = {
-  requestErrors: [] as any[],
+  requestErrors: [] as unknown[],
   clearRequestErrors: mockClearRequestErrors,
   authPosture: { mode: 'jwt', usesJwt: true, usesApiKey: false },
 };
 
 vi.mock('@/store/ui', () => ({
-  useUIStore: (selector: (s: any) => any) => selector(mockUIStoreState),
+  useUIStore: (selector: (s: Record<string, unknown>) => unknown) => selector(mockUIStoreState as unknown as Record<string, unknown>),
 }));
 
 import { SystemStatus } from '@/components/common/SystemStatus';
