@@ -33,8 +33,8 @@ import { spawnSync } from "child_process";
 import { createRequire } from "module";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
-import { ConcordError, NotFoundError, AuthenticationError, AuthorizationError, ConflictError, RateLimitError, ServiceUnavailableError, DatabaseError } from "./lib/errors.js";
-import { asyncHandler, createErrorMiddleware } from "./lib/async-handler.js";
+import { ConcordError } from "./lib/errors.js";
+import { asyncHandler } from "./lib/async-handler.js";
 import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
 import configureMiddleware from "./middleware/index.js";
 
@@ -48,9 +48,7 @@ import { registerGuidanceEndpoints } from "./guidance.js";
 // ---- Economy System: ledger, balances, transfers, withdrawals ----
 import {
   registerEconomyEndpoints,
-  hasSufficientBalance,
   calculateFee,
-  FEES,
   PLATFORM_ACCOUNT_ID,
   recordTransactionBatch,
   generateTxId,
@@ -64,27 +62,27 @@ import {
 } from "./economy/index.js";
 
 // ---- Atlas + Platform Upgrade Imports (v2) ----
-import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, DOMAIN_TYPE_SET, EPISTEMIC_CLASS_SET, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
+import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, computeAtlasScores, explainScores, validateAtlasDtu, getThresholds, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
 import { createAtlasDtu, getAtlasDtu, searchAtlasDtus, promoteAtlasDtu, addAtlasLink, getScoreExplanation, recomputeScores, registerEntity, getEntity, getContradictions, getAtlasMetrics, contentHash } from "./emergent/atlas-store.js";
-import { detectLineageCycle, detectSupportRing, analyzeSourceUniqueness, checkAuthorInfluence, computeSimilarity, findNearDuplicates, runAntiGamingScan, getAntiGamingMetrics } from "./emergent/atlas-antigaming.js";
-import { runAutogenV2, selectInputDtus, getAutogenRun, acceptAutogenOutput, mergeAutogenOutput, propagateConfidence, getAutogenV2Metrics } from "./emergent/atlas-autogen-v2.js";
+import { runAntiGamingScan, getAntiGamingMetrics } from "./emergent/atlas-antigaming.js";
+import { runAutogenV2, getAutogenRun, acceptAutogenOutput, mergeAutogenOutput, propagateConfidence, getAutogenV2Metrics } from "./emergent/atlas-autogen-v2.js";
 import { councilResolve, getCouncilQueue, councilRequestSources, councilMerge, getCouncilActions, getCouncilMetrics } from "./emergent/atlas-council.js";
-import { upsertProfile, getProfile, listProfiles, followUser, unfollowUser, getFollowers, getFollowing, publishDtu, unpublishDtu, recordCitation, getCitedBy, getFeed, computeTrending, discoverUsers, getSocialMetrics } from "./emergent/social-layer.js";
+import { upsertProfile, getProfile, listProfiles, followUser, unfollowUser, getFollowers, getFollowing, publishDtu, unpublishDtu, getFeed, computeTrending, discoverUsers, getSocialMetrics } from "./emergent/social-layer.js";
 import { createWorkspace as collabCreateWorkspace, getWorkspace as collabGetWorkspace, listWorkspaces as collabListWorkspaces, addWorkspaceMember as collabAddWorkspaceMember, removeWorkspaceMember as collabRemoveWorkspaceMember, addDtuToWorkspace as collabAddDtuToWorkspace, addComment as collabAddComment, getComments as collabGetComments, editComment as collabEditComment, resolveComment as collabResolveComment, proposeRevision, getRevisionProposals, voteOnRevision, applyRevision, startEditSession, recordEdit, endEditSession, getCollabMetrics } from "./emergent/collaboration.js";
 import { ROLES, createOrgWorkspace, getOrgWorkspace, assignRole, revokeRole, getUserRole, getOrgMembers, checkPermission, getUserPermissions, assignOrgLens, revokeOrgLens, getOrgLenses, setResourceACL, checkResourceAccess, exportAuditLog, getRbacMetrics } from "./emergent/rbac.js";
-import { takeSnapshot as takeAnalyticsSnapshot, getPersonalAnalytics, getDtuGrowthTrends, getCitationAnalytics, getMarketplaceAnalytics as getMarketAnalytics, getKnowledgeDensity, getAtlasDomainAnalytics, getDashboardSummary } from "./emergent/analytics-dashboard.js";
+import { getPersonalAnalytics, getDtuGrowthTrends, getCitationAnalytics, getMarketplaceAnalytics as getMarketAnalytics, getKnowledgeDensity, getAtlasDomainAnalytics, getDashboardSummary } from "./emergent/analytics-dashboard.js";
 import { registerWebhook as registerWh, getWebhook, listWebhooks, deactivateWebhook, deleteWebhook, dispatchWebhookEvent, processPendingDeliveries, getDeliveryHistory, checkApiRateLimit, getApiMetrics, WEBHOOK_EVENTS } from "./emergent/public-api.js";
-import { tagDataRegion, getDataRegion, checkRegionAccess, setExportControls, checkExportAllowed, exportData, createDataPartition, getDataPartition, setRetentionPolicy, getRetentionPolicy, getComplianceLog, recordDPA, getComplianceStatus } from "./emergent/compliance.js";
+import { tagDataRegion, getDataRegion, setExportControls, checkExportAllowed, exportData, createDataPartition, getDataPartition, setRetentionPolicy, getRetentionPolicy, getComplianceLog, getComplianceStatus } from "./emergent/compliance.js";
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
-import { recordSubstrateReuse, recordLlmCall, recordCacheEvent, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
+import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
 
 // ---- Atlas v2 Default-On + 3-Lane Separation Imports ----
-import { SCOPES, RETRIEVAL_POLICY, AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig, getStrictnessProfile } from "./emergent/atlas-config.js";
+import { AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig, getStrictnessProfile } from "./emergent/atlas-config.js";
 import { assertInvariant, assertSoft, getInvariantMetrics, getInvariantLog } from "./emergent/atlas-invariants.js";
-import { applyWrite, WRITE_OPS, runAutoPromoteGate, ingestAutogenCandidate, guardedDtuWrite, getWriteGuardLog, getWriteGuardMetrics } from "./emergent/atlas-write-guard.js";
+import { applyWrite, runAutoPromoteGate, getWriteGuardLog, getWriteGuardMetrics } from "./emergent/atlas-write-guard.js";
 import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "./emergent/atlas-scope-router.js";
-import { tickLocal, tickGlobal, tickMarketplace, tickAll, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
-import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
+import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
+import { retrieve as atlasRetrieve, retrieveForChat, retrieveFromScope } from "./emergent/atlas-retrieval.js";
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
 import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransferRights, getRightsMetrics, computeContentHash as rightsContentHash } from "./emergent/atlas-rights.js";
 
