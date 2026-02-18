@@ -71,16 +71,16 @@ import { upsertProfile, getProfile, listProfiles, followUser, unfollowUser, getF
 import { createWorkspace as collabCreateWorkspace, getWorkspace as collabGetWorkspace, listWorkspaces as collabListWorkspaces, addWorkspaceMember as collabAddWorkspaceMember, removeWorkspaceMember as collabRemoveWorkspaceMember, addDtuToWorkspace as collabAddDtuToWorkspace, addComment as collabAddComment, getComments as collabGetComments, editComment as collabEditComment, resolveComment as collabResolveComment, proposeRevision, getRevisionProposals, voteOnRevision, applyRevision, startEditSession, recordEdit, endEditSession, getCollabMetrics } from "./emergent/collaboration.js";
 import { createOrgWorkspace, getOrgWorkspace, assignRole, revokeRole, getUserRole, getOrgMembers, checkPermission, getUserPermissions, assignOrgLens, getOrgLenses, exportAuditLog, getRbacMetrics } from "./emergent/rbac.js";
 import { takeSnapshot as takeAnalyticsSnapshot, getPersonalAnalytics, getDtuGrowthTrends, getCitationAnalytics, getMarketplaceAnalytics as getMarketAnalytics, getKnowledgeDensity, getAtlasDomainAnalytics, getDashboardSummary } from "./emergent/analytics-dashboard.js";
-import { registerWebhook as registerWh, getWebhook, listWebhooks, deactivateWebhook, deleteWebhook, dispatchWebhookEvent, processPendingDeliveries, getDeliveryHistory, checkApiRateLimit, getApiMetrics, WEBHOOK_EVENTS } from "./emergent/public-api.js";
+import { registerWebhook as registerWh, getWebhook, listWebhooks, deactivateWebhook, deleteWebhook, dispatchWebhookEvent, processPendingDeliveries, getDeliveryHistory, getApiMetrics } from "./emergent/public-api.js";
 import { tagDataRegion, getDataRegion, setExportControls, checkExportAllowed, exportData, createDataPartition, getDataPartition, setRetentionPolicy, getRetentionPolicy, getComplianceLog, getComplianceStatus } from "./emergent/compliance.js";
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
 import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
 
 // ---- Atlas v2 Default-On + 3-Lane Separation Imports ----
-import { AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig, getStrictnessProfile } from "./emergent/atlas-config.js";
-import { assertInvariant, assertSoft, getInvariantMetrics, getInvariantLog } from "./emergent/atlas-invariants.js";
+import { AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig } from "./emergent/atlas-config.js";
+import { getInvariantMetrics, getInvariantLog } from "./emergent/atlas-invariants.js";
 import { applyWrite, runAutoPromoteGate, getWriteGuardLog, getWriteGuardMetrics } from "./emergent/atlas-write-guard.js";
-import { initScopeState, scopedWrite, scopedRetrieve, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "./emergent/atlas-scope-router.js";
+import { initScopeState, scopedWrite, createSubmission, processSubmission, approveSubmission, rejectSubmission, getSubmission, listSubmissions, getDtuScope, getScopeMetrics, getLocalQualityHints } from "./emergent/atlas-scope-router.js";
 import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "./emergent/atlas-heartbeat.js";
 import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
@@ -1657,7 +1657,7 @@ function patternLinguisticRewrite(dtuContext, styleVector, affectPolicy) {
 function patternMultiLensConvergence(query, microSet, lensArtifacts) {
   // Detect multi-domain intent
   const pseudoDtu = { title: String(query).slice(0, 100), human: { summary: String(query).slice(0, 300) }, tags: [] };
-  const primaryDomain = classifyDomain(pseudoDtu);
+  const _primaryDomain = classifyDomain(pseudoDtu);
 
   // Check if micro-set DTUs span multiple domains
   const domainCounts = {};
@@ -1829,7 +1829,7 @@ function _resolveContradiction(dtuA, dtuB, atomA, atomB) {
 // Allocate token budget per DTU based on resonance score.
 
 function patternResonanceWeightedPrompt(microSet, queryIntent, tokenBudget) {
-  const budget = tokenBudget || 2000;
+  const _budget = tokenBudget || 2000;
   if (!microSet || !microSet.length) return [];
 
   // Calculate resonance for each DTU in context
@@ -9787,7 +9787,7 @@ const PLUGIN_HOOKS = {
   "search:afterQuery": []
 };
 
-function registerPlugin(plugin) {
+function _registerPlugin(plugin) {
   if (!plugin.id || !plugin.name) {
     return { ok: false, error: "Plugin must have id and name" };
   }
@@ -9847,7 +9847,7 @@ async function _executeHook(hookName, context) {
   return result;
 }
 
-function listPlugins() {
+function _listPlugins() {
   return Array.from(PLUGINS.values()).map(p => ({
     id: p.id,
     name: p.name,
