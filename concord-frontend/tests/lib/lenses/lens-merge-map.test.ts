@@ -8,7 +8,7 @@ import {
   getMergeReductionCount,
   POST_MERGE_STANDALONE_LENSES,
 } from '@/lib/lenses/lens-merge-map';
-import type { MergeGroup, MergeSource, PostMergeStandaloneLens } from '@/lib/lenses/lens-merge-map';
+
 
 describe('LENS_MERGE_GROUPS', () => {
   it('is a non-empty array', () => {

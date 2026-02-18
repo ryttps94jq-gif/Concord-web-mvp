@@ -9,7 +9,7 @@ import {
   isPublicLens,
   getLensStatusSummary,
 } from '@/lib/lenses/lens-status';
-import type { LensStatus, LensStatusEntry } from '@/lib/lenses/lens-status';
+import type { LensStatus } from '@/lib/lenses/lens-status';
 
 describe('LENS_STATUS_MAP', () => {
   it('is a non-empty array', () => {

@@ -156,7 +156,7 @@ export function distillSession(STATE, sessionId) {
     return { ok: false, error: "session_not_found" };
   }
 
-  const bundle = session.outputBundle
+  const _bundle = session.outputBundle
     ? getOutputBundle(es, session.outputBundle)
     : null;
 

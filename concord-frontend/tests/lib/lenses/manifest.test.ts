@@ -7,7 +7,7 @@ import {
   getManifestCount,
   getLensesMissingMacro,
 } from '@/lib/lenses/manifest';
-import type { LensManifest } from '@/lib/lenses/manifest';
+
 
 describe('LENS_MANIFESTS', () => {
   it('is a non-empty array', () => {

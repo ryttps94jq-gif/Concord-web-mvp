@@ -15,8 +15,6 @@
 import {
   PROMOTION_TIERS,
   TIER_THRESHOLDS,
-  EMERGENT_ROLES,
-  ALL_ROLES,
 } from "./schema.js";
 
 import {
@@ -24,7 +22,6 @@ import {
   getOutputBundle,
   getReputation,
   updateReputation,
-  storePattern,
   registerEmergent,
 } from "./store.js";
 

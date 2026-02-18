@@ -24,10 +24,8 @@
  */
 
 import {
-  EMERGENT_ROLES,
   ALL_ROLES,
   CAPABILITIES,
-  CONFIDENCE_LABELS,
   ALL_CONFIDENCE_LABELS,
   INTENT_TYPES,
   SESSION_LIMITS,
@@ -87,14 +85,14 @@ import {
 } from "./lattice-ops.js";
 
 import {
-  EDGE_TYPES, ALL_EDGE_TYPES,
+  ALL_EDGE_TYPES,
   createEdge, getEdge, queryEdges, updateEdge, removeEdge,
   getNeighborhood, findPaths, getEdgeMetrics,
 } from "./edges.js";
 
 import {
   activate, spreadActivation, getWorkingSet,
-  getGlobalActivation, decaySession, clearSessionActivation,
+  getGlobalActivation, decaySession,
   getActivationMetrics,
 } from "./activation.js";
 
@@ -120,10 +118,10 @@ import {
 // ── Cognition Scheduler imports ─────────────────────────────────────────────
 
 import {
-  WORK_ITEM_TYPES, ALL_WORK_ITEM_TYPES, STOP_REASONS,
+  ALL_WORK_ITEM_TYPES, STOP_REASONS,
   DEFAULT_WEIGHTS, DEFAULT_BUDGET,
   createWorkItem, scanAndCreateWorkItems,
-  computePriority, rescoreQueue, updateWeights,
+  rescoreQueue, updateWeights,
   checkBudget, getBudgetStatus, updateBudget,
   allocate, getAllocation, recordTurn, recordProposal,
   completeAllocation,

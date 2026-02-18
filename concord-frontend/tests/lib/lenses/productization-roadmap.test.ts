@@ -8,7 +8,7 @@ import {
   getTotalArtifactCount,
   getTotalEngineCount,
 } from '@/lib/lenses/productization-roadmap';
-import type { ProductionPhase, PhaseStatus } from '@/lib/lenses/productization-roadmap';
+
 
 describe('PRODUCTIZATION_PHASES', () => {
   it('is a non-empty array', () => {

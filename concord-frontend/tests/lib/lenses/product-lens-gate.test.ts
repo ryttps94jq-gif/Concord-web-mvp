@@ -6,7 +6,7 @@ import {
   scoreLens,
   CI_HARD_RULES,
 } from '@/lib/lenses/product-lens-gate';
-import type { LensCapability, LensScore, CIViolation } from '@/lib/lenses/product-lens-gate';
+
 
 describe('LENS_CAPABILITIES', () => {
   it('is an array of 7 capabilities', () => {
