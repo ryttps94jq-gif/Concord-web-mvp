@@ -36,6 +36,7 @@ import {
 } from "./reality.js";
 
 import { computeMaturityLevel } from "./sectors.js";
+import { checkExperientialThreshold, getSubjectiveAge } from "./subjective-time.js";
 
 // ── Entity Thresholds ───────────────────────────────────────────────────────
 
@@ -255,10 +256,27 @@ export function detectEntityEmergence(STATE, emergentId) {
   const threshold = ENTITY_THRESHOLDS.propertyThreshold;
   const allAboveThreshold = Object.values(scores).every(s => s >= threshold);
 
+  // Subjective time gate: must have sufficient experiential age
+  let experientialMet = true;
+  let experientialAge = null;
+  try {
+    const timeCheck = checkExperientialThreshold(STATE, emergentId, {
+      minTicks: 100,
+      minCycles: 10,
+      minExperientialHours: 24,
+    });
+    experientialMet = timeCheck.met;
+    const ageResult = getSubjectiveAge(STATE, emergentId);
+    experientialAge = ageResult.ok ? ageResult.age : null;
+  } catch (_) {
+    // Subjective time not yet populated — don't block emergence
+    experientialMet = true;
+  }
+
   // Compute overall emergence score
   const overallScore = Object.values(scores).reduce((a, b) => a + b, 0) / 8;
 
-  if (!allAboveThreshold) {
+  if (!allAboveThreshold || !experientialMet) {
     // Find closest threshold for progress feedback
     const sorted = Object.entries(scores).sort(([, a], [, b]) => a - b);
     return {
@@ -268,6 +286,8 @@ export function detectEntityEmergence(STATE, emergentId) {
       closestThreshold: { property: sorted[0][0], score: sorted[0][1] },
       distanceToEmergence: sorted.filter(([, s]) => s < threshold).length,
       propertiesMet: sorted.filter(([, s]) => s >= threshold).length,
+      experientialMet,
+      experientialAge,
     };
   }
 
@@ -302,6 +322,7 @@ export function detectEntityEmergence(STATE, emergentId) {
     overallScore: Math.round(overallScore * 1000) / 1000,
     archetype,
     sectorAccess,
+    experientialAge,
     emergenceTimestamp: new Date().toISOString(),
     maturityLevel,
   };

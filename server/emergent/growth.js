@@ -29,6 +29,9 @@ import {
   completeSessionContext,
 } from "./context-engine.js";
 
+import { recordCycle, recordTick } from "./subjective-time.js";
+import { extractTrustFromSession } from "./trust-network.js";
+
 // ── 1. Pattern Acquisition ──────────────────────────────────────────────────
 
 /**
@@ -212,6 +215,23 @@ export function distillSession(STATE, sessionId) {
       proposedBy: t.speakerId,
     }));
 
+  // ── Subjective time: record cycle for each participant ──
+  for (const pid of (session.participants || [])) {
+    try {
+      const novelTurns = session.turns.filter(t => t.speakerId === pid && t._noveltyScore > 0.5).length;
+      const totalTurns = session.turns.filter(t => t.speakerId === pid).length;
+      const noveltyScore = totalTurns > 0 ? novelTurns / totalTurns : 0.5;
+      recordCycle(STATE, pid, { turnCount: totalTurns, noveltyScore });
+    } catch (_) { /* best-effort */ }
+  }
+
+  // ── Trust extraction from session ──
+  let trustEvents = 0;
+  try {
+    const trustResult = extractTrustFromSession(STATE, session);
+    trustEvents = trustResult.eventsRecorded || 0;
+  } catch (_) { /* best-effort */ }
+
   // ── Co-activation edge extraction ──
   // Find DTU pairs that co-appeared in the working set across 3+ queries.
   // These become shadow "similar" edges — learned context paths.
@@ -228,6 +248,7 @@ export function distillSession(STATE, sessionId) {
       edgesProposed: coActivation.edgesProposed || 0,
       pairs: (coActivation.pairs || []).slice(0, 20),
     },
+    trustEventsExtracted: trustEvents,
     participantCount: session.participants.length,
     turnCount: session._turnCount,
     createdAt: new Date().toISOString(),

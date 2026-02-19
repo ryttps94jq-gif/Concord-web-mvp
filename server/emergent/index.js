@@ -175,6 +175,70 @@ import {
   getShadowGraphMetrics,
 } from "./shadow-graph.js";
 
+// ── Subjective Time ──────────────────────────────────────────────────────────
+
+import {
+  recordTick, recordCycle, recordEpoch,
+  getSubjectiveAge, compareSubjectiveAges,
+  checkExperientialThreshold,
+  getSubjectiveTimeMetrics,
+} from "./subjective-time.js";
+
+// ── Trust Networks ──────────────────────────────────────────────────────────
+
+import {
+  getTrust, recordTrustEvent, extractTrustFromSession,
+  getEmergentTrustNetwork, decayTrustNetwork,
+  getTrustNetworkMetrics,
+} from "./trust-network.js";
+
+// ── Emergent Communication ──────────────────────────────────────────────────
+
+import {
+  MESSAGE_TYPES,
+  sendMessage, broadcastToRole, getInbox,
+  markRead, acknowledgeMessage,
+  cleanupExpiredMessages, getCommsMetrics,
+} from "./emergent-comms.js";
+
+// ── Purpose Tracking ────────────────────────────────────────────────────────
+
+import {
+  recordNeed, scanAndRecordNeeds,
+  assignWork, completeWork, assessFulfillment, assessStaleNeeds,
+  getEffectivenessReport, getRecurrenceReport, getOpenNeeds,
+  getPurposeMetrics,
+} from "./purpose-tracking.js";
+
+// ── Consequence Cascading ───────────────────────────────────────────────────
+
+import {
+  CASCADE_TYPES,
+  cascadeConsequences,
+  getCascadeLog, getCascadeMetrics,
+} from "./consequence-cascade.js";
+
+// ── Sector DTU Assignment ───────────────────────────────────────────────────
+
+import {
+  assignDTUSector, getDTUsInSector, getDTUSectorDistribution,
+} from "./sectors.js";
+
+// ── Lattice Interface ───────────────────────────────────────────────────────
+
+import {
+  classifyConnection, buildLatticeHello,
+  shouldDeliverEvent, getLatticeInterfaceMetrics,
+} from "./lattice-interface.js";
+
+// ── Federation Peering ──────────────────────────────────────────────────────
+
+import {
+  registerPeer as registerFedPeer, receiveHeartbeat, buildHeartbeat,
+  buildSyncPackage, receiveSyncPackage,
+  detectStalePeers, getFederationPeeringMetrics,
+} from "./federation-peering.js";
+
 // ── Bootstrap Ingestion ──────────────────────────────────────────────────────
 
 import {
@@ -989,6 +1053,201 @@ function init({ register, STATE, helpers }) {
   register("emergent", "shadow.metrics", (_ctx) => {
     return getShadowGraphMetrics(STATE);
   }, { description: "Get shadow graph metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SUBJECTIVE TIME
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "time.recordTick", (_ctx, input = {}) => {
+    return recordTick(STATE, input.emergentId, { isNovel: input.isNovel, isEcho: input.isEcho, depth: input.depth });
+  }, { description: "Record a turn processed (experiential time tick)", public: true });
+
+  register("emergent", "time.recordCycle", (_ctx, input = {}) => {
+    return recordCycle(STATE, input.emergentId, { turnCount: input.turnCount, noveltyScore: input.noveltyScore });
+  }, { description: "Record session completion (experiential time cycle)", public: true });
+
+  register("emergent", "time.recordEpoch", (_ctx, input = {}) => {
+    return recordEpoch(STATE, input.emergentId, input.epochLabel);
+  }, { description: "Record maturity transition (experiential time epoch)", public: true });
+
+  register("emergent", "time.age", (_ctx, input = {}) => {
+    return getSubjectiveAge(STATE, input.emergentId);
+  }, { description: "Get subjective age of an emergent", public: true });
+
+  register("emergent", "time.compare", (_ctx) => {
+    return compareSubjectiveAges(STATE);
+  }, { description: "Compare experiential ages across emergents", public: true });
+
+  register("emergent", "time.checkThreshold", (_ctx, input = {}) => {
+    return checkExperientialThreshold(STATE, input.emergentId, input.thresholds);
+  }, { description: "Check if emergent meets experiential age threshold", public: true });
+
+  register("emergent", "time.metrics", (_ctx) => {
+    return getSubjectiveTimeMetrics(STATE);
+  }, { description: "Get subjective time metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TRUST NETWORKS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "trust.get", (_ctx, input = {}) => {
+    return getTrust(STATE, input.fromId, input.toId);
+  }, { description: "Get trust score from one emergent to another", public: true });
+
+  register("emergent", "trust.record", (_ctx, input = {}) => {
+    return recordTrustEvent(STATE, { fromId: input.fromId, toId: input.toId, type: input.type, weight: input.weight });
+  }, { description: "Record a trust-building event", public: false });
+
+  register("emergent", "trust.extractFromSession", (_ctx, input = {}) => {
+    const es = getEmergentState(STATE);
+    const session = es.sessions.get(input.sessionId);
+    if (!session) return { ok: false, error: "session_not_found" };
+    return extractTrustFromSession(STATE, session);
+  }, { description: "Extract trust events from completed session", public: false });
+
+  register("emergent", "trust.network", (_ctx, input = {}) => {
+    return getEmergentTrustNetwork(STATE, input.emergentId);
+  }, { description: "Get full trust network for an emergent", public: true });
+
+  register("emergent", "trust.decay", (_ctx, input = {}) => {
+    return decayTrustNetwork(STATE, input.factor);
+  }, { description: "Decay all trust edges toward neutral", public: false });
+
+  register("emergent", "trust.metrics", (_ctx) => {
+    return getTrustNetworkMetrics(STATE);
+  }, { description: "Get trust network metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // EMERGENT-TO-EMERGENT COMMUNICATION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "comms.send", (_ctx, input = {}) => {
+    return sendMessage(STATE, { fromId: input.fromId, toId: input.toId, type: input.type, content: input.content, context: input.context, replyTo: input.replyTo });
+  }, { description: "Send direct message between emergents", public: false });
+
+  register("emergent", "comms.broadcast", (_ctx, input = {}) => {
+    return broadcastToRole(STATE, { fromId: input.fromId, role: input.role, type: input.type, content: input.content, context: input.context });
+  }, { description: "Broadcast message to all emergents of a role", public: false });
+
+  register("emergent", "comms.inbox", (_ctx, input = {}) => {
+    return getInbox(STATE, input.emergentId, { unreadOnly: input.unreadOnly, limit: input.limit });
+  }, { description: "Get inbox for an emergent", public: true });
+
+  register("emergent", "comms.acknowledge", (_ctx, input = {}) => {
+    return acknowledgeMessage(STATE, input.messageId, input.emergentId, input.response);
+  }, { description: "Acknowledge a message", public: false });
+
+  register("emergent", "comms.cleanup", (_ctx) => {
+    return cleanupExpiredMessages(STATE);
+  }, { description: "Clean up expired messages", public: false });
+
+  register("emergent", "comms.metrics", (_ctx) => {
+    return getCommsMetrics(STATE);
+  }, { description: "Get communication metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PURPOSE TRACKING — CLOSED LOOPS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "purpose.recordNeed", (_ctx, input = {}) => {
+    return recordNeed(STATE, input);
+  }, { description: "Record a lattice need", public: false });
+
+  register("emergent", "purpose.scan", (_ctx) => {
+    return scanAndRecordNeeds(STATE);
+  }, { description: "Scan lattice needs and record new ones", public: false });
+
+  register("emergent", "purpose.assignWork", (_ctx, input = {}) => {
+    return assignWork(STATE, input);
+  }, { description: "Assign work to address a need", public: false });
+
+  register("emergent", "purpose.completeWork", (_ctx, input = {}) => {
+    return completeWork(STATE, input.workId, { result: input.result, summary: input.summary, evidence: input.evidence });
+  }, { description: "Record work completion", public: false });
+
+  register("emergent", "purpose.assess", (_ctx, input = {}) => {
+    return assessFulfillment(STATE, input.needId, { fulfilled: input.fulfilled, reason: input.reason, assessedBy: input.assessedBy });
+  }, { description: "Assess whether a need was fulfilled (close the loop)", public: false });
+
+  register("emergent", "purpose.openNeeds", (_ctx) => {
+    return getOpenNeeds(STATE);
+  }, { description: "Get all open needs", public: true });
+
+  register("emergent", "purpose.effectiveness", (_ctx) => {
+    return getEffectivenessReport(STATE);
+  }, { description: "Which approaches work best for each need type", public: true });
+
+  register("emergent", "purpose.recurrence", (_ctx) => {
+    return getRecurrenceReport(STATE);
+  }, { description: "Which needs recur most, which stay filled", public: true });
+
+  register("emergent", "purpose.metrics", (_ctx) => {
+    return getPurposeMetrics(STATE);
+  }, { description: "Get purpose tracking metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONSEQUENCE CASCADING
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "cascade.trigger", (_ctx, input = {}) => {
+    return cascadeConsequences(STATE, { type: input.type, sourceDtuId: input.sourceDtuId, magnitude: input.magnitude, triggeredBy: input.triggeredBy, context: input.context });
+  }, { description: "Trigger consequence cascade from a DTU event", public: false });
+
+  register("emergent", "cascade.log", (_ctx, input = {}) => {
+    return getCascadeLog(STATE, input.limit);
+  }, { description: "Get recent cascade log entries", public: true });
+
+  register("emergent", "cascade.metrics", (_ctx) => {
+    return getCascadeMetrics(STATE);
+  }, { description: "Get cascade metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SECTOR DTU ASSIGNMENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "sector.assignDTU", (_ctx, input = {}) => {
+    const dtu = STATE.dtus?.get(input.dtuId) || STATE.shadowDtus?.get(input.dtuId);
+    if (!dtu) return { ok: false, error: "dtu_not_found" };
+    const sectorId = assignDTUSector(dtu);
+    return { ok: true, dtuId: input.dtuId, sectorId };
+  }, { description: "Assign a sector to a DTU based on tags/content", public: true });
+
+  register("emergent", "sector.dtusInSector", (_ctx, input = {}) => {
+    return getDTUsInSector(STATE, input.sectorId, { includeShadows: input.includeShadows, limit: input.limit });
+  }, { description: "Get DTUs in a specific sector", public: true });
+
+  register("emergent", "sector.distribution", (_ctx) => {
+    return getDTUSectorDistribution(STATE);
+  }, { description: "Get sector distribution across all DTUs", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FEDERATION PEERING
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "federation.registerPeer", (_ctx, input = {}) => {
+    return registerFedPeer(STATE, input);
+  }, { description: "Register a federation peer", public: false });
+
+  register("emergent", "federation.heartbeat", (_ctx, input = {}) => {
+    if (input.peerId && input.heartbeat) return receiveHeartbeat(STATE, input.peerId, input.heartbeat);
+    return buildHeartbeat(STATE);
+  }, { description: "Send or receive federation heartbeat", public: false });
+
+  register("emergent", "federation.buildSync", (_ctx, input = {}) => {
+    return buildSyncPackage(STATE, input.peerId, { dtuIds: input.dtuIds, limit: input.limit });
+  }, { description: "Build DTU sync package for a peer", public: false });
+
+  register("emergent", "federation.receiveSync", (_ctx, input = {}) => {
+    return receiveSyncPackage(STATE, input.peerId, input.package);
+  }, { description: "Receive DTU sync package from a peer", public: false });
+
+  register("emergent", "federation.stalePeers", (_ctx) => {
+    return detectStalePeers(STATE);
+  }, { description: "Detect stale federation peers", public: false });
+
+  register("emergent", "federation.metrics", (_ctx) => {
+    return getFederationPeeringMetrics(STATE);
+  }, { description: "Get federation peering metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE

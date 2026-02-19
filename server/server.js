@@ -8424,12 +8424,15 @@ async function generateEmbedding(text) {
   }
 }
 
-// Index a DTU's embedding
+// Index a DTU's embedding (includes enriched shadows with core fields)
 async function indexDTUEmbedding(dtu) {
   if (!EMBEDDINGS.enabled) return { ok: false, reason: "disabled" };
 
-  // Skip shadow DTUs - they're internal and shouldn't pollute semantic search
-  if (isShadowDTU(dtu)) return { ok: true, skipped: true, reason: "shadow_dtu" };
+  // Shadow DTUs with real core fields are indexed; empty shells are skipped
+  if (isShadowDTU(dtu)) {
+    const hasCoreContent = dtu.core?.claims?.length || dtu.core?.definitions?.length || dtu.core?.invariants?.length;
+    if (!hasCoreContent) return { ok: true, skipped: true, reason: "empty_shadow_dtu" };
+  }
 
   const text = `${dtu.title || ""} ${dtu.content || ""} ${(dtu.tags || []).join(" ")}`.trim();
   if (!text) return { ok: false, reason: "empty_content" };
@@ -8474,27 +8477,33 @@ async function semanticSearch(query, { limit = 10, minScore = 0.3 } = {}) {
   const topResults = scores.slice(0, limit);
 
   const results = topResults.map(({ dtuId, score }) => {
-    const dtu = STATE.dtus.get(dtuId);
-    return dtu ? { ...dtu, _semanticScore: score } : null;
-  }).filter(d => d && !isShadowDTU(d)); // Filter out shadow DTUs from results
+    const dtu = STATE.dtus.get(dtuId) || STATE.shadowDtus?.get(dtuId);
+    if (!dtu) return null;
+    // Shadow results get 0.6× score penalty (subconscious, not canonical)
+    const effectiveScore = isShadowDTU(dtu) ? score * 0.6 : score;
+    return { ...dtu, _semanticScore: effectiveScore, _isShadow: isShadowDTU(dtu) };
+  }).filter(Boolean);
 
   return { ok: true, results, query };
 }
 
-// Build/rebuild embedding index
+// Build/rebuild embedding index (includes enriched shadows)
 async function rebuildEmbeddingIndex() {
   if (!EMBEDDINGS.enabled) return { ok: false, reason: "disabled" };
 
   const dtus = dtusArray();
+  // Also include shadow DTUs that have real core content
+  const shadows = STATE.shadowDtus ? Array.from(STATE.shadowDtus.values()) : [];
+  const allToIndex = dtus.concat(shadows);
   let indexed = 0, errors = 0;
 
-  for (const dtu of dtus) {
+  for (const dtu of allToIndex) {
     const result = await indexDTUEmbedding(dtu);
-    if (result.ok) indexed++;
-    else errors++;
+    if (result.ok && !result.skipped) indexed++;
+    else if (!result.ok) errors++;
   }
 
-  return { ok: true, indexed, errors, total: dtus.length };
+  return { ok: true, indexed, errors, total: allToIndex.length };
 }
 
 // ---- Auto-Linking (AI Suggests Connections) ----

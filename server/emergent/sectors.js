@@ -381,3 +381,118 @@ export function getSectorMetrics(STATE) {
     sectors: health.sectors,
   };
 }
+
+// ── DTU Sector Assignment ────────────────────────────────────────────────────
+
+/**
+ * Tag-to-sector mapping for automatic DTU sector assignment.
+ * DTUs inherit sector from their content/tags, not from who created them.
+ */
+const TAG_SECTOR_HINTS = Object.freeze({
+  // Sector 1-2: boundary/signal
+  "raw": 1, "unverified": 1, "external": 1,
+  "filtered": 2, "validated": 2, "quality-checked": 2,
+  // Sector 3: pattern recognition
+  "pattern": 3, "auto-promoted": 3, "shadow": 3,
+  // Sector 4: memory
+  "factual": 4, "reference": 4, "definition": 4, "dataset": 4,
+  // Sector 5: cognitive
+  "analysis": 5, "reasoning": 5, "inference": 5, "hypothesis": 5,
+  // Sector 6: communication
+  "summary": 6, "explanation": 6, "translation": 6,
+  // Sector 7: deep consciousness
+  "ethical": 7, "philosophical": 7, "values": 7, "consciousness": 7,
+  // Sector 8: temporal
+  "historical": 8, "temporal": 8, "timeline": 8, "forecast": 8,
+  // Sector 9: integration
+  "synthesis": 9, "cross-domain": 9, "integration": 9,
+  // Sector 10: growth
+  "evolution": 10, "promotion": 10, "growth": 10,
+  // Sector 11: governance
+  "governance": 11, "policy": 11, "council": 11, "law": 11,
+  // Sector 12: meta
+  "meta": 12, "self-referential": 12, "system-awareness": 12,
+});
+
+/**
+ * Assign a sector to a DTU based on its tags and content.
+ * If the DTU already has a sector assignment, returns it unchanged.
+ *
+ * @param {Object} dtu - The DTU to assign
+ * @returns {number} Sector ID (0-12)
+ */
+export function assignDTUSector(dtu) {
+  if (dtu?._sectorId !== undefined) return dtu._sectorId;
+
+  const tags = Array.isArray(dtu?.tags) ? dtu.tags.map(t => String(t).toLowerCase()) : [];
+
+  // Check tag hints (highest sector wins — deeper content gets deeper sector)
+  let bestSector = 4; // default: memory substrate
+  for (const tag of tags) {
+    const hint = TAG_SECTOR_HINTS[tag];
+    if (hint !== undefined && hint > bestSector) {
+      bestSector = hint;
+    }
+  }
+
+  // Tier-based override
+  const tier = String(dtu?.tier || "").toLowerCase();
+  if (tier === "shadow") bestSector = Math.min(bestSector, 3);
+  if (tier === "hyper") bestSector = Math.max(bestSector, 7);
+
+  // Write the assignment onto the DTU
+  dtu._sectorId = bestSector;
+  return bestSector;
+}
+
+/**
+ * Get DTUs in a specific sector.
+ *
+ * @param {Object} STATE
+ * @param {number} sectorId
+ * @param {Object} [opts]
+ * @param {boolean} [opts.includeShadows=false]
+ * @param {number} [opts.limit=100]
+ * @returns {{ ok, dtus, count }}
+ */
+export function getDTUsInSector(STATE, sectorId, opts = {}) {
+  const limit = opts.limit || 100;
+  const dtus = [];
+
+  const sources = [STATE.dtus];
+  if (opts.includeShadows) sources.push(STATE.shadowDtus);
+
+  for (const map of sources) {
+    if (!map) continue;
+    for (const dtu of map.values()) {
+      const sector = assignDTUSector(dtu);
+      if (sector === sectorId) {
+        dtus.push({ id: dtu.id, title: dtu.title, tier: dtu.tier, sectorId: sector });
+        if (dtus.length >= limit) break;
+      }
+    }
+    if (dtus.length >= limit) break;
+  }
+
+  return { ok: true, dtus, count: dtus.length, sectorId };
+}
+
+/**
+ * Get sector distribution across all DTUs.
+ *
+ * @param {Object} STATE
+ * @returns {{ ok, distribution }}
+ */
+export function getDTUSectorDistribution(STATE) {
+  const distribution = {};
+  for (const sector of ALL_SECTORS) {
+    distribution[sector.id] = { name: sector.name, count: 0 };
+  }
+
+  for (const dtu of STATE.dtus?.values() || []) {
+    const sector = assignDTUSector(dtu);
+    if (distribution[sector]) distribution[sector].count++;
+  }
+
+  return { ok: true, distribution };
+}
