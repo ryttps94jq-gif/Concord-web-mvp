@@ -33,6 +33,8 @@ import { getEmergentState } from "./store.js";
 
 import { SCOPES, getDtuScope } from "./scope-separation.js";
 
+import { DISTRICTS } from "./districts.js";
+
 // ── Lens Context Profiles ──────────────────────────────────────────────────
 
 /**
@@ -993,6 +995,127 @@ function simpleHash(str) {
     h = ((h << 5) - h + str.charCodeAt(i)) | 0;
   }
   return Math.abs(h).toString(36).slice(0, 12);
+}
+
+// ── District Bias ─────────────────────────────────────────────────────────────
+
+/**
+ * Apply district-specific bias to a working set.
+ * The emergent's current district shapes WHAT they see — a context lens.
+ *
+ * Each district defines workingSetBias keys. The bias helpers check each DTU
+ * against those keys and multiply the score accordingly.
+ *
+ * @param {Object} STATE - Global server state
+ * @param {Array} items - Working set items [{ dtuId, score, ... }]
+ * @param {string} districtId - Current district of the emergent
+ * @returns {Array} Reweighted items sorted by new score
+ */
+export function applyDistrictBias(STATE, items, districtId) {
+  const district = DISTRICTS[districtId];
+  if (!district || !district.workingSetBias || !items?.length) return items;
+
+  const bias = district.workingSetBias;
+
+  return items.map(item => {
+    const dtu = STATE.dtus?.get(item.dtuId);
+    if (!dtu) return item;
+
+    let multiplier = 1.0;
+
+    // Recency bias
+    if (bias.recency && dtu.updatedAt) {
+      const ageMs = Date.now() - new Date(dtu.updatedAt).getTime();
+      const ageHours = ageMs / 3_600_000;
+      if (ageHours < 24) multiplier *= bias.recency;
+    }
+
+    // Cross-domain: DTUs with tags from multiple sectors
+    if (bias.crossDomain && dtu.tags?.length > 3) {
+      multiplier *= bias.crossDomain;
+    }
+
+    // External source: DTUs ingested from external feeds
+    if (bias.externalSource && (dtu.source === "ingest" || dtu.source === "external" || dtu.tags?.includes("ingested"))) {
+      multiplier *= bias.externalSource;
+    }
+
+    // Shadow weight: shadow-tier DTUs
+    if (bias.shadow && (dtu.tier === "shadow" || dtu.meta?.tier === "shadow")) {
+      multiplier *= bias.shadow;
+    }
+
+    // Seed proximity: DTUs close to seed/axiom content
+    if (bias.seedProximity && (dtu.tags?.includes("seed") || dtu.tags?.includes("axiom") || dtu.tags?.includes("first-principle"))) {
+      multiplier *= bias.seedProximity;
+    }
+
+    // Derivation depth: DTUs with deep derivation chains
+    if (bias.derivationDepth && dtu.meta?.derivationDepth > 2) {
+      multiplier *= bias.derivationDepth;
+    }
+
+    // Meta-invariant: DTUs tagged as meta-invariants
+    if (bias.metaInvariant && (dtu.tags?.includes("meta-invariant") || dtu.tags?.includes("invariant"))) {
+      multiplier *= bias.metaInvariant;
+    }
+
+    // Unpromoted shadows
+    if (bias.unpromoted && dtu.tier === "shadow" && !dtu.meta?.promoted) {
+      multiplier *= bias.unpromoted;
+    }
+
+    // Low citation: DTUs with few citations (garden favors the neglected)
+    if (bias.lowCitation && (dtu.machine?.citationCount || 0) < 3) {
+      multiplier *= bias.lowCitation;
+    }
+
+    // High citation penalty (garden deprioritizes well-known DTUs)
+    if (bias.highCitation && (dtu.machine?.citationCount || 0) > 10) {
+      multiplier *= bias.highCitation;
+    }
+
+    // Pending governance: DTUs awaiting governance review
+    if (bias.pendingGovernance && dtu.meta?.pendingGovernance) {
+      multiplier *= bias.pendingGovernance;
+    }
+
+    // Promotion candidate
+    if (bias.promotionCandidate && dtu.meta?.promotionCandidate) {
+      multiplier *= bias.promotionCandidate;
+    }
+
+    // Contradiction flagged
+    if (bias.contradictionFlag && dtu.meta?.contradictionFlagged) {
+      multiplier *= bias.contradictionFlag;
+    }
+
+    // Capability gap (forge)
+    if (bias.capabilityGap && dtu.tags?.includes("capability-gap")) {
+      multiplier *= bias.capabilityGap;
+    }
+
+    // Plugin related
+    if (bias.pluginRelated && (dtu.tags?.includes("plugin") || dtu.tags?.includes("capability"))) {
+      multiplier *= bias.pluginRelated;
+    }
+
+    // Emergence related (nursery)
+    if (bias.emergenceRelated && (dtu.tags?.includes("emergence") || dtu.tags?.includes("threshold"))) {
+      multiplier *= bias.emergenceRelated;
+    }
+
+    // Trust dynamics
+    if (bias.trustDynamics && dtu.tags?.includes("trust")) {
+      multiplier *= bias.trustDynamics;
+    }
+
+    return {
+      ...item,
+      score: Math.min(1.0, item.score * multiplier),
+      _districtBias: districtId,
+    };
+  }).sort((a, b) => b.score - a.score);
 }
 
 // ── Metrics ─────────────────────────────────────────────────────────────────

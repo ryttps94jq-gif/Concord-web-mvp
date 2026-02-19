@@ -72,6 +72,9 @@ export function registerEmergent(state, emergent) {
   state.emergents.set(emergent.id, {
     ...emergent,
     instanceScope: emergent.instanceScope || "local",
+    district: emergent.district || "commons",
+    districtHistory: emergent.districtHistory || [],
+    districtAffinity: emergent.districtAffinity || {},
     createdAt: new Date().toISOString(),
     active: true,
   });

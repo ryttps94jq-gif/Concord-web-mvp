@@ -9,7 +9,7 @@ import {
   Shield, Activity, Brain, Layers, Puzzle, Cpu, Users, Settings,
   AlertTriangle, Moon, FileText, Search, RefreshCw, Pause, Play,
   Save, Trash2, Power, ChevronRight, CheckCircle, XCircle, Clock,
-  Zap, Eye, TrendingUp, BarChart3, Send, AlertCircle, Database,
+  Zap, Eye, TrendingUp, BarChart3, Send, AlertCircle, Database, MapPin,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -109,16 +109,51 @@ function VitalsPanel() {
   );
 }
 
+const DISTRICT_META: Record<string, { label: string; color: string; icon: string }> = {
+  commons: { label: 'The Commons', color: 'text-blue-400', icon: 'cross-domain dialogue' },
+  observatory: { label: 'The Observatory', color: 'text-cyan-400', icon: 'external data' },
+  forge: { label: 'The Forge', color: 'text-orange-400', icon: 'plugin creation' },
+  archive: { label: 'The Archive', color: 'text-amber-400', icon: 'first principles' },
+  garden: { label: 'The Garden', color: 'text-green-400', icon: 'shadow patterns' },
+  gate: { label: 'The Gate', color: 'text-red-400', icon: 'governance' },
+  nursery: { label: 'The Nursery', color: 'text-purple-400', icon: 'emergence' },
+};
+
 function EmergentPanel() {
   const { data } = useQuery({ queryKey: ['cc-emergents'], queryFn: () => api.get('/api/macro/run', { params: { domain: 'emergent', name: 'list' } }).then(r => r.data).catch(() => ({ emergents: [] })), refetchInterval: 30000 });
+  const { data: censusData } = useQuery({ queryKey: ['cc-census'], queryFn: () => api.get('/api/macro/run', { params: { domain: 'emergent', name: 'district.census' } }).then(r => r.data).catch(() => ({ census: {} })), refetchInterval: 30000 });
 
-  const emergents = (data?.emergents || []) as Array<{ id: string; name: string; role: string; instanceScope?: string; active: boolean; createdAt: string }>;
+  const emergents = (data?.emergents || []) as Array<{ id: string; name: string; role: string; district?: string; instanceScope?: string; active: boolean; createdAt: string }>;
+  const census = (censusData?.census || {}) as Record<string, Array<{ id: string; name: string; role: string }>>;
   const global = emergents.filter(e => (e.instanceScope || 'local') === 'global');
   const local = emergents.filter(e => (e.instanceScope || 'local') === 'local');
 
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Emergent Manager</h3>
+
+      {/* District Map */}
+      <div className="space-y-2">
+        <p className="text-xs text-gray-400 flex items-center gap-1"><MapPin className="w-3 h-3" /> District Map</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {Object.entries(DISTRICT_META).map(([id, meta]) => {
+            const residents = census[id] || [];
+            return (
+              <div key={id} className="bg-lattice-surface rounded-lg p-2 border border-lattice-border">
+                <p className={`text-xs font-semibold ${meta.color}`}>{meta.label}</p>
+                <p className="text-[10px] text-gray-600">{meta.icon}</p>
+                <p className="text-lg font-mono font-bold text-white mt-1">{residents.length}</p>
+                {residents.slice(0, 3).map(r => (
+                  <p key={r.id} className="text-[10px] text-gray-400 truncate">{r.name}</p>
+                ))}
+                {residents.length > 3 && <p className="text-[10px] text-gray-600">+{residents.length - 3} more</p>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Global Emergents */}
       {global.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs text-neon-cyan font-semibold">Global ({global.length})</p>
@@ -126,17 +161,21 @@ function EmergentPanel() {
             <div key={e.id} className="flex items-center gap-2 bg-lattice-surface rounded p-2 border border-lattice-border text-sm">
               <StatusDot status={e.active ? 'green' : 'gray'} />
               <span className="text-white font-medium flex-1 truncate">{e.name}</span>
+              <span className={`text-[10px] ${DISTRICT_META[e.district || 'commons']?.color || 'text-gray-500'}`}>{DISTRICT_META[e.district || 'commons']?.label || e.district}</span>
               <span className="text-xs text-gray-500">{e.role}</span>
             </div>
           ))}
         </div>
       )}
+
+      {/* Local Emergents */}
       <div className="space-y-2">
         <p className="text-xs text-neon-purple font-semibold">Local ({local.length})</p>
         {local.slice(0, 20).map(e => (
           <div key={e.id} className="flex items-center gap-2 bg-lattice-surface rounded p-2 border border-lattice-border text-sm">
             <StatusDot status={e.active ? 'green' : 'gray'} />
             <span className="text-white font-medium flex-1 truncate">{e.name}</span>
+            <span className={`text-[10px] ${DISTRICT_META[e.district || 'commons']?.color || 'text-gray-500'}`}>{DISTRICT_META[e.district || 'commons']?.label || e.district}</span>
             <span className="text-xs text-gray-500">{e.role}</span>
           </div>
         ))}

@@ -269,6 +269,18 @@ import {
   fireHook, tickPlugins,
 } from "../plugins/loader.js";
 
+// ── Cognitive Geography (Districts) ──────────────────────────────────────────
+
+import {
+  DISTRICTS, ALL_DISTRICTS,
+  moveEmergent, suggestDistrict,
+  selectDialogueParticipants, getDistrictCensus,
+} from "./districts.js";
+
+import {
+  applyDistrictBias,
+} from "./context-engine.js";
+
 // ── Global Instance & Fallback ──────────────────────────────────────────────
 
 import {
@@ -509,10 +521,16 @@ function init({ register, STATE, helpers }) {
       name: String(input.name || "Unnamed Emergent"),
       role: input.role,
       scope: Array.isArray(input.scope) ? input.scope : ["*"],
+      instanceScope: input.instanceScope || "local",
       capabilities: Array.isArray(input.capabilities)
         ? input.capabilities
         : [CAPABILITIES.TALK, CAPABILITIES.PROPOSE],
       memoryPolicy: input.memoryPolicy || MEMORY_POLICIES.DISTILLED,
+      ...(input.origin && { origin: input.origin }),
+      ...(input.cognitiveSignature && { cognitiveSignature: input.cognitiveSignature }),
+      ...(input.purpose && { purpose: input.purpose }),
+      ...(input.behavioralBoundaries && { behavioralBoundaries: input.behavioralBoundaries }),
+      ...(input.experientialSeeds && { experientialSeeds: input.experientialSeeds }),
     };
     const validation = validateEmergent(emergent);
     if (!validation.valid) {
@@ -528,7 +546,7 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get emergent by ID", public: true });
 
   register("emergent", "list", (_ctx, input = {}) => {
-    const emergents = listEmergents(es, { role: input.role, active: input.active });
+    const emergents = listEmergents(es, { role: input.role, active: input.active, instanceScope: input.instanceScope });
     return { ok: true, emergents, count: emergents.length };
   }, { description: "List all emergents", public: true });
 
@@ -1476,6 +1494,43 @@ function init({ register, STATE, helpers }) {
       count: results.length,
     };
   }, { description: "Query global lattice for DTUs matching a query", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COGNITIVE GEOGRAPHY (DISTRICTS)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "district.move", (_ctx, input = {}) => {
+    if (!input.emergentId) return { ok: false, error: "emergentId_required" };
+    if (!input.district) return { ok: false, error: "district_required" };
+    return moveEmergent(es, input.emergentId, input.district, input.reason);
+  }, { description: "Move an emergent to a target district", public: false });
+
+  register("emergent", "district.suggest", (_ctx, input = {}) => {
+    if (!input.emergentId) return { ok: false, error: "emergentId_required" };
+    const emergent = getEmergent(es, input.emergentId);
+    if (!emergent) return { ok: false, error: "not_found" };
+    const latticeState = input.latticeState || {};
+    return { ok: true, ...suggestDistrict(emergent, latticeState) };
+  }, { description: "Suggest the best district for an emergent", public: true });
+
+  register("emergent", "district.census", (_ctx) => {
+    const census = getDistrictCensus(es);
+    const total = Object.values(census).reduce((sum, arr) => sum + arr.length, 0);
+    return { ok: true, census, districts: ALL_DISTRICTS, total };
+  }, { description: "Get census of emergents by district", public: true });
+
+  register("emergent", "district.history", (_ctx, input = {}) => {
+    if (!input.emergentId) return { ok: false, error: "emergentId_required" };
+    const emergent = getEmergent(es, input.emergentId);
+    if (!emergent) return { ok: false, error: "not_found" };
+    return {
+      ok: true,
+      emergentId: input.emergentId,
+      currentDistrict: emergent.district || "commons",
+      history: emergent.districtHistory || [],
+      affinity: emergent.districtAffinity || {},
+    };
+  }, { description: "Get an emergent's district movement history", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE
