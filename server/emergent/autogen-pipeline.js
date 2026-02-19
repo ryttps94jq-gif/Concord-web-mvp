@@ -25,6 +25,7 @@
 
 import crypto from "node:crypto";
 import { runEmpiricalGates } from "./empirical-gates.js";
+import { formatAndValidate as formatGRC } from "../grc/index.js";
 
 // ── Intent Types ─────────────────────────────────────────────────────────────
 
@@ -780,6 +781,140 @@ export function determineWritePolicy(candidate, criticResult, noveltyResult) {
   return { tier, needsCouncilVote, needsHumanPush, reason };
 }
 
+// ── Stage 6: GRC Formatting ───────────────────────────────────────────────────
+
+/**
+ * Format the autogen candidate DTU into GRC v1 shape.
+ * This ensures all auto-generated DTUs — from dream, synth, and evolution —
+ * are produced in the canonical GRC format for readability and growth.
+ *
+ * The GRC envelope wraps the DTU's core content as payload while anchoring
+ * it to source DTUs, recording invariants, and providing the recursive
+ * nextLoop + question hooks that keep the lattice growing.
+ *
+ * @param {object} candidate - The DTU candidate from the synthesis stages
+ * @param {object} pack - The retrieval pack (for anchor references)
+ * @param {object} opts - { STATE, inLatticeReality }
+ * @returns {{ ok: boolean, grc: object|null, candidate: object }}
+ */
+export function formatCandidateAsGRC(candidate, pack, opts = {}) {
+  // Build the payload from candidate's core content
+  const sections = [];
+
+  if (candidate.human?.summary) {
+    sections.push(candidate.human.summary);
+  }
+
+  // Definitions
+  if (candidate.core?.definitions?.length) {
+    sections.push("\n**Definitions:**");
+    for (const def of candidate.core.definitions) {
+      if (typeof def === "object" && def.term) {
+        sections.push(`- **${def.term}**: ${def.definition}`);
+      } else {
+        sections.push(`- ${def}`);
+      }
+    }
+  }
+
+  // Invariants
+  if (candidate.core?.invariants?.length) {
+    sections.push("\n**Invariants:**");
+    for (const inv of candidate.core.invariants) {
+      sections.push(`- ${inv}`);
+    }
+  }
+
+  // Claims with provenance
+  if (candidate.core?.claims?.length) {
+    sections.push("\n**Claims:**");
+    const claimsMeta = candidate.meta?.claims || [];
+    for (let i = 0; i < candidate.core.claims.length; i++) {
+      const claim = candidate.core.claims[i];
+      const meta = claimsMeta[i];
+      const confidence = meta?.confidence ? ` [${meta.type || "hypothesis"}, confidence: ${meta.confidence}]` : "";
+      const sources = meta?.support?.length ? ` (sources: ${meta.support.join(", ")})` : "";
+      sections.push(`- ${claim}${confidence}${sources}`);
+    }
+  }
+
+  // Examples
+  if (candidate.core?.examples?.length) {
+    sections.push("\n**Examples:**");
+    for (const ex of candidate.core.examples) {
+      sections.push(`- ${ex}`);
+    }
+  }
+
+  // Conflicts
+  if (candidate.meta?.conflicts?.length) {
+    sections.push("\n**Open Conflicts:**");
+    for (const conflict of candidate.meta.conflicts) {
+      sections.push(`- ${conflict.description || conflict.conflictType} (with: ${conflict.withDtuId})`);
+    }
+  }
+
+  const payloadText = sections.join("\n");
+
+  // Build GRC context for formatting
+  const dtuRefs = (pack.core || []).slice(0, 10).map(d => d.id || d.title || "unknown");
+  const intent = candidate.meta?.autogenIntent || "autogen";
+
+  const grcContext = {
+    dtuRefs,
+    macroRefs: ["autogen-pipeline"],
+    stateRefs: [],
+    mode: `autogen-${intent}`,
+    invariantsApplied: [
+      "NoNegativeValence",
+      "RealityGateBeforeEffects",
+      "AllClaimsCited",
+      "NoveltyEnforced",
+    ],
+    realitySnapshot: {
+      facts: [
+        `Generated via autogen intent: ${intent}`,
+        `Source pack: ${(pack.core || []).length} core DTUs, ${(pack.peripheral || []).length} peripheral`,
+        `Candidate tier: ${candidate.tier || "shadow"}`,
+      ],
+      assumptions: [
+        candidate.meta?.ollamaShaped ? "Output shaped by Ollama (reformatted, not invented)" : "No LLM shaping applied",
+        candidate.meta?.writePolicy?.reason || "Default write policy",
+      ],
+      unknowns: [
+        "Full lattice coherence impact not computed until post-commit",
+        ...(candidate.meta?.conflicts?.length
+          ? [`${candidate.meta.conflicts.length} conflict(s) remain unresolved`]
+          : []),
+      ],
+    },
+  };
+
+  // Format through GRC pipeline
+  const grcResult = formatGRC(payloadText, grcContext, {
+    STATE: opts.STATE || null,
+    inLatticeReality: opts.inLatticeReality || null,
+    affectState: null,
+  });
+
+  // Attach GRC envelope to the candidate
+  if (grcResult.ok && grcResult.grc) {
+    candidate.grc = grcResult.grc;
+    candidate.meta = candidate.meta || {};
+    candidate.meta.grcFormatted = true;
+    candidate.meta.grcFormattedAt = new Date().toISOString();
+    candidate.meta.grcValidation = grcResult.validation;
+  }
+
+  return {
+    ok: grcResult.ok,
+    grc: grcResult.grc,
+    candidate,
+    validation: grcResult.validation,
+    repairs: grcResult.repairs || [],
+  };
+}
+
 // ── Full Pipeline Runner ─────────────────────────────────────────────────────
 
 /**
@@ -944,13 +1079,26 @@ export async function runPipeline(STATE, opts = {}) {
 
   ps.metrics.candidatesProduced++;
 
+  // Stage 6: GRC Formatting — wrap candidate in GRC v1 envelope
+  const grcResult = formatCandidateAsGRC(candidate, pack, {
+    STATE,
+    inLatticeReality: opts.inLatticeReality || null,
+  });
+  trace.stages.grcFormatting = {
+    ok: grcResult.ok,
+    formatted: !!grcResult.grc,
+    repairs: grcResult.repairs?.length || 0,
+    validationErrors: grcResult.validation?.errors?.length || 0,
+    validationWarnings: grcResult.validation?.warnings?.length || 0,
+  };
+
   trace.completedAt = new Date().toISOString();
 
   if (opts.dryRun) {
     return { ok: true, dryRun: true, candidate, trace };
   }
 
-  return { ok: true, candidate, trace, writePolicy };
+  return { ok: true, candidate, trace, writePolicy, grc: grcResult.grc };
 }
 
 // ── Metrics ──────────────────────────────────────────────────────────────────
