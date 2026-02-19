@@ -259,6 +259,16 @@ import {
   getMetaDerivationMetrics,
 } from "./meta-derivation.js";
 
+// ── Plugin System ───────────────────────────────────────────────────────────
+
+import {
+  loadPluginsFromDisk, validatePlugin as pluginValidate,
+  compileEmergentPlugin, activateApprovedPlugin, unloadPlugin,
+  getPluginMetrics, hotReload as pluginHotReload,
+  registerPlugin, listPlugins, getPlugin, getPendingGovernance,
+  fireHook, tickPlugins,
+} from "../plugins/loader.js";
+
 // ── Bootstrap Ingestion ──────────────────────────────────────────────────────
 
 import {
@@ -1363,6 +1373,64 @@ function init({ register, STATE, helpers }) {
   }, { description: "List all convergence events", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // PLUGIN SYSTEM
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "plugin.register", (_ctx, input = {}) => {
+    if (!input.module) return { ok: false, error: "module_required" };
+    return registerPlugin(STATE, input.module, {
+      register,
+      helpers,
+      runMacro: input._runMacro,
+    });
+  }, { description: "Register and activate a plugin module", public: false });
+
+  register("emergent", "plugin.unload", (_ctx, input = {}) => {
+    if (!input.pluginId) return { ok: false, error: "pluginId_required" };
+    return unloadPlugin(STATE, input.pluginId);
+  }, { description: "Unload a plugin gracefully", public: false });
+
+  register("emergent", "plugin.list", (_ctx) => {
+    return listPlugins(STATE);
+  }, { description: "List all loaded plugins", public: true });
+
+  register("emergent", "plugin.get", (_ctx, input = {}) => {
+    if (!input.pluginId) return { ok: false, error: "pluginId_required" };
+    return getPlugin(STATE, input.pluginId);
+  }, { description: "Get details of a specific plugin", public: true });
+
+  register("emergent", "plugin.metrics", (_ctx) => {
+    return getPluginMetrics(STATE);
+  }, { description: "Get plugin system metrics", public: true });
+
+  register("emergent", "plugin.compileEmergent", (_ctx, input = {}) => {
+    if (!input.proposal) return { ok: false, error: "proposal_required" };
+    return compileEmergentPlugin(STATE, input.proposal);
+  }, { description: "Compile an emergent-generated plugin proposal", public: false });
+
+  register("emergent", "plugin.activateApproved", (_ctx, input = {}) => {
+    if (!input.pluginId) return { ok: false, error: "pluginId_required" };
+    return activateApprovedPlugin(STATE, input.pluginId, {
+      register,
+      helpers,
+      runMacro: input._runMacro,
+    });
+  }, { description: "Activate a governance-approved emergent plugin", public: false });
+
+  register("emergent", "plugin.pendingGovernance", (_ctx) => {
+    return getPendingGovernance(STATE);
+  }, { description: "List emergent plugins pending governance approval", public: true });
+
+  register("emergent", "plugin.hotReload", (_ctx, input = {}) => {
+    if (!input.pluginId || !input.module) return { ok: false, error: "pluginId_and_module_required" };
+    return pluginHotReload(STATE, input.pluginId, input.module, {
+      register,
+      helpers,
+      runMacro: input._runMacro,
+    });
+  }, { description: "Hot-reload a plugin (unload + reload)", public: false });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -2396,6 +2464,9 @@ function init({ register, STATE, helpers }) {
       entityThresholds: ENTITY_THRESHOLDS,
       // Context Engine additions
       contextProfiles: Object.keys(CONTEXT_PROFILES),
+      // Plugin System additions
+      pluginHooks: ["dtu:beforeCreate", "dtu:afterCreate", "dtu:beforeUpdate", "dtu:afterUpdate", "dtu:beforeDelete", "dtu:afterDelete", "macro:beforeExecute", "macro:afterExecute"],
+      pluginCapabilities: ["macros", "hooks", "tick"],
     };
   }, { description: "Get emergent system schema", public: true });
 

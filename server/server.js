@@ -40,6 +40,7 @@ import configureMiddleware from "./middleware/index.js";
 import { createLLMQueue, PRIORITY } from "./lib/llm-queue.js";
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
+import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
 import { runMigrations as runSchemaMigrations } from "./migrate.js";
@@ -5568,7 +5569,8 @@ function runMacro(domain, name, input, ctx) {
       (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
       (domain === "settings" && (name === "get" || name === "status")) ||
       (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
-      (domain === "goals" && (name === "list" || name === "get" || name === "status"))
+      (domain === "goals" && (name === "list" || name === "get" || name === "status")) ||
+      _path.startsWith("/api/plugins")
     );
 
   if (!safeReadBypass) {
@@ -5619,7 +5621,12 @@ function runMacro(domain, name, input, ctx) {
   if (!d) throw new Error(`macro domain not found: ${domain}`);
   const m = d.get(name);
   if (!m) throw new Error(`macro not found: ${domain}.${name}`);
-  return m.fn(ctx, input ?? {});
+
+  // Plugin macro hooks (best-effort, never block macro execution)
+  try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch { /* best-effort */ }
+  const result = m.fn(ctx, input ?? {});
+  try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch { /* best-effort */ }
+  return result;
 }
 
 // ===== CHICKEN3: Meta-DTU helpers (additive, named per blueprint) =====
@@ -7899,8 +7906,15 @@ function dtusByIds(ids=[]) {
 }
 function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   const isNew = !STATE.dtus.has(dtu.id);
+
+  // Fire plugin before-hooks
+  try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch { /* best-effort */ }
+
   STATE.dtus.set(dtu.id, dtu);
   saveStateDebounced();
+
+  // Fire plugin after-hooks
+  try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch { /* best-effort */ }
 
   // Broadcast DTU change via WebSocket (local-first realtime)
   if (broadcast && REALTIME.ready) {
@@ -11419,11 +11433,17 @@ register("dtu", "delete", (ctx, input) => {
     return { ok: false, error: "Not authorized to delete this DTU" };
   }
 
+  // Fire plugin before-delete hooks
+  try { fireHook(STATE, "dtu:beforeDelete", dtu); } catch { /* best-effort */ }
+
   // Delete the DTU
   STATE.dtus.delete(id);
   SEARCH_INDEX.dirty = true;
   EMBEDDINGS.store.delete(id); // Remove from embedding index
   saveStateDebounced();
+
+  // Fire plugin after-delete hooks
+  try { fireHook(STATE, "dtu:afterDelete", { id, title: dtu.title }); } catch { /* best-effort */ }
 
   // Broadcast deletion via WebSocket
   try {
@@ -15725,6 +15745,18 @@ try {
 }
 // ===== END EMERGENT =====
 
+// ===== PLUGIN SYSTEM =====
+try {
+  const pluginResult = loadPluginsFromDisk(STATE, {
+    register,
+    helpers: { uid, nowISO, log, upsertDTU, realtimeEmit, saveStateDebounced },
+  });
+  log("plugins.init", `Plugin system initialized: ${pluginResult.pluginCount} plugins loaded`);
+} catch (e) {
+  log("plugins.init", "Plugin system initialization failed", { error: String(e?.message || e) });
+}
+// ===== END PLUGINS =====
+
 // ===== GRC: Grounded Recursive Closure v1 =====
 let GRC_MODULE = null;
 try {
@@ -16405,6 +16437,9 @@ function startHeartbeat() {
 
     // v5.5: capability bridge tick — beacon check + dedup scan + auto-hypothesis
     try { await runMacro("emergent","bridge.heartbeatTick", {}, ctx).catch((err) => { console.error('[system] Emergent bridge heartbeat tick error:', err); }); } catch (err) { console.error('[system] Heartbeat tick error:', err); }
+
+    // Plugin system tick — runs tick() on all loaded plugins
+    try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }
   }, ms);
   log("heartbeat", "Local scope tick started", { ms });
 
@@ -18940,6 +18975,60 @@ app.post("/api/meta/trigger", asyncHandler(async (req, res) => {
 
 app.get("/api/meta/predictions/pending", asyncHandler(async (req, res) => {
   const result = await runMacro("emergent", "meta.pendingPredictions", {}, makeCtx(req));
+  res.json(result);
+}));
+
+// ── Plugin System Endpoints ─────────────────────────────────────────────────
+
+app.get("/api/plugins", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "plugin.list", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/plugins/metrics", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "plugin.metrics", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/plugins/pending", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "plugin.pendingGovernance", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/plugins/:pluginId", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "plugin.get", { pluginId: req.params.pluginId }, makeCtx(req));
+  res.json(result);
+}));
+
+app.post("/api/plugins/register", asyncHandler(async (req, res) => {
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner", "admin"].includes(role)) {
+    return res.status(403).json({ ok: false, error: "admin_required" });
+  }
+  const result = await runMacro("emergent", "plugin.register", { module: req.body, _runMacro: runMacro }, makeCtx(req));
+  res.json(result);
+}));
+
+app.post("/api/plugins/compile-emergent", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "plugin.compileEmergent", { proposal: req.body }, makeCtx(req));
+  res.json(result);
+}));
+
+app.post("/api/plugins/:pluginId/activate", asyncHandler(async (req, res) => {
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner", "admin"].includes(role)) {
+    return res.status(403).json({ ok: false, error: "admin_required" });
+  }
+  const result = await runMacro("emergent", "plugin.activateApproved", { pluginId: req.params.pluginId, _runMacro: runMacro }, makeCtx(req));
+  res.json(result);
+}));
+
+app.delete("/api/plugins/:pluginId", asyncHandler(async (req, res) => {
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner", "admin"].includes(role)) {
+    return res.status(403).json({ ok: false, error: "admin_required" });
+  }
+  const result = await runMacro("emergent", "plugin.unload", { pluginId: req.params.pluginId }, makeCtx(req));
   res.json(result);
 }));
 
