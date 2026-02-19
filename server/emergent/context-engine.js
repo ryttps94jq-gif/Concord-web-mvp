@@ -31,6 +31,8 @@ import { createEdge, queryEdges } from "./edges.js";
 
 import { getEmergentState } from "./store.js";
 
+import { SCOPES, getDtuScope } from "./scope-separation.js";
+
 // ── Lens Context Profiles ──────────────────────────────────────────────────
 
 /**
@@ -193,7 +195,36 @@ export function processQuery(STATE, sessionId, opts = {}) {
     STATE, sessionId, profile, pinnedIds
   );
 
+  // ── Step 4b: Global fallback (when local is insufficient) ──
+  let globalFallbackUsed = false;
+  let globalShadowCount = 0;
+
+  if (!isLocalSetSufficient(workingSet.items) && opts.query) {
+    const queryHash = simpleHash(opts.query);
+    const globalResults = queryGlobalFallback(STATE, opts.query);
+    const shadows = globalResults
+      .filter(r => r.score > 0.2)
+      .map(r => createGlobalCitationShadow(STATE, r.dtu, queryHash));
+
+    // Activate shadows in current session so they enter working set
+    for (const shadow of shadows) {
+      activate(STATE, sessionId, shadow.id, shadow.machine?.citationCount ? 0.5 : 0.4, "global_fallback");
+    }
+
+    if (shadows.length > 0) {
+      globalFallbackUsed = true;
+      globalShadowCount = shadows.length;
+      // Re-compute working set with global shadows now activated
+      const augmentedWorkingSet = getContextWorkingSet(STATE, sessionId, profile, pinnedIds);
+      workingSet.items = augmentedWorkingSet.items;
+      workingSet.pinnedCount = augmentedWorkingSet.pinnedCount;
+    }
+  }
+
   ce.metrics.queriesProcessed++;
+  if (globalFallbackUsed) {
+    ce.metrics.globalFallbackCount = (ce.metrics.globalFallbackCount || 0) + 1;
+  }
 
   // ── Step 5: Return context ──
   return {
@@ -202,10 +233,13 @@ export function processQuery(STATE, sessionId, opts = {}) {
     workingSetCount: workingSet.items.length,
     pinnedCount: workingSet.pinnedCount,
     profile: opts.lens || "research",
+    globalFallbackUsed,
+    globalShadowCount,
     activationSources: {
       direct: directActivations.length,
       spread: spreadResults.length,
-      total: directActivations.length + spreadResults.length,
+      globalFallback: globalShadowCount,
+      total: directActivations.length + spreadResults.length + globalShadowCount,
     },
     stats: {
       queryIndex,
@@ -846,6 +880,121 @@ export function completeSessionContext(STATE, sessionId, opts = {}) {
   };
 }
 
+// ── Global Fallback ──────────────────────────────────────────────────────────
+
+const MIN_LOCAL_SET = 3;
+const MIN_RELEVANCE_SCORE = 0.4;
+const MAX_GLOBAL_FALLBACK = 10;
+
+/**
+ * Check whether the local working set is sufficient for a quality response.
+ * If not, we'll query the global lattice for fallback DTUs.
+ */
+export function isLocalSetSufficient(localSet) {
+  if (!localSet || localSet.length < MIN_LOCAL_SET) return false;
+  const topScore = Math.max(...localSet.map(d => d.score || 0), 0);
+  if (topScore < MIN_RELEVANCE_SCORE) return false;
+  return true;
+}
+
+/**
+ * Query global-scoped DTUs for fallback when local is insufficient.
+ * On the same server, this is a direct read from global-scoped DTUs.
+ * On a remote local instance, this would become an API call.
+ */
+export function queryGlobalFallback(STATE, query, limit = MAX_GLOBAL_FALLBACK) {
+  if (!query || !STATE.dtus?.size) return [];
+
+  const queryTokens = tokenize(query);
+  if (queryTokens.size === 0) return [];
+
+  const scored = [];
+  for (const [id, dtu] of STATE.dtus) {
+    if (getDtuScope(dtu) !== SCOPES.GLOBAL) continue;
+
+    const dtuTokens = new Set([
+      ...tokenize(dtu.title || ""),
+      ...(dtu.tags || []).map(t => t.toLowerCase()),
+      ...tokenize((dtu.core?.claims || []).join(" ")),
+    ]);
+
+    let overlap = 0;
+    for (const qt of queryTokens) {
+      if (dtuTokens.has(qt)) overlap++;
+    }
+    if (overlap === 0) continue;
+
+    const score = overlap / (queryTokens.size + dtuTokens.size - overlap);
+    if (score > 0.1) {
+      scored.push({ dtu, score: Math.min(score, 1.0) });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
+}
+
+/**
+ * Create a shadow citation in local scope pointing back to a global DTU.
+ * The shadow is a lightweight local proxy for activation and retrieval.
+ */
+export function createGlobalCitationShadow(STATE, globalDtu, queryHash) {
+  if (!STATE.shadowDtus) STATE.shadowDtus = new Map();
+
+  const shadowId = `gshadow_${globalDtu.id}`.slice(0, 64);
+
+  // Don't create duplicate shadows — bump citation count instead
+  if (STATE.shadowDtus.has(shadowId)) {
+    const existing = STATE.shadowDtus.get(shadowId);
+    existing.machine = existing.machine || {};
+    existing.machine.citationCount = (existing.machine.citationCount || 0) + 1;
+    existing.machine.lastCitedAt = new Date().toISOString();
+    return existing;
+  }
+
+  const shadow = {
+    id: shadowId,
+    title: globalDtu.title,
+    tier: "shadow",
+    tags: [
+      ...(globalDtu.tags || []).filter(t => t !== "shadow"),
+      "shadow", "global-cited", `source-global:${globalDtu.id}`,
+    ],
+    scope: "local",
+    source: "global-fallback",
+    machine: {
+      kind: "global_citation",
+      sourceId: globalDtu.id,
+      sourceScope: "global",
+      citedAt: new Date().toISOString(),
+      citationCount: 1,
+      queryHash,
+    },
+    core: {
+      invariants: globalDtu.core?.invariants || [],
+      claims: globalDtu.core?.claims || [],
+      definitions: (globalDtu.core?.definitions || []).slice(0, 2),
+    },
+    meta: { hidden: true, globalCitation: true },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  STATE.shadowDtus.set(shadowId, shadow);
+  return shadow;
+}
+
+/**
+ * Simple hash for query dedup (not crypto — just a fingerprint).
+ */
+function simpleHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36).slice(0, 12);
+}
+
 // ── Metrics ─────────────────────────────────────────────────────────────────
 
 export function getContextEngineMetrics(STATE) {
@@ -857,6 +1006,7 @@ export function getContextEngineMetrics(STATE) {
     activeSessions: ce.sessionQueryCounts.size,
     trackedSessions: ce.coActivationTracker.size,
     userProfiles: ce.userProfiles.size,
+    shadowDtus: STATE.shadowDtus?.size || 0,
     profiles: Object.keys(CONTEXT_PROFILES),
   };
 }

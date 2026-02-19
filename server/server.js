@@ -80,7 +80,8 @@ import { tagDataRegion, getDataRegion, setExportControls, checkExportAllowed, ex
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
 import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
 import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./emergent/bootstrap-ingestion.js";
-import { processQuery as contextProcessQuery } from "./emergent/context-engine.js";
+import { processQuery as contextProcessQuery, queryGlobalFallback } from "./emergent/context-engine.js";
+import { selectGlobalSynthesisCandidates } from "./emergent/scope-separation.js";
 import {
   applyEnrichment, linkArtifactDTU, registerBuiltinEnrichers,
   buildDTUConversationContext, getArtifactDTUs, getDTUArtifact,
@@ -15757,6 +15758,36 @@ try {
 }
 // ===== END PLUGINS =====
 
+// ===== BOOTSTRAP GLOBAL EMERGENTS =====
+try {
+  const globalEmergents = runMacro("emergent", "list", { instanceScope: "global" }, {
+    actor: { userId: "system", role: "owner", scopes: ["*"] }, state: STATE, internal: true,
+  });
+  const hasGlobal = globalEmergents?.emergents?.some(e => (e.instanceScope || "local") === "global");
+  if (!hasGlobal) {
+    const GLOBAL_SEED_EMERGENTS = [
+      { name: "Global Synthesizer", role: "synthesizer", instanceScope: "global", scope: ["*"], capabilities: ["talk", "propose", "vote", "synthesize"], memoryPolicy: "full" },
+      { name: "Global Critic", role: "critic", instanceScope: "global", scope: ["*"], capabilities: ["talk", "challenge", "vote"], memoryPolicy: "full" },
+      { name: "Global Validator", role: "validator", instanceScope: "global", scope: ["*"], capabilities: ["talk", "vote", "verify"], memoryPolicy: "full" },
+      { name: "Global Researcher", role: "researcher", instanceScope: "global", scope: ["*"], capabilities: ["talk", "propose", "synthesize"], memoryPolicy: "full" },
+      { name: "Global Guardian", role: "guardian", instanceScope: "global", scope: ["*"], capabilities: ["talk", "challenge", "vote", "veto"], memoryPolicy: "full" },
+    ];
+    for (const seed of GLOBAL_SEED_EMERGENTS) {
+      try {
+        runMacro("emergent", "register", seed, {
+          actor: { userId: "system", role: "owner", scopes: ["*"] }, state: STATE, internal: true,
+        });
+      } catch { /* first-boot only — already exists is ok */ }
+    }
+    log("global.bootstrap", `Bootstrapped ${GLOBAL_SEED_EMERGENTS.length} global emergents`);
+  } else {
+    log("global.bootstrap", "Global emergents already exist, skipping bootstrap");
+  }
+} catch (e) {
+  log("global.bootstrap", "Global emergent bootstrap skipped", { error: String(e?.message || e) });
+}
+// ===== END GLOBAL BOOTSTRAP =====
+
 // ===== GRC: Grounded Recursive Closure v1 =====
 let GRC_MODULE = null;
 try {
@@ -16452,7 +16483,37 @@ function startHeartbeat() {
     try {
       const ctx = makeCtx(null);
       ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
-      await runMacro("emergent","scope.globalTick", {}, ctx).catch((err) => { console.error('[system] Global scope tick macro error:', err); });
+      const tickResult = await runMacro("emergent","scope.globalTick", {}, ctx);
+
+      // Wire global synthesis when the global lattice is ready
+      if (tickResult?.readyForSynthesis) {
+        // Every 3rd global tick: run global dialogue session
+        if (tickResult.tickNumber % 3 === 0) {
+          try {
+            const candidates = await runMacro("emergent", "scope.selectGlobalCandidates", {
+              globalDtuIds: tickResult.globalDtuIds,
+            }, ctx);
+            if (candidates?.candidates?.length >= 2) {
+              await runMacro("emergent", "session.create", {
+                type: "global_synthesis",
+                emergentIds: tickResult.globalEmergentIds,
+                context: {
+                  scope: "global",
+                  candidateDtuIds: candidates.candidates.map(c => c.id),
+                  instruction: "Synthesize these global DTUs. Output must meet global validation. All claims require provenance.",
+                },
+              }, ctx).catch(() => {});
+            }
+          } catch (err) { console.error("[system] Global synthesis error:", err); }
+        }
+
+        // Every 6th global tick: run global meta-derivation
+        if (tickResult.tickNumber % 6 === 0) {
+          try {
+            await runMacro("emergent", "meta.triggerCycle", { scope: "global" }, ctx).catch(() => {});
+          } catch (err) { console.error("[system] Global meta-derivation error:", err); }
+        }
+      }
     } catch (err) { console.error('[system] Global scope tick error:', err); }
   }, globalMs);
   log("heartbeat", "Global scope tick started", { ms: globalMs });
@@ -19030,6 +19091,121 @@ app.delete("/api/plugins/:pluginId", asyncHandler(async (req, res) => {
   }
   const result = await runMacro("emergent", "plugin.unload", { pluginId: req.params.pluginId }, makeCtx(req));
   res.json(result);
+}));
+
+// ── Global Query API ────────────────────────────────────────────────────────
+
+const _globalQueryCache = new Map(); // queryKey → { result, cachedAt }
+const GLOBAL_QUERY_CACHE_MS = 300_000; // 5 minutes — aligned with global tick
+
+app.get("/api/global/query", asyncHandler(async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ ok: false, error: "q_required" });
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 30);
+
+  // Cache check
+  const cacheKey = `${q}:${limit}`;
+  const cached = _globalQueryCache.get(cacheKey);
+  if (cached && (Date.now() - cached.cachedAt) < GLOBAL_QUERY_CACHE_MS) {
+    return res.json({ ...cached.result, cached: true });
+  }
+
+  const results = queryGlobalFallback(STATE, q, limit);
+  const response = {
+    ok: true,
+    results: results.map(r => ({
+      id: r.dtu.id,
+      title: r.dtu.title,
+      tags: r.dtu.tags,
+      core: {
+        invariants: r.dtu.core?.invariants || [],
+        claims: r.dtu.core?.claims || [],
+        definitions: (r.dtu.core?.definitions || []).slice(0, 2),
+      },
+      score: Math.round(r.score * 1000) / 1000,
+    })),
+    total: results.length,
+    cached: false,
+  };
+
+  // Store in cache (evict old entries)
+  _globalQueryCache.set(cacheKey, { result: response, cachedAt: Date.now() });
+  if (_globalQueryCache.size > 200) {
+    const oldest = _globalQueryCache.keys().next().value;
+    _globalQueryCache.delete(oldest);
+  }
+
+  res.json(response);
+}));
+
+// ── Command Center Endpoints (owner-only) ───────────────────────────────────
+
+function requireOwner(req, res, next) {
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner"].includes(role)) {
+    return res.status(404).json({ error: "not_found" }); // 404 not 403 — don't reveal existence
+  }
+  next();
+}
+
+// Settings update (individual key-value pairs)
+app.post("/api/settings", requireOwner, asyncHandler(async (req, res) => {
+  const updates = req.body;
+  if (!updates || typeof updates !== "object") {
+    return res.status(400).json({ ok: false, error: "object_required" });
+  }
+
+  const changes = [];
+  for (const [key, value] of Object.entries(updates)) {
+    const before = STATE.settings[key];
+    STATE.settings[key] = value;
+    changes.push({ key, before, after: value });
+  }
+  saveStateDebounced();
+
+  log("settings.update", `Settings updated: ${changes.map(c => c.key).join(", ")}`, { changes });
+  res.json({ ok: true, changes });
+}));
+
+// Force state save
+app.post("/api/admin/save-state", requireOwner, asyncHandler(async (req, res) => {
+  saveStateDebounced.flush?.() || saveStateDebounced();
+  log("admin", "Forced state save");
+  res.json({ ok: true, savedAt: new Date().toISOString() });
+}));
+
+// Flush LLM queue
+app.post("/api/system/llm-queue/flush", requireOwner, asyncHandler(async (req, res) => {
+  let flushed = 0;
+  if (_llmQueue?.drain) {
+    flushed = _llmQueue.drain();
+  }
+  log("admin", "LLM queue flushed", { flushed });
+  res.json({ ok: true, flushed });
+}));
+
+// Recent errors
+const _recentErrors = []; // ring buffer
+const MAX_RECENT_ERRORS = 50;
+function trackError(source, error) {
+  _recentErrors.push({ source, message: String(error?.message || error), at: new Date().toISOString() });
+  if (_recentErrors.length > MAX_RECENT_ERRORS) _recentErrors.shift();
+}
+
+app.get("/api/system/errors/recent", requireOwner, asyncHandler(async (req, res) => {
+  res.json({ ok: true, errors: _recentErrors.slice().reverse(), count: _recentErrors.length });
+}));
+
+// Governance rejections
+app.get("/api/admin/governance-rejections", requireOwner, asyncHandler(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  // Pull from journal if available
+  const es = STATE.emergentState || {};
+  const journal = es.journal || [];
+  const rejections = journal
+    .filter(e => e.type === "promotion_rejected" || e.type === "bundle_rejected" || (e.event && e.event.includes("reject")))
+    .slice(-limit);
+  res.json({ ok: true, rejections, count: rejections.length });
 }));
 
 // Lens action registry for domain-specific engines

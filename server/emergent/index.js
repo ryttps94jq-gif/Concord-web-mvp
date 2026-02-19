@@ -269,6 +269,20 @@ import {
   fireHook, tickPlugins,
 } from "../plugins/loader.js";
 
+// ── Global Instance & Fallback ──────────────────────────────────────────────
+
+import {
+  isLocalSetSufficient, queryGlobalFallback, createGlobalCitationShadow,
+} from "./context-engine.js";
+
+import {
+  selectGlobalSynthesisCandidates,
+} from "./scope-separation.js";
+
+import {
+  reviewGlobalCandidate,
+} from "./governance.js";
+
 // ── Bootstrap Ingestion ──────────────────────────────────────────────────────
 
 import {
@@ -1429,6 +1443,39 @@ function init({ register, STATE, helpers }) {
       runMacro: input._runMacro,
     });
   }, { description: "Hot-reload a plugin (unload + reload)", public: false });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GLOBAL INSTANCE & FALLBACK
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "listGlobal", (_ctx) => {
+    const es = getEmergentState(STATE);
+    const globalEmergents = listEmergents(es, { instanceScope: "global" });
+    return { ok: true, emergents: globalEmergents, count: globalEmergents.length };
+  }, { description: "List all global-scoped emergents", public: true });
+
+  register("emergent", "scope.selectGlobalCandidates", (_ctx, input = {}) => {
+    const globalDtuIds = input.globalDtuIds || [];
+    const limit = input.limit || 5;
+    const candidates = selectGlobalSynthesisCandidates(STATE, globalDtuIds, limit);
+    return { ok: true, candidates, count: candidates.length };
+  }, { description: "Select global DTUs for synthesis", public: false });
+
+  register("emergent", "global.query", (_ctx, input = {}) => {
+    if (!input.q) return { ok: false, error: "q_required" };
+    const limit = Math.min(input.limit || 10, 30);
+    const results = queryGlobalFallback(STATE, input.q, limit);
+    return {
+      ok: true,
+      results: results.map(r => ({
+        id: r.dtu.id,
+        title: r.dtu.title,
+        tags: r.dtu.tags,
+        score: r.score,
+      })),
+      count: results.length,
+    };
+  }, { description: "Query global lattice for DTUs matching a query", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE

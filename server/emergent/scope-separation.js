@@ -14,6 +14,8 @@
  *   - Local:       Fast, free, personal cognition with explicit export only (normal tick)
  */
 
+import { listEmergents, getEmergentState } from "./store.js";
+
 // ── Scope Constants ──────────────────────────────────────────────────────────
 
 export const SCOPES = Object.freeze({
@@ -563,18 +565,58 @@ export function runGlobalTick(STATE) {
     }
   }
 
+  // Get global emergents only
+  let globalEmergents = [];
+  try {
+    const es = getEmergentState(STATE);
+    globalEmergents = listEmergents(es, { active: true, instanceScope: "global" });
+  } catch { /* store not initialized yet — ok, just empty */ }
+
   ss.globalTick.lastTickAt = new Date().toISOString();
   ss.globalTick.tickCount++;
   ss.metrics.globalTickCount++;
+
+  const readyForSynthesis = globalEmergents.length >= 3 && globalDtus.length >= 10;
 
   return {
     ok: true,
     tickNumber: ss.globalTick.tickCount,
     globalDtuCount: globalDtus.length,
+    globalEmergentCount: globalEmergents.length,
     timestamp: ss.globalTick.lastTickAt,
-    // Return Global DTUs for upstream synthesis (caller decides what to do)
     globalDtuIds: globalDtus.map(d => d.id),
+    globalEmergentIds: globalEmergents.map(e => e.id),
+    readyForSynthesis,
   };
+}
+
+/**
+ * Select global DTUs that are candidates for synthesis.
+ * Looks for: gaps (domains with few DTUs), recent additions, low-edge DTUs.
+ */
+export function selectGlobalSynthesisCandidates(STATE, globalDtuIds, limit = 5) {
+  const candidates = [];
+
+  for (const id of globalDtuIds) {
+    const dtu = STATE.dtus.get(id);
+    if (!dtu) continue;
+
+    // Score: prefer DTUs with fewer edges (under-connected knowledge)
+    const edgeCount = (dtu.meta?.edgeCount || 0);
+    const age = Date.now() - new Date(dtu.createdAt || 0).getTime();
+    const ageBonus = age < 86_400_000 ? 0.3 : 0; // recent DTUs get a boost
+
+    candidates.push({
+      id: dtu.id,
+      title: dtu.title,
+      tags: dtu.tags || [],
+      tier: dtu.tier,
+      score: (1 / (1 + edgeCount)) + ageBonus,
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, limit);
 }
 
 // ── Query Helpers ────────────────────────────────────────────────────────────

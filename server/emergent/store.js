@@ -71,6 +71,7 @@ export function getEmergentState(STATE) {
 export function registerEmergent(state, emergent) {
   state.emergents.set(emergent.id, {
     ...emergent,
+    instanceScope: emergent.instanceScope || "local",
     createdAt: new Date().toISOString(),
     active: true,
   });
@@ -97,10 +98,11 @@ export function getEmergent(state, id) {
   return state.emergents.get(id) || null;
 }
 
-export function listEmergents(state, { role, active } = {}) {
+export function listEmergents(state, { role, active, instanceScope } = {}) {
   let results = Array.from(state.emergents.values());
   if (role) results = results.filter(e => e.role === role);
   if (active !== undefined) results = results.filter(e => e.active === active);
+  if (instanceScope) results = results.filter(e => (e.instanceScope || "local") === instanceScope);
   return results;
 }
 

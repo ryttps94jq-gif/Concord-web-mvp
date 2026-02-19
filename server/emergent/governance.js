@@ -23,7 +23,13 @@ import {
   getReputation,
   updateReputation,
   registerEmergent,
+  listEmergents,
 } from "./store.js";
+
+// ── Global Governance Constants ─────────────────────────────────────────────
+const GLOBAL_APPROVAL_THRESHOLD = 0.8;  // 80% weighted approval for global scope
+const GLOBAL_QUORUM_RATIO = 1.0;        // ALL global emergents must participate
+const GUARDIAN_ROLE = "guardian";         // Guardian can unilateral veto
 
 // ── Promotion Pipeline ──────────────────────────────────────────────────────
 
@@ -46,8 +52,9 @@ export function reviewBundle(STATE, bundleId, opts = {}) {
     return { ok: false, error: "bundle_not_found" };
   }
 
-  const { votes = [], targetTier = PROMOTION_TIERS.REGULAR } = opts;
+  const { votes = [], targetTier = PROMOTION_TIERS.REGULAR, scope } = opts;
   const thresholds = TIER_THRESHOLDS[targetTier] || TIER_THRESHOLDS.regular;
+  const isGlobalScope = scope === "global" || bundle.scope === "global";
 
   const promoted = [];
   const rejected = [];
@@ -55,7 +62,9 @@ export function reviewBundle(STATE, bundleId, opts = {}) {
 
   // Process candidate DTUs
   for (const candidate of bundle.candidateDTUs) {
-    const review = reviewCandidate(candidate, bundle, votes, thresholds, es);
+    const review = isGlobalScope
+      ? reviewGlobalCandidate(candidate, bundle, votes, thresholds, es)
+      : reviewCandidate(candidate, bundle, votes, thresholds, es);
 
     if (review.decision === "promoted") {
       promoted.push({
@@ -201,6 +210,96 @@ function tallyVotes(votes, es) {
     weightedReject,
     weightedAbstain,
     totalVotes: votes.length,
+  };
+}
+
+// ── Global Governance ────────────────────────────────────────────────────────
+
+/**
+ * Review a candidate under global governance rules.
+ * Stricter than local: requires full quorum, 0.8 threshold, Guardian veto.
+ *
+ * @param {Object} candidate - DTU candidate
+ * @param {Object} bundle - Output bundle
+ * @param {Object[]} votes - [{voterId, decision, reason}]
+ * @param {Object} thresholds - Tier thresholds
+ * @param {Object} es - Emergent state
+ * @returns {{ decision, reasons, voteTally, guardianVeto, globalGates }}
+ */
+export function reviewGlobalCandidate(candidate, bundle, votes, thresholds, es) {
+  const reasons = [];
+  const globalGates = { quorum: false, threshold: false, guardianApproved: true, derivationDepth: false };
+
+  // 1. Standard checks (conflicts, confidence)
+  if (bundle.conflicts.length > 0) {
+    reasons.push(`${bundle.conflicts.length} unresolved conflicts in session`);
+  }
+  if (candidate.confidenceLabel === "speculative") {
+    reasons.push("speculative claims cannot enter global scope");
+  }
+
+  // 2. Quorum: ALL global emergents must vote
+  const globalEmergents = listEmergents(es, { active: true, instanceScope: "global" });
+  const globalEmergentIds = new Set(globalEmergents.map(e => e.id));
+  const globalVotes = votes.filter(v => globalEmergentIds.has(v.voterId));
+  const quorumMet = globalEmergents.length > 0 && globalVotes.length >= Math.ceil(globalEmergents.length * GLOBAL_QUORUM_RATIO);
+  globalGates.quorum = quorumMet;
+  if (!quorumMet) {
+    reasons.push(`global quorum not met: ${globalVotes.length}/${globalEmergents.length} (need all)`);
+  }
+
+  // 3. Guardian veto: if Guardian votes no, proposal fails
+  const guardianVotes = globalVotes.filter(v => {
+    const em = es.emergents.get(v.voterId);
+    return em && em.role === GUARDIAN_ROLE;
+  });
+  const guardianVetoed = guardianVotes.some(v => v.decision === "reject");
+  globalGates.guardianApproved = !guardianVetoed;
+  if (guardianVetoed) {
+    reasons.push("Global Guardian exercised veto — proposal rejected");
+  }
+
+  // 4. Tally votes (only global emergent votes count)
+  const voteTally = tallyVotes(globalVotes, es);
+
+  // 5. Check 0.8 approval threshold (raw ratio — in global, every vote counts equally)
+  const approvalRatio = globalVotes.length > 0 ? voteTally.rawApprove / globalVotes.length : 0;
+  globalGates.threshold = approvalRatio >= GLOBAL_APPROVAL_THRESHOLD;
+  if (!globalGates.threshold) {
+    reasons.push(`global approval ratio ${approvalRatio.toFixed(2)} < ${GLOBAL_APPROVAL_THRESHOLD} (need ${GLOBAL_APPROVAL_THRESHOLD * 100}%)`);
+  }
+
+  // 6. Derivation depth check — trace back to seed within 10 hops
+  const maxDepth = 10;
+  const derivationDepth = candidate.provenance?.derivationDepth || candidate.meta?.derivationDepth || 0;
+  globalGates.derivationDepth = derivationDepth <= maxDepth;
+  if (!globalGates.derivationDepth) {
+    reasons.push(`derivation depth ${derivationDepth} exceeds max ${maxDepth} for global scope`);
+  }
+
+  // 7. Credibility weight of proposer
+  const proposerRep = getReputation(es, candidate.proposedBy);
+  const credibilityWeight = proposerRep ? proposerRep.credibility : 0.5;
+
+  // Decision: all gates must pass
+  let decision;
+  const allGatesPassed = globalGates.quorum && globalGates.threshold && globalGates.guardianApproved && globalGates.derivationDepth;
+  if (reasons.length === 0 && allGatesPassed) {
+    decision = "promoted";
+  } else if (guardianVetoed || candidate.confidenceLabel === "speculative") {
+    decision = "rejected";
+  } else {
+    decision = "deferred";
+  }
+
+  return {
+    decision,
+    reasons,
+    voteTally,
+    credibilityWeight,
+    thresholds,
+    guardianVeto: guardianVetoed,
+    globalGates,
   };
 }
 
