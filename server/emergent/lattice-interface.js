@@ -229,6 +229,41 @@ export function buildTrustShiftEvent(fromId, toId, newTrust, delta) {
   };
 }
 
+/**
+ * Build a lattice event for meta-derivation.
+ */
+export function buildMetaDerivedEvent(dtuId, sourceDomains, predictedDomain) {
+  return {
+    event: "lattice:meta:derived",
+    sectorId: 7, // deep consciousness
+    data: {
+      dtuId,
+      sourceDomains,
+      predictedDomain,
+      type: "meta_invariant",
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Build a lattice event for meta-derivation convergence.
+ */
+export function buildMetaConvergenceEvent(convergenceId, dreamDtuId, metaDtuId, similarity) {
+  return {
+    event: "lattice:meta:convergence",
+    sectorId: 7, // deep consciousness
+    data: {
+      convergenceId,
+      dreamDtuId,
+      metaDtuId,
+      similarity,
+      type: "independent_convergence",
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // ── Metrics ──────────────────────────────────────────────────────────────────
 
 /**

@@ -246,6 +246,19 @@ import {
   getLowestQualityDTUs, getFeedbackMetrics,
 } from "./user-feedback.js";
 
+// ── Meta-Derivation Engine ───────────────────────────────────────────────────
+
+import {
+  extractInvariantPool, selectMaximallyDistantSet,
+  runMetaDerivationSession, parseMetaDerivationResponse,
+  validateMetaInvariant, commitMetaInvariant,
+  ingestDreamInput, runConvergenceCheck,
+  triggerMetaDerivationCycle,
+  shouldRunMetaCycle, shouldRunConvergenceCheck,
+  getPendingPredictions, getConvergences, getMetaInvariants,
+  getMetaDerivationMetrics,
+} from "./meta-derivation.js";
+
 // ── Bootstrap Ingestion ──────────────────────────────────────────────────────
 
 import {
@@ -1283,6 +1296,71 @@ function init({ register, STATE, helpers }) {
   register("emergent", "feedback.metrics", (_ctx) => {
     return getFeedbackMetrics(STATE);
   }, { description: "Get user feedback metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // META-DERIVATION ENGINE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "meta.extractPool", (_ctx) => {
+    return extractInvariantPool(STATE);
+  }, { description: "Extract invariant pool from lattice", public: true });
+
+  register("emergent", "meta.selectDistant", (_ctx, input = {}) => {
+    const poolResult = extractInvariantPool(STATE);
+    if (!poolResult.ok) return poolResult;
+    return selectMaximallyDistantSet(STATE, poolResult.pool, input.setSize || 5);
+  }, { description: "Select maximally distant invariant set", public: true });
+
+  register("emergent", "meta.runSession", (_ctx, input = {}) => {
+    const poolResult = extractInvariantPool(STATE);
+    if (!poolResult.ok) return poolResult;
+    const setResult = selectMaximallyDistantSet(STATE, poolResult.pool, input.setSize || 5);
+    if (!setResult.ok) return setResult;
+    return runMetaDerivationSession(STATE, setResult.set);
+  }, { description: "Run one meta-derivation session", public: false });
+
+  register("emergent", "meta.validate", (_ctx, input = {}) => {
+    return validateMetaInvariant(STATE, input);
+  }, { description: "Validate a candidate meta-invariant", public: false });
+
+  register("emergent", "meta.commit", (_ctx, input = {}) => {
+    return commitMetaInvariant(STATE, input, {
+      upsertDTU: helpers.upsertDTU,
+      uid: helpers.uid,
+      realtimeEmit: helpers.realtimeEmit,
+    });
+  }, { description: "Commit validated meta-invariant as DTU", public: false });
+
+  register("emergent", "meta.dreamInput", (_ctx, input = {}) => {
+    return ingestDreamInput(STATE, input.text, input.capturedAt, {
+      upsertDTU: helpers.upsertDTU,
+      uid: helpers.uid,
+    });
+  }, { description: "Ingest dream derivation from founder", public: false });
+
+  register("emergent", "meta.convergenceCheck", (_ctx) => {
+    return runConvergenceCheck(STATE, {
+      upsertDTU: helpers.upsertDTU,
+      uid: helpers.uid,
+      realtimeEmit: helpers.realtimeEmit,
+    });
+  }, { description: "Run convergence detection between dream inputs and lattice derivations", public: false });
+
+  register("emergent", "meta.triggerCycle", (_ctx) => {
+    return triggerMetaDerivationCycle(STATE);
+  }, { description: "Run full meta-derivation cycle", public: false });
+
+  register("emergent", "meta.metrics", (_ctx) => {
+    return getMetaDerivationMetrics(STATE);
+  }, { description: "Get meta-derivation metrics", public: true });
+
+  register("emergent", "meta.pendingPredictions", (_ctx) => {
+    return getPendingPredictions(STATE);
+  }, { description: "List unverified meta-predictions", public: true });
+
+  register("emergent", "meta.convergences", (_ctx) => {
+    return getConvergences(STATE);
+  }, { description: "List all convergence events", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE

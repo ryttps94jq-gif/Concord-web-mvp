@@ -18896,6 +18896,53 @@ app.get("/api/system/trace-metrics", asyncHandler(async (req, res) => {
   res.json(getTraceMetrics());
 }));
 
+// ── Meta-Derivation REST Endpoints ─────────────────────────────────────────
+
+app.post("/api/meta/dream-input", asyncHandler(async (req, res) => {
+  // Auth: founder/owner only
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner", "admin"].includes(role)) {
+    return res.status(403).json({ ok: false, error: "founder_or_owner_required" });
+  }
+  const result = await runMacro("emergent", "meta.dreamInput", {
+    text: req.body.text,
+    capturedAt: req.body.capturedAt,
+  }, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/meta/invariants", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "meta.convergences", {}, makeCtx(req));
+  const invariants = await runMacro("emergent", "meta.metrics", {}, makeCtx(req));
+  // Return committed meta-invariants from store
+  const metaResult = await runMacro("emergent", "meta.extractPool", {}, makeCtx(req));
+  res.json({ ok: true, ...invariants, pool: metaResult.ok ? { domainCount: metaResult.domainCount, invariantCount: metaResult.invariantCount } : null });
+}));
+
+app.get("/api/meta/convergences", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "meta.convergences", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/meta/metrics", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "meta.metrics", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.post("/api/meta/trigger", asyncHandler(async (req, res) => {
+  const role = req.user?.role || req.actor?.role || "guest";
+  if (!["founder", "owner", "admin"].includes(role)) {
+    return res.status(403).json({ ok: false, error: "founder_or_owner_required" });
+  }
+  const result = await runMacro("emergent", "meta.triggerCycle", {}, makeCtx(req));
+  res.json(result);
+}));
+
+app.get("/api/meta/predictions/pending", asyncHandler(async (req, res) => {
+  const result = await runMacro("emergent", "meta.pendingPredictions", {}, makeCtx(req));
+  res.json(result);
+}));
+
 // Lens action registry for domain-specific engines
 const LENS_ACTIONS = new Map(); // `${domain}.${action}` → async (ctx, artifact, params) => result
 function registerLensAction(domain, action, handler) {
