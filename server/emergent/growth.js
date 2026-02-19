@@ -29,7 +29,7 @@ import {
   completeSessionContext,
 } from "./context-engine.js";
 
-import { recordCycle, recordTick } from "./subjective-time.js";
+import { recordCycle, recordTick, recordEpoch } from "./subjective-time.js";
 import { extractTrustFromSession } from "./trust-network.js";
 
 // ── 1. Pattern Acquisition ──────────────────────────────────────────────────
@@ -216,12 +216,17 @@ export function distillSession(STATE, sessionId) {
     }));
 
   // ── Subjective time: record cycle for each participant ──
+  const isMetaDerivation = session.topic?.includes("meta_derivation") || session._type === "meta_derivation";
   for (const pid of (session.participants || [])) {
     try {
       const novelTurns = session.turns.filter(t => t.speakerId === pid && t._noveltyScore > 0.5).length;
       const totalTurns = session.turns.filter(t => t.speakerId === pid).length;
       const noveltyScore = totalTurns > 0 ? novelTurns / totalTurns : 0.5;
       recordCycle(STATE, pid, { turnCount: totalTurns, noveltyScore });
+      // Meta-derivation sessions are maturity events — record epoch
+      if (isMetaDerivation) {
+        recordEpoch(STATE, pid, "meta_derivation");
+      }
     } catch (_) { /* best-effort */ }
   }
 
