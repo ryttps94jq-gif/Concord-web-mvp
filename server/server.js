@@ -76,6 +76,7 @@ import { tagDataRegion, getDataRegion, setExportControls, checkExportAllowed, ex
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
 import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
 import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./emergent/bootstrap-ingestion.js";
+import { processQuery as contextProcessQuery } from "./emergent/context-engine.js";
 
 // ---- Atlas v2 Default-On + 3-Lane Separation Imports ----
 import { AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig } from "./emergent/atlas-config.js";
@@ -11873,6 +11874,20 @@ const scored = all.map(d => {
   const _affDepthLimit = clamp(Math.round(_aff.depthBudget || 5), 2, 10);
   const relevant = scored.filter(x=>x.score > 0.08).slice(0, _affDepthLimit).map(x=>x.d);
 
+  // ── Context Engine: feed retrieval hits into activation pipeline ──
+  // This accumulates activation across queries without clearing the session map.
+  // Previous query's activated DTUs stay warm; new query activates on top.
+  try {
+    const retrievalHits = scored.filter(x => x.score > 0.05).slice(0, 20).map(x => ({ dtuId: x.d.id, score: x.score }));
+    contextProcessQuery(STATE, sessionId, {
+      query: prompt,
+      lens: mode,
+      userId: ctx?.actor?.userId,
+      retrievalHits,
+    });
+  } catch (_ctxErr) {
+    // Context engine is supplementary — never block the chat path
+  }
 
 // Local response (non-LLM): crisp, constrained reasoning (APE) + scalable substrate (ANT)
 const lastTurns = (sess.messages || []).slice(-8);
@@ -18614,6 +18629,27 @@ register("lens", "bulkCreate", (ctx, input={}) => {
   _lensEmitDTU(ctx, domain, "bulkCreate", type, { id: "bulk", title: `${created.length} ${type}s` }, { count: created.length });
   return { ok: true, artifacts: created, count: created.length };
 });
+
+// ── Context Engine API ─────────────────────────────────────────────────────
+// Observability endpoints for the context engine.
+// The context engine itself runs through emergent macros (context.query, etc.)
+// These REST routes expose the observability panel and profile data.
+
+app.get("/api/context/panel/:sessionId", asyncHandler(async (req, res) => {
+  res.json(await runMacro("emergent", "context.panel", { sessionId: req.params.sessionId, lens: req.query.lens }, makeCtx(req)));
+}));
+
+app.get("/api/context/profiles", asyncHandler(async (req, res) => {
+  res.json(await runMacro("emergent", "context.profiles", {}, makeCtx(req)));
+}));
+
+app.get("/api/context/user/:userId", asyncHandler(async (req, res) => {
+  res.json(await runMacro("emergent", "context.userProfile", { userId: req.params.userId }, makeCtx(req)));
+}));
+
+app.get("/api/context/metrics", asyncHandler(async (req, res) => {
+  res.json(await runMacro("emergent", "context.metrics", {}, makeCtx(req)));
+}));
 
 // Lens action registry for domain-specific engines
 const LENS_ACTIONS = new Map(); // `${domain}.${action}` → async (ctx, artifact, params) => result

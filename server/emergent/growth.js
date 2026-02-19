@@ -24,6 +24,11 @@ import {
   updateReputation,
 } from "./store.js";
 
+import {
+  extractCoActivationEdges,
+  completeSessionContext,
+} from "./context-engine.js";
+
 // ── 1. Pattern Acquisition ──────────────────────────────────────────────────
 
 /**
@@ -207,6 +212,11 @@ export function distillSession(STATE, sessionId) {
       proposedBy: t.speakerId,
     }));
 
+  // ── Co-activation edge extraction ──
+  // Find DTU pairs that co-appeared in the working set across 3+ queries.
+  // These become shadow "similar" edges — learned context paths.
+  const coActivation = extractCoActivationEdges(STATE, sessionId);
+
   const distillation = {
     sessionId,
     topic: session.topic,
@@ -214,6 +224,10 @@ export function distillSession(STATE, sessionId) {
     unresolved,
     invariants,
     tests,
+    coActivation: {
+      edgesProposed: coActivation.edgesProposed || 0,
+      pairs: (coActivation.pairs || []).slice(0, 20),
+    },
     participantCount: session.participants.length,
     turnCount: session._turnCount,
     createdAt: new Date().toISOString(),

@@ -144,6 +144,18 @@ import {
   getEmergedEntities, getEntityEmergenceMetrics,
 } from "./entity-emergence.js";
 
+// ── Context Engine ──────────────────────────────────────────────────────────
+
+import {
+  CONTEXT_PROFILES,
+  processQuery, getWorkingSetWithPins,
+  extractCoActivationEdges, updateUserProfile, getUserProfile,
+  activateForAutogen,
+  getContextPanel, getContextProfiles,
+  decaySessionContext, completeSessionContext,
+  getContextEngineMetrics,
+} from "./context-engine.js";
+
 // ── Bootstrap Ingestion ──────────────────────────────────────────────────────
 
 import {
@@ -812,6 +824,67 @@ function init({ register, STATE, helpers }) {
   register("emergent", "ingest.metrics", (_ctx) => {
     return getIngestionMetrics(STATE);
   }, { description: "Get bootstrap ingestion metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTEXT ENGINE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "context.query", (_ctx, input = {}) => {
+    return processQuery(STATE, input.sessionId, {
+      query: input.query,
+      lens: input.lens,
+      userId: input.userId || _ctx?.actor?.userId,
+      pinnedIds: input.pinnedIds,
+      retrievalHits: input.retrievalHits,
+    });
+  }, { description: "Process query through context engine (activate → spread → working set)", public: false });
+
+  register("emergent", "context.workingSet", (_ctx, input = {}) => {
+    return getWorkingSetWithPins(STATE, input.sessionId, {
+      lens: input.lens,
+      pinnedIds: input.pinnedIds,
+    });
+  }, { description: "Get working set with pinned DTU support", public: true });
+
+  register("emergent", "context.panel", (_ctx, input = {}) => {
+    return getContextPanel(STATE, input.sessionId, { lens: input.lens });
+  }, { description: "Get context observability panel data", public: true });
+
+  register("emergent", "context.profiles", (_ctx) => {
+    return getContextProfiles();
+  }, { description: "Get available lens context profiles", public: true });
+
+  register("emergent", "context.decay", (_ctx, input = {}) => {
+    return decaySessionContext(STATE, input.sessionId, {
+      lens: input.lens,
+      factor: input.factor,
+      elapsedSeconds: input.elapsedSeconds,
+    });
+  }, { description: "Decay session context with lens-specific rate", public: false });
+
+  register("emergent", "context.complete", (_ctx, input = {}) => {
+    return completeSessionContext(STATE, input.sessionId, {
+      userId: input.userId || _ctx?.actor?.userId,
+    });
+  }, { description: "Complete session context lifecycle (extract edges, update profile)", public: false });
+
+  register("emergent", "context.userProfile", (_ctx, input = {}) => {
+    return getUserProfile(STATE, input.userId || _ctx?.actor?.userId);
+  }, { description: "Get user context profile", public: true });
+
+  register("emergent", "context.updateProfile", (_ctx, input = {}) => {
+    return updateUserProfile(STATE, input.userId || _ctx?.actor?.userId, input.sessionId);
+  }, { description: "Update user context profile from session", public: false });
+
+  register("emergent", "context.autogen", (_ctx, input = {}) => {
+    return activateForAutogen(STATE, input.intent || {}, {
+      maxWorkingSet: input.maxWorkingSet,
+    });
+  }, { description: "Activate DTUs for autogen pipeline through context engine", public: false });
+
+  register("emergent", "context.metrics", (_ctx) => {
+    return getContextEngineMetrics(STATE);
+  }, { description: "Get context engine metrics", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // GRC FORMATTING FOR PIPELINE
@@ -1845,6 +1918,8 @@ function init({ register, STATE, helpers }) {
       roleSectorAffinity: ROLE_SECTOR_AFFINITY,
       // Entity Emergence additions
       entityThresholds: ENTITY_THRESHOLDS,
+      // Context Engine additions
+      contextProfiles: Object.keys(CONTEXT_PROFILES),
     };
   }, { description: "Get emergent system schema", public: true });
 
@@ -1863,14 +1938,14 @@ function init({ register, STATE, helpers }) {
   startAutoPersist(STATE);
 
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge + sectors + entity emergence + persistence)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge + sectors + entity emergence + persistence + context engine)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
     macroCount: 300,
-    newModules: ["sectors", "entity-emergence", "persistence", "grc-pipeline-integration"],
+    newModules: ["sectors", "entity-emergence", "persistence", "grc-pipeline-integration", "context-engine"],
     persistenceLoaded: loadResult.ok,
   };
 }
