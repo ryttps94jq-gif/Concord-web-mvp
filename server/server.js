@@ -4708,20 +4708,43 @@ async function tryInitNativeWebSockets(server) {
   REALTIME.wss = wss;
   REALTIME.ready = true;
 
+  // Slow-consumer thresholds for native WS
+  const WS_BUFFER_HIGH = 64 * 1024;   // 64 KB — pause sending
+  const WS_BUFFER_DROP  = 256 * 1024;  // 256 KB — drop connection
+
   // Override emit for native WS
   const _originalEmit = realtimeEmit;
   globalThis.realtimeEmitNative = (event, payload, opts = {}) => {
     if (!REALTIME.ready || !wss) return { ok: false, reason: "ws_not_ready" };
     const msg = JSON.stringify({ type: String(event || "event"), payload, ts: nowISO() });
-    for (const [_cid, c] of REALTIME.clients.entries()) {
+    let sent = 0, dropped = 0, skipped = 0;
+    for (const [cid, c] of REALTIME.clients.entries()) {
       try {
-        if (c?.ws?.readyState !== 1) continue;
+        if (!c?.ws || c.ws.readyState !== 1) continue;
         if (opts.sessionId && c.sessionId && c.sessionId !== opts.sessionId) continue;
         if (opts.orgId && c.orgId && c.orgId !== opts.orgId) continue;
+
+        const buffered = c.ws.bufferedAmount || 0;
+
+        // Hard drop: client is way behind, terminate
+        if (buffered > WS_BUFFER_DROP) {
+          try { c.ws.terminate(); } catch {}
+          REALTIME.clients.delete(cid);
+          dropped++;
+          continue;
+        }
+
+        // Soft skip: buffer is high, drop this event (non-critical)
+        if (buffered > WS_BUFFER_HIGH) {
+          skipped++;
+          continue;
+        }
+
         c.ws.send(msg);
+        sent++;
       } catch {}
     }
-    return { ok: true };
+    return { ok: true, sent, dropped, skipped };
   };
 
   wss.on("connection", (ws, _req) => {

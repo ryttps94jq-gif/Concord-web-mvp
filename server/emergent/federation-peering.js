@@ -15,6 +15,66 @@
  */
 
 import { getEmergentState } from "./store.js";
+import crypto from "crypto";
+
+// ── Federation Security ──────────────────────────────────────────────────────
+
+const MAX_SYNC_DTUS = 50;         // Hard cap on DTUs per sync package
+const MAX_DTU_TITLE_LEN = 1000;   // Max title length per DTU
+const MAX_DTU_TAGS = 50;          // Max tags per DTU
+const HMAC_ALGO = "sha256";
+
+/**
+ * Compute HMAC signature for a sync package.
+ * @param {string} secret - Per-peer shared secret
+ * @param {Object} pkg - The package to sign
+ * @returns {string} Hex-encoded HMAC
+ */
+export function signPackage(secret, pkg) {
+  const payload = JSON.stringify({
+    peerId: pkg.peerId,
+    count: pkg.count,
+    timestamp: pkg.timestamp,
+    dtuIds: (pkg.dtus || []).map(d => d.id).sort(),
+  });
+  return crypto.createHmac(HMAC_ALGO, secret).update(payload).digest("hex");
+}
+
+/**
+ * Verify HMAC signature on a received sync package.
+ * @param {string} secret - Per-peer shared secret
+ * @param {Object} pkg - The received package
+ * @param {string} signature - The claimed signature
+ * @returns {boolean}
+ */
+export function verifyPackageSignature(secret, pkg, signature) {
+  if (!secret || !signature) return false;
+  const expected = signPackage(secret, pkg);
+  // Constant-time comparison
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate a single DTU in an inbound sync package.
+ * @param {Object} dtu
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+function validateSyncDtu(dtu) {
+  if (!dtu || typeof dtu !== "object") return { valid: false, reason: "not_an_object" };
+  if (typeof dtu.id !== "string" || dtu.id.length === 0 || dtu.id.length > 128)
+    return { valid: false, reason: "invalid_id" };
+  if (typeof dtu.title !== "string" || dtu.title.length === 0 || dtu.title.length > MAX_DTU_TITLE_LEN)
+    return { valid: false, reason: "invalid_title" };
+  if (dtu.tags && (!Array.isArray(dtu.tags) || dtu.tags.length > MAX_DTU_TAGS))
+    return { valid: false, reason: "invalid_tags" };
+  if (dtu.tier && typeof dtu.tier !== "string")
+    return { valid: false, reason: "invalid_tier" };
+  return { valid: true };
+}
 
 // ── Peering State ────────────────────────────────────────────────────────────
 
@@ -62,6 +122,7 @@ function getPeeringStore(STATE) {
  * @param {string} [peer.name] - Human-readable name
  * @param {number} [peer.trust=0] - Initial trust level
  * @param {string[]} [peer.sharedSectors] - Sectors this peer shares
+ * @param {string} [peer.sharedSecret] - HMAC shared secret for signing
  * @returns {{ ok, peerId }}
  */
 export function registerPeer(STATE, peer = {}) {
@@ -77,6 +138,7 @@ export function registerPeer(STATE, peer = {}) {
     name: peer.name || peer.peerId,
     trust: Math.max(0, Math.min(1, peer.trust || 0)),
     sharedSectors: Array.isArray(peer.sharedSectors) ? peer.sharedSectors : [],
+    sharedSecret: peer.sharedSecret || null,
     status: "registered",      // registered → active → stale → disconnected
     registeredAt: new Date().toISOString(),
     lastHeartbeat: null,
@@ -210,16 +272,20 @@ export function buildSyncPackage(STATE, peerId, opts = {}) {
   store.metrics.dtusShared += exported.length;
   peer.dtusShared += exported.length;
 
-  return {
-    ok: true,
-    package: {
-      protocolVersion: store.protocolVersion,
-      peerId,
-      dtus: exported,
-      count: exported.length,
-      timestamp: new Date().toISOString(),
-    },
+  const pkg = {
+    protocolVersion: store.protocolVersion,
+    peerId,
+    dtus: exported,
+    count: exported.length,
+    timestamp: new Date().toISOString(),
   };
+
+  // Sign with peer's shared secret if configured
+  if (peer.sharedSecret) {
+    pkg.signature = signPackage(peer.sharedSecret, pkg);
+  }
+
+  return { ok: true, package: pkg };
 }
 
 /**
@@ -236,19 +302,40 @@ export function receiveSyncPackage(STATE, peerId, pkg = {}) {
   const peer = store.peers.get(peerId);
   if (!peer) return { ok: false, error: "unknown_peer" };
 
+  // ── Size limit ──
+  const inboundDtus = pkg.dtus || [];
+  if (inboundDtus.length > MAX_SYNC_DTUS) {
+    return { ok: false, error: "package_too_large", limit: MAX_SYNC_DTUS, received: inboundDtus.length };
+  }
+
+  // ── HMAC verification (if peer has shared secret) ──
+  if (peer.sharedSecret) {
+    if (!pkg.signature) {
+      return { ok: false, error: "signature_required" };
+    }
+    if (!verifyPackageSignature(peer.sharedSecret, pkg, pkg.signature)) {
+      return { ok: false, error: "signature_invalid" };
+    }
+  }
+
+  // ── Schema validation per DTU ──
   let received = 0;
   let shadowed = 0;
+  let rejected = 0;
 
-  for (const dtu of (pkg.dtus || [])) {
-    if (!dtu.id || !dtu.title) continue;
+  for (const dtu of inboundDtus) {
+    const check = validateSyncDtu(dtu);
+    if (!check.valid) { rejected++; continue; }
     if (STATE.dtus?.has(dtu.id) || STATE.shadowDtus?.has(dtu.id)) continue;
 
     // Import into shadow layer with federation provenance
     const shadowDtu = {
-      ...dtu,
       id: `fed_${peerId}_${dtu.id}`.slice(0, 64),
+      title: String(dtu.title).slice(0, MAX_DTU_TITLE_LEN),
       tier: "shadow",
-      tags: [...(dtu.tags || []), "shadow", "federated", `peer:${peerId}`],
+      tags: [...(dtu.tags || []).slice(0, MAX_DTU_TAGS), "shadow", "federated", `peer:${peerId}`],
+      core: dtu.core || null,
+      human: dtu.human || null,
       machine: { kind: "federated_import", sourcePeer: peerId, sourceId: dtu.id },
       meta: { hidden: true, federated: true },
       source: "federation",
@@ -265,7 +352,7 @@ export function receiveSyncPackage(STATE, peerId, pkg = {}) {
   peer.dtusReceived += received;
   peer.lastSync = new Date().toISOString();
 
-  return { ok: true, received, shadowed };
+  return { ok: true, received, shadowed, rejected };
 }
 
 // ── Cross-Lattice Proposals ──────────────────────────────────────────────────

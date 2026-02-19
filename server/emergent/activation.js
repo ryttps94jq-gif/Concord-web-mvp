@@ -19,6 +19,8 @@ const ACTIVATION_DEFAULTS = Object.freeze({
   BASE_ACTIVATION:    0.1,    // minimum activation for referenced DTUs
   MAX_WORKING_SET:    50,     // max DTUs in working set
   TIME_DECAY_RATE:    0.001,  // activation decays over time (per second)
+  MAX_EDGES_PER_HOP:  80,     // max outgoing edges examined per node
+  MAX_TOTAL_ACTIVATIONS: 500, // max total nodes activated per spread call
   EDGE_TYPE_WEIGHTS: {
     supports:     1.0,
     derives:      0.9,
@@ -137,8 +139,13 @@ export function spreadActivation(STATE, sessionId, sourceDtuId, maxHops = 2) {
   const spread = [];
   const visited = new Set([sourceDtuId]);
   const queue = [{ nodeId: sourceDtuId, activation: sourceEntry.score, hop: 0 }];
+  let totalActivations = 0;
+  const maxEdgesPerHop = ACTIVATION_DEFAULTS.MAX_EDGES_PER_HOP;
+  const maxTotal = ACTIVATION_DEFAULTS.MAX_TOTAL_ACTIVATIONS;
 
   while (queue.length > 0) {
+    if (totalActivations >= maxTotal) break;
+
     const { nodeId, activation, hop } = queue.shift();
 
     if (hop >= maxHops) continue;
@@ -147,7 +154,20 @@ export function spreadActivation(STATE, sessionId, sourceDtuId, maxHops = 2) {
     const outEdgeIds = edgeStore.bySource?.get(nodeId);
     if (!outEdgeIds) continue;
 
-    for (const eid of outEdgeIds) {
+    // Budget: only examine top edges by weight (cap per hop)
+    let edgeIds = Array.from(outEdgeIds);
+    if (edgeIds.length > maxEdgesPerHop) {
+      // Sort by edge weight descending, take top N
+      edgeIds = edgeIds
+        .map(eid => ({ eid, w: edgeStore.edges.get(eid)?.weight || 0 }))
+        .sort((a, b) => b.w - a.w)
+        .slice(0, maxEdgesPerHop)
+        .map(e => e.eid);
+    }
+
+    for (const eid of edgeIds) {
+      if (totalActivations >= maxTotal) break;
+
       const edge = edgeStore.edges.get(eid);
       if (!edge || visited.has(edge.targetId)) continue;
 
@@ -180,13 +200,15 @@ export function spreadActivation(STATE, sessionId, sourceDtuId, maxHops = 2) {
         hop: hop + 1,
       });
 
+      totalActivations++;
+
       // Continue spreading from this node
       queue.push({ nodeId: edge.targetId, activation: spreadScore, hop: hop + 1 });
     }
   }
 
   sys.metrics.spreads++;
-  return { ok: true, spread, count: spread.length };
+  return { ok: true, spread, count: spread.length, budgetUsed: totalActivations, budgetMax: maxTotal };
 }
 
 /**

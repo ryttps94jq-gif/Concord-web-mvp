@@ -40,6 +40,7 @@ import {
   storeGateTrace,
   storeOutputBundle,
 } from "./store.js";
+import { recordTick } from "./subjective-time.js";
 
 // ── Session Factory ─────────────────────────────────────────────────────────
 
@@ -218,6 +219,15 @@ export function submitTurn(STATE, sessionId, turn) {
   session.turns.push(acceptedTurn);
   session._turnCount++;
   es.metrics.turnsProcessed++;
+
+  // ── Record subjective time tick for the speaking emergent ──────────────
+  try {
+    const existingHashes = new Set(session.turns.slice(0, -1).map(t => t.contentHash));
+    const isNovel = !existingHashes.has(acceptedTurn.contentHash);
+    const isEcho = !isNovel && session._turnCount > 3;
+    const depth = acceptedTurn.confidenceLabel === "derived" || acceptedTurn.confidenceLabel === "fact" ? 1 : 0;
+    recordTick(STATE, acceptedTurn.speakerId, { isNovel, isEcho, depth });
+  } catch (_) { /* best-effort: don't block turns on time tracking */ }
 
   // ── Update session signals ──────────────────────────────────────────────
   updateSessionSignals(session, acceptedTurn);
