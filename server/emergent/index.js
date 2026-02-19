@@ -113,7 +113,42 @@ import {
   computeLatticeNeeds, getSuggestedWork,
   computeSociality, explainProposal, explainTrust,
   getBelonging,
+  recordWorkCompletion, getWorkCompletions,
+  cascadeContradictionConsequences,
+  computeTransitiveTrust,
 } from "./reality.js";
+
+// ── Sector System (13-layer depth architecture) ──────────────────────────────
+
+import {
+  SECTORS, ALL_SECTORS, SECTOR_BY_ID, SECTOR_BY_NAME,
+  MATURITY_REQUIREMENTS, ROLE_SECTOR_AFFINITY, MODULE_SECTOR_MAP,
+  canAccessSector, getAccessibleSectors, computeMaturityLevel,
+  checkNoiseFloor, getHomeSector, routeCrossSector,
+  getSectorHealth, getOperationSector, getSectorMetrics,
+} from "./sectors.js";
+
+// ── State Persistence ────────────────────────────────────────────────────────
+
+import {
+  persistEmergentState, loadEmergentState,
+  startAutoPersist, stopAutoPersist,
+  getPersistenceMetrics,
+} from "./persistence.js";
+
+// ── Entity Emergence Detection ───────────────────────────────────────────────
+
+import {
+  ENTITY_THRESHOLDS,
+  detectEntityEmergence, scanForEmergence,
+  getEmergedEntities, getEntityEmergenceMetrics,
+} from "./entity-emergence.js";
+
+// ── Bootstrap Ingestion ──────────────────────────────────────────────────────
+
+import {
+  runBootstrapIngestion, loadSeedPacks, getIngestionMetrics,
+} from "./bootstrap-ingestion.js";
 
 // ── Cognition Scheduler imports ─────────────────────────────────────────────
 
@@ -273,6 +308,7 @@ import {
   selectIntent, buildRetrievalPack,
   builderPhase, criticPhase, synthesizerPhase,
   noveltyCheck, determineWritePolicy,
+  formatCandidateAsGRC,
   runPipeline as runAutogenPipeline,
   getPipelineMetrics,
 } from "./autogen-pipeline.js";
@@ -645,6 +681,149 @@ function init({ register, STATE, helpers }) {
   register("emergent", "reality.belonging", (_ctx, input = {}) => {
     return getBelonging(STATE, input.emergentId);
   }, { description: "Get emergent belonging context", public: true });
+
+  register("emergent", "reality.recordWork", (_ctx, input = {}) => {
+    return recordWorkCompletion(STATE, input.emergentId, input.needType, input.result, input.details || {});
+  }, { description: "Record work completion for purpose tracking", public: false });
+
+  register("emergent", "reality.workHistory", (_ctx, input = {}) => {
+    return getWorkCompletions(STATE, input.emergentId);
+  }, { description: "Get work completion history for emergent", public: true });
+
+  register("emergent", "reality.cascadeContradiction", (_ctx, input = {}) => {
+    return cascadeContradictionConsequences(STATE, input.contradictedDtuId, input.contradictorId, input.details || {});
+  }, { description: "Cascade contradiction consequences to original promoters", public: false });
+
+  register("emergent", "reality.transitiveTrust", (_ctx, input = {}) => {
+    return computeTransitiveTrust(STATE, input.emergentId);
+  }, { description: "Compute transitive trust network for emergent", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SECTOR SYSTEM (13-layer depth architecture)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "sector.list", (_ctx) => {
+    return { ok: true, sectors: ALL_SECTORS, count: ALL_SECTORS.length };
+  }, { description: "List all 13 sectors", public: true });
+
+  register("emergent", "sector.get", (_ctx, input = {}) => {
+    const sector = SECTOR_BY_ID[input.sectorId] || SECTOR_BY_NAME[input.name];
+    if (!sector) return { ok: false, error: "sector_not_found" };
+    return { ok: true, sector };
+  }, { description: "Get sector by ID or name", public: true });
+
+  register("emergent", "sector.access", (_ctx, input = {}) => {
+    return getAccessibleSectors(STATE, input.emergentId);
+  }, { description: "Get sectors accessible by an emergent", public: true });
+
+  register("emergent", "sector.home", (_ctx, input = {}) => {
+    return getHomeSector(STATE, input.emergentId);
+  }, { description: "Get home sector for an emergent", public: true });
+
+  register("emergent", "sector.noiseFloor", (_ctx, input = {}) => {
+    return checkNoiseFloor(input.sectorId, input.signalQuality);
+  }, { description: "Check signal quality against sector noise floor", public: true });
+
+  register("emergent", "sector.route", (_ctx, input = {}) => {
+    return routeCrossSector(STATE, input.emergentId, input.fromSectorId, input.toSectorId, input.payload || {});
+  }, { description: "Route cross-sector communication", public: false });
+
+  register("emergent", "sector.health", (_ctx) => {
+    return getSectorHealth(STATE);
+  }, { description: "Get health metrics for all sectors", public: true });
+
+  register("emergent", "sector.moduleMap", (_ctx, input = {}) => {
+    if (input.moduleKey) {
+      const sector = getOperationSector(input.moduleKey);
+      return { ok: true, moduleKey: input.moduleKey, sector };
+    }
+    return { ok: true, map: MODULE_SECTOR_MAP };
+  }, { description: "Get sector assignment for a module", public: true });
+
+  register("emergent", "sector.metrics", (_ctx) => {
+    return getSectorMetrics(STATE);
+  }, { description: "Get sector system metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ENTITY EMERGENCE DETECTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "entity.detect", (_ctx, input = {}) => {
+    return detectEntityEmergence(STATE, input.emergentId);
+  }, { description: "Detect entity emergence for an emergent", public: true });
+
+  register("emergent", "entity.scan", (_ctx) => {
+    return scanForEmergence(STATE);
+  }, { description: "Scan all emergents for entity emergence", public: true });
+
+  register("emergent", "entity.list", (_ctx) => {
+    return getEmergedEntities(STATE);
+  }, { description: "List all emerged entities", public: true });
+
+  register("emergent", "entity.metrics", (_ctx) => {
+    return getEntityEmergenceMetrics(STATE);
+  }, { description: "Get entity emergence metrics", public: true });
+
+  register("emergent", "entity.thresholds", (_ctx) => {
+    return { ok: true, thresholds: ENTITY_THRESHOLDS };
+  }, { description: "Get entity emergence thresholds", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STATE PERSISTENCE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "persist.save", (_ctx, input = {}) => {
+    return persistEmergentState(STATE, input);
+  }, { description: "Persist emergent state to disk", public: false });
+
+  register("emergent", "persist.load", (_ctx, input = {}) => {
+    return loadEmergentState(STATE, input);
+  }, { description: "Load persisted emergent state from disk", public: false });
+
+  register("emergent", "persist.startAuto", (_ctx, input = {}) => {
+    return startAutoPersist(STATE, input);
+  }, { description: "Start periodic auto-persistence", public: false });
+
+  register("emergent", "persist.stopAuto", (_ctx) => {
+    return stopAutoPersist(STATE);
+  }, { description: "Stop auto-persistence and do final persist", public: false });
+
+  register("emergent", "persist.metrics", (_ctx) => {
+    return getPersistenceMetrics();
+  }, { description: "Get persistence layer metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BOOTSTRAP INGESTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "ingest.run", (_ctx, input = {}) => {
+    const seeds = input.seeds || [];
+    return runBootstrapIngestion(STATE, seeds, {
+      dryRun: input.dryRun || false,
+      log: helpers?.log || (() => {}),
+    });
+  }, { description: "Run bootstrap ingestion pipeline on seed DTUs", public: false });
+
+  register("emergent", "ingest.loadSeeds", (_ctx, input = {}) => {
+    const dataDir = input.dataDir || "data";
+    return loadSeedPacks(dataDir);
+  }, { description: "Load seed DTU packs from disk", public: true });
+
+  register("emergent", "ingest.metrics", (_ctx) => {
+    return getIngestionMetrics(STATE);
+  }, { description: "Get bootstrap ingestion metrics", public: true });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GRC FORMATTING FOR PIPELINE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "pipeline.formatGRC", (_ctx, input = {}) => {
+    if (!input.candidate) return { ok: false, error: "candidate_required" };
+    return formatCandidateAsGRC(input.candidate, input.pack || { core: [], peripheral: [] }, {
+      STATE,
+      inLatticeReality: helpers?.inLatticeReality || null,
+    });
+  }, { description: "Format pipeline candidate as GRC v1 output", public: true });
 
   // ══════════════════════════════════════════════════════════════════════════
   // COGNITION SCHEDULER
@@ -1660,20 +1839,39 @@ function init({ register, STATE, helpers }) {
       heartbeatConfig: HEARTBEAT_CONFIG,
       // Capability Bridge additions
       bridgeModules: ["hypothesis_auto_propose", "metalearning_strategy", "dedup_gate", "dedup_scan", "beacon_check", "lens_scope", "lens_empirical", "heartbeat_bridge"],
+      // Sector System additions
+      sectors: ALL_SECTORS,
+      maturityRequirements: MATURITY_REQUIREMENTS,
+      roleSectorAffinity: ROLE_SECTOR_AFFINITY,
+      // Entity Emergence additions
+      entityThresholds: ENTITY_THRESHOLDS,
     };
   }, { description: "Get emergent system schema", public: true });
 
   // Initialize constitution (seeds immutable rules)
   getConstitutionStore(STATE);
 
+  // ── Load persisted state (if available) ────────────────────────────────────
+  const loadResult = loadEmergentState(STATE);
+  if (loadResult.ok) {
+    if (helpers?.log) {
+      helpers.log("emergent.init", `[Persistence] Restored state: ${JSON.stringify(loadResult.restored)} from ${loadResult.source}`);
+    }
+  }
+
+  // Start auto-persistence (every 5 minutes)
+  startAutoPersist(STATE);
+
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge + sectors + entity emergence + persistence)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 270,
+    macroCount: 300,
+    newModules: ["sectors", "entity-emergence", "persistence", "grc-pipeline-integration"],
+    persistenceLoaded: loadResult.ok,
   };
 }
 

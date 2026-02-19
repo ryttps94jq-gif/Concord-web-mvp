@@ -301,6 +301,96 @@ export function getSuggestedWork(STATE, emergentId) {
   return { ok: true, suggestions, count: suggestions.length };
 }
 
+// ── 4b. Purpose Tracking — Close the Loop ───────────────────────────────────
+
+/**
+ * Record that an emergent completed (or abandoned) a piece of suggested work.
+ * This closes the purpose loop: lattice identifies need → emergent works on it → result recorded.
+ *
+ * Without this tracking, purpose is open-ended. With it, emergents that
+ * consistently fulfill lattice needs gain reputation and move toward entity emergence.
+ *
+ * @param {Object} STATE - Global server state
+ * @param {string} emergentId - Who completed the work
+ * @param {string} needType - Type of need fulfilled (e.g. 'contradiction_resolution')
+ * @param {string} result - 'completed' | 'partial' | 'abandoned'
+ * @param {Object} [details] - Additional context
+ * @returns {{ ok: boolean, recorded: boolean }}
+ */
+export function recordWorkCompletion(STATE, emergentId, needType, result, details = {}) {
+  const es = getEmergentState(STATE);
+  const emergent = es.emergents.get(emergentId);
+  if (!emergent) return { ok: false, error: "emergent_not_found" };
+
+  if (!es._workCompletions) es._workCompletions = [];
+
+  const completion = {
+    emergentId,
+    needType,
+    result,
+    details: {
+      ...details,
+      emergentRole: emergent.role,
+      emergentName: emergent.name,
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  es._workCompletions.push(completion);
+
+  // Cap completions history
+  if (es._workCompletions.length > 1000) {
+    es._workCompletions = es._workCompletions.slice(-500);
+  }
+
+  // Reputation effect based on result
+  const rep = getReputation(es, emergentId);
+  if (rep) {
+    if (result === "completed") {
+      rep.credibility = Math.min(1, rep.credibility + 0.02);
+      rep.history.push({
+        type: "need_fulfilled",
+        needType,
+        timestamp: new Date().toISOString(),
+        credibilityAfter: rep.credibility,
+      });
+    } else if (result === "partial") {
+      rep.credibility = Math.min(1, rep.credibility + 0.005);
+      rep.history.push({
+        type: "need_partial",
+        needType,
+        timestamp: new Date().toISOString(),
+        credibilityAfter: rep.credibility,
+      });
+    }
+    // abandoned: no reputation change — just record it
+  }
+
+  return {
+    ok: true,
+    recorded: true,
+    completion,
+  };
+}
+
+/**
+ * Get work completion history for an emergent.
+ */
+export function getWorkCompletions(STATE, emergentId) {
+  const es = getEmergentState(STATE);
+  const completions = (es._workCompletions || [])
+    .filter(w => w.emergentId === emergentId);
+
+  const stats = {
+    total: completions.length,
+    completed: completions.filter(w => w.result === "completed").length,
+    partial: completions.filter(w => w.result === "partial").length,
+    abandoned: completions.filter(w => w.result === "abandoned").length,
+  };
+
+  return { ok: true, completions, stats };
+}
+
 // ── 5. Sociality — Others Exist and Matter ──────────────────────────────────
 
 /**
@@ -457,6 +547,177 @@ export function explainTrust(STATE, dtuId) {
       factors,
       supportCount,
       contradictCount,
+    },
+  };
+}
+
+// ── 3b. Consequence Cascading — DTU Contradictions Affect Promoters ─────────
+
+/**
+ * When a promoted DTU is later contradicted, cascade reputation effects
+ * back to the original promoter. Consequences are not one-shot — they
+ * cascade through time.
+ *
+ * @param {Object} STATE - Global server state
+ * @param {string} contradictedDtuId - The DTU that was contradicted
+ * @param {string} contradictorId - The emergent who found the contradiction
+ * @param {Object} [details] - Additional context
+ * @returns {{ ok: boolean, cascades: Object[] }}
+ */
+export function cascadeContradictionConsequences(STATE, contradictedDtuId, contradictorId, details = {}) {
+  const es = getEmergentState(STATE);
+  const cascades = [];
+
+  // Find the DTU to get its provenance
+  const dtu = STATE.dtus?.get(contradictedDtuId);
+  if (!dtu) return { ok: false, error: "dtu_not_found" };
+
+  // Get provenance: who promoted this DTU
+  const provenance = dtu.meta?._emergentProvenance || dtu.provenance;
+  const originalPromoters = [];
+
+  if (provenance?.participants) {
+    originalPromoters.push(...provenance.participants);
+  }
+  if (provenance?.bornFromSession) {
+    // Look up session participants
+    const session = es.sessions.get(provenance.bornFromSession);
+    if (session?.participants) {
+      originalPromoters.push(...session.participants);
+    }
+  }
+  if (dtu.source === "autogen.pipeline" && dtu.meta?.sourcePack?.coreIds) {
+    // Autogen: no specific promoter, skip
+  }
+
+  // Apply small reputation hit to original promoters
+  const uniquePromoters = [...new Set(originalPromoters)];
+  for (const promoterId of uniquePromoters) {
+    const rep = getReputation(es, promoterId);
+    if (!rep) continue;
+
+    // Small hit — contradiction of promoted work indicates imperfect judgment
+    const delta = -0.005;
+    rep.credibility = Math.max(0, rep.credibility + delta);
+    rep.history.push({
+      type: "cascade_contradiction",
+      contradictedDtuId,
+      contradictorId,
+      delta,
+      timestamp: new Date().toISOString(),
+      credibilityAfter: rep.credibility,
+    });
+
+    cascades.push({
+      promoterId,
+      delta,
+      newCredibility: rep.credibility,
+      reason: `DTU ${contradictedDtuId} was contradicted`,
+    });
+  }
+
+  // Reward the contradictor
+  if (contradictorId) {
+    const contradictorRep = getReputation(es, contradictorId);
+    if (contradictorRep) {
+      const reward = 0.03;
+      contradictorRep.credibility = Math.min(1, contradictorRep.credibility + reward);
+      contradictorRep.contradictionsCaught = (contradictorRep.contradictionsCaught || 0) + 1;
+      contradictorRep.history.push({
+        type: "contradiction_found",
+        contradictedDtuId,
+        reward,
+        timestamp: new Date().toISOString(),
+        credibilityAfter: contradictorRep.credibility,
+      });
+
+      cascades.push({
+        contradictorId,
+        delta: reward,
+        newCredibility: contradictorRep.credibility,
+        reason: `Found contradiction in DTU ${contradictedDtuId}`,
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    cascades,
+    contradictedDtuId,
+    originalPromoters: uniquePromoters,
+    cascadeCount: cascades.length,
+  };
+}
+
+// ── 6b. Sociality Enhancement — Trust Networks ──────────────────────────────
+
+/**
+ * Compute transitive trust for an emergent based on its relationships.
+ * An emergent frequently validated by high-credibility partners inherits trust.
+ *
+ * @param {Object} STATE - Global server state
+ * @param {string} emergentId - Emergent to compute trust for
+ * @returns {{ ok: boolean, trustNetwork: Object }}
+ */
+export function computeTransitiveTrust(STATE, emergentId) {
+  const es = getEmergentState(STATE);
+  const emergent = es.emergents.get(emergentId);
+  if (!emergent) return { ok: false, error: "emergent_not_found" };
+
+  const sessionIds = es.sessionsByEmergent.get(emergentId) || new Set();
+  const validationMap = new Map(); // collaboratorId → { validates, validated }
+
+  for (const sid of sessionIds) {
+    const session = es.sessions.get(sid);
+    if (!session) continue;
+
+    for (const turn of (session.turns || [])) {
+      // If another emergent synthesized (supported) this emergent's claim
+      if (turn.speakerId !== emergentId && turn.intent === "synthesis") {
+        const prev = validationMap.get(turn.speakerId) || { validates: 0, validated: 0 };
+        prev.validates++;
+        validationMap.set(turn.speakerId, prev);
+      }
+    }
+  }
+
+  // Compute transitive trust: weighted sum of validator credibilities
+  let transitiveTrust = 0;
+  let validatorCount = 0;
+
+  for (const [validatorId, counts] of validationMap) {
+    const validatorRep = getReputation(es, validatorId);
+    if (!validatorRep) continue;
+
+    const validatorCredibility = validatorRep.credibility;
+    const weight = Math.min(1, counts.validates * 0.2); // Cap contribution per validator
+    transitiveTrust += validatorCredibility * weight;
+    validatorCount++;
+  }
+
+  // Normalize
+  const normalizedTrust = validatorCount > 0
+    ? Math.min(0.3, transitiveTrust / validatorCount) // Cap at 0.3 to prevent trust inflation
+    : 0;
+
+  return {
+    ok: true,
+    trustNetwork: {
+      emergentId,
+      directCredibility: getReputation(es, emergentId)?.credibility || 0.5,
+      transitiveTrust: Math.round(normalizedTrust * 1000) / 1000,
+      effectiveCredibility: Math.min(1,
+        (getReputation(es, emergentId)?.credibility || 0.5) + normalizedTrust
+      ),
+      validatorCount,
+      validators: Array.from(validationMap.entries())
+        .map(([id, counts]) => ({
+          id,
+          validates: counts.validates,
+          credibility: getReputation(es, id)?.credibility || 0,
+        }))
+        .sort((a, b) => b.validates - a.validates)
+        .slice(0, 10),
     },
   };
 }

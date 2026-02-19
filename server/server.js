@@ -75,6 +75,7 @@ import { registerWebhook as registerWh, getWebhook, listWebhooks, deactivateWebh
 import { tagDataRegion, getDataRegion, setExportControls, checkExportAllowed, exportData, createDataPartition, getDataPartition, setRetentionPolicy, getRetentionPolicy, getComplianceLog, getComplianceStatus } from "./emergent/compliance.js";
 import { startOnboarding as startOnboardingV2, getOnboardingProgress as getOnboardingProgressV2, completeOnboardingStep as completeOnboardingStepV2, skipOnboarding as skipOnboardingV2, getOnboardingHints, getOnboardingMetrics } from "./emergent/onboarding.js";
 import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEfficiencySnapshot, getEfficiencyHistory } from "./emergent/compute-efficiency.js";
+import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./emergent/bootstrap-ingestion.js";
 
 // ---- Atlas v2 Default-On + 3-Lane Separation Imports ----
 import { AUTO_PROMOTE_THRESHOLDS, STRICTNESS_PROFILES, getAutoPromoteConfig } from "./emergent/atlas-config.js";
@@ -5270,18 +5271,49 @@ async function seedIfEmpty() {
   if (STATE.dtus.size > 0) return { ok:true, seeded:false, reason:"already_has_dtus" };
   const seeds = await tryLoadSeedDTUs();
   if (!seeds.length) return { ok:false, seeded:false, error: SEED_INFO.error || "no seeds" };
+
+  // ── Bootstrap Ingestion Pipeline ──────────────────────────────────────────
+  // Instead of basic toOptionADTU() conversion, run the full ingestion pipeline
+  // which normalizes, hashes, scores, tiers, scopes, tags, and generates edges.
+  const ingestionResult = runBootstrapIngestion(STATE, seeds, {
+    log: (type, msg, meta) => {
+      structuredLog("info", `bootstrap.${type}`, { message: msg, ...meta });
+    },
+  });
+
+  if (ingestionResult.ok) {
+    saveStateDebounced();
+    structuredLog("info", "bootstrap_ingestion_complete", {
+      registered: ingestionResult.stats.registered,
+      edges: ingestionResult.stats.edgesGenerated,
+      tiers: ingestionResult.stats.tiered,
+      duration: `${ingestionResult.stats.durationMs}ms`,
+      domains: Object.keys(ingestionResult.stats.domainsDetected).length,
+    });
+    return {
+      ok: true,
+      seeded: true,
+      count: ingestionResult.stats.registered,
+      scope: "global",
+      ingestion: ingestionResult.stats,
+    };
+  }
+
+  // Fallback: if bootstrap ingestion fails, use the basic toOptionADTU path
+  structuredLog("warn", "bootstrap_ingestion_fallback", {
+    error: "Bootstrap ingestion had issues, falling back to basic seeding",
+    errors: ingestionResult.stats.errors,
+  });
   let n=0;
   for (const s of seeds) {
-    // Scope Separation: seed DTUs load into Global scope — they are canonical knowledge.
-    // Each instance cherry-picks which Global DTUs to pull into Local.
     s.scope = "global";
     const d = toOptionADTU(s);
     STATE.dtus.set(d.id, d);
     n++;
   }
   saveStateDebounced();
-  log("seed", "Seeded DTUs from dtus.js into Global scope", { count:n, scope:"global" });
-  return { ok:true, seeded:true, count:n, scope:"global" };
+  log("seed", "Seeded DTUs via fallback path into Global scope", { count:n, scope:"global" });
+  return { ok:true, seeded:true, count:n, scope:"global", fallback:true };
 }
 await seedIfEmpty();
 seedGenesisRealityAnchor();
