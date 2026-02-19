@@ -509,10 +509,16 @@ function init({ register, STATE, helpers }) {
       name: String(input.name || "Unnamed Emergent"),
       role: input.role,
       scope: Array.isArray(input.scope) ? input.scope : ["*"],
+      instanceScope: input.instanceScope || "local",
       capabilities: Array.isArray(input.capabilities)
         ? input.capabilities
         : [CAPABILITIES.TALK, CAPABILITIES.PROPOSE],
       memoryPolicy: input.memoryPolicy || MEMORY_POLICIES.DISTILLED,
+      ...(input.origin && { origin: input.origin }),
+      ...(input.cognitiveSignature && { cognitiveSignature: input.cognitiveSignature }),
+      ...(input.purpose && { purpose: input.purpose }),
+      ...(input.behavioralBoundaries && { behavioralBoundaries: input.behavioralBoundaries }),
+      ...(input.experientialSeeds && { experientialSeeds: input.experientialSeeds }),
     };
     const validation = validateEmergent(emergent);
     if (!validation.valid) {
@@ -528,7 +534,7 @@ function init({ register, STATE, helpers }) {
   }, { description: "Get emergent by ID", public: true });
 
   register("emergent", "list", (_ctx, input = {}) => {
-    const emergents = listEmergents(es, { role: input.role, active: input.active });
+    const emergents = listEmergents(es, { role: input.role, active: input.active, instanceScope: input.instanceScope });
     return { ok: true, emergents, count: emergents.length };
   }, { description: "List all emergents", public: true });
 
