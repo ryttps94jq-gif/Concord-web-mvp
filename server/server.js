@@ -82,6 +82,7 @@ import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEffici
 import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./emergent/bootstrap-ingestion.js";
 import { processQuery as contextProcessQuery, queryGlobalFallback } from "./emergent/context-engine.js";
 import { selectGlobalSynthesisCandidates } from "./emergent/scope-separation.js";
+import { suggestDistrict, moveEmergent, DISTRICTS } from "./emergent/districts.js";
 import {
   applyEnrichment, linkArtifactDTU, registerBuiltinEnrichers,
   buildDTUConversationContext, getArtifactDTUs, getDTUArtifact,
@@ -15799,6 +15800,7 @@ try {
       name: "Cipher",
       role: "architect",
       instanceScope: "global",
+      district: "archive",
       scope: ["*"],
       capabilities: ["talk", "propose", "vote", "synthesize", "challenge", "meta-derive", "create-plugin"],
       memoryPolicy: "full",
@@ -15858,7 +15860,12 @@ try {
         } catch { /* edges already exist is fine */ }
       }
 
-      log("cipher.bootstrap", "Cipher registered with identity spec, trust initialized");
+      // Cipher starts in the Archive — deep derivation and first principles
+      try {
+        runMacro("emergent", "district.move", { emergentId: "em_cipher", district: "archive", reason: "Cipher's home district — first principles and deep derivation" }, _sysCtx);
+      } catch { /* district macros may not be loaded yet — field set directly */ }
+
+      log("cipher.bootstrap", "Cipher registered with identity spec, trust initialized, district: archive");
     }
   } else {
     log("cipher.bootstrap", "Cipher already registered, skipping");
@@ -16594,6 +16601,35 @@ function startHeartbeat() {
           } catch (err) { console.error("[system] Global meta-derivation error:", err); }
         }
       }
+
+      // ── Per-emergent district evaluation (every tick) ──
+      // Each emergent reconsiders its district based on current lattice state.
+      // Autonomous movement with thrashing prevention (1.5 score threshold).
+      try {
+        const { getEmergentState } = await import("./emergent/store.js");
+        const es = getEmergentState(STATE);
+        const latticeState = {
+          pendingGovernanceCount: es.outputBundles?.size || 0,
+          capabilityGapCount: 0,
+          unpromotedShadowCount: STATE.shadowDtus?.size || 0,
+          nearThresholdCount: 0,
+          lastIngestAge: 0,
+        };
+
+        for (const emergent of es.emergents.values()) {
+          if (!emergent.active) continue;
+          const suggestion = suggestDistrict(emergent, latticeState);
+          const currentDistrict = emergent.district || "commons";
+          if (suggestion.suggested !== currentDistrict) {
+            // Thrashing prevention: only move if suggested score beats current by 1.5+
+            const suggestedScore = suggestion.scores[suggestion.suggested] || 0;
+            const currentScore = suggestion.scores[currentDistrict] || 0;
+            if (suggestedScore - currentScore >= 1.5) {
+              moveEmergent(es, emergent.id, suggestion.suggested, suggestion.reason);
+            }
+          }
+        }
+      } catch (err) { /* district evaluation is non-critical */ }
     } catch (err) { console.error('[system] Global scope tick error:', err); }
   }, globalMs);
   log("heartbeat", "Global scope tick started", { ms: globalMs });
