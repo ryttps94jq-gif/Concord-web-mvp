@@ -16,7 +16,9 @@ export function Topbar() {
   const { isOnline } = useOnlineStatus();
   const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const { data: resonance } = useQuery({
     queryKey: ['resonance-quick'],
@@ -25,26 +27,37 @@ export function Topbar() {
     retry: false,
   });
 
-  const { data: notifications } = useQuery({
-    queryKey: ['notifications-count'],
-    queryFn: () => api.get('/api/notifications/count').then((r) => r.data),
+  // Fetch recent events as notifications from the paginated events endpoint
+  const { data: eventsData, refetch: refetchEvents } = useQuery({
+    queryKey: ['events-paginated-notifs'],
+    queryFn: () => api.get('/api/events/paginated', { params: { limit: 20 } }).then((r) => r.data),
+    refetchInterval: 60000,
     retry: false,
   });
+
+  const notificationEvents = eventsData?.events || eventsData?.items || [];
+  const notifCount = notificationEvents.length;
 
   // Look up proper display name and icon from the lens registry
   const lensEntry = activeLens ? getLensById(activeLens) : null;
   const displayName = lensEntry?.name || (activeLens ? activeLens.charAt(0).toUpperCase() + activeLens.slice(1) : 'Dashboard');
 
-  // Close user menu on outside click or Escape
+  // Close user menu and notification panel on outside click or Escape
   useEffect(() => {
-    if (!userMenuOpen) return;
+    if (!userMenuOpen && !notificationsOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (userMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (notificationsOpen && notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
       }
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setUserMenuOpen(false);
+      if (e.key === 'Escape') {
+        setUserMenuOpen(false);
+        setNotificationsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleKey);
@@ -52,7 +65,7 @@ export function Topbar() {
       document.removeEventListener('mousedown', handleClick);
       document.removeEventListener('keydown', handleKey);
     };
-  }, [userMenuOpen]);
+  }, [userMenuOpen, notificationsOpen]);
 
   const handleLogout = async () => {
     try {
@@ -145,17 +158,79 @@ export function Topbar() {
         </div>
 
         {/* Notifications */}
-        <button
-          className="relative p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
-          aria-label={`Notifications${(notifications?.count || 0) > 0 ? ` (${notifications?.count} unread)` : ''}`}
-        >
-          <Bell className="w-5 h-5 text-gray-400" />
-          {(notifications?.count || 0) > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-neon-pink text-white text-[10px] lg:text-xs rounded-full flex items-center justify-center">
-              {notifications?.count > 9 ? '9+' : notifications?.count}
-            </span>
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => {
+              setNotificationsOpen(!notificationsOpen);
+              setUserMenuOpen(false);
+              if (!notificationsOpen) refetchEvents();
+            }}
+            className="relative p-2 rounded-lg hover:bg-lattice-elevated transition-colors"
+            aria-label={`Notifications${notifCount > 0 ? ` (${notifCount} recent)` : ''}`}
+            aria-expanded={notificationsOpen}
+            aria-haspopup="true"
+          >
+            <Bell className="w-5 h-5 text-gray-400" />
+            {notifCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-neon-pink text-white text-[10px] lg:text-xs rounded-full flex items-center justify-center">
+                {notifCount > 9 ? '9+' : notifCount}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-80 max-h-96 bg-lattice-surface border border-lattice-border rounded-lg shadow-xl z-50 overflow-hidden flex flex-col"
+              role="menu"
+            >
+              <div className="px-4 py-3 border-b border-lattice-border flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Notifications</h3>
+                <button
+                  onClick={() => router.push('/lenses/events')}
+                  className="text-xs text-neon-cyan hover:text-neon-blue transition-colors"
+                >
+                  View all
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {notificationEvents.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-gray-500 text-sm">
+                    No recent notifications
+                  </div>
+                ) : (
+                  notificationEvents.slice(0, 10).map((event: { id?: string; type?: string; message?: string; summary?: string; description?: string; created_at?: string; timestamp?: string; scope?: string }, idx: number) => (
+                    <button
+                      key={event.id || idx}
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        router.push('/lenses/events');
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-lattice-elevated transition-colors border-b border-lattice-border/50 last:border-b-0"
+                      role="menuitem"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 w-2 h-2 rounded-full bg-neon-cyan flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-200 truncate">
+                            {event.message || event.summary || event.description || event.type || 'System event'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {event.type && <span className="text-gray-400">{event.type}</span>}
+                            {(event.created_at || event.timestamp) && (
+                              <span className="ml-2">
+                                {new Date(event.created_at || event.timestamp || '').toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>

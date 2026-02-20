@@ -9,15 +9,22 @@
  *   - DashboardPage for returning users
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { ResonanceEmpireGraph } from '@/components/graphs/ResonanceEmpireGraph';
+import { KnowledgeSpace3D } from '@/components/graphs/KnowledgeSpace3D';
 import { DTUEmpireCard } from '@/components/dtu/DTUEmpireCard';
 import { LockDashboard } from '@/components/sovereignty/LockDashboard';
 import { CoherenceBadge } from '@/components/graphs/CoherenceBadge';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { useUIStore } from '@/store/ui';
+import { CORE_LENSES } from '@/lib/lens-registry';
+import {
+  Activity, Zap, Compass, TrendingUp, Heart,
+  MessageSquare, Layout, Share2, Code, Music,
+} from 'lucide-react';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -25,6 +32,7 @@ export function HomeClient() {
   const [hasEntered, setHasEntered] = useState<boolean | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const setFullPageMode = useUIStore((state) => state.setFullPageMode);
+  const router = useRouter();
 
   useEffect(() => {
     // Hide SSR landing content once client takes over
@@ -48,8 +56,7 @@ export function HomeClient() {
   }, [setFullPageMode]);
 
   const handleEnter = () => {
-    // Send user to register/login instead of straight to dashboard
-    window.location.href = '/register';
+    router.push('/register');
   };
 
   // Still loading from localStorage
@@ -75,6 +82,10 @@ export function HomeClient() {
   return <DashboardPage />;
 }
 
+// ============================================================================
+// Dashboard Page
+// ============================================================================
+
 function DashboardPage() {
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
@@ -91,139 +102,288 @@ function DashboardPage() {
     queryFn: () => api.get('/api/events').then((r) => r.data),
   });
 
+  const { data: resonanceData } = useQuery({
+    queryKey: ['resonance-quick'],
+    queryFn: () => api.get('/api/resonance/quick').then((r) => r.data),
+    refetchInterval: 30000,
+  });
+
+  const { data: healthData } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: () => api.get('/api/system/health').then((r) => r.data),
+    refetchInterval: 60000,
+  });
+
+  const { data: guidanceData } = useQuery({
+    queryKey: ['guidance-suggestions'],
+    queryFn: () => api.get('/api/guidance/suggestions').then((r) => r.data),
+    retry: false,
+  });
+
   const dtus = dtusData?.dtus || [];
   const events = eventsData?.events || [];
 
+  // Build 3D graph nodes from DTUs for the Resonance Universe
+  const graph3DNodes = useMemo(() => {
+    return dtus.slice(0, 100).map((dtu: { id: string; tier?: string; summary?: string; title?: string; resonance?: number; domain?: string }, i: number) => {
+      // Spiral galaxy distribution
+      const t = i / Math.max(dtus.length, 1);
+      const radius = 3 + t * 18;
+      const angle = t * Math.PI * 10;
+      const y = (Math.sin(i * 0.7) * 3);
+
+      return {
+        id: dtu.id,
+        label: dtu.title || dtu.summary?.slice(0, 24) || dtu.id.slice(0, 8),
+        tier: (dtu.tier || 'regular') as 'regular' | 'mega' | 'hyper' | 'shadow',
+        position: [
+          Math.cos(angle) * radius,
+          y,
+          Math.sin(angle) * radius,
+        ] as [number, number, number],
+        connections: [] as string[],
+        resonance: dtu.resonance ?? (resonanceData?.coherence || 0),
+      };
+    });
+  }, [dtus, resonanceData?.coherence]);
+
+  // Build connections between nearby nodes
+  const graph3DNodesWithEdges = useMemo(() => {
+    const nodes = [...graph3DNodes];
+    for (let i = 0; i < nodes.length; i++) {
+      // Connect to next 1-3 nodes and some random cross-connections
+      const connections: string[] = [];
+      if (i + 1 < nodes.length) connections.push(nodes[i + 1].id);
+      if (i + 2 < nodes.length && i % 3 === 0) connections.push(nodes[i + 2].id);
+      if (i % 5 === 0 && nodes.length > 10) {
+        const randomIdx = (i * 7 + 3) % nodes.length;
+        if (randomIdx !== i) connections.push(nodes[randomIdx].id);
+      }
+      nodes[i] = { ...nodes[i], connections };
+    }
+    return nodes;
+  }, [graph3DNodes]);
+
+  const dtuCount = status?.counts?.dtus || dtus.length || 0;
+  const coherence = resonanceData?.coherence || 0;
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 lg:p-6 space-y-5 max-w-[1600px] mx-auto">
+      {/* Header */}
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gradient-neon">
-            Concord Empire Dashboard
+          <h1 className="text-2xl lg:text-3xl font-bold text-white">
+            Empire Dashboard
           </h1>
-          <p className="text-gray-400 mt-1">
+          <p className="text-gray-500 mt-1 text-sm">
             {statusLoading ? (
-              <span className="animate-pulse">Loading status...</span>
+              <span className="animate-pulse">Connecting...</span>
             ) : (
               <>
-                {status?.version || 'v5.0'} | {status?.counts?.dtus || 0} DTUs |{' '}
-                {status?.llm?.enabled ? 'LLM Ready' : 'Local Mode'}
+                {status?.version || 'v5.0'} &middot; {dtuCount.toLocaleString()} DTUs &middot;{' '}
+                {status?.llm?.enabled ? 'LLM Active' : 'Local Mode'} &middot;{' '}
+                {healthData?.status === 'ok' ? (
+                  <span className="text-neon-green">Healthy</span>
+                ) : (
+                  <span className="text-yellow-400">Checking...</span>
+                )}
               </>
             )}
           </p>
         </div>
-        <CoherenceBadge score={events.length} />
+        <div className="flex items-center gap-3">
+          <CoherenceBadge score={events.length} />
+          <Link
+            href="/hub"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-lattice-surface border border-lattice-border hover:border-neon-cyan/50 transition-all text-sm text-gray-400 hover:text-white"
+          >
+            <Compass className="w-4 h-4" />
+            <span className="hidden sm:inline">Explore Lenses</span>
+          </Link>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Metrics Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
           label="Total DTUs"
-          value={statusLoading ? '...' : status?.counts?.dtus || 0}
-          emoji="cube"
+          value={statusLoading ? '...' : dtuCount}
+          icon={<Zap className="w-5 h-5" />}
           color="blue"
         />
         <MetricCard
-          label="Simulations"
-          value={statusLoading ? '...' : status?.counts?.simulations || 0}
-          emoji="flask"
+          label="Coherence"
+          value={statusLoading ? '...' : `${(coherence * 100).toFixed(0)}%`}
+          icon={<Activity className="w-5 h-5" />}
           color="purple"
         />
         <MetricCard
           label="Events"
           value={statusLoading ? '...' : status?.counts?.events || 0}
-          emoji="activity"
+          icon={<TrendingUp className="w-5 h-5" />}
           color="pink"
         />
         <MetricCard
           label="Sovereignty"
           value="70%"
-          emoji="lock"
+          icon={<Heart className="w-5 h-5" />}
           color="green"
           locked
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <QueueCard label="Ingest Queue" value={status?.queues?.ingest || 0} color="blue" loading={statusLoading} />
-        <QueueCard label="Autocrawl Queue" value={status?.queues?.autocrawl || 0} color="purple" loading={statusLoading} />
-        <QueueCard label="Macro Domains" value={status?.macro?.domains?.length || 0} color="cyan" loading={statusLoading} />
-        <QueueCard label="Wallets" value={status?.counts?.wallets || 0} color="green" loading={statusLoading} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 panel p-4">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span className="text-neon-blue">*</span> Resonance Universe
-          </h2>
-          <div className="h-[400px]">
-            <ResonanceEmpireGraph />
+      {/* Resonance Universe 3D + Sovereignty */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 rounded-xl border border-lattice-border bg-lattice-surface/50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-lattice-border flex items-center justify-between">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-neon-cyan" />
+              Resonance Universe
+            </h2>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>{graph3DNodesWithEdges.length} nodes</span>
+              <span className="text-neon-cyan">{(coherence * 100).toFixed(0)}% coherence</span>
+            </div>
+          </div>
+          <div className="h-[420px]">
+            {graph3DNodesWithEdges.length > 0 ? (
+              <Suspense fallback={
+                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                  <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    Loading 3D lattice...
+                  </div>
+                </div>
+              }>
+                <KnowledgeSpace3D nodes={graph3DNodesWithEdges} />
+              </Suspense>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                <div className="text-center">
+                  <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>Lattice is forming...</p>
+                  <p className="text-xs text-gray-600 mt-1">DTUs will appear here as they generate</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        <div className="panel p-4">
+        <div className="rounded-xl border border-lattice-border bg-lattice-surface/50 p-4">
           <LockDashboard />
         </div>
       </div>
 
-      <div className="panel p-4">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <span className="text-neon-cyan">*</span> Recent DTUs
-        </h2>
+      {/* Queue Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <QueueCard label="Ingest Queue" value={status?.queues?.ingest || 0} color="blue" loading={statusLoading} />
+        <QueueCard label="Autocrawl" value={status?.queues?.autocrawl || 0} color="purple" loading={statusLoading} />
+        <QueueCard label="Domains" value={status?.macro?.domains?.length || 0} color="cyan" loading={statusLoading} />
+        <QueueCard label="Wallets" value={status?.counts?.wallets || 0} color="green" loading={statusLoading} />
+      </div>
+
+      {/* Recent DTUs */}
+      <div className="rounded-xl border border-lattice-border bg-lattice-surface/50 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <Zap className="w-4 h-4 text-neon-blue" />
+            Recent DTUs
+          </h2>
+          <Link href="/lenses/graph" className="text-xs text-gray-500 hover:text-neon-cyan transition-colors">
+            View all in Graph &rarr;
+          </Link>
+        </div>
         {dtusLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-lattice-surface animate-pulse rounded-lg" />
+              <div key={i} className="h-28 bg-lattice-deep animate-pulse rounded-lg" />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {dtus.slice(0, 6).map((dtu: { id: string; tier: 'regular' | 'mega' | 'hyper' | 'shadow'; summary: string; timestamp: string; resonance?: number; tags?: string[] }) => (
               <DTUEmpireCard key={dtu.id} dtu={dtu} />
             ))}
             {dtus.length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-gray-400 mb-2">No DTUs yet</p>
-                <p className="text-gray-500 text-sm">Start forging in the Chat or Forge lens</p>
+              <div className="col-span-full text-center py-10">
+                <p className="text-gray-400 mb-1">No DTUs yet</p>
+                <p className="text-gray-600 text-sm">Start forging in the Chat lens</p>
               </div>
             )}
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <QuickAction href="/lenses/chat" label="Chat" icon="message" />
-        <QuickAction href="/lenses/graph" label="Graph" icon="share2" />
-        <QuickAction href="/lenses/resonance" label="Resonance" icon="activity" />
-        <QuickAction href="/lenses/council" label="Council" icon="users" />
+      {/* Guidance Suggestions */}
+      {guidanceData?.suggestions && guidanceData.suggestions.length > 0 && (
+        <div className="rounded-xl border border-lattice-border bg-lattice-surface/50 p-4">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
+            <Compass className="w-4 h-4 text-neon-purple" />
+            Suggestions
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {guidanceData.suggestions.slice(0, 4).map((s: { id?: string; title?: string; message?: string; action?: string }, i: number) => (
+              <div key={s.id || i} className="p-3 rounded-lg bg-lattice-deep border border-lattice-border/50 text-sm text-gray-300">
+                {s.title || s.message || s.action || 'Suggestion'}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Core 5 Quick Access */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {CORE_LENSES.map((core) => {
+          const coreIcons: Record<string, React.ReactNode> = {
+            chat: <MessageSquare className="w-5 h-5" />,
+            board: <Layout className="w-5 h-5" />,
+            graph: <Share2 className="w-5 h-5" />,
+            code: <Code className="w-5 h-5" />,
+            studio: <Music className="w-5 h-5" />,
+          };
+          return (
+            <Link
+              key={core.id}
+              href={core.path}
+              className="group flex flex-col items-center gap-2 p-4 rounded-xl border border-lattice-border bg-lattice-surface/30 hover:border-neon-cyan/40 hover:bg-lattice-surface/60 transition-all"
+            >
+              <span className="text-gray-400 group-hover:text-neon-cyan transition-colors">
+                {coreIcons[core.id]}
+              </span>
+              <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                {core.name}
+              </span>
+              <span className="text-[10px] text-gray-600">{core.tagline}</span>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// ============================================================================
+// Sub-components
+// ============================================================================
+
 function MetricCard({
-  label, value, emoji, color, locked,
+  label, value, icon, color, locked,
 }: {
-  label: string; value: string | number; emoji?: string; icon?: string;
+  label: string; value: string | number; icon?: React.ReactNode;
   color: 'blue' | 'purple' | 'pink' | 'green'; locked?: boolean;
 }) {
-  const colorClasses = {
-    blue: 'border-neon-blue/30 text-neon-blue',
-    purple: 'border-neon-purple/30 text-neon-purple',
-    pink: 'border-neon-pink/30 text-neon-pink',
-    green: 'border-sovereignty-locked/30 text-sovereignty-locked',
-  };
-  const icons: Record<string, React.ReactNode> = {
-    cube: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
-    flask: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
-    activity: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-    lock: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>,
+  const colorMap = {
+    blue: 'text-neon-blue border-neon-blue/20 bg-neon-blue/5',
+    purple: 'text-neon-purple border-neon-purple/20 bg-neon-purple/5',
+    pink: 'text-neon-pink border-neon-pink/20 bg-neon-pink/5',
+    green: 'text-neon-green border-neon-green/20 bg-neon-green/5',
   };
   return (
-    <div className={`lens-card ${locked ? 'sovereignty-lock lock-70' : ''}`}>
+    <div className={`rounded-xl border p-4 ${colorMap[color]} ${locked ? 'sovereignty-lock lock-70' : ''}`}>
       <div className="flex items-center gap-3">
-        <span className={`${colorClasses[color].split(' ')[1]}`}>{emoji && icons[emoji]}</span>
+        <span className="opacity-70">{icon}</span>
         <div>
-          <p className="text-sm text-gray-400">{label}</p>
-          <p className={`text-2xl font-bold ${colorClasses[color].split(' ')[1]}`}>{value}</p>
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-xl font-bold">{value}</p>
         </div>
       </div>
     </div>
@@ -233,24 +393,9 @@ function MetricCard({
 function QueueCard({ label, value, color, loading }: { label: string; value: number; color: 'blue' | 'purple' | 'cyan' | 'green'; loading?: boolean }) {
   const colorClasses = { blue: 'text-neon-blue', purple: 'text-neon-purple', cyan: 'text-neon-cyan', green: 'text-neon-green' };
   return (
-    <div className="lens-card">
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className={`text-xl font-bold ${colorClasses[color]}`}>{loading ? <span className="animate-pulse">...</span> : value}</p>
+    <div className="rounded-lg border border-lattice-border bg-lattice-surface/30 p-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`text-lg font-bold font-mono ${colorClasses[color]}`}>{loading ? <span className="animate-pulse">...</span> : value}</p>
     </div>
-  );
-}
-
-function QuickAction({ href, label, icon }: { href: string; label: string; icon: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    message: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
-    share2: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>,
-    activity: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12" /></svg>,
-    users: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-  };
-  return (
-    <a href={href} className="lens-card flex items-center justify-center gap-2 py-4 hover:scale-105 hover:border-neon-cyan/50 transition-all">
-      <span className="text-neon-cyan">{icons[icon]}</span>
-      <span className="font-medium">{label}</span>
-    </a>
   );
 }
