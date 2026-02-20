@@ -8989,7 +8989,7 @@ const LLM_PIPELINE = {
 
   // Provider status
   providers: {
-    ollama: { enabled: false, url: null, model: "tinyllama" },
+    ollama: { enabled: false, url: null, model: "llama3.2" },
     openai: { enabled: false, model: "gpt-4.1-mini" }
   }
 };
@@ -8998,7 +8998,7 @@ const LLM_PIPELINE = {
 function initLLMPipeline() {
   const ollamaUrl = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "http://ollama:11434";
   LLM_PIPELINE.providers.ollama.url = ollamaUrl;
-  LLM_PIPELINE.providers.ollama.model = process.env.OLLAMA_MODEL || "tinyllama";
+  LLM_PIPELINE.providers.ollama.model = process.env.OLLAMA_MODEL || "llama3.2";
   LLM_PIPELINE.providers.ollama.enabled = Boolean(ollamaUrl);
 
   LLM_PIPELINE.providers.openai.enabled = Boolean(OPENAI_API_KEY);
@@ -17060,6 +17060,66 @@ async function governorTick(reason="heartbeat") {
 
     // 2.6) Autonomous Agent Scheduler: tick enabled agents at their cadenceMs
     try { await tickEnabledAgents(ctx); } catch {}
+
+    // 2.7) Emergent systems background ticks (new systems: agents, research, sleep, death, hypothesis, culture)
+    try {
+      // New agent system tick (agent-system.js — separate from legacy STATE.personas agents)
+      const agentSys = await import("./emergent/agent-system.js").catch(() => null);
+      if (agentSys?.agentTickJob) {
+        const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+        agentSys.agentTickJob(dtus);
+      }
+
+      // Research queue processing
+      const researchMod = await import("./emergent/research-jobs.js").catch(() => null);
+      if (researchMod?.processResearchQueue) {
+        researchMod.processResearchQueue();
+      }
+
+      // Hypothesis auto-transitions
+      const hypoMod = await import("./emergent/hypothesis-engine.js").catch(() => null);
+      if (hypoMod?.getHypotheses && hypoMod?.checkAutoTransitions) {
+        const hypos = hypoMod.getHypotheses();
+        for (const h of hypos) {
+          if (h.status === "proposed" || h.status === "testing") {
+            try { hypoMod.checkAutoTransitions(h.id); } catch {}
+          }
+        }
+      }
+
+      // Sleep: tick fatigue and check transitions for all entities with bodies
+      const sleepMod = await import("./emergent/sleep-consolidation.js").catch(() => null);
+      const bodyMod = await import("./emergent/body-instantiation.js").catch(() => null);
+      if (sleepMod?.tickFatigue && sleepMod?.checkSleepTransition && bodyMod?.listBodies) {
+        const bodies = bodyMod.listBodies();
+        for (const b of bodies) {
+          try {
+            sleepMod.tickFatigue(b.entityId, 0);
+            sleepMod.checkSleepTransition(b.entityId);
+          } catch {}
+        }
+      }
+
+      // Death condition checks (every tick, lightweight)
+      const deathMod = await import("./emergent/death-protocol.js").catch(() => null);
+      if (deathMod?.checkDeathConditions && deathMod?.executeDeath && bodyMod?.listBodies) {
+        const bodies = bodyMod.listBodies();
+        for (const b of bodies) {
+          try {
+            const check = await deathMod.checkDeathConditions(b.entityId);
+            if (check?.shouldDie && check.cause) {
+              await deathMod.executeDeath(b.entityId, check.cause);
+            }
+          } catch {}
+        }
+      }
+
+      // Culture tick
+      const cultureMod = await import("./emergent/culture-layer.js").catch(() => null);
+      if (cultureMod?.cultureTick) {
+        cultureMod.cultureTick(STATE.__bgTickCounter || 0);
+      }
+    } catch { /* emergent system ticks are non-critical */ }
 
     // 3) Kernel metrics tick (homeostasis, organ wear) so the system stays honest
     try { kernelTick({ type: "HEARTBEAT", meta: { source: "governor", reason } }); } catch {}

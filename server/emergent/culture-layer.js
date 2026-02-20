@@ -1071,6 +1071,29 @@ export function cultureTick(tick) {
  *
  * @returns {{ ok: boolean, metrics: object }}
  */
+/**
+ * Get all established traditions for cross-system integration.
+ * Used by the capability bridge to influence governance strictness.
+ *
+ * @returns {Array} Established traditions
+ */
+export function getEstablishedTraditions() {
+  try {
+    return Array.from(_traditions.values())
+      .filter(t => t.status === TRADITION_STATUS.ESTABLISHED)
+      .map(t => ({
+        id: t.id,
+        type: t.type,
+        label: t.label,
+        influence: t.influence,
+        adherence: t.adherence,
+        establishedAt: t.establishedAt,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export function getCultureMetrics() {
   try {
     const byType = {};

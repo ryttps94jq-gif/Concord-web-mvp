@@ -118,6 +118,23 @@ export function serializeEmergentState(STATE) {
     _sectorAssignments: es._sectorAssignments || {},
     // Persist entity emergence data if present
     _entityEmergence: es._entityEmergence || {},
+    // ── New system state (v5.5+) ──────────────────────────────────────────
+    // Culture traditions and observations
+    _traditions: es._traditions instanceof Map ? serializeMap(es._traditions) : (es._traditions || {}),
+    _cultureObservations: Array.isArray(es._cultureObservations) ? es._cultureObservations.slice(-500) : [],
+    // Creative works gallery
+    _creativeWorks: es._creativeWorks instanceof Map ? serializeMap(es._creativeWorks) : (es._creativeWorks || {}),
+    // Relational emotion bonds
+    _emotionBonds: es._emotionBonds instanceof Map ? serializeMap(es._emotionBonds) : (es._emotionBonds || {}),
+    // Entity economy accounts
+    _economyAccounts: es._economyAccounts instanceof Map ? serializeMap(es._economyAccounts) : (es._economyAccounts || {}),
+    // Entity autonomy state (refusals, consents, dissents)
+    _autonomyProfiles: es._autonomyProfiles instanceof Map ? serializeMap(es._autonomyProfiles) : (es._autonomyProfiles || {}),
+    // Entity teaching profiles
+    _teachingProfiles: es._teachingProfiles instanceof Map ? serializeMap(es._teachingProfiles) : (es._teachingProfiles || {}),
+    // History eras
+    _eras: es._eras instanceof Map ? serializeMap(es._eras) : (es._eras || {}),
+    _eraProgression: Array.isArray(es._eraProgression) ? es._eraProgression : [],
   };
 }
 
@@ -191,6 +208,42 @@ export function deserializeEmergentState(STATE, saved) {
   // Restore entity emergence data
   if (saved._entityEmergence) {
     es._entityEmergence = saved._entityEmergence;
+  }
+
+  // ── Restore new system state (v5.5+) ──────────────────────────────────────
+  if (saved._traditions) {
+    es._traditions = typeof saved._traditions === "object" && !(saved._traditions instanceof Map)
+      ? deserializeToMap(saved._traditions) : (saved._traditions || new Map());
+  }
+  if (Array.isArray(saved._cultureObservations)) {
+    es._cultureObservations = saved._cultureObservations;
+  }
+  if (saved._creativeWorks) {
+    es._creativeWorks = typeof saved._creativeWorks === "object" && !(saved._creativeWorks instanceof Map)
+      ? deserializeToMap(saved._creativeWorks) : (saved._creativeWorks || new Map());
+  }
+  if (saved._emotionBonds) {
+    es._emotionBonds = typeof saved._emotionBonds === "object" && !(saved._emotionBonds instanceof Map)
+      ? deserializeToMap(saved._emotionBonds) : (saved._emotionBonds || new Map());
+  }
+  if (saved._economyAccounts) {
+    es._economyAccounts = typeof saved._economyAccounts === "object" && !(saved._economyAccounts instanceof Map)
+      ? deserializeToMap(saved._economyAccounts) : (saved._economyAccounts || new Map());
+  }
+  if (saved._autonomyProfiles) {
+    es._autonomyProfiles = typeof saved._autonomyProfiles === "object" && !(saved._autonomyProfiles instanceof Map)
+      ? deserializeToMap(saved._autonomyProfiles) : (saved._autonomyProfiles || new Map());
+  }
+  if (saved._teachingProfiles) {
+    es._teachingProfiles = typeof saved._teachingProfiles === "object" && !(saved._teachingProfiles instanceof Map)
+      ? deserializeToMap(saved._teachingProfiles) : (saved._teachingProfiles || new Map());
+  }
+  if (saved._eras) {
+    es._eras = typeof saved._eras === "object" && !(saved._eras instanceof Map)
+      ? deserializeToMap(saved._eras) : (saved._eras || new Map());
+  }
+  if (Array.isArray(saved._eraProgression)) {
+    es._eraProgression = saved._eraProgression;
   }
 
   es.initialized = true;

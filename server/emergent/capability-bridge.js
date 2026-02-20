@@ -572,7 +572,7 @@ export function lensValidateEmpirically(artifact) {
  * @param {object} opts - { dedupEnabled?, hypothesisEnabled?, beaconEnabled? }
  * @returns {{ ok, beacon, dedup, hypotheses }}
  */
-export function runHeartbeatBridgeTick(STATE, opts = {}) {
+export async function runHeartbeatBridgeTick(STATE, opts = {}) {
   const result = {
     ok: true,
     beacon: null,
@@ -607,7 +607,128 @@ export function runHeartbeatBridgeTick(STATE, opts = {}) {
     }
   }
 
+  // 4. Pain/avoidance → autogen intent filtering
+  // If any entity has active avoidance memories for certain domains, penalize
+  // those domains in autogen intent scoring
+  if (opts.avoidanceEnabled !== false) {
+    try {
+      const avoidanceMod = await importModule("./avoidance-learning.js");
+      const bodyMod = await importModule("./body-instantiation.js");
+      if (avoidanceMod?.getAvoidanceMemories && bodyMod?.listBodies) {
+        const bodies = bodyMod.listBodies();
+        const avoidedDomains = new Set();
+        for (const b of bodies) {
+          const memories = avoidanceMod.getAvoidanceMemories(b.entityId);
+          for (const mem of memories) {
+            if (mem.domain) avoidedDomains.add(mem.domain);
+            if (mem.tags) mem.tags.forEach(t => avoidedDomains.add(t));
+          }
+        }
+        if (avoidedDomains.size > 0) {
+          // Store avoided domains for autogen to consult
+          if (!STATE._autogenPipeline) STATE._autogenPipeline = {};
+          STATE._autogenPipeline._avoidedDomains = Array.from(avoidedDomains);
+          result.avoidance = { domainsAvoided: avoidedDomains.size };
+        }
+      }
+    } catch { /* avoidance bridge is non-critical */ }
+  }
+
+  // 5. Culture → governance voting weight influence
+  // Established traditions modify council confidence thresholds
+  if (opts.cultureEnabled !== false) {
+    try {
+      const cultureMod = await importModule("./culture-layer.js");
+      if (cultureMod?.getEstablishedTraditions) {
+        const traditions = cultureMod.getEstablishedTraditions();
+        const traditionCount = traditions?.length || 0;
+        if (traditionCount > 0) {
+          // Store cultural weight modifier for governance to consult
+          // More established traditions = stricter review (higher bar for new DTUs)
+          const culturalStrictness = clamp(1 + traditionCount * 0.02, 1.0, 1.3);
+          if (!STATE._governanceConfig) STATE._governanceConfig = {};
+          STATE._governanceConfig._culturalStrictnessModifier = culturalStrictness;
+          result.culture = { traditions: traditionCount, strictnessModifier: culturalStrictness };
+        }
+      }
+    } catch { /* culture bridge is non-critical */ }
+  }
+
+  // 6. Creative masterworks → council governance promotion
+  // Promote creative works with avg reception > 0.9 through DTU governance
+  if (opts.creativeEnabled !== false) {
+    try {
+      const creativeMod = await importModule("./creative-generation.js");
+      if (creativeMod?.getMasterworks) {
+        const masterworks = creativeMod.getMasterworks();
+        let promoted = 0;
+        for (const work of masterworks) {
+          if (work._promotedToDtu) continue; // already promoted
+          // Create a DTU from the masterwork
+          if (STATE.dtus instanceof Map) {
+            const dtuId = `dtu_cw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+            STATE.dtus.set(dtuId, {
+              id: dtuId,
+              title: `Creative Work: ${work.title || work.mode || "Untitled"}`,
+              kind: "creative_masterwork",
+              tier: "shadow", // starts as shadow, governance promotes
+              tags: ["creative", "masterwork", work.mode || "art", ...(work.tags || [])],
+              content: work.content || work.description || "",
+              meta: {
+                creativeWorkId: work.id,
+                mode: work.mode,
+                entityId: work.entityId,
+                avgReception: work.avgReception,
+                needsCouncilVote: true,
+              },
+              authority: 0.7,
+              resonance: work.avgReception || 0.9,
+              createdAt: nowISO(),
+            });
+            work._promotedToDtu = dtuId;
+            promoted++;
+          }
+          if (promoted >= 3) break; // cap per tick
+        }
+        if (promoted > 0) result.creative = { masterworksPromoted: promoted };
+      }
+    } catch { /* creative bridge is non-critical */ }
+  }
+
+  // 7. HLR → Hypothesis Engine: feed HLR reasoning findings into hypotheses
+  if (opts.hlrEnabled !== false) {
+    try {
+      const hlrMod = await importModule("./hlr-engine.js");
+      const hypoMod = await importModule("./hypothesis-engine.js");
+      if (hlrMod?.getRecentFindings && hypoMod?.proposeHypothesis) {
+        const findings = hlrMod.getRecentFindings ? hlrMod.getRecentFindings() : [];
+        let proposed = 0;
+        for (const finding of findings) {
+          if (finding._hypothesized) continue;
+          if (finding.proposedDTUs?.length > 0 || finding.patterns?.length > 0) {
+            const statement = finding.conclusion || finding.summary ||
+              `HLR finding: ${(finding.patterns || []).map(p => p.description || p.label).join("; ")}`;
+            if (statement && statement.length > 10) {
+              try {
+                hypoMod.proposeHypothesis(statement, finding.domain || "general", "normal");
+                finding._hypothesized = true;
+                proposed++;
+              } catch {}
+            }
+          }
+          if (proposed >= 3) break; // cap per tick
+        }
+        if (proposed > 0) result.hlr = { hypothesesProposed: proposed };
+      }
+    } catch { /* HLR bridge is non-critical */ }
+  }
+
   return result;
+}
+
+// Helper for dynamic imports in the bridge
+async function importModule(path) {
+  try { return await import(path); } catch { return null; }
 }
 
 // ── 8. Bootstrap Meta-Learning Strategies ───────────────────────────────────
@@ -688,6 +809,10 @@ export function getCapabilityBridgeInfo() {
       { name: "lens_scope", desc: "Scope enforcement on lens CRUD operations" },
       { name: "lens_empirical", desc: "Empirical gates validation for lens claims" },
       { name: "heartbeat_bridge", desc: "Composite heartbeat tick running all bridge checks" },
+      { name: "avoidance_filter", desc: "Pain avoidance memories influence autogen domain selection" },
+      { name: "culture_governance", desc: "Established traditions adjust governance strictness" },
+      { name: "creative_promotion", desc: "Creative masterworks promoted to DTUs through governance" },
+      { name: "hlr_hypothesis", desc: "HLR reasoning findings auto-propose hypotheses" },
     ],
   };
 }

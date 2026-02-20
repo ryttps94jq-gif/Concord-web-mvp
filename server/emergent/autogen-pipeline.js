@@ -26,6 +26,7 @@
 import crypto from "node:crypto";
 import { runEmpiricalGates } from "./empirical-gates.js";
 import { formatAndValidate as formatGRC } from "../grc/index.js";
+import { runCouncilVoices } from "./council-voices.js";
 
 // ── Intent Types ─────────────────────────────────────────────────────────────
 
@@ -1078,6 +1079,54 @@ export async function runPipeline(STATE, opts = {}) {
   }
 
   ps.metrics.candidatesProduced++;
+
+  // Stage 5b: Council Five-Voice Gate — all candidates go through governance deliberation
+  try {
+    const qualiaState = null; // entity qualia not available in system-level autogen
+    const proposal = {
+      title: candidate.title || candidate.content?.slice(0, 100) || "autogen candidate",
+      content: candidate.content || candidate.human?.summary || "",
+      tags: candidate.tags || [],
+      tier: candidate.tier || "regular",
+      evidence_weight: criticResult.issues?.length === 0 ? 0.9 : 0.5,
+      logical_consistency_score: criticResult.hasCritical ? 0.3 : 0.8,
+      uncertainty_score: noveltyResult.novel ? 0.3 : 0.7,
+      risk_magnitude: writePolicy.tier === "shadow" ? 0.2 : 0.5,
+      value_alignment: 0.7,
+      outcome_likelihood: noveltyResult.novel ? 0.7 : 0.4,
+      scarcity_level: intent.score || 0.5,
+    };
+    const councilResult = runCouncilVoices(proposal, qualiaState);
+    trace.stages.councilVoices = {
+      confidence: councilResult.confidence,
+      verdict: councilResult.verdictAction,
+      unanimous: councilResult.unanimous,
+      voices: councilResult.voices?.map(v => ({ id: v.voiceId, vote: v.vote, score: v.score?.toFixed(3) })),
+    };
+    candidate.meta = candidate.meta || {};
+    candidate.meta.councilVerdict = councilResult.verdictAction;
+    candidate.meta.councilConfidence = councilResult.confidence;
+
+    // Reject if council says reject — return as failed candidate
+    if (councilResult.verdictAction === "reject") {
+      ps.metrics.candidatesRejected = (ps.metrics.candidatesRejected || 0) + 1;
+      return {
+        ok: false,
+        error: "council_rejected",
+        councilResult: trace.stages.councilVoices,
+        trace,
+      };
+    }
+    // needs_more_data: still produce but demote to shadow
+    if (councilResult.verdictAction === "needs_more_data") {
+      candidate.tier = "shadow";
+      candidate.meta.shadowFirst = true;
+      candidate.meta.councilDemoted = true;
+    }
+  } catch (e) {
+    // Council failure is non-fatal; log and continue
+    trace.stages.councilVoices = { ok: false, error: String(e?.message || e) };
+  }
 
   // Stage 6: GRC Formatting — wrap candidate in GRC v1 envelope
   const grcResult = formatCandidateAsGRC(candidate, pack, {

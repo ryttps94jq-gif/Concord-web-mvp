@@ -1325,6 +1325,34 @@ export function getHLRMetrics() {
   };
 }
 
+/**
+ * Get recent HLR findings for cross-system integration.
+ * Returns traces that have proposed DTUs or patterns, sorted by recency.
+ *
+ * @param {number} [limit=20] - Max findings to return
+ * @returns {Array} Recent findings with conclusions and patterns
+ */
+export function getRecentFindings(limit = 20) {
+  try {
+    const all = Array.from(_traces.values());
+    all.sort((a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime());
+    return all.slice(0, limit).map(t => ({
+      traceId: t.traceId,
+      topic: t.topic,
+      domain: t.domain,
+      conclusion: t.conclusion || null,
+      summary: t.summary || null,
+      patterns: t.patterns || [],
+      proposedDTUs: t.proposedDTUs || [],
+      confidence: t.confidence || 0,
+      startedAt: t.startedAt,
+      _hypothesized: t._hypothesized || false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CHAIN GENERATION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════

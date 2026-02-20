@@ -17,7 +17,7 @@ import {
   getExtensionLenses,
   type CoreLensConfig,
 } from '@/lib/lens-registry';
-import { Home, ChevronLeft, ChevronRight, ChevronDown, X, Compass, Puzzle } from 'lucide-react';
+import { Home, ChevronLeft, ChevronRight, ChevronDown, X, Compass, Puzzle, FlaskConical, Search, Users, Cpu, Building2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
@@ -159,6 +159,41 @@ export function Sidebar() {
                 <span className="text-sm font-medium truncate">Lens Hub</span>
               )}
             </Link>
+          </div>
+
+          {/* System Pages */}
+          {showLabel && (
+            <p className="px-3 py-1 text-xs uppercase tracking-wider text-neon-cyan mb-1">
+              Systems
+            </p>
+          )}
+          <div className="space-y-0.5 mb-4">
+            {[
+              { href: '/hypothesis-lab', label: 'Hypothesis Lab', Icon: FlaskConical },
+              { href: '/research', label: 'Research', Icon: Search },
+              { href: '/council', label: 'Council', Icon: Users },
+              { href: '/agents', label: 'Agents', Icon: Cpu },
+              { href: '/cri', label: 'CRI', Icon: Building2 },
+              { href: '/ingest', label: 'Ingest', Icon: Download },
+            ].map(({ href, label, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-all',
+                  pathname === href
+                    ? 'bg-neon-blue/20 text-neon-blue'
+                    : 'text-gray-400 hover:bg-lattice-elevated hover:text-white',
+                  !showLabel && 'justify-center'
+                )}
+                title={!showLabel ? label : undefined}
+              >
+                <Icon className="w-4.5 h-4.5 flex-shrink-0" />
+                {showLabel && (
+                  <span className="text-sm font-medium truncate">{label}</span>
+                )}
+              </Link>
+            ))}
           </div>
 
           {/* Extensions Toggle */}
