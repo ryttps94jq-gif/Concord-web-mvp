@@ -65,7 +65,7 @@ export default function RegisterPage() {
             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-blue flex items-center justify-center">
               <Brain className="w-7 h-7 text-white" />
             </div>
-            <span className="text-3xl font-bold text-white">Concord</span>
+            <span className="text-3xl font-bold text-white">Concordos</span>
           </Link>
           <p className="text-gray-400 mt-3">Create your sovereign account</p>
         </div>

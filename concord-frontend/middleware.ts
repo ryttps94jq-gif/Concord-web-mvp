@@ -39,11 +39,13 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for session cookie (httpOnly cookie set by backend on login)
-  // The backend sets either 'concord_session' or 'token' cookie
+  // The backend sets 'concord_auth' (httpOnly JWT) and optionally 'concord_refresh'
   const hasSession =
-    request.cookies.has('concord_session') ||
-    request.cookies.has('token') ||
-    request.cookies.has('connect.sid');
+    request.cookies.has('concord_auth') ||          // JWT auth cookie (primary — set by backend on login)
+    request.cookies.has('concord_refresh') ||        // Refresh token cookie
+    request.cookies.has('concord_session') ||        // Legacy fallback
+    request.cookies.has('token') ||                  // Legacy fallback
+    request.cookies.has('connect.sid');              // Express session fallback
 
   if (!hasSession) {
     const loginUrl = new URL('/login', request.url);

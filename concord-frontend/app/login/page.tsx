@@ -28,8 +28,12 @@ function LoginForm() {
       if (res.data?.ok) {
         // Mark as entered so HomeClient shows dashboard
         localStorage.setItem('concord_entered', 'true');
+        // Ensure CSRF cookie is fresh for the dashboard
+        try { await api.get('/api/auth/csrf-token'); } catch {}
         // Connect WebSocket now that we have a session cookie
         connectSocket();
+        // Small delay to ensure cookies propagate before navigation
+        await new Promise(r => setTimeout(r, 100));
         // Redirect to the page they were trying to reach, or home
         const from = searchParams.get('from');
         router.push(from || '/');
@@ -59,9 +63,9 @@ function LoginForm() {
             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-blue flex items-center justify-center">
               <Brain className="w-7 h-7 text-white" />
             </div>
-            <span className="text-3xl font-bold text-white">Concord</span>
+            <span className="text-3xl font-bold text-white">Concordos</span>
           </Link>
-          <p className="text-gray-400 mt-3">Sign in to your cognitive engine</p>
+          <p className="text-gray-400 mt-3">Sign in to your sovereign cognitive engine</p>
         </div>
 
         {/* Form card */}
