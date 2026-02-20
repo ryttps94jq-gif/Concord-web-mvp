@@ -309,7 +309,8 @@ export default function GraphLensPage() {
 
   const initializeGraphData = useCallback(() => {
     const dtuList = dtus?.dtus || [];
-    const linkList = links?.links || [];
+    // Normalize: backend force graph returns 'links', visual returns 'edges'
+    const linkList = links?.links || links?.edges || graphForceData?.links || graphForceData?.edges || graphVisualData?.edges || graphVisualData?.links || [];
     const width = dimensions.width;
     const height = dimensions.height;
 

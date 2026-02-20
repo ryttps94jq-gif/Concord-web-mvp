@@ -13,7 +13,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api, apiHelpers } from '@/lib/api/client';
 import { KnowledgeSpace3D } from '@/components/graphs/KnowledgeSpace3D';
 import { DTUEmpireCard } from '@/components/dtu/DTUEmpireCard';
 import { LockDashboard } from '@/components/sovereignty/LockDashboard';
@@ -23,6 +23,7 @@ import { EmergentPanel } from '@/components/emergent/EmergentPanel';
 import { GovernanceFeed } from '@/components/emergent/GovernanceFeed';
 import { LiveDTUFeed } from '@/components/live/LiveDTUFeed';
 import { ScopeIndicator } from '@/components/live/ScopeIndicator';
+import { InspectorDrawer } from '@/components/guidance/InspectorDrawer';
 import { useUIStore } from '@/store/ui';
 import { CORE_LENSES } from '@/lib/lens-registry';
 import {
@@ -51,7 +52,11 @@ export function HomeClient() {
     // If user has entered before, verify they're still authenticated
     if (isEntered) {
       api.get('/api/auth/me')
-        .then(() => setAuthChecked(true))
+        .then(async () => {
+          // Proactively refresh CSRF token for state-changing requests
+          try { await api.get('/api/auth/csrf-token'); } catch {}
+          setAuthChecked(true);
+        })
         .catch(() => {
           // Not authenticated — the 401 interceptor will redirect to /login
           setAuthChecked(true);
@@ -91,6 +96,8 @@ export function HomeClient() {
 // ============================================================================
 
 function DashboardPage() {
+  const [inspecting, setInspecting] = useState<{ type: string; id: string } | null>(null);
+
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
@@ -108,7 +115,7 @@ function DashboardPage() {
 
   const { data: resonanceData } = useQuery({
     queryKey: ['resonance-quick'],
-    queryFn: () => api.get('/api/resonance/quick').then((r) => r.data),
+    queryFn: () => api.get('/api/lattice/resonance').then((r) => r.data).catch(() => null),
     refetchInterval: 30000,
   });
 
@@ -124,7 +131,25 @@ function DashboardPage() {
     retry: false,
   });
 
-  const dtus = dtusData?.dtus || [];
+  // Fetch graph visual data for the Resonance Universe
+  const { data: graphData } = useQuery({
+    queryKey: ['graph-visual'],
+    queryFn: () => apiHelpers.graph.visual({ limit: 200 }).then((r) => r.data),
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Normalize DTU data to handle field name variations from backend
+  const dtus = (dtusData?.dtus || []).map((d: Record<string, unknown>) => ({
+    id: d.id as string,
+    tier: ((d.tier as string) || 'regular') as 'regular' | 'mega' | 'hyper' | 'shadow',
+    summary: ((d.summary || d.title || (d.human as Record<string, unknown>)?.summary || d.content || 'Untitled') as string),
+    timestamp: ((d.timestamp || d.createdAt || d.created_at || new Date().toISOString()) as string),
+    resonance: ((d.resonance ?? (d.machine as Record<string, unknown>)?.resonance ?? 0) as number),
+    tags: ((d.tags || []) as string[]),
+    parentId: d.parentId as string | undefined,
+    childCount: (((d.lineage as Record<string, unknown>)?.children as unknown[] || []).length || (d.childCount as number) || 0) as number,
+  }));
   const events = eventsData?.events || [];
 
   // Build 3D graph nodes from DTUs for the Resonance Universe
@@ -313,7 +338,7 @@ function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {dtus.slice(0, 6).map((dtu: { id: string; tier: 'regular' | 'mega' | 'hyper' | 'shadow'; summary: string; timestamp: string; resonance?: number; tags?: string[] }) => (
-              <DTUEmpireCard key={dtu.id} dtu={dtu} />
+              <DTUEmpireCard key={dtu.id} dtu={dtu} onClick={(d) => setInspecting({ type: 'dtu', id: d.id })} />
             ))}
             {dtus.length === 0 && (
               <div className="col-span-full text-center py-10">
@@ -369,6 +394,15 @@ function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Inspector Drawer — click a DTU card or graph node to inspect */}
+      {inspecting && (
+        <InspectorDrawer
+          entityType={inspecting.type}
+          entityId={inspecting.id}
+          onClose={() => setInspecting(null)}
+        />
+      )}
     </div>
   );
 }

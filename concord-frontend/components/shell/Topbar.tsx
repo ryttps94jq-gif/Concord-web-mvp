@@ -23,7 +23,7 @@ export function Topbar() {
 
   const { data: resonance } = useQuery({
     queryKey: ['resonance-quick'],
-    queryFn: () => api.get('/api/resonance/quick').then((r) => r.data),
+    queryFn: () => api.get('/api/lattice/resonance').then((r) => r.data).catch(() => null),
     refetchInterval: 30000,
     retry: false,
   });
