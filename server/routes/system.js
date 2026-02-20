@@ -5,7 +5,7 @@
  *         health/deep, api/metrics (chicken2), DTU paginated, openapi, docs,
  *         search/indexed, search/dsl, search/reindex, global/search
  */
-module.exports = function registerSystemRoutes(app, {
+export default function registerSystemRoutes(app, {
   STATE,
   makeCtx,
   runMacro,
@@ -489,4 +489,4 @@ module.exports = function registerSystemRoutes(app, {
     results.sort((a, b) => (b.score || 0) - (a.score || 0));
     return res.json({ ok: true, results: results.slice(0, limit), query, count: results.length });
   });
-};
+}

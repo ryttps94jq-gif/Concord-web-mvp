@@ -5,7 +5,7 @@
  *         abstraction, queues, auth/keys, orgs, research
  * Registered directly on app (mixed prefixes)
  */
-module.exports = function registerOperationRoutes(app, {
+export default function registerOperationRoutes(app, {
   STATE,
   makeCtx,
   runMacro,
@@ -628,4 +628,4 @@ module.exports = function registerOperationRoutes(app, {
     saveStateDebounced();
     res.json({ ok:true, item, promoted });
   });
-};
+}

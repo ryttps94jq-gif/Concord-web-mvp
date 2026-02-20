@@ -2,9 +2,9 @@
  * Emergent Agent Governance API routes — extracted from server.js
  * Mounted at /api/emergent
  */
-const express = require("express");
+import express from "express";
 
-module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
+export default function createEmergentRouter({ makeCtx, runMacro }) {
   const router = express.Router();
 
   // Emergent management
@@ -445,4 +445,4 @@ module.exports = function createEmergentRouter({ makeCtx, runMacro }) {
   });
 
   return router;
-};
+}

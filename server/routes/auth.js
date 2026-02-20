@@ -2,10 +2,10 @@
  * Auth routes — extracted from server.js
  * Mounted at /api/auth
  */
-const express = require("express");
-const crypto = require("crypto");
+import express from "express";
+import crypto from "crypto";
 
-module.exports = function createAuthRouter({
+export default function createAuthRouter({
   AuthDB,
   AuditDB,
   db,
@@ -510,4 +510,4 @@ module.exports = function createAuthRouter({
   });
 
   return router;
-};
+}

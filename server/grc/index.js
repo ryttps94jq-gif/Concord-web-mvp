@@ -15,6 +15,7 @@
 
 import { GRC_JSON_SCHEMA, validateGRC } from "./schema.js";
 import { formatGRC, getGRCSystemPrompt } from "./formatter.js";
+export { getGRCSystemPrompt };
 import { runGRCInvariantChecks, CORE_INVARIANTS } from "./invariants.js";
 
 // ---- Module State ----

@@ -2,7 +2,7 @@
  * DTU routes — extracted from server.js
  * Registered directly on app (mixed prefixes)
  */
-module.exports = function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, _saveStateDebounced, validate }) {
+export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, _saveStateDebounced, validate }) {
 
   // CRETI-first DTU view (no raw JSON by default)
   app.get("/api/dtu_view/:id", (req, res) => {
@@ -131,4 +131,4 @@ module.exports = function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtu
     if (!dtu) return res.status(404).json({ ok: false, error: "Definition not found" });
     return res.json({ ok: true, definition: dtu });
   });
-};
+}

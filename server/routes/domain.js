@@ -9,7 +9,7 @@
  *         metacognition, explanation, metalearning, multimodal, voice, tools,
  *         entity, sessions, search, stats, cognitive/status
  */
-module.exports = function registerDomainRoutes(app, {
+export default function registerDomainRoutes(app, {
   STATE,
   makeCtx,
   runMacro,
@@ -997,4 +997,4 @@ module.exports = function registerDomainRoutes(app, {
     const out = await runMacro("llm", "embed", req.body, makeCtx(req));
     return res.json(out);
   });
-};
+}

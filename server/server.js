@@ -30,7 +30,6 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
-import { createRequire } from "module";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
 import { ConcordError } from "./lib/errors.js";
@@ -41,6 +40,15 @@ import { createLLMQueue, PRIORITY } from "./lib/llm-queue.js";
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
+
+// ---- Route modules (ESM) ----
+import registerSystemRoutes from "./routes/system.js";
+import createAuthRouter from "./routes/auth.js";
+import registerChatRoutes from "./routes/chat.js";
+import registerDomainRoutes from "./routes/domain.js";
+import registerDtuRoutes from "./routes/dtus.js";
+import createEmergentRouter from "./routes/emergent.js";
+import registerOperationRoutes from "./routes/operations.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
 import { runMigrations as runSchemaMigrations } from "./migrate.js";
@@ -59,7 +67,6 @@ import {
   checkRefIdProcessed,
   validateBalance as economyValidateBalance,
   economyAudit,
-  _auditCtx,
   createPurchase,
   transitionPurchase,
   recordSettlement,
@@ -105,9 +112,6 @@ import { tickLocal, tickGlobal, tickMarketplace, getHeartbeatMetrics } from "./e
 import { retrieve as atlasRetrieve, retrieveForChat, retrieveLabeled, retrieveFromScope } from "./emergent/atlas-retrieval.js";
 import { chatRetrieve, saveAsDtu, publishToGlobal, listOnMarketplace, getChatMetrics, recordChatExchange, recordChatEscalation, getChatSession } from "./emergent/atlas-chat.js";
 import { canUse, generateCitation, getOrigin, verifyOriginIntegrity, grantTransferRights, getRightsMetrics, computeContentHash as rightsContentHash } from "./emergent/atlas-rights.js";
-
-// ---- CJS interop for route modules (routes/*.js use module.exports) ----
-const require = createRequire(import.meta.url);
 
 // ---- Ensure iconv-lite encodings are loaded (fixes ESM/CJS interop in CI) ----
 try { const _iconv = await import("iconv-lite"); _iconv.default?.encodingExists?.("utf8"); } catch { /* transitive dep via body-parser; ok if absent */ }
@@ -15957,7 +15961,7 @@ app.use((req, res, next) => {
 }
 
 // ---- Health, Ready, Metrics, Status, Backup, Time, Weather, etc. (extracted to routes/system.js) ----
-require("./routes/system")(app, {
+registerSystemRoutes(app, {
   STATE, makeCtx, runMacro, requireRole, db, MACROS, VERSION, PORT, NODE_ENV,
   LLM_READY, OPENAI_MODEL_FAST, OPENAI_MODEL_SMART, SEED_INFO, STATE_DISK,
   USE_SQLITE_STATE, ENV_VALIDATION, AUTH_MODE, CAPS, METRICS, JWT_SECRET,
@@ -15971,7 +15975,7 @@ require("./routes/system")(app, {
 });
 
 // ---- Auth Endpoints (extracted to routes/auth.js) ----
-app.use("/api/auth", require("./routes/auth")({
+app.use("/api/auth", createAuthRouter({
   AuthDB,
   AuditDB,
   db,
@@ -16472,17 +16476,17 @@ console.log(`- authMode: ${AUTH_MODE} (jwt=${AUTH_USES_JWT}, apikey=${AUTH_USES_
 
 
 // ---- DTU Endpoints (extracted to routes/dtus.js) ----
-require("./routes/dtus")(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, saveStateDebounced, validate });
+registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, saveStateDebounced, validate });
 
 // ---- Chat + Ask Endpoints (extracted to routes/chat.js) ----
-require("./routes/chat")(app, {
+registerChatRoutes(app, {
   STATE, makeCtx, runMacro, enforceRequestInvariants, enforceEthosInvariant,
   uid, kernelTick, uiJson, _withAck, _extractReply, clamp, nowISO,
   saveStateDebounced, ETHOS_INVARIANTS, validate
 });
 
 // ---- Domain Routes (extracted to routes/domain.js) ----
-require("./routes/domain")(app, {
+registerDomainRoutes(app, {
   STATE, makeCtx, runMacro, _withAck, kernelTick, uiJson, listDomains, listMacros,
   dtusArray, normalizeText, clamp, nowISO, saveStateDebounced, retrieveDTUs,
   isShadowDTU, fs, ensureExperienceLearning, ensureAttentionManager, ensureReflectionEngine,
@@ -16639,7 +16643,7 @@ function startHeartbeat() {
 startHeartbeat();
 
 // ---- Operations Endpoints (extracted to routes/operations.js) ----
-require("./routes/operations")(app, {
+registerOperationRoutes(app, {
   STATE, makeCtx, runMacro, _withAck, ensureOrganRegistry, ensureQueues,
   dtusArray, uid, sha256Hex, nowISO, saveStateDebounced, requireRole,
   PIPE, TEMPORAL_FRAMES, pipeListProposals, computeAbstractionSnapshot,
@@ -16684,7 +16688,7 @@ startWeeklyCouncil();
 // verify, experiments, synth, heartbeat, system, temporal, proposals, jobs, agents — extracted to routes/operations.js
 
 // ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
-app.use("/api/emergent", require("./routes/emergent")({ makeCtx, runMacro }));
+app.use("/api/emergent", createEmergentRouter({ makeCtx, runMacro }));
 
 // papers, forge/fromSource, crawl, audit, lattice, persona, skill, intent, chicken3 — extracted to routes/domain.js
 

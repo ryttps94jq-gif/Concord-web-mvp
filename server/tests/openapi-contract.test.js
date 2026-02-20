@@ -14,15 +14,13 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createRequire } from "module";
 
-const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load OpenAPI spec using js-yaml (already in deps)
 let yaml;
-try { yaml = require("js-yaml"); } catch { yaml = require("yaml"); }
+try { yaml = (await import("js-yaml")).default; } catch { yaml = (await import("yaml")).default; }
 
 const specPath = path.join(__dirname, "..", "openapi.yaml");
 const specContent = fs.readFileSync(specPath, "utf8");

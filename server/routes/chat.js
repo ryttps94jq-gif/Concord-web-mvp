@@ -2,7 +2,7 @@
  * Chat + Ask routes — extracted from server.js
  * Registered directly on app (mixed prefixes)
  */
-module.exports = function registerChatRoutes(app, {
+export default function registerChatRoutes(app, {
   STATE,
   makeCtx,
   runMacro,
@@ -233,4 +233,4 @@ module.exports = function registerChatRoutes(app, {
       );
     }
   });
-};
+}
