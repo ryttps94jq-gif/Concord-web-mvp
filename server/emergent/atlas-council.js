@@ -199,6 +199,9 @@ export function councilResolve(STATE, input) {
     diff: event.diff,
   });
 
+  // Qualia hook: council resolution completed
+  try { globalThis.qualiaHooks?.hookCouncilVote(actor || "council", { agreement: targetStatus === "VERIFIED" ? 0.8 : 0.4, conflict: targetStatus === "DISPUTED" ? 0.7 : 0.2, confidence: 0.6 }); } catch { /* silent */ }
+
   return {
     ok: true,
     dtuId,

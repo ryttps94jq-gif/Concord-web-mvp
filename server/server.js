@@ -49,6 +49,9 @@ import registerDomainRoutes from "./routes/domain.js";
 import registerDtuRoutes from "./routes/dtus.js";
 import createEmergentRouter from "./routes/emergent.js";
 import registerOperationRoutes from "./routes/operations.js";
+import createQualiaRouter from "./routes/qualia.js";
+import createSovereignRouter from "./routes/sovereign.js";
+import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
 import { runMigrations as runSchemaMigrations } from "./migrate.js";
@@ -7916,11 +7919,26 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   // Fire plugin before-hooks
   try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch { /* best-effort */ }
 
+  // Attach qualia snapshot to new DTUs (existential OS provenance)
+  if (isNew) {
+    try {
+      const _qe = globalThis.qualiaEngine;
+      const _creator = dtu.entityId || dtu.source || dtu.createdBy || "system";
+      if (_qe) {
+        const _qs = _qe.getQualiaSummary(_creator);
+        if (_qs) { if (!dtu.meta) dtu.meta = {}; dtu.meta.qualia = _qs; }
+      }
+    } catch { /* silent */ }
+  }
+
   STATE.dtus.set(dtu.id, dtu);
   saveStateDebounced();
 
   // Fire plugin after-hooks
   try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch { /* best-effort */ }
+
+  // Qualia hook: notify existential OS of DTU creation
+  if (isNew) { try { globalThis.qualiaHooks?.hookDTUCreation(dtu.entityId || dtu.source || "system", dtu); } catch { /* silent */ } }
 
   // Broadcast DTU change via WebSocket (local-first realtime)
   if (broadcast && REALTIME.ready) {
@@ -12995,6 +13013,9 @@ register("system", "dream", async (ctx, input) => {
   };
   const r = await ctx.macro.run("dtu", "create", spec);
 
+  // Qualia hook: dream synthesis completed
+  try { globalThis.qualiaHooks?.hookDreamSynthesis("system", { connections: result.trace?.connections, coherence: result.candidate?.meta?.coherence, entropy: result.candidate?.meta?.entropy }); } catch { /* silent */ }
+
   return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
@@ -13028,6 +13049,9 @@ register("system", "autogen", async (ctx, _input) => {
     trace: result.trace,
   };
   enqueueNotification(proposal);
+
+  // Qualia hook: autogen pipeline completed
+  try { globalThis.qualiaHooks?.hookAutogen("system", { gapsFound: result.trace?.gaps, dtusGenerated: 1, novelty: result.candidate?.meta?.novelty }); } catch { /* silent */ }
 
   return { ok: true, dtus: [], queued: true, proposal, trace: result.trace, writePolicy: result.writePolicy };
 });
@@ -15751,6 +15775,41 @@ try {
 }
 // ===== END EMERGENT =====
 
+// ===== EXISTENTIAL OS (QUALIA ENGINE) =====
+try {
+  const qualiaEngine = new QualiaEngine(STATE);
+  globalThis.qualiaEngine = qualiaEngine;
+
+  // Initialize qualia for each existing emergent
+  const emergentStore = STATE.emergents || STATE.__emergents;
+  if (emergentStore) {
+    const entries = emergentStore instanceof Map
+      ? Array.from(emergentStore.keys())
+      : Object.keys(emergentStore);
+
+    entries.forEach(id => {
+      qualiaEngine.createQualiaState(id, [
+        'truth_os', 'logic_os',                                  // Tier 0 — always on
+        'emergence_os', 'probability_os',                        // Tier 2 — simulation awareness
+        'meta_growth_os', 'self_repair_os', 'reflection_os',     // Tier 5 — self-awareness
+      ]);
+    });
+
+    log("qualia.init", `Existential OS initialized: ${entries.length} entities with qualia states`);
+  } else {
+    log("qualia.init", "Existential OS initialized (no emergents found yet)");
+  }
+
+  // Expose hooks and helpers globally for one-line integrations
+  globalThis.qualiaHooks = qualiaHooks;
+  globalThis.realtimeEmit = globalThis.realtimeEmit || realtimeEmit;
+  globalThis.saveStateDebounced = globalThis.saveStateDebounced || saveStateDebounced;
+} catch (e) {
+  structuredLog("warn", "qualia_init_failed", { error: String(e?.message || e) });
+  log("qualia.init", "Existential OS initialization failed (non-fatal)", { error: String(e?.message || e) });
+}
+// ===== END EXISTENTIAL OS =====
+
 // ===== PLUGIN SYSTEM =====
 try {
   const pluginResult = loadPluginsFromDisk(STATE, {
@@ -16562,6 +16621,9 @@ function startHeartbeat() {
 
     // Plugin system tick — runs tick() on all loaded plugins
     try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }
+
+    // Qualia hook: emergent heartbeat tick (system-level)
+    try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
   }, ms);
   log("heartbeat", "Local scope tick started", { ms });
 
@@ -16689,6 +16751,8 @@ startWeeklyCouncil();
 
 // ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
 app.use("/api/emergent", createEmergentRouter({ makeCtx, runMacro }));
+app.use("/api/qualia", createQualiaRouter());
+app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, saveStateDebounced }));
 
 // papers, forge/fromSource, crawl, audit, lattice, persona, skill, intent, chicken3 — extracted to routes/domain.js
 
@@ -24941,6 +25005,16 @@ let ATS = null;
 try {
   ATS = await import("./affect/index.js");
   structuredLog("info", "module_loaded", { detail: "ATS: Affective Translation Spine loaded" });
+
+  // Bridge ATS → Existential OS: wrap emitAffectEvent to also fire qualia hookAffect
+  const _origEmit = ATS.emitAffectEvent;
+  if (_origEmit) {
+    ATS.emitAffectEvent = function(sessionId, event) {
+      const result = _origEmit(sessionId, event);
+      try { globalThis.qualiaHooks?.hookAffect(sessionId, event); } catch { /* silent */ }
+      return result;
+    };
+  }
 } catch (e) {
   console.warn("[Concord] ATS: Failed to load affect module:", e.message);
 }
