@@ -141,9 +141,9 @@ function LoginForm() {
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">
               Don&apos;t have an account?{' '}
-              <a href="/register" className="text-neon-cyan hover:text-neon-blue transition-colors font-medium">
+              <Link href="/register" className="text-neon-cyan hover:text-neon-blue transition-colors font-medium">
                 Create one
-              </a>
+              </Link>
             </p>
           </div>
         </div>
