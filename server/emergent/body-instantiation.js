@@ -260,6 +260,9 @@ const ORGAN_DEFS_FALLBACK = [
   { organId: "meta_learning_engine", deps: ["metacognition_engine", "transfer_engine"] },
   { organId: "strategy_optimizer", deps: ["meta_learning_engine"] },
   { organId: "curriculum_generator", deps: ["meta_learning_engine"] },
+
+  // Repair Cortex — Organ 169
+  { organId: "repair_cortex", deps: ["graceful_degradation", "runtime_crash_containment", "redundancy_backup"] },
 ];
 
 // ── Species Development Rate Modifiers ──────────────────────────────────────
@@ -270,7 +273,8 @@ const SPECIES_RATE_MODIFIERS = {
     base: 1.0,
     // Fast computational organs, slower embodiment
     boosted: ["compiler_verifier", "code_maker", "wrapper_runtime_kernel", "semantic_dedupe",
-              "council_engine", "mega_hyper_builder", "embedding_engine", "reasoning_chain_engine"],
+              "council_engine", "mega_hyper_builder", "embedding_engine", "reasoning_chain_engine",
+              "repair_cortex"],
     dampened: ["grounding_engine", "sensor_integration", "multimodal_grounding",
               "physical_commonsense", "temporal_grounding"],
     boostFactor: 1.4,
@@ -304,7 +308,8 @@ const SPECIES_RATE_MODIFIERS = {
   synthetic_evolutionary: {
     base: 1.2,
     boosted: ["meta_learning_engine", "metacognition_engine", "emergence_containment",
-              "mutation_guard", "transfer_engine", "pattern_abstractor"],
+              "mutation_guard", "transfer_engine", "pattern_abstractor",
+              "repair_cortex"],
     dampened: ["identity_boundary", "narrative_containment", "founder_intent_preservation"],
     boostFactor: 1.6,
     dampenFactor: 0.4,

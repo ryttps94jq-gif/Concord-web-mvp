@@ -501,6 +501,18 @@ import {
   getCapabilityBridgeInfo,
 } from "./capability-bridge.js";
 
+// ── Repair Cortex (Organ 169) ─────────────────────────────────────────────
+
+import {
+  REPAIR_PHASES, REPAIR_AGENT_CONFIG,
+  runProphet, runSurgeon, runFullDeploy,
+  startGuardian, stopGuardian, getGuardianStatus, runGuardianCheck,
+  repairAgentTick,
+  getRepairMemoryStats, getAllRepairPatterns, getRecentRepairDTUs,
+  handleRepairCommand,
+  registerPainModule,
+} from "./repair-cortex.js";
+
 const EMERGENT_VERSION = "5.5.0";
 
 /**
@@ -2577,6 +2589,64 @@ function init({ register, STATE, helpers }) {
   // Initialize constitution (seeds immutable rules)
   getConstitutionStore(STATE);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // REPAIR CORTEX — ORGAN 169
+  // Three-phase self-repair. Cannot be disabled by sovereign.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  register("emergent", "repair.status", (_ctx) => {
+    return handleRepairCommand("repair-status");
+  }, { description: "Get repair cortex status", public: true });
+
+  register("emergent", "repair.memory", (_ctx) => {
+    return getRepairMemoryStats();
+  }, { description: "Get repair memory statistics", public: true });
+
+  register("emergent", "repair.patterns", (_ctx) => {
+    return getAllRepairPatterns();
+  }, { description: "Get all known error patterns and their fixes", public: true });
+
+  register("emergent", "repair.history", (_ctx, input = {}) => {
+    return getRecentRepairDTUs(input.limit || 20);
+  }, { description: "Get recent repair DTUs", public: true });
+
+  register("emergent", "repair.guardian.status", (_ctx) => {
+    return getGuardianStatus();
+  }, { description: "Get all guardian monitor statuses", public: true });
+
+  register("emergent", "repair.guardian.check", (_ctx, input = {}) => {
+    if (!input.monitor) return { ok: false, error: "monitor name required" };
+    return runGuardianCheck(input.monitor);
+  }, { description: "Run a specific guardian check", public: false });
+
+  register("emergent", "repair.prophet", async (_ctx, input = {}) => {
+    const projectRoot = input.projectRoot || process.cwd();
+    return runProphet(projectRoot);
+  }, { description: "Run pre-build prophet scan", public: false });
+
+  register("emergent", "repair.agent.tick", async (_ctx) => {
+    return repairAgentTick();
+  }, { description: "Run repair agent tick (all guardian monitors)", public: false });
+
+  register("emergent", "repair.agent.config", (_ctx) => {
+    return { ok: true, config: REPAIR_AGENT_CONFIG };
+  }, { description: "Get repair agent configuration", public: true });
+
+  // Wire pain module for repair cortex integration (async, fire-and-forget)
+  try {
+    import("./avoidance-learning.js")
+      .then(painMod => { if (painMod) registerPainModule(painMod); })
+      .catch(() => { /* silent */ });
+  } catch { /* silent */ }
+
+  // Start guardian monitors (continuous runtime self-repair)
+  try {
+    startGuardian();
+    if (helpers?.log) {
+      helpers.log("emergent.init", "[Repair Cortex] Guardian monitors started — organ 169 active");
+    }
+  } catch { /* silent */ }
+
   // ── Load persisted state (if available) ────────────────────────────────────
   const loadResult = loadEmergentState(STATE);
   if (loadResult.ok) {
@@ -2589,14 +2659,14 @@ function init({ register, STATE, helpers }) {
   startAutoPersist(STATE);
 
   if (helpers?.log) {
-    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge + sectors + entity emergence + persistence + context engine)`);
+    helpers.log("emergent.init", `Emergent Agent Governance v${EMERGENT_VERSION} initialized (stages 1-9 + hardening + action slots + scope separation + autogen pipeline + empirical gates + capability bridge + sectors + entity emergence + persistence + context engine + repair cortex)`);
   }
 
   return {
     ok: true,
     version: EMERGENT_VERSION,
-    macroCount: 300,
-    newModules: ["sectors", "entity-emergence", "persistence", "grc-pipeline-integration", "context-engine"],
+    macroCount: 310,
+    newModules: ["sectors", "entity-emergence", "persistence", "grc-pipeline-integration", "context-engine", "repair-cortex"],
     persistenceLoaded: loadResult.ok,
   };
 }

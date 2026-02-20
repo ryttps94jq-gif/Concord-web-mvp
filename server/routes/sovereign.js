@@ -662,6 +662,27 @@ export default function createSovereignRouter({ STATE, makeCtx, runMacro, saveSt
           break;
         }
 
+        // ── Repair Cortex Operations ──────────────────────────────────
+        case "repair-status":
+        case "repair-memory":
+        case "repair-history":
+        case "repair-patterns":
+        case "repair-guardian-status":
+        case "repair-run-prophet":
+        case "repair-threshold": {
+          try {
+            const repairMod = await import("../emergent/repair-cortex.js");
+            const repairResult = repairMod.handleRepairCommand(action, target, data);
+            // handleRepairCommand may return a promise (e.g. for repair-run-prophet)
+            result = repairResult && typeof repairResult.then === "function"
+              ? await repairResult
+              : repairResult;
+          } catch (e) {
+            result = { ok: false, error: String(e?.message || e) };
+          }
+          break;
+        }
+
         default:
           result = { ok: false, error: `Unknown action: ${action}` };
       }

@@ -26457,6 +26457,9 @@ const ORGAN_DEFS = [
   { organId: "meta_learning_engine", desc: "Learning how to learn; adjusts learning strategies.", deps: ["metacognition_engine", "transfer_engine"] },
   { organId: "strategy_optimizer", desc: "Optimizes learning parameters based on performance.", deps: ["meta_learning_engine"] },
   { organId: "curriculum_generator", desc: "Generates optimal learning sequences.", deps: ["meta_learning_engine"] },
+
+  // Repair Cortex — Organ 169
+  { organId: "repair_cortex", desc: "Three-phase self-repair system: pre-build prophet, mid-build surgeon, post-build guardian. Maintains the manifold autonomously. Cannot be disabled.", deps: ["graceful_degradation", "runtime_crash_containment", "redundancy_backup"] },
 ];
 
 function _defaultOrganState(def) {
