@@ -19,6 +19,10 @@ import { DTUEmpireCard } from '@/components/dtu/DTUEmpireCard';
 import { LockDashboard } from '@/components/sovereignty/LockDashboard';
 import { CoherenceBadge } from '@/components/graphs/CoherenceBadge';
 import { LandingPage } from '@/components/landing/LandingPage';
+import { EmergentPanel } from '@/components/emergent/EmergentPanel';
+import { GovernanceFeed } from '@/components/emergent/GovernanceFeed';
+import { LiveDTUFeed } from '@/components/live/LiveDTUFeed';
+import { ScopeIndicator } from '@/components/live/ScopeIndicator';
 import { useUIStore } from '@/store/ui';
 import { CORE_LENSES } from '@/lib/lens-registry';
 import {
@@ -173,11 +177,11 @@ function DashboardPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-white">
-            Empire Dashboard
+            Concordos Dashboard
           </h1>
           <p className="text-gray-500 mt-1 text-sm">
             {statusLoading ? (
-              <span className="animate-pulse">Connecting...</span>
+              <span className="animate-pulse">Connecting to lattice...</span>
             ) : (
               <>
                 {status?.version || 'v5.0'} &middot; {dtuCount.toLocaleString()} DTUs &middot;{' '}
@@ -192,6 +196,7 @@ function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ScopeIndicator />
           <CoherenceBadge score={events.length} />
           <Link
             href="/hub"
@@ -230,6 +235,13 @@ function DashboardPage() {
           color="green"
           locked
         />
+      </div>
+
+      {/* Live Feed + Emergent Council + Governance */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <LiveDTUFeed limit={12} />
+        <EmergentPanel />
+        <GovernanceFeed />
       </div>
 
       {/* Resonance Universe 3D + Sovereignty */}

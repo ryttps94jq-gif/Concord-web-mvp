@@ -7,9 +7,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { disconnectSocket } from '@/lib/realtime/socket';
 import { getLensById } from '@/lib/lens-registry';
-import { Search, Bell, User, Command, Activity, Zap, Menu, LogOut, Settings, Shield } from 'lucide-react';
+import { Search, Bell, User, Command, Menu, LogOut, Settings, Shield } from 'lucide-react';
 import { SyncStatusDot } from '@/components/common/OfflineIndicator';
 import { useOnlineStatus } from '@/components/common/OfflineIndicator';
+import { HeartbeatBar } from '@/components/live/HeartbeatBar';
 
 export function Topbar() {
   const { sidebarCollapsed, setCommandPaletteOpen, activeLens, setSidebarOpen } = useUIStore();
@@ -143,18 +144,9 @@ export function Topbar() {
           <span className="hidden md:inline text-xs text-gray-400">{isOnline ? 'Online' : 'Offline'}</span>
         </div>
 
-        {/* Resonance Indicator (hidden on small mobile) */}
-        <div className="hidden md:flex items-center gap-2 px-2 lg:px-3 py-1.5 bg-lattice-deep rounded-lg">
-          <Activity className="w-4 h-4 text-neon-green" />
-          <span className="text-xs lg:text-sm font-mono">
-            {((resonance?.coherence || 0) * 100).toFixed(0)}%
-          </span>
-        </div>
-
-        {/* DTU Count (hidden on mobile) */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-lattice-deep rounded-lg">
-          <Zap className="w-4 h-4 text-neon-blue" />
-          <span className="text-sm font-mono">{resonance?.dtuCount || 0}</span>
+        {/* Live Heartbeat Bar — DTU counter, emergent status, sovereignty badge */}
+        <div className="hidden md:block">
+          <HeartbeatBar />
         </div>
 
         {/* Notifications */}

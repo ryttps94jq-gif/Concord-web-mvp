@@ -306,6 +306,29 @@ export default function ChatLensPage() {
     },
   });
 
+  // Forge to DTU — convert an assistant response into a DTU
+  const forgeMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const response = await apiHelpers.forge.hybrid({
+        content,
+        tags: ['chat-forged'],
+        source: 'chat-lens',
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const forgeMsg: Message = {
+        id: `forge-${Date.now()}`,
+        role: 'system',
+        content: `Forged to DTU: ${data?.dtu?.title || data?.title || 'New DTU created'}`,
+        timestamp: new Date().toISOString(),
+        dtuId: data?.dtu?.id || data?.id,
+      };
+      setLocalMessages(prev => [...prev, forgeMsg]);
+      queryClient.invalidateQueries({ queryKey: ['dtus'] });
+    },
+  });
+
   const handleSend = () => {
     if (!input.trim() || sendMutation.isPending) return;
     sendMutation.mutate(input);
@@ -405,12 +428,23 @@ export default function ChatLensPage() {
               >
                 <RefreshCw className="w-3 h-3" />
               </button>
+              <span>·</span>
+              <button
+                onClick={() => forgeMutation.mutate(message.content)}
+                disabled={forgeMutation.isPending}
+                className={cn('hover:text-neon-cyan transition-colors flex items-center gap-1', forgeMutation.isPending && 'opacity-50')}
+                title="Forge this response into a DTU"
+                aria-label="Forge to DTU"
+              >
+                <Zap className="w-3 h-3" />
+                <span className="hidden sm:inline">Forge DTU</span>
+              </button>
             </>
           )}
         </div>
       </div>
     </div>
-  ), [feedbackState, feedbackMutation, regenerateMutation, handleRegenerate, copyToClipboard, formatTime]);
+  ), [feedbackState, feedbackMutation, forgeMutation, regenerateMutation, handleRegenerate, copyToClipboard, formatTime]);
 
 
   if (isError || isError2 || isError3) {
@@ -604,7 +638,7 @@ export default function ChatLensPage() {
               <div className="w-20 h-20 rounded-full bg-neon-cyan/10 flex items-center justify-center mb-6">
                 <Bot className="w-10 h-10 text-neon-cyan" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Welcome to Concord Chat</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">Welcome to Concordos Chat</h2>
               <p className="text-gray-400 max-w-md mb-8">
                 Your local-first AI assistant. All conversations are stored in your lattice as DTUs.
               </p>

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api, apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -220,6 +220,50 @@ export default function GraphLensPage() {
     queryFn: () => api.get('/api/links').then((r) => r.data),
     retry: 1,
   });
+
+  // Fetch force-directed graph data from dedicated endpoint
+  const { data: graphForceData } = useQuery({
+    queryKey: ['graph-force'],
+    queryFn: () => apiHelpers.graph.force({ maxNodes: 500 }).then((r) => r.data),
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Fetch graph visual data (tier-based)
+  const { data: graphVisualData } = useQuery({
+    queryKey: ['graph-visual'],
+    queryFn: () => apiHelpers.graph.visual({ limit: 500 }).then((r) => r.data),
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Subscribe to live DTU creation events for real-time graph updates
+  useEffect(() => {
+    let unsubCreated: (() => void) | undefined;
+    let unsubPromoted: (() => void) | undefined;
+    let unsubResonance: (() => void) | undefined;
+
+    import('@/lib/realtime/socket').then(({ connectSocket, subscribe: socketSubscribe }) => {
+      connectSocket();
+
+      unsubCreated = socketSubscribe('dtu:created', () => {
+        refetch2();
+      });
+      unsubPromoted = socketSubscribe('dtu:promoted', () => {
+        refetch2();
+      });
+      unsubResonance = socketSubscribe('resonance:update', () => {
+        refetch2();
+        refetch3();
+      });
+    });
+
+    return () => {
+      unsubCreated?.();
+      unsubPromoted?.();
+      unsubResonance?.();
+    };
+  }, [refetch2, refetch3]);
 
   // --- Graph algorithms ---
 

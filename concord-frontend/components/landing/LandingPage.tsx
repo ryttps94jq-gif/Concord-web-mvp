@@ -35,7 +35,7 @@ export function LandingPage(_props: LandingPageProps) {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-blue flex items-center justify-center">
             <Brain className="w-6 h-6 text-white" />
           </div>
-          <span className="text-2xl font-bold text-white">Concord</span>
+          <span className="text-2xl font-bold text-white">Concordos</span>
         </div>
         <nav className="hidden md:flex items-center gap-6">
           <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
@@ -108,7 +108,7 @@ export function LandingPage(_props: LandingPageProps) {
             A Complete Cognitive Architecture
           </h2>
           <p className="text-gray-400 text-center max-w-2xl mx-auto mb-16">
-            Concord combines knowledge management, AI reasoning, and personal sovereignty
+            Concordos combines knowledge management, AI reasoning, and personal sovereignty
             into one unified system.
           </p>
 
@@ -271,7 +271,7 @@ export function LandingPage(_props: LandingPageProps) {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-blue flex items-center justify-center">
               <Brain className="w-4 h-4 text-white" />
             </div>
-            <span className="text-gray-400">Concord Cognitive Engine</span>
+            <span className="text-gray-400">Concordos Cognitive Engine</span>
           </div>
           <p className="text-gray-500 text-sm">
             Sovereign by design. Open by philosophy. Yours forever.

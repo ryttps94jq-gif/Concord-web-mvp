@@ -1,6 +1,6 @@
 {
-  "name": "Concord Cognitive Engine",
-  "short_name": "Concord",
+  "name": "Concordos Cognitive Engine",
+  "short_name": "Concordos",
   "description": "Sovereign cognitive engine with 5 core workspaces: Chat, Board, Graph, Code, Studio",
   "start_url": "/",
   "display": "standalone",
