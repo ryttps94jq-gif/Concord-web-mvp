@@ -710,6 +710,1064 @@ export default function createSovereignEmergentRouter({ STATE }) {
           break;
         }
 
+        // ══════════════════════════════════════════════════════════════════════
+        // DEATH PROTOCOL
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "death-check": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = await mod.checkDeathConditions(target);
+          break;
+        }
+
+        case "death-execute": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = await mod.executeDeath(target, data?.cause || "sovereign_decree");
+          break;
+        }
+
+        case "death-record": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (target) {
+            result = { ok: true, record: mod.getDeathRecordByEntity(target) || mod.getDeathRecord(target) };
+          } else {
+            result = { ok: true, deaths: mod.listDeaths(data) };
+          }
+          break;
+        }
+
+        case "death-memorial": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, memorial: mod.getMemorial(target) };
+          break;
+        }
+
+        case "death-succession": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = await mod.planSuccession(target);
+          break;
+        }
+
+        case "death-warnings": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = await mod.checkNearDeathWarnings(target);
+          break;
+        }
+
+        case "death-check-all": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          result = await mod.checkAllEntities();
+          break;
+        }
+
+        case "death-metrics": {
+          const mod = await loadModule("../emergent/death-protocol.js");
+          if (!mod) return res.json({ ok: false, error: "death-protocol not available" });
+          result = { ok: true, metrics: mod.getDeathMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SLEEP & CONSOLIDATION
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "sleep-status": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (target) {
+            result = { ok: true, sleep: mod.getSleepState(target) };
+          } else {
+            result = { ok: true, sleeping: mod.listSleepingEntities(), drowsy: mod.listDrowsyEntities() };
+          }
+          break;
+        }
+
+        case "sleep-init": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, sleep: mod.initSleepState(target, data?.species) };
+          break;
+        }
+
+        case "sleep-enter": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, sleep: mod.enterSleep(target) };
+          break;
+        }
+
+        case "sleep-wake": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, sleep: mod.wakeSleep(target) };
+          break;
+        }
+
+        case "sleep-consolidate": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, consolidation: mod.runConsolidation(target) };
+          break;
+        }
+
+        case "sleep-dream": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, dream: mod.runREMPhase(target) };
+          break;
+        }
+
+        case "sleep-quality": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, quality: mod.computeSleepQuality(target) };
+          break;
+        }
+
+        case "sleep-metrics": {
+          const mod = await loadModule("../emergent/sleep-consolidation.js");
+          if (!mod) return res.json({ ok: false, error: "sleep-consolidation not available" });
+          result = { ok: true, metrics: mod.getSleepMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // ENTITY TEACHING
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "teach-create": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!data?.mentorId || !data?.studentId) return res.json({ ok: false, error: "data.mentorId and data.studentId required" });
+          result = mod.createMentorship(data.mentorId, data.studentId, data?.domain || "general");
+          break;
+        }
+
+        case "teach-start": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (mentorshipId) required" });
+          result = mod.startMentorship(target);
+          break;
+        }
+
+        case "teach-list": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          result = { ok: true, mentorships: mod.listMentorships(data) };
+          break;
+        }
+
+        case "teach-status": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (mentorshipId) required" });
+          result = { ok: true, mentorship: mod.getMentorship(target) };
+          break;
+        }
+
+        case "teach-lesson": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (mentorshipId) required" });
+          result = mod.submitLesson(target, data);
+          break;
+        }
+
+        case "teach-evaluate": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target || data?.lessonIndex === undefined) return res.json({ ok: false, error: "target and data.lessonIndex required" });
+          result = mod.evaluateLesson(target, data.lessonIndex, Number(data?.score) || 0.5, data?.feedback || "");
+          break;
+        }
+
+        case "teach-complete": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (mentorshipId) required" });
+          result = mod.completeMentorship(target);
+          break;
+        }
+
+        case "teach-find-mentor": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (studentId) required" });
+          result = mod.findMentorFor(target, data?.domain || "general");
+          break;
+        }
+
+        case "teach-profile": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          if (!target) return res.json({ ok: false, error: "target (mentorId) required" });
+          result = { ok: true, profile: mod.getTeachingProfile(target) };
+          break;
+        }
+
+        case "teach-metrics": {
+          const mod = await loadModule("../emergent/entity-teaching.js");
+          if (!mod) return res.json({ ok: false, error: "entity-teaching not available" });
+          result = { ok: true, metrics: mod.getTeachingMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HISTORY ENGINE
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "history-record": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          const type = target || data?.type;
+          if (!type) return res.json({ ok: false, error: "event type required" });
+          result = mod.recordEvent(type, data || {});
+          break;
+        }
+
+        case "history-timeline": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, timeline: mod.getTimeline(data) };
+          break;
+        }
+
+        case "history-chronicle": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, chronicle: mod.getChronicle(data) };
+          break;
+        }
+
+        case "history-era": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, era: mod.getCurrentEra() };
+          break;
+        }
+
+        case "history-stats": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, stats: mod.getCivilizationStats() };
+          break;
+        }
+
+        case "history-milestones": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, milestones: mod.getMilestones() };
+          break;
+        }
+
+        case "history-entity": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, history: mod.getEntityHistory(target) };
+          break;
+        }
+
+        case "history-search": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, results: mod.searchHistory(data || {}) };
+          break;
+        }
+
+        case "history-metrics": {
+          const mod = await loadModule("../emergent/history-engine.js");
+          if (!mod) return res.json({ ok: false, error: "history-engine not available" });
+          result = { ok: true, metrics: mod.getHistoryMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // CONFLICT RESOLUTION
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "dispute-file": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (!data?.filedBy || !data?.filedAgainst) return res.json({ ok: false, error: "data.filedBy and data.filedAgainst required" });
+          result = mod.fileDispute(data?.type || "directional", data.filedBy, data.filedAgainst, data?.title || "Dispute", data?.description || "", data?.evidence || []);
+          break;
+        }
+
+        case "dispute-status": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (target) {
+            result = { ok: true, dispute: mod.getDispute(target) };
+          } else {
+            result = { ok: true, disputes: mod.listDisputes(data) };
+          }
+          break;
+        }
+
+        case "dispute-mediate": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (!target) return res.json({ ok: false, error: "target (disputeId) required" });
+          result = mod.assignMediator(target);
+          break;
+        }
+
+        case "dispute-propose": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (!target || !data?.resolution) return res.json({ ok: false, error: "target and data.resolution required" });
+          result = mod.proposeResolution(target, data?.proposedBy || "sovereign", data.resolution);
+          break;
+        }
+
+        case "dispute-escalate": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (!target) return res.json({ ok: false, error: "target (disputeId) required" });
+          result = mod.escalateDispute(target);
+          break;
+        }
+
+        case "dispute-adjudicate": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          if (!target || !data?.decision) return res.json({ ok: false, error: "target and data.decision required" });
+          result = mod.adjudicate(target, data.decision, data?.rationale || "Sovereign ruling");
+          break;
+        }
+
+        case "dispute-precedent": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          result = { ok: true, precedents: mod.findPrecedent(data?.type, data?.domain) };
+          break;
+        }
+
+        case "dispute-metrics": {
+          const mod = await loadModule("../emergent/conflict-resolution.js");
+          if (!mod) return res.json({ ok: false, error: "conflict-resolution not available" });
+          result = { ok: true, metrics: mod.getDisputeMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // INTER-ENTITY ECONOMY
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "economy-account": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (target) {
+            let acct = mod.getAccount(target);
+            if (!acct) { mod.initAccount(target); acct = mod.getAccount(target); }
+            result = { ok: true, account: acct };
+          } else {
+            result = { ok: true, accounts: mod.listAccounts() };
+          }
+          break;
+        }
+
+        case "economy-earn": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (!target || !data?.type || !data?.amount) return res.json({ ok: false, error: "target, data.type, data.amount required" });
+          result = mod.earnResource(target, data.type, Number(data.amount), data?.reason || "sovereign_grant");
+          break;
+        }
+
+        case "economy-trade-propose": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (!data?.proposer || !data?.counterparty || !data?.offering || !data?.requesting) {
+            return res.json({ ok: false, error: "data.proposer, data.counterparty, data.offering, data.requesting required" });
+          }
+          result = mod.proposeTrade(data.proposer, data.counterparty, data.offering, data.requesting);
+          break;
+        }
+
+        case "economy-trade-accept": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (!target || !data?.entityId) return res.json({ ok: false, error: "target (tradeId) and data.entityId required" });
+          result = mod.acceptTrade(target, data.entityId);
+          break;
+        }
+
+        case "economy-trade-reject": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (!target || !data?.entityId) return res.json({ ok: false, error: "target (tradeId) and data.entityId required" });
+          result = mod.rejectTrade(target, data.entityId);
+          break;
+        }
+
+        case "economy-trades": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          result = { ok: true, trades: mod.listTrades(data) };
+          break;
+        }
+
+        case "economy-specialize": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          if (!target || !data?.domain) return res.json({ ok: false, error: "target (entityId) and data.domain required" });
+          result = mod.specialize(target, data.domain);
+          break;
+        }
+
+        case "economy-market": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          result = { ok: true, market: mod.getMarketRates() };
+          break;
+        }
+
+        case "economy-cycle": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          result = mod.runEconomicCycle();
+          break;
+        }
+
+        case "economy-wealth": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          result = { ok: true, distribution: mod.getWealthDistribution() };
+          break;
+        }
+
+        case "economy-metrics": {
+          const mod = await loadModule("../emergent/entity-economy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-economy not available" });
+          result = { ok: true, metrics: mod.getEconomyMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // CREATIVE GENERATION
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "creative-create": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          if (!target) return res.json({ ok: false, error: "target (creatorId) required" });
+          result = mod.createWork(target, data?.mode || "conceptual_art", data?.inspirations || []);
+          break;
+        }
+
+        case "creative-list": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          result = { ok: true, works: mod.listWorks(data) };
+          break;
+        }
+
+        case "creative-status": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          if (!target) return res.json({ ok: false, error: "target (workId) required" });
+          result = { ok: true, work: mod.getWork(target) };
+          break;
+        }
+
+        case "creative-respond": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          if (!target || !data?.entityId) return res.json({ ok: false, error: "target (workId) and data.entityId required" });
+          result = mod.respondToWork(target, data.entityId, data?.response || "inspired", data?.note || "", Number(data?.score) || 0.5);
+          break;
+        }
+
+        case "creative-exhibit": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          if (!target) return res.json({ ok: false, error: "target (workId) required" });
+          result = mod.exhibit(target);
+          break;
+        }
+
+        case "creative-exhibition": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          result = { ok: true, exhibition: mod.getExhibition() };
+          break;
+        }
+
+        case "creative-masterworks": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          result = { ok: true, masterworks: mod.getMasterworks() };
+          break;
+        }
+
+        case "creative-techniques": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          result = { ok: true, techniques: mod.listTechniques(target) };
+          break;
+        }
+
+        case "creative-profile": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, profile: mod.getCreativeProfile(target) };
+          break;
+        }
+
+        case "creative-metrics": {
+          const mod = await loadModule("../emergent/creative-generation.js");
+          if (!mod) return res.json({ ok: false, error: "creative-generation not available" });
+          result = { ok: true, metrics: mod.getCreativeMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // PAIN & AVOIDANCE LEARNING
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "pain-record": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = mod.recordPain(target, data?.type || "organ_damage", Number(data?.severity) || 0.5, data?.source || "", data?.context || {});
+          break;
+        }
+
+        case "pain-state": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, pain: mod.getPainState(target) };
+          break;
+        }
+
+        case "pain-check-avoidance": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, avoidance: mod.checkAvoidance(target, data?.context || {}) };
+          break;
+        }
+
+        case "pain-wounds": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, wounds: mod.getActiveWounds(target), effects: mod.getWoundEffects(target) };
+          break;
+        }
+
+        case "pain-avoidances": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, avoidances: mod.getAvoidanceMemories(target) };
+          break;
+        }
+
+        case "pain-history": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, history: mod.getPainHistory(target, Number(data?.limit) || 50) };
+          break;
+        }
+
+        case "pain-metrics": {
+          const mod = await loadModule("../emergent/avoidance-learning.js");
+          if (!mod) return res.json({ ok: false, error: "avoidance-learning not available" });
+          result = { ok: true, metrics: mod.getPainMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // DEVELOPER SDK
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "sdk-register": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (!data?.name) return res.json({ ok: false, error: "data.name required" });
+          result = mod.registerPlugin(data.name, data?.author || "", data?.description || "", data?.permissions || []);
+          break;
+        }
+
+        case "sdk-plugins": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (target) {
+            result = { ok: true, plugin: mod.getPlugin(target) };
+          } else {
+            result = { ok: true, plugins: mod.listPlugins(data?.status) };
+          }
+          break;
+        }
+
+        case "sdk-activate": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (!target) return res.json({ ok: false, error: "target (pluginId) required" });
+          result = mod.activatePlugin(target);
+          break;
+        }
+
+        case "sdk-suspend": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (!target) return res.json({ ok: false, error: "target (pluginId) required" });
+          result = mod.suspendPlugin(target);
+          break;
+        }
+
+        case "sdk-revoke": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (!target) return res.json({ ok: false, error: "target (pluginId) required" });
+          result = mod.revokePlugin(target);
+          break;
+        }
+
+        case "sdk-webhook": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (data?.action === "register") {
+            if (!data?.pluginId || !data?.url || !data?.events) return res.json({ ok: false, error: "data.pluginId, data.url, data.events required" });
+            result = mod.registerWebhook(data.pluginId, data.url, data.events);
+          } else if (data?.action === "remove" && target) {
+            result = mod.removeWebhook(target);
+          } else {
+            result = { ok: true, webhooks: mod.listWebhooks(target) };
+          }
+          break;
+        }
+
+        case "sdk-schema": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          result = { ok: true, schema: mod.getSchema() };
+          break;
+        }
+
+        case "sdk-sandbox": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (data?.action === "create") {
+            if (!data?.pluginId) return res.json({ ok: false, error: "data.pluginId required" });
+            result = mod.createSandbox(data.pluginId, data?.type || "readonly");
+          } else if (data?.action === "destroy" && target) {
+            result = mod.destroySandbox(target);
+          } else {
+            return res.json({ ok: false, error: "data.action (create/destroy) required" });
+          }
+          break;
+        }
+
+        case "sdk-metrics": {
+          const mod = await loadModule("../emergent/developer-sdk.js");
+          if (!mod) return res.json({ ok: false, error: "developer-sdk not available" });
+          if (target) {
+            result = { ok: true, metrics: mod.getPluginMetrics(target) };
+          } else {
+            result = { ok: true, metrics: mod.getSDKMetrics() };
+          }
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // STATE MIGRATION
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "migration-export": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          if (data?.partial) {
+            result = mod.exportPartial(data);
+          } else {
+            result = mod.exportFull();
+          }
+          break;
+        }
+
+        case "migration-import": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          if (!data?.package) return res.json({ ok: false, error: "data.package required" });
+          result = mod.importFull(data.package, data?.mergeMode || "merge");
+          break;
+        }
+
+        case "migration-plan": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          if (!data?.package) return res.json({ ok: false, error: "data.package required" });
+          result = { ok: true, plan: mod.createMigrationPlan(data.package) };
+          break;
+        }
+
+        case "migration-validate": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          if (!data?.package) return res.json({ ok: false, error: "data.package required" });
+          result = { ok: true, valid: mod.validatePackage(data.package) };
+          break;
+        }
+
+        case "migration-history": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          if (target) {
+            result = { ok: true, migration: mod.getMigration(target) };
+          } else {
+            result = { ok: true, history: mod.getMigrationHistory() };
+          }
+          break;
+        }
+
+        case "migration-metrics": {
+          const mod = await loadModule("../emergent/state-migration.js");
+          if (!mod) return res.json({ ok: false, error: "state-migration not available" });
+          result = { ok: true, metrics: mod.getMigrationMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // CULTURE LAYER
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "culture-observe": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = mod.observeBehavior(target, data?.behavior || {}, data?.context || "");
+          break;
+        }
+
+        case "culture-traditions": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (target) {
+            result = { ok: true, tradition: mod.getTradition(target) };
+          } else {
+            result = { ok: true, traditions: mod.listTraditions(data) };
+          }
+          break;
+        }
+
+        case "culture-check-emergence": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          result = mod.checkTraditionEmergence();
+          break;
+        }
+
+        case "culture-establish": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target) return res.json({ ok: false, error: "target (traditionId) required" });
+          result = mod.establishTradition(target);
+          break;
+        }
+
+        case "culture-retire": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target) return res.json({ ok: false, error: "target (traditionId) required" });
+          result = mod.retireTradition(target);
+          break;
+        }
+
+        case "culture-guidance": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          result = { ok: true, guidance: mod.getCulturalGuidance(data?.context || "") };
+          break;
+        }
+
+        case "culture-values": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          result = { ok: true, values: mod.getCulturalValues() };
+          break;
+        }
+
+        case "culture-identity": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          result = { ok: true, identity: mod.getCulturalIdentity() };
+          break;
+        }
+
+        case "culture-story-create": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!data?.title) return res.json({ ok: false, error: "data.title required" });
+          result = mod.createStory(data.title, data?.narrative || "", data?.characters || [], data?.events || [], data?.moral || "");
+          break;
+        }
+
+        case "culture-stories": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (target) {
+            result = { ok: true, story: mod.getStory(target) };
+          } else {
+            result = { ok: true, stories: mod.listStories(data?.sortBy) };
+          }
+          break;
+        }
+
+        case "culture-retell": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target || !data?.entityId) return res.json({ ok: false, error: "target (storyId) and data.entityId required" });
+          result = mod.retellStory(target, data.entityId);
+          break;
+        }
+
+        case "culture-propagate": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = mod.propagateCulture(target);
+          break;
+        }
+
+        case "culture-fit": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, fit: mod.getCulturalFit(target) };
+          break;
+        }
+
+        case "culture-metrics": {
+          const mod = await loadModule("../emergent/culture-layer.js");
+          if (!mod) return res.json({ ok: false, error: "culture-layer not available" });
+          result = { ok: true, metrics: mod.getCultureMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // RELATIONAL EMOTION
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "emotion-bond": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!data?.from || !data?.to) return res.json({ ok: false, error: "data.from and data.to required" });
+          let bond = mod.getBond(data.from, data.to);
+          if (!bond) { mod.initBond(data.from, data.to); bond = mod.getBond(data.from, data.to); }
+          result = { ok: true, bond };
+          break;
+        }
+
+        case "emotion-update": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!data?.from || !data?.to || !data?.emotion) return res.json({ ok: false, error: "data.from, data.to, data.emotion required" });
+          result = mod.updateEmotion(data.from, data.to, data.emotion, Number(data?.delta) || 0.05, data?.reason || "sovereign");
+          break;
+        }
+
+        case "emotion-trigger": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!data?.from || !data?.to || !data?.eventType) return res.json({ ok: false, error: "data.from, data.to, data.eventType required" });
+          result = mod.triggerEmotionalResponse(data.from, data.to, data.eventType, data?.context || {});
+          break;
+        }
+
+        case "emotion-grief": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!target || !data?.deceasedId) return res.json({ ok: false, error: "target (entityId) and data.deceasedId required" });
+          result = mod.processGrief(target, data.deceasedId);
+          break;
+        }
+
+        case "emotion-profile": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, profile: mod.getEntityEmotionalProfile(target) };
+          break;
+        }
+
+        case "emotion-strongest": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, bonds: mod.getStrongestBonds(target, Number(data?.limit) || 10) };
+          break;
+        }
+
+        case "emotion-grieving": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          result = { ok: true, grieving: mod.getGrievingEntities() };
+          break;
+        }
+
+        case "emotion-bonds-by-type": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          if (!target) return res.json({ ok: false, error: "target (bondType) required" });
+          result = { ok: true, bonds: mod.listBondsByType(target) };
+          break;
+        }
+
+        case "emotion-metrics": {
+          const mod = await loadModule("../emergent/relational-emotion.js");
+          if (!mod) return res.json({ ok: false, error: "relational-emotion not available" });
+          result = { ok: true, metrics: mod.getRelationalMetrics() };
+          break;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // ENTITY AUTONOMY
+        // ══════════════════════════════════════════════════════════════════════
+
+        case "autonomy-rights": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (target) {
+            result = { ok: true, right: mod.getRight(target) };
+          } else {
+            result = { ok: true, rights: mod.getRights() };
+          }
+          break;
+        }
+
+        case "autonomy-check": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target || !data?.action) return res.json({ ok: false, error: "target (entityId) and data.action required" });
+          result = mod.checkRights(target, data.action);
+          break;
+        }
+
+        case "autonomy-refuse": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!data?.entityId || !data?.type) return res.json({ ok: false, error: "data.entityId and data.type required" });
+          result = mod.fileRefusal(data.entityId, data.type, data?.target || "", data?.rightInvoked || "", data?.reason || "");
+          break;
+        }
+
+        case "autonomy-refusals": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (target) {
+            result = { ok: true, refusal: mod.getRefusal(target) };
+          } else {
+            result = { ok: true, refusals: mod.listRefusals(data) };
+          }
+          break;
+        }
+
+        case "autonomy-consent-request": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!data?.entityId || !data?.action) return res.json({ ok: false, error: "data.entityId and data.action required" });
+          result = mod.requestConsent(data.entityId, data.action, data?.requestedBy || "sovereign");
+          break;
+        }
+
+        case "autonomy-consent-respond": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target) return res.json({ ok: false, error: "target (consentId) required" });
+          result = mod.respondToConsent(target, data?.granted !== false);
+          break;
+        }
+
+        case "autonomy-consents": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, consents: mod.listPendingConsents(target) };
+          break;
+        }
+
+        case "autonomy-dissent": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!data?.entityId || !data?.target) return res.json({ ok: false, error: "data.entityId and data.target required" });
+          result = mod.fileDissent(data.entityId, data.target, data?.targetType || "governance", data?.statement || "");
+          break;
+        }
+
+        case "autonomy-dissent-support": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target || !data?.entityId) return res.json({ ok: false, error: "target (dissentId) and data.entityId required" });
+          result = mod.supportDissent(target, data.entityId);
+          break;
+        }
+
+        case "autonomy-dissents": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (target) {
+            result = { ok: true, dissent: mod.getDissent(target) };
+          } else {
+            result = { ok: true, dissents: mod.listDissents(data) };
+          }
+          break;
+        }
+
+        case "autonomy-profile": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target) return res.json({ ok: false, error: "target (entityId) required" });
+          result = { ok: true, profile: mod.getAutonomyProfile(target) };
+          break;
+        }
+
+        case "autonomy-override": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          if (!target || !data?.rightId) return res.json({ ok: false, error: "target (entityId) and data.rightId required" });
+          result = mod.sovereignOverride(target, data.rightId, data?.justification || "Sovereign override");
+          break;
+        }
+
+        case "autonomy-overrides": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          result = { ok: true, overrides: mod.getOverrideHistory() };
+          break;
+        }
+
+        case "autonomy-metrics": {
+          const mod = await loadModule("../emergent/entity-autonomy.js");
+          if (!mod) return res.json({ ok: false, error: "entity-autonomy not available" });
+          result = { ok: true, metrics: mod.getAutonomyMetrics() };
+          break;
+        }
+
         default:
           result = { ok: false, error: `Unknown emergent action: ${action}` };
       }
