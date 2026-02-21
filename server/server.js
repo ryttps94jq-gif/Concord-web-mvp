@@ -30,6 +30,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
+import { Worker } from "node:worker_threads";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
 import { ConcordError } from "./lib/errors.js";
@@ -16715,14 +16716,187 @@ app.use((err, req, res, _next) => {
 });
 
 // ---- heartbeat (Scope Separation: Local tick + Global tick, no Marketplace tick) ----
+// Worker Thread Architecture: cognitive pipeline tasks run off-thread so HTTP is never blocked.
 let heartbeatTimer = null;
 let weeklyTimer = null;
 let globalTickTimer = null;  // Scope Separation: separate 5-min Global tick
+let cognitiveWorker = null;
+let cognitiveWorkerReady = false;
+
+// ── Cognitive Worker: snapshot builder ────────────────────────────────────────
+// Serializes only what the pipeline needs — never the full STATE.
+function buildCognitiveSnapshot() {
+  const dtuEntries = [];
+  for (const [id, dtu] of STATE.dtus) {
+    dtuEntries.push([id, {
+      id: dtu.id,
+      title: dtu.title,
+      tags: dtu.tags,
+      tier: dtu.tier,
+      lineage: dtu.lineage,
+      core: dtu.core,
+      human: dtu.human,
+      machine: dtu.machine,
+      meta: dtu.meta,
+      source: dtu.source,
+      createdAt: dtu.createdAt,
+      updatedAt: dtu.updatedAt,
+      authority: dtu.authority,
+      hash: dtu.hash,
+      creti: dtu.creti,
+      cretiHuman: dtu.cretiHuman,
+    }]);
+  }
+
+  const shadowEntries = [];
+  for (const [id, dtu] of (STATE.shadowDtus || new Map())) {
+    shadowEntries.push([id, {
+      id: dtu.id, title: dtu.title, tags: dtu.tags, tier: dtu.tier,
+      meta: dtu.meta, createdAt: dtu.createdAt,
+    }]);
+  }
+
+  return {
+    dtus: dtuEntries,
+    shadowDtus: shadowEntries,
+    settings: { ...STATE.settings },
+    pipelineState: STATE._autogenPipeline ? JSON.parse(JSON.stringify(STATE._autogenPipeline)) : null,
+    governanceConfig: STATE._governanceConfig ? { ...STATE._governanceConfig } : null,
+  };
+}
+
+// ── Cognitive Worker: result merger ──────────────────────────────────────────
+// Applies worker pipeline results on the main thread via the macro system.
+async function mergeCognitiveResults(results) {
+  if (!results) return;
+
+  // Merge pipeline state delta (metrics, recent hashes, etc.)
+  if (results.pipelineStateDelta) {
+    STATE._autogenPipeline = results.pipelineStateDelta;
+  }
+
+  if (results.errors?.length) {
+    console.warn("[cognitive-worker] Tick errors:", results.errors);
+  }
+
+  if (results.timings) {
+    log("heartbeat.worker", "Cognitive tick complete", results.timings);
+  }
+
+  // Process each candidate — commit via macro system on main thread
+  const ctx = makeCtx(null);
+  ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+
+  for (const entry of (results.candidates || [])) {
+    if (!entry.ok || !entry.candidate) continue;
+
+    try {
+      if (entry.task === "autogen") {
+        // Autogen: queue proposal (matches original autogen macro behavior)
+        ensureQueues();
+        const proposal = {
+          id: uid("q_autogen"),
+          type: "dtu_proposal",
+          payload: { ...entry.candidate, source: "system.autogen", scope: "local" },
+          why: `pipeline:${entry.candidate.meta?.autogenIntent || "auto"}`,
+          createdAt: nowISO(),
+          status: "queued",
+          writePolicy: entry.writePolicy,
+          trace: entry.trace,
+        };
+        enqueueNotification(proposal);
+        try { globalThis.qualiaHooks?.hookAutogen("system", { gapsFound: entry.trace?.gaps, dtusGenerated: 1, novelty: entry.candidate?.meta?.novelty }); } catch { /* silent */ }
+
+      } else if (entry.task === "dream") {
+        // Dream: commit DTU directly
+        const spec = {
+          ...entry.candidate,
+          source: "system.dream",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker dream commit error:", err); });
+        try { globalThis.qualiaHooks?.hookDreamSynthesis("system", { connections: entry.trace?.connections, coherence: entry.candidate?.meta?.coherence, entropy: entry.candidate?.meta?.entropy }); } catch { /* silent */ }
+
+      } else if (entry.task === "evolution") {
+        // Evolution: commit as regular DTU (cluster→MEGA logic stays on main thread fallback)
+        const spec = {
+          ...entry.candidate,
+          source: "system.evolution",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker evolution commit error:", err); });
+
+      } else if (entry.task === "synthesize") {
+        // Synthesize: commit as regular DTU (HYPER logic stays on main thread fallback)
+        const spec = {
+          ...entry.candidate,
+          source: "system.synthesize",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker synthesize commit error:", err); });
+      }
+    } catch (err) {
+      console.error(`[system] Worker result merge error (${entry.task}):`, err);
+    }
+  }
+}
+
+// ── Cognitive Worker: lifecycle ──────────────────────────────────────────────
+function spawnCognitiveWorker() {
+  const workerPath = new URL("./workers/cognitive-worker.js", import.meta.url).pathname;
+  cognitiveWorker = new Worker(workerPath);
+  cognitiveWorkerReady = false;
+
+  cognitiveWorker.on("message", async (msg) => {
+    if (msg.type === "ready") {
+      cognitiveWorkerReady = true;
+      log("heartbeat.worker", "Cognitive worker ready");
+      return;
+    }
+    if (msg.type === "tick-result") {
+      try {
+        await mergeCognitiveResults(msg.results);
+      } catch (err) {
+        console.error("[cognitive-worker] Result merge fatal:", err);
+      }
+    }
+  });
+
+  cognitiveWorker.on("error", (err) => {
+    console.error("[cognitive-worker] Fatal:", err);
+    cognitiveWorkerReady = false;
+    // Auto-restart after 5s
+    setTimeout(() => {
+      log("heartbeat.worker", "Restarting cognitive worker after crash");
+      spawnCognitiveWorker();
+    }, 5000);
+  });
+
+  cognitiveWorker.on("exit", (code) => {
+    cognitiveWorkerReady = false;
+    if (code !== 0) {
+      console.error(`[cognitive-worker] Exited with code ${code}`);
+      setTimeout(() => spawnCognitiveWorker(), 5000);
+    }
+  });
+}
 
 function startHeartbeat() {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (weeklyTimer) clearInterval(weeklyTimer);
   if (globalTickTimer) clearInterval(globalTickTimer);
+
+  // ── Spawn persistent cognitive worker thread ──
+  if (!cognitiveWorker) {
+    try {
+      spawnCognitiveWorker();
+    } catch (err) {
+      console.error("[cognitive-worker] Failed to spawn:", err);
+    }
+  }
 
   // ── Local Scope Tick (existing cadence, 15s default) ──
   const ms = clamp(Number(STATE.settings.heartbeatMs || 15000), 2000, 120000);
@@ -16736,17 +16910,47 @@ function startHeartbeat() {
     // process crawl queue once (Local scope only — ingest is local activity)
     await runMacro("ingest","processQueueOnce", {}, ctx).catch((err) => { console.error('[system] Heartbeat ingest queue error:', err); });
 
-    if (STATE.settings.autogenEnabled) {
-      await runMacro("system","autogen", {}, ctx).catch((err) => { console.error('[system] Heartbeat autogen error:', err); });
-    }
-    if (STATE.settings.dreamEnabled) {
-      await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch((err) => { console.error('[system] Heartbeat dream error:', err); });
-    }
-    if (STATE.settings.evolutionEnabled) {
-      await runMacro("system","evolution", {}, ctx).catch((err) => { console.error('[system] Heartbeat evolution error:', err); });
-    }
-    if (STATE.settings.synthEnabled) {
-      await runMacro("system","synthesize", {}, ctx).catch((err) => { console.error('[system] Heartbeat synthesize error:', err); });
+    // ── Cognitive pipeline tasks: dispatch to worker thread ──
+    // The 4 pipeline tasks (autogen, dream, evolution, synthesize) run off-thread.
+    // This is the core of the worker migration: HTTP never blocks during pipeline computation.
+    if (cognitiveWorkerReady && STATE.dtus.size > 0) {
+      const anyEnabled = STATE.settings.autogenEnabled || STATE.settings.dreamEnabled
+        || STATE.settings.evolutionEnabled || STATE.settings.synthEnabled;
+      if (anyEnabled) {
+        try {
+          const snapshot = buildCognitiveSnapshot();
+          const ollamaConfig = LLM_PIPELINE?.providers?.ollama?.enabled
+            ? { enabled: true, url: LLM_PIPELINE.providers.ollama.url, model: LLM_PIPELINE.providers.ollama.model }
+            : null;
+          cognitiveWorker.postMessage({
+            type: "tick",
+            snapshot,
+            settings: {
+              autogenEnabled: !!STATE.settings.autogenEnabled,
+              dreamEnabled: !!STATE.settings.dreamEnabled,
+              evolutionEnabled: !!STATE.settings.evolutionEnabled,
+              synthEnabled: !!STATE.settings.synthEnabled,
+            },
+            ollamaConfig,
+          });
+        } catch (err) {
+          console.error("[system] Failed to dispatch cognitive tick to worker:", err);
+        }
+      }
+    } else if (!cognitiveWorkerReady) {
+      // Fallback: run cognitive tasks on main thread if worker isn't available
+      if (STATE.settings.autogenEnabled) {
+        await runMacro("system","autogen", {}, ctx).catch((err) => { console.error('[system] Heartbeat autogen error:', err); });
+      }
+      if (STATE.settings.dreamEnabled) {
+        await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch((err) => { console.error('[system] Heartbeat dream error:', err); });
+      }
+      if (STATE.settings.evolutionEnabled) {
+        await runMacro("system","evolution", {}, ctx).catch((err) => { console.error('[system] Heartbeat evolution error:', err); });
+      }
+      if (STATE.settings.synthEnabled) {
+        await runMacro("system","synthesize", {}, ctx).catch((err) => { console.error('[system] Heartbeat synthesize error:', err); });
+      }
     }
 
     // v3: local self-upgrade (abstraction governor) at fixed cadence
@@ -16761,7 +16965,7 @@ function startHeartbeat() {
     // Qualia hook: emergent heartbeat tick (system-level)
     try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
   }, ms);
-  log("heartbeat", "Local scope tick started", { ms });
+  log("heartbeat", "Local scope tick started", { ms, workerEnabled: !!cognitiveWorker });
 
   // ── Global Scope Tick (5 minutes — slow, deliberate synthesis) ──
   // Global tick can: generate DTU candidates from existing Global DTUs, update resonance.
