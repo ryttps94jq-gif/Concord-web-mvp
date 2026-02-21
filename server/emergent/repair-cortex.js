@@ -62,6 +62,26 @@ function safeExec(cmd, timeoutMs = 10000) {
   return execAsync(cmd, { timeout: timeoutMs }).catch(() => ({ stdout: "", stderr: "" }));
 }
 
+// Docker socket availability — checked once, cached.
+let _dockerAvailable = null;
+function _isDockerAvailable() {
+  if (_dockerAvailable !== null) return _dockerAvailable;
+  try {
+    // Check if Docker socket exists (typical at /var/run/docker.sock)
+    _dockerAvailable = fs.existsSync("/var/run/docker.sock");
+  } catch {
+    _dockerAvailable = false;
+  }
+  return _dockerAvailable;
+}
+
+function safeDockerExec(cmd, timeoutMs = 30000) {
+  if (!_isDockerAvailable()) {
+    return Promise.resolve({ stdout: "", stderr: "docker socket not available", skipped: true });
+  }
+  return safeExec(cmd, timeoutMs);
+}
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 export const REPAIR_PHASES = Object.freeze({
@@ -2093,6 +2113,46 @@ export async function runProphet(projectRoot) {
 // ── Mid-Build Surgeon ───────────────────────────────────────────────────────
 
 /**
+ * Execute a fix command on disk. Maps fix names to shell commands.
+ * Returns true if the command ran successfully.
+ */
+const _FIX_COMMANDS = {
+  regenerate_lockfile:      (root) => `cd "${root}" && npm install --package-lock-only`,
+  run_npm_install_first:    (root) => `cd "${root}" && npm install --package-lock-only`,
+  install_legacy_peer_deps: (root) => `cd "${root}" && npm install --legacy-peer-deps`,
+  install_force:            (root) => `cd "${root}" && npm install --force`,
+  delete_and_reinstall:     (root) => `cd "${root}" && rm -rf node_modules package-lock.json && npm install`,
+  reinstall_deps:           (root) => `cd "${root}" && npm install`,
+  npm_audit_fix:            (root) => `cd "${root}" && npm audit fix || true`,
+  install_package:          (root, m) => m?.[1] ? `cd "${root}" && npm install "${m[1]}" || true` : null,
+  install_missing:          (root, m) => m?.[1] ? `cd "${root}" && npm install "${m[1]}" || true` : null,
+  rebuild_native:           (root) => `cd "${root}" && npm rebuild`,
+  rebuild_sqlite:           (root) => `cd "${root}" && npm rebuild better-sqlite3`,
+  reinstall_sqlite:         (root) => `cd "${root}" && npm uninstall better-sqlite3 && npm install better-sqlite3`,
+  reinstall_sharp:          (root) => `cd "${root}" && npm install --platform=linux --arch=x64 sharp`,
+  kill_process:             (_r, m) => m?.[1] ? `fuser -k ${m[1]}/tcp 2>/dev/null || true` : null,
+  create_directory:         (_r, m) => m?.[1] ? `mkdir -p "${m[1]}"` : null,
+  fix_permissions:          (_r, m) => m?.[1] ? `chmod -R u+rwX "${m[1]}"` : null,
+  docker_prune:             () => `docker system prune -f && docker builder prune -f`,
+  clear_docker_cache:       () => `docker builder prune -f`,
+  clean_old_images:         () => `docker image prune -f`,
+  recreate_network:         () => `docker network prune -f`,
+};
+
+async function _executeFix(fixName, projectRoot, match) {
+  try {
+    const cmdFn = _FIX_COMMANDS[fixName];
+    if (!cmdFn) return false;
+    const cmd = cmdFn(projectRoot, match);
+    if (!cmd) return false;
+    await execAsync(cmd, { timeout: 120000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Parse a build error from stderr output.
  */
 function parseBuildError(stderr) {
@@ -2154,7 +2214,7 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
     try {
       const buildResult = await execAsync(buildCommand, {
         cwd: projectRoot,
-        timeout: 300000,  // 5 minute build timeout
+        timeout: 900000,  // 15 minute build timeout (frontend builds can take 10+ min)
         maxBuffer: 50 * 1024 * 1024,
       });
 
@@ -2220,13 +2280,16 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
       // Known pattern — check repair memory
       const knownFix = lookupRepairMemory(error.pattern);
       if (knownFix) {
-        logRepairDTU(REPAIR_PHASES.MID_BUILD, "known_fix_applied", {
+        // Actually execute the fix on disk
+        const fixApplied = await _executeFix(knownFix.name, projectRoot, error.match);
+        logRepairDTU(REPAIR_PHASES.MID_BUILD, fixApplied ? "known_fix_applied" : "known_fix_no_command", {
           pattern: error.pattern,
           fix: knownFix.name,
           file: error.file,
           line: error.line,
+          executed: fixApplied,
         });
-        fixesApplied.push({ pattern: error.pattern, fix: knownFix.name, source: "memory" });
+        fixesApplied.push({ pattern: error.pattern, fix: knownFix.name, source: "memory", executed: fixApplied });
         lastError = error;
         continue;
       }
@@ -2238,6 +2301,9 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
         let fixed = false;
 
         for (const fix of fixes) {
+          // Actually execute the fix on disk
+          const executed = await _executeFix(fix.name, projectRoot, error.match);
+
           // Record the fix attempt
           addToRepairMemory(error.pattern, {
             name: fix.name,
@@ -2246,13 +2312,14 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
             description: fix.describe(error.match),
           });
 
-          logRepairDTU(REPAIR_PHASES.MID_BUILD, "new_fix_applied", {
+          logRepairDTU(REPAIR_PHASES.MID_BUILD, executed ? "new_fix_applied" : "new_fix_no_command", {
             pattern: error.key,
             fix: fix.name,
             confidence: fix.confidence,
             file: error.file,
             line: error.line,
             description: fix.describe(error.match),
+            executed,
           });
 
           fixesApplied.push({
@@ -2260,11 +2327,15 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
             fix: fix.name,
             confidence: fix.confidence,
             source: "pattern_match",
+            executed,
           });
 
-          fixed = true;
-          lastError = error;
-          break;
+          if (executed) {
+            fixed = true;
+            lastError = error;
+            break;
+          }
+          // If this fix had no command, try the next one
         }
 
         if (!fixed) {
@@ -2421,7 +2492,7 @@ const GUARDIAN_MONITORS = {
     repair: async (result) => {
       try {
         if (result.usagePercent > 90) {
-          await safeExec("docker system prune -f 2>/dev/null", 30000);
+          await safeDockerExec("docker system prune -f 2>/dev/null");
           logRepairDTU(REPAIR_PHASES.POST_BUILD, "emergency_disk_cleanup", result);
         } else if (result.warning) {
           await safeExec("find /data -name '*.log' -mtime +3 -delete 2>/dev/null");
@@ -2490,8 +2561,8 @@ const GUARDIAN_MONITORS = {
     repair: async (result) => {
       try {
         if (!result.healthy) {
-          await safeExec("docker restart concord-ollama 2>/dev/null", 30000);
-          logRepairDTU(REPAIR_PHASES.POST_BUILD, "ollama_restart", result);
+          const res = await safeDockerExec("docker restart concord-ollama 2>/dev/null");
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, res.skipped ? "ollama_restart_skipped_no_docker" : "ollama_restart", result);
         }
       } catch { /* silent */ }
     },
@@ -2605,8 +2676,8 @@ const GUARDIAN_MONITORS = {
       try {
         if (!result.healthy) {
           // Try restarting the frontend container
-          await safeExec("docker restart concord-frontend 2>/dev/null", 30000);
-          logRepairDTU(REPAIR_PHASES.POST_BUILD, "frontend_restart", result);
+          const res = await safeDockerExec("docker restart concord-frontend 2>/dev/null");
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, res.skipped ? "frontend_restart_skipped_no_docker" : "frontend_restart", result);
         }
       } catch { /* silent */ }
     },
@@ -2713,8 +2784,8 @@ const GUARDIAN_MONITORS = {
       try {
         if (!result.healthy) {
           if (!result.containerRunning) {
-            await safeExec("docker restart concord-nginx 2>/dev/null", 30000);
-            logRepairDTU(REPAIR_PHASES.POST_BUILD, "nginx_restart", result);
+            const res = await safeDockerExec("docker restart concord-nginx 2>/dev/null");
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, res.skipped ? "nginx_restart_skipped_no_docker" : "nginx_restart", result);
           } else if (!result.configValid) {
             logRepairDTU(REPAIR_PHASES.POST_BUILD, "nginx_config_invalid", {
               message: "Nginx config test failed — sovereign intervention needed",
@@ -2847,8 +2918,8 @@ const GUARDIAN_MONITORS = {
       try {
         if (result.critical) {
           // Attempt cert renewal
-          await safeExec("docker exec concord-certbot certbot renew --force-renewal 2>/dev/null", 60000);
-          await safeExec("docker exec concord-nginx nginx -s reload 2>/dev/null", 10000);
+          await safeDockerExec("docker exec concord-certbot certbot renew --force-renewal 2>/dev/null", 60000);
+          await safeDockerExec("docker exec concord-nginx nginx -s reload 2>/dev/null", 10000);
           logRepairDTU(REPAIR_PHASES.POST_BUILD, "ssl_emergency_renewal", result);
         } else if (result.warning) {
           logRepairDTU(REPAIR_PHASES.POST_BUILD, "ssl_expiry_warning", {
@@ -3109,8 +3180,10 @@ function _updateOrganFromRepair(phase, result) {
     }
 
     // Reduce plasticity as we learn (become more set in our ways)
+    // Logarithmic decay: settles slowly, never reaches zero.
+    //   0 patterns → 0.75,  87 → ~0.45,  375 → ~0.40,  1000 → ~0.37
     const patternCount = _repairMemory.size;
-    organ.maturity.plasticity = clamp01(0.75 - (patternCount * 0.002));
+    organ.maturity.plasticity = clamp01(0.75 / (1 + Math.log1p(patternCount) * 0.15));
 
     organ.maturity.lastUpdateAt = now;
 

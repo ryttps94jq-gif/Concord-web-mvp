@@ -19,11 +19,68 @@
  */
 
 import fs from "fs";
+import { execSync } from "child_process";
 import {
   matchErrorPattern,
   addToRepairMemory,
   lookupRepairMemory,
 } from "../server/emergent/repair-cortex.js";
+
+// ── Fix Executors ──────────────────────────────────────────────────────────
+// Maps fix names to shell commands that actually apply them on disk.
+// Returns a command string or null (= cannot be automated, escalate).
+
+function _fixCmd(name, match, projectRoot) {
+  const cmds = {
+    // npm / lockfile
+    regenerate_lockfile:     () => `cd "${projectRoot}" && npm install --package-lock-only`,
+    run_npm_install_first:   () => `cd "${projectRoot}" && npm install --package-lock-only`,
+    install_legacy_peer_deps:() => `cd "${projectRoot}" && npm install --legacy-peer-deps`,
+    install_force:           () => `cd "${projectRoot}" && npm install --force`,
+    delete_and_reinstall:    () => `cd "${projectRoot}" && rm -rf node_modules package-lock.json && npm install`,
+    reinstall_deps:          () => `cd "${projectRoot}" && npm install`,
+    npm_audit_fix:           () => `cd "${projectRoot}" && npm audit fix || true`,
+    install_package:         () => match?.[1] ? `cd "${projectRoot}" && npm install "${match[1]}" || true` : null,
+    install_missing:         () => match?.[1] ? `cd "${projectRoot}" && npm install "${match[1]}" || true` : null,
+
+    // native modules
+    rebuild_native:          () => `cd "${projectRoot}" && npm rebuild`,
+    rebuild_sqlite:          () => `cd "${projectRoot}" && npm rebuild better-sqlite3`,
+    reinstall_sqlite:        () => `cd "${projectRoot}" && npm uninstall better-sqlite3 && npm install better-sqlite3`,
+    reinstall_sharp:         () => `cd "${projectRoot}" && npm install --platform=linux --arch=x64 sharp`,
+
+    // runtime
+    kill_process:            () => match?.[1] ? `fuser -k ${match[1]}/tcp 2>/dev/null || true` : null,
+    increase_heap:           () => null, // requires env change — escalate
+    create_directory:        () => match?.[1] ? `mkdir -p "${match[1]}"` : null,
+    fix_permissions:         () => match?.[1] ? `chmod -R u+rwX "${match[1]}"` : null,
+
+    // docker
+    docker_prune:            () => `docker system prune -f && docker builder prune -f`,
+    clear_docker_cache:      () => `docker builder prune -f`,
+    clean_old_images:        () => `docker image prune -f`,
+    recreate_network:        () => `docker network prune -f`,
+
+    // eslint — prefix underscore for unused vars
+    prefix_underscore:       () => null, // needs AST modification — escalate
+    remove_import:           () => null,
+    add_eslint_disable:      () => null,
+  };
+  const fn = cmds[name];
+  return fn ? fn() : null;
+}
+
+function executeFixCommand(cmd, fixName) {
+  try {
+    console.log(`  Executing: ${cmd.slice(0, 200)}`);
+    execSync(cmd, { stdio: "pipe", timeout: 120000 });
+    console.log(`  ✓ Fix "${fixName}" applied successfully`);
+    return true;
+  } catch (e) {
+    console.log(`  ✗ Fix "${fixName}" failed: ${String(e?.message || e).slice(0, 150)}`);
+    return false;
+  }
+}
 
 const projectRoot = process.argv[2] || process.cwd();
 const buildOutputFile = process.argv[3] || "/tmp/build-output.log";
@@ -78,13 +135,23 @@ function main() {
         console.log(`  ${heuristicResult.message}`);
         console.log(`  Suggested: ${heuristicResult.suggestion}`);
         console.log("");
+        // Try to execute the heuristic fix
+        const cmd = _fixCmd(heuristicResult.suggestion, null, projectRoot);
+        if (cmd) {
+          const success = executeFixCommand(cmd, heuristicResult.suggestion);
+          if (!success) {
+            console.log("SURGEON: Heuristic fix failed to apply. Sovereign intervention required.");
+            process.exit(1);
+          }
+        }
+
         addToRepairMemory(heuristicResult.pattern, {
           name: heuristicResult.suggestion,
           confidence: heuristicResult.confidence,
           category: heuristicResult.category,
           description: heuristicResult.message,
         });
-        console.log("SURGEON: Heuristic fix recorded. Retry the build.");
+        console.log("SURGEON: Heuristic fix applied. Retry the build.");
         process.exit(0);
       }
 
@@ -110,7 +177,12 @@ function main() {
       const knownFix = lookupRepairMemory(error.match?.[0] || error.line);
       if (knownFix) {
         console.log(`  Known fix: ${knownFix.name} (from repair memory, success rate: ${knownFix.successRate || "?"})`);
-        fixApplied = true;
+        const cmd = _fixCmd(knownFix.name, error.match, projectRoot);
+        if (cmd) {
+          fixApplied = executeFixCommand(cmd, knownFix.name) || fixApplied;
+        } else {
+          console.log(`  (no automated command for "${knownFix.name}" — retry may still help)`);
+        }
         console.log("");
         continue;
       }
@@ -127,6 +199,29 @@ function main() {
           console.log(`  Alt fixes:   ${sortedFixes.slice(1).map(f => `${f.name}(${f.confidence})`).join(", ")}`);
         }
 
+        // Actually execute the fix
+        const cmd = _fixCmd(bestFix.name, error.match, projectRoot);
+        if (cmd) {
+          const success = executeFixCommand(cmd, bestFix.name);
+          if (success) {
+            fixApplied = true;
+          } else if (sortedFixes.length > 1) {
+            // Try the next best fix
+            for (const altFix of sortedFixes.slice(1)) {
+              const altCmd = _fixCmd(altFix.name, error.match, projectRoot);
+              if (altCmd) {
+                console.log(`  Trying alt: ${altFix.name} (confidence: ${altFix.confidence})`);
+                if (executeFixCommand(altCmd, altFix.name)) {
+                  fixApplied = true;
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          console.log(`  (no automated command for "${bestFix.name}" — cannot apply)`);
+        }
+
         // Record in repair memory
         addToRepairMemory(error.match?.[0] || error.line, {
           name: bestFix.name,
@@ -135,7 +230,7 @@ function main() {
           description: bestFix.describe(error.match),
         });
 
-        fixApplied = true;
+        // Only count as fix applied if we actually changed something on disk
       } else {
         console.log("  No fixes available for this pattern");
       }
@@ -144,10 +239,10 @@ function main() {
     }
 
     if (fixApplied) {
-      console.log(`SURGEON: ${errors.length} error(s) analyzed, fix(es) recorded. Retry the build.`);
+      console.log(`SURGEON: ${errors.length} error(s) analyzed, fix(es) applied on disk. Retry the build.`);
       process.exit(0);
     } else {
-      console.log("SURGEON: No fixes could be applied. Sovereign intervention required.");
+      console.log("SURGEON: No automated fixes available for these errors. Sovereign intervention required.");
       process.exit(1);
     }
   } catch (e) {
