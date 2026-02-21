@@ -21,7 +21,7 @@ export function Topbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const { data: resonance } = useQuery({
+  const { data: _resonance } = useQuery({
     queryKey: ['resonance-quick'],
     queryFn: () => api.get('/api/lattice/resonance').then((r) => r.data).catch(() => null),
     refetchInterval: 30000,

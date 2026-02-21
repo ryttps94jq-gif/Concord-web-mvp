@@ -3,13 +3,13 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Shield, Activity, Brain, Layers, Puzzle, Cpu, Users, Settings,
-  AlertTriangle, Moon, FileText, Search, RefreshCw, Pause, Play,
-  Save, Trash2, Power, ChevronRight, CheckCircle, XCircle, Clock,
-  Zap, Eye, TrendingUp, BarChart3, Send, AlertCircle, Database, MapPin,
+  AlertTriangle, Moon, FileText, Pause, Play,
+  Save, Trash2, XCircle,
+  Zap, Send, MapPin,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────

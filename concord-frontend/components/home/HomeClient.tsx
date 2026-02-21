@@ -138,7 +138,7 @@ function DashboardPage() {
   });
 
   // Fetch graph visual data for the Resonance Universe
-  const { data: graphData } = useQuery({
+  const { data: _graphData } = useQuery({
     queryKey: ['graph-visual'],
     queryFn: () => apiHelpers.graph.visual({ limit: 200 }).then((r) => r.data),
     retry: 1,

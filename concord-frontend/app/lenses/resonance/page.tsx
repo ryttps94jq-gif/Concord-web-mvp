@@ -1,21 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Waves,
   Activity,
-  Zap,
   Heart,
-  Brain,
   Shield,
-  AlertTriangle,
   TrendingUp,
-  TrendingDown,
-  Minus,
   RefreshCw,
   Radio,
   Scan,
@@ -26,7 +20,6 @@ import {
   Crosshair,
   Signal,
 } from 'lucide-react';
-import { ErrorState } from '@/components/common/EmptyState';
 
 // ============================================================================
 // Types
@@ -101,7 +94,7 @@ function ResonanceFieldCanvas({
   scanning: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameRef = useRef(0);
+  const _frameRef = useRef(0);
   const timeRef = useRef(0);
 
   useEffect(() => {
@@ -430,7 +423,7 @@ export default function ResonanceBoundaryPage() {
   const [autoScan, setAutoScan] = useState(false);
 
   // Fetch latest boundary scan
-  const { data: scan, isLoading: scanLoading, refetch: refetchScan } = useQuery<BoundaryScan>({
+  const { data: scan, isLoading: scanLoading, refetch: _refetchScan } = useQuery<BoundaryScan>({
     queryKey: ['resonance-boundary'],
     queryFn: () => api.get('/api/resonance/boundary').then(r => r.data),
     refetchInterval: autoScan ? 15000 : false,

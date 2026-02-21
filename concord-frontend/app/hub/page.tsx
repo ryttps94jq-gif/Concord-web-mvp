@@ -78,7 +78,7 @@ export default function LensHubPage() {
   // Stats
   const totalCount = allLenses.length;
   const filteredCount = filteredLenses.length;
-  const categoryCount = grouped.size;
+  const _categoryCount = grouped.size;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-lattice-void">

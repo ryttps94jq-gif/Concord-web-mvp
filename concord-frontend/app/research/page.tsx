@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils';
 import { ds } from '@/lib/design-system';
 import {
   Search, Plus, Play, Square, Clock, CheckCircle2,
-  AlertTriangle, Loader2, ChevronRight, ChevronDown,
+  AlertTriangle, Loader2,
   BookOpen, Microscope, Brain, Beaker, Lightbulb,
   FileText, Link2, Tag, ArrowRight, RefreshCw,
-  Trash2, Eye, XCircle, Layers, BarChart3,
-  Zap, Globe, Filter, SortAsc,
+  Eye, XCircle, Layers,
+  Zap, Globe,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */

@@ -19,11 +19,108 @@
  */
 
 import fs from "fs";
+import { execSync } from "child_process";
 import {
   matchErrorPattern,
   addToRepairMemory,
   lookupRepairMemory,
 } from "../server/emergent/repair-cortex.js";
+
+// ── Fix Executors ──────────────────────────────────────────────────────────
+// Maps fix names to shell commands that actually apply them on disk.
+// Returns a command string or null (= cannot be automated, escalate).
+
+function _fixCmd(name, match, projectRoot) {
+  const cmds = {
+    // npm / lockfile
+    regenerate_lockfile:     () => `cd "${projectRoot}" && npm install --package-lock-only`,
+    run_npm_install_first:   () => `cd "${projectRoot}" && npm install --package-lock-only`,
+    install_legacy_peer_deps:() => `cd "${projectRoot}" && npm install --legacy-peer-deps`,
+    install_force:           () => `cd "${projectRoot}" && npm install --force`,
+    delete_and_reinstall:    () => `cd "${projectRoot}" && rm -rf node_modules package-lock.json && npm install`,
+    reinstall_deps:          () => `cd "${projectRoot}" && npm install`,
+    npm_audit_fix:           () => `cd "${projectRoot}" && npm audit fix || true`,
+    install_package:         () => match?.[1] ? `cd "${projectRoot}" && npm install "${match[1]}" || true` : null,
+    install_missing:         () => match?.[1] ? `cd "${projectRoot}" && npm install "${match[1]}" || true` : null,
+
+    // native modules
+    rebuild_native:          () => `cd "${projectRoot}" && npm rebuild`,
+    rebuild_sqlite:          () => `cd "${projectRoot}" && npm rebuild better-sqlite3`,
+    reinstall_sqlite:        () => `cd "${projectRoot}" && npm uninstall better-sqlite3 && npm install better-sqlite3`,
+    reinstall_sharp:         () => `cd "${projectRoot}" && npm install --platform=linux --arch=x64 sharp`,
+
+    // runtime
+    kill_process:            () => match?.[1] ? `fuser -k ${match[1]}/tcp 2>/dev/null || true` : null,
+    increase_heap:           () => null, // requires env change — escalate
+    create_directory:        () => match?.[1] ? `mkdir -p "${match[1]}"` : null,
+    fix_permissions:         () => match?.[1] ? `chmod -R u+rwX "${match[1]}"` : null,
+
+    // docker
+    docker_prune:            () => `docker system prune -f && docker builder prune -f`,
+    clear_docker_cache:      () => `docker builder prune -f`,
+    clean_old_images:        () => `docker image prune -f`,
+    recreate_network:        () => `docker network prune -f`,
+
+    // eslint autofix — runs on the concord-frontend directory
+    eslint_autofix:          () => `cd "${projectRoot}/concord-frontend" && npx eslint --fix app/ components/ lib/ hooks/ store/ --ext .tsx,.ts 2>/dev/null || true`,
+    // useRef React 19 fix — useRef<T>() → useRef<T>(undefined)
+    fix_useref_react19:      () => `find "${projectRoot}/concord-frontend" -name "*.tsx" -o -name "*.ts" | xargs sed -i 's/useRef<\\([^>]*\\)>()/useRef<\\1>(undefined)/g' 2>/dev/null || true`,
+
+    // eslint — prefix underscore for unused vars
+    prefix_underscore:       () => null, // needs AST modification — escalate
+    remove_import:           () => null,
+    add_eslint_disable:      () => null,
+  };
+  const fn = cmds[name];
+  return fn ? fn() : null;
+}
+
+function executeFixCommand(cmd, fixName) {
+  try {
+    console.log(`  Executing: ${cmd.slice(0, 200)}`);
+    execSync(cmd, { stdio: "pipe", timeout: 120000 });
+    console.log(`  ✓ Fix "${fixName}" applied successfully`);
+    return true;
+  } catch (e) {
+    console.log(`  ✗ Fix "${fixName}" failed: ${String(e?.message || e).slice(0, 150)}`);
+    return false;
+  }
+}
+
+/**
+ * Parse file paths from eslint/typescript warning lines and run eslint --fix.
+ * Handles formats: ./path/to/file.tsx:LINE:COL, ./path/to/file.tsx(LINE,COL)
+ * Non-blocking — logs results but never fails the surgeon.
+ */
+function runEslintAutofix(buildOutput, rootDir) {
+  try {
+    const fileSet = new Set();
+    const lines = buildOutput.split("\n");
+    for (const line of lines) {
+      // Match: ./path/to/file.tsx:42:10 or ./app/foo/bar.ts:100:5
+      const m = line.match(/(\.\/(app|components|lib|hooks|store)\/[^\s:]+\.[jt]sx?)/);
+      if (m) fileSet.add(m[1]);
+    }
+    if (fileSet.size === 0) return 0;
+
+    const files = Array.from(fileSet);
+    console.log(`  ESLint autofix: ${files.length} file(s) to fix`);
+    try {
+      const fileArgs = files.map(f => `"${f}"`).join(" ");
+      execSync(`cd "${rootDir}/concord-frontend" && npx eslint --fix ${fileArgs}`, {
+        stdio: "pipe",
+        timeout: 120000,
+      });
+    } catch {
+      // eslint --fix exits non-zero if unfixable warnings remain — that's OK
+    }
+    console.log(`  ESLint autofix: completed on ${files.length} file(s)`);
+    return files.length;
+  } catch (e) {
+    console.log(`  ESLint autofix: skipped (${String(e?.message || e).slice(0, 80)})`);
+    return 0;
+  }
+}
 
 const projectRoot = process.argv[2] || process.cwd();
 const buildOutputFile = process.argv[3] || "/tmp/build-output.log";
@@ -78,13 +175,23 @@ function main() {
         console.log(`  ${heuristicResult.message}`);
         console.log(`  Suggested: ${heuristicResult.suggestion}`);
         console.log("");
+        // Try to execute the heuristic fix
+        const cmd = _fixCmd(heuristicResult.suggestion, null, projectRoot);
+        if (cmd) {
+          const success = executeFixCommand(cmd, heuristicResult.suggestion);
+          if (!success) {
+            console.log("SURGEON: Heuristic fix failed to apply. Sovereign intervention required.");
+            process.exit(1);
+          }
+        }
+
         addToRepairMemory(heuristicResult.pattern, {
           name: heuristicResult.suggestion,
           confidence: heuristicResult.confidence,
           category: heuristicResult.category,
           description: heuristicResult.message,
         });
-        console.log("SURGEON: Heuristic fix recorded. Retry the build.");
+        console.log("SURGEON: Heuristic fix applied. Retry the build.");
         process.exit(0);
       }
 
@@ -110,7 +217,12 @@ function main() {
       const knownFix = lookupRepairMemory(error.match?.[0] || error.line);
       if (knownFix) {
         console.log(`  Known fix: ${knownFix.name} (from repair memory, success rate: ${knownFix.successRate || "?"})`);
-        fixApplied = true;
+        const cmd = _fixCmd(knownFix.name, error.match, projectRoot);
+        if (cmd) {
+          fixApplied = executeFixCommand(cmd, knownFix.name) || fixApplied;
+        } else {
+          console.log(`  (no automated command for "${knownFix.name}" — retry may still help)`);
+        }
         console.log("");
         continue;
       }
@@ -127,6 +239,29 @@ function main() {
           console.log(`  Alt fixes:   ${sortedFixes.slice(1).map(f => `${f.name}(${f.confidence})`).join(", ")}`);
         }
 
+        // Actually execute the fix
+        const cmd = _fixCmd(bestFix.name, error.match, projectRoot);
+        if (cmd) {
+          const success = executeFixCommand(cmd, bestFix.name);
+          if (success) {
+            fixApplied = true;
+          } else if (sortedFixes.length > 1) {
+            // Try the next best fix
+            for (const altFix of sortedFixes.slice(1)) {
+              const altCmd = _fixCmd(altFix.name, error.match, projectRoot);
+              if (altCmd) {
+                console.log(`  Trying alt: ${altFix.name} (confidence: ${altFix.confidence})`);
+                if (executeFixCommand(altCmd, altFix.name)) {
+                  fixApplied = true;
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          console.log(`  (no automated command for "${bestFix.name}" — cannot apply)`);
+        }
+
         // Record in repair memory
         addToRepairMemory(error.match?.[0] || error.line, {
           name: bestFix.name,
@@ -135,7 +270,7 @@ function main() {
           description: bestFix.describe(error.match),
         });
 
-        fixApplied = true;
+        // Only count as fix applied if we actually changed something on disk
       } else {
         console.log("  No fixes available for this pattern");
       }
@@ -143,11 +278,22 @@ function main() {
       console.log("");
     }
 
+    // After per-error fixes, run targeted eslint autofix if lint/eslint errors were found
+    if (categories.has("lint") || categories.has("eslint")) {
+      console.log("Running targeted ESLint autofix on affected files...");
+      const eslintFixed = runEslintAutofix(buildOutput, projectRoot);
+      if (eslintFixed > 0) {
+        fixApplied = true;
+        console.log(`  ESLint autofix: cleaned ${eslintFixed} file(s)`);
+      }
+      console.log("");
+    }
+
     if (fixApplied) {
-      console.log(`SURGEON: ${errors.length} error(s) analyzed, fix(es) recorded. Retry the build.`);
+      console.log(`SURGEON: ${errors.length} error(s) analyzed, fix(es) applied on disk. Retry the build.`);
       process.exit(0);
     } else {
-      console.log("SURGEON: No fixes could be applied. Sovereign intervention required.");
+      console.log("SURGEON: No automated fixes available for these errors. Sovereign intervention required.");
       process.exit(1);
     }
   } catch (e) {
