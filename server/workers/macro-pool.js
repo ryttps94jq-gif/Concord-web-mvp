@@ -1,0 +1,243 @@
+/**
+ * Macro Worker Pool — Offloads CPU-intensive macro execution to worker threads.
+ *
+ * Architecture:
+ *   User Request → Express Route → isHeavy(domain)?
+ *                                    ├─ No  → run on main thread (fast path)
+ *                                    └─ Yes → dispatch to worker pool (async)
+ *                                              ├─ Worker 1
+ *                                              ├─ Worker 2
+ *                                              └─ Worker N
+ *                                              Result → respond to user
+ *
+ * Workers receive serialized STATE snapshots and return results.
+ * All STATE mutations happen on the main thread after result merge.
+ */
+
+import { Worker } from "node:worker_threads";
+import os from "os";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const POOL_SIZE = Math.max(2, os.cpus().length - 1);
+
+// Heavy macro domains — these get offloaded to workers
+const HEAVY_DOMAINS = new Set([
+  "system",      // autogen, dream, evolution, synthesize
+  "emergent",    // entity operations, lattice, sessions
+  "ingest",      // knowledge ingestion
+  "context",     // query processing with working sets
+  "hypothesis",  // hypothesis generation
+  "meta",        // meta-derivation
+  "hlr",         // higher-level reasoning
+  "hlm",         // higher-level memory
+  "creative",    // creative generation
+  "search",      // semantic search
+]);
+
+// Explicit lightweight overrides within heavy domains
+const LIGHT_OVERRIDES = new Set([
+  "system.status",
+  "system.getStatus",
+  "emergent.list",
+  "emergent.get",
+  "emergent.status",
+  "emergent.schema",
+  "emergent.patterns",
+  "emergent.reputation",
+]);
+
+const workers = [];
+const queue = [];
+let _stateSnapshot = null;
+let _poolReady = false;
+let _metrics = {
+  dispatched: 0,
+  completed: 0,
+  errors: 0,
+  queueHighWater: 0,
+  avgLatencyMs: 0,
+  _latencySum: 0,
+};
+
+/**
+ * Initialize the worker pool.
+ * @param {string} statePath - Not used directly; workers get snapshots via postMessage.
+ */
+export function initPool() {
+  for (let i = 0; i < POOL_SIZE; i++) {
+    const workerPath = path.join(__dirname, "macro-executor.js");
+    const w = new Worker(workerPath, { workerData: { workerId: i } });
+    w._id = i;
+    w._busy = false;
+    w._task = null;
+    w._startTime = 0;
+
+    w.on("message", (msg) => handleWorkerMessage(w, msg));
+    w.on("error", (err) => handleWorkerError(w, err));
+    w.on("exit", (code) => handleWorkerExit(w, code));
+
+    workers.push(w);
+  }
+  _poolReady = true;
+}
+
+/**
+ * Check if a macro domain/name combination should be offloaded to workers.
+ */
+export function isHeavy(domain, name) {
+  if (LIGHT_OVERRIDES.has(`${domain}.${name}`)) return false;
+  return HEAVY_DOMAINS.has(domain);
+}
+
+/**
+ * Dispatch a macro execution to the worker pool.
+ * Returns a Promise that resolves with the macro result.
+ */
+export function dispatch(domain, name, input, actorInfo) {
+  return new Promise((resolve, reject) => {
+    const task = { domain, name, input, actorInfo, resolve, reject, queuedAt: Date.now() };
+    _metrics.dispatched++;
+
+    const freeWorker = workers.find(w => !w._busy);
+    if (freeWorker) {
+      runOnWorker(freeWorker, task);
+    } else {
+      queue.push(task);
+      if (queue.length > _metrics.queueHighWater) {
+        _metrics.queueHighWater = queue.length;
+      }
+    }
+  });
+}
+
+/**
+ * Send a STATE snapshot to all workers for read operations.
+ * Called periodically from main thread and after DTU commits.
+ */
+export function syncState(snapshot) {
+  _stateSnapshot = snapshot;
+  for (const w of workers) {
+    try {
+      w.postMessage({ type: "state-sync", state: snapshot });
+    } catch { /* worker may be dead, will restart */ }
+  }
+}
+
+/**
+ * Get pool statistics.
+ */
+export function getPoolStats() {
+  return {
+    poolSize: POOL_SIZE,
+    ready: _poolReady,
+    busy: workers.filter(w => w._busy).length,
+    idle: workers.filter(w => !w._busy).length,
+    queueLength: queue.length,
+    metrics: {
+      dispatched: _metrics.dispatched,
+      completed: _metrics.completed,
+      errors: _metrics.errors,
+      queueHighWater: _metrics.queueHighWater,
+      avgLatencyMs: _metrics.completed > 0
+        ? Math.round(_metrics._latencySum / _metrics.completed)
+        : 0,
+    },
+  };
+}
+
+/**
+ * Gracefully shut down all workers.
+ */
+export function shutdownPool() {
+  _poolReady = false;
+  for (const w of workers) {
+    try { w.postMessage({ type: "shutdown" }); } catch { /* silent */ }
+  }
+  // Reject any queued tasks
+  for (const task of queue) {
+    task.reject(new Error("pool_shutdown"));
+  }
+  queue.length = 0;
+}
+
+// ── Internal ──────────────────────────────────────────────────────────────────
+
+function runOnWorker(worker, task) {
+  worker._busy = true;
+  worker._task = task;
+  worker._startTime = Date.now();
+  worker.postMessage({
+    type: "exec",
+    domain: task.domain,
+    name: task.name,
+    input: task.input,
+    actorInfo: task.actorInfo,
+  });
+}
+
+function handleWorkerMessage(worker, msg) {
+  if (msg.type === "ready") return;
+
+  if (msg.type === "exec-result") {
+    const task = worker._task;
+    const latency = Date.now() - worker._startTime;
+    worker._busy = false;
+    worker._task = null;
+
+    _metrics.completed++;
+    _metrics._latencySum += latency;
+
+    if (msg.error) {
+      _metrics.errors++;
+      task?.reject(new Error(msg.error));
+    } else {
+      task?.resolve(msg.result);
+    }
+
+    // Process next queued task
+    if (queue.length > 0) {
+      runOnWorker(worker, queue.shift());
+    }
+  }
+}
+
+function handleWorkerError(worker, err) {
+  console.error(`[macro-pool] Worker ${worker._id} error:`, err.message);
+  _metrics.errors++;
+
+  // Reject current task
+  if (worker._task) {
+    worker._task.reject(new Error(`worker_error: ${err.message}`));
+    worker._task = null;
+  }
+  worker._busy = false;
+
+  // Process next queued task if worker is still alive
+  if (queue.length > 0) {
+    runOnWorker(worker, queue.shift());
+  }
+}
+
+function handleWorkerExit(worker, code) {
+  worker._busy = false;
+  if (code !== 0) {
+    console.error(`[macro-pool] Worker ${worker._id} exited with code ${code}, restarting...`);
+    // Replace the dead worker
+    const idx = workers.indexOf(worker);
+    if (idx >= 0) {
+      const workerPath = path.join(__dirname, "macro-executor.js");
+      const newWorker = new Worker(workerPath, { workerData: { workerId: worker._id } });
+      newWorker._id = worker._id;
+      newWorker._busy = false;
+      newWorker._task = null;
+      newWorker._startTime = 0;
+      newWorker.on("message", (msg) => handleWorkerMessage(newWorker, msg));
+      newWorker.on("error", (err) => handleWorkerError(newWorker, err));
+      newWorker.on("exit", (exitCode) => handleWorkerExit(newWorker, exitCode));
+      workers[idx] = newWorker;
+    }
+  }
+}

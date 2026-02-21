@@ -30,6 +30,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
+import { Worker } from "node:worker_threads";
 import { initAll as initLoaf } from "./loaf/index.js";
 import { init as initEmergent } from "./emergent/index.js";
 import { ConcordError } from "./lib/errors.js";
@@ -58,6 +59,25 @@ import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergen
 import { attemptReproduction, getLineage, getLineageTree, enableReproduction, disableReproduction, isReproductionEnabled } from "./emergent/reproduction.js";
 import { classifyEntity, classifyAllEntities, getSpeciesCensus, getSpeciesRegistry, checkReproductionCompatibility, getSpecies } from "./emergent/species.js";
 import { runDualPathSimulation, getSimulation, listSimulations } from "./emergent/dual-path.js";
+
+// ---- Worker Pool: offload heavy macros to worker threads ----
+import { initPool, isHeavy, dispatch as dispatchToPool, syncState as syncPoolState, getPoolStats, shutdownPool } from "./workers/macro-pool.js";
+
+// ---- Repair Cortex: three-phase self-repair (Prophet + Surgeon + Guardian) ----
+import {
+  matchErrorPattern,
+  addToRepairMemory,
+  recordRepairSuccess,
+  recordRepairFailure,
+  getRepairMemoryStats,
+  getAllRepairPatterns,
+  getRecentRepairDTUs,
+  startGuardian,
+  stopGuardian,
+  getGuardianStatus,
+  runGuardianCheck,
+  runProphet,
+} from "./emergent/repair-cortex.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
 import { runMigrations as runSchemaMigrations } from "./migrate.js";
@@ -564,10 +584,37 @@ process.on("uncaughtException", (err) => {
   structuredLog("fatal", "uncaught_exception", { error: err.message, stack: err.stack });
   gracefulShutdown("uncaughtException");
 });
-process.on("unhandledRejection", (reason, _promise) => {
-  structuredLog("fatal", "unhandled_rejection", { reason: String(reason), stack: String(reason?.stack || "") });
-  // In production, exit on unhandled rejection — the container orchestrator will restart us.
-  // Continuing after an unhandled rejection risks corrupted state.
+process.on("unhandledRejection", async (reason, _promise) => {
+  const errorStr = reason?.message || String(reason);
+  structuredLog("fatal", "unhandled_rejection", { reason: errorStr, stack: String(reason?.stack || "") });
+
+  // Consult Repair Cortex Surgeon before dying
+  try {
+    const diagnosis = matchErrorPattern(errorStr);
+    if (diagnosis?.fixes?.length) {
+      structuredLog("warn", "surgeon_intervention", {
+        error: errorStr,
+        fixes: diagnosis.fixes.map(f => f.name || f.pattern || "unknown"),
+        confidence: diagnosis.fixes[0]?.confidence,
+      });
+      addToRepairMemory(errorStr, diagnosis.fixes[0]);
+
+      // If high-confidence fix exists with an executor, apply and don't exit
+      if (diagnosis.fixes[0]?.confidence >= 0.9 && typeof diagnosis.fixes[0]?.executor === "function") {
+        try {
+          await diagnosis.fixes[0].executor();
+          recordRepairSuccess(errorStr);
+          structuredLog("info", "surgeon_fix_applied", { error: errorStr });
+          return; // Don't exit — fix was applied
+        } catch (fixErr) {
+          recordRepairFailure(errorStr);
+          structuredLog("error", "surgeon_fix_failed", { error: errorStr, fixError: String(fixErr?.message || fixErr) });
+        }
+      }
+    }
+  } catch { /* repair cortex itself must never crash the crash handler */ }
+
+  // No fix or low confidence — exit as before
   if ((process.env.NODE_ENV || "development") === "production") {
     console.error("[FATAL] Unhandled promise rejection in production — exiting to allow clean restart.");
     process.exit(1);
@@ -2750,6 +2797,9 @@ const STATE = {
   },
 };
 
+// Expose STATE for modules that use globalThis (e.g. repair-cortex.js)
+globalThis._concordSTATE = STATE;
+
 // ============================================================================
 // WAVE 1: PRODUCTION READINESS
 // ============================================================================
@@ -3526,12 +3576,24 @@ function verifyApiKey(rawKey, hashedKey) {
 // ============================================================================
 // SECURITY: Cookie Configuration
 // ============================================================================
+// sameSite "lax" provides CSRF protection (blocks cross-site POST) while allowing
+// cookies on same-site fetch requests and top-level navigations. "strict" breaks
+// initial page loads from external links (user arrives without cookies, API calls
+// fail, user appears logged out until they navigate within the site).
+//
+// COOKIE_DOMAIN: Set to ".concord-os.org" if API and frontend are on different
+// subdomains (e.g., api.concord-os.org + concord-os.org). Leave unset for
+// same-host deployments.
+const COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || "lax";
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined;
+
 const COOKIE_CONFIG = {
   httpOnly: true,
-  secure: NODE_ENV === "production", // HTTPS only in production
-  sameSite: "strict", // CSRF protection
+  secure: NODE_ENV === "production",
+  sameSite: COOKIE_SAME_SITE,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: "/"
+  path: "/",
+  ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
 };
 
 function setAuthCookie(res, token) {
@@ -3539,17 +3601,18 @@ function setAuthCookie(res, token) {
 }
 
 function clearAuthCookie(res) {
-  res.clearCookie("concord_auth", { path: "/" });
-  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
+  res.clearCookie("concord_auth", { path: "/", ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }) });
+  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/", ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }) });
 }
 
 function setRefreshCookie(res, refreshToken) {
   res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
     secure: NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: COOKIE_SAME_SITE,
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    path: "/"
+    path: "/",
+    ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
   });
 }
 
@@ -5553,7 +5616,7 @@ function listMacros(domain) {
   return Array.from(d.values()).map(x => x.spec);
 }
 
-function runMacro(domain, name, input, ctx) {
+async function runMacro(domain, name, input, ctx) {
   // v3: permissioned cognition (macro-level ACL). Defaults open for local-first dev.
   const actor = ctx?.actor || { role: "owner", scopes: ["*"] };
   if (typeof globalThis.canRunMacro === "function" && !globalThis.canRunMacro(actor, domain, name)) {
@@ -5629,6 +5692,27 @@ function runMacro(domain, name, input, ctx) {
         err.meta = { c2 };
         throw err;
       }
+    }
+  }
+
+  // Worker pool dispatch: offload heavy macros from HTTP requests to worker threads.
+  // Internal ticks (heartbeat, system actor without reqMeta) stay on main thread
+  // since the cognitive worker already handles pipeline tasks.
+  const isHttpRequest = !!ctx?.reqMeta?.path;
+  if (isHttpRequest && isHeavy(domain, name)) {
+    const actorInfo = { userId: actor?.userId, role: actor?.role, scopes: actor?.scopes };
+    try {
+      // fireHook before dispatch (best-effort)
+      try { fireHook(STATE, "macro:beforeExecute", { domain, name, input, offloaded: true }); } catch { /* best-effort */ }
+      const poolResult = await dispatchToPool(domain, name, input, actorInfo);
+      try { fireHook(STATE, "macro:afterExecute", { domain, name, result: poolResult, offloaded: true }); } catch { /* best-effort */ }
+      return poolResult;
+    } catch (poolErr) {
+      // If worker doesn't support this macro, fall through to main thread execution
+      if (!poolErr.message?.startsWith("worker_unsupported_macro")) {
+        throw poolErr;
+      }
+      // Fall through to local execution
     }
   }
 
@@ -16096,6 +16180,14 @@ try {
 
 const app = express();
 
+// ---- Trust Proxy ----
+// Required when behind a reverse proxy (nginx, traefik, Docker, Cloudflare).
+// Without this, Express thinks protocol is HTTP → secure cookies are not set,
+// req.ip returns the proxy IP, and rate limiting/CSRF break.
+if (NODE_ENV === "production" || process.env.TRUST_PROXY) {
+  app.set("trust proxy", process.env.TRUST_PROXY || 1);
+}
+
 // ---- Production Middleware (extracted to ./middleware/index.js) ----
 configureMiddleware(app, {
   express,
@@ -16715,14 +16807,187 @@ app.use((err, req, res, _next) => {
 });
 
 // ---- heartbeat (Scope Separation: Local tick + Global tick, no Marketplace tick) ----
+// Worker Thread Architecture: cognitive pipeline tasks run off-thread so HTTP is never blocked.
 let heartbeatTimer = null;
 let weeklyTimer = null;
 let globalTickTimer = null;  // Scope Separation: separate 5-min Global tick
+let cognitiveWorker = null;
+let cognitiveWorkerReady = false;
+
+// ── Cognitive Worker: snapshot builder ────────────────────────────────────────
+// Serializes only what the pipeline needs — never the full STATE.
+function buildCognitiveSnapshot() {
+  const dtuEntries = [];
+  for (const [id, dtu] of STATE.dtus) {
+    dtuEntries.push([id, {
+      id: dtu.id,
+      title: dtu.title,
+      tags: dtu.tags,
+      tier: dtu.tier,
+      lineage: dtu.lineage,
+      core: dtu.core,
+      human: dtu.human,
+      machine: dtu.machine,
+      meta: dtu.meta,
+      source: dtu.source,
+      createdAt: dtu.createdAt,
+      updatedAt: dtu.updatedAt,
+      authority: dtu.authority,
+      hash: dtu.hash,
+      creti: dtu.creti,
+      cretiHuman: dtu.cretiHuman,
+    }]);
+  }
+
+  const shadowEntries = [];
+  for (const [id, dtu] of (STATE.shadowDtus || new Map())) {
+    shadowEntries.push([id, {
+      id: dtu.id, title: dtu.title, tags: dtu.tags, tier: dtu.tier,
+      meta: dtu.meta, createdAt: dtu.createdAt,
+    }]);
+  }
+
+  return {
+    dtus: dtuEntries,
+    shadowDtus: shadowEntries,
+    settings: { ...STATE.settings },
+    pipelineState: STATE._autogenPipeline ? JSON.parse(JSON.stringify(STATE._autogenPipeline)) : null,
+    governanceConfig: STATE._governanceConfig ? { ...STATE._governanceConfig } : null,
+  };
+}
+
+// ── Cognitive Worker: result merger ──────────────────────────────────────────
+// Applies worker pipeline results on the main thread via the macro system.
+async function mergeCognitiveResults(results) {
+  if (!results) return;
+
+  // Merge pipeline state delta (metrics, recent hashes, etc.)
+  if (results.pipelineStateDelta) {
+    STATE._autogenPipeline = results.pipelineStateDelta;
+  }
+
+  if (results.errors?.length) {
+    console.warn("[cognitive-worker] Tick errors:", results.errors);
+  }
+
+  if (results.timings) {
+    log("heartbeat.worker", "Cognitive tick complete", results.timings);
+  }
+
+  // Process each candidate — commit via macro system on main thread
+  const ctx = makeCtx(null);
+  ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+
+  for (const entry of (results.candidates || [])) {
+    if (!entry.ok || !entry.candidate) continue;
+
+    try {
+      if (entry.task === "autogen") {
+        // Autogen: queue proposal (matches original autogen macro behavior)
+        ensureQueues();
+        const proposal = {
+          id: uid("q_autogen"),
+          type: "dtu_proposal",
+          payload: { ...entry.candidate, source: "system.autogen", scope: "local" },
+          why: `pipeline:${entry.candidate.meta?.autogenIntent || "auto"}`,
+          createdAt: nowISO(),
+          status: "queued",
+          writePolicy: entry.writePolicy,
+          trace: entry.trace,
+        };
+        enqueueNotification(proposal);
+        try { globalThis.qualiaHooks?.hookAutogen("system", { gapsFound: entry.trace?.gaps, dtusGenerated: 1, novelty: entry.candidate?.meta?.novelty }); } catch { /* silent */ }
+
+      } else if (entry.task === "dream") {
+        // Dream: commit DTU directly
+        const spec = {
+          ...entry.candidate,
+          source: "system.dream",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker dream commit error:", err); });
+        try { globalThis.qualiaHooks?.hookDreamSynthesis("system", { connections: entry.trace?.connections, coherence: entry.candidate?.meta?.coherence, entropy: entry.candidate?.meta?.entropy }); } catch { /* silent */ }
+
+      } else if (entry.task === "evolution") {
+        // Evolution: commit as regular DTU (cluster→MEGA logic stays on main thread fallback)
+        const spec = {
+          ...entry.candidate,
+          source: "system.evolution",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker evolution commit error:", err); });
+
+      } else if (entry.task === "synthesize") {
+        // Synthesize: commit as regular DTU (HYPER logic stays on main thread fallback)
+        const spec = {
+          ...entry.candidate,
+          source: "system.synthesize",
+          allowRewrite: true,
+          scope: "local",
+        };
+        await runMacro("dtu", "create", spec, ctx).catch((err) => { console.error("[system] Worker synthesize commit error:", err); });
+      }
+    } catch (err) {
+      console.error(`[system] Worker result merge error (${entry.task}):`, err);
+    }
+  }
+}
+
+// ── Cognitive Worker: lifecycle ──────────────────────────────────────────────
+function spawnCognitiveWorker() {
+  const workerPath = new URL("./workers/cognitive-worker.js", import.meta.url).pathname;
+  cognitiveWorker = new Worker(workerPath);
+  cognitiveWorkerReady = false;
+
+  cognitiveWorker.on("message", async (msg) => {
+    if (msg.type === "ready") {
+      cognitiveWorkerReady = true;
+      log("heartbeat.worker", "Cognitive worker ready");
+      return;
+    }
+    if (msg.type === "tick-result") {
+      try {
+        await mergeCognitiveResults(msg.results);
+      } catch (err) {
+        console.error("[cognitive-worker] Result merge fatal:", err);
+      }
+    }
+  });
+
+  cognitiveWorker.on("error", (err) => {
+    console.error("[cognitive-worker] Fatal:", err);
+    cognitiveWorkerReady = false;
+    // Auto-restart after 5s
+    setTimeout(() => {
+      log("heartbeat.worker", "Restarting cognitive worker after crash");
+      spawnCognitiveWorker();
+    }, 5000);
+  });
+
+  cognitiveWorker.on("exit", (code) => {
+    cognitiveWorkerReady = false;
+    if (code !== 0) {
+      console.error(`[cognitive-worker] Exited with code ${code}`);
+      setTimeout(() => spawnCognitiveWorker(), 5000);
+    }
+  });
+}
 
 function startHeartbeat() {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (weeklyTimer) clearInterval(weeklyTimer);
   if (globalTickTimer) clearInterval(globalTickTimer);
+
+  // ── Spawn persistent cognitive worker thread ──
+  if (!cognitiveWorker) {
+    try {
+      spawnCognitiveWorker();
+    } catch (err) {
+      console.error("[cognitive-worker] Failed to spawn:", err);
+    }
+  }
 
   // ── Local Scope Tick (existing cadence, 15s default) ──
   const ms = clamp(Number(STATE.settings.heartbeatMs || 15000), 2000, 120000);
@@ -16736,17 +17001,47 @@ function startHeartbeat() {
     // process crawl queue once (Local scope only — ingest is local activity)
     await runMacro("ingest","processQueueOnce", {}, ctx).catch((err) => { console.error('[system] Heartbeat ingest queue error:', err); });
 
-    if (STATE.settings.autogenEnabled) {
-      await runMacro("system","autogen", {}, ctx).catch((err) => { console.error('[system] Heartbeat autogen error:', err); });
-    }
-    if (STATE.settings.dreamEnabled) {
-      await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch((err) => { console.error('[system] Heartbeat dream error:', err); });
-    }
-    if (STATE.settings.evolutionEnabled) {
-      await runMacro("system","evolution", {}, ctx).catch((err) => { console.error('[system] Heartbeat evolution error:', err); });
-    }
-    if (STATE.settings.synthEnabled) {
-      await runMacro("system","synthesize", {}, ctx).catch((err) => { console.error('[system] Heartbeat synthesize error:', err); });
+    // ── Cognitive pipeline tasks: dispatch to worker thread ──
+    // The 4 pipeline tasks (autogen, dream, evolution, synthesize) run off-thread.
+    // This is the core of the worker migration: HTTP never blocks during pipeline computation.
+    if (cognitiveWorkerReady && STATE.dtus.size > 0) {
+      const anyEnabled = STATE.settings.autogenEnabled || STATE.settings.dreamEnabled
+        || STATE.settings.evolutionEnabled || STATE.settings.synthEnabled;
+      if (anyEnabled) {
+        try {
+          const snapshot = buildCognitiveSnapshot();
+          const ollamaConfig = LLM_PIPELINE?.providers?.ollama?.enabled
+            ? { enabled: true, url: LLM_PIPELINE.providers.ollama.url, model: LLM_PIPELINE.providers.ollama.model }
+            : null;
+          cognitiveWorker.postMessage({
+            type: "tick",
+            snapshot,
+            settings: {
+              autogenEnabled: !!STATE.settings.autogenEnabled,
+              dreamEnabled: !!STATE.settings.dreamEnabled,
+              evolutionEnabled: !!STATE.settings.evolutionEnabled,
+              synthEnabled: !!STATE.settings.synthEnabled,
+            },
+            ollamaConfig,
+          });
+        } catch (err) {
+          console.error("[system] Failed to dispatch cognitive tick to worker:", err);
+        }
+      }
+    } else if (!cognitiveWorkerReady) {
+      // Fallback: run cognitive tasks on main thread if worker isn't available
+      if (STATE.settings.autogenEnabled) {
+        await runMacro("system","autogen", {}, ctx).catch((err) => { console.error('[system] Heartbeat autogen error:', err); });
+      }
+      if (STATE.settings.dreamEnabled) {
+        await runMacro("system","dream", { seed: "Concord heartbeat dream" }, ctx).catch((err) => { console.error('[system] Heartbeat dream error:', err); });
+      }
+      if (STATE.settings.evolutionEnabled) {
+        await runMacro("system","evolution", {}, ctx).catch((err) => { console.error('[system] Heartbeat evolution error:', err); });
+      }
+      if (STATE.settings.synthEnabled) {
+        await runMacro("system","synthesize", {}, ctx).catch((err) => { console.error('[system] Heartbeat synthesize error:', err); });
+      }
     }
 
     // v3: local self-upgrade (abstraction governor) at fixed cadence
@@ -16761,7 +17056,7 @@ function startHeartbeat() {
     // Qualia hook: emergent heartbeat tick (system-level)
     try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
   }, ms);
-  log("heartbeat", "Local scope tick started", { ms });
+  log("heartbeat", "Local scope tick started", { ms, workerEnabled: !!cognitiveWorker });
 
   // ── Global Scope Tick (5 minutes — slow, deliberate synthesis) ──
   // Global tick can: generate DTU candidates from existing Global DTUs, update resonance.
@@ -25274,7 +25569,8 @@ structuredLog("info", "module_loaded", { module: "Wave 16: Missing lens endpoint
 
 let ATS = null;
 try {
-  ATS = await import("./affect/index.js");
+  const _atsModule = await import("./affect/index.js");
+  ATS = { ..._atsModule };
   structuredLog("info", "module_loaded", { detail: "ATS: Affective Translation Spine loaded" });
 
   // Bridge ATS → Existential OS: wrap emitAffectEvent to also fire qualia hookAffect
@@ -25415,6 +25711,44 @@ app.get("/api/affect/health", (req, res) => {
 });
 
 structuredLog("info", "module_loaded", { detail: "ATS: Affect API endpoints registered" });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REPAIR CORTEX INITIALIZATION
+// Three-phase self-repair: Prophet (pre-build) + Surgeon (mid-error) + Guardian (runtime)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+try {
+  startGuardian();
+  structuredLog("info", "module_loaded", { detail: "Repair Cortex: Prophet + Surgeon + Guardian initialized" });
+} catch (e) {
+  console.warn("[Concord] Repair Cortex failed to initialize:", e.message);
+}
+
+// ---- Repair Cortex API ----
+app.get("/api/repair/stats", requireAuth(), requireRole("owner"), (_req, res) => {
+  try {
+    res.json({
+      ok: true,
+      memory: getRepairMemoryStats(),
+      patterns: getAllRepairPatterns()?.patterns?.length || 0,
+      recentDTUs: getRecentRepairDTUs(10),
+      guardian: getGuardianStatus(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/repair/guardian/check", requireAuth(), requireRole("owner"), async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ ok: false, error: "name required" });
+    const result = await runGuardianCheck(name);
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONCORD GLOBAL ATLAS + PLATFORM UPGRADES v2
@@ -26201,6 +26535,55 @@ registerEconomyEndpoints(app, db);
 registerBuiltinEnrichers();
 
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Worker Pool Initialization ───────────────────────────────────────────────
+// Offloads CPU-intensive macro execution from HTTP requests to worker threads.
+try {
+  initPool();
+
+  // Build and sync STATE snapshot to workers for read operations
+  function buildPoolSnapshot() {
+    const dtuEntries = [];
+    for (const [id, dtu] of STATE.dtus) {
+      dtuEntries.push([id, {
+        id: dtu.id, title: dtu.title, tags: dtu.tags, tier: dtu.tier,
+        human: dtu.human, machine: dtu.machine, meta: dtu.meta,
+        source: dtu.source, createdAt: dtu.createdAt, creti: dtu.creti,
+        hash: dtu.hash, lineage: dtu.lineage, authority: dtu.authority,
+      }]);
+    }
+    return {
+      dtus: dtuEntries,
+      shadowDtus: Array.from((STATE.shadowDtus || new Map()).entries()).map(([id, d]) => [id, { id: d.id, title: d.title, tags: d.tags, tier: d.tier }]),
+      settings: { ...STATE.settings },
+      pipelineState: STATE._autogenPipeline ? JSON.parse(JSON.stringify(STATE._autogenPipeline)) : null,
+      governanceConfig: STATE._governanceConfig ? { ...STATE._governanceConfig } : null,
+    };
+  }
+
+  // Sync every 30 seconds
+  setInterval(() => {
+    try { syncPoolState(buildPoolSnapshot()); } catch { /* silent */ }
+  }, 30000);
+
+  // Initial sync after 5 seconds (let STATE populate)
+  setTimeout(() => {
+    try { syncPoolState(buildPoolSnapshot()); } catch { /* silent */ }
+  }, 5000);
+
+  structuredLog("info", "module_loaded", { detail: `Worker Pool: ${getPoolStats().poolSize} workers initialized` });
+} catch (e) {
+  console.warn("[Concord] Worker pool failed to initialize:", e.message);
+}
+
+// ---- Worker Pool Stats API ----
+app.get("/api/workers/stats", requireAuth(), requireRole("owner"), (_req, res) => {
+  try {
+    res.json({ ok: true, ...getPoolStats() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 

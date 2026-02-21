@@ -299,12 +299,17 @@ export default function createAuthRouter({
     const csrfToken = generateCsrfToken(req.user?.id || req.ip);
 
     // Set CSRF cookie (readable by JS for double-submit pattern)
+    // Must use same sameSite policy as auth cookies so the CSRF cookie is
+    // present whenever auth cookies are. "lax" ensures it's sent on same-site
+    // navigations + fetch requests.
+    const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
     res.cookie("csrf_token", csrfToken, {
       httpOnly: false, // JS needs to read this
       secure: NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.COOKIE_SAME_SITE || "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
+      path: "/",
+      ...(cookieDomain && { domain: cookieDomain }),
     });
 
     res.json({ ok: true, csrfToken });

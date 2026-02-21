@@ -7,6 +7,31 @@ import express from "express";
 export default function createEmergentRouter({ makeCtx, runMacro }) {
   const router = express.Router();
 
+  // ── Async Safety Net for Router ──
+  // Patches router methods to catch unhandled promise rejections in async handlers.
+  // Without this, any async handler that throws crashes the process via unhandledRejection.
+  for (const method of ["get", "post", "put", "delete", "patch"]) {
+    const orig = router[method].bind(router);
+    router[method] = function (routePath, ...handlers) {
+      const wrapped = handlers.map(fn => {
+        if (fn && fn.constructor?.name === "AsyncFunction") {
+          return (req, res, next) => {
+            Promise.resolve(fn(req, res, next)).catch(err => {
+              const msg = String(err?.message || err);
+              if (!res.headersSent) {
+                const status = msg.startsWith("forbidden") ? 403
+                  : (msg.includes("not_found") || msg.includes("not found")) ? 404 : 500;
+                res.status(status).json({ ok: false, error: msg });
+              }
+            });
+          };
+        }
+        return fn;
+      });
+      return orig(routePath, ...wrapped);
+    };
+  }
+
   // Emergent management
   router.post("/register", async (req, res) => {
     const out = await runMacro("emergent", "register", req.body, makeCtx(req));

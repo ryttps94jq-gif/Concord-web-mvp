@@ -131,30 +131,43 @@ export default function configureMiddleware(app, deps) {
       if (NODE_ENV !== "production" && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
         return callback(null, true);
       }
-      // In production, REQUIRE ALLOWED_ORIGINS to be configured
-      if (allowedOrigins.length === 0) {
-        if (NODE_ENV === "production") {
-          console.error("[CORS] REJECTED: No ALLOWED_ORIGINS configured in production. Origin:", origin);
-          const err = new Error("CORS not configured");
-          err.code = "CORS_NOT_CONFIGURED";
-          return callback(err, false);
+      // Explicit allowlist takes priority
+      if (allowedOrigins.length > 0) {
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
         }
-        // In development, allow all origins with a warning
-        console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Allowing origin:", origin, "-- Set ALLOWED_ORIGINS env var to restrict.");
-        return callback(null, true);
+        console.warn("[CORS] Rejected origin:", origin);
+        const err = new Error("Origin blocked");
+        err.code = "ORIGIN_BLOCKED";
+        err.reason = `Origin not allowed: ${origin}`;
+        return callback(err, false);
       }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+      // ALLOWED_ORIGINS not configured
+      if (NODE_ENV === "production") {
+        // Production fallback: allow same-host origins (different ports/protocols).
+        // This handles the common case where ALLOWED_ORIGINS isn't set but the frontend
+        // is on the same host. Log a warning so the operator knows to set the env var.
+        try {
+          const originUrl = new URL(origin);
+          const serverHost = process.env.SERVER_HOST || process.env.HOSTNAME || "";
+          if (serverHost && originUrl.hostname === serverHost) {
+            console.warn("[CORS] WARNING: Allowing same-host origin without ALLOWED_ORIGINS:", origin, "— Set ALLOWED_ORIGINS for production.");
+            return callback(null, true);
+          }
+        } catch { /* invalid origin URL, fall through to reject */ }
+        console.error("[CORS] REJECTED: No ALLOWED_ORIGINS configured in production. Origin:", origin, "— Set ALLOWED_ORIGINS=https://your-frontend-domain");
+        const err = new Error("CORS not configured");
+        err.code = "CORS_NOT_CONFIGURED";
+        return callback(err, false);
       }
-      console.warn("[CORS] Rejected origin:", origin);
-      const err = new Error("Origin blocked");
-      err.code = "ORIGIN_BLOCKED";
-      err.reason = `Origin not allowed: ${origin}`;
-      return callback(err, false);
+      // In development, allow all origins with a warning
+      console.warn("[CORS] WARNING: No ALLOWED_ORIGINS set. Allowing origin:", origin, "— Set ALLOWED_ORIGINS env var to restrict.");
+      return callback(null, true);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID", "X-CSRF-Token", "X-XSRF-Token", "X-Request-ID"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Requested-With", "X-Session-ID", "X-CSRF-Token", "X-XSRF-Token", "X-Request-ID", "Idempotency-Key"],
+    exposedHeaders: ["X-Request-ID"],
   };
   app.use(cors(corsOptions));
 
