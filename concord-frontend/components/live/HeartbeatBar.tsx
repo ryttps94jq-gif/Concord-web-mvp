@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { subscribe, connectSocket } from '@/lib/realtime/socket';
-import { Zap, Activity, Shield, Brain, Radio } from 'lucide-react';
+import { Zap, Shield, Brain, Radio } from 'lucide-react';
 
 interface EmergentEntity {
   id?: string;
@@ -36,7 +36,7 @@ export function HeartbeatBar() {
   });
 
   // Fetch scope metrics
-  const { data: scopeData } = useQuery({
+  const { data: _scopeData } = useQuery({
     queryKey: ['scope-metrics'],
     queryFn: () => apiHelpers.scope.metrics().then(r => r.data),
     refetchInterval: 30000,
@@ -55,7 +55,7 @@ export function HeartbeatBar() {
   useEffect(() => {
     connectSocket();
 
-    const unsubDtu = subscribe<{ id?: string; count?: number }>('dtu:created', (data) => {
+    const unsubDtu = subscribe<{ id?: string; count?: number }>('dtu:created', (_data) => {
       // Flash indicator
       setRecentDtuFlash(true);
       setTimeout(() => setRecentDtuFlash(false), 1500);

@@ -8,7 +8,6 @@ import { ds } from '@/lib/design-system';
 import {
   Scale,
   Users,
-  MessageSquare,
   Eye,
   Shield,
   Brain,
@@ -23,7 +22,6 @@ import {
   AlertTriangle,
   Lightbulb,
   Target,
-  Hammer,
   Search,
   RefreshCw,
 } from 'lucide-react';
@@ -304,7 +302,7 @@ function OutcomeBadge({ outcome }: { outcome: 'approved' | 'rejected' | 'split' 
   );
 }
 
-function VoiceBadge({ voice }: { voice: VoiceName }) {
+function _VoiceBadge({ voice }: { voice: VoiceName }) {
   const config = VOICE_CONFIG[voice];
   const Icon = config.icon;
   return (

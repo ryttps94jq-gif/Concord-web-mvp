@@ -378,6 +378,7 @@ const ERROR_PATTERNS = {
     regex: /Expected (\d+) arguments?, but got (\d+)/,
     category: "typescript",
     fixes: [
+      { name: "fix_useref_react19", confidence: 0.95, describe: () => "Fix useRef<T>() → useRef<T>(undefined) for React 19" },
       { name: "fix_arg_count", confidence: 0.9, describe: (m) => `Fix argument count: expected ${m[1]}, got ${m[2]}` },
       { name: "add_optional_params", confidence: 0.7, describe: (m) => `Make extra params optional` },
     ],
@@ -519,8 +520,17 @@ const ERROR_PATTERNS = {
     regex: /'(.+)' is (?:defined|assigned|declared) but (?:never used|its value is never read)/,
     category: "lint",
     fixes: [
-      { name: "prefix_underscore", confidence: 0.95, describe: (m) => `Prefix ${m[1]} with underscore` },
-      { name: "remove_import", confidence: 0.9, describe: (m) => `Remove unused import ${m[1]}` },
+      { name: "eslint_autofix", confidence: 0.95, describe: () => "Run eslint --fix on affected files" },
+      { name: "prefix_underscore", confidence: 0.85, describe: (m) => `Prefix ${m[1]} with underscore` },
+      { name: "remove_import", confidence: 0.8, describe: (m) => `Remove unused import ${m[1]}` },
+    ],
+  },
+
+  eslint_no_unused_vars: {
+    regex: /(@typescript-eslint\/no-unused-vars|no-unused-vars)/,
+    category: "eslint",
+    fixes: [
+      { name: "eslint_autofix", confidence: 0.95, describe: () => "Run eslint --fix on affected files" },
     ],
   },
 
@@ -537,6 +547,7 @@ const ERROR_PATTERNS = {
     regex: /eslint\((.+)\): (.+)/,
     category: "eslint",
     fixes: [
+      { name: "eslint_autofix", confidence: 0.85, describe: (m) => `Run eslint --fix for rule ${m[1]}` },
       { name: "fix_violation", confidence: 0.7, describe: (m) => `Fix ESLint rule ${m[1]}: ${m[2]}` },
       { name: "eslint_disable_line", confidence: 0.5, describe: (m) => `Disable eslint rule ${m[1]} for this line` },
     ],
@@ -2137,12 +2148,25 @@ const _FIX_COMMANDS = {
   clear_docker_cache:       () => `docker builder prune -f`,
   clean_old_images:         () => `docker image prune -f`,
   recreate_network:         () => `docker network prune -f`,
+  // eslint autofix — runs on the concord-frontend directory
+  eslint_autofix:           (root) => `cd "${root}/concord-frontend" && npx eslint --fix app/ components/ lib/ hooks/ store/ --ext .tsx,.ts 2>/dev/null || true`,
+  // useRef React 19 fix — useRef<T>() → useRef<T>(undefined)
+  fix_useref_react19:       (root) => `find "${root}/concord-frontend" -name "*.tsx" -o -name "*.ts" | xargs sed -i 's/useRef<\\([^>]*\\)>()/useRef<\\1>(undefined)/g' 2>/dev/null || true`,
 };
 
-async function _executeFix(fixName, projectRoot, match) {
+async function _executeFix(fixName, projectRoot, match, errorContext) {
   try {
     const cmdFn = _FIX_COMMANDS[fixName];
     if (!cmdFn) return false;
+
+    // For useRef fix, if we have a specific file from the error, target it
+    if (fixName === "fix_useref_react19" && errorContext?.file) {
+      const targetFile = path.resolve(projectRoot, "concord-frontend", errorContext.file);
+      const cmd = `sed -i 's/useRef<\\([^>]*\\)>()/useRef<\\1>(undefined)/g' "${targetFile}" 2>/dev/null || true`;
+      await execAsync(cmd, { timeout: 10000 });
+      return true;
+    }
+
     const cmd = cmdFn(projectRoot, match);
     if (!cmd) return false;
     await execAsync(cmd, { timeout: 120000 });
@@ -2281,7 +2305,7 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
       const knownFix = lookupRepairMemory(error.pattern);
       if (knownFix) {
         // Actually execute the fix on disk
-        const fixApplied = await _executeFix(knownFix.name, projectRoot, error.match);
+        const fixApplied = await _executeFix(knownFix.name, projectRoot, error.match, error);
         logRepairDTU(REPAIR_PHASES.MID_BUILD, fixApplied ? "known_fix_applied" : "known_fix_no_command", {
           pattern: error.pattern,
           fix: knownFix.name,
@@ -2302,7 +2326,7 @@ export async function runSurgeon(buildCommand, projectRoot, maxRetries = MAX_BUI
 
         for (const fix of fixes) {
           // Actually execute the fix on disk
-          const executed = await _executeFix(fix.name, projectRoot, error.match);
+          const executed = await _executeFix(fix.name, projectRoot, error.match, error);
 
           // Record the fix attempt
           addToRepairMemory(error.pattern, {

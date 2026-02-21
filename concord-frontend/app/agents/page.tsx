@@ -75,7 +75,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: 'red-400',
 };
 
-const SEVERITY_ORDER: Record<string, number> = {
+const _SEVERITY_ORDER: Record<string, number> = {
   critical: 0,
   high: 1,
   medium: 2,

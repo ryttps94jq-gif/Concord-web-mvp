@@ -24,7 +24,7 @@ export function ScopeIndicator() {
   const local = metrics.local ?? 0;
   const marketplace = metrics.marketplace ?? 0;
   const global = metrics.global ?? 0;
-  const total = metrics.total ?? (local + marketplace + global);
+  const _total = metrics.total ?? (local + marketplace + global);
 
   return (
     <div className="flex items-center gap-3 text-xs">

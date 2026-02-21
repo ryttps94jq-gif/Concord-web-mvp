@@ -61,6 +61,11 @@ function _fixCmd(name, match, projectRoot) {
     clean_old_images:        () => `docker image prune -f`,
     recreate_network:        () => `docker network prune -f`,
 
+    // eslint autofix — runs on the concord-frontend directory
+    eslint_autofix:          () => `cd "${projectRoot}/concord-frontend" && npx eslint --fix app/ components/ lib/ hooks/ store/ --ext .tsx,.ts 2>/dev/null || true`,
+    // useRef React 19 fix — useRef<T>() → useRef<T>(undefined)
+    fix_useref_react19:      () => `find "${projectRoot}/concord-frontend" -name "*.tsx" -o -name "*.ts" | xargs sed -i 's/useRef<\\([^>]*\\)>()/useRef<\\1>(undefined)/g' 2>/dev/null || true`,
+
     // eslint — prefix underscore for unused vars
     prefix_underscore:       () => null, // needs AST modification — escalate
     remove_import:           () => null,
@@ -79,6 +84,41 @@ function executeFixCommand(cmd, fixName) {
   } catch (e) {
     console.log(`  ✗ Fix "${fixName}" failed: ${String(e?.message || e).slice(0, 150)}`);
     return false;
+  }
+}
+
+/**
+ * Parse file paths from eslint/typescript warning lines and run eslint --fix.
+ * Handles formats: ./path/to/file.tsx:LINE:COL, ./path/to/file.tsx(LINE,COL)
+ * Non-blocking — logs results but never fails the surgeon.
+ */
+function runEslintAutofix(buildOutput, rootDir) {
+  try {
+    const fileSet = new Set();
+    const lines = buildOutput.split("\n");
+    for (const line of lines) {
+      // Match: ./path/to/file.tsx:42:10 or ./app/foo/bar.ts:100:5
+      const m = line.match(/(\.\/(app|components|lib|hooks|store)\/[^\s:]+\.[jt]sx?)/);
+      if (m) fileSet.add(m[1]);
+    }
+    if (fileSet.size === 0) return 0;
+
+    const files = Array.from(fileSet);
+    console.log(`  ESLint autofix: ${files.length} file(s) to fix`);
+    try {
+      const fileArgs = files.map(f => `"${f}"`).join(" ");
+      execSync(`cd "${rootDir}/concord-frontend" && npx eslint --fix ${fileArgs}`, {
+        stdio: "pipe",
+        timeout: 120000,
+      });
+    } catch {
+      // eslint --fix exits non-zero if unfixable warnings remain — that's OK
+    }
+    console.log(`  ESLint autofix: completed on ${files.length} file(s)`);
+    return files.length;
+  } catch (e) {
+    console.log(`  ESLint autofix: skipped (${String(e?.message || e).slice(0, 80)})`);
+    return 0;
   }
 }
 
@@ -235,6 +275,17 @@ function main() {
         console.log("  No fixes available for this pattern");
       }
 
+      console.log("");
+    }
+
+    // After per-error fixes, run targeted eslint autofix if lint/eslint errors were found
+    if (categories.has("lint") || categories.has("eslint")) {
+      console.log("Running targeted ESLint autofix on affected files...");
+      const eslintFixed = runEslintAutofix(buildOutput, projectRoot);
+      if (eslintFixed > 0) {
+        fixApplied = true;
+        console.log(`  ESLint autofix: cleaned ${eslintFixed} file(s)`);
+      }
       console.log("");
     }
 
