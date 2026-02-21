@@ -41,7 +41,7 @@ export function LiveDTUFeed({ limit = 10 }: { limit?: number }) {
       || (dtusData as { dtus?: DTUEvent[]; items?: DTUEvent[] })?.items
       || [];
     if (items.length > 0 && liveDtus.length === 0) {
-      setLiveDtus(items.slice(0, limit).map((d: Record<string, unknown>) => ({
+      setLiveDtus(items.slice(0, limit).map((d: any) => ({
         id: d.id as string || '',
         title: d.title as string || d.summary as string || '',
         summary: d.summary as string || '',

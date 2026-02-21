@@ -139,186 +139,17 @@ const gradients = [
 
 const pickGrad = (i: number) => gradients[i % gradients.length];
 
-const generateWaveform = (len = 32): number[] =>
+const _generateWaveform = (len = 32): number[] =>
   Array.from({ length: len }, () => 12 + Math.floor(Math.random() * 28));
 
-// ── Demo Data ──────────────────────────────────────────────────────────────────
+// ── Data (all from backend — no mock data) ───────────────────────────────────
 
-const INITIAL_AUTHORS: PostAuthor[] = [
-  { id: 'a1', name: 'Kira Soundscape', handle: 'kirasound', gradient: pickGrad(0), verified: true },
-  { id: 'a2', name: 'Neon Drift', handle: 'neondrift', gradient: pickGrad(1), verified: true },
-  { id: 'a3', name: 'Lattice Collective', handle: 'latticecollective', gradient: pickGrad(2), verified: true },
-  { id: 'a4', name: 'Aero Beats', handle: 'aerobeats', gradient: pickGrad(3), verified: false },
-  { id: 'a5', name: 'Mira Voss', handle: 'miravoss', gradient: pickGrad(4), verified: true },
-  { id: 'a6', name: 'Pulse Network', handle: 'pulsenet', gradient: pickGrad(5), verified: true },
-  { id: 'a7', name: 'Echo Chamber', handle: 'echochamber', gradient: pickGrad(6), verified: false },
-  { id: 'a8', name: 'Jade Atlas', handle: 'jadeatlas', gradient: pickGrad(7), verified: true },
-  { id: 'a9', name: 'Synth Council', handle: 'synthcouncil', gradient: pickGrad(0), verified: true },
-  { id: 'a10', name: 'Ren Akira', handle: 'renakira', gradient: pickGrad(1), verified: false },
-];
+const _INITIAL_AUTHORS: PostAuthor[] = [];
+const INITIAL_POSTS: FeedPost[] = [];
+const TRENDING_TOPICS: TrendingTopic[] = [];
 
-const INITIAL_POSTS: FeedPost[] = [
-  {
-    id: 'p1', type: 'audio', author: INITIAL_AUTHORS[0],
-    content: 'Just finished this ambient piece. Three weeks of layering field recordings with analog synth textures. Headphones recommended.',
-    createdAt: '2026-02-07T09:15:00Z', likes: 842, comments: 67, reposts: 215, shares: 43, views: 12400,
-    liked: false, reposted: false, bookmarked: false, tags: ['ambient', 'synth', 'fieldrecording'],
-    audio: { title: 'Dissolving Horizons', duration: '4:32', bpm: 72, waveform: generateWaveform() },
-  },
-  {
-    id: 'p2', type: 'release', author: INITIAL_AUTHORS[1],
-    content: 'MIDNIGHT PROTOCOL is finally here. 12 tracks exploring the intersection of drum & bass and orchestral arrangements. Every DTU is on-chain.',
-    createdAt: '2026-02-07T07:00:00Z', likes: 3247, comments: 389, reposts: 1102, shares: 567, views: 89300,
-    liked: true, reposted: false, bookmarked: true, tags: ['dnb', 'orchestral', 'newrelease'],
-    release: {
-      title: 'Midnight Protocol', artist: 'Neon Drift', coverGradient: 'from-indigo-600 to-purple-900',
-      trackCount: 12, tracks: ['Signal Loss', 'Cascade', 'Nerve Center', 'Phantom Thread'],
-      releaseDate: '2026-02-07',
-    },
-  },
-  {
-    id: 'p3', type: 'text', author: INITIAL_AUTHORS[2],
-    content: 'We are building an open standard for collaborative music production metadata. If you are working on remix attribution or sample credit chains, reach out. The DTU spec draft is live on our forum.',
-    createdAt: '2026-02-07T06:30:00Z', likes: 1567, comments: 234, reposts: 456, shares: 189, views: 34200,
-    liked: false, reposted: true, bookmarked: false, tags: ['dtu', 'openstandard', 'metadata'],
-  },
-  {
-    id: 'p4', type: 'art', author: INITIAL_AUTHORS[4],
-    content: 'Album art concepts for the upcoming Lattice Sessions Vol. 3. Each piece is generated from the audio waveform of its corresponding track.',
-    createdAt: '2026-02-06T22:00:00Z', likes: 2134, comments: 178, reposts: 567, shares: 234, views: 45600,
-    liked: false, reposted: false, bookmarked: true, tags: ['albumart', 'generativeart', 'latticesessions'],
-    art: {
-      images: [
-        { gradient: 'from-purple-600 via-pink-500 to-red-500', label: 'Track 1 - Emergence' },
-        { gradient: 'from-cyan-500 via-blue-600 to-indigo-700', label: 'Track 2 - Depth' },
-        { gradient: 'from-green-400 via-teal-500 to-blue-600', label: 'Track 3 - Current' },
-        { gradient: 'from-orange-400 via-red-500 to-purple-600', label: 'Track 4 - Bloom' },
-      ],
-    },
-  },
-  {
-    id: 'p5', type: 'collab', author: INITIAL_AUTHORS[3],
-    content: 'Starting a live beat-making session right now. Lo-fi hip hop vibes. Bring your Rhodes samples.',
-    createdAt: '2026-02-07T10:00:00Z', likes: 423, comments: 89, reposts: 156, shares: 34, views: 6700,
-    liked: false, reposted: false, bookmarked: false, tags: ['collab', 'lofi', 'hiphop', 'live'],
-    collab: { sessionName: 'Late Night Lo-Fi Lab', participants: 4, maxParticipants: 8, genre: 'Lo-Fi Hip Hop' },
-  },
-  {
-    id: 'p6', type: 'audio', author: INITIAL_AUTHORS[5],
-    content: 'Remix of @kirasound\'s "Dissolving Horizons" - took it in a breakbeat direction. Full sample credits linked via DTU.',
-    createdAt: '2026-02-07T08:45:00Z', likes: 678, comments: 45, reposts: 123, shares: 56, views: 9800,
-    liked: false, reposted: false, bookmarked: false, tags: ['remix', 'breakbeat', 'samplecredits'],
-    audio: { title: 'Dissolving Horizons (Pulse Remix)', duration: '5:11', bpm: 138, waveform: generateWaveform() },
-  },
-  {
-    id: 'p7', type: 'text', author: INITIAL_AUTHORS[6],
-    content: 'Hot take: the future of music distribution is not streaming platforms. It is peer-to-peer DTU networks where every play, remix, and sample is tracked transparently. The creators own the graph.',
-    createdAt: '2026-02-06T20:15:00Z', likes: 4521, comments: 567, reposts: 1234, shares: 456, views: 67800,
-    liked: true, reposted: false, bookmarked: false, tags: ['opinion', 'dtu', 'distribution'],
-  },
-  {
-    id: 'p8', type: 'release', author: INITIAL_AUTHORS[7],
-    content: 'Surprise drop. "Glass Garden" EP - 5 tracks of ambient electronica recorded in a greenhouse at 3am. Physical DTU cards shipping next week.',
-    createdAt: '2026-02-06T18:00:00Z', likes: 1893, comments: 267, reposts: 678, shares: 345, views: 54300,
-    liked: false, reposted: false, bookmarked: false, tags: ['ep', 'ambient', 'electronica', 'surprise'],
-    release: {
-      title: 'Glass Garden EP', artist: 'Jade Atlas', coverGradient: 'from-emerald-500 to-teal-800',
-      trackCount: 5, tracks: ['Greenhouse', 'Condensation', 'Root System', 'Canopy', 'First Light'],
-      releaseDate: '2026-02-06',
-    },
-  },
-  {
-    id: 'p9', type: 'audio', author: INITIAL_AUTHORS[8],
-    content: 'Council approved stems pack vol. 7. 200+ one-shots and loops, all CC-BY-SA. Build something and tag us.',
-    createdAt: '2026-02-06T15:30:00Z', likes: 2345, comments: 189, reposts: 890, shares: 234, views: 78900,
-    liked: false, reposted: true, bookmarked: true, tags: ['stems', 'samples', 'creative-commons'],
-    audio: { title: 'Council Stems Vol. 7 Preview', duration: '2:15', waveform: generateWaveform() },
-  },
-  {
-    id: 'p10', type: 'art', author: INITIAL_AUTHORS[9],
-    content: 'Visual experiments with spectral analysis. Each frame maps frequency data to color channels in real time.',
-    createdAt: '2026-02-06T14:00:00Z', likes: 934, comments: 78, reposts: 234, shares: 89, views: 15600,
-    liked: false, reposted: false, bookmarked: false, tags: ['visualart', 'spectral', 'audiovisual'],
-    art: {
-      images: [
-        { gradient: 'from-yellow-400 via-red-500 to-purple-700', label: 'Spectrum A' },
-        { gradient: 'from-blue-400 via-violet-500 to-fuchsia-600', label: 'Spectrum B' },
-        { gradient: 'from-green-300 via-cyan-500 to-blue-700', label: 'Spectrum C' },
-      ],
-    },
-  },
-  {
-    id: 'p11', type: 'collab', author: INITIAL_AUTHORS[0],
-    content: 'Looking for a vocalist for a cyberpunk ballad. Track is 80% done, need ethereal vocals over the bridge. DM for stems.',
-    createdAt: '2026-02-06T12:00:00Z', likes: 567, comments: 134, reposts: 89, shares: 45, views: 8900,
-    liked: false, reposted: false, bookmarked: false, tags: ['collab', 'vocalist', 'cyberpunk'],
-    collab: { sessionName: 'Cyberpunk Ballad Collab', participants: 1, maxParticipants: 3, genre: 'Cyberpunk / Synth' },
-  },
-  {
-    id: 'p12', type: 'text', author: INITIAL_AUTHORS[4],
-    content: 'Just minted my first generative album cover collection. Each one is seeded from the master audio file\'s spectral data. 1/1 editions tied to the DTU of each track. Link in bio.',
-    createdAt: '2026-02-06T10:30:00Z', likes: 1234, comments: 156, reposts: 345, shares: 167, views: 23400,
-    liked: false, reposted: false, bookmarked: false, tags: ['generative', 'albumart', 'dtu', 'nft'],
-  },
-  {
-    id: 'p13', type: 'audio', author: INITIAL_AUTHORS[1],
-    content: 'Preview of "Cascade" from the new album. This one took the longest to produce - 47 layers of percussion alone.',
-    createdAt: '2026-02-06T09:00:00Z', likes: 1567, comments: 213, reposts: 456, shares: 178, views: 34500,
-    liked: false, reposted: false, bookmarked: false, tags: ['preview', 'midnightprotocol', 'dnb'],
-    audio: { title: 'Cascade (Preview)', duration: '1:30', bpm: 174, waveform: generateWaveform() },
-  },
-  {
-    id: 'p14', type: 'text', author: INITIAL_AUTHORS[5],
-    content: 'PSA: If you use someone\'s sample in your track, credit them. It costs nothing and strengthens the entire community. DTU makes this automatic - there are no excuses anymore.',
-    createdAt: '2026-02-06T07:45:00Z', likes: 6789, comments: 456, reposts: 2345, shares: 678, views: 112000,
-    liked: true, reposted: true, bookmarked: false, tags: ['samplecredits', 'community', 'dtu'],
-  },
-  {
-    id: 'p15', type: 'release', author: INITIAL_AUTHORS[8],
-    content: 'The Synth Council Annual Compilation is out. 30 tracks from 30 different artists across the network. All royalties split equally via DTU smart contracts.',
-    createdAt: '2026-02-05T20:00:00Z', likes: 4567, comments: 678, reposts: 1890, shares: 567, views: 156000,
-    liked: false, reposted: false, bookmarked: true, tags: ['compilation', 'synthcouncil', 'annual'],
-    release: {
-      title: 'Synth Council Annual 2026', artist: 'Various Artists', coverGradient: 'from-amber-500 to-red-700',
-      trackCount: 30, tracks: ['Opening Frequency', 'Node Walker', 'Deep State', 'Lattice Hymn'],
-      releaseDate: '2026-02-05',
-    },
-  },
-  {
-    id: 'p16', type: 'collab', author: INITIAL_AUTHORS[7],
-    content: 'Open jam session tonight at 9pm UTC. Ambient + jazz fusion. All instruments welcome. Streaming live on the feed.',
-    createdAt: '2026-02-07T11:00:00Z', likes: 345, comments: 67, reposts: 123, shares: 56, views: 5400,
-    liked: false, reposted: false, bookmarked: false, tags: ['jam', 'ambient', 'jazz', 'live'],
-    collab: { sessionName: 'Ambient Jazz Fusion Jam', participants: 6, maxParticipants: 12, genre: 'Ambient Jazz' },
-  },
-  {
-    id: 'p17', type: 'audio', author: INITIAL_AUTHORS[3],
-    content: 'Flipped an old vinyl sample into something new. The original DTU chain goes back 4 remixes deep. This is what transparent attribution looks like.',
-    createdAt: '2026-02-05T16:00:00Z', likes: 890, comments: 123, reposts: 234, shares: 89, views: 18700,
-    liked: false, reposted: false, bookmarked: false, tags: ['vinyl', 'sample', 'attribution', 'remix'],
-    audio: { title: 'Vinyl Memory (4th Gen Remix)', duration: '3:48', bpm: 95, waveform: generateWaveform() },
-  },
-];
-
-const TRENDING_TOPICS: TrendingTopic[] = [
-  { id: 't1', tag: '#MidnightProtocol', category: 'New Release', posts: 12400 },
-  { id: 't2', tag: '#SynthCouncilAnnual', category: 'Compilation', posts: 8900 },
-  { id: 't3', tag: '#DTUCredits', category: 'Community', posts: 6700 },
-  { id: 't4', tag: '#AmbientWeekend', category: 'Genre', posts: 4500 },
-  { id: 't5', tag: '#GenerativeArt', category: 'Visual', posts: 3200 },
-];
-
-const SUGGESTED_USERS: SuggestedUser[] = [
-  { id: 's1', name: 'Bass Architect', handle: 'bassarchitect', gradient: pickGrad(3), role: 'Producer', verified: true },
-  { id: 's2', name: 'Luma Keys', handle: 'lumakeys', gradient: pickGrad(5), role: 'Pianist / Composer', verified: false },
-  { id: 's3', name: 'Vox Ethereal', handle: 'voxethereal', gradient: pickGrad(7), role: 'Vocalist', verified: true },
-];
-
-const NEW_RELEASES: MiniRelease[] = [
-  { id: 'nr1', title: 'Midnight Protocol', artist: 'Neon Drift', gradient: 'from-indigo-600 to-purple-900' },
-  { id: 'nr2', title: 'Glass Garden EP', artist: 'Jade Atlas', gradient: 'from-emerald-500 to-teal-800' },
-  { id: 'nr3', title: 'Council Annual 2026', artist: 'Various Artists', gradient: 'from-amber-500 to-red-700' },
-];
+const SUGGESTED_USERS: SuggestedUser[] = [];
+const NEW_RELEASES: MiniRelease[] = [];
 
 // ── Subcomponents ──────────────────────────────────────────────────────────────
 
@@ -489,54 +320,47 @@ export default function FeedLensPage() {
     seed: INITIAL_POSTS.map(p => ({ title: p.content?.slice(0, 80) || p.id, data: p as unknown as Record<string, unknown> })),
   });
 
-  // Fetch real DTU data with fallback to demo
+  // Fetch real DTU data from backend
   const { data: feedPosts, isLoading, isError: isError2, error: error2, refetch: refetch2,} = useQuery<FeedPost[]>({
     queryKey: ['feed-posts', activeTab],
     queryFn: async () => {
-      try {
-        const [dtuRes] = await Promise.allSettled([
-          api.get('/api/dtus', { params: { limit: 50 } }),
-          api.get('/api/artistry/distribution/feed', { params: { tab: activeTab } }),
-        ]);
+      const [dtuRes] = await Promise.allSettled([
+        api.get('/api/dtus', { params: { limit: 50 } }),
+        api.get('/api/artistry/distribution/feed', { params: { tab: activeTab } }),
+      ]);
 
-        const serverPosts: FeedPost[] = [];
-        if (dtuRes.status === 'fulfilled' && dtuRes.value?.data?.dtus?.length) {
-          dtuRes.value.data.dtus.forEach((dtu: Record<string, unknown>) => {
-            serverPosts.push({
-              id: dtu.id as string,
-              type: 'text',
-              author: {
-                id: (dtu.authorId as string) || 'user',
-                name: (dtu.authorName as string) || 'Concord User',
-                handle: (dtu.authorHandle as string) || 'user',
-                gradient: pickGrad(serverPosts.length),
-                verified: Math.random() > 0.6,
-              },
-              content: (dtu.content as string)?.slice(0, 400) || (dtu.title as string) || '',
-              createdAt: (dtu.createdAt as string) || new Date().toISOString(),
-              likes: Math.floor(Math.random() * 2000),
-              comments: Math.floor(Math.random() * 200),
-              reposts: Math.floor(Math.random() * 500),
-              shares: Math.floor(Math.random() * 100),
-              views: Math.floor(Math.random() * 50000),
-              liked: false, reposted: false, bookmarked: false,
-              dtuId: dtu.id as string,
-            });
+      const serverPosts: FeedPost[] = [];
+      if (dtuRes.status === 'fulfilled' && dtuRes.value?.data?.dtus?.length) {
+        dtuRes.value.data.dtus.forEach((dtu: Record<string, unknown>) => {
+          serverPosts.push({
+            id: dtu.id as string,
+            type: 'text',
+            author: {
+              id: (dtu.authorId as string) || 'user',
+              name: (dtu.authorName as string) || 'Concord User',
+              handle: (dtu.authorHandle as string) || 'user',
+              gradient: pickGrad(serverPosts.length),
+              verified: false,
+            },
+            content: (dtu.content as string)?.slice(0, 400) || (dtu.title as string) || '',
+            createdAt: (dtu.createdAt as string) || new Date().toISOString(),
+            likes: (dtu.likes as number) || 0,
+            comments: (dtu.commentCount as number) || 0,
+            reposts: (dtu.reposts as number) || 0,
+            shares: (dtu.shares as number) || 0,
+            views: (dtu.views as number) || 0,
+            liked: false, reposted: false, bookmarked: false,
+            dtuId: dtu.id as string,
           });
-        }
-
-        if (serverPosts.length > 0) return serverPosts;
-        // Fall back to persisted lens items if available
-        if (postLensItems.length > 0) {
-          return postLensItems.map(li => ({ id: li.id, ...(li.data as Record<string, unknown>) } as unknown as FeedPost));
-        }
-        return INITIAL_POSTS;
-      } catch {
-        if (postLensItems.length > 0) {
-          return postLensItems.map(li => ({ id: li.id, ...(li.data as Record<string, unknown>) } as unknown as FeedPost));
-        }
-        return INITIAL_POSTS;
+        });
       }
+
+      if (serverPosts.length > 0) return serverPosts;
+      // Fall back to persisted lens items if available
+      if (postLensItems.length > 0) {
+        return postLensItems.map(li => ({ id: li.id, ...(li.data as Record<string, unknown>) } as unknown as FeedPost));
+      }
+      return [];
     },
   });
 
@@ -550,12 +374,12 @@ export default function FeedLensPage() {
             id: `t-${i}`,
             tag: `#${tag}`,
             category: ['Music', 'Production', 'Community', 'Tech', 'Visual'][i % 5],
-            posts: Math.floor(Math.random() * 15000),
+            posts: (r.data.counts?.[i] as number) || 0,
           }));
         }
-        return TRENDING_TOPICS;
+        return [];
       } catch {
-        return TRENDING_TOPICS;
+        return [];
       }
     },
   });
@@ -761,6 +585,12 @@ export default function FeedLensPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <MessageCircle className="w-16 h-16 mb-4 opacity-40" />
+              <h3 className="text-lg font-medium mb-2 text-white">No posts yet</h3>
+              <p className="text-sm mb-4">Create a post or follow users to populate your feed.</p>
             </div>
           ) : (
             <AnimatePresence mode="popLayout">

@@ -105,40 +105,15 @@ type TimeRange = '1H' | '24H' | '7D' | '30D' | '90D' | '1Y' | 'ALL';
 type ViewMode = 'overview' | 'portfolio' | 'trade' | 'orders' | 'alerts' | 'news';
 type ChartType = 'line' | 'candle' | 'area';
 
-const INITIAL_ASSETS: Asset[] = [
-  { id: '1', symbol: 'DTU', name: 'Concord DTU Token', type: 'dtu', price: 42.5, change24h: 3.25, changePercent24h: 8.28, volume24h: 15000000, marketCap: 425000000, holdings: 1250, value: 53125, avgBuyPrice: 35.2, pnl: 9125, pnlPercent: 20.74, allocation: 45, sparkline: [38, 39, 41, 40, 42, 43, 42.5] },
-  { id: '2', symbol: 'ETH', name: 'Ethereum', type: 'crypto', price: 3450.00, change24h: -85.50, changePercent24h: -2.42, volume24h: 12000000000, marketCap: 415000000000, holdings: 5.5, value: 18975, avgBuyPrice: 3200, pnl: 1375, pnlPercent: 7.81, allocation: 16, sparkline: [3500, 3520, 3480, 3450, 3400, 3420, 3450] },
-  { id: '3', symbol: 'BTC', name: 'Bitcoin', type: 'crypto', price: 67500.00, change24h: 1250.00, changePercent24h: 1.89, volume24h: 28000000000, marketCap: 1320000000000, holdings: 0.25, value: 16875, avgBuyPrice: 62000, pnl: 1375, pnlPercent: 8.87, allocation: 14, sparkline: [66000, 66500, 67000, 67200, 67800, 67500, 67500] },
-  { id: '4', symbol: 'SOL', name: 'Solana', type: 'crypto', price: 175.50, change24h: 12.30, changePercent24h: 7.54, volume24h: 3500000000, marketCap: 75000000000, holdings: 85, value: 14917.5, avgBuyPrice: 145, pnl: 2592.5, pnlPercent: 21.03, allocation: 13, sparkline: [160, 165, 168, 172, 178, 176, 175.5] },
-  { id: '5', symbol: 'NVDA', name: 'NVIDIA Corp', type: 'stock', price: 875.25, change24h: 28.50, changePercent24h: 3.37, volume24h: 45000000, marketCap: 2160000000000, holdings: 15, value: 13128.75, avgBuyPrice: 750, pnl: 1878.75, pnlPercent: 16.69, allocation: 11, sparkline: [840, 850, 855, 860, 870, 878, 875.25] },
-];
+const INITIAL_ASSETS: Asset[] = [];
 
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: '1', type: 'buy', asset: 'Concord DTU Token', symbol: 'DTU', amount: 500, price: 38.5, value: 19250, fee: 25, timestamp: '2024-01-15T10:30:00Z', status: 'completed' },
-  { id: '2', type: 'sell', asset: 'Ethereum', symbol: 'ETH', amount: 2, price: 3520, value: 7040, fee: 15, timestamp: '2024-01-14T15:45:00Z', status: 'completed' },
-  { id: '3', type: 'stake', asset: 'Solana', symbol: 'SOL', amount: 50, price: 168, value: 8400, timestamp: '2024-01-13T09:00:00Z', status: 'completed' },
-  { id: '4', type: 'reward', asset: 'Concord DTU Token', symbol: 'DTU', amount: 25, price: 42.5, value: 1062.5, timestamp: '2024-01-12T00:00:00Z', status: 'completed' },
-  { id: '5', type: 'transfer', asset: 'Bitcoin', symbol: 'BTC', amount: 0.1, price: 67000, value: 6700, fee: 5, timestamp: '2024-01-11T18:20:00Z', status: 'completed' },
-];
+const INITIAL_TRANSACTIONS: Transaction[] = [];
 
-const INITIAL_ORDERS: Order[] = [
-  { id: '1', type: 'limit', side: 'buy', asset: 'Ethereum', symbol: 'ETH', amount: 2, price: 3200, filled: 0, status: 'open', createdAt: '2024-01-15T12:00:00Z' },
-  { id: '2', type: 'stop', side: 'sell', asset: 'Bitcoin', symbol: 'BTC', amount: 0.1, stopPrice: 60000, filled: 0, status: 'open', createdAt: '2024-01-14T10:00:00Z' },
-  { id: '3', type: 'limit', side: 'buy', asset: 'Concord DTU Token', symbol: 'DTU', amount: 200, price: 40, filled: 150, status: 'partial', createdAt: '2024-01-13T08:00:00Z' },
-];
+const INITIAL_ORDERS: Order[] = [];
 
-const INITIAL_ALERTS: PriceAlert[] = [
-  { id: '1', asset: 'Bitcoin', symbol: 'BTC', condition: 'above', price: 70000, active: true },
-  { id: '2', asset: 'Ethereum', symbol: 'ETH', condition: 'below', price: 3000, active: true },
-  { id: '3', asset: 'Concord DTU Token', symbol: 'DTU', condition: 'above', price: 50, active: true },
-];
+const INITIAL_ALERTS: PriceAlert[] = [];
 
-const INITIAL_NEWS: NewsItem[] = [
-  { id: '1', title: 'DTU Token Reaches New All-Time High After Major Partnership', source: 'CryptoNews', timestamp: '2024-01-15T14:00:00Z', sentiment: 'positive', assets: ['DTU'] },
-  { id: '2', title: 'Federal Reserve Signals Potential Rate Cuts in 2024', source: 'Bloomberg', timestamp: '2024-01-15T12:30:00Z', sentiment: 'positive', assets: ['BTC', 'ETH', 'SOL'] },
-  { id: '3', title: 'NVIDIA Reports Record Quarterly Revenue Driven by AI Demand', source: 'Reuters', timestamp: '2024-01-15T10:00:00Z', sentiment: 'positive', assets: ['NVDA'] },
-  { id: '4', title: 'Ethereum Gas Fees Spike Amid NFT Market Surge', source: 'CoinDesk', timestamp: '2024-01-15T08:00:00Z', sentiment: 'neutral', assets: ['ETH'] },
-];
+const INITIAL_NEWS: NewsItem[] = [];
 
 export default function FinanceLensPage() {
   useLensNav('finance');
@@ -149,8 +124,20 @@ export default function FinanceLensPage() {
   const { isError: isError2, error: error2, refetch: refetch2, items: txItems } = useLensData<Transaction>('finance', 'transaction', {
     seed: INITIAL_TRANSACTIONS.map(t => ({ title: t.type, data: t as unknown as Record<string, unknown> })),
   });
-  const _assets: Asset[] = assetItems.length > 0 ? assetItems.map(i => ({ ...(i.data as unknown as Asset), id: i.id })) : INITIAL_ASSETS;
-  const _transactions: Transaction[] = txItems.length > 0 ? txItems.map(i => ({ ...(i.data as unknown as Transaction), id: i.id })) : INITIAL_TRANSACTIONS;
+  const { items: orderItems } = useLensData<Order>('finance', 'order', {
+    seed: INITIAL_ORDERS.map(o => ({ title: o.asset, data: o as unknown as Record<string, unknown> })),
+  });
+  const { items: alertItems } = useLensData<PriceAlert>('finance', 'alert', {
+    seed: INITIAL_ALERTS.map(a => ({ title: a.asset, data: a as unknown as Record<string, unknown> })),
+  });
+  const { items: newsItems } = useLensData<NewsItem>('finance', 'news', {
+    seed: INITIAL_NEWS.map(n => ({ title: n.title, data: n as unknown as Record<string, unknown> })),
+  });
+  const _assets: Asset[] = assetItems.map(i => ({ ...(i.data as unknown as Asset), id: i.id }));
+  const _transactions: Transaction[] = txItems.map(i => ({ ...(i.data as unknown as Transaction), id: i.id }));
+  const orders: Order[] = orderItems.map(i => ({ ...(i.data as unknown as Order), id: i.id }));
+  const alerts: PriceAlert[] = alertItems.map(i => ({ ...(i.data as unknown as PriceAlert), id: i.id }));
+  const news: NewsItem[] = newsItems.map(i => ({ ...(i.data as unknown as NewsItem), id: i.id }));
   const chartRef = useRef<HTMLCanvasElement>(null);
 
   // State
@@ -169,9 +156,9 @@ export default function FinanceLensPage() {
   const [tradePrice, setTradePrice] = useState('');
 
   // Computed values
-  const totalValue = INITIAL_ASSETS.reduce((sum, a) => sum + a.value, 0);
-  const totalPnl = INITIAL_ASSETS.reduce((sum, a) => sum + a.pnl, 0);
-  const totalPnlPercent = (totalPnl / (totalValue - totalPnl)) * 100;
+  const totalValue = _assets.reduce((sum, a) => sum + a.value, 0);
+  const totalPnl = _assets.reduce((sum, a) => sum + a.pnl, 0);
+  const totalPnlPercent = totalValue > totalPnl ? (totalPnl / (totalValue - totalPnl)) * 100 : 0;
 
   // Chart rendering
   useEffect(() => {
@@ -397,8 +384,8 @@ export default function FinanceLensPage() {
             <TrendingUp className="w-4 h-4 text-green-400" />
             <span className="text-sm text-gray-400">Best Performer</span>
           </div>
-          <p className="text-xl font-bold">{INITIAL_ASSETS.sort((a, b) => b.pnlPercent - a.pnlPercent)[0].symbol}</p>
-          <p className="text-green-400 text-sm">+{INITIAL_ASSETS.sort((a, b) => b.pnlPercent - a.pnlPercent)[0].pnlPercent.toFixed(2)}%</p>
+          <p className="text-xl font-bold">{_assets.sort((a, b) => b.pnlPercent - a.pnlPercent)[0]?.symbol}</p>
+          <p className="text-green-400 text-sm">+{_assets.sort((a, b) => b.pnlPercent - a.pnlPercent)[0]?.pnlPercent.toFixed(2)}%</p>
         </div>
 
         <div className="lens-card">
@@ -407,7 +394,7 @@ export default function FinanceLensPage() {
             <span className="text-sm text-gray-400">24h Volume</span>
           </div>
           <p className="text-xl font-bold">
-            {formatCurrency(INITIAL_ASSETS.reduce((sum, a) => sum + a.volume24h, 0), true)}
+            {formatCurrency(_assets.reduce((sum, a) => sum + a.volume24h, 0), true)}
           </p>
           <p className="text-gray-400 text-sm">Across all assets</p>
         </div>
@@ -417,8 +404,8 @@ export default function FinanceLensPage() {
             <Bell className="w-4 h-4 text-neon-yellow" />
             <span className="text-sm text-gray-400">Active Alerts</span>
           </div>
-          <p className="text-xl font-bold">{INITIAL_ALERTS.filter(a => a.active).length}</p>
-          <p className="text-gray-400 text-sm">{INITIAL_ORDERS.filter(o => o.status === 'open').length} open orders</p>
+          <p className="text-xl font-bold">{alerts.filter(a => a.active).length}</p>
+          <p className="text-gray-400 text-sm">{orders.filter(o => o.status === 'open').length} open orders</p>
         </div>
       </div>
 
@@ -512,7 +499,7 @@ export default function FinanceLensPage() {
                 </tr>
               </thead>
               <tbody>
-                {INITIAL_ASSETS
+                {_assets
                   .filter(a => a.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || a.name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map((asset) => (
                   <tr
@@ -575,7 +562,7 @@ export default function FinanceLensPage() {
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
               {(() => {
                 let offset = 0;
-                return INITIAL_ASSETS.map((asset, i) => {
+                return _assets.map((asset, i) => {
                   const circumference = 2 * Math.PI * 40;
                   const strokeDasharray = (asset.allocation / 100) * circumference;
                   const strokeDashoffset = -offset;
@@ -602,14 +589,14 @@ export default function FinanceLensPage() {
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <p className="text-2xl font-bold">{INITIAL_ASSETS.length}</p>
+                <p className="text-2xl font-bold">{_assets.length}</p>
                 <p className="text-xs text-gray-400">Assets</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            {INITIAL_ASSETS.map((asset, i) => {
+            {_assets.map((asset, i) => {
               const colors = ['bg-neon-cyan', 'bg-neon-purple', 'bg-green-500', 'bg-amber-500', 'bg-red-500'];
               return (
                 <div key={asset.id} className="flex items-center gap-3">
@@ -636,7 +623,7 @@ export default function FinanceLensPage() {
           </div>
 
           <div className="space-y-3">
-            {INITIAL_TRANSACTIONS.slice(0, 5).map((tx) => (
+            {_transactions.slice(0, 5).map((tx) => (
               <div key={tx.id} className="flex items-center gap-4 p-3 rounded-lg bg-lattice-deep/50">
                 <div className={cn(
                   'w-10 h-10 rounded-full flex items-center justify-center',
@@ -681,24 +668,24 @@ export default function FinanceLensPage() {
           </div>
 
           <div className="space-y-3">
-            {INITIAL_NEWS.map((news) => (
-              <div key={news.id} className="p-3 rounded-lg bg-lattice-deep/50 hover:bg-lattice-elevated/50 cursor-pointer transition-colors">
+            {news.map((item) => (
+              <div key={item.id} className="p-3 rounded-lg bg-lattice-deep/50 hover:bg-lattice-elevated/50 cursor-pointer transition-colors">
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     'w-2 h-2 rounded-full mt-2',
-                    news.sentiment === 'positive' && 'bg-green-400',
-                    news.sentiment === 'negative' && 'bg-red-400',
-                    news.sentiment === 'neutral' && 'bg-gray-400'
+                    item.sentiment === 'positive' && 'bg-green-400',
+                    item.sentiment === 'negative' && 'bg-red-400',
+                    item.sentiment === 'neutral' && 'bg-gray-400'
                   )} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm leading-tight">{news.title}</p>
+                    <p className="font-medium text-sm leading-tight">{item.title}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-400">{news.source}</span>
+                      <span className="text-xs text-gray-400">{item.source}</span>
                       <span className="text-xs text-gray-500">·</span>
-                      <span className="text-xs text-gray-400">{formatTime(news.timestamp)}</span>
+                      <span className="text-xs text-gray-400">{formatTime(item.timestamp)}</span>
                     </div>
                     <div className="flex items-center gap-1 mt-2">
-                      {news.assets.map((asset) => (
+                      {item.assets.map((asset) => (
                         <span key={asset} className="px-2 py-0.5 bg-lattice-elevated rounded text-xs">
                           {asset}
                         </span>
@@ -715,8 +702,8 @@ export default function FinanceLensPage() {
   );
 
   const renderTrade = () => {
-    const selectedTradingAsset = INITIAL_ASSETS.find(a => a.symbol === tradeAsset) || INITIAL_ASSETS[0];
-    const estimatedValue = parseFloat(tradeAmount || '0') * (orderType === 'market' ? selectedTradingAsset.price : parseFloat(tradePrice || '0'));
+    const selectedTradingAsset = _assets.find(a => a.symbol === tradeAsset) || _assets[0];
+    const estimatedValue = parseFloat(tradeAmount || '0') * (orderType === 'market' ? (selectedTradingAsset?.price || 0) : parseFloat(tradePrice || '0'));
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -730,7 +717,7 @@ export default function FinanceLensPage() {
                   onChange={(e) => setTradeAsset(e.target.value)}
                   className="bg-lattice-deep rounded-lg px-4 py-2 font-semibold focus:outline-none focus:ring-1 focus:ring-neon-cyan"
                 >
-                  {INITIAL_ASSETS.map((asset) => (
+                  {_assets.map((asset) => (
                     <option key={asset.id} value={asset.symbol}>
                       {asset.symbol}/USD
                     </option>
@@ -989,7 +976,7 @@ export default function FinanceLensPage() {
             </tr>
           </thead>
           <tbody>
-            {INITIAL_ORDERS.map((order) => (
+            {orders.map((order) => (
               <tr key={order.id} className="border-t border-lattice-border hover:bg-lattice-elevated/30">
                 <td className="px-4 py-4 text-sm text-gray-400">{formatTime(order.createdAt)}</td>
                 <td className="px-4 py-4 font-medium">{order.symbol}/USD</td>
@@ -1050,8 +1037,8 @@ export default function FinanceLensPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {INITIAL_ALERTS.map((alert) => {
-          const asset = INITIAL_ASSETS.find(a => a.symbol === alert.symbol);
+        {alerts.map((alert) => {
+          const asset = _assets.find(a => a.symbol === alert.symbol);
           const triggered = alert.condition === 'above'
             ? (asset?.price || 0) >= alert.price
             : (asset?.price || 0) <= alert.price;
@@ -1174,24 +1161,24 @@ export default function FinanceLensPage() {
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Market News & Analysis</h2>
           <div className="grid gap-4">
-            {INITIAL_NEWS.map((news) => (
-              <div key={news.id} className="panel p-4 hover:bg-lattice-elevated/50 cursor-pointer transition-colors">
+            {news.map((item) => (
+              <div key={item.id} className="panel p-4 hover:bg-lattice-elevated/50 cursor-pointer transition-colors">
                 <div className="flex items-start gap-4">
                   <div className={cn(
                     'w-1 h-full min-h-[60px] rounded-full',
-                    news.sentiment === 'positive' && 'bg-green-400',
-                    news.sentiment === 'negative' && 'bg-red-400',
-                    news.sentiment === 'neutral' && 'bg-gray-400'
+                    item.sentiment === 'positive' && 'bg-green-400',
+                    item.sentiment === 'negative' && 'bg-red-400',
+                    item.sentiment === 'neutral' && 'bg-gray-400'
                   )} />
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1">{news.title}</h3>
+                    <h3 className="font-semibold mb-1">{item.title}</h3>
                     <div className="flex items-center gap-3 text-sm text-gray-400 mb-2">
-                      <span>{news.source}</span>
+                      <span>{item.source}</span>
                       <span>·</span>
-                      <span>{formatTime(news.timestamp)}</span>
+                      <span>{formatTime(item.timestamp)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {news.assets.map((asset) => (
+                      {item.assets.map((asset) => (
                         <span key={asset} className="px-2 py-1 bg-lattice-deep rounded text-xs font-medium">
                           {asset}
                         </span>

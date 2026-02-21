@@ -26,7 +26,9 @@ export * from './layout/FocusMode';
 export * from './graphs/ResonanceEmpireGraph';
 export * from './graphs/FractalEmpireExplorer';
 export * from './graphs/InteractiveGraph';
-export * from './graphs/KnowledgeSpace3D';
+// KnowledgeSpace3D uses @react-three/fiber — must be dynamically imported with { ssr: false }
+// Do NOT re-export here to avoid SSR crashes (ReactCurrentBatchConfig error)
+// import it directly with next/dynamic where needed
 
 // Cognitive Components
 export * from './cognitive/ThoughtStream';

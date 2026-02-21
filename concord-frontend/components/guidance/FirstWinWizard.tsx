@@ -47,9 +47,23 @@ const STEP_ROUTES: Record<string, string> = {
   view_global: '/global',
 };
 
+const DISMISSED_KEY = 'concord_first_win_dismissed';
+
 export function FirstWinWizard() {
   const router = useRouter();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(DISMISSED_KEY) === 'true';
+    }
+    return false;
+  });
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DISMISSED_KEY, 'true');
+    }
+  };
 
   const { data, isError } = useQuery<FirstWinData>({
     queryKey: ['guidance-first-win'],
@@ -87,7 +101,7 @@ export function FirstWinWizard() {
           <span className="text-xs text-gray-500">
             {resolved.completedCount}/{resolved.steps.length}
           </span>
-          <button onClick={() => setDismissed(true)} className="text-gray-500 hover:text-white">
+          <button onClick={handleDismiss} className="text-gray-500 hover:text-white">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>

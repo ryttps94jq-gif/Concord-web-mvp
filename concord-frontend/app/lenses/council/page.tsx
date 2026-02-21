@@ -222,150 +222,15 @@ const BUDGET_CATEGORIES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Initial Data
+// Initial Data (empty — all data comes from backend)
 // ---------------------------------------------------------------------------
 
-const INITIAL_STAKEHOLDERS: Stakeholder[] = [
-  { id: 's1', name: 'Council Chair', role: 'chair', votingWeight: 1.5, committees: ['governance', 'finance'], delegatedTo: null, conflicts: [], participationScore: 98, joinedAt: '2024-01-15' },
-  { id: 's2', name: 'Policy Analyst', role: 'member', votingWeight: 1.0, committees: ['governance'], delegatedTo: null, conflicts: [], participationScore: 87, joinedAt: '2024-03-01' },
-  { id: 's3', name: 'Finance Director', role: 'treasurer', votingWeight: 1.0, committees: ['finance', 'audit'], delegatedTo: null, conflicts: ['budget-item-3'], participationScore: 92, joinedAt: '2024-02-10' },
-  { id: 's4', name: 'Community Rep', role: 'member', votingWeight: 1.0, committees: ['community'], delegatedTo: null, conflicts: [], participationScore: 75, joinedAt: '2024-05-20' },
-  { id: 's5', name: 'Legal Counsel', role: 'advisor', votingWeight: 0.5, committees: ['governance', 'audit'], delegatedTo: null, conflicts: [], participationScore: 81, joinedAt: '2024-04-08' },
-  { id: 's6', name: 'Tech Lead', role: 'member', votingWeight: 1.0, committees: ['technology'], delegatedTo: 's2', conflicts: [], participationScore: 64, joinedAt: '2024-06-15' },
-  { id: 's7', name: 'Ethics Officer', role: 'observer', votingWeight: 0.0, committees: ['audit'], delegatedTo: null, conflicts: [], participationScore: 90, joinedAt: '2024-01-20' },
-];
-
-const INITIAL_COMMITTEES: Committee[] = [
-  { id: 'governance', name: 'Governance Committee', description: 'Oversees council rules and procedures', members: ['s1', 's2', 's5'], chair: 's1' },
-  { id: 'finance', name: 'Finance Committee', description: 'Reviews and approves budget allocations', members: ['s1', 's3'], chair: 's3' },
-  { id: 'audit', name: 'Audit Committee', description: 'Monitors compliance and accountability', members: ['s3', 's5', 's7'], chair: 's5' },
-  { id: 'community', name: 'Community Committee', description: 'Handles community relations and outreach', members: ['s4'], chair: 's4' },
-  { id: 'technology', name: 'Technology Committee', description: 'Reviews technical proposals and infrastructure', members: ['s6'], chair: 's6' },
-];
-
-const INITIAL_PROPOSALS: Proposal[] = [
-  {
-    id: 'prop-1', title: 'Adopt Open Data Policy for All Council Proceedings',
-    description: 'All council meeting minutes, voting records, budget documents, and decision rationale shall be published in an open, machine-readable format within 48 hours of each session. This ensures transparency, enables civic participation, and aligns with governance best practices.',
-    type: 'policy', status: 'voting', sponsor: 's1', coSponsors: ['s2', 's5'],
-    createdAt: '2025-11-01T10:00:00Z', updatedAt: '2025-12-15T14:30:00Z',
-    discussion: [
-      { id: 'd1', author: 's2', content: 'Strongly support this. We need to lead by example on transparency.', createdAt: '2025-11-02T08:00:00Z', type: 'comment' },
-      { id: 'd2', author: 's3', content: 'Concerned about resource costs for formatting and publishing. Can we phase this in?', createdAt: '2025-11-03T10:00:00Z', type: 'comment' },
-      { id: 'd3', author: 's5', content: 'Legal review complete: no conflicts with privacy regulations if personal data is redacted.', createdAt: '2025-11-05T09:00:00Z', type: 'comment' },
-    ],
-    amendments: [
-      { id: 'a1', proposalId: 'prop-1', author: 's3', title: 'Extend publication window to 72 hours', description: 'Change the 48-hour requirement to 72 hours to allow for proper review and formatting.', status: 'accepted', createdAt: '2025-11-04T11:00:00Z' },
-    ],
-    impactAssessment: 'High positive impact on public trust. Moderate implementation cost for staff training and tooling. Low risk: standard redaction procedures mitigate privacy concerns.',
-    linkedBudgetItems: ['bi-3'], votingMethod: 'simple_majority', votingDeadline: '2026-03-01T00:00:00Z',
-    votes: { s1: 'strongly_support', s2: 'support', s4: 'support', s5: 'support' },
-    quorumRequired: 4, tags: ['transparency', 'open-data', 'governance'],
-  },
-  {
-    id: 'prop-2', title: 'Annual Budget Allocation for Community Programs',
-    description: 'Allocate 15% of the annual operating budget to community-facing programs including education, outreach, and participatory events. This builds on last year\'s pilot program that showed 40% increase in community engagement.',
-    type: 'budget', status: 'discussion', sponsor: 's4', coSponsors: ['s1'],
-    createdAt: '2025-12-10T09:00:00Z', updatedAt: '2026-01-20T16:00:00Z',
-    discussion: [
-      { id: 'd4', author: 's1', content: 'The pilot results are compelling. Let us discuss the specific breakdown of that 15%.', createdAt: '2025-12-11T10:00:00Z', type: 'comment' },
-      { id: 'd5', author: 's3', content: 'I can prepare a detailed cost breakdown for the finance committee review.', createdAt: '2025-12-12T14:00:00Z', type: 'comment' },
-    ],
-    amendments: [],
-    impactAssessment: 'High impact on community engagement metrics. Requires reallocation from current reserve fund. 3-year ROI projected positive based on pilot data.',
-    linkedBudgetItems: ['bi-5', 'bi-6'], votingMethod: 'supermajority', votingDeadline: null,
-    votes: {}, quorumRequired: 5, tags: ['budget', 'community', 'education'],
-  },
-  {
-    id: 'prop-3', title: 'Amend Voting Procedures for Emergency Decisions',
-    description: 'Introduce an expedited voting procedure allowing time-sensitive decisions to be made within a 24-hour window with a reduced quorum of 3 members, provided the Council Chair and at least one committee chair are present.',
-    type: 'amendment', status: 'draft', sponsor: 's5', coSponsors: [],
-    createdAt: '2026-01-15T11:00:00Z', updatedAt: '2026-01-15T11:00:00Z',
-    discussion: [],
-    amendments: [],
-    impactAssessment: 'Enables rapid response to urgent matters. Risk of insufficient deliberation; mitigated by requiring chair presence and retrospective review.',
-    linkedBudgetItems: [], votingMethod: 'supermajority', votingDeadline: null,
-    votes: {}, quorumRequired: 5, tags: ['governance', 'procedures', 'emergency'],
-  },
-  {
-    id: 'prop-4', title: 'Resolution: Condemn Data Extraction Practices',
-    description: 'The council formally resolves that extractive data practices, including unauthorized telemetry, hidden tracking, and non-consensual data harvesting, violate the foundational principles of this governance body. All affiliated systems must comply within 90 days.',
-    type: 'resolution', status: 'decided', sponsor: 's1', coSponsors: ['s2', 's4', 's5', 's7'],
-    createdAt: '2025-09-01T09:00:00Z', updatedAt: '2025-10-15T12:00:00Z',
-    discussion: [
-      { id: 'd6', author: 's7', content: 'Essential resolution. Ethics board fully supports this position.', createdAt: '2025-09-02T08:00:00Z', type: 'comment' },
-      { id: 'd7', author: 's6', content: 'Technical audit confirms all current systems are compliant. Happy to support.', createdAt: '2025-09-03T10:00:00Z', type: 'comment' },
-    ],
-    amendments: [],
-    impactAssessment: 'Establishes clear ethical boundary. No budget impact. Strengthens trust framework.',
-    linkedBudgetItems: [], votingMethod: 'consent', votingDeadline: '2025-10-01T00:00:00Z',
-    votes: { s1: 'strongly_support', s2: 'strongly_support', s3: 'support', s4: 'strongly_support', s5: 'support' },
-    quorumRequired: 4, tags: ['ethics', 'data-sovereignty', 'compliance'],
-  },
-  {
-    id: 'prop-5', title: 'Motion to Establish Technology Advisory Board',
-    description: 'Create a standing advisory board composed of technical experts who will review and provide non-binding recommendations on all technology-related proposals before they advance to the voting stage.',
-    type: 'motion', status: 'implemented', sponsor: 's6', coSponsors: ['s1', 's2'],
-    createdAt: '2025-07-01T09:00:00Z', updatedAt: '2025-09-01T09:00:00Z',
-    discussion: [
-      { id: 'd8', author: 's1', content: 'Excellent initiative. This fills a gap in our review process.', createdAt: '2025-07-02T09:00:00Z', type: 'comment' },
-    ],
-    amendments: [],
-    impactAssessment: 'Improves quality of technical decision-making. Low cost: advisory members volunteer. High value: prevents costly technical missteps.',
-    linkedBudgetItems: ['bi-4'], votingMethod: 'simple_majority', votingDeadline: '2025-08-01T00:00:00Z',
-    votes: { s1: 'support', s2: 'strongly_support', s3: 'support', s4: 'abstain', s5: 'support', s6: 'strongly_support' },
-    quorumRequired: 4, tags: ['technology', 'advisory', 'governance'],
-  },
-];
-
-const INITIAL_BUDGET_ITEMS: BudgetItem[] = [
-  { id: 'bi-1', category: 'Operations', description: 'Core operational expenses', amount: 50000, type: 'expense', justification: 'Baseline operations', approvalStatus: 'approved', proposalId: null, scenario: 'current' },
-  { id: 'bi-2', category: 'Personnel', description: 'Staff compensation and benefits', amount: 120000, type: 'expense', justification: 'Current headcount', approvalStatus: 'approved', proposalId: null, scenario: 'current' },
-  { id: 'bi-3', category: 'Technology', description: 'Open Data Platform Development', amount: 25000, type: 'expense', justification: 'Required for Proposal 1 compliance', approvalStatus: 'pending', proposalId: 'prop-1', scenario: 'proposed' },
-  { id: 'bi-4', category: 'Technology', description: 'Advisory Board Tools & Infrastructure', amount: 8000, type: 'expense', justification: 'Support tools for tech advisory board', approvalStatus: 'approved', proposalId: 'prop-5', scenario: 'current' },
-  { id: 'bi-5', category: 'Community', description: 'Education Programs', amount: 35000, type: 'expense', justification: 'Part of 15% community allocation', approvalStatus: 'pending', proposalId: 'prop-2', scenario: 'proposed' },
-  { id: 'bi-6', category: 'Community', description: 'Outreach Events', amount: 20000, type: 'expense', justification: 'Participatory budget events', approvalStatus: 'pending', proposalId: 'prop-2', scenario: 'proposed' },
-  { id: 'bi-7', category: 'Reserve', description: 'Emergency Reserve Fund', amount: 40000, type: 'expense', justification: 'Standard reserve allocation', approvalStatus: 'approved', proposalId: null, scenario: 'current' },
-  { id: 'bi-8', category: 'Operations', description: 'Annual membership dues', amount: 300000, type: 'revenue', justification: 'Primary revenue source', approvalStatus: 'approved', proposalId: null, scenario: 'current' },
-  { id: 'bi-9', category: 'Community', description: 'Grant funding', amount: 75000, type: 'revenue', justification: 'External grants for community work', approvalStatus: 'pending', proposalId: 'prop-2', scenario: 'proposed' },
-];
-
-const INITIAL_AUDIT: AuditEntry[] = [
-  { id: 'au-1', timestamp: '2026-02-10T14:00:00Z', actor: 'Council Chair', action: 'Called vote', target: 'prop-1', details: 'Voting opened for Open Data Policy. Deadline set to 2026-03-01.', category: 'vote' },
-  { id: 'au-2', timestamp: '2026-02-09T10:00:00Z', actor: 'Policy Analyst', action: 'Voted', target: 'prop-1', details: 'Cast vote: Support', category: 'vote' },
-  { id: 'au-3', timestamp: '2026-02-08T16:00:00Z', actor: 'Finance Director', action: 'Submitted budget item', target: 'bi-3', details: 'Added Open Data Platform Development line item ($25,000)', category: 'budget' },
-  { id: 'au-4', timestamp: '2026-02-07T09:00:00Z', actor: 'Community Rep', action: 'Created proposal', target: 'prop-2', details: 'Annual Budget Allocation for Community Programs submitted', category: 'proposal' },
-  { id: 'au-5', timestamp: '2026-02-05T11:00:00Z', actor: 'Legal Counsel', action: 'Accepted amendment', target: 'a1', details: 'Extended publication window from 48h to 72h on prop-1', category: 'amendment' },
-  { id: 'au-6', timestamp: '2026-01-28T14:00:00Z', actor: 'Council Chair', action: 'Concluded debate', target: 'debate-1', details: 'Debate on data sovereignty concluded with synthesis', category: 'debate' },
-  { id: 'au-7', timestamp: '2026-01-20T09:00:00Z', actor: 'Tech Lead', action: 'Delegated vote', target: 's6 -> s2', details: 'Delegated voting power to Policy Analyst for governance matters', category: 'stakeholder' },
-];
-
-const INITIAL_DEBATES: DebateSession[] = [
-  {
-    id: 'debate-1', topic: 'Should open data requirements extend to third-party integrations?',
-    status: 'concluded', participants: ['s1', 's2', 's5', 's6'],
-    speakingQueue: [], currentSpeaker: null, timePerSpeaker: 300,
-    points: [
-      { speaker: 'Council Chair', content: 'Third-party integrations handle a significant portion of our data flow. Without extending the requirement, we create a transparency gap that undermines the spirit of the open data policy.', type: 'point' },
-      { speaker: 'Tech Lead', content: 'While I agree in principle, enforcing open data requirements on third parties introduces significant compliance complexity. We need a phased approach with clear technical standards.', type: 'counterpoint' },
-      { speaker: 'Legal Counsel', content: 'From a legal perspective, we can require contractual commitments from third parties. This is common in government procurement frameworks.', type: 'point' },
-      { speaker: 'Policy Analyst', content: 'I propose we establish a tiered system: full compliance for primary partners, disclosure requirements for secondary integrations, and audit rights for all others.', type: 'point' },
-    ],
-    synthesis: 'The council reached consensus on a tiered compliance framework for third-party open data requirements. Primary partners will meet full standards, secondary integrations will have disclosure obligations, and all parties will be subject to audit rights. A 6-month implementation timeline was agreed upon.',
-    createdAt: '2026-01-25T10:00:00Z',
-  },
-  {
-    id: 'debate-2', topic: 'Priority allocation of community program funding',
-    status: 'active', participants: ['s1', 's3', 's4'],
-    speakingQueue: ['s3'], currentSpeaker: 's4', timePerSpeaker: 240,
-    points: [
-      { speaker: 'Council Chair', content: 'We need to balance immediate community needs with long-term capacity building. I suggest a 60/40 split between direct programs and infrastructure.', type: 'point' },
-      { speaker: 'Community Rep', content: 'The community feedback overwhelmingly prioritizes education and direct engagement. I would argue for a 70/30 split favoring programs.', type: 'counterpoint' },
-    ],
-    synthesis: null,
-    createdAt: '2026-02-10T14:00:00Z',
-  },
-];
+const INITIAL_STAKEHOLDERS: Stakeholder[] = [];
+const INITIAL_COMMITTEES: Committee[] = [];
+const INITIAL_PROPOSALS: Proposal[] = [];
+const INITIAL_BUDGET_ITEMS: BudgetItem[] = [];
+const INITIAL_AUDIT: AuditEntry[] = [];
+const INITIAL_DEBATES: DebateSession[] = [];
 
 // ---------------------------------------------------------------------------
 // Helpers

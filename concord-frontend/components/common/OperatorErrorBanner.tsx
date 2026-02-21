@@ -23,22 +23,21 @@ export function OperatorErrorBanner() {
   const clearRequestErrors = useUIStore((state) => state.clearRequestErrors);
   const authPosture = useUIStore((state) => state.authPosture);
   const pathname = usePathname();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(true); // Hidden by default
 
   const latest = requestErrors[requestErrors.length - 1];
 
-  // Auto-dismiss after 8 seconds
+  // Do NOT auto-show on new errors — banner is hidden by default.
+  // Only show when user explicitly clicks "Debug" elsewhere.
   useEffect(() => {
-    if (latest) {
-      setDismissed(false);
-      const timer = setTimeout(() => setDismissed(true), 8_000);
-      return () => clearTimeout(timer);
-    }
+    // Keep dismissed unless user explicitly opens
   }, [latest?.id, latest]);
 
   // Reset dismissed state when errors are cleared
   useEffect(() => {
-    if (requestErrors.length === 0) setDismissed(false);
+    if (requestErrors.length === 0) {
+      setDismissed(true);
+    }
   }, [requestErrors.length]);
 
   const debugBundle = useMemo(() => {
@@ -61,8 +60,24 @@ export function OperatorErrorBanner() {
     }
   };
 
-  // Don't show on auth pages, when dismissed, or when no errors
-  if (!latest || dismissed || SUPPRESSED_PATHS.includes(pathname)) return null;
+  // Don't show on auth pages or when no errors
+  if (!latest || SUPPRESSED_PATHS.includes(pathname)) return null;
+
+  // Show a subtle indicator instead of the full banner
+  if (dismissed) {
+    return (
+      <div className="flex justify-end px-4 py-1">
+        <button
+          onClick={() => setDismissed(false)}
+          className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+          aria-label="Show debug panel"
+        >
+          <AlertTriangle className="h-3 w-3" />
+          <span>{requestErrors.length} issue{requestErrors.length !== 1 ? 's' : ''}</span>
+        </button>
+      </div>
+    );
+  }
 
   const reason = latest.reason || latest.message;
 

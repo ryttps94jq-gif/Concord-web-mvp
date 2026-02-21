@@ -9,15 +9,27 @@
  *   - DashboardPage for returning users
  */
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
-import { KnowledgeSpace3D } from '@/components/graphs/KnowledgeSpace3D';
+import dynamic from 'next/dynamic';
+const KnowledgeSpace3D = dynamic(
+  () => import('@/components/graphs/KnowledgeSpace3D').then(mod => ({ default: mod.KnowledgeSpace3D })),
+  { ssr: false, loading: () => (
+    <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        Loading 3D lattice...
+      </div>
+    </div>
+  )}
+);
 import { DTUEmpireCard } from '@/components/dtu/DTUEmpireCard';
 import { LockDashboard } from '@/components/sovereignty/LockDashboard';
 import { CoherenceBadge } from '@/components/graphs/CoherenceBadge';
+import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { EmergentPanel } from '@/components/emergent/EmergentPanel';
 import { GovernanceFeed } from '@/components/emergent/GovernanceFeed';
@@ -98,50 +110,58 @@ export function HomeClient() {
 function DashboardPage() {
   const [inspecting, setInspecting] = useState<{ type: string; id: string } | null>(null);
 
+  // All queries are resilient — each catches errors independently so one failure
+  // doesn't crash the dashboard. Each section renders a fallback on error.
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
-    queryFn: () => api.get('/api/status').then((r) => r.data),
+    queryFn: () => api.get('/api/status').then((r) => r.data).catch(() => null),
+    retry: 1,
   });
 
   const { data: dtusData, isLoading: dtusLoading } = useQuery({
     queryKey: ['dtus'],
-    queryFn: () => api.get('/api/dtus').then((r) => r.data),
+    queryFn: () => api.get('/api/dtus').then((r) => r.data).catch(() => ({ dtus: [] })),
+    retry: 1,
   });
 
   const { data: scopeMetrics } = useQuery({
     queryKey: ['scope-metrics'],
-    queryFn: () => apiHelpers.scope.metrics().then((r) => r.data),
+    queryFn: () => apiHelpers.scope.metrics().then((r) => r.data).catch(() => null),
     refetchInterval: 30000,
+    retry: false,
   });
 
   const { data: eventsData } = useQuery({
     queryKey: ['events'],
-    queryFn: () => api.get('/api/events').then((r) => r.data),
+    queryFn: () => api.get('/api/events').then((r) => r.data).catch(() => ({ events: [] })),
+    retry: false,
   });
 
   const { data: resonanceData } = useQuery({
     queryKey: ['resonance-quick'],
     queryFn: () => api.get('/api/lattice/resonance').then((r) => r.data).catch(() => null),
     refetchInterval: 30000,
+    retry: false,
   });
 
   const { data: healthData } = useQuery({
     queryKey: ['system-health'],
-    queryFn: () => api.get('/api/system/health').then((r) => r.data),
+    queryFn: () => api.get('/api/system/health').then((r) => r.data).catch(() => null),
     refetchInterval: 60000,
+    retry: false,
   });
 
   const { data: guidanceData } = useQuery({
     queryKey: ['guidance-suggestions'],
-    queryFn: () => api.get('/api/guidance/suggestions').then((r) => r.data),
+    queryFn: () => api.get('/api/guidance/suggestions').then((r) => r.data).catch(() => null),
     retry: false,
   });
 
   // Fetch graph visual data for the Resonance Universe
   const { data: _graphData } = useQuery({
     queryKey: ['graph-visual'],
-    queryFn: () => apiHelpers.graph.visual({ limit: 200 }).then((r) => r.data),
-    retry: 1,
+    queryFn: () => apiHelpers.graph.visual({ limit: 200 }).then((r) => r.data).catch(() => null),
+    retry: false,
     staleTime: 30000,
   });
 
@@ -274,49 +294,48 @@ function DashboardPage() {
         />
       </div>
 
-      {/* Live Feed + Emergent Council + Governance */}
+      {/* Live Feed + Emergent Council + Governance — each wrapped independently */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <LiveDTUFeed limit={12} />
-        <EmergentPanel />
-        <GovernanceFeed />
+        <LensErrorBoundary name="Live DTU Feed">
+          <LiveDTUFeed limit={12} />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Emergent Panel">
+          <EmergentPanel />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Governance Feed">
+          <GovernanceFeed />
+        </LensErrorBoundary>
       </div>
 
       {/* Resonance Universe 3D + Sovereignty */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 rounded-xl border border-lattice-border bg-lattice-surface/50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-lattice-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Activity className="w-4 h-4 text-neon-cyan" />
-              Resonance Universe
-            </h2>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span>{graph3DNodesWithEdges.length} nodes</span>
-              <span className="text-neon-cyan">{(coherence * 100).toFixed(0)}% coherence</span>
+        <LensErrorBoundary name="Resonance Universe">
+          <div className="lg:col-span-2 rounded-xl border border-lattice-border bg-lattice-surface/50 overflow-hidden">
+            <div className="px-4 py-3 border-b border-lattice-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="w-4 h-4 text-neon-cyan" />
+                Resonance Universe
+              </h2>
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <span>{graph3DNodesWithEdges.length} nodes</span>
+                <span className="text-neon-cyan">{(coherence * 100).toFixed(0)}% coherence</span>
+              </div>
             </div>
-          </div>
-          <div className="h-[420px]">
-            {graph3DNodesWithEdges.length > 0 ? (
-              <Suspense fallback={
+            <div className="h-[420px]">
+              {graph3DNodesWithEdges.length > 0 ? (
+                <KnowledgeSpace3D nodes={graph3DNodesWithEdges} />
+              ) : (
                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">
                   <div className="text-center">
-                    <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                    Loading 3D lattice...
+                    <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p>Lattice is forming...</p>
+                    <p className="text-xs text-gray-600 mt-1">DTUs will appear here as they generate</p>
                   </div>
                 </div>
-              }>
-                <KnowledgeSpace3D nodes={graph3DNodesWithEdges} />
-              </Suspense>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                <div className="text-center">
-                  <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>Lattice is forming...</p>
-                  <p className="text-xs text-gray-600 mt-1">DTUs will appear here as they generate</p>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        </LensErrorBoundary>
         <div className="rounded-xl border border-lattice-border bg-lattice-surface/50 p-4">
           <LockDashboard />
         </div>

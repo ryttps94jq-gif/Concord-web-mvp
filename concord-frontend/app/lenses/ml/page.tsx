@@ -105,140 +105,13 @@ type Tab = 'models' | 'experiments' | 'datasets' | 'deployments' | 'playground';
 type ViewMode = 'grid' | 'list';
 
 // Seed data
-const INITIAL_MODELS: Model[] = [
-  {
-    id: 'model-1',
-    name: 'DTU Classifier v3',
-    type: 'classification',
-    framework: 'pytorch',
-    status: 'deployed',
-    version: '3.2.1',
-    accuracy: 0.942,
-    f1Score: 0.938,
-    loss: 0.156,
-    parameters: 12500000,
-    size: '48 MB',
-    lastTrained: '2026-01-28',
-    description: 'Multi-class classification model for DTU categorization',
-    tags: ['production', 'classification', 'nlp'],
-    deployedAt: '2026-01-29',
-    endpoint: '/api/ml/infer/dtu-classifier'
-  },
-  {
-    id: 'model-2',
-    name: 'Embedding Model',
-    type: 'embedding',
-    framework: 'pytorch',
-    status: 'ready',
-    version: '2.0.0',
-    accuracy: 0.891,
-    parameters: 25000000,
-    size: '95 MB',
-    lastTrained: '2026-01-20',
-    description: 'Dense vector embeddings for semantic search',
-    tags: ['embeddings', 'search']
-  },
-  {
-    id: 'model-3',
-    name: 'Sentiment Analyzer',
-    type: 'classification',
-    framework: 'tensorflow',
-    status: 'training',
-    version: '1.5.0',
-    parameters: 8000000,
-    size: '32 MB',
-    description: 'Real-time sentiment analysis for user content',
-    tags: ['nlp', 'sentiment']
-  },
-  {
-    id: 'model-4',
-    name: 'Content Generator',
-    type: 'generation',
-    framework: 'pytorch',
-    status: 'ready',
-    version: '1.0.0',
-    parameters: 175000000,
-    size: '680 MB',
-    lastTrained: '2026-01-15',
-    description: 'GPT-style model for content generation',
-    tags: ['generation', 'llm']
-  },
-  {
-    id: 'model-5',
-    name: 'Anomaly Detector',
-    type: 'clustering',
-    framework: 'sklearn',
-    status: 'ready',
-    version: '2.1.0',
-    accuracy: 0.967,
-    parameters: 50000,
-    size: '2 MB',
-    lastTrained: '2026-01-25',
-    description: 'Isolation forest for anomaly detection',
-    tags: ['anomaly', 'security']
-  }
-];
+const INITIAL_MODELS: Model[] = [];
 
-const INITIAL_EXPERIMENTS: Experiment[] = [
-  {
-    id: 'exp-1',
-    name: 'DTU Classifier Hypertuning',
-    modelId: 'model-1',
-    status: 'running',
-    hyperparams: { learningRate: 0.001, batchSize: 32, epochs: 100, dropout: 0.3 },
-    metrics: Array.from({ length: 45 }, (_, i) => ({
-      epoch: i + 1,
-      trainLoss: 2.5 - (i * 0.04) + Math.random() * 0.1,
-      valLoss: 2.6 - (i * 0.035) + Math.random() * 0.15,
-      accuracy: 0.3 + (i * 0.014) + Math.random() * 0.02,
-      learningRate: 0.001 * Math.pow(0.95, Math.floor(i / 10))
-    })),
-    startedAt: '2026-02-05T10:30:00Z'
-  },
-  {
-    id: 'exp-2',
-    name: 'Embedding Model Fine-tune',
-    modelId: 'model-2',
-    status: 'completed',
-    hyperparams: { learningRate: 0.0005, batchSize: 64, epochs: 50, embeddingDim: 768 },
-    metrics: Array.from({ length: 50 }, (_, i) => ({
-      epoch: i + 1,
-      trainLoss: 1.8 - (i * 0.03),
-      valLoss: 1.9 - (i * 0.028),
-      accuracy: 0.5 + (i * 0.008),
-      learningRate: 0.0005
-    })),
-    startedAt: '2026-02-04T14:00:00Z',
-    completedAt: '2026-02-04T18:30:00Z',
-    duration: '4h 30m'
-  },
-  {
-    id: 'exp-3',
-    name: 'Sentiment v2 Training',
-    modelId: 'model-3',
-    status: 'running',
-    hyperparams: { learningRate: 0.002, batchSize: 16, epochs: 80, hiddenSize: 512 },
-    metrics: Array.from({ length: 23 }, (_, i) => ({
-      epoch: i + 1,
-      trainLoss: 1.5 - (i * 0.05),
-      valLoss: 1.6 - (i * 0.045),
-      accuracy: 0.4 + (i * 0.02),
-      learningRate: 0.002
-    })),
-    startedAt: '2026-02-05T08:00:00Z'
-  }
-];
+const INITIAL_EXPERIMENTS: Experiment[] = [];
 
-const INITIAL_DATASETS: Dataset[] = [
-  { id: 'ds-1', name: 'DTU Training Set', size: 2.5, samples: 150000, features: 512, type: 'text', splits: { train: 0.8, val: 0.1, test: 0.1 }, createdAt: '2025-12-01' },
-  { id: 'ds-2', name: 'Sentiment Corpus', size: 1.2, samples: 80000, features: 256, type: 'text', splits: { train: 0.7, val: 0.15, test: 0.15 }, createdAt: '2025-11-15' },
-  { id: 'ds-3', name: 'Image Features', size: 5.8, samples: 50000, features: 2048, type: 'image', splits: { train: 0.85, val: 0.1, test: 0.05 }, createdAt: '2025-10-20' },
-  { id: 'ds-4', name: 'Anomaly Samples', size: 0.3, samples: 10000, features: 64, type: 'tabular', splits: { train: 0.9, val: 0.05, test: 0.05 }, createdAt: '2026-01-10' }
-];
+const INITIAL_DATASETS: Dataset[] = [];
 
-const INITIAL_DEPLOYMENTS: Deployment[] = [
-  { id: 'dep-1', modelId: 'model-1', modelName: 'DTU Classifier v3', version: '3.2.1', status: 'active', endpoint: '/api/ml/infer/dtu-classifier', replicas: 3, requestsPerSec: 245, avgLatency: 42, errorRate: 0.2, createdAt: '2026-01-29' }
-];
+const INITIAL_DEPLOYMENTS: Deployment[] = [];
 
 export default function MLLensPage() {
   useLensNav('ml');
@@ -258,8 +131,8 @@ export default function MLLensPage() {
   const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
   const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
   const isError5 = false as boolean; const error5 = null as Error | null; const refetch5 = () => {};
-  const models: Model[] = modelItems.length > 0 ? modelItems.map(i => ({ ...(i.data as unknown as Model), id: i.id })) : INITIAL_MODELS;
-  const experiments: Experiment[] = expItems.length > 0 ? expItems.map(i => ({ ...(i.data as unknown as Experiment), id: i.id })) : INITIAL_EXPERIMENTS;
+  const models: Model[] = modelItems.map(i => ({ ...(i.data as unknown as Model), id: i.id }));
+  const experiments: Experiment[] = expItems.map(i => ({ ...(i.data as unknown as Experiment), id: i.id }));
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // State
