@@ -74,14 +74,22 @@ const MAX_BUILD_RETRIES = 3;
 const GENESIS_OVERLAP_THRESHOLD = 0.95;
 
 const GUARDIAN_INTERVALS = Object.freeze({
-  process_health:     30000,   // 30 seconds
-  database_integrity: 300000,  // 5 minutes
-  state_consistency:  60000,   // 1 minute
-  disk_space:         600000,  // 10 minutes
-  endpoint_health:    60000,   // 1 minute
-  ollama_connectivity: 120000, // 2 minutes
-  autogen_health:     300000,  // 5 minutes
-  emergent_vitals:    60000,   // 1 minute
+  process_health:        30000,   // 30 seconds
+  database_integrity:    300000,  // 5 minutes
+  state_consistency:     60000,   // 1 minute
+  disk_space:            600000,  // 10 minutes
+  endpoint_health:       60000,   // 1 minute
+  ollama_connectivity:   120000,  // 2 minutes
+  autogen_health:        300000,  // 5 minutes
+  emergent_vitals:       60000,   // 1 minute
+  frontend_health:       60000,   // 1 minute
+  container_health:      120000,  // 2 minutes
+  nginx_health:          60000,   // 1 minute
+  websocket_health:      60000,   // 1 minute
+  event_loop_lag:        15000,   // 15 seconds
+  ssl_certificate:       3600000, // 1 hour
+  database_connection:   120000,  // 2 minutes
+  lockfile_integrity:    600000,  // 10 minutes
 });
 
 // ── Repair Memory ───────────────────────────────────────────────────────────
@@ -318,91 +326,114 @@ export function getRecentRepairDTUs(n = 20) {
 }
 
 // ── Error Pattern Registry ──────────────────────────────────────────────────
-// Pattern-matched error → fix mapping for mid-build repair.
+// Comprehensive pattern → fix mapping covering the ENTIRE system.
+// Categories: typescript, import, reference, lint, react, module, runtime,
+//             resource, nextjs, tailwind, docker, database, network, auth,
+//             lockfile, native, webpack, eslint, css, node, ssl
 
 const ERROR_PATTERNS = {
+  // ── TypeScript Errors ───────────────────────────────────────────────────
+
   type_mismatch: {
     regex: /Type '(.+)' is not assignable to type '(.+)'/,
     category: "typescript",
     fixes: [
-      {
-        name: "add_index_signature",
-        confidence: 0.8,
-        describe: (match) => `Add index signature for ${match[2]}`,
-      },
-      {
-        name: "widen_to_any",
-        confidence: 0.7,
-        describe: (match) => `Widen ${match[1]} to any (safe fallback)`,
-      },
-      {
-        name: "add_type_assertion",
-        confidence: 0.6,
-        describe: (match) => `Assert as ${match[2]}`,
-      },
+      { name: "add_index_signature", confidence: 0.8, describe: (m) => `Add index signature for ${m[2]}` },
+      { name: "widen_to_any", confidence: 0.7, describe: (m) => `Widen ${m[1]} to any (safe fallback)` },
+      { name: "add_type_assertion", confidence: 0.6, describe: (m) => `Assert as ${m[2]}` },
     ],
   },
+
+  ts_property_missing: {
+    regex: /Property '(.+)' does not exist on type '(.+)'/,
+    category: "typescript",
+    fixes: [
+      { name: "add_to_interface", confidence: 0.85, describe: (m) => `Add property '${m[1]}' to interface ${m[2]}` },
+      { name: "optional_chain", confidence: 0.8, describe: (m) => `Use optional chaining for ${m[1]}` },
+      { name: "cast_to_any", confidence: 0.5, describe: (m) => `Cast ${m[2]} to any` },
+    ],
+  },
+
+  ts_argument_count: {
+    regex: /Expected (\d+) arguments?, but got (\d+)/,
+    category: "typescript",
+    fixes: [
+      { name: "fix_arg_count", confidence: 0.9, describe: (m) => `Fix argument count: expected ${m[1]}, got ${m[2]}` },
+      { name: "add_optional_params", confidence: 0.7, describe: (m) => `Make extra params optional` },
+    ],
+  },
+
+  ts_no_overload: {
+    regex: /No overload matches this call/,
+    category: "typescript",
+    fixes: [
+      { name: "fix_overload_args", confidence: 0.8, describe: () => "Fix function call to match an overload signature" },
+      { name: "add_type_assertion", confidence: 0.6, describe: () => "Add type assertion to satisfy overload" },
+    ],
+  },
+
+  ts_implicit_any: {
+    regex: /(?:Parameter|Variable|Element) '(.+)' implicitly has an? '(.+)' type/,
+    category: "typescript",
+    fixes: [
+      { name: "add_explicit_type", confidence: 0.9, describe: (m) => `Add explicit type annotation to ${m[1]}` },
+      { name: "enable_no_implicit_any_false", confidence: 0.5, describe: () => "Disable noImplicitAny in tsconfig" },
+    ],
+  },
+
+  ts_jsx_element: {
+    regex: /(?:JSX element|'(.+)') (?:type|class) does not have any construct or call signatures/,
+    category: "typescript",
+    fixes: [
+      { name: "fix_component_type", confidence: 0.8, describe: () => "Fix React component type signature" },
+      { name: "add_react_fc_type", confidence: 0.7, describe: () => "Type component as React.FC" },
+    ],
+  },
+
+  ts_cannot_use_jsx: {
+    regex: /Cannot use JSX unless the '(.+)' flag is provided/,
+    category: "typescript",
+    fixes: [
+      { name: "set_jsx_flag", confidence: 0.95, describe: (m) => `Set jsx: "${m[1]}" in tsconfig.json` },
+    ],
+  },
+
+  ts_duplicate_identifier: {
+    regex: /Duplicate identifier '(.+)'/,
+    category: "typescript",
+    fixes: [
+      { name: "rename_duplicate", confidence: 0.8, describe: (m) => `Rename duplicate identifier ${m[1]}` },
+      { name: "merge_declarations", confidence: 0.6, describe: (m) => `Merge duplicate declarations of ${m[1]}` },
+    ],
+  },
+
+  ts_missing_return: {
+    regex: /Not all code paths return a value/,
+    category: "typescript",
+    fixes: [
+      { name: "add_return_statement", confidence: 0.9, describe: () => "Add missing return statement" },
+      { name: "add_void_return_type", confidence: 0.6, describe: () => "Change return type to include void" },
+    ],
+  },
+
+  ts_object_possibly_null: {
+    regex: /Object is possibly '(null|undefined)'/,
+    category: "typescript",
+    fixes: [
+      { name: "add_null_check", confidence: 0.9, describe: (m) => `Add null check (object possibly ${m[1]})` },
+      { name: "add_non_null_assertion", confidence: 0.7, describe: () => "Add non-null assertion operator" },
+      { name: "add_optional_chain", confidence: 0.85, describe: () => "Use optional chaining operator" },
+    ],
+  },
+
+  // ── Import / Module Errors ──────────────────────────────────────────────
 
   missing_import: {
     regex: /Cannot find module '(.+)'/,
     category: "import",
     fixes: [
-      {
-        name: "install_package",
-        confidence: 0.9,
-        describe: (match) => `Install missing package: ${match[1]}`,
-      },
-      {
-        name: "fix_relative_path",
-        confidence: 0.8,
-        describe: (match) => `Fix relative path for ${match[1]}`,
-      },
-    ],
-  },
-
-  undefined_reference: {
-    regex: /(?:Cannot find name|is not defined) '(.+)'/,
-    category: "reference",
-    fixes: [
-      {
-        name: "add_import",
-        confidence: 0.8,
-        describe: (match) => `Add import for ${match[1]}`,
-      },
-      {
-        name: "declare_variable",
-        confidence: 0.5,
-        describe: (match) => `Auto-declare ${match[1]}`,
-      },
-    ],
-  },
-
-  unused_variable: {
-    regex: /'(.+)' is (?:defined|assigned|declared) but (?:never used|its value is never read)/,
-    category: "lint",
-    fixes: [
-      {
-        name: "prefix_underscore",
-        confidence: 0.95,
-        describe: (match) => `Prefix ${match[1]} with underscore`,
-      },
-      {
-        name: "remove_import",
-        confidence: 0.9,
-        describe: (match) => `Remove unused import ${match[1]}`,
-      },
-    ],
-  },
-
-  react_hook_deps: {
-    regex: /React Hook (.+) has (?:a missing|missing) dependenc/,
-    category: "react",
-    fixes: [
-      {
-        name: "add_eslint_disable",
-        confidence: 0.8,
-        describe: (match) => `Add eslint-disable for ${match[1]}`,
-      },
+      { name: "install_package", confidence: 0.9, describe: (m) => `Install missing package: ${m[1]}` },
+      { name: "fix_relative_path", confidence: 0.8, describe: (m) => `Fix relative path for ${m[1]}` },
     ],
   },
 
@@ -410,23 +441,402 @@ const ERROR_PATTERNS = {
     regex: /Module not found: Can't resolve '(.+)'/,
     category: "module",
     fixes: [
-      {
-        name: "install_missing",
-        confidence: 0.9,
-        describe: (match) => `Install missing module: ${match[1]}`,
-      },
+      { name: "install_missing", confidence: 0.9, describe: (m) => `Install missing module: ${m[1]}` },
+      { name: "fix_alias_config", confidence: 0.7, describe: (m) => `Fix path alias for ${m[1]} in tsconfig/webpack` },
     ],
   },
+
+  err_module_not_found: {
+    regex: /ERR_MODULE_NOT_FOUND.*'(.+)'/,
+    category: "import",
+    fixes: [
+      { name: "fix_esm_extension", confidence: 0.9, describe: (m) => `Add .js extension for ESM import ${m[1]}` },
+      { name: "install_package", confidence: 0.8, describe: (m) => `Install ${m[1]}` },
+    ],
+  },
+
+  err_require_esm: {
+    regex: /ERR_REQUIRE_ESM.*require\(\) of ES Module (.+)/,
+    category: "import",
+    fixes: [
+      { name: "convert_to_dynamic_import", confidence: 0.9, describe: (m) => `Convert require() to dynamic import() for ${m[1]}` },
+      { name: "add_type_module", confidence: 0.7, describe: () => `Add "type": "module" to package.json` },
+    ],
+  },
+
+  esm_named_export: {
+    regex: /does not provide an export named '(.+)'/,
+    category: "import",
+    fixes: [
+      { name: "use_default_import", confidence: 0.85, describe: (m) => `Use default import instead of named export ${m[1]}` },
+      { name: "check_export_name", confidence: 0.7, describe: (m) => `Verify export name ${m[1]} exists in source` },
+    ],
+  },
+
+  // ── Reference / Declaration Errors ──────────────────────────────────────
+
+  undefined_reference: {
+    regex: /(?:Cannot find name|is not defined) '(.+)'/,
+    category: "reference",
+    fixes: [
+      { name: "add_import", confidence: 0.8, describe: (m) => `Add import for ${m[1]}` },
+      { name: "declare_variable", confidence: 0.5, describe: (m) => `Auto-declare ${m[1]}` },
+    ],
+  },
+
+  reference_error_runtime: {
+    regex: /ReferenceError: (.+) is not defined/,
+    category: "reference",
+    fixes: [
+      { name: "add_import_or_require", confidence: 0.85, describe: (m) => `Add import/require for ${m[1]}` },
+      { name: "add_polyfill", confidence: 0.6, describe: (m) => `Add polyfill for ${m[1]}` },
+    ],
+  },
+
+  // ── Lint / Code Quality Errors ──────────────────────────────────────────
+
+  unused_variable: {
+    regex: /'(.+)' is (?:defined|assigned|declared) but (?:never used|its value is never read)/,
+    category: "lint",
+    fixes: [
+      { name: "prefix_underscore", confidence: 0.95, describe: (m) => `Prefix ${m[1]} with underscore` },
+      { name: "remove_import", confidence: 0.9, describe: (m) => `Remove unused import ${m[1]}` },
+    ],
+  },
+
+  eslint_parsing_error: {
+    regex: /Parsing error: (.+)/,
+    category: "eslint",
+    fixes: [
+      { name: "fix_syntax", confidence: 0.8, describe: (m) => `Fix syntax error: ${m[1]}` },
+      { name: "update_parser_config", confidence: 0.6, describe: () => "Update ESLint parser configuration" },
+    ],
+  },
+
+  eslint_rule_violation: {
+    regex: /eslint\((.+)\): (.+)/,
+    category: "eslint",
+    fixes: [
+      { name: "fix_violation", confidence: 0.7, describe: (m) => `Fix ESLint rule ${m[1]}: ${m[2]}` },
+      { name: "eslint_disable_line", confidence: 0.5, describe: (m) => `Disable eslint rule ${m[1]} for this line` },
+    ],
+  },
+
+  no_undef_eslint: {
+    regex: /'(.+)' is not defined\s*(?:no-undef)/,
+    category: "eslint",
+    fixes: [
+      { name: "add_global_declaration", confidence: 0.8, describe: (m) => `Declare ${m[1]} as global in ESLint config` },
+      { name: "add_import", confidence: 0.85, describe: (m) => `Import ${m[1]}` },
+    ],
+  },
+
+  // ── React / Next.js Errors ──────────────────────────────────────────────
+
+  react_hook_deps: {
+    regex: /React Hook (.+) has (?:a missing|missing) dependenc/,
+    category: "react",
+    fixes: [
+      { name: "add_deps", confidence: 0.85, describe: (m) => `Add missing dependencies to ${m[1]}` },
+      { name: "add_eslint_disable", confidence: 0.7, describe: (m) => `Add eslint-disable for ${m[1]}` },
+    ],
+  },
+
+  react_hook_rules: {
+    regex: /React Hook "(.+)" (?:is called conditionally|cannot be called)/,
+    category: "react",
+    fixes: [
+      { name: "move_hook_to_top", confidence: 0.9, describe: (m) => `Move ${m[1]} to top level of component` },
+      { name: "extract_component", confidence: 0.7, describe: () => "Extract conditional logic to sub-component" },
+    ],
+  },
+
+  react_invalid_hook_call: {
+    regex: /Invalid hook call.*Hooks can only be called inside/,
+    category: "react",
+    fixes: [
+      { name: "move_to_component", confidence: 0.9, describe: () => "Move hook call inside a React function component" },
+      { name: "check_react_versions", confidence: 0.7, describe: () => "Check for mismatched React versions" },
+    ],
+  },
+
+  react_hydration_mismatch: {
+    regex: /(?:Hydration failed|Text content does not match|There was an error while hydrating)/,
+    category: "react",
+    fixes: [
+      { name: "add_use_client", confidence: 0.8, describe: () => "Add 'use client' directive for client-only content" },
+      { name: "wrap_in_suspense", confidence: 0.7, describe: () => "Wrap dynamic content in Suspense boundary" },
+      { name: "suppress_hydration_warning", confidence: 0.5, describe: () => "Add suppressHydrationWarning prop" },
+    ],
+  },
+
+  react_server_component_error: {
+    regex: /(?:You're importing a component that needs|"use client"|createContext|useState|useEffect).*(?:server component|Server Component)/,
+    category: "react",
+    fixes: [
+      { name: "add_use_client_directive", confidence: 0.95, describe: () => "Add 'use client' directive to component file" },
+      { name: "extract_client_component", confidence: 0.8, describe: () => "Extract client-side logic to separate component" },
+    ],
+  },
+
+  react_key_missing: {
+    regex: /Each child in a (?:list|array) should have a unique "key" prop/,
+    category: "react",
+    fixes: [
+      { name: "add_key_prop", confidence: 0.95, describe: () => "Add unique key prop to list items" },
+    ],
+  },
+
+  react_cannot_update_unmounted: {
+    regex: /Can't perform a React state update on (?:an unmounted|a component that)/,
+    category: "react",
+    fixes: [
+      { name: "add_cleanup_effect", confidence: 0.9, describe: () => "Add cleanup function to useEffect" },
+      { name: "add_mounted_ref", confidence: 0.7, describe: () => "Add isMounted ref guard" },
+    ],
+  },
+
+  // ── Next.js Specific ────────────────────────────────────────────────────
+
+  nextjs_image_error: {
+    regex: /Invalid src prop.*on.*next\/image/,
+    category: "nextjs",
+    fixes: [
+      { name: "add_image_domain", confidence: 0.9, describe: () => "Add domain to images config in next.config.js" },
+      { name: "use_unoptimized", confidence: 0.6, describe: () => "Set unoptimized: true for external images" },
+    ],
+  },
+
+  nextjs_prerender_error: {
+    regex: /Error occurred prerendering page "(.+)"/,
+    category: "nextjs",
+    fixes: [
+      { name: "add_dynamic_export", confidence: 0.85, describe: (m) => `Mark ${m[1]} as dynamic with export const dynamic = 'force-dynamic'` },
+      { name: "add_error_boundary", confidence: 0.7, describe: (m) => `Add error boundary to page ${m[1]}` },
+    ],
+  },
+
+  nextjs_metadata_error: {
+    regex: /(?:You are attempting to export "metadata" from a component marked with "use client")/,
+    category: "nextjs",
+    fixes: [
+      { name: "move_metadata_to_server", confidence: 0.95, describe: () => "Move metadata export to a server component (remove 'use client')" },
+      { name: "use_generate_metadata", confidence: 0.8, describe: () => "Use generateMetadata function instead" },
+    ],
+  },
+
+  nextjs_dynamic_server_usage: {
+    regex: /Dynamic server usage: (.+)/,
+    category: "nextjs",
+    fixes: [
+      { name: "add_dynamic_export", confidence: 0.9, describe: (m) => `Add dynamic = 'force-dynamic' for: ${m[1]}` },
+      { name: "wrap_in_suspense", confidence: 0.7, describe: () => "Wrap server-side data fetch in Suspense" },
+    ],
+  },
+
+  nextjs_route_conflict: {
+    regex: /Conflicting app and page file(?:s)? (?:were|was) found.*"(.+)"/,
+    category: "nextjs",
+    fixes: [
+      { name: "remove_pages_route", confidence: 0.9, describe: (m) => `Remove pages/ route conflicting with app/ route ${m[1]}` },
+    ],
+  },
+
+  nextjs_build_standalone_missing: {
+    regex: /Could not find a production build.*\.next/,
+    category: "nextjs",
+    fixes: [
+      { name: "run_next_build", confidence: 0.95, describe: () => "Run 'next build' before 'next start'" },
+      { name: "check_output_standalone", confidence: 0.7, describe: () => "Verify output: 'standalone' in next.config.js" },
+    ],
+  },
+
+  // ── SSR Errors (window/document) ────────────────────────────────────────
+
+  ssr_window_not_defined: {
+    regex: /(?:window|document|navigator|localStorage|sessionStorage) is not defined/,
+    category: "nextjs",
+    fixes: [
+      { name: "add_use_client", confidence: 0.9, describe: () => "Add 'use client' directive" },
+      { name: "add_typeof_guard", confidence: 0.85, describe: () => "Add typeof window !== 'undefined' guard" },
+      { name: "use_dynamic_import", confidence: 0.8, describe: () => "Use next/dynamic with ssr: false" },
+    ],
+  },
+
+  // ── Tailwind / CSS Errors ───────────────────────────────────────────────
+
+  tailwind_class_not_found: {
+    regex: /The `(.+)` class does not exist/,
+    category: "tailwind",
+    fixes: [
+      { name: "add_to_safelist", confidence: 0.8, describe: (m) => `Add ${m[1]} to Tailwind safelist` },
+      { name: "fix_class_name", confidence: 0.9, describe: (m) => `Fix Tailwind class name ${m[1]}` },
+    ],
+  },
+
+  postcss_error: {
+    regex: /(?:PostCSS|postcss).*(?:Error|error):?\s*(.+)/,
+    category: "css",
+    fixes: [
+      { name: "fix_postcss_syntax", confidence: 0.8, describe: (m) => `Fix PostCSS error: ${m[1]}` },
+      { name: "update_postcss_config", confidence: 0.6, describe: () => "Update postcss.config.js" },
+    ],
+  },
+
+  css_module_error: {
+    regex: /(?:CSS Modules|css module).*(?:not found|undefined|can't resolve) '(.+)'/,
+    category: "css",
+    fixes: [
+      { name: "create_css_module", confidence: 0.9, describe: (m) => `Create missing CSS module ${m[1]}` },
+      { name: "fix_import_path", confidence: 0.8, describe: (m) => `Fix CSS module import path ${m[1]}` },
+    ],
+  },
+
+  sass_error: {
+    regex: /SassError: (.+)/,
+    category: "css",
+    fixes: [
+      { name: "fix_sass_syntax", confidence: 0.8, describe: (m) => `Fix SASS error: ${m[1]}` },
+      { name: "install_sass", confidence: 0.7, describe: () => "Install sass package" },
+    ],
+  },
+
+  // ── Webpack / Bundler Errors ────────────────────────────────────────────
+
+  webpack_compilation_error: {
+    regex: /webpack.*(?:error|Error).*in (.+)/,
+    category: "webpack",
+    fixes: [
+      { name: "check_webpack_config", confidence: 0.7, describe: (m) => `Check webpack config for ${m[1]}` },
+      { name: "clear_webpack_cache", confidence: 0.8, describe: () => "Clear .next/cache and node_modules/.cache" },
+    ],
+  },
+
+  turbopack_error: {
+    regex: /(?:Turbopack|turbopack).*(?:error|Error):?\s*(.+)/,
+    category: "webpack",
+    fixes: [
+      { name: "fall_back_to_webpack", confidence: 0.7, describe: () => "Disable Turbopack and use webpack" },
+      { name: "fix_turbopack_compat", confidence: 0.8, describe: (m) => `Fix Turbopack error: ${m[1]}` },
+    ],
+  },
+
+  chunk_load_failed: {
+    regex: /ChunkLoadError: Loading chunk (.+) failed/,
+    category: "webpack",
+    fixes: [
+      { name: "clear_next_cache", confidence: 0.9, describe: () => "Clear .next cache and rebuild" },
+      { name: "fix_public_path", confidence: 0.7, describe: () => "Fix publicPath/assetPrefix in next.config.js" },
+    ],
+  },
+
+  // ── Package / Lockfile Errors ───────────────────────────────────────────
+
+  npm_ci_lockfile_mismatch: {
+    regex: /npm (?:ci|ERR!).*(?:lockfile|package-lock\.json).*(?:out of sync|mismatch|missing|not compatible|could not read)/i,
+    category: "lockfile",
+    fixes: [
+      { name: "regenerate_lockfile", confidence: 0.95, describe: () => "Run npm install to regenerate package-lock.json" },
+      { name: "delete_and_reinstall", confidence: 0.85, describe: () => "Delete node_modules + lockfile and reinstall" },
+    ],
+  },
+
+  npm_ci_missing_lockfile: {
+    regex: /npm ci.*can only install.*package-lock\.json.*present/i,
+    category: "lockfile",
+    fixes: [
+      { name: "run_npm_install_first", confidence: 0.95, describe: () => "Run npm install to generate package-lock.json before npm ci" },
+    ],
+  },
+
+  npm_peer_dep_conflict: {
+    regex: /npm ERR!.*(?:peer dep|peer dependency|ERESOLVE|Could not resolve dependency).*(?:conflict|unable to resolve)/i,
+    category: "lockfile",
+    fixes: [
+      { name: "install_legacy_peer_deps", confidence: 0.9, describe: () => "Run npm install --legacy-peer-deps" },
+      { name: "fix_version_range", confidence: 0.7, describe: () => "Adjust version ranges to resolve peer dep conflict" },
+    ],
+  },
+
+  npm_eresolve: {
+    regex: /ERESOLVE (?:unable to resolve dependency tree|overriding peer dependency)/,
+    category: "lockfile",
+    fixes: [
+      { name: "install_force", confidence: 0.8, describe: () => "Run npm install --force" },
+      { name: "install_legacy_peer_deps", confidence: 0.9, describe: () => "Run npm install --legacy-peer-deps" },
+    ],
+  },
+
+  npm_audit_critical: {
+    regex: /(\d+) critical.*vulnerabilit/,
+    category: "lockfile",
+    fixes: [
+      { name: "npm_audit_fix", confidence: 0.85, describe: (m) => `Run npm audit fix (${m[1]} critical vulnerabilities)` },
+    ],
+  },
+
+  npm_enoent: {
+    regex: /npm ERR!.*ENOENT.*'(.+)'/,
+    category: "lockfile",
+    fixes: [
+      { name: "create_missing_file", confidence: 0.7, describe: (m) => `Create missing file: ${m[1]}` },
+      { name: "reinstall_deps", confidence: 0.8, describe: () => "Run npm install to restore missing files" },
+    ],
+  },
+
+  npm_engine_mismatch: {
+    regex: /npm ERR!.*engine.*(?:not compatible|wanted).*node[:\s]*"(.+)"/i,
+    category: "lockfile",
+    fixes: [
+      { name: "update_node_version", confidence: 0.8, describe: (m) => `Update Node.js to match required version: ${m[1]}` },
+      { name: "relax_engines", confidence: 0.6, describe: () => "Relax engines field in package.json" },
+    ],
+  },
+
+  // ── Native Module Build Errors ──────────────────────────────────────────
+
+  native_module_rebuild: {
+    regex: /(?:gyp ERR!|node-pre-gyp|prebuild-install).*(?:build error|failed|not found)/i,
+    category: "native",
+    fixes: [
+      { name: "rebuild_native", confidence: 0.9, describe: () => "Run npm rebuild to recompile native modules" },
+      { name: "install_build_tools", confidence: 0.8, describe: () => "Install build tools (python3, make, g++)" },
+    ],
+  },
+
+  better_sqlite3_error: {
+    regex: /better-sqlite3.*(?:was compiled against|NODE_MODULE_VERSION|cannot open)/,
+    category: "native",
+    fixes: [
+      { name: "rebuild_sqlite", confidence: 0.95, describe: () => "npm rebuild better-sqlite3" },
+      { name: "reinstall_sqlite", confidence: 0.8, describe: () => "Remove and reinstall better-sqlite3" },
+    ],
+  },
+
+  node_module_version_mismatch: {
+    regex: /was compiled against a different Node\.js version.*NODE_MODULE_VERSION (\d+)/,
+    category: "native",
+    fixes: [
+      { name: "rebuild_all_native", confidence: 0.95, describe: () => "npm rebuild — recompile all native modules for current Node.js" },
+    ],
+  },
+
+  sharp_error: {
+    regex: /(?:sharp|libvips).*(?:error|not found|failed to load)/i,
+    category: "native",
+    fixes: [
+      { name: "reinstall_sharp", confidence: 0.9, describe: () => "npm install --platform=linux --arch=x64 sharp" },
+      { name: "skip_sharp_optimization", confidence: 0.6, describe: () => "Set images.unoptimized: true in next.config.js" },
+    ],
+  },
+
+  // ── Node.js Runtime Errors ──────────────────────────────────────────────
 
   port_in_use: {
     regex: /EADDRINUSE.*:(\d+)/,
     category: "runtime",
     fixes: [
-      {
-        name: "kill_process",
-        confidence: 0.9,
-        describe: (match) => `Kill process on port ${match[1]}`,
-      },
+      { name: "kill_process", confidence: 0.9, describe: (m) => `Kill process on port ${m[1]}` },
     ],
   },
 
@@ -434,11 +844,304 @@ const ERROR_PATTERNS = {
     regex: /JavaScript heap out of memory/,
     category: "resource",
     fixes: [
-      {
-        name: "increase_heap",
-        confidence: 0.9,
-        describe: () => "Increase NODE_OPTIONS max-old-space-size",
-      },
+      { name: "increase_heap", confidence: 0.9, describe: () => "Increase NODE_OPTIONS max-old-space-size" },
+    ],
+  },
+
+  enoent: {
+    regex: /ENOENT:? (?:no such file or directory).*'(.+)'/,
+    category: "runtime",
+    fixes: [
+      { name: "create_directory", confidence: 0.8, describe: (m) => `Create missing path: ${m[1]}` },
+      { name: "fix_file_path", confidence: 0.7, describe: (m) => `Fix file path: ${m[1]}` },
+    ],
+  },
+
+  eacces: {
+    regex: /EACCES:? (?:permission denied).*'(.+)'/,
+    category: "runtime",
+    fixes: [
+      { name: "fix_permissions", confidence: 0.9, describe: (m) => `Fix permissions on ${m[1]}` },
+      { name: "run_as_correct_user", confidence: 0.7, describe: () => "Ensure process runs as correct user" },
+    ],
+  },
+
+  econnrefused: {
+    regex: /ECONNREFUSED.*(?::(\d+))?/,
+    category: "network",
+    fixes: [
+      { name: "start_target_service", confidence: 0.9, describe: (m) => `Start service on port ${m[1] || "unknown"}` },
+      { name: "check_hostname", confidence: 0.7, describe: () => "Verify hostname and port configuration" },
+    ],
+  },
+
+  etimedout: {
+    regex: /ETIMEDOUT|ESOCKETTIMEDOUT|request timed? ?out/i,
+    category: "network",
+    fixes: [
+      { name: "increase_timeout", confidence: 0.8, describe: () => "Increase request timeout" },
+      { name: "check_network", confidence: 0.7, describe: () => "Check network connectivity to target host" },
+    ],
+  },
+
+  emfile: {
+    regex: /EMFILE:? (?:too many open files)/,
+    category: "resource",
+    fixes: [
+      { name: "increase_ulimit", confidence: 0.9, describe: () => "Increase file descriptor limit (ulimit -n)" },
+      { name: "fix_fd_leak", confidence: 0.7, describe: () => "Check for file descriptor leaks" },
+    ],
+  },
+
+  enomem: {
+    regex: /ENOMEM|Cannot allocate memory/,
+    category: "resource",
+    fixes: [
+      { name: "increase_memory_limit", confidence: 0.8, describe: () => "Increase container memory limit" },
+      { name: "reduce_concurrency", confidence: 0.7, describe: () => "Reduce concurrent operations" },
+    ],
+  },
+
+  unhandled_rejection: {
+    regex: /Unhandled(?:Promise)?Rejection.*: (.+)/,
+    category: "runtime",
+    fixes: [
+      { name: "add_catch_handler", confidence: 0.85, describe: (m) => `Add .catch() handler for: ${m[1]}` },
+      { name: "add_global_handler", confidence: 0.6, describe: () => "Add global unhandledRejection handler" },
+    ],
+  },
+
+  uncaught_exception: {
+    regex: /UncaughtException.*: (.+)/i,
+    category: "runtime",
+    fixes: [
+      { name: "add_try_catch", confidence: 0.85, describe: (m) => `Wrap in try/catch: ${m[1]}` },
+      { name: "add_error_boundary", confidence: 0.7, describe: () => "Add error boundary for graceful handling" },
+    ],
+  },
+
+  syntax_error: {
+    regex: /SyntaxError: (.+)/,
+    category: "runtime",
+    fixes: [
+      { name: "fix_syntax", confidence: 0.85, describe: (m) => `Fix syntax error: ${m[1]}` },
+    ],
+  },
+
+  // ── Docker / Container Errors ───────────────────────────────────────────
+
+  docker_build_failed: {
+    regex: /(?:executor failed|failed to solve).*: (.+)/,
+    category: "docker",
+    fixes: [
+      { name: "fix_dockerfile", confidence: 0.7, describe: (m) => `Fix Dockerfile issue: ${m[1]}` },
+      { name: "clear_docker_cache", confidence: 0.8, describe: () => "Clear Docker build cache (docker builder prune)" },
+    ],
+  },
+
+  docker_no_space: {
+    regex: /no space left on device/,
+    category: "docker",
+    fixes: [
+      { name: "docker_prune", confidence: 0.95, describe: () => "Run docker system prune to reclaim space" },
+      { name: "clean_old_images", confidence: 0.8, describe: () => "Remove old Docker images" },
+    ],
+  },
+
+  docker_network_error: {
+    regex: /(?:network|Network).*(?:not found|already exists|failed)/,
+    category: "docker",
+    fixes: [
+      { name: "recreate_network", confidence: 0.85, describe: () => "Remove and recreate Docker network" },
+    ],
+  },
+
+  docker_image_pull_failed: {
+    regex: /(?:pull|Pull).*(?:error|failed|not found|manifest unknown).*(?:'|")(.+)(?:'|")/,
+    category: "docker",
+    fixes: [
+      { name: "check_image_tag", confidence: 0.9, describe: (m) => `Verify image tag exists: ${m[1]}` },
+      { name: "check_registry_auth", confidence: 0.7, describe: () => "Check Docker registry authentication" },
+    ],
+  },
+
+  docker_compose_version: {
+    regex: /(?:version|Version).*(?:obsolete|unsupported|invalid).*compose/i,
+    category: "docker",
+    fixes: [
+      { name: "update_compose_syntax", confidence: 0.9, describe: () => "Update docker-compose.yml to v2+ syntax" },
+    ],
+  },
+
+  docker_healthcheck_unhealthy: {
+    regex: /(?:health check|healthcheck).*(?:failed|unhealthy|timed? ?out)/i,
+    category: "docker",
+    fixes: [
+      { name: "increase_start_period", confidence: 0.8, describe: () => "Increase healthcheck start_period" },
+      { name: "fix_health_endpoint", confidence: 0.7, describe: () => "Fix health check endpoint or command" },
+    ],
+  },
+
+  // ── Database Errors ─────────────────────────────────────────────────────
+
+  sqlite_corrupt: {
+    regex: /(?:SQLITE_CORRUPT|database disk image is malformed)/,
+    category: "database",
+    fixes: [
+      { name: "restore_from_backup", confidence: 0.9, describe: () => "Restore database from latest backup" },
+      { name: "run_integrity_check", confidence: 0.8, describe: () => "Run PRAGMA integrity_check and attempt repair" },
+    ],
+  },
+
+  sqlite_busy: {
+    regex: /(?:SQLITE_BUSY|database is locked)/,
+    category: "database",
+    fixes: [
+      { name: "enable_wal_mode", confidence: 0.9, describe: () => "Enable WAL mode: PRAGMA journal_mode=WAL" },
+      { name: "increase_busy_timeout", confidence: 0.8, describe: () => "Increase busy_timeout PRAGMA" },
+    ],
+  },
+
+  sqlite_readonly: {
+    regex: /(?:SQLITE_READONLY|attempt to write a readonly database)/,
+    category: "database",
+    fixes: [
+      { name: "fix_db_permissions", confidence: 0.9, describe: () => "Fix database file permissions" },
+      { name: "check_volume_mount", confidence: 0.8, describe: () => "Ensure Docker volume is mounted read-write" },
+    ],
+  },
+
+  pg_connection_refused: {
+    regex: /(?:PostgreSQL|pg|FATAL).*(?:connection refused|could not connect)/i,
+    category: "database",
+    fixes: [
+      { name: "start_postgres", confidence: 0.9, describe: () => "Start PostgreSQL service" },
+      { name: "check_pg_config", confidence: 0.7, describe: () => "Check PostgreSQL host/port/credentials" },
+    ],
+  },
+
+  redis_connection_error: {
+    regex: /(?:Redis|REDIS|redis).*(?:ECONNREFUSED|connection.*(?:refused|failed|timed? ?out))/i,
+    category: "database",
+    fixes: [
+      { name: "start_redis", confidence: 0.9, describe: () => "Start Redis service" },
+      { name: "check_redis_url", confidence: 0.7, describe: () => "Verify REDIS_URL environment variable" },
+    ],
+  },
+
+  // ── Auth / Security Errors ──────────────────────────────────────────────
+
+  jwt_error: {
+    regex: /(?:JsonWebTokenError|jwt|JWT).*(?:malformed|invalid|expired|signature)/i,
+    category: "auth",
+    fixes: [
+      { name: "check_jwt_secret", confidence: 0.9, describe: () => "Verify JWT_SECRET matches between services" },
+      { name: "regenerate_tokens", confidence: 0.7, describe: () => "Clear expired tokens and force re-auth" },
+    ],
+  },
+
+  cors_error: {
+    regex: /(?:CORS|cors|Access-Control).*(?:blocked|not allowed|origin)/i,
+    category: "auth",
+    fixes: [
+      { name: "update_allowed_origins", confidence: 0.9, describe: () => "Add origin to ALLOWED_ORIGINS environment variable" },
+      { name: "check_cors_middleware", confidence: 0.7, describe: () => "Verify CORS middleware configuration" },
+    ],
+  },
+
+  // ── SSL / TLS Errors ────────────────────────────────────────────────────
+
+  ssl_cert_expired: {
+    regex: /(?:certificate|cert).*(?:expired|CERT_HAS_EXPIRED)/i,
+    category: "ssl",
+    fixes: [
+      { name: "renew_certificate", confidence: 0.95, describe: () => "Run certbot renew to refresh SSL certificate" },
+    ],
+  },
+
+  ssl_self_signed: {
+    regex: /(?:SELF_SIGNED_CERT|self.signed|DEPTH_ZERO_SELF_SIGNED)/,
+    category: "ssl",
+    fixes: [
+      { name: "set_reject_unauthorized", confidence: 0.6, describe: () => "Set NODE_TLS_REJECT_UNAUTHORIZED=0 (dev only)" },
+      { name: "install_ca_cert", confidence: 0.8, describe: () => "Install proper CA certificate" },
+    ],
+  },
+
+  // ── Socket / WebSocket Errors ───────────────────────────────────────────
+
+  websocket_error: {
+    regex: /(?:WebSocket|ws|socket\.io).*(?:error|failed|ECONNRESET|hang up)/i,
+    category: "network",
+    fixes: [
+      { name: "check_ws_proxy", confidence: 0.8, describe: () => "Verify WebSocket proxy configuration in nginx" },
+      { name: "increase_ws_timeout", confidence: 0.7, describe: () => "Increase WebSocket timeout/ping interval" },
+    ],
+  },
+
+  socket_hangup: {
+    regex: /(?:socket hang up|ECONNRESET)/,
+    category: "network",
+    fixes: [
+      { name: "add_keep_alive", confidence: 0.8, describe: () => "Enable HTTP keep-alive" },
+      { name: "increase_timeout", confidence: 0.7, describe: () => "Increase connection timeout" },
+    ],
+  },
+
+  // ── Nginx Errors ────────────────────────────────────────────────────────
+
+  nginx_config_error: {
+    regex: /nginx.*(?:test failed|emerg|error).*(?:directive|unknown|invalid)/i,
+    category: "nginx",
+    fixes: [
+      { name: "fix_nginx_config", confidence: 0.8, describe: () => "Fix nginx configuration syntax" },
+      { name: "nginx_test", confidence: 0.9, describe: () => "Run nginx -t to validate config" },
+    ],
+  },
+
+  nginx_upstream_timeout: {
+    regex: /upstream timed? ?out.*(?:reading|connecting)/i,
+    category: "nginx",
+    fixes: [
+      { name: "increase_proxy_timeout", confidence: 0.9, describe: () => "Increase proxy_read_timeout in nginx" },
+      { name: "check_upstream_health", confidence: 0.8, describe: () => "Check backend/frontend service health" },
+    ],
+  },
+
+  // ── General Build Errors ────────────────────────────────────────────────
+
+  exit_code_nonzero: {
+    regex: /(?:exited with|exit code|returned) (?:error )?(?:code )?(\d+)/,
+    category: "runtime",
+    fixes: [
+      { name: "check_logs", confidence: 0.6, describe: (m) => `Check logs for process exit code ${m[1]}` },
+    ],
+  },
+
+  command_not_found: {
+    regex: /(?:command not found|not recognized as.*command):? (.+)/i,
+    category: "runtime",
+    fixes: [
+      { name: "install_command", confidence: 0.85, describe: (m) => `Install missing command: ${m[1]}` },
+      { name: "check_path", confidence: 0.7, describe: () => "Check PATH environment variable" },
+    ],
+  },
+
+  json_parse_error: {
+    regex: /(?:SyntaxError: Unexpected token|JSON\.parse|JSON at position) (.+)?/,
+    category: "runtime",
+    fixes: [
+      { name: "fix_json_syntax", confidence: 0.85, describe: () => "Fix JSON syntax error" },
+      { name: "validate_json_input", confidence: 0.7, describe: () => "Validate JSON input before parsing" },
+    ],
+  },
+
+  process_killed: {
+    regex: /(?:SIGKILL|SIGTERM|OOMKilled|killed)/i,
+    category: "resource",
+    fixes: [
+      { name: "increase_memory", confidence: 0.9, describe: () => "Increase container/process memory limit" },
+      { name: "add_graceful_shutdown", confidence: 0.7, describe: () => "Add graceful shutdown handler" },
     ],
   },
 };
@@ -688,6 +1391,617 @@ const PRE_BUILD_CHECKS = {
             usedPorts.set(port, true);
           }
         }
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── Lockfile Sync Check ─────────────────────────────────────────────────
+
+  lockfile_sync_server: {
+    name: "lockfile_sync_server",
+    description: "Verify server package.json and package-lock.json are in sync",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const serverDir = path.join(projectRoot, "server");
+        const pkgPath = path.join(serverDir, "package.json");
+        const lockPath = path.join(serverDir, "package-lock.json");
+
+        if (!fs.existsSync(pkgPath)) return { issues, autoFixable };
+
+        // Case 1: No lockfile at all
+        if (!fs.existsSync(lockPath)) {
+          issues.push({
+            file: pkgPath,
+            severity: "critical",
+            message: "server/package-lock.json missing — npm ci will fail",
+            autoFixed: false,
+          });
+          autoFixable.push({
+            pattern: "missing_server_lockfile",
+            solution: "npm_install_server",
+            name: "generate_server_lockfile",
+          });
+          return { issues, autoFixable };
+        }
+
+        // Case 2: Lockfile exists — compare versions
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+
+        const allPkgDeps = {
+          ...(pkg.dependencies || {}),
+          ...(pkg.devDependencies || {}),
+          ...(pkg.optionalDependencies || {}),
+        };
+
+        // Check lockfileVersion compatibility
+        if (lock.lockfileVersion && lock.lockfileVersion < 2) {
+          issues.push({
+            file: lockPath,
+            severity: "warning",
+            message: `Lockfile version ${lock.lockfileVersion} is outdated — recommend v3 for Node 20+`,
+          });
+        }
+
+        // Check name/version match
+        if (lock.name && lock.name !== pkg.name) {
+          issues.push({
+            file: lockPath,
+            severity: "critical",
+            message: `Lockfile name "${lock.name}" doesn't match package.json name "${pkg.name}"`,
+            autoFixed: false,
+          });
+          autoFixable.push({
+            pattern: "lockfile_name_mismatch",
+            solution: "npm_install_server",
+            name: "regenerate_server_lockfile",
+          });
+        }
+
+        // Check that all package.json deps exist in lockfile packages
+        const lockPackages = lock.packages || {};
+        const rootLockDeps = lockPackages[""]?.dependencies || {};
+        const rootLockDevDeps = lockPackages[""]?.devDependencies || {};
+        const rootLockOptDeps = lockPackages[""]?.optionalDependencies || {};
+        const allLockDeps = { ...rootLockDeps, ...rootLockDevDeps, ...rootLockOptDeps };
+
+        let driftCount = 0;
+        for (const [dep, range] of Object.entries(allPkgDeps)) {
+          if (!allLockDeps[dep] && !lockPackages[`node_modules/${dep}`]) {
+            driftCount++;
+            if (driftCount <= 5) {
+              issues.push({
+                file: lockPath,
+                severity: "warning",
+                message: `Dependency "${dep}" in package.json but missing from lockfile`,
+              });
+            }
+          }
+        }
+
+        if (driftCount > 5) {
+          issues.push({
+            file: lockPath,
+            severity: "critical",
+            message: `${driftCount} dependencies in package.json missing from lockfile — lockfile is stale`,
+            autoFixed: false,
+          });
+          autoFixable.push({
+            pattern: "server_lockfile_stale",
+            solution: "npm_install_server",
+            name: "sync_server_lockfile",
+          });
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  lockfile_sync_frontend: {
+    name: "lockfile_sync_frontend",
+    description: "Verify frontend package.json and package-lock.json are in sync",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const frontendDir = path.join(projectRoot, "concord-frontend");
+        const pkgPath = path.join(frontendDir, "package.json");
+        const lockPath = path.join(frontendDir, "package-lock.json");
+
+        if (!fs.existsSync(pkgPath)) return { issues, autoFixable };
+
+        if (!fs.existsSync(lockPath)) {
+          issues.push({
+            file: pkgPath,
+            severity: "critical",
+            message: "concord-frontend/package-lock.json missing — npm ci will fail in Docker build",
+            autoFixed: false,
+          });
+          autoFixable.push({
+            pattern: "missing_frontend_lockfile",
+            solution: "npm_install_frontend",
+            name: "generate_frontend_lockfile",
+          });
+          return { issues, autoFixable };
+        }
+
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+
+        const allPkgDeps = {
+          ...(pkg.dependencies || {}),
+          ...(pkg.devDependencies || {}),
+        };
+
+        // Check lockfile packages section for drift
+        const lockPackages = lock.packages || {};
+        const rootLockDeps = lockPackages[""]?.dependencies || {};
+        const rootLockDevDeps = lockPackages[""]?.devDependencies || {};
+        const allLockDeps = { ...rootLockDeps, ...rootLockDevDeps };
+
+        let driftCount = 0;
+        for (const dep of Object.keys(allPkgDeps)) {
+          if (!allLockDeps[dep] && !lockPackages[`node_modules/${dep}`]) {
+            driftCount++;
+            if (driftCount <= 3) {
+              issues.push({
+                file: lockPath,
+                severity: "warning",
+                message: `Frontend dependency "${dep}" in package.json but missing from lockfile`,
+              });
+            }
+          }
+        }
+
+        if (driftCount > 3) {
+          issues.push({
+            file: lockPath,
+            severity: "critical",
+            message: `${driftCount} frontend deps missing from lockfile — Docker build (npm ci) will fail`,
+            autoFixed: false,
+          });
+          autoFixable.push({
+            pattern: "frontend_lockfile_stale",
+            solution: "npm_install_frontend",
+            name: "sync_frontend_lockfile",
+          });
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── Frontend Build Checks ───────────────────────────────────────────────
+
+  frontend_typescript: {
+    name: "frontend_typescript",
+    description: "Verify frontend TypeScript compiles without errors",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const frontendDir = path.join(projectRoot, "concord-frontend");
+        const tsconfigPath = path.join(frontendDir, "tsconfig.json");
+
+        if (!fs.existsSync(tsconfigPath)) return { issues, autoFixable };
+        if (!fs.existsSync(path.join(frontendDir, "node_modules"))) return { issues, autoFixable };
+
+        // Run tsc --noEmit to check for type errors
+        try {
+          await execAsync("npx tsc --noEmit 2>&1", {
+            cwd: frontendDir,
+            timeout: 120000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+        } catch (tscErr) {
+          const output = String(tscErr?.stdout || tscErr?.stderr || tscErr?.message || "");
+          const errorLines = output.split("\n").filter(l => /error TS\d+/.test(l));
+
+          if (errorLines.length > 0) {
+            // Categorize errors
+            const errorsByType = new Map();
+            for (const line of errorLines) {
+              const codeMatch = line.match(/error (TS\d+)/);
+              const code = codeMatch ? codeMatch[1] : "unknown";
+              errorsByType.set(code, (errorsByType.get(code) || 0) + 1);
+            }
+
+            issues.push({
+              file: tsconfigPath,
+              severity: "critical",
+              message: `TypeScript: ${errorLines.length} error(s) — ${Array.from(errorsByType.entries()).map(([c, n]) => `${c}:${n}`).join(", ")}`,
+              autoFixed: false,
+            });
+
+            // Report first 5 specific errors
+            for (const line of errorLines.slice(0, 5)) {
+              issues.push({
+                file: frontendDir,
+                severity: "warning",
+                message: line.trim().slice(0, 200),
+              });
+            }
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  frontend_next_config: {
+    name: "frontend_next_config",
+    description: "Verify next.config.js is valid and complete",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const frontendDir = path.join(projectRoot, "concord-frontend");
+        const configPath = path.join(frontendDir, "next.config.js");
+
+        if (!fs.existsSync(configPath)) {
+          issues.push({
+            file: frontendDir,
+            severity: "critical",
+            message: "next.config.js missing — Next.js build will use defaults",
+          });
+          return { issues, autoFixable };
+        }
+
+        const content = fs.readFileSync(configPath, "utf-8");
+
+        // Check for standalone output (required for Docker)
+        if (!content.includes("standalone")) {
+          issues.push({
+            file: configPath,
+            severity: "critical",
+            message: "next.config.js missing output: 'standalone' — Docker build requires it",
+          });
+        }
+
+        // Check for image domains
+        if (!content.includes("images")) {
+          issues.push({
+            file: configPath,
+            severity: "warning",
+            message: "next.config.js missing images configuration",
+          });
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  frontend_env: {
+    name: "frontend_env_vars",
+    description: "Verify NEXT_PUBLIC_* env vars are set for frontend build",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const frontendDir = path.join(projectRoot, "concord-frontend");
+
+        if (!fs.existsSync(frontendDir)) return { issues, autoFixable };
+
+        // Scan for NEXT_PUBLIC_ references
+        const envRefs = new Set();
+        const scanDirs = ["app", "components", "lib", "hooks", "store"];
+
+        for (const dir of scanDirs) {
+          const dirPath = path.join(frontendDir, dir);
+          if (!fs.existsSync(dirPath)) continue;
+
+          try {
+            const scanFiles = (d) => {
+              const entries = fs.readdirSync(d, { withFileTypes: true });
+              for (const entry of entries) {
+                const fullPath = path.join(d, entry.name);
+                if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+                  scanFiles(fullPath);
+                } else if (entry.isFile() && /\.(ts|tsx|js|jsx)$/.test(entry.name)) {
+                  try {
+                    const content = fs.readFileSync(fullPath, "utf-8");
+                    const refs = content.matchAll(/process\.env\.(NEXT_PUBLIC_\w+)/g);
+                    for (const ref of refs) envRefs.add(ref[1]);
+                  } catch { /* skip unreadable files */ }
+                }
+              }
+            };
+            scanFiles(dirPath);
+          } catch { /* skip unreadable dirs */ }
+        }
+
+        if (envRefs.size > 0) {
+          // Check .env.local, .env.production, .env
+          const envFiles = [".env.local", ".env.production", ".env"];
+          const definedVars = new Set();
+          for (const envFile of envFiles) {
+            const envPath = path.join(frontendDir, envFile);
+            if (fs.existsSync(envPath)) {
+              const content = fs.readFileSync(envPath, "utf-8");
+              for (const line of content.split("\n")) {
+                const match = line.match(/^(NEXT_PUBLIC_\w+)=/);
+                if (match) definedVars.add(match[1]);
+              }
+            }
+          }
+
+          // Also check root .env and docker-compose for build args
+          const rootEnv = path.join(projectRoot, ".env");
+          if (fs.existsSync(rootEnv)) {
+            const content = fs.readFileSync(rootEnv, "utf-8");
+            for (const line of content.split("\n")) {
+              const match = line.match(/^(NEXT_PUBLIC_\w+)=/);
+              if (match) definedVars.add(match[1]);
+            }
+          }
+
+          for (const ref of envRefs) {
+            if (!definedVars.has(ref)) {
+              issues.push({
+                severity: "warning",
+                message: `NEXT_PUBLIC env var ${ref} used in code but not defined in any .env file`,
+              });
+            }
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  frontend_imports: {
+    name: "frontend_import_integrity",
+    description: "Verify frontend path alias imports resolve correctly",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const frontendDir = path.join(projectRoot, "concord-frontend");
+        const tsconfigPath = path.join(frontendDir, "tsconfig.json");
+
+        if (!fs.existsSync(tsconfigPath)) return { issues, autoFixable };
+
+        // Parse path aliases from tsconfig
+        const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf-8"));
+        const paths = tsconfig.compilerOptions?.paths || {};
+
+        // Verify each alias root directory exists
+        for (const [alias, targets] of Object.entries(paths)) {
+          for (const target of targets) {
+            const cleanTarget = target.replace("/*", "").replace("*", "");
+            const targetPath = path.resolve(frontendDir, cleanTarget);
+            if (!fs.existsSync(targetPath)) {
+              issues.push({
+                file: tsconfigPath,
+                severity: "warning",
+                message: `Path alias "${alias}" maps to "${cleanTarget}" which does not exist`,
+              });
+            }
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── Peer Dependency Check ───────────────────────────────────────────────
+
+  peer_deps: {
+    name: "peer_dependency_check",
+    description: "Check for peer dependency version conflicts",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+
+        // Check both server and frontend
+        for (const subdir of ["server", "concord-frontend"]) {
+          const dir = path.join(projectRoot, subdir);
+          const nmPath = path.join(dir, "node_modules");
+          if (!fs.existsSync(nmPath)) continue;
+
+          // Quick peer dep audit via npm ls
+          try {
+            await execAsync("npm ls --depth=0 2>&1", {
+              cwd: dir,
+              timeout: 30000,
+              maxBuffer: 5 * 1024 * 1024,
+            });
+          } catch (lsErr) {
+            const output = String(lsErr?.stdout || lsErr?.stderr || "");
+            const peerIssues = output.split("\n").filter(l =>
+              /peer dep|ERESOLVE|missing|invalid/.test(l)
+            );
+            if (peerIssues.length > 0) {
+              issues.push({
+                severity: "warning",
+                message: `${subdir}: ${peerIssues.length} peer dependency warning(s)`,
+              });
+              for (const line of peerIssues.slice(0, 3)) {
+                issues.push({
+                  severity: "info",
+                  message: `  ${line.trim().slice(0, 150)}`,
+                });
+              }
+            }
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── Native Module Health ────────────────────────────────────────────────
+
+  native_modules: {
+    name: "native_module_health",
+    description: "Verify native modules (better-sqlite3, sharp) are compiled correctly",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const serverDir = path.join(projectRoot, "server");
+        const nmPath = path.join(serverDir, "node_modules");
+
+        if (!fs.existsSync(nmPath)) return { issues, autoFixable };
+
+        // Check better-sqlite3 (critical for server)
+        const sqlitePath = path.join(nmPath, "better-sqlite3");
+        if (fs.existsSync(sqlitePath)) {
+          const bindingPath = path.join(sqlitePath, "build", "Release", "better_sqlite3.node");
+          const prebuildPath = path.join(sqlitePath, "prebuilds");
+          if (!fs.existsSync(bindingPath) && !fs.existsSync(prebuildPath)) {
+            issues.push({
+              file: sqlitePath,
+              severity: "critical",
+              message: "better-sqlite3 native binary missing — needs rebuild",
+              autoFixed: false,
+            });
+            autoFixable.push({
+              pattern: "sqlite3_native_missing",
+              solution: "npm_rebuild_sqlite",
+              name: "rebuild_better_sqlite3",
+            });
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── Nginx Config Check ──────────────────────────────────────────────────
+
+  nginx_config: {
+    name: "nginx_config_check",
+    description: "Verify nginx configuration files exist and reference valid upstreams",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const nginxDir = path.join(projectRoot, "nginx");
+
+        if (!fs.existsSync(nginxDir)) return { issues, autoFixable };
+
+        const mainConf = path.join(nginxDir, "nginx.conf");
+        if (!fs.existsSync(mainConf)) {
+          issues.push({
+            file: nginxDir,
+            severity: "critical",
+            message: "nginx/nginx.conf missing — nginx container will fail to start",
+          });
+          return { issues, autoFixable };
+        }
+
+        const content = fs.readFileSync(mainConf, "utf-8");
+
+        // Check for proxy_pass references to services defined in docker-compose
+        const composePath = path.join(projectRoot, "docker-compose.yml");
+        if (fs.existsSync(composePath)) {
+          const composeContent = fs.readFileSync(composePath, "utf-8");
+          const proxyPasses = content.matchAll(/proxy_pass\s+https?:\/\/([^:\/\s;]+)/g);
+          for (const m of proxyPasses) {
+            const upstream = m[1];
+            // Check that the upstream is a service in docker-compose
+            if (!composeContent.includes(`${upstream}:`) &&
+                !["localhost", "127.0.0.1"].includes(upstream)) {
+              issues.push({
+                file: mainConf,
+                severity: "warning",
+                message: `nginx proxy_pass references "${upstream}" which may not be a docker-compose service`,
+              });
+            }
+          }
+        }
+
+        return { issues, autoFixable };
+      } catch {
+        return { issues: [], autoFixable: [] };
+      }
+    },
+  },
+
+  // ── SSL/Cert Check ──────────────────────────────────────────────────────
+
+  ssl_certificate: {
+    name: "ssl_certificate_check",
+    description: "Check SSL certificates are present and not expired",
+    action: async (projectRoot) => {
+      try {
+        const issues = [];
+        const autoFixable = [];
+        const certDir = path.join(projectRoot, "certbot", "conf", "live");
+
+        if (!fs.existsSync(certDir)) return { issues, autoFixable }; // No certs configured
+
+        const domains = fs.readdirSync(certDir).filter(d => {
+          const p = path.join(certDir, d);
+          return fs.statSync(p).isDirectory() && d !== "README";
+        });
+
+        for (const domain of domains) {
+          const certPath = path.join(certDir, domain, "fullchain.pem");
+          if (!fs.existsSync(certPath)) {
+            issues.push({
+              severity: "critical",
+              message: `SSL certificate missing for ${domain}`,
+            });
+            continue;
+          }
+
+          // Check certificate expiry via openssl
+          try {
+            const { stdout } = await safeExec(
+              `openssl x509 -enddate -noout -in "${certPath}" 2>/dev/null`,
+              5000
+            );
+            const dateMatch = stdout.match(/notAfter=(.+)/);
+            if (dateMatch) {
+              const expiry = new Date(dateMatch[1]);
+              const daysLeft = Math.floor((expiry.getTime() - Date.now()) / 86400000);
+              if (daysLeft < 0) {
+                issues.push({
+                  severity: "critical",
+                  message: `SSL certificate for ${domain} EXPIRED ${Math.abs(daysLeft)} days ago`,
+                });
+              } else if (daysLeft < 14) {
+                issues.push({
+                  severity: "warning",
+                  message: `SSL certificate for ${domain} expires in ${daysLeft} days`,
+                });
+              }
+            }
+          } catch { /* silent — openssl may not be available */ }
+        }
+
         return { issues, autoFixable };
       } catch {
         return { issues: [], autoFixable: [] };
@@ -1252,6 +2566,425 @@ const GUARDIAN_MONITORS = {
       try {
         for (const entity of (result.entities || []).filter(e => e.critical && !e.dying)) {
           logRepairDTU(REPAIR_PHASES.POST_BUILD, "entity_critical", entity);
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Frontend Health ─────────────────────────────────────────────────────
+
+  frontend_health: {
+    interval: GUARDIAN_INTERVALS.frontend_health,
+    check: async () => {
+      try {
+        const FRONTEND_PORT = process.env.FRONTEND_PORT || 3000;
+        const frontendHost = process.env.FRONTEND_HOST || "concord-frontend";
+
+        // Try internal Docker network first, then localhost
+        const hosts = [`http://${frontendHost}:${FRONTEND_PORT}`, `http://localhost:${FRONTEND_PORT}`];
+
+        for (const base of hosts) {
+          try {
+            const start = Date.now();
+            const res = await fetch(base, { signal: AbortSignal.timeout(5000) });
+            return {
+              healthy: res.status < 500,
+              statusCode: res.status,
+              latencyMs: Date.now() - start,
+              host: base,
+            };
+          } catch { /* try next host */ }
+        }
+
+        return { healthy: false, error: "Frontend unreachable on all hosts" };
+      } catch {
+        return { healthy: true }; // Can't check — assume OK
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (!result.healthy) {
+          // Try restarting the frontend container
+          await safeExec("docker restart concord-frontend 2>/dev/null", 30000);
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "frontend_restart", result);
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Container Health ────────────────────────────────────────────────────
+
+  container_health: {
+    interval: GUARDIAN_INTERVALS.container_health,
+    check: async () => {
+      try {
+        const { stdout } = await safeExec(
+          "docker ps --format '{{.Names}}|{{.Status}}|{{.State}}' 2>/dev/null",
+          10000
+        );
+
+        if (!stdout || !stdout.trim()) {
+          return { healthy: true, containers: [], note: "Docker not available or no containers" };
+        }
+
+        const containers = [];
+        const lines = stdout.trim().split("\n").filter(Boolean);
+
+        for (const line of lines) {
+          const [name, status, state] = line.split("|");
+          if (!name || !name.startsWith("concord-")) continue;
+
+          const restartMatch = status.match(/Restarting.*\((\d+)\)/);
+          const restartCount = restartMatch ? parseInt(restartMatch[1], 10) : 0;
+          const isUnhealthy = state === "unhealthy" || status.includes("unhealthy");
+          const isRestarting = state === "restarting" || restartCount > 3;
+
+          containers.push({
+            name,
+            status,
+            state,
+            restartCount,
+            healthy: !isUnhealthy && !isRestarting,
+          });
+        }
+
+        return {
+          healthy: containers.every(c => c.healthy),
+          containers,
+          unhealthyCount: containers.filter(c => !c.healthy).length,
+        };
+      } catch {
+        return { healthy: true, containers: [] };
+      }
+    },
+    repair: async (result) => {
+      try {
+        for (const container of (result.containers || []).filter(c => !c.healthy)) {
+          if (container.restartCount > 5) {
+            // Container in restart loop — log but don't restart (would make it worse)
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "container_restart_loop", {
+              container: container.name,
+              restartCount: container.restartCount,
+              message: "Container in restart loop — sovereign intervention needed",
+            });
+          } else {
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "container_unhealthy", container);
+          }
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Nginx Health ────────────────────────────────────────────────────────
+
+  nginx_health: {
+    interval: GUARDIAN_INTERVALS.nginx_health,
+    check: async () => {
+      try {
+        // Check nginx is running and responsive
+        const { stdout: status } = await safeExec(
+          "docker inspect --format='{{.State.Status}}' concord-nginx 2>/dev/null",
+          5000
+        );
+
+        const containerRunning = (status || "").trim() === "running";
+        if (!containerRunning) {
+          return { healthy: false, error: "nginx container not running" };
+        }
+
+        // Check nginx config is valid inside container
+        const { stdout: testOut, stderr: testErr } = await safeExec(
+          "docker exec concord-nginx nginx -t 2>&1",
+          10000
+        );
+
+        const configValid = (testOut + testErr).includes("successful");
+
+        return {
+          healthy: containerRunning && configValid,
+          containerRunning,
+          configValid,
+        };
+      } catch {
+        return { healthy: true }; // Can't check — assume OK
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (!result.healthy) {
+          if (!result.containerRunning) {
+            await safeExec("docker restart concord-nginx 2>/dev/null", 30000);
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "nginx_restart", result);
+          } else if (!result.configValid) {
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "nginx_config_invalid", {
+              message: "Nginx config test failed — sovereign intervention needed",
+            });
+          }
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── WebSocket Health ────────────────────────────────────────────────────
+
+  websocket_health: {
+    interval: GUARDIAN_INTERVALS.websocket_health,
+    check: async () => {
+      try {
+        const S = _getSTATE();
+        const PORT = process.env.PORT || 5050;
+
+        // Check socket.io endpoint
+        try {
+          const res = await fetch(`http://localhost:${PORT}/socket.io/?EIO=4&transport=polling`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          const socketIoAlive = res.ok || res.status === 400; // 400 = needs sid, but endpoint exists
+
+          // Check connected client count from STATE if available
+          const connectedClients = S?.realtimeClients?.size || S?._socketCount || -1;
+
+          return {
+            healthy: socketIoAlive,
+            socketIoAlive,
+            connectedClients,
+          };
+        } catch {
+          return { healthy: false, error: "Socket.IO endpoint unreachable" };
+        }
+      } catch {
+        return { healthy: true };
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (!result.healthy) {
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "websocket_failure", result);
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Event Loop Lag ──────────────────────────────────────────────────────
+
+  event_loop_lag: {
+    interval: GUARDIAN_INTERVALS.event_loop_lag,
+    check: async () => {
+      try {
+        const start = process.hrtime.bigint();
+        await new Promise(resolve => setImmediate(resolve));
+        const lagNs = Number(process.hrtime.bigint() - start);
+        const lagMs = lagNs / 1_000_000;
+
+        return {
+          healthy: lagMs < 100,
+          lagMs: Math.round(lagMs * 100) / 100,
+          warning: lagMs > 50,
+          critical: lagMs > 200,
+        };
+      } catch {
+        return { healthy: true, lagMs: -1 };
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (result.critical) {
+          // Force GC if available
+          if (global.gc) global.gc();
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "event_loop_critical", {
+            lagMs: result.lagMs,
+            message: "Event loop lag > 200ms — possible CPU saturation",
+          });
+        } else if (result.warning) {
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "event_loop_warning", {
+            lagMs: result.lagMs,
+          });
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── SSL Certificate Runtime ─────────────────────────────────────────────
+
+  ssl_certificate_runtime: {
+    interval: GUARDIAN_INTERVALS.ssl_certificate,
+    check: async () => {
+      try {
+        const certDir = "/etc/letsencrypt/live";
+        // Check from host or inside container
+        const { stdout } = await safeExec(
+          `find ${certDir} -name 'fullchain.pem' -exec openssl x509 -enddate -noout -in {} \\; 2>/dev/null || ` +
+          `docker exec concord-certbot find ${certDir} -name 'fullchain.pem' -exec openssl x509 -enddate -noout -in {} \\; 2>/dev/null`,
+          15000
+        );
+
+        if (!stdout || !stdout.trim()) return { healthy: true, note: "No certs found or certbot not running" };
+
+        const certs = [];
+        for (const line of stdout.trim().split("\n")) {
+          const dateMatch = line.match(/notAfter=(.+)/);
+          if (dateMatch) {
+            const expiry = new Date(dateMatch[1]);
+            const daysLeft = Math.floor((expiry.getTime() - Date.now()) / 86400000);
+            certs.push({ expiry: expiry.toISOString(), daysLeft });
+          }
+        }
+
+        const minDays = certs.length > 0 ? Math.min(...certs.map(c => c.daysLeft)) : 999;
+
+        return {
+          healthy: minDays > 7,
+          certs,
+          minDaysUntilExpiry: minDays,
+          warning: minDays < 14,
+          critical: minDays < 3,
+        };
+      } catch {
+        return { healthy: true };
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (result.critical) {
+          // Attempt cert renewal
+          await safeExec("docker exec concord-certbot certbot renew --force-renewal 2>/dev/null", 60000);
+          await safeExec("docker exec concord-nginx nginx -s reload 2>/dev/null", 10000);
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "ssl_emergency_renewal", result);
+        } else if (result.warning) {
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "ssl_expiry_warning", {
+            daysLeft: result.minDaysUntilExpiry,
+          });
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Database Connection Health ──────────────────────────────────────────
+
+  database_connection: {
+    interval: GUARDIAN_INTERVALS.database_connection,
+    check: async () => {
+      try {
+        const S = _getSTATE();
+        const results = { healthy: true, checks: [] };
+
+        // SQLite health (primary database)
+        const dbPath = process.env.DB_PATH || "/data/db/concord.db";
+        if (fs.existsSync(dbPath)) {
+          const stat = fs.statSync(dbPath);
+          const sizeMB = Math.round(stat.size / 1024 / 1024);
+          const readable = fs.accessSync(dbPath, fs.constants.R_OK | fs.constants.W_OK) === undefined;
+          results.checks.push({
+            type: "sqlite",
+            path: dbPath,
+            sizeMB,
+            readable: true, // accessSync throws on failure
+            healthy: sizeMB < 5000, // Flag if DB > 5GB
+          });
+          if (sizeMB > 5000) results.healthy = false;
+        } else {
+          // DB doesn't exist — may be first run, not necessarily unhealthy
+          results.checks.push({ type: "sqlite", path: dbPath, exists: false, healthy: true });
+        }
+
+        // Check STATE persistence
+        const statePath = process.env.STATE_PATH || "/data/concord_state.json";
+        if (fs.existsSync(statePath)) {
+          const stat = fs.statSync(statePath);
+          const ageMs = Date.now() - stat.mtimeMs;
+          const stale = ageMs > 600000; // 10 minutes
+          results.checks.push({
+            type: "state_file",
+            path: statePath,
+            sizeMB: Math.round(stat.size / 1024 / 1024),
+            lastModifiedAgo: Math.round(ageMs / 1000) + "s",
+            stale,
+            healthy: !stale,
+          });
+          if (stale) results.healthy = false;
+        }
+
+        return results;
+      } catch {
+        return { healthy: true, checks: [] };
+      }
+    },
+    repair: async (result) => {
+      try {
+        for (const check of (result.checks || []).filter(c => !c.healthy)) {
+          if (check.type === "sqlite" && check.sizeMB > 5000) {
+            // Trigger VACUUM
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "db_oversize", {
+              sizeMB: check.sizeMB,
+              message: "Database exceeds 5GB — VACUUM recommended",
+            });
+          }
+          if (check.type === "state_file" && check.stale) {
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "state_file_stale", {
+              lastModifiedAgo: check.lastModifiedAgo,
+              message: "State file not updated in 10+ minutes — save may be stuck",
+            });
+          }
+        }
+      } catch { /* silent */ }
+    },
+  },
+
+  // ── Lockfile Drift Detection (Runtime) ──────────────────────────────────
+
+  lockfile_integrity: {
+    interval: GUARDIAN_INTERVALS.lockfile_integrity,
+    check: async () => {
+      try {
+        const checks = [];
+
+        for (const subdir of ["server", "concord-frontend"]) {
+          const pkgPath = path.join(process.cwd(), "..", subdir, "package.json");
+          const lockPath = path.join(process.cwd(), "..", subdir, "package-lock.json");
+
+          // Fallback paths for different cwd contexts
+          const altPkgPath = path.join(process.cwd(), subdir, "package.json");
+          const altLockPath = path.join(process.cwd(), subdir, "package-lock.json");
+
+          const usePkg = fs.existsSync(pkgPath) ? pkgPath : fs.existsSync(altPkgPath) ? altPkgPath : null;
+          const useLock = fs.existsSync(lockPath) ? lockPath : fs.existsSync(altLockPath) ? altLockPath : null;
+
+          if (usePkg && useLock) {
+            const pkgMtime = fs.statSync(usePkg).mtimeMs;
+            const lockMtime = fs.statSync(useLock).mtimeMs;
+
+            // If package.json was modified after lockfile, they may be out of sync
+            const drift = pkgMtime > lockMtime;
+            checks.push({
+              subdir,
+              drift,
+              pkgMtime: new Date(pkgMtime).toISOString(),
+              lockMtime: new Date(lockMtime).toISOString(),
+            });
+          }
+        }
+
+        return {
+          healthy: checks.every(c => !c.drift),
+          checks,
+          driftDetected: checks.some(c => c.drift),
+        };
+      } catch {
+        return { healthy: true, checks: [] };
+      }
+    },
+    repair: async (result) => {
+      try {
+        if (result.driftDetected) {
+          const drifted = (result.checks || []).filter(c => c.drift);
+          for (const c of drifted) {
+            logRepairDTU(REPAIR_PHASES.POST_BUILD, "lockfile_drift_detected", {
+              subdir: c.subdir,
+              message: `package.json newer than lockfile in ${c.subdir} — lockfile may be stale`,
+              pkgModified: c.pkgMtime,
+              lockModified: c.lockMtime,
+            });
+          }
         }
       } catch { /* silent */ }
     },
