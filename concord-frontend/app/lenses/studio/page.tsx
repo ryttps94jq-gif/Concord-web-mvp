@@ -230,6 +230,38 @@ export default function StudioLensPage() {
     onError: (err) => { console.error('Drum suggestions failed:', err instanceof Error ? err.message : err); },
   });
 
+  // Save project mutation
+  const saveProjectMutation = useMutation({
+    mutationFn: () => activeProjectId ? api.put(`/api/artistry/studio/projects/${activeProjectId}`, {}) : Promise.resolve(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['studio-projects'] });
+      refetchProject();
+    },
+  });
+
+  // Export project as JSON
+  const handleExportProject = useCallback(() => {
+    if (!proj) return;
+    const exportData = {
+      title: proj.title,
+      bpm: proj.bpm,
+      key: proj.key,
+      scale: proj.scale,
+      genre: proj.genre,
+      tracks: proj.tracks,
+      masterBus: proj.masterBus,
+      arrangement: proj.arrangement,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${proj.title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [proj]);
+
   const handleCreateProject = useCallback(() => {
     createProjectMutation.mutate({
       title: newTitle || 'Untitled Project',
@@ -289,8 +321,8 @@ export default function StudioLensPage() {
           <Zap className="w-3.5 h-3.5" />
           Master
         </button>
-        <button className="p-1.5 text-gray-400 hover:text-white"><Save className="w-4 h-4" /></button>
-        <button className="p-1.5 text-gray-400 hover:text-white"><Download className="w-4 h-4" /></button>
+        <button onClick={() => saveProjectMutation.mutate()} disabled={saveProjectMutation.isPending} className="p-1.5 text-gray-400 hover:text-white transition-colors" title="Save project"><Save className="w-4 h-4" /></button>
+        <button onClick={handleExportProject} className="p-1.5 text-gray-400 hover:text-white transition-colors" title="Export project"><Download className="w-4 h-4" /></button>
       </div>
     </div>
   );

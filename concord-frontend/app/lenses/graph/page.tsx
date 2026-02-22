@@ -180,8 +180,8 @@ export default function GraphLensPage() {
   const [showEdgeTypes, setShowEdgeTypes] = useState(true);
   const [clusterCount, setClusterCount] = useState(5);
 
-  // Lens artifact persistence layer
-  const { isError: isError, error: error, refetch: refetch, items: _entityArtifacts, create: _createEntity } = useLensData('graph', 'entity', { noSeed: true });
+  // Lens artifact persistence layer for graph entities
+  const { isError: isError, error: error, refetch: refetch, create: createEntity } = useLensData('graph', 'entity', { noSeed: true });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const [showLegend, setShowLegend] = useState(true);
 
@@ -756,11 +756,23 @@ export default function GraphLensPage() {
       if (!connectSource) {
         setConnectSource(clickedNode.id);
       } else if (clickedNode.id !== connectSource) {
-        setLocalEdges(prev => [...prev, {
+        const newEdge = {
           source: connectSource, target: clickedNode.id,
           weight: 0.5, type: newEdgeType,
-        }]);
+        };
+        setLocalEdges(prev => [...prev, newEdge]);
         setConnectSource(null);
+        // Persist edge to backend
+        api.post('/api/links', {
+          sourceId: connectSource,
+          targetId: clickedNode.id,
+          type: newEdgeType,
+          weight: 0.5,
+        }).then(() => {
+          refetch3();
+        }).catch(err => {
+          console.warn('[Graph] Failed to persist edge:', err);
+        });
       }
       return;
     }
@@ -889,20 +901,38 @@ export default function GraphLensPage() {
 
   // --- Add node ---
 
-  const addNewNode = () => {
+  const addNewNode = async () => {
     if (!addNodeLabel.trim()) return;
-    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const w = dimensions.width;
     const h = dimensions.height;
     const newNode: GraphNode = {
-      id, label: addNodeLabel.trim(), tier: addNodeType, nodeType: addNodeType,
+      id: localId, label: addNodeLabel.trim(), tier: addNodeType, nodeType: addNodeType,
       x: w / 2 + (Math.random() - 0.5) * 200, y: h / 2 + (Math.random() - 0.5) * 200,
       vx: 0, vy: 0, fx: null, fy: null, connections: 0,
-      tags: [], createdAt: new Date().toISOString(),
+      tags: [addNodeType], createdAt: new Date().toISOString(),
     };
+    // Add locally for immediate feedback
     nodesRef.current = [...nodesRef.current, newNode];
     setAddNodeLabel('');
     setShowAddNode(false);
+    // Persist to backend via DTU create
+    try {
+      await api.post('/api/macro/dtu/create', {
+        title: newNode.label,
+        content: newNode.label,
+        tier: addNodeType === 'mega' ? 'mega' : addNodeType === 'hyper' ? 'hyper' : 'regular',
+        tags: [addNodeType, 'graph-created'],
+      });
+      // Also persist as a graph entity artifact
+      await createEntity({
+        title: newNode.label,
+        data: { tier: addNodeType, nodeType: addNodeType, tags: [addNodeType] },
+      });
+      refetch2();
+    } catch (err) {
+      console.warn('[Graph] Failed to persist new node:', err);
+    }
   };
 
   // --- Export ---

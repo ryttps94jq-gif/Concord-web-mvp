@@ -83,6 +83,8 @@ export default function ChatLensPage() {
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [feedbackState, setFeedbackState] = useState<Record<string, 'up' | 'down'>>({});
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -125,6 +127,15 @@ export default function ChatLensPage() {
   });
 
   const messages = useMemo(() => selectedConversation ? (serverMessages || []) : localMessages, [selectedConversation, serverMessages, localMessages]);
+
+  // Filter conversations by search query
+  const filteredConversations = useMemo(() => {
+    if (!conversations || !conversationSearch.trim()) return conversations || [];
+    const q = conversationSearch.toLowerCase();
+    return (conversations as Conversation[]).filter(
+      (c) => c.title.toLowerCase().includes(q) || c.lastMessage?.toLowerCase().includes(q)
+    );
+  }, [conversations, conversationSearch]);
 
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -329,6 +340,36 @@ export default function ChatLensPage() {
     },
   });
 
+  // Delete conversation mutation
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      await api.delete(`/api/state/sessions/${sessionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      if (selectedConversation) {
+        setSelectedConversation(null);
+        setLocalMessages([]);
+      }
+    },
+  });
+
+  const handleExportChat = useCallback(() => {
+    const exportData = messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+    }));
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowMoreMenu(false);
+  }, [messages]);
+
   const handleSend = () => {
     if (!input.trim() || sendMutation.isPending) return;
     sendMutation.mutate(input);
@@ -502,6 +543,8 @@ export default function ChatLensPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
+              value={conversationSearch}
+              onChange={(e) => setConversationSearch(e.target.value)}
               placeholder="Search conversations..."
               aria-label="Search conversations"
               className="w-full pl-10 pr-4 py-2 bg-lattice-bg border border-lattice-border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
@@ -510,7 +553,7 @@ export default function ChatLensPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto" role="list" aria-label="Conversations">
-          {conversations?.map((conv: Conversation) => (
+          {filteredConversations?.map((conv: Conversation) => (
             <button
               key={conv.id}
               onClick={() => { setSelectedConversation(conv.id); setChatSidebarOpen(false); }}
@@ -624,10 +667,52 @@ export default function ChatLensPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-lattice-bg rounded-lg transition-colors">
+          <div className="flex items-center gap-2 relative">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className="p-2 hover:bg-lattice-bg rounded-lg transition-colors"
+              aria-label="Chat options"
+            >
               <MoreVertical className="w-5 h-5 text-gray-400" />
             </button>
+            <AnimatePresence>
+              {showMoreMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute top-full right-0 mt-2 w-48 bg-lattice-surface border border-lattice-border rounded-lg shadow-xl z-50 overflow-hidden"
+                >
+                  <button
+                    onClick={handleExportChat}
+                    disabled={messages.length === 0}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-200 hover:bg-lattice-bg transition-colors disabled:opacity-50"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Export Chat
+                  </button>
+                  <button
+                    onClick={() => { startNewChat(); setShowMoreMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-200 hover:bg-lattice-bg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Conversation
+                  </button>
+                  {selectedConversation && (
+                    <button
+                      onClick={() => {
+                        deleteConversationMutation.mutate(selectedConversation);
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors border-t border-lattice-border"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Delete Conversation
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </header>
 
