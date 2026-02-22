@@ -17,6 +17,7 @@ interface NewsArticle {
   imageUrl?: string;
   trending: boolean;
   bookmarked: boolean;
+  url?: string;
 }
 
 export default function NewsLensPage() {
@@ -27,7 +28,7 @@ export default function NewsLensPage() {
   const { data: news, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['news', selectedCategory],
     queryFn: () =>
-      apiHelpers.lens.list('news', { type: 'article', tags: selectedCategory !== 'all' ? [selectedCategory] : undefined }).then((r) => r.data),
+      apiHelpers.lens.list('news', { type: 'article', tags: selectedCategory !== 'all' ? selectedCategory : undefined }).then((r) => r.data),
   });
 
   const { data: trending, isError: isError2, error: error2, refetch: refetch2,} = useQuery({

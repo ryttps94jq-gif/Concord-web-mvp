@@ -87,12 +87,12 @@ export default function SchemaLensPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Schema List */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Available Schemas ({schemas?.count || 0})</h2>
+          <h2 className="text-lg font-semibold">Available Schemas ({schemas?.length || 0})</h2>
           {isLoading ? (
             <div className="text-gray-400">Loading...</div>
           ) : (
             <div className="space-y-3">
-              {schemas?.schemas?.map((schema: Record<string, unknown>) => (
+              {schemas?.map((schema: Record<string, unknown>) => (
                 <SchemaCard key={(schema.id || schema.name) as string} schema={schema} />
               ))}
             </div>
@@ -109,7 +109,7 @@ export default function SchemaLensPage() {
               className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded"
             >
               <option value="">Select Schema</option>
-              {schemas?.schemas?.map((s: Record<string, unknown>) => (
+              {schemas?.map((s: Record<string, unknown>) => (
                 <option key={s.name as string} value={s.name as string}>{s.name as string}</option>
               ))}
             </select>

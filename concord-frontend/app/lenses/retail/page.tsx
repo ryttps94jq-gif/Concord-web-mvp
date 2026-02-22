@@ -854,7 +854,7 @@ export default function RetailLensPage() {
               <button className={cn(ds.btnGhost, ds.btnSmall)} onClick={() => navigator.clipboard?.writeText(template)}>
                 <Copy className="w-3.5 h-3.5" /> Copy
               </button>
-              <button onClick={() => { const el = document.querySelector<HTMLParagraphElement>(`[data-template="${i}"]`); if (el) { el.contentEditable = 'true'; el.focus(); } }} className={cn(ds.btnGhost, ds.btnSmall)}>
+              <button onClick={() => { const el = document.querySelector<HTMLParagraphElement>(`[data-template="${idx}"]`); if (el) { el.contentEditable = 'true'; el.focus(); } }} className={cn(ds.btnGhost, ds.btnSmall)}>
                 <Edit3 className="w-3.5 h-3.5" /> Edit
               </button>
             </div>

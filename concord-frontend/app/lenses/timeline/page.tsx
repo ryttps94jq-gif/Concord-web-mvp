@@ -127,7 +127,7 @@ export default function TimelineLensPage() {
     queryKey: ['friends'],
     queryFn: async () => {
       try {
-        const res = await apiHelpers.personas.list({ limit: 20 });
+        const res = await apiHelpers.personas.list();
         const personas = res.data?.personas || [];
         return personas.map((p: Record<string, unknown>, i: number) => ({
           id: String(p.id || i),

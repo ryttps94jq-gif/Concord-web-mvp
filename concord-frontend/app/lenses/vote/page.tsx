@@ -93,7 +93,7 @@ export default function VoteLensPage() {
   const proposals = useMemo(() =>
     proposalItems.map((item) => ({
       id: item.id,
-      title: item.title || (item.data as Record<string, unknown>)?.title as string || '',
+      title: item.title || item.data?.title || '',
       description: (item.data?.description || '') as string,
       proposer: (item.data?.proposer || 'Anonymous') as string,
       type: (item.data?.type || 'feature') as ProposalData['type'],
@@ -618,6 +618,16 @@ function DiscussionThread({
   const [newComment, setNewComment] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const reactComment = useMutation({
+    mutationFn: async ({ commentId, reaction }: { commentId: string; reaction: 'upvote' | 'downvote' }) => {
+      return apiHelpers.lens.run('vote', commentId, { action: reaction });
+    },
+    onSuccess: () => {
+      onRefetch();
+    },
+    onError: (err) => console.error('Reaction failed:', err instanceof Error ? err.message : 'Unknown error'),
+  });
 
   // Use collab comments API for real persistence
   const addCommentMutation = useMutation({

@@ -63,6 +63,7 @@ interface Playlist {
   isOwner: boolean;
   followers?: number;
   type: 'playlist' | 'album' | 'podcast' | 'radio';
+  trackIds?: string[];
 }
 
 interface Artist {

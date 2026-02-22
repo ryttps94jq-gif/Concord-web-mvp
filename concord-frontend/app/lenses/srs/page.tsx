@@ -1104,7 +1104,7 @@ export default function SRSLensPage() {
                 >
                   Close
                 </button>
-                <button onClick={() => { if (editingCard) { removeCard(editingCard.id || ''); setEditingCard(null); } }} className="py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm">
+                <button onClick={() => { if (editingCard) { removeCard(editingCard.dtuId || ''); setEditingCard(null); } }} className="py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>

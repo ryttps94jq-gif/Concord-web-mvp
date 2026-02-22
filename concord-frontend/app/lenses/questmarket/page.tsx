@@ -80,7 +80,7 @@ export default function QuestmarketLensPage() {
         </div>
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-neon-green" />
-          <span className="font-bold">{myQuests?.completed || 0}</span>
+          <span className="font-bold">{myQuests?.filter((q: Record<string, unknown>) => q.status === 'completed').length || 0}</span>
           <span className="text-gray-400 text-sm">completed</span>
         </div>
       </header>
@@ -105,12 +105,12 @@ export default function QuestmarketLensPage() {
 
       {/* Quest Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {quests?.quests?.length === 0 ? (
+        {quests?.length === 0 ? (
           <p className="col-span-full text-center py-12 text-gray-500">
             No quests available. Check back later!
           </p>
         ) : (
-          quests?.quests?.map((quest: Quest) => (
+          quests?.map((quest: Quest) => (
             <div
               key={quest.id}
               className="lens-card hover:glow-purple relative overflow-hidden"
