@@ -24,8 +24,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  Dna,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { EntityGrowthDashboard } from '@/components/emergent/EntityGrowthDashboard';
 
 // ============================================================================
 // Types
@@ -75,7 +77,7 @@ interface ThresholdConfig {
   weakSignal: number;
 }
 
-type ViewMode = 'live' | 'pairs' | 'history' | 'health';
+type ViewMode = 'live' | 'pairs' | 'history' | 'health' | 'growth';
 
 // ============================================================================
 // Constants
@@ -768,6 +770,7 @@ export default function ResonanceBoundaryPage() {
               { id: 'pairs' as ViewMode, icon: GitBranch, label: 'Pairs' },
               { id: 'history' as ViewMode, icon: Activity, label: 'History' },
               { id: 'health' as ViewMode, icon: Heart, label: 'Health' },
+              { id: 'growth' as ViewMode, icon: Dna, label: 'Growth' },
             ]).map(tab => (
               <button
                 key={tab.id}
@@ -1076,6 +1079,12 @@ export default function ResonanceBoundaryPage() {
 
               {/* Legend in health view too */}
               <SignalClassificationLegend isOpen={legendOpen} onToggle={() => setLegendOpen(!legendOpen)} />
+            </div>
+          )}
+
+          {viewMode === 'growth' && (
+            <div className="p-6">
+              <EntityGrowthDashboard />
             </div>
           )}
         </main>
