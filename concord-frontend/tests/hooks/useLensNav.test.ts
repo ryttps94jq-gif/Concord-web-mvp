@@ -29,7 +29,7 @@ describe('useLensNav', () => {
     mockedGetLensById.mockReturnValue({
       id: 'chat',
       name: 'Chat',
-      icon: vi.fn(),
+      icon: vi.fn() as any,
       description: 'Chat lens',
       category: 'core',
       showInSidebar: true,
@@ -53,7 +53,7 @@ describe('useLensNav', () => {
 
   it('warns in development when lens is not in registry', () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue(undefined);
@@ -65,12 +65,12 @@ describe('useLensNav', () => {
     );
 
     warnSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
   });
 
   it('does not warn in production when lens is not in registry', () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue(undefined);
@@ -80,18 +80,18 @@ describe('useLensNav', () => {
     expect(warnSpy).not.toHaveBeenCalled();
 
     warnSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
   });
 
   it('does not warn when lens exists in registry', () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue({
       id: 'board',
       name: 'Board',
-      icon: vi.fn(),
+      icon: vi.fn() as any,
       description: 'Board',
       category: 'core',
       showInSidebar: true,
@@ -105,7 +105,7 @@ describe('useLensNav', () => {
     expect(warnSpy).not.toHaveBeenCalled();
 
     warnSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
   });
 
   it('updates when lensSlug changes', () => {

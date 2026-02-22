@@ -43,7 +43,10 @@ import { useResonance, useResonanceStatus } from '@/hooks/useResonance';
 import { useResonanceSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/api/client';
 
-const mockedApi = vi.mocked(api);
+const mockedApi = api as unknown as {
+  get: ReturnType<typeof vi.fn>;
+  post: ReturnType<typeof vi.fn>;
+};
 const mockedUseResonanceSocket = vi.mocked(useResonanceSocket);
 
 function createWrapper() {

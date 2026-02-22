@@ -14,7 +14,10 @@ vi.mock('@/lib/api/client', () => ({
 import { use70Lock, DEFAULT_INVARIANTS } from '@/hooks/use70Lock';
 import { api } from '@/lib/api/client';
 
-const mockedApi = vi.mocked(api);
+const mockedApi = api as unknown as {
+  get: ReturnType<typeof vi.fn>;
+  post: ReturnType<typeof vi.fn>;
+};
 
 function createWrapper() {
   const queryClient = new QueryClient({

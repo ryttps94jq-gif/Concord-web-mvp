@@ -63,7 +63,7 @@ describe('perf utilities', () => {
     it('logs to console.debug in development', () => {
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
 
       // Reset to default reporter by importing fresh
       // We need to re-set to the original default behavior
@@ -84,7 +84,7 @@ describe('perf utilities', () => {
         expect.objectContaining({ lens: 'debug-lens' })
       );
 
-      process.env.NODE_ENV = originalEnv;
+      Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
       debugSpy.mockRestore();
     });
   });
@@ -306,7 +306,7 @@ describe('perf utilities', () => {
 
       // CLS value should only include entries without recent input
       const clsCall = reporter.mock.calls.find(
-        (call: [PerfMetric]) => call[0].name === 'CLS'
+        (call: unknown[]) => (call[0] as PerfMetric).name === 'CLS'
       );
       if (clsCall) {
         expect(clsCall[0].value).toBeCloseTo(0.15, 5);

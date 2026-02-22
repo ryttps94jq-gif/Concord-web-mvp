@@ -15,7 +15,12 @@ vi.mock('@/lib/api/client', () => ({
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { api } from '@/lib/api/client';
 
-const mockedApi = vi.mocked(api);
+const mockedApi = api as unknown as {
+  get: ReturnType<typeof vi.fn>;
+  post: ReturnType<typeof vi.fn>;
+  put: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+};
 
 function createWrapper() {
   const queryClient = new QueryClient({

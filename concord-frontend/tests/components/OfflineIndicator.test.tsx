@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Mock framer-motion to render plain elements
 vi.mock('framer-motion', () => ({
   motion: {
-    button: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children}</button>,
-    div: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children as React.ReactNode}</button>,
+    div: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
   },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
