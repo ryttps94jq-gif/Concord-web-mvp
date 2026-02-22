@@ -52,8 +52,8 @@ describe('useLensNav', () => {
   });
 
   it('warns in development when lens is not in registry', () => {
-    const originalEnv = process.env.NODE_ENV;
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
+    const originalDev = import.meta.env.DEV;
+    import.meta.env.DEV = true;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue(undefined);
@@ -65,12 +65,12 @@ describe('useLensNav', () => {
     );
 
     warnSpy.mockRestore();
-    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
+    import.meta.env.DEV = originalDev;
   });
 
   it('does not warn in production when lens is not in registry', () => {
-    const originalEnv = process.env.NODE_ENV;
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true });
+    const originalDev = import.meta.env.DEV;
+    import.meta.env.DEV = false;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue(undefined);
@@ -80,12 +80,12 @@ describe('useLensNav', () => {
     expect(warnSpy).not.toHaveBeenCalled();
 
     warnSpy.mockRestore();
-    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
+    import.meta.env.DEV = originalDev;
   });
 
   it('does not warn when lens exists in registry', () => {
-    const originalEnv = process.env.NODE_ENV;
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
+    const originalDev = import.meta.env.DEV;
+    import.meta.env.DEV = true;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockedGetLensById.mockReturnValue({
@@ -105,7 +105,7 @@ describe('useLensNav', () => {
     expect(warnSpy).not.toHaveBeenCalled();
 
     warnSpy.mockRestore();
-    Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
+    import.meta.env.DEV = originalDev;
   });
 
   it('updates when lensSlug changes', () => {

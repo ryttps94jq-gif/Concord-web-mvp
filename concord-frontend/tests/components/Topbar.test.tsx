@@ -28,6 +28,8 @@ vi.mock('lucide-react', () => ({
   LogOut: ({ className }: { className?: string }) => <span data-testid="logout-icon" className={className} />,
   Settings: ({ className }: { className?: string }) => <span data-testid="settings-icon" className={className} />,
   Shield: ({ className }: { className?: string }) => <span data-testid="shield-icon" className={className} />,
+  Brain: ({ className }: { className?: string }) => <span data-testid="brain-icon" className={className} />,
+  Radio: ({ className }: { className?: string }) => <span data-testid="radio-icon" className={className} />,
 }));
 
 // Mock API client
@@ -41,6 +43,8 @@ vi.mock('@/lib/api/client', () => ({
 // Mock socket
 vi.mock('@/lib/realtime/socket', () => ({
   disconnectSocket: vi.fn(),
+  connectSocket: vi.fn(),
+  subscribe: vi.fn(() => vi.fn()),
 }));
 
 // Mock lens-registry

@@ -62,14 +62,14 @@ describe('perf utilities', () => {
   describe('default reporter', () => {
     it('logs to console.debug in development', () => {
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      const originalEnv = process.env.NODE_ENV;
-      Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true });
+      const originalDev = import.meta.env.DEV;
+      import.meta.env.DEV = true;
 
       // Reset to default reporter by importing fresh
       // We need to re-set to the original default behavior
       // The simplest approach: set a reporter that mimics the default
       setMetricReporter((metric) => {
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.debug('[Perf]', metric.name, `${metric.value.toFixed(1)}ms`, metric.meta || '');
         }
       });
@@ -84,7 +84,7 @@ describe('perf utilities', () => {
         expect.objectContaining({ lens: 'debug-lens' })
       );
 
-      Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true });
+      import.meta.env.DEV = originalDev;
       debugSpy.mockRestore();
     });
   });

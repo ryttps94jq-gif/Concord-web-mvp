@@ -14,7 +14,7 @@ export function useLensNav(lensSlug: string) {
 
   useEffect(() => {
     const lens = getLensById(lensSlug);
-    if (!lens && process.env.NODE_ENV === 'development') {
+    if (!lens && import.meta.env.DEV) {
       console.warn(`[useLensNav] Lens "${lensSlug}" not found in LENS_REGISTRY`);
     }
     setActiveLens(lensSlug);

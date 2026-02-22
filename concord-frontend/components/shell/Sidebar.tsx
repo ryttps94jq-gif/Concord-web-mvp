@@ -71,7 +71,7 @@ export function Sidebar() {
           <Link href="/" className="flex items-center gap-2" aria-label="Go to dashboard">
             <span className="text-2xl" aria-hidden="true">&#x1f9e0;</span>
             {showLabel && (
-              <span className="font-bold text-gradient-neon">Concordos</span>
+              <span className="font-bold text-gradient-neon">Concord</span>
             )}
           </Link>
 
@@ -219,7 +219,7 @@ export function Sidebar() {
         <div className="p-4 border-t border-lattice-border">
           {showLabel ? (
             <div className="text-xs text-gray-500">
-              <p>Concordos v5.0</p>
+              <p>Concord OS v5.0</p>
               <p className="text-neon-green">70% Sovereign</p>
             </div>
           ) : (
