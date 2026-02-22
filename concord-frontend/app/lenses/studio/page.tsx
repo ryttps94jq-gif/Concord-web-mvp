@@ -627,33 +627,39 @@ export default function StudioLensPage() {
     </div>
   );
 
-  const renderLearnView = () => (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <BookOpen className="w-6 h-6 text-neon-green" />
-        <h2 className="text-xl font-bold">Learning Center</h2>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[
-          { title: 'Fundamentals', desc: 'Rhythm, melody, harmony, song structure', icon: Music, color: 'neon-cyan' },
-          { title: 'Sound Design', desc: 'Synthesis, sampling, layering, processing', icon: Waves, color: 'neon-purple' },
-          { title: 'Mixing', desc: 'EQ, compression, reverb, panning, automation', icon: Sliders, color: 'neon-pink' },
-          { title: 'Arrangement', desc: 'Song structure, builds, transitions', icon: Layers, color: 'neon-green' },
-          { title: 'Mastering', desc: 'Loudness, EQ balance, limiting', icon: Target, color: 'neon-cyan' },
-          { title: 'Genre Studies', desc: 'Genre-specific production techniques', icon: Radio, color: 'neon-purple' },
-        ].map((mod, i) => (
-          <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-colors cursor-pointer">
-            <mod.icon className={`w-8 h-8 text-${mod.color} mb-3`} />
-            <h3 className="font-semibold">{mod.title}</h3>
-            <p className="text-xs text-gray-400 mt-1">{mod.desc}</p>
-            <div className="mt-3 w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className={`h-full bg-${mod.color} rounded-full`} style={{ width: `${Math.random() * 60}%` }} />
+  const renderLearnView = () => {
+    const modules = [
+      { title: 'Fundamentals', desc: 'Rhythm, melody, harmony, song structure', icon: Music, color: 'neon-cyan', lessons: 12 },
+      { title: 'Sound Design', desc: 'Synthesis, sampling, layering, processing', icon: Waves, color: 'neon-purple', lessons: 10 },
+      { title: 'Mixing', desc: 'EQ, compression, reverb, panning, automation', icon: Sliders, color: 'neon-pink', lessons: 15 },
+      { title: 'Arrangement', desc: 'Song structure, builds, transitions', icon: Layers, color: 'neon-green', lessons: 8 },
+      { title: 'Mastering', desc: 'Loudness, EQ balance, limiting', icon: Target, color: 'neon-cyan', lessons: 6 },
+      { title: 'Genre Studies', desc: 'Genre-specific production techniques', icon: Radio, color: 'neon-purple', lessons: 14 },
+    ];
+
+    return (
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <BookOpen className="w-6 h-6 text-neon-green" />
+          <h2 className="text-xl font-bold">Learning Center</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {modules.map((mod, i) => (
+            <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-colors cursor-pointer">
+              <mod.icon className={`w-8 h-8 text-${mod.color} mb-3`} />
+              <h3 className="font-semibold">{mod.title}</h3>
+              <p className="text-xs text-gray-400 mt-1">{mod.desc}</p>
+              <p className="text-[10px] text-gray-500 mt-2">{mod.lessons} lessons</p>
+              <div className="mt-2 w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className={`h-full bg-${mod.color} rounded-full`} style={{ width: '0%' }} />
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1">Not started</p>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // No project selected view
   if (!activeProjectId) {

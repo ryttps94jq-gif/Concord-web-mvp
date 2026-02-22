@@ -7,9 +7,9 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bell, Plus, Sparkles, CheckCircle2, Clock, Play, Square, RotateCcw,
+  Bell, Plus, Sparkles, CheckCircle2, Clock, Play, Pause, Square, RotateCcw,
   Mic, Music, BookOpen, Target, TrendingUp, Flame, ChevronLeft,
-  ChevronRight, FileText, Headphones, Pause,
+  ChevronRight, FileText, Headphones,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -105,8 +105,11 @@ export default function DailyLensPage() {
   const [newGenre, setNewGenre] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [showSessionForm, setShowSessionForm] = useState(false);
-  const [clips] = useState<AudioClip[]>(INITIAL_CLIPS);
+  const [clips, setClips] = useState<AudioClip[]>(INITIAL_CLIPS);
   const [playingClip, setPlayingClip] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStartRef = useRef<number>(0);
   const [timerDuration, setTimerDuration] = useState(15 * 60);
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -189,6 +192,40 @@ export default function DailyLensPage() {
   const startTimer = useCallback(() => setTimerRunning(true), []);
   const stopTimer = useCallback(() => setTimerRunning(false), []);
   const resetTimer = useCallback(() => { setTimerRunning(false); setTimeLeft(timerDuration); }, [timerDuration]);
+
+  // -- Audio recording via MediaRecorder API --------------------------------
+  const handleRecordToggle = useCallback(async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const duration = Math.round((Date.now() - recordingStartRef.current) / 1000);
+        const waveform = Array.from({ length: 24 }, () => 0.2 + Math.random() * 0.8);
+        const newClip: AudioClip = {
+          id: `clip-${Date.now()}`,
+          name: `Quick Note ${clips.length + 1}`,
+          duration,
+          waveform,
+          recordedAt: new Date().toISOString(),
+        };
+        setClips(prev => [newClip, ...prev]);
+      };
+      mediaRecorderRef.current = recorder;
+      recordingStartRef.current = Date.now();
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.warn('[Daily] Microphone access denied:', err);
+    }
+  }, [isRecording, clips.length]);
 
   // -- Add session ----------------------------------------------------------
   const addSession = useCallback(() => {
@@ -447,8 +484,13 @@ export default function DailyLensPage() {
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                 <Headphones className="w-4 h-4 text-neon-purple" /> Audio Clips
               </h2>
-              <button className="btn-neon purple text-xs flex items-center gap-1 opacity-50 cursor-not-allowed" title="Audio recording not yet wired" disabled>
-                <Mic className="w-3 h-3" /> Record Quick Note (coming soon)
+              <button
+                onClick={handleRecordToggle}
+                className={`btn-neon text-xs flex items-center gap-1 ${isRecording ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'purple'}`}
+                title={isRecording ? 'Stop recording' : 'Record a quick audio note'}
+              >
+                {isRecording ? <Square className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                {isRecording ? 'Stop Recording' : 'Record Quick Note'}
               </button>
             </div>
             <div className="space-y-2">
