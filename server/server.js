@@ -12471,6 +12471,7 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     const messages = [
       { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${dtuContext}${_pipelineMeta}\n\nRespond naturally and propose next actions.` }
     ];
+    const _llmSpan = startSpan("llm.chat", { mode, sessionId, promptLength: prompt.length });
     const r = await ctx.llm.chat({
       system, messages, temperature: _llmTemp, maxTokens: _llmMaxTokens,
       dtuRefs: _dtuTitles,
@@ -12480,7 +12481,9 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     if (r.ok) {
       finalReply = r.content.trim() || localReply;
       llmUsed = true;
+      _llmSpan.end("ok", { responseLength: finalReply.length });
     } else {
+      _llmSpan.end("error", { error: String(r?.error || "llm_failed") });
       ctx.log("llm.error", "LLM call failed; falling back to local.", { error: r });
     }
   }
@@ -17074,9 +17077,8 @@ function startHeartbeat() {
         // Every 3rd global tick: run global dialogue session
         if (tickResult.tickNumber % 3 === 0) {
           try {
-            const candidates = await runMacro("emergent", "scope.selectGlobalCandidates", {
-              globalDtuIds: tickResult.globalDtuIds,
-            }, ctx);
+            const _synthCandidates = selectGlobalSynthesisCandidates(STATE, tickResult.globalDtuIds || [], 5);
+            const candidates = { candidates: _synthCandidates };
             if (candidates?.candidates?.length >= 2) {
               await runMacro("emergent", "session.create", {
                 type: "global_synthesis",
@@ -17227,8 +17229,12 @@ app.get("/api/simulate/:simId", (req, res) => {
 app.post("/api/vulnerability/detect", (req, res) => {
   const { message } = req.body || {};
   if (!message) return res.status(400).json({ ok: false, error: "message required" });
-  const result = assessAndAdapt(message, req.body.entityId);
-  return res.json({ ok: true, ...result });
+  const vulnerability = detectVulnerability(message);
+  const delivery = chooseDeliveryMode(vulnerability);
+  if (req.body.entityId) {
+    try { hookVulnerability(req.body.entityId, vulnerability, delivery); } catch { /* silent */ }
+  }
+  return res.json({ ok: true, vulnerability, delivery });
 });
 
 // papers, forge/fromSource, crawl, audit, lattice, persona, skill, intent, chicken3 — extracted to routes/domain.js
@@ -26393,13 +26399,24 @@ app.get("/api/atlas/invariants/log", (req, res) => {
 
 app.get("/api/atlas/chat/retrieve", (req, res) => {
   try {
-    const { q, limit, policy, minConfidence, domainType } = req.query;
-    res.json(chatRetrieve(STATE, q, {
+    const { q, limit, policy, minConfidence, domainType, sessionId } = req.query;
+    const result = chatRetrieve(STATE, q, {
       limit: limit ? Number(limit) : undefined,
       policy,
       minConfidence: minConfidence ? Number(minConfidence) : undefined,
       domainType,
-    }));
+    });
+    // Feed retrieval hits into the context engine activation pipeline
+    if (sessionId && q && result.ok && result.results?.length) {
+      try {
+        contextProcessQuery(STATE, sessionId, {
+          query: q,
+          retrievalHits: result.results.slice(0, 20).map(r => ({ dtuId: r.id, score: r.score || 0.5 })),
+          userId: req.user?.id,
+        });
+      } catch { /* context engine is supplementary — never block retrieval */ }
+    }
+    res.json(result);
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
