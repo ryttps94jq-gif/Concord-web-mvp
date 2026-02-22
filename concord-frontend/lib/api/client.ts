@@ -1471,6 +1471,31 @@ export const apiHelpers = {
     recordLlmCall: (operation: string, details?: Record<string, unknown>) =>
       api.post('/api/efficiency/record-llm-call', { operation, details }),
   },
+
+  // Three-Brain Cognitive Architecture
+  brain: {
+    /** Get status of all three brains (conscious, subconscious, utility) */
+    status: () => api.get('/api/brain/status'),
+
+    /** Health check all three brains */
+    health: () => api.get('/api/brain/health'),
+
+    /** Call the utility brain for lens-specific AI tasks */
+    utilityCall: (data: { action: string; lens: string; data?: Record<string, unknown> }) =>
+      api.post('/api/utility/call', data),
+
+    /** Direct conscious brain chat (bypasses normal chat pipeline) */
+    consciousChat: (message: string, lens?: string) =>
+      api.post('/api/brain/conscious/chat', { message, lens }),
+
+    /** Trigger a subconscious task (admin only) */
+    subconsciousTask: (taskType: 'autogen' | 'dream' | 'evolution' | 'synthesis' | 'birth', domain?: string) =>
+      api.post('/api/brain/subconscious/task', { taskType, domain }),
+
+    /** Entity explores a lens via utility brain */
+    entityExplore: (entityId: string, lens: string) =>
+      api.post('/api/brain/entity/explore', { entityId, lens }),
+  },
 };
 
 // CSRF token is fetched lazily before the first state-changing request.

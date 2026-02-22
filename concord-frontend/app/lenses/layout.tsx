@@ -10,6 +10,7 @@ import { ExportMenu } from '@/components/common/ExportMenu';
 import { ActivityTimeline } from '@/components/common/ActivityTimeline';
 import DomainAssistant from '@/components/common/DomainAssistant';
 import { CrossDomainConnections } from '@/components/common/CrossDomainConnections';
+import { BrainMonitor } from '@/components/common/BrainMonitor';
 import {
   isCoreLens,
   getParentCoreLens,
@@ -61,6 +62,7 @@ function useLensMeta() {
  * - QuickCapture (floating FAB): Create DTUs fast, Cmd+N
  * - DomainAssistant (floating): AI chat panel, Cmd+/
  * - CrossDomainConnections (floating): Graph-based cross-domain panel, Cmd+J
+ * - BrainMonitor (top-left): Three-brain cognitive architecture status
  * - ActivityTimeline (bottom): Collapsible activity log
  */
 function UniversalLensFeatures({ children }: { children: React.ReactNode }) {
@@ -92,6 +94,11 @@ function UniversalLensFeatures({ children }: { children: React.ReactNode }) {
       <QuickCapture domain={slug} />
       <DomainAssistant domain={slug} domainLabel={label} />
       <CrossDomainConnections domain={slug} domainLabel={label} />
+
+      {/* Brain status monitor (top-left floating) */}
+      <div className="fixed top-20 left-4 z-40">
+        <BrainMonitor />
+      </div>
     </div>
   );
 }
@@ -100,7 +107,8 @@ function UniversalLensFeatures({ children }: { children: React.ReactNode }) {
  * FE-012 + FE-014: Lens layout with loading isolation, error containment,
  * automatic CoreLensNav for core workspace lenses, and universal features
  * (Smart Context Bar, Quick Capture, Domain AI Assistant, Cross-Domain
- * Connections, Activity Timeline, Export Menu, Command Palette with Cmd+K).
+ * Connections, Brain Monitor, Activity Timeline, Export Menu, Command
+ * Palette with Cmd+K).
  */
 export default function LensLayout({ children }: { children: React.ReactNode }) {
   return (

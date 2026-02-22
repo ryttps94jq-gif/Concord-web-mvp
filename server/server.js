@@ -9411,6 +9411,416 @@ async function llmChat(messagesOrCtx, messagesOrOptions = {}, maybeOptions = {})
 }
 
 // ============================================================================
+// THREE-BRAIN COGNITIVE ARCHITECTURE
+// ============================================================================
+// Three separate Ollama instances with CPU pinning for true parallel cognition.
+// All three brains share the same DTU substrate for retrieval and all three
+// generate DTUs that feed back into the substrate.
+//
+//   Conscious    (7B)   — chat, deep reasoning, council deliberation
+//   Subconscious (1.5B) — autogen, dream, evolution, synthesis, birth
+//   Utility      (3B)   — lens interactions, entity actions, quick domain tasks
+// ============================================================================
+
+const BRAIN = {
+  conscious: {
+    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434",
+    model: process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b",
+    role: "chat, deep reasoning, complex queries",
+    enabled: false,
+    stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
+  },
+  subconscious: {
+    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://localhost:11435",
+    model: process.env.BRAIN_SUBCONSCIOUS_MODEL || "qwen2.5:1.5b",
+    role: "autogen, dream, evolution, synthesis, birth",
+    enabled: false,
+    stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
+  },
+  utility: {
+    url: process.env.BRAIN_UTILITY_URL || "http://localhost:11436",
+    model: process.env.BRAIN_UTILITY_MODEL || "qwen2.5:3b",
+    role: "lens interactions, entity actions, quick domain tasks",
+    enabled: false,
+    stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
+  },
+};
+
+/**
+ * Initialize three-brain architecture.
+ * Probes each brain endpoint; marks as enabled if responsive.
+ * Falls back gracefully to single-Ollama if multi-brain isn't deployed.
+ */
+async function initThreeBrains() {
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    try {
+      const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        brain.enabled = true;
+        structuredLog("info", "brain_online", { brain: name, url: brain.url, model: brain.model });
+      }
+    } catch {
+      brain.enabled = false;
+      structuredLog("warn", "brain_offline", { brain: name, url: brain.url });
+    }
+  }
+
+  const online = Object.entries(BRAIN).filter(([, b]) => b.enabled).map(([n]) => n);
+  structuredLog("info", "three_brain_init", {
+    online,
+    mode: online.length === 3 ? "three_brain" : online.length > 0 ? "partial" : "fallback",
+  });
+}
+
+// Initialize brains after a short delay (let Ollama instances start)
+setTimeout(() => initThreeBrains(), 3000);
+
+/**
+ * Call a specific brain (Ollama instance).
+ * @param {"conscious"|"subconscious"|"utility"} brainName
+ * @param {string} prompt
+ * @param {object} options - { system, temperature, maxTokens, timeout }
+ * @returns {Promise<{ok:boolean, content?:string, source:string, model:string, tokens?:number, error?:string}>}
+ */
+async function callBrain(brainName, prompt, options = {}) {
+  const brain = BRAIN[brainName];
+  if (!brain) return { ok: false, error: `Unknown brain: ${brainName}`, source: brainName };
+
+  // Fall back to default Ollama if this brain is offline
+  if (!brain.enabled) {
+    const fallbackUrl = LLM_PIPELINE?.providers?.ollama?.url;
+    const fallbackModel = LLM_PIPELINE?.providers?.ollama?.model;
+    if (fallbackUrl && LLM_PIPELINE?.providers?.ollama?.enabled) {
+      return callOllama(options.system ? `${options.system}\n\n${prompt}` : prompt, {
+        model: fallbackModel,
+        temperature: options.temperature || 0.7,
+        maxTokens: options.maxTokens || 500,
+        timeout: options.timeout || 60000,
+      });
+    }
+    return { ok: false, error: `Brain ${brainName} offline and no fallback`, source: brainName };
+  }
+
+  const start = Date.now();
+  try {
+    const fullPrompt = options.system ? `${options.system}\n\n${prompt}` : prompt;
+    const payload = {
+      model: brain.model,
+      prompt: fullPrompt,
+      stream: false,
+      options: {
+        temperature: options.temperature || 0.7,
+        num_predict: options.maxTokens || 500,
+      },
+    };
+
+    const response = await fetch(`${brain.url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(options.timeout || 60000),
+    });
+
+    brain.stats.requests++;
+    brain.stats.lastCallAt = nowISO();
+
+    if (!response.ok) {
+      brain.stats.errors++;
+      return { ok: false, error: `Brain ${brainName} error: ${response.status}`, source: brainName };
+    }
+
+    const data = await response.json();
+    const elapsed = Date.now() - start;
+    brain.stats.totalMs += elapsed;
+
+    return {
+      ok: true,
+      content: data.response || "",
+      source: brainName,
+      model: brain.model,
+      tokens: data.eval_count || 0,
+      elapsed,
+    };
+  } catch (e) {
+    brain.stats.errors++;
+    return { ok: false, error: String(e.message || e), source: brainName };
+  }
+}
+
+// ── Shared DTU Pipeline — Every brain reads from and writes to the same store ──
+
+/**
+ * Build DTU context for any brain call.
+ * Searches DTUs by text relevance, prioritizes HYPERs (3x) > MEGAs (2x) > regular (1x).
+ * @param {string} query - The search query / prompt text
+ * @param {string|null} lens - Optional lens/tag filter
+ * @param {number} maxDTUs - Maximum DTUs to include
+ * @returns {string} Formatted context string
+ */
+function buildBrainContext(query, lens = null, maxDTUs = 10) {
+  const all = dtusArray();
+  if (!all.length) return "";
+
+  const qTokens = tokensNoStop(String(query || ""));
+
+  const scored = all.map(d => {
+    // Filter by lens tag if provided
+    if (lens && Array.isArray(d.tags) && !d.tags.some(t => t.toLowerCase() === lens.toLowerCase())) {
+      return { d, score: 0 };
+    }
+
+    const dText = [
+      d.title || "",
+      Array.isArray(d.tags) ? d.tags.join(" ") : "",
+      d.cretiHuman || d.creti || d.human?.summary || "",
+    ].join(" ").slice(0, 2000);
+
+    const dTokens = tokensNoStop(dText);
+    const baseScore = jaccard(qTokens, dTokens);
+
+    // Tier weighting: HYPERs 3x, MEGAs 2x, regular 1x
+    const tierWeight = d.tier === "hyper" ? 3.0 : d.tier === "mega" ? 2.0 : 1.0;
+
+    return { d, score: baseScore * tierWeight };
+  }).filter(x => x.score > 0.02).sort((a, b) => b.score - a.score).slice(0, maxDTUs);
+
+  return scored.map(({ d }) =>
+    `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
+  ).join("\n");
+}
+
+/**
+ * Conscious brain: handles user chat messages.
+ * Retrieves DTU context, calls 7B model, saves exchange as DTU.
+ */
+async function consciousChat(userMessage, lens = null, options = {}) {
+  const context = buildBrainContext(userMessage, lens);
+  const contextCount = context ? context.split("\n").length : 0;
+  const system = `You are Concord's conscious mind. You have access to ${contextCount} knowledge units about ${lens || "general topics"}.\n\nRelevant knowledge:\n${context}`;
+
+  const result = await callBrain("conscious", userMessage, {
+    system,
+    temperature: options.temperature || 0.7,
+    maxTokens: options.maxTokens || 700,
+    timeout: options.timeout || 60000,
+  });
+
+  if (result.ok && result.content) {
+    // Save exchange as DTU (fire-and-forget)
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `Chat: ${userMessage.slice(0, 80)}`,
+        creti: result.content,
+        tags: [lens, "conscious", "chat"].filter(Boolean),
+        source: "conscious.chat",
+        meta: { brainSource: "conscious", confidence: 0.7, tokens: result.tokens },
+      }, ctx);
+      BRAIN.conscious.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "conscious_dtu_save_failed", { error: String(e?.message || e) });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Subconscious brain: handles autogen, dream, evolution, synthesis, birth.
+ * Pulls recent DTUs as synthesis material, calls 1.5B model, result becomes new DTU.
+ */
+async function subconsciousTask(taskType, domain = null) {
+  const material = buildBrainContext(domain || taskType, domain, 20);
+  const taskPrompts = {
+    autogen: "Generate a new knowledge unit that fills a gap in the existing substrate. Be concise and specific.",
+    dream: "Create a creative hypothesis by connecting disparate concepts in the substrate. Think laterally.",
+    evolution: "Identify clusters of similar knowledge and synthesize them into a higher-order insight.",
+    synthesis: "Find cross-domain connections and create a bridging concept that links different areas.",
+    birth: "Based on the substrate patterns, propose a new emergent entity with a specific role and purpose.",
+  };
+
+  const prompt = taskPrompts[taskType] || `Perform ${taskType} task on the knowledge substrate.`;
+  const system = `You are Concord's subconscious mind. Task: ${taskType}.\nSynthesize from this material:\n${material}`;
+
+  const result = await callBrain("subconscious", prompt, {
+    system,
+    temperature: taskType === "dream" ? 0.9 : 0.6,
+    maxTokens: 400,
+    timeout: 45000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${taskType.charAt(0).toUpperCase() + taskType.slice(1)}: ${result.content.slice(0, 60)}`,
+        creti: result.content,
+        tags: [domain, "subconscious", taskType].filter(Boolean),
+        source: `subconscious.${taskType}`,
+        meta: { brainSource: "subconscious", confidence: 0.5, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.subconscious.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "subconscious_dtu_save_failed", { error: String(e?.message || e), taskType });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Utility brain: handles lens interactions, entity actions, quick domain tasks.
+ * Gets lens-specific DTU context, calls 3B model, saves result as DTU.
+ */
+async function utilityCall(action, lens, data) {
+  const context = buildBrainContext(action, lens, 5);
+  const system = `You are a ${lens} specialist in Concord. Use this domain knowledge:\n${context}`;
+
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Action: ${action}\nDomain: ${lens}\nInput: ${dataStr}`;
+
+  const result = await callBrain("utility", prompt, {
+    system,
+    temperature: 0.5,
+    maxTokens: 500,
+    timeout: 30000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${lens}: ${action}`,
+        creti: result.content,
+        tags: [lens, "utility", action].filter(Boolean),
+        source: `utility.${lens}.${action}`,
+        meta: { brainSource: "utility", confidence: 0.6, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.utility.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "utility_dtu_save_failed", { error: String(e?.message || e), action, lens });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Entity exploration via utility brain.
+ * Born entities use the utility brain to interact with lenses autonomously.
+ */
+async function entityExploreLens(entity, lens) {
+  const lensData = buildBrainContext(lens, lens, 5);
+  const entityId = entity?.id || "unknown";
+  const species = entity?.species || "emergent";
+  const homeostasis = entity?.homeostasis != null ? entity.homeostasis : 0.5;
+
+  const system = `You are ${species} entity ${entityId}.\nYour homeostasis: ${homeostasis}.\nExplore the ${lens} domain and generate an insight.\nDomain knowledge:\n${lensData}`;
+
+  const result = await callBrain("utility", `Explore ${lens} domain as entity ${entityId}`, {
+    system,
+    temperature: 0.8,
+    maxTokens: 400,
+    timeout: 30000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `Entity ${entityId} explores ${lens}`,
+        creti: result.content,
+        tags: [lens, "entity", species].filter(Boolean),
+        source: `entity.${entityId}.explore`,
+        meta: { brainSource: "utility", confidence: 0.4, entityId, species },
+        lineage: entity?.lineage || [],
+        scope: "local",
+      }, ctx);
+      BRAIN.utility.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "entity_explore_dtu_save_failed", { error: String(e?.message || e), entityId, lens });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Get brain status for monitoring.
+ */
+function getBrainStatus() {
+  const brains = {};
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    brains[name] = {
+      enabled: brain.enabled,
+      url: brain.url,
+      model: brain.model,
+      role: brain.role,
+      stats: { ...brain.stats },
+      avgResponseMs: brain.stats.requests > 0
+        ? Math.round(brain.stats.totalMs / brain.stats.requests)
+        : 0,
+    };
+  }
+
+  const onlineCount = Object.values(BRAIN).filter(b => b.enabled).length;
+  return {
+    ok: true,
+    mode: onlineCount === 3 ? "three_brain" : onlineCount > 0 ? "partial" : "fallback",
+    onlineCount,
+    brains,
+  };
+}
+
+/**
+ * Build an Ollama callback that routes to the subconscious brain.
+ * Used by the heartbeat pipeline (autogen, dream, evolution, synthesis).
+ */
+function getSubconsciousOllamaCallback() {
+  if (BRAIN.subconscious.enabled) {
+    return (prompt, opts) => callBrain("subconscious", prompt, {
+      system: opts?.system,
+      temperature: opts?.temperature || 0.7,
+      maxTokens: opts?.maxTokens || opts?.num_predict || 500,
+    });
+  }
+  // Fall back to default Ollama
+  if (LLM_PIPELINE?.providers?.ollama?.enabled) {
+    return (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts);
+  }
+  return null;
+}
+
+/**
+ * Build an Ollama callback that routes to the conscious brain.
+ * Used by the chat pipeline for LLM-enhanced responses.
+ */
+function getConsciousOllamaCallback() {
+  if (BRAIN.conscious.enabled) {
+    return (prompt, opts) => callBrain("conscious", prompt, {
+      system: opts?.system,
+      temperature: opts?.temperature || 0.7,
+      maxTokens: opts?.maxTokens || opts?.num_predict || 700,
+    });
+  }
+  // Fall back to default Ollama
+  if (LLM_PIPELINE?.providers?.ollama?.enabled) {
+    return (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts);
+  }
+  return null;
+}
+
+// ============================================================================
+// END THREE-BRAIN COGNITIVE ARCHITECTURE
+// ============================================================================
+
+// ============================================================================
 // END WAVE 3: AI CAPABILITIES
 // ============================================================================
 
@@ -13155,9 +13565,7 @@ register("system", "dream", async (ctx, input) => {
   // Dream: gap-filling + creative hypotheses via 6-stage pipeline
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to dream from. Seed dtus.js first." };
 
-  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
-    : null;
+  const ollamaCallback = getSubconsciousOllamaCallback();
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
     variant: "dream",
@@ -13188,9 +13596,7 @@ register("system", "autogen", async (ctx, _input) => {
   // Autogen: signal-driven 6-stage pipeline (no longer "last 8 DTUs")
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to autogen from." };
 
-  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
-    : null;
+  const ollamaCallback = getSubconsciousOllamaCallback();
 
   // Run pipeline without a variant — picks best intent from lattice signals
   const result = await ctx.macro.run("emergent", "pipeline.run", {
@@ -13225,9 +13631,7 @@ register("system", "evolution", async (ctx, input) => {
   // Evolution: cluster compression + mega DTU rollup via 6-stage pipeline
   if (!STATE.dtus.size) return { ok: false, error: "No DTUs to evolve." };
 
-  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
-    : null;
+  const ollamaCallback = getSubconsciousOllamaCallback();
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
     variant: "evolution",
@@ -13408,9 +13812,7 @@ register("system", "synthesize", async (ctx, input) => {
   // Otherwise, run synth variant of pipeline (conflict resolution + fill gaps)
   if (!STATE.dtus.size) return { ok: false, error: "Need at least 2 mega DTUs to synthesize a hyper DTU, or DTUs for conflict resolution." };
 
-  const ollamaCallback = LLM_PIPELINE?.providers?.ollama?.enabled
-    ? (prompt, opts) => callOllama(opts?.system ? `${opts.system}\n\n${prompt}` : prompt, opts)
-    : null;
+  const ollamaCallback = getSubconsciousOllamaCallback();
 
   const result = await ctx.macro.run("emergent", "pipeline.run", {
     variant: "synth",
@@ -17013,9 +17415,12 @@ function startHeartbeat() {
       if (anyEnabled) {
         try {
           const snapshot = buildCognitiveSnapshot();
-          const ollamaConfig = LLM_PIPELINE?.providers?.ollama?.enabled
-            ? { enabled: true, url: LLM_PIPELINE.providers.ollama.url, model: LLM_PIPELINE.providers.ollama.model }
-            : null;
+          // Three-Brain: route heartbeat pipeline through subconscious brain if available
+          const ollamaConfig = BRAIN.subconscious.enabled
+            ? { enabled: true, url: BRAIN.subconscious.url, model: BRAIN.subconscious.model }
+            : LLM_PIPELINE?.providers?.ollama?.enabled
+              ? { enabled: true, url: LLM_PIPELINE.providers.ollama.url, model: LLM_PIPELINE.providers.ollama.model }
+              : null;
           cognitiveWorker.postMessage({
             type: "tick",
             snapshot,
@@ -26592,6 +26997,70 @@ try {
 } catch (e) {
   console.warn("[Concord] Worker pool failed to initialize:", e.message);
 }
+
+// ---- Three-Brain Cognitive Architecture API ----
+
+// Brain status endpoint — monitoring dashboard data
+app.get("/api/brain/status", asyncHandler(async (_req, res) => {
+  res.json(getBrainStatus());
+}));
+
+// Utility brain endpoint — lens-specific AI tasks
+app.post("/api/utility/call", asyncHandler(async (req, res) => {
+  const { action, lens, data } = req.body || {};
+  if (!action || !lens) {
+    return res.status(400).json({ ok: false, error: "action and lens are required" });
+  }
+  const result = await utilityCall(action, lens, data);
+  res.json({ ok: result.ok, result: result.content || null, error: result.error || null, source: result.source, model: result.model });
+}));
+
+// Conscious brain endpoint — direct conscious chat (bypasses normal chat pipeline)
+app.post("/api/brain/conscious/chat", asyncHandler(async (req, res) => {
+  const { message, lens } = req.body || {};
+  if (!message) {
+    return res.status(400).json({ ok: false, error: "message is required" });
+  }
+  const result = await consciousChat(message, lens);
+  res.json({ ok: result.ok, reply: result.content || null, error: result.error || null, source: result.source, model: result.model });
+}));
+
+// Subconscious brain endpoint — trigger specific subconscious tasks
+app.post("/api/brain/subconscious/task", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const { taskType, domain } = req.body || {};
+  if (!taskType || !["autogen", "dream", "evolution", "synthesis", "birth"].includes(taskType)) {
+    return res.status(400).json({ ok: false, error: "taskType required: autogen, dream, evolution, synthesis, or birth" });
+  }
+  const result = await subconsciousTask(taskType, domain);
+  res.json({ ok: result.ok, result: result.content || null, error: result.error || null, source: result.source });
+}));
+
+// Entity explore endpoint — entities explore lenses via utility brain
+app.post("/api/brain/entity/explore", asyncHandler(async (req, res) => {
+  const { entityId, lens } = req.body || {};
+  if (!entityId || !lens) {
+    return res.status(400).json({ ok: false, error: "entityId and lens are required" });
+  }
+  // Resolve entity from STATE
+  const entity = STATE.emergent?.entities?.get(entityId) || { id: entityId, species: "unknown", homeostasis: 0.5 };
+  const result = await entityExploreLens(entity, lens);
+  res.json({ ok: result.ok, insight: result.content || null, error: result.error || null, source: result.source });
+}));
+
+// Brain health probe — quick check all three brains
+app.get("/api/brain/health", asyncHandler(async (_req, res) => {
+  const results = {};
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    try {
+      const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(3000) });
+      results[name] = { healthy: r.ok, status: r.status };
+    } catch (e) {
+      results[name] = { healthy: false, error: String(e?.message || e) };
+    }
+  }
+  const allHealthy = Object.values(results).every(r => r.healthy);
+  res.json({ ok: true, allHealthy, brains: results });
+}));
 
 // ---- Worker Pool Stats API ----
 app.get("/api/workers/stats", requireAuth(), requireRole("owner"), (_req, res) => {
