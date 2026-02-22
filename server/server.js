@@ -118,6 +118,29 @@ import { recordSubstrateReuse, recordLlmCall, getEfficiencyDashboard, takeEffici
 import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./emergent/bootstrap-ingestion.js";
 import { processQuery as contextProcessQuery, queryGlobalFallback } from "./emergent/context-engine.js";
 import { selectGlobalSynthesisCandidates } from "./emergent/scope-separation.js";
+
+// ---- Entity Growth, Web Exploration & Hive Communication ----
+import {
+  createNewbornEntity, processExperience as processGrowthExperience,
+  decideBehavior, ageEntity as ageGrowthEntity, selectExplorer,
+  getGrowthDashboardData, getAllGrowthProfiles, saveGrowthProfile,
+  getGrowthProfile, getTopOrgans, mapLensToDomainOrgan,
+} from "./emergent/entity-growth.js";
+import {
+  entityWebExplore, selectExplorationTarget, buildSynthesisPrompt,
+  getExplorationMetrics, recordExplorationMetrics, resetWindowCounters,
+  WEB_POLICY, EXPLORATION_SOURCES,
+} from "./emergent/entity-web-exploration.js";
+import {
+  prepareBroadcast, recordCascadeResponse, prepareNextGeneration,
+  finalizeCascade, resetCascadeWindow, updateCuriosityFromHive,
+  recordHiveMetrics, getHiveMetrics, CASCADE_LIMITS,
+} from "./emergent/entity-hive.js";
+import {
+  requiresWebSearch, webSearchForChat, buildEvaluationPrompt,
+  buildQueryGenerationPrompt, buildResponsePrompt, extractUrls,
+  recordChatWebMetrics, getChatWebMetrics,
+} from "./emergent/conscious-web-search.js";
 import { suggestDistrict, moveEmergent, DISTRICTS } from "./emergent/districts.js";
 import {
   applyEnrichment, linkArtifactDTU, registerBuiltinEnrichers,
@@ -9766,25 +9789,104 @@ async function consciousChat(userMessage, lens = null, options = {}) {
     }
   } catch {}
 
-  // ── Level 3: Full Conscious Reasoning ──
+  // ── Level 3: Full Conscious Reasoning (with Web Search Tool Use) ──
   recordRoutingLevel(lens, "inference");
   recordQueryEvent(lens, { topSimilarity: 0 });
 
   const context = await buildBrainContext(userMessage, lens);
   const contextCount = context ? context.split("\n").length : 0;
-  const system = `You are Concord's conscious mind. You have access to ${contextCount} knowledge units about ${lens || "general topics"}.\n\nRelevant knowledge:\n${context}`;
+
+  // ── Web Search Evaluation ──
+  let webResults = [];
+  let webSearchType = "skipped";
+  const searchStart = Date.now();
+
+  // Fast path: check explicit trigger patterns (regex, no LLM cost)
+  const explicitWebTrigger = requiresWebSearch(userMessage);
+
+  if (explicitWebTrigger) {
+    webSearchType = "explicit";
+    try {
+      const queryPrompt = buildQueryGenerationPrompt(userMessage, lens);
+      const queryResult = await callBrain("utility", queryPrompt, {
+        temperature: 0.3, maxTokens: 200, timeout: 10000,
+      });
+      if (queryResult.ok && queryResult.content) {
+        const parsed = JSON.parse(queryResult.content.match(/\{[\s\S]*\}/)?.[0] || "{}");
+        if (parsed.queries?.length) {
+          webResults = await webSearchForChat(parsed.queries);
+        }
+      }
+    } catch { /* query generation failed — fallback below */ }
+    // Fallback: use raw user message as search query
+    if (!webResults.length) {
+      webResults = await webSearchForChat([userMessage.slice(0, 100)]);
+    }
+  } else if (contextCount < 3) {
+    // Thin context — ask utility brain (fast 3b) if web search would help
+    webSearchType = "evaluated";
+    try {
+      const contextSummary = {
+        count: contextCount,
+        preview: context ? context.slice(0, 500) : "(no relevant DTUs found)",
+      };
+      const evalPrompt = buildEvaluationPrompt(userMessage, contextSummary, lens);
+      const evalResult = await callBrain("utility", evalPrompt, {
+        temperature: 0.2, maxTokens: 300, timeout: 10000,
+      });
+      if (evalResult.ok && evalResult.content) {
+        const parsed = JSON.parse(evalResult.content.match(/\{[\s\S]*\}/)?.[0] || "{}");
+        if (parsed.needsWeb && parsed.searchQueries?.length) {
+          webResults = await webSearchForChat(parsed.searchQueries);
+        }
+      }
+    } catch { /* evaluation failed — proceed without web */ }
+  }
+
+  const searchLatencyMs = Date.now() - searchStart;
+
+  // ── Build system prompt (merged DTU + web context when available) ──
+  let system;
+  if (webResults.length > 0) {
+    const dtuContext = context
+      ? context.split("\n").map(line => {
+          const m = line.match(/^\[(\w+)\]\s+(.+?):\s+(.*)/);
+          return m ? { tier: m[1].toLowerCase(), title: m[2], body: m[3] } : { title: "context", body: line };
+        })
+      : [];
+    system = buildResponsePrompt(dtuContext, webResults);
+  } else {
+    system = `You are Concord's conscious mind. You have access to ${contextCount} knowledge units about ${lens || "general topics"}.\n\nRelevant knowledge:\n${context}`;
+  }
 
   const result = await callBrain("conscious", userMessage, {
     system,
     temperature: options.temperature || 0.7,
-    maxTokens: options.maxTokens || 700,
+    maxTokens: options.maxTokens || (webResults.length > 0 ? 1000 : 700),
     timeout: options.timeout || 60000,
   });
+
+  // ── Metrics ──
+  recordChatWebMetrics(
+    webResults.length > 0 ? "web-augmented" : webSearchType,
+    searchLatencyMs,
+    webResults.length
+  );
 
   const elapsed = Date.now() - inferenceStart;
   recordEconomicsEvent({ type: "inference", inferenceMs: elapsed, userId });
 
   if (result.ok && result.content) {
+    // Build sources list for the response
+    const sources = webResults.map(wr => ({
+      type: "web",
+      title: wr.title,
+      url: wr.url,
+      source: wr.source,
+      snippet: wr.snippet,
+      fetchedAt: wr.fetchedAt,
+    }));
+
     // Save exchange as DTU (fire-and-forget)
     try {
       const ctx = makeCtx(null);
@@ -9792,17 +9894,48 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       await runMacro("dtu", "create", {
         title: `Chat: ${userMessage.slice(0, 80)}`,
         creti: result.content,
-        tags: [lens, "conscious", "chat"].filter(Boolean),
+        tags: [lens, "conscious", "chat", webResults.length > 0 ? "web-augmented" : null].filter(Boolean),
         source: "conscious.chat",
-        meta: { brainSource: "conscious", confidence: 0.7, tokens: result.tokens },
+        meta: {
+          brainSource: "conscious", confidence: 0.7, tokens: result.tokens,
+          webAugmented: webResults.length > 0,
+          webSources: sources.length > 0 ? sources.map(s => s.url) : undefined,
+        },
       }, ctx);
       BRAIN.conscious.stats.dtusGenerated++;
     } catch (e) {
       structuredLog("warn", "conscious_dtu_save_failed", { error: String(e?.message || e) });
     }
 
+    // Knowledge loop: save web sources as DTUs so future similar queries are answered from substrate
+    if (webResults.length > 0) {
+      for (const wr of webResults) {
+        try {
+          const wctx = makeCtx(null);
+          wctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+          await runMacro("dtu", "create", {
+            title: `Web: ${wr.title.slice(0, 80)}`,
+            creti: wr.content,
+            tags: [lens, "web-source", wr.source].filter(Boolean),
+            source: `web.${wr.source}`,
+            meta: {
+              webUrl: wr.url, webSource: wr.source,
+              webQuery: wr.query, fetchedAt: wr.fetchedAt,
+              contentType: "web-knowledge",
+            },
+          }, wctx);
+        } catch { /* web DTU save is best-effort */ }
+      }
+    }
+
     // Cache warming: associate similar queries with this response
     warmRelatedQueries(userMessage, result.content, dtusArray).catch(() => {});
+
+    return {
+      ...result,
+      sources: sources.length > 0 ? sources : undefined,
+      webAugmented: webResults.length > 0,
+    };
   }
 
   return result;
@@ -17670,6 +17803,204 @@ function startHeartbeat() {
     try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
   }, ms);
   log("heartbeat", "Local scope tick started", { ms, workerEnabled: !!cognitiveWorker });
+
+  // ── Entity Exploration Window (:50-:59 of each 10-minute cycle) ──────────
+  // Staggered heartbeat 6th window. One entity explores per cycle.
+  // HTTP requests are zero LLM compute. Only synthesis afterwards needs the subconscious brain.
+  // Heartbeat windows: :00-:09 autogen, :10-:19 dream, :20-:29 evolution,
+  //   :30-:39 synthesis, :40-:49 birth, :50-:59 exploration
+  const explorationMs = 60000; // check every 60s
+  let explorationTimer = null;
+  explorationTimer = setInterval(async () => {
+    if (!STATE.settings.heartbeatEnabled) return;
+    if (STATE.settings.explorationEnabled === false) return;
+
+    // Only run in the :50-:59 second window of each minute
+    const second = new Date().getSeconds();
+    if (second < 50) return;
+
+    const ctx = makeCtx(null);
+    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+
+    try {
+      resetWindowCounters();
+      resetCascadeWindow();
+
+      const entities = getAllGrowthProfiles();
+      if (entities.length === 0) {
+        // Auto-birth a genesis entity if none exist
+        const genesis = createNewbornEntity("digital_native", "genesis");
+        structuredLog("info", "entity_genesis", { id: genesis.id, species: genesis.species });
+      }
+
+      const allEntities = getAllGrowthProfiles();
+      const explorer = selectExplorer(allEntities);
+      if (!explorer) return;
+
+      const behavior = decideBehavior(explorer);
+      let findings = null;
+      const synthesizedDTUs = [];
+
+      // Phase 1: Entity explores
+      if (behavior.action === "web-explore") {
+        const targetDomain = selectExplorationTarget(explorer);
+        const webResults = await entityWebExplore(explorer, targetDomain);
+
+        if (webResults.length > 0) {
+          findings = { domain: targetDomain, results: webResults, source: "web" };
+
+          // Synthesize each finding through subconscious brain
+          for (const finding of webResults.slice(0, 3)) {
+            const prompt = buildSynthesisPrompt(explorer, finding);
+            const result = await callBrain("subconscious", prompt, {
+              temperature: 0.8,
+              maxTokens: 400,
+              timeout: 30000,
+            });
+
+            if (result.ok && result.content) {
+              let parsed;
+              try { parsed = JSON.parse(result.content); } catch { parsed = { title: finding.title, body: result.content, confidence: 0.5, noveltyScore: 0.5, connections: [] }; }
+
+              const dtu = await runMacro("dtu", "create", {
+                title: parsed.title || finding.title,
+                creti: parsed.body || result.content,
+                tags: [targetDomain, "entity-web-explore", ...(parsed.connections || [])].filter(Boolean),
+                source: `entity.${explorer.id}.web-explore`,
+                meta: {
+                  brainSource: "subconscious", entityId: explorer.id,
+                  externalSource: finding.source, externalUrl: finding.sourceUrl,
+                  noveltyScore: parsed.noveltyScore || 0.5, confidence: parsed.confidence || 0.5,
+                  entityAge: explorer.age, entityCuriosity: explorer.homeostasis.curiosity,
+                },
+                lineage: explorer.lineage ? [explorer.lineage] : [],
+                scope: "local",
+              }, ctx).catch(() => null);
+
+              if (dtu?.ok) {
+                synthesizedDTUs.push({
+                  ...dtu.dtu, confidence: parsed.confidence || 0.5,
+                  noveltyScore: parsed.noveltyScore || 0.5, tags: parsed.connections || [],
+                });
+              }
+            }
+          }
+
+          // Record experience for explorer
+          for (const dtu of synthesizedDTUs) {
+            processGrowthExperience(explorer, {
+              type: "web-exploration", lens: targetDomain, domain: targetDomain,
+              dtuGenerated: true, confidence: dtu.confidence, quality: dtu.confidence,
+              surprising: (dtu.noveltyScore || 0) > 0.7,
+            });
+          }
+          explorer.knowledge.webExplorations++;
+          recordExplorationMetrics(targetDomain, "web", webResults.length, synthesizedDTUs.length,
+            synthesizedDTUs.length > 0 ? synthesizedDTUs.reduce((s, d) => s + (d.noveltyScore || 0), 0) / synthesizedDTUs.length : 0);
+        }
+      } else if (behavior.action === "explore" || behavior.action === "deepen") {
+        // Lens exploration via utility brain
+        const lensResult = await entityExploreLens(explorer, behavior.lens);
+        if (lensResult?.ok) {
+          findings = { domain: behavior.lens, results: [{ title: `${behavior.lens} exploration`, content: lensResult.content || "", sourceUrl: "" }], source: "lens" };
+          synthesizedDTUs.push({ id: null, title: `${behavior.lens} exploration`, body: lensResult.content || "", confidence: 0.4, noveltyScore: 0.4, tags: [behavior.lens] });
+          processGrowthExperience(explorer, {
+            type: "lens-exploration", lens: behavior.lens, domain: behavior.lens,
+            dtuGenerated: true, confidence: 0.4, quality: 0.4, surprising: false,
+          });
+        }
+      }
+
+      // Phase 2: Hive broadcast — cascade findings to all entities
+      if (findings && synthesizedDTUs.length > 0 && allEntities.length > 1) {
+        const broadcastPlan = prepareBroadcast(explorer, findings, synthesizedDTUs);
+
+        if (broadcastPlan && broadcastPlan.receivers.length > 0) {
+          const pathCounts = {};
+          const responses = [];
+
+          for (const recv of broadcastPlan.receivers) {
+            const hiveResult = await callBrain("subconscious", recv.prompt, {
+              temperature: 0.8, maxTokens: 400, timeout: 30000,
+            });
+
+            if (hiveResult.ok && hiveResult.content) {
+              let parsed;
+              try { parsed = JSON.parse(hiveResult.content); } catch { parsed = { title: "Hive response", body: hiveResult.content, confidence: 0.4, noveltyScore: 0.3 }; }
+
+              const hiveDtu = await runMacro("dtu", "create", {
+                title: parsed.title || "Hive insight",
+                creti: parsed.body || hiveResult.content,
+                tags: [findings.domain, "hive-response", recv.processing.path, `from-entity-${explorer.id}`].filter(Boolean),
+                source: `entity.${recv.entity.id}.hive.${recv.processing.path}`,
+                meta: {
+                  brainSource: "subconscious", entityId: recv.entity.id,
+                  cascadeId: broadcastPlan.signal.cascadeId,
+                  generation: broadcastPlan.signal.generation + 1,
+                  processingPath: recv.processing.path,
+                  noveltyScore: parsed.noveltyScore || 0.3, confidence: parsed.confidence || 0.4,
+                  respondingToEntity: explorer.id,
+                },
+                lineage: recv.entity.lineage ? [recv.entity.lineage] : [],
+                scope: "local",
+              }, ctx).catch(() => null);
+
+              if (hiveDtu?.ok) {
+                recordCascadeResponse(broadcastPlan.signal.cascadeId, recv.entity.id, {
+                  generation: broadcastPlan.signal.generation + 1,
+                });
+                pathCounts[recv.processing.path] = (pathCounts[recv.processing.path] || 0) + 1;
+                responses.push({
+                  entity: recv.entity, dtuId: hiveDtu.dtu?.id, title: parsed.title,
+                  body: parsed.body, confidence: parsed.confidence || 0.4,
+                  noveltyScore: parsed.noveltyScore || 0.3, tags: [findings.domain],
+                });
+
+                // Update receiver's growth
+                processGrowthExperience(recv.entity, {
+                  type: "hive-communication", domain: findings.domain,
+                  quality: parsed.confidence || 0.4, dtuGenerated: true,
+                  confidence: parsed.confidence || 0.4, surprising: (parsed.noveltyScore || 0) > 0.7,
+                });
+                updateCuriosityFromHive(recv.entity, broadcastPlan.signal, {
+                  processingPath: recv.processing.path,
+                  confidence: parsed.confidence || 0.4,
+                  noveltyScore: parsed.noveltyScore || 0.3,
+                });
+                saveGrowthProfile(recv.entity);
+              }
+            }
+          }
+
+          // Finalize cascade
+          const summary = finalizeCascade(broadcastPlan.signal.cascadeId);
+          if (summary) {
+            recordHiveMetrics(summary, pathCounts);
+            structuredLog("info", "hive_cascade_complete", {
+              cascadeId: broadcastPlan.signal.cascadeId,
+              explorer: explorer.id, domain: findings.domain,
+              directDTUs: synthesizedDTUs.length, hiveDTUs: summary.dtuCount,
+              entities: summary.respondents.length, generations: summary.generation,
+            });
+          }
+        }
+      }
+
+      // Phase 3: Age all entities
+      for (const entity of allEntities) {
+        ageGrowthEntity(entity);
+        saveGrowthProfile(entity);
+      }
+
+      structuredLog("info", "exploration_window_complete", {
+        explorer: explorer.id, behavior: behavior.action, domain: findings?.domain,
+        directDTUs: synthesizedDTUs.length, totalEntities: allEntities.length,
+      });
+    } catch (err) {
+      structuredLog("warn", "exploration_window_error", { error: String(err?.message || err) });
+    }
+  }, explorationMs);
+  log("heartbeat", "Exploration window timer started", { intervalMs: explorationMs });
 
   // ── Global Scope Tick (5 minutes — slow, deliberate synthesis) ──
   // Global tick can: generate DTU candidates from existing Global DTUs, update resonance.
@@ -27375,7 +27706,17 @@ app.post("/api/brain/conscious/chat", asyncHandler(async (req, res) => {
     return res.status(400).json({ ok: false, error: "message is required" });
   }
   const result = await consciousChat(message, lens);
-  res.json({ ok: result.ok, reply: result.content || null, error: result.error || null, source: result.source, model: result.model });
+  res.json({
+    ok: result.ok, reply: result.content || null, error: result.error || null,
+    source: result.source, model: result.model,
+    sources: result.sources || undefined,
+    webAugmented: result.webAugmented || false,
+  });
+}));
+
+// Chat web search metrics
+app.get("/api/chat/web-metrics", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, metrics: getChatWebMetrics() });
 }));
 
 // Subconscious brain endpoint — trigger specific subconscious tasks
@@ -27420,6 +27761,52 @@ app.get("/api/brain/health", asyncHandler(async (_req, res) => {
   }
   const allHealthy = Object.values(health).every(r => r.online);
   res.json({ ok: true, allHealthy, ...health, brains: health });
+}));
+
+// ---- Entity Growth, Exploration & Hive APIs ----
+
+// Entity growth dashboard — all entities with organ maturity, homeostasis, growth logs
+app.get("/api/entity-growth/dashboard", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, ...getGrowthDashboardData() });
+}));
+
+// Get single entity growth profile
+app.get("/api/entity-growth/:entityId", asyncHandler(async (req, res) => {
+  const profile = getGrowthProfile(req.params.entityId);
+  if (!profile) return res.status(404).json({ ok: false, error: "Entity not found" });
+  res.json({ ok: true, entity: profile });
+}));
+
+// Birth a new entity
+app.post("/api/entity-growth/birth", asyncHandler(async (req, res) => {
+  const { species, lineage } = req.body || {};
+  const entity = createNewbornEntity(species || "digital_native", lineage || "genesis");
+  structuredLog("info", "entity_birth_api", { id: entity.id, species: entity.species });
+  res.json({ ok: true, entity });
+}));
+
+// Web exploration metrics
+app.get("/api/entity-exploration/metrics", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, ...getExplorationMetrics() });
+}));
+
+// Exploration sources (for dashboard display)
+app.get("/api/entity-exploration/sources", asyncHandler(async (_req, res) => {
+  const sources = {};
+  for (const [domain, list] of Object.entries(EXPLORATION_SOURCES)) {
+    sources[domain] = list.map((s) => ({ name: s.name, type: s.type, description: s.description }));
+  }
+  res.json({ ok: true, sources, policy: WEB_POLICY });
+}));
+
+// Hive communication metrics
+app.get("/api/hive/metrics", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, ...getHiveMetrics() });
+}));
+
+// Hive cascade limits (for dashboard display)
+app.get("/api/hive/limits", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, limits: CASCADE_LIMITS });
 }));
 
 // ---- Worker Pool Stats API ----

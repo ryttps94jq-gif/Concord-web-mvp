@@ -45,6 +45,7 @@ import {
   Download,
   Users,
   Check,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
@@ -78,6 +79,8 @@ interface Message {
   attachments?: Array<{ name: string; size: number; type: string }>;
   quotedMessageId?: string;
   quotedContent?: string;
+  sources?: Array<{ type: string; title: string; url: string; source: string; snippet?: string; fetchedAt?: string }>;
+  webAugmented?: boolean;
 }
 
 interface Conversation {
@@ -509,7 +512,13 @@ export default function ChatLensPage() {
 
           setIsStreaming(false);
           setStreamingContent('');
-          return { reply: accumulated, refs: (finalOut as Record<string, unknown>)?.refs, streamed: true };
+          return {
+            reply: accumulated,
+            refs: (finalOut as Record<string, unknown>)?.refs,
+            sources: (finalOut as Record<string, unknown>)?.sources,
+            webAugmented: (finalOut as Record<string, unknown>)?.webAugmented,
+            streamed: true,
+          };
         }
 
         // Non-SSE response: fall back to regular JSON
@@ -537,7 +546,9 @@ export default function ChatLensPage() {
         role: 'assistant',
         content: data.reply || data.answer || 'No response',
         timestamp: new Date().toISOString(),
-        refs: data.refs
+        refs: data.refs,
+        sources: data.sources as Message['sources'],
+        webAugmented: !!data.webAugmented,
       };
 
       if (!selectedConversation) {
@@ -960,6 +971,33 @@ export default function ChatLensPage() {
                     <span key={ref.id} className="text-xs px-2 py-1 bg-neon-purple/20 text-neon-purple rounded cursor-pointer hover:bg-neon-purple/30" title={ref.id}>
                       {ref.title}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Web sources panel */}
+            {message.sources && message.sources.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-lattice-border/50">
+                <div className="flex items-center gap-1.5 text-xs text-neon-cyan/80 mb-2">
+                  <Globe className="w-3 h-3" />
+                  <span>Web Sources</span>
+                </div>
+                <div className="space-y-1.5">
+                  {message.sources.map((src, i) => (
+                    <a
+                      key={`${src.url}-${i}`}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 p-1.5 rounded bg-neon-cyan/5 hover:bg-neon-cyan/10 transition-colors group/src"
+                    >
+                      <ExternalLink className="w-3 h-3 mt-0.5 text-neon-cyan/60 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-neon-cyan/90 truncate group-hover/src:text-neon-cyan">{src.title}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{src.source}</p>
+                      </div>
+                    </a>
                   ))}
                 </div>
               </div>

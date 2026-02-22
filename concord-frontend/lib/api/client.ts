@@ -310,6 +310,8 @@ export const apiHelpers = {
 
     feedback: (data: { sessionId: string; rating: 'up' | 'down' | number; messageIndex?: number; comment?: string }) =>
       api.post('/api/chat/feedback', data),
+
+    webMetrics: () => api.get('/api/chat/web-metrics'),
   },
 
   // Cognitive status (combined)
@@ -1497,6 +1499,35 @@ export const apiHelpers = {
     /** Entity explores a lens via utility brain */
     entityExplore: (entityId: string, lens: string) =>
       api.post('/api/brain/entity/explore', { entityId, lens }),
+  },
+
+  // ---- Entity Growth, Exploration & Hive ----
+  entityGrowth: {
+    /** Get full growth dashboard data for all entities */
+    dashboard: () => api.get('/api/entity-growth/dashboard'),
+
+    /** Get a single entity growth profile */
+    get: (entityId: string) => api.get(`/api/entity-growth/${entityId}`),
+
+    /** Birth a new entity */
+    birth: (species?: string, lineage?: string) =>
+      api.post('/api/entity-growth/birth', { species, lineage }),
+  },
+
+  exploration: {
+    /** Get web exploration metrics */
+    metrics: () => api.get('/api/entity-exploration/metrics'),
+
+    /** Get curated exploration sources */
+    sources: () => api.get('/api/entity-exploration/sources'),
+  },
+
+  hive: {
+    /** Get hive cascade metrics */
+    metrics: () => api.get('/api/hive/metrics'),
+
+    /** Get cascade limits configuration */
+    limits: () => api.get('/api/hive/limits'),
   },
 
   // ---- Semantic Intelligence Layer ----
