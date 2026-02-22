@@ -1,7 +1,7 @@
 #!/bin/bash
 # Concord Backup Script
 # Creates a snapshot of:
-#   - SQLite database (online backup)
+#   - SQLite database (online backup + gzip compression + integrity verification)
 #   - Artifacts directory
 # Stores in /data/backups/ with a date-stamped filename.
 # Retains rolling window of 7 backups.
@@ -19,7 +19,7 @@ mkdir -p "$BACKUP_DIR"
 
 echo "[Backup] Starting backup at $TIMESTAMP"
 
-# 1. SQLite online backup
+# 1. SQLite online backup with compression and integrity check
 if [ -f "$DB_PATH" ]; then
   BACKUP_DB="$BACKUP_DIR/concord-$TIMESTAMP.db"
   echo "[Backup] Copying database..."
@@ -29,7 +29,24 @@ if [ -f "$DB_PATH" ]; then
   else
     cp "$DB_PATH" "$BACKUP_DB"
   fi
-  echo "[Backup] Database backed up to $BACKUP_DB"
+
+  # Verify backup integrity before compressing
+  if command -v sqlite3 &>/dev/null; then
+    echo "[Backup] Verifying integrity..."
+    INTEGRITY=$(sqlite3 "$BACKUP_DB" "PRAGMA integrity_check;" 2>&1)
+    if [ "$INTEGRITY" != "ok" ]; then
+      echo "[Backup] INTEGRITY CHECK FAILED for $TIMESTAMP: $INTEGRITY"
+      rm -f "$BACKUP_DB"
+      exit 1
+    fi
+    echo "[Backup] Integrity check: OK"
+  fi
+
+  # Compress the backup
+  echo "[Backup] Compressing..."
+  gzip "$BACKUP_DB"
+  COMPRESSED_SIZE=$(du -h "$BACKUP_DB.gz" | cut -f1)
+  echo "[Backup] Database backed up to $BACKUP_DB.gz ($COMPRESSED_SIZE)"
 else
   echo "[Backup] No database found at $DB_PATH — skipping DB backup"
 fi
@@ -48,11 +65,15 @@ fi
 echo "[Backup] Pruning old backups (keeping $RETAIN_COUNT most recent)..."
 cd "$BACKUP_DIR"
 
-# Prune DB backups
+# Prune compressed DB backups
+ls -t concord-*.db.gz 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | xargs -r rm -f
+
+# Prune uncompressed DB backups (legacy)
 ls -t concord-*.db 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | xargs -r rm -f
 
 # Prune artifact archives
 ls -t artifacts-*.tar.gz 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | xargs -r rm -f
 
+echo "[Backup] $TIMESTAMP — OK ($COMPRESSED_SIZE)"
 echo "[Backup] Done. Backups in $BACKUP_DIR:"
 ls -lh "$BACKUP_DIR" 2>/dev/null || echo "  (empty)"

@@ -1589,4 +1589,27 @@ export const apiHelpers = {
 // Do NOT auto-fetch on module load — that fires before the user logs in
 // and generates error toasts/banners that block the login UI.
 
+/**
+ * Safe wrapper for utility brain calls.
+ * Returns a structured error instead of throwing on failure, rate limiting, or offline.
+ */
+export async function safeUtilityCall(action: string, lens: string, data: Record<string, unknown> = {}) {
+  try {
+    const res = await api.post('/api/utility/call', { action, lens, data });
+    return res.data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      if (status === 429) {
+        return { error: 'Rate limit reached. Please wait a moment.', rateLimited: true };
+      }
+      if (status === 503) {
+        return { error: 'AI features temporarily unavailable.', offline: true };
+      }
+      return { error: 'Something went wrong. Your data is safe.', status };
+    }
+    return { error: 'Connection lost. Reconnecting...', offline: true };
+  }
+}
+
 export default api;

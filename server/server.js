@@ -27381,25 +27381,144 @@ app.post("/api/brain/entity/explore", asyncHandler(async (req, res) => {
   res.json({ ok: result.ok, insight: result.content || null, error: result.error || null, source: result.source });
 }));
 
-// Brain health probe — quick check all three brains
+// Brain health probe — quick check all three brains (used by frontend GracefulFallback + ConnectionStatus)
 app.get("/api/brain/health", asyncHandler(async (_req, res) => {
-  const results = {};
+  const health = {};
   for (const [name, brain] of Object.entries(BRAIN)) {
     try {
-      const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(3000) });
-      results[name] = { healthy: r.ok, status: r.status };
+      const probe = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(3000) });
+      health[name] = {
+        online: probe.ok,
+        healthy: probe.ok,
+        model: brain.model,
+        avgResponseTime: brain.stats.requests > 0 ? Math.round(brain.stats.totalMs / brain.stats.requests) : 0,
+        totalRequests: brain.stats.requests,
+        status: probe.status,
+      };
     } catch (e) {
-      results[name] = { healthy: false, error: String(e?.message || e) };
+      health[name] = { online: false, healthy: false, model: brain.model, error: String(e?.message || e) };
     }
   }
-  const allHealthy = Object.values(results).every(r => r.healthy);
-  res.json({ ok: true, allHealthy, brains: results });
+  const allHealthy = Object.values(health).every(r => r.online);
+  res.json({ ok: true, allHealthy, ...health, brains: health });
 }));
 
 // ---- Worker Pool Stats API ----
 app.get("/api/workers/stats", requireAuth(), requireRole("owner"), (_req, res) => {
   try {
     res.json({ ok: true, ...getPoolStats() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---- Admin: Backup Status Endpoint ----
+app.get("/api/admin/backup/status", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const backupDir = path.join(DATA_DIR, 'backups');
+  try {
+    const files = fs.readdirSync(backupDir);
+    const backups = files
+      .filter(f => f.endsWith('.db.gz') || f.endsWith('.db'))
+      .map(f => {
+        const stat = fs.statSync(path.join(backupDir, f));
+        const dateMatch = f.match(/concord-(\d{8}_\d{6})/);
+        return { filename: f, size: stat.size, date: dateMatch?.[1] || null };
+      })
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+    const lastBackup = backups[0];
+    let hoursSinceBackup = Infinity;
+    if (lastBackup?.date) {
+      const parsed = lastBackup.date.replace(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6');
+      hoursSinceBackup = (Date.now() - new Date(parsed).getTime()) / 3600000;
+    }
+
+    res.json({
+      totalBackups: backups.length,
+      lastBackup: lastBackup?.date || null,
+      hoursSinceLastBackup: Math.round(hoursSinceBackup),
+      healthy: hoursSinceBackup < 26,
+      backups: backups.slice(0, 7),
+    });
+  } catch {
+    res.json({ totalBackups: 0, lastBackup: null, hoursSinceLastBackup: Infinity, healthy: false, backups: [] });
+  }
+}));
+
+// ---- Admin: Centralized Logs Endpoint ----
+app.get("/api/admin/logs", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  try {
+    const logMod = await import("./logger.js");
+    const { level, source, lens, since, search, limit } = req.query;
+    const logs = logMod.query({ level, source, lens, since, search, limit: parseInt(limit) || 100 });
+    res.json({ logs, total: logs.length });
+  } catch {
+    res.json({ logs: [], total: 0 });
+  }
+}));
+
+// ---- Admin: Log Stream (SSE) ----
+app.get("/api/admin/logs/stream", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  let logMod;
+  try { logMod = await import("./logger.js"); } catch { return res.status(500).end(); }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const buf = logMod.getBuffer();
+  let lastIndex = buf.length;
+  const interval = setInterval(() => {
+    try {
+      const newLogs = buf.slice(lastIndex);
+      if (newLogs.length > 0) {
+        for (const entry of newLogs) {
+          res.write(`data: ${JSON.stringify(entry)}\n\n`);
+        }
+        lastIndex = buf.length;
+      }
+    } catch { /* ignore */ }
+  }, 1000);
+
+  req.on('close', () => clearInterval(interval));
+}));
+
+// ---- Admin: SSL Status Endpoint ----
+app.get("/api/admin/ssl/status", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const { exec } = await import("child_process");
+  exec('certbot certificates 2>/dev/null', (err, stdout) => {
+    const expiryMatch = stdout?.match(/Expiry Date: (.+?) /);
+    const expiry = expiryMatch ? new Date(expiryMatch[1]) : null;
+    const daysRemaining = expiry ? Math.round((expiry.getTime() - Date.now()) / 86400000) : null;
+    res.json({
+      expiry: expiry?.toISOString() || null,
+      daysRemaining,
+      healthy: daysRemaining !== null && daysRemaining > 14,
+      warning: daysRemaining !== null && daysRemaining <= 30,
+    });
+  });
+}));
+
+// ---- Admin: Repair Build Endpoint ----
+app.post("/api/admin/repair-build", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const { exec } = await import("child_process");
+  res.json({ ok: true, message: 'Repair cortex started' });
+  exec('bash server/scripts/repair-cortex.sh', (err, stdout, stderr) => {
+    const success = !err;
+    structuredLog(success ? "info" : "warn", "repair_cortex_result", {
+      success, output: String(stdout).slice(-2000), stderr: String(stderr).slice(-500),
+    });
+  });
+}));
+
+// ---- Admin: Queue Stats Endpoint ----
+app.get("/api/admin/queue/stats", requireAuth(), requireRole("owner"), (_req, res) => {
+  try {
+    const stats = {};
+    for (const [name, brain] of Object.entries(BRAIN)) {
+      stats[name] = { requests: brain.stats.requests, errors: brain.stats.errors, dtusGenerated: brain.stats.dtusGenerated };
+    }
+    res.json({ ok: true, queues: stats });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
   }

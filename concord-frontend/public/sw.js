@@ -146,12 +146,17 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(request).then((cached) => {
-            return cached || new Response(JSON.stringify({ ok: false, error: 'Offline' }), {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' },
-            });
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) {
+            // Add header so frontend knows this is stale data
+            const headers = new Headers(cached.headers);
+            headers.set('X-Concord-Stale', 'true');
+            return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
+          }
+          return new Response(JSON.stringify({ ok: false, error: 'Offline', stale: true }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
           });
         })
     );

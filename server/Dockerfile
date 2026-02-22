@@ -24,6 +24,11 @@ RUN npm ci --omit=dev || (sleep 5 && npm ci --omit=dev) || (sleep 10 && npm ci -
 # Copy app code
 COPY . .
 
+# Run tests before building production image — build fails if any test fails
+ENV NODE_ENV=test
+ENV CONCORD_NO_LISTEN=true
+RUN node --test 'tests/auth.test.js' 'tests/brain-routing.test.js' 'tests/dtu.test.js' 'tests/semantic-cache.test.js' 'tests/embeddings.test.js' 'tests/marketplace.test.js' 'tests/heartbeat.test.js' 'tests/api-endpoints.test.js' || (echo "Tests failed — aborting build" && exit 1)
+
 ENV NODE_ENV=production
 ENV PORT=5050
 ENV DATA_DIR=/data

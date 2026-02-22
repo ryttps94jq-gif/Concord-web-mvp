@@ -46,6 +46,13 @@ services:
       - FEDERATION_ENABLED=${FEDERATION_ENABLED:-false}
       # Unsafe surfaces — disabled by default in production
       - ENABLE_TERMINAL_EXEC=${ENABLE_TERMINAL_EXEC:-false}
+    depends_on:
+      ollama-conscious:
+        condition: service_healthy
+      ollama-subconscious:
+        condition: service_healthy
+      ollama-utility:
+        condition: service_healthy
     volumes:
       - concord-data:/data
     networks:
@@ -78,7 +85,8 @@ services:
     environment:
       - NODE_ENV=production
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     volumes:
       - frontend-data:/data
     networks:
