@@ -514,7 +514,7 @@ export default function MetacognitionLensPage() {
                           <p className="font-medium text-sm">
                             {String(spot.description || spot.domain || spot.name || spot)}
                           </p>
-                          {spot.severity && (
+                          {!!spot.severity && (
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${badge.cls}`}
                             >
@@ -522,12 +522,12 @@ export default function MetacognitionLensPage() {
                             </span>
                           )}
                         </div>
-                        {spot.recommendation && (
+                        {!!spot.recommendation && (
                           <p className="text-xs text-gray-400 mt-1">
                             {String(spot.recommendation)}
                           </p>
                         )}
-                        {spot.detected_at && (
+                        {!!spot.detected_at && (
                           <p className="text-xs text-gray-500 mt-1">
                             Detected: {formatTimestamp(spot.detected_at)}
                           </p>
@@ -560,7 +560,7 @@ export default function MetacognitionLensPage() {
                         </p>
                         <p className="text-xs text-gray-400">Accuracy</p>
                       </div>
-                      {cal.trend && (
+                      {!!cal.trend && (
                         <div className="flex items-center gap-1 text-sm">
                           {trendIcon(cal.trend)}
                           <span className="text-gray-400 capitalize">{String(cal.trend)}</span>
@@ -755,10 +755,10 @@ export default function MetacognitionLensPage() {
                         {formatTimestamp(entry.timestamp || entry.created_at || entry.date)}
                       </span>
                     </div>
-                    {entry.summary && (
+                    {!!entry.summary && (
                       <p className="text-xs text-gray-400">{String(entry.summary)}</p>
                     )}
-                    {entry.findings && (
+                    {!!entry.findings && (
                       <p className="text-xs text-gray-400 mt-1">
                         Findings: {typeof entry.findings === 'string' ? entry.findings : JSON.stringify(entry.findings)}
                       </p>
@@ -980,8 +980,8 @@ export default function MetacognitionLensPage() {
                             {typeof p.confidence === 'number' && (
                               <span>Conf: {(p.confidence * 100).toFixed(0)}%</span>
                             )}
-                            {p.domain && <span>Domain: {String(p.domain)}</span>}
-                            {(p.timestamp || p.created_at) && (
+                            {!!p.domain && <span>Domain: {String(p.domain)}</span>}
+                            {!!(p.timestamp || p.created_at) && (
                               <span>{formatTimestamp(p.timestamp || p.created_at)}</span>
                             )}
                           </div>
@@ -1117,12 +1117,12 @@ export default function MetacognitionLensPage() {
                               JSON.stringify(insight)
                           )}
                         </p>
-                        {insight.domain && (
+                        {!!insight.domain && (
                           <span className="text-xs text-gray-500">
                             Domain: {String(insight.domain)}
                           </span>
                         )}
-                        {(insight.timestamp || insight.learned_at) && (
+                        {!!(insight.timestamp || insight.learned_at) && (
                           <span className="text-xs text-gray-500 ml-2">
                             {formatTimestamp(insight.timestamp || insight.learned_at)}
                           </span>
@@ -1172,12 +1172,12 @@ export default function MetacognitionLensPage() {
                           </span>
                         </div>
                       )}
-                      {pattern.occurrences && (
+                      {!!pattern.occurrences && (
                         <p className="text-xs text-gray-500 mt-1">
                           Occurrences: {String(pattern.occurrences)}
                         </p>
                       )}
-                      {pattern.category && (
+                      {!!pattern.category && (
                         <span className="inline-block text-xs bg-neon-purple/10 text-neon-purple px-2 py-0.5 rounded mt-1">
                           {String(pattern.category)}
                         </span>

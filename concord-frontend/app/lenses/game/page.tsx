@@ -83,6 +83,31 @@ interface ShopItem {
   owned: boolean;
 }
 
+interface XpHistoryEntry {
+  day: string;
+  xp: number;
+  label: string;
+}
+
+interface GameProfile {
+  name: string;
+  title: string;
+  level: number;
+  xp: number;
+  nextLevelXp: number;
+  totalXpEarned: number;
+  achievements: number;
+  totalAchievements: number;
+  streak: number;
+  longestStreak: number;
+  questsCompleted: number;
+  challengesWon: number;
+  joinDate: string;
+  rank: number;
+  completionRate: number;
+  xpHistory: XpHistoryEntry[];
+}
+
 // ---------------------------------------------------------------------------
 // Initial state — empty; all data comes from the backend API
 // ---------------------------------------------------------------------------
@@ -233,7 +258,7 @@ export default function GameLensPage() {
   // Sync profile data into local state when available
   useEffect(() => {
     if (profileData?.xp && profileData.xp !== playerXp) {
-      setPlayerXp(profileData.xp);
+      setPlayerXp(profileData.xp as number);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileData]);
@@ -307,15 +332,15 @@ export default function GameLensPage() {
   }, [allQuests, questFilter]);
 
   const sortedLeaderboard = useMemo(() => {
-    const apiPlayers = leaderboardData || [];
+    const apiPlayers = (leaderboardData || []) as unknown as LeaderboardPlayer[];
     return [...apiPlayers].sort((a: LeaderboardPlayer, b: LeaderboardPlayer) => b.xp - a.xp);
   }, [leaderboardData]);
 
-  const profile = profileData || { level: 1, xp: 0, nextLevelXp: 1000, totalXpEarned: 0, achievements: 0, totalAchievements: 0, streak: 0, longestStreak: 0, questsCompleted: 0, challengesWon: 0, completionRate: 0, rank: 0, xpHistory: [] };
-  const xpHistory = profile.xpHistory || [];
+  const profile = (profileData || { level: 1, xp: 0, nextLevelXp: 1000, totalXpEarned: 0, achievements: 0, totalAchievements: 0, streak: 0, longestStreak: 0, questsCompleted: 0, challengesWon: 0, completionRate: 0, rank: 0, xpHistory: [] }) as unknown as GameProfile;
+  const xpHistory: XpHistoryEntry[] = (profile.xpHistory || []) as XpHistoryEntry[];
   const xpMax = Math.max(1, ...xpHistory.map((d: { xp: number }) => d.xp));
   const level = profile.level || 1;
-  const progressPct = ((playerXp) / (profile.nextLevelXp || 1000)) * 100;
+  const progressPct = ((playerXp) / ((profile.nextLevelXp as number) || 1000)) * 100;
 
   const TABS: { id: MainTab; label: string; icon: typeof Trophy }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -456,14 +481,14 @@ export default function GameLensPage() {
           <div className="panel p-4">
             <h3 className="text-sm font-semibold text-gray-300 mb-3">This Week&apos;s XP</h3>
             <div className="flex items-end gap-2 h-32">
-              {xpHistory.map((d: { day: string; xp: number }) => (
+              {xpHistory.map((d: XpHistoryEntry, dIndex: number) => (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-xs text-gray-500 font-mono">{d.xp}</span>
                   <motion.div
                     className="w-full rounded-t bg-gradient-to-t from-neon-purple to-neon-cyan"
                     initial={{ height: 0 }}
                     animate={{ height: `${(d.xp / xpMax) * 100}%` }}
-                    transition={{ duration: 0.6, delay: 0.05 * xpHistory.indexOf(d) }}
+                    transition={{ duration: 0.6, delay: 0.05 * dIndex }}
                   />
                   <span className="text-xs text-gray-400">{d.day}</span>
                 </div>

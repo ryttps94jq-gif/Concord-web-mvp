@@ -187,7 +187,7 @@ export default function StudioLensPage() {
   });
 
   const deleteTrackMutation = useMutation({
-    mutationFn: (trackId: string) => apiHelpers.artistry.studio.tracks.remove(activeProjectId!, trackId),
+    mutationFn: (trackId: string) => apiHelpers.artistry.studio.tracks.delete(activeProjectId!, trackId),
     onSuccess: () => refetchProject(),
   });
 
@@ -198,18 +198,18 @@ export default function StudioLensPage() {
   });
 
   const masterMutation = useMutation({
-    mutationFn: () => apiHelpers.artistry.studio.master({ projectId: activeProjectId }),
+    mutationFn: () => apiHelpers.artistry.studio.master({ projectId: activeProjectId ?? '' }),
     onSuccess: () => refetchProject(),
     onError: (err) => { console.error('Mastering failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiAnalyzeMutation = useMutation({
-    mutationFn: () => apiHelpers.artistry.ai.analyzeProject({ projectId: activeProjectId }),
+    mutationFn: () => apiHelpers.artistry.ai.analyzeProject({ projectId: activeProjectId ?? '' }),
     onError: (err) => { console.error('AI analysis failed:', err instanceof Error ? err.message : err); },
   });
 
   const aiSessionMutation = useMutation({
-    mutationFn: (question: string) => apiHelpers.artistry.ai.session({ projectId: activeProjectId, question }),
+    mutationFn: (question: string) => apiHelpers.artistry.ai.session({ projectId: activeProjectId ?? undefined, question }),
     onError: (err) => { console.error('AI session failed:', err instanceof Error ? err.message : err); },
   });
 
@@ -217,7 +217,7 @@ export default function StudioLensPage() {
     mutationFn: () => apiHelpers.artistry.ai.suggestChords({
       key: (activeProject as Project)?.key || 'C',
       scale: (activeProject as Project)?.scale || 'major',
-      genre: (activeProject as Project)?.genre,
+      genre: (activeProject as Project)?.genre ?? undefined,
     }),
     onError: (err) => { console.error('Chord suggestions failed:', err instanceof Error ? err.message : err); },
   });
@@ -238,6 +238,8 @@ export default function StudioLensPage() {
       refetchProject();
     },
   });
+
+  const proj = activeProject as Project | null;
 
   // Export project as JSON
   const handleExportProject = useCallback(() => {
@@ -270,8 +272,6 @@ export default function StudioLensPage() {
       genre: newGenre || undefined,
     });
   }, [newTitle, newBpm, newKey, newGenre, createProjectMutation]);
-
-  const proj = activeProject as Project | null;
 
   const renderTransportBar = () => (
     <div className="h-12 bg-black/60 border-b border-white/10 flex items-center px-4 gap-4">
