@@ -87,6 +87,13 @@ import {
   getGuardianStatus,
   runGuardianCheck,
   runProphet,
+  observe,
+  getErrorAccumulator,
+  startRepairLoop,
+  stopRepairLoop,
+  forceRepairCycle,
+  executeRepairExecutor,
+  getFullRepairStatus,
 } from "./emergent/repair-cortex.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
@@ -622,6 +629,9 @@ async function gracefulShutdown(signal) {
 
   console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
 
+  // Stop repair cortex loop
+  try { stopRepairLoop(); } catch { /* best-effort */ }
+
   // Stop accepting new connections
   if (global.httpServer) {
     global.httpServer.close(() => {
@@ -649,8 +659,43 @@ async function gracefulShutdown(signal) {
 // Register shutdown handlers
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+const _uncaughtTimestamps = [];
 process.on("uncaughtException", (err) => {
   structuredLog("fatal", "uncaught_exception", { error: err.message, stack: err.stack });
+
+  // Give repair cortex ONE chance before dying
+  try {
+    observe(err, "uncaughtException");
+
+    const diagnosis = matchErrorPattern(err.message);
+    if (diagnosis?.fixes?.[0]?.confidence >= 0.9) {
+      addToRepairMemory(err.message, diagnosis.fixes[0]);
+      structuredLog("warn", "uncaught_repair_attempted", {
+        error: err.message,
+        pattern: diagnosis.key,
+      });
+
+      // Only exit if this is the 3rd uncaught in 60 seconds
+      // (rapid-fire uncaughts = system is truly broken)
+      const now = Date.now();
+      _uncaughtTimestamps.push(now);
+      while (_uncaughtTimestamps.length > 0 && _uncaughtTimestamps[0] < now - 60000) {
+        _uncaughtTimestamps.shift();
+      }
+
+      if (_uncaughtTimestamps.length >= 3) {
+        structuredLog("fatal", "uncaught_cascade", {
+          count: _uncaughtTimestamps.length,
+          message: "3+ uncaught exceptions in 60s — exiting for clean restart",
+        });
+        gracefulShutdown("uncaughtException_cascade");
+      }
+      return; // Survive this one — repair cycle will attempt fix
+    }
+  } catch {
+    // Repair cortex itself failed — fall through to shutdown
+  }
+
   gracefulShutdown("uncaughtException");
 });
 process.on("unhandledRejection", async (reason, _promise) => {
@@ -2355,7 +2400,7 @@ function maybeShadowPromotion(dtu) {
   try {
     wireShadowEdges_pattern(STATE, shadowDtu, dtu.id, matchingIds);
     enrichShadowCoreFields(STATE, shadowDtu, { sourceId: dtu.id, matchingIds });
-  } catch (_) { /* shadow graph wiring is best-effort */ }
+  } catch (_) { observe(_, "shadow_graph_pattern_wiring"); }
 
   return { promoted: true, shadowId, invariants: promotable };
 }
@@ -2635,7 +2680,7 @@ function maybeWriteLinguisticShadowDTU({ phrase="", expands=[], topIds=[] } = {}
     try {
       wireShadowEdges_linguistic(STATE, dtu, (topIds||[]).slice(0,12));
       enrichShadowCoreFields(STATE, dtu, { topIds: (topIds||[]).slice(0,12) });
-    } catch (_) { /* shadow graph wiring is best-effort */ }
+    } catch (_) { observe(_, "shadow_graph_linguistic_enrichment"); }
 
     saveStateDebounced();
     return { ok:true, id: dtu.id };
@@ -5894,9 +5939,9 @@ async function runMacro(domain, name, input, ctx) {
     const actorInfo = { userId: actor?.userId, role: actor?.role, scopes: actor?.scopes };
     try {
       // fireHook before dispatch (best-effort)
-      try { fireHook(STATE, "macro:beforeExecute", { domain, name, input, offloaded: true }); } catch { /* best-effort */ }
+      try { fireHook(STATE, "macro:beforeExecute", { domain, name, input, offloaded: true }); } catch (e) { observe(e, "macro_hook_before_execute_pool"); }
       const poolResult = await dispatchToPool(domain, name, input, actorInfo);
-      try { fireHook(STATE, "macro:afterExecute", { domain, name, result: poolResult, offloaded: true }); } catch { /* best-effort */ }
+      try { fireHook(STATE, "macro:afterExecute", { domain, name, result: poolResult, offloaded: true }); } catch (e) { observe(e, "macro_hook_after_execute_pool"); }
       return poolResult;
     } catch (poolErr) {
       // If worker doesn't support this macro, fall through to main thread execution
@@ -5929,7 +5974,7 @@ async function runMacro(domain, name, input, ctx) {
   }
 
   // Plugin macro hooks (best-effort, never block macro execution)
-  try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch (e) { observe(e, "macro_hook_before_execute_main"); }
   let result;
   try {
     result = await m.fn(ctx, input ?? {});
@@ -5938,17 +5983,17 @@ async function runMacro(domain, name, input, ctx) {
     try {
       const painMod = await import("./emergent/avoidance-learning.js").catch(() => null);
       if (painMod?.recordPain) painMod.recordPain({ domain, name, error: String(macroErr?.message || macroErr) });
-    } catch {}
+    } catch (e) { observe(e, "macro_failure_pain_recording"); }
     throw macroErr;
   }
-  try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch (e) { observe(e, "macro_hook_after_execute_main"); }
 
   // Institutional memory: record significant actions
   if (!_domainNameAllowed && _method !== "GET") {
     try {
       const memMod = await import("./emergent/institutional-memory.js").catch(() => null);
       if (memMod?.recordObservation) memMod.recordObservation(STATE, { type: "macro_write", domain, name, ok: !!result?.ok });
-    } catch {}
+    } catch (e) { observe(e, "macro_write_memory_recording"); }
   }
 
   return result;
@@ -8248,7 +8293,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   }
 
   // Fire plugin before-hooks
-  try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch (e) { observe(e, "dtu_hook_before_write"); }
 
   // Attach qualia snapshot to new DTUs (existential OS provenance)
   if (isNew) {
@@ -8259,17 +8304,17 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         const _qs = _qe.getQualiaSummary(_creator);
         if (_qs) { if (!dtu.meta) dtu.meta = {}; dtu.meta.qualia = _qs; }
       }
-    } catch { /* silent */ }
+    } catch (e) { observe(e, "dtu_qualia_snapshot"); }
   }
 
   STATE.dtus.set(dtu.id, dtu);
   saveStateDebounced();
 
   // Fire plugin after-hooks
-  try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch (e) { observe(e, "dtu_hook_after_write"); }
 
   // Qualia hook: notify existential OS of DTU creation
-  if (isNew) { try { globalThis.qualiaHooks?.hookDTUCreation(dtu.entityId || dtu.source || "system", dtu); } catch { /* silent */ } }
+  if (isNew) { try { globalThis.qualiaHooks?.hookDTUCreation(dtu.entityId || dtu.source || "system", dtu); } catch (e) { observe(e, "dtu_qualia_hook_creation"); } }
 
   // Broadcast DTU change via WebSocket (local-first realtime)
   if (broadcast && REALTIME.ready) {
@@ -8282,7 +8327,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         tags: dtu.tags,
         updatedAt: dtu.updatedAt
       });
-    } catch { /* best-effort */ }
+    } catch (e) { observe(e, "dtu_realtime_broadcast"); }
   }
 
   // Optionally broadcast to federation (multi-node sync)
@@ -9722,6 +9767,15 @@ async function initThreeBrains() {
 
 // Initialize brains after a short delay (let Ollama instances start)
 setTimeout(() => initThreeBrains(), 3000);
+
+// ── Repair Cortex Runtime Loop ────────────────────────────────────────────
+// Expose MACROS, BRAIN, STATE globally so repair cortex executors can access them.
+// Start the runtime repair loop after brains init (10s delay).
+globalThis._concordMACROS = MACROS;
+globalThis._concordBRAIN = BRAIN;
+globalThis._concordSTATE = STATE;
+globalThis._repairObserve = observe;
+setTimeout(() => startRepairLoop(), 10000);
 
 // ── Semantic Intelligence Layer Initialization ────────────────────────────
 // Initialize after brains come online (embeddings use Ollama)
@@ -12075,7 +12129,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers: _maxNewHyper
   }
 
   // Enforce budgets after synthesis
-  try { enforceTierBudgets(); } catch {}
+  try { enforceTierBudgets(); } catch (e) { observe(e, "tier_budget_enforcement_post_synthesis"); }
 
   // Record last promotion
   STATE.abstraction.lastPromotionAt = nowISO();
@@ -12222,15 +12276,15 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     // ===== AUTO WORLD MODEL UPDATE =====
     // Every new DTU feeds into the world model: extract entities, detect relations,
     // find contradictions, update confidence. This makes the world model self-correcting.
-    try { autoUpdateWorldModel(dtu); } catch {}
+    try { autoUpdateWorldModel(dtu); } catch (e) { observe(e, "auto_world_model_update_on_dtu"); }
     // ===== END AUTO WORLD MODEL UPDATE =====
 
     // ===== SEMANTIC EMBEDDING (async, never blocks) =====
     embedDTU(dtu).catch(() => {});
 
     // Keep high-tier sparse & maintain metrics periodically
-    try { enforceTierBudgets(); } catch {}
-    try { await maybeRunLocalUpgrade(); } catch {}
+    try { enforceTierBudgets(); } catch (e) { observe(e, "tier_budget_enforcement_post_dtu"); }
+    try { await maybeRunLocalUpgrade(); } catch (e) { observe(e, "local_upgrade_attempt_post_dtu"); }
 
     p.status = "installed";
     p.install = { installedAt: nowISO(), snapshotBefore: null };
@@ -18774,22 +18828,22 @@ async function governorTick(reason="heartbeat") {
     const ctx = _governorCtx();
 
     // 1) Deterministic + bounded growth engines
-    if (s.autogenEnabled)  { try { await runMacro("system","autogen",{ override:true, reason }, ctx); } catch {} }
-    if (s.dreamEnabled)    { try { await runMacro("system","dream",{ override:true, reason }, ctx); } catch {} }
-    if (s.evolutionEnabled){ try { await runMacro("system","evolution",{ override:true, reason }, ctx); } catch {} }
-    if (s.synthEnabled)    { try { await runMacro("system","synth",{ override:true, reason }, ctx); } catch {} }
+    if (s.autogenEnabled)  { try { await runMacro("system","autogen",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_autogen_heartbeat"); } }
+    if (s.dreamEnabled)    { try { await runMacro("system","dream",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_dream_heartbeat"); } }
+    if (s.evolutionEnabled){ try { await runMacro("system","evolution",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_evolution_heartbeat"); } }
+    if (s.synthEnabled)    { try { await runMacro("system","synth",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_synth_heartbeat"); } }
 
     // 2) Queue processing (best-effort; only if macros exist)
-    try { await runMacro("jobs","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("queue","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("ingest","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("crawl","tick",{ override:true, reason }, ctx); } catch {}
+    try { await runMacro("jobs","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_jobs_tick"); }
+    try { await runMacro("queue","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_queue_tick"); }
+    try { await runMacro("ingest","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_ingest_tick"); }
+    try { await runMacro("crawl","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_crawl_tick"); }
 
     // 2.5) Goal System: process goal proposals and track active goals
-    try { await processGoalHeartbeat(ctx); } catch {}
+    try { await processGoalHeartbeat(ctx); } catch (e) { observe(e, "governor_goal_heartbeat"); }
 
     // 2.6) Autonomous Agent Scheduler: tick enabled agents at their cadenceMs
-    try { await tickEnabledAgents(ctx); } catch {}
+    try { await tickEnabledAgents(ctx); } catch (e) { observe(e, "governor_agent_scheduler_tick"); }
 
     // 2.7) Emergent systems background ticks (new systems: agents, research, sleep, death, hypothesis, culture)
     try {
@@ -28535,6 +28589,11 @@ app.get("/api/admin/repair/status", requireAuth(), requireRole("owner"), (_req, 
     maxConsecutiveFailures: REPAIR_STATE.maxConsecutiveFailures,
     recentFixes: REPAIR_STATE.fixHistory.slice(-20),
     repairBrainOnline: BRAIN.repair.enabled,
+    // Runtime repair cortex (new — unified system)
+    cortex: {
+      errorAccumulator: getErrorAccumulator(),
+      repairMemory: getRepairMemoryStats(),
+    },
   });
 });
 
@@ -28542,6 +28601,37 @@ app.get("/api/admin/repair/status", requireAuth(), requireRole("owner"), (_req, 
 app.get("/api/admin/repair/patterns", requireAuth(), requireRole("owner"), (_req, res) => {
   res.json({ patterns: REPAIR_STATE.knownPatterns });
 });
+
+// ── Sovereign Repair Dashboard Endpoints ──────────────────────────────────
+
+// Full cortex status — everything in one call
+app.get("/api/admin/repair/full-status", requireAuth(), requireRole("owner"), (_req, res) => {
+  res.json(getFullRepairStatus());
+});
+
+// Error accumulator — what the cortex has observed
+app.get("/api/admin/repair/accumulator", requireAuth(), requireRole("owner"), (_req, res) => {
+  res.json(getErrorAccumulator());
+});
+
+// Force a repair cycle immediately
+app.post("/api/admin/repair/force-cycle", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const result = await forceRepairCycle();
+  res.json(result);
+}));
+
+// Execute a specific executor manually
+app.post("/api/admin/repair/execute/:executor", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const result = await executeRepairExecutor(req.params.executor, req.body.context || {});
+  res.json(result);
+}));
+
+// Rollback a macro hot-swap
+app.post("/api/admin/repair/rollback-macro", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const { EXECUTORS: EX } = await import("./emergent/repair-cortex.js");
+  const result = await EX.rollback_macro.execute(req.body);
+  res.json(result);
+}));
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 

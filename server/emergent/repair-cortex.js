@@ -238,6 +238,79 @@ export function getAllRepairPatterns() {
   }
 }
 
+// ── Error Accumulator + observe() ────────────────────────────────────────────
+// Replaces empty catch blocks. The cortex sees everything now.
+
+const _errorAccumulator = new Map();
+
+/**
+ * Silent error sensor. Replaces empty catch blocks.
+ * Does NOT throw or disrupt flow. Just observes.
+ * The cortex sees everything now.
+ */
+export function observe(error, context = "unknown") {
+  try {
+    const key = hashPattern(`${context}:${error?.message || error}`);
+
+    const existing = _errorAccumulator.get(key);
+    if (existing) {
+      existing.count++;
+      existing.lastSeen = nowISO();
+      // Only log DTU on powers of 2 (1, 2, 4, 8, 16, 32...)
+      // Prevents flooding while still tracking escalation
+      if ((existing.count & (existing.count - 1)) === 0) {
+        logRepairDTU(REPAIR_PHASES.POST_BUILD, "recurring_error", {
+          context,
+          message: String(error?.message || error).slice(0, 200),
+          count: existing.count,
+          firstSeen: existing.firstSeen,
+          pattern: key,
+        });
+      }
+      return;
+    }
+
+    _errorAccumulator.set(key, {
+      context,
+      message: String(error?.message || error).slice(0, 500),
+      stack: String(error?.stack || "").slice(0, 1000),
+      count: 1,
+      firstSeen: nowISO(),
+      lastSeen: nowISO(),
+    });
+
+    // Cap accumulator at 1000 entries — evict oldest
+    if (_errorAccumulator.size > 1000) {
+      let oldestKey = null, oldestTime = Infinity;
+      for (const [k, v] of _errorAccumulator) {
+        const t = new Date(v.firstSeen).getTime();
+        if (t < oldestTime) { oldestTime = t; oldestKey = k; }
+      }
+      if (oldestKey) _errorAccumulator.delete(oldestKey);
+    }
+
+    // First occurrence — check if repair cortex knows a fix
+    const diagnosis = matchErrorPattern(String(error?.message || error));
+    if (diagnosis) {
+      addToRepairMemory(String(error?.message || error), diagnosis.fixes?.[0]);
+    }
+  } catch { /* observe() itself NEVER throws */ }
+}
+
+export function getErrorAccumulator() {
+  try {
+    return {
+      ok: true,
+      size: _errorAccumulator.size,
+      entries: Array.from(_errorAccumulator.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 50),
+    };
+  } catch {
+    return { ok: true, size: 0, entries: [] };
+  }
+}
+
 // ── DTU Audit Trail ─────────────────────────────────────────────────────────
 // Every repair logged as a DTU. Full transparency.
 
@@ -3177,6 +3250,589 @@ export async function runGuardianCheck(name) {
   }
 }
 
+// ── Runtime Repair Loop ─────────────────────────────────────────────────────
+// The beating heart of self-healing. Scans error accumulator for patterns,
+// attempts fixes, learns from results.
+//
+// Three layers, tried in order:
+//   1. Pattern Memory — instant match from learned fixes
+//   2. Deterministic Executor — hardcoded fix for known categories
+//   3. AI Diagnosis — repair brain (0.5b) reasons about unknown errors
+//
+// Every fix attempt is tracked. Success rate determines
+// whether a pattern gets reused or deprecated.
+
+const RUNTIME_REPAIR_INTERVAL = 30000; // 30 seconds
+let _repairLoopTimer = null;
+let _repairLoopRunning = false;
+
+// ── Deterministic Executors ─────────────────────────────────────────────────
+// These are the ACTUAL fixes. Not text descriptions. Real functions.
+
+const EXECUTORS = {
+  // ── State Repairs ────────────────────────────────────────────────────────
+  rebuild_dtu_index: {
+    category: "state",
+    description: "Rebuild DTU index from DTU map",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && S.dtus instanceof Map);
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S || !(S.dtus instanceof Map)) return { success: false, reason: "no STATE" };
+      S.dtuIndex = Array.from(S.dtus.keys());
+      return { success: true, newIndexSize: S.dtuIndex.length };
+    },
+  },
+
+  clear_stuck_sessions: {
+    category: "state",
+    description: "Clear sessions stuck in processing state for > 5 minutes",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && S.sessions instanceof Map);
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S || !(S.sessions instanceof Map)) return { success: false, reason: "no STATE" };
+      let cleared = 0;
+      const fiveMinAgo = Date.now() - 300000;
+      for (const [, session] of S.sessions) {
+        if (session._processing && session._processingStarted < fiveMinAgo) {
+          session._processing = false;
+          session._processingStarted = null;
+          cleared++;
+        }
+      }
+      return { success: true, clearedSessions: cleared };
+    },
+  },
+
+  reset_autogen_stall: {
+    category: "pipeline",
+    description: "Reset stalled autogen pipeline",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && S.autogenEnabled && S.lastAutogenTime &&
+        (Date.now() - new Date(S.lastAutogenTime).getTime()) > 600000);
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S) return { success: false, reason: "no STATE" };
+      S._autogenLock = false;
+      S._autogenQueue = [];
+      S.lastAutogenTime = new Date().toISOString();
+      return { success: true, message: "autogen pipeline reset" };
+    },
+  },
+
+  // ── Resource Repairs ─────────────────────────────────────────────────────
+  force_gc: {
+    category: "resource",
+    description: "Force garbage collection",
+    canApply: () => typeof global.gc === "function",
+    execute: async () => {
+      const before = process.memoryUsage().heapUsed;
+      global.gc();
+      const after = process.memoryUsage().heapUsed;
+      return { success: true, freedMB: Math.round((before - after) / 1024 / 1024) };
+    },
+  },
+
+  evict_old_sessions: {
+    category: "resource",
+    description: "Evict sessions older than 1 hour",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && S.sessions instanceof Map && S.sessions.size > 100);
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S || !(S.sessions instanceof Map)) return { success: false, reason: "no STATE" };
+      const oneHourAgo = Date.now() - 3600000;
+      let evicted = 0;
+      for (const [id, session] of S.sessions) {
+        const lastActive = new Date(session.lastActivity || session.createdAt || 0).getTime();
+        if (lastActive < oneHourAgo) {
+          S.sessions.delete(id);
+          evicted++;
+        }
+      }
+      return { success: true, evictedSessions: evicted, remaining: S.sessions.size };
+    },
+  },
+
+  cap_shadow_dtus: {
+    category: "resource",
+    description: "Cap shadow DTUs at 5000, evict lowest-authority",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && S.shadowDtus instanceof Map && S.shadowDtus.size > 5000);
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S || !(S.shadowDtus instanceof Map)) return { success: false, reason: "no STATE" };
+      const entries = Array.from(S.shadowDtus.entries())
+        .sort((a, b) => (a[1].authority?.score || 0) - (b[1].authority?.score || 0));
+      const toEvict = entries.slice(0, entries.length - 5000);
+      for (const [id] of toEvict) S.shadowDtus.delete(id);
+      return { success: true, evicted: toEvict.length, remaining: S.shadowDtus.size };
+    },
+  },
+
+  cap_log_arrays: {
+    category: "resource",
+    description: "Cap in-memory log arrays",
+    canApply: () => {
+      const S = _getSTATE();
+      return !!(S && (
+        (Array.isArray(S.logs) && S.logs.length > 10000) ||
+        (Array.isArray(S.auditLog) && S.auditLog.length > 10000)
+      ));
+    },
+    execute: async () => {
+      const S = _getSTATE();
+      if (!S) return { success: false, reason: "no STATE" };
+      let capped = 0;
+      if (Array.isArray(S.logs) && S.logs.length > 10000) {
+        S.logs = S.logs.slice(-5000);
+        capped++;
+      }
+      if (Array.isArray(S.auditLog) && S.auditLog.length > 10000) {
+        S.auditLog = S.auditLog.slice(-5000);
+        capped++;
+      }
+      return { success: true, cappedArrays: capped };
+    },
+  },
+
+  // ── Service Repairs ──────────────────────────────────────────────────────
+  restart_ollama: {
+    category: "service",
+    description: "Restart Ollama container",
+    canApply: () => _isDockerAvailable(),
+    execute: async () => {
+      const result = await safeDockerExec("docker restart concord-ollama 2>/dev/null");
+      return { success: !result.skipped, output: (result.stdout || "").slice(0, 200) };
+    },
+  },
+
+  reconnect_websocket: {
+    category: "service",
+    description: "Reset WebSocket state",
+    canApply: () => typeof globalThis.realtimeEmit === "function",
+    execute: async () => {
+      try {
+        globalThis.realtimeEmit("system:reconnect", { reason: "repair_cortex" });
+      } catch { /* best effort */ }
+      return { success: true };
+    },
+  },
+
+  // ── Macro Hot-Swap ───────────────────────────────────────────────────────
+  // THIS IS THE KEY CAPABILITY — replace broken macro with safe wrapper
+  reload_macro: {
+    category: "logic",
+    description: "Replace a broken macro with a safe fallback wrapper",
+    canApply: (context) => {
+      return !!(context?.macroDomain && context?.macroName &&
+        typeof globalThis._concordMACROS?.get === "function");
+    },
+    execute: async (context) => {
+      const MACROS = globalThis._concordMACROS;
+      if (!MACROS) return { success: false, reason: "MACROS not available" };
+
+      const domainMap = MACROS.get(context.macroDomain);
+      if (!domainMap) return { success: false, reason: `domain ${context.macroDomain} not found` };
+
+      const originalFn = domainMap.get(context.macroName);
+      if (!originalFn) return { success: false, reason: `macro ${context.macroName} not found` };
+
+      // Store original for potential rollback
+      const backupKey = `__backup_${context.macroDomain}_${context.macroName}`;
+      if (!globalThis[backupKey]) {
+        globalThis[backupKey] = originalFn;
+      }
+
+      // Replace with safe wrapper that catches errors
+      domainMap.set(context.macroName, async (input, ctx) => {
+        try {
+          return await originalFn(input, ctx);
+        } catch (err) {
+          observe(err, `macro_hotfix:${context.macroDomain}.${context.macroName}`);
+          return {
+            ok: false,
+            error: `Macro ${context.macroDomain}.${context.macroName} wrapped by repair cortex`,
+            degraded: true,
+            originalError: err.message,
+          };
+        }
+      });
+
+      return {
+        success: true,
+        message: `Macro ${context.macroDomain}.${context.macroName} wrapped with error boundary`,
+        rollbackAvailable: true,
+      };
+    },
+  },
+
+  rollback_macro: {
+    category: "logic",
+    description: "Rollback a hot-swapped macro to its original",
+    canApply: (context) => {
+      const backupKey = `__backup_${context?.macroDomain}_${context?.macroName}`;
+      return !!globalThis[backupKey];
+    },
+    execute: async (context) => {
+      const MACROS = globalThis._concordMACROS;
+      const backupKey = `__backup_${context.macroDomain}_${context.macroName}`;
+      const originalFn = globalThis[backupKey];
+
+      if (!originalFn || !MACROS) return { success: false, reason: "no backup or MACROS unavailable" };
+
+      const domainMap = MACROS.get(context.macroDomain);
+      if (domainMap) {
+        domainMap.set(context.macroName, originalFn);
+        delete globalThis[backupKey];
+      }
+
+      return { success: true, message: `Macro ${context.macroDomain}.${context.macroName} rolled back` };
+    },
+  },
+};
+
+// ── Executor Matcher ────────────────────────────────────────────────────────
+// Maps error pattern categories to most likely executor
+
+function findExecutorForDiagnosis(diagnosis) {
+  const categoryMap = {
+    resource: "force_gc",
+    heap_overflow: "force_gc",
+    enomem: "evict_old_sessions",
+    emfile: "evict_old_sessions",
+    state_corruption: "rebuild_dtu_index",
+    autogen_stall: "reset_autogen_stall",
+    econnrefused: "restart_ollama",
+    websocket_error: "reconnect_websocket",
+    socket_hangup: "reconnect_websocket",
+  };
+
+  // Check diagnosis key first (most specific)
+  if (diagnosis.key && categoryMap[diagnosis.key]) {
+    return categoryMap[diagnosis.key];
+  }
+
+  // Check category
+  if (diagnosis.category && categoryMap[diagnosis.category]) {
+    return categoryMap[diagnosis.category];
+  }
+
+  // Check error message keywords
+  const msg = diagnosis.match?.[0] || "";
+  const keywordMap = {
+    ENOSPC: "cap_log_arrays",
+    ENOMEM: "evict_old_sessions",
+    EMFILE: "evict_old_sessions",
+    "heap out of memory": "force_gc",
+    "autogen": "reset_autogen_stall",
+    "ollama": "restart_ollama",
+    "websocket": "reconnect_websocket",
+  };
+  for (const [keyword, executor] of Object.entries(keywordMap)) {
+    if (msg.toLowerCase().includes(keyword.toLowerCase())) return executor;
+  }
+
+  return null;
+}
+
+// ── Repair Brain Structured Call ────────────────────────────────────────────
+// Replaces free-text tryAIFix() with structured output
+
+async function callRepairBrain(errorEntry) {
+  const BRAIN = globalThis._concordBRAIN;
+  if (!BRAIN?.repair?.enabled) return null;
+
+  const prompt = `You are a runtime repair system for a Node.js cognitive engine.
+Analyze this error and select the best fix from the AVAILABLE EXECUTORS list.
+
+ERROR: ${errorEntry.message}
+STACK: ${(errorEntry.stack || "").slice(0, 500)}
+OCCURRENCES: ${errorEntry.count}
+CONTEXT: ${errorEntry.context}
+
+AVAILABLE EXECUTORS:
+${Object.entries(EXECUTORS).map(([name, ex]) => `- ${name}: ${ex.description} [category: ${ex.category}]`).join("\n")}
+
+RESPOND IN EXACTLY THIS FORMAT (no other text):
+EXECUTOR: <executor_name>
+CONTEXT: <json_context_or_empty>
+CONFIDENCE: <0.0_to_1.0>
+REASONING: <one_line>
+
+If no executor fits, respond:
+EXECUTOR: none
+CONFIDENCE: 0.0
+REASONING: <why>`;
+
+  try {
+    const resp = await fetch(`${BRAIN.repair.url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: BRAIN.repair.model,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1, num_predict: 200 },
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    BRAIN.repair.stats.requests++;
+    const data = await resp.json();
+    const text = (data.response || "").trim();
+
+    // Parse structured response
+    const executorMatch = text.match(/EXECUTOR:\s*(\S+)/);
+    const contextMatch = text.match(/CONTEXT:\s*(\{.*\})/);
+    const confidenceMatch = text.match(/CONFIDENCE:\s*([\d.]+)/);
+
+    if (!executorMatch || executorMatch[1] === "none") return null;
+
+    const executor = executorMatch[1];
+    const confidence = parseFloat(confidenceMatch?.[1] || "0");
+
+    if (confidence < 0.6) return null;
+    if (!EXECUTORS[executor]) return null;
+
+    let context = {};
+    if (contextMatch) {
+      try { context = JSON.parse(contextMatch[1]); } catch { /* use empty */ }
+    }
+
+    return { executor, context, confidence };
+  } catch {
+    return null;
+  }
+}
+
+// ── The Runtime Repair Loop ─────────────────────────────────────────────────
+
+async function runRepairCycle() {
+  if (_repairLoopRunning) return; // No concurrent cycles
+  _repairLoopRunning = true;
+
+  const cycleStart = Date.now();
+  const repairs = [];
+
+  try {
+    // 1. Scan error accumulator for actionable patterns
+    for (const [key, entry] of _errorAccumulator) {
+      // Only act on errors that have occurred 3+ times (confirmed pattern)
+      // OR errors that are critical (stack contains "FATAL" or "ENOSPC" etc)
+      const isCritical = /FATAL|ENOSPC|ENOMEM|EMFILE|OOM/i.test(entry.message);
+      if (entry.count < 3 && !isCritical) continue;
+
+      // Layer 1: Check repair memory for known fix
+      const knownFix = lookupRepairMemory(entry.message);
+      if (knownFix && knownFix.executor && EXECUTORS[knownFix.executor]) {
+        const executor = EXECUTORS[knownFix.executor];
+        if (executor.canApply(knownFix.context || {})) {
+          try {
+            const result = await executor.execute(knownFix.context || {});
+            if (result.success) {
+              recordRepairSuccess(entry.message);
+              repairs.push({ key, method: "memory", executor: knownFix.executor, result });
+              _errorAccumulator.delete(key);
+              continue;
+            }
+          } catch (e) {
+            recordRepairFailure(entry.message);
+          }
+        }
+      }
+
+      // Layer 2: Try deterministic executors based on error category
+      const diagnosis = matchErrorPattern(entry.message);
+      if (diagnosis) {
+        const executorName = findExecutorForDiagnosis(diagnosis);
+        if (executorName && EXECUTORS[executorName]) {
+          const executor = EXECUTORS[executorName];
+          if (executor.canApply({ diagnosis, error: entry })) {
+            try {
+              const result = await executor.execute({ diagnosis, error: entry });
+              if (result.success) {
+                addToRepairMemory(entry.message, {
+                  executor: executorName,
+                  context: { diagnosis: diagnosis.key },
+                  learnedAt: nowISO(),
+                });
+                recordRepairSuccess(entry.message);
+                repairs.push({ key, method: "deterministic", executor: executorName, result });
+                _errorAccumulator.delete(key);
+                continue;
+              }
+            } catch (e) {
+              recordRepairFailure(entry.message);
+            }
+          }
+        }
+      }
+
+      // Layer 3: AI diagnosis via repair brain (only for critical or persistent)
+      if (isCritical || entry.count >= 10) {
+        try {
+          const aiFix = await callRepairBrain(entry);
+          if (aiFix && aiFix.executor && EXECUTORS[aiFix.executor]) {
+            const executor = EXECUTORS[aiFix.executor];
+            if (executor.canApply(aiFix.context || {})) {
+              const result = await executor.execute(aiFix.context || {});
+              if (result.success) {
+                addToRepairMemory(entry.message, {
+                  executor: aiFix.executor,
+                  context: aiFix.context,
+                  learnedAt: nowISO(),
+                  method: "ai",
+                });
+                recordRepairSuccess(entry.message);
+                repairs.push({ key, method: "ai", executor: aiFix.executor, result });
+                _errorAccumulator.delete(key);
+                continue;
+              }
+            }
+          }
+        } catch { /* AI layer is best-effort */ }
+      }
+    }
+
+    // 2. Run proactive health executors (even without errors)
+    const proactiveChecks = ["force_gc", "evict_old_sessions", "cap_shadow_dtus", "cap_log_arrays"];
+    for (const name of proactiveChecks) {
+      const executor = EXECUTORS[name];
+      if (executor.canApply()) {
+        try {
+          const result = await executor.execute();
+          if (result.success) {
+            repairs.push({ key: name, method: "proactive", executor: name, result });
+          }
+        } catch { /* proactive is best-effort */ }
+      }
+    }
+
+    // 3. Log cycle results
+    if (repairs.length > 0) {
+      logRepairDTU(REPAIR_PHASES.POST_BUILD, "repair_cycle_complete", {
+        cycleMs: Date.now() - cycleStart,
+        repairsApplied: repairs.length,
+        repairs: repairs.map(r => ({
+          method: r.method,
+          executor: r.executor,
+          success: r.result?.success,
+        })),
+        remainingErrors: _errorAccumulator.size,
+      });
+    }
+
+  } catch (e) {
+    // The repair loop itself NEVER crashes the system
+    observe(e, "repair_loop_internal");
+  } finally {
+    _repairLoopRunning = false;
+  }
+
+  return { repairs, cycleMs: Date.now() - cycleStart };
+}
+
+// ── Loop Management ─────────────────────────────────────────────────────────
+
+export function startRepairLoop() {
+  if (_repairLoopTimer) return { ok: true, status: "already_running" };
+
+  _repairLoopTimer = setInterval(async () => {
+    try {
+      await runRepairCycle();
+    } catch (e) {
+      try { observe(e, "repair_loop_tick"); } catch { /* absolute last resort */ }
+    }
+  }, RUNTIME_REPAIR_INTERVAL);
+
+  // Unref so it doesn't prevent process exit
+  if (_repairLoopTimer.unref) _repairLoopTimer.unref();
+
+  // Also start Guardian monitors
+  startGuardian();
+
+  logRepairDTU(REPAIR_PHASES.POST_BUILD, "repair_loop_started", {
+    interval: RUNTIME_REPAIR_INTERVAL,
+    executors: Object.keys(EXECUTORS),
+  });
+
+  return { ok: true, interval: RUNTIME_REPAIR_INTERVAL, executors: Object.keys(EXECUTORS) };
+}
+
+export function stopRepairLoop() {
+  if (_repairLoopTimer) {
+    clearInterval(_repairLoopTimer);
+    _repairLoopTimer = null;
+  }
+  stopGuardian();
+  return { ok: true };
+}
+
+/**
+ * Force a repair cycle immediately (for sovereign dashboard).
+ */
+export async function forceRepairCycle() {
+  return runRepairCycle();
+}
+
+/**
+ * Execute a specific executor manually (for sovereign dashboard).
+ */
+export async function executeRepairExecutor(name, context = {}) {
+  const executor = EXECUTORS[name];
+  if (!executor) return { ok: false, error: `Unknown executor: ${name}` };
+  if (!executor.canApply(context)) return { ok: false, error: "Executor preconditions not met" };
+
+  const result = await executor.execute(context);
+  logRepairDTU(REPAIR_PHASES.POST_BUILD, "manual_executor", { name, result });
+  return { ok: true, ...result };
+}
+
+/**
+ * Full cortex status — everything in one call.
+ */
+export function getFullRepairStatus() {
+  try {
+    return {
+      ok: true,
+      loop: {
+        running: !!_repairLoopTimer,
+        interval: RUNTIME_REPAIR_INTERVAL,
+      },
+      memory: getRepairMemoryStats(),
+      accumulator: getErrorAccumulator(),
+      guardian: getGuardianStatus(),
+      executors: Object.entries(EXECUTORS).map(([name, ex]) => ({
+        name,
+        category: ex.category,
+        description: ex.description,
+        canApply: ex.canApply({}),
+      })),
+      brain: {
+        online: globalThis._concordBRAIN?.repair?.enabled || false,
+        stats: globalThis._concordBRAIN?.repair?.stats || {},
+      },
+      recentRepairs: getRecentRepairDTUs(20),
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
 // ── Organ Maturity Integration ──────────────────────────────────────────────
 // Repair cortex is organ 169. A young system repairs clumsily; a mature one precisely.
 
@@ -3327,6 +3983,29 @@ export function handleRepairCommand(action, target, data) {
         return { ok: false, error: "value must be a number >= 10000 (ms)" };
       }
 
+      case "repair-full-status":
+        return getFullRepairStatus();
+
+      case "repair-force-cycle":
+        return forceRepairCycle();
+
+      case "repair-execute": {
+        if (!target) return { ok: false, error: "target (executor name) required" };
+        return executeRepairExecutor(target, data || {});
+      }
+
+      case "repair-error-accumulator":
+        return getErrorAccumulator();
+
+      case "repair-rollback-macro":
+        return EXECUTORS.rollback_macro.execute(data || {});
+
+      case "repair-start-loop":
+        return startRepairLoop();
+
+      case "repair-stop-loop":
+        return stopRepairLoop();
+
       default:
         return { ok: false, error: `Unknown repair command: ${action}` };
     }
@@ -3410,4 +4089,5 @@ export {
   GUARDIAN_MONITORS,
   ERROR_PATTERNS,
   PRE_BUILD_CHECKS,
+  EXECUTORS,
 };
