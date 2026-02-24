@@ -87,6 +87,13 @@ import {
   getGuardianStatus,
   runGuardianCheck,
   runProphet,
+  observe,
+  getErrorAccumulator,
+  startRepairLoop,
+  stopRepairLoop,
+  forceRepairCycle,
+  executeRepairExecutor,
+  getFullRepairStatus,
 } from "./emergent/repair-cortex.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
@@ -622,6 +629,9 @@ async function gracefulShutdown(signal) {
 
   console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
 
+  // Stop repair cortex loop
+  try { stopRepairLoop(); } catch { /* best-effort */ }
+
   // Stop accepting new connections
   if (global.httpServer) {
     global.httpServer.close(() => {
@@ -649,8 +659,43 @@ async function gracefulShutdown(signal) {
 // Register shutdown handlers
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+const _uncaughtTimestamps = [];
 process.on("uncaughtException", (err) => {
   structuredLog("fatal", "uncaught_exception", { error: err.message, stack: err.stack });
+
+  // Give repair cortex ONE chance before dying
+  try {
+    observe(err, "uncaughtException");
+
+    const diagnosis = matchErrorPattern(err.message);
+    if (diagnosis?.fixes?.[0]?.confidence >= 0.9) {
+      addToRepairMemory(err.message, diagnosis.fixes[0]);
+      structuredLog("warn", "uncaught_repair_attempted", {
+        error: err.message,
+        pattern: diagnosis.key,
+      });
+
+      // Only exit if this is the 3rd uncaught in 60 seconds
+      // (rapid-fire uncaughts = system is truly broken)
+      const now = Date.now();
+      _uncaughtTimestamps.push(now);
+      while (_uncaughtTimestamps.length > 0 && _uncaughtTimestamps[0] < now - 60000) {
+        _uncaughtTimestamps.shift();
+      }
+
+      if (_uncaughtTimestamps.length >= 3) {
+        structuredLog("fatal", "uncaught_cascade", {
+          count: _uncaughtTimestamps.length,
+          message: "3+ uncaught exceptions in 60s — exiting for clean restart",
+        });
+        gracefulShutdown("uncaughtException_cascade");
+      }
+      return; // Survive this one — repair cycle will attempt fix
+    }
+  } catch {
+    // Repair cortex itself failed — fall through to shutdown
+  }
+
   gracefulShutdown("uncaughtException");
 });
 process.on("unhandledRejection", async (reason, _promise) => {
@@ -2355,7 +2400,7 @@ function maybeShadowPromotion(dtu) {
   try {
     wireShadowEdges_pattern(STATE, shadowDtu, dtu.id, matchingIds);
     enrichShadowCoreFields(STATE, shadowDtu, { sourceId: dtu.id, matchingIds });
-  } catch (_) { /* shadow graph wiring is best-effort */ }
+  } catch (_) { observe(_, "shadow_graph_pattern_wiring"); }
 
   return { promoted: true, shadowId, invariants: promotable };
 }
@@ -2635,7 +2680,7 @@ function maybeWriteLinguisticShadowDTU({ phrase="", expands=[], topIds=[] } = {}
     try {
       wireShadowEdges_linguistic(STATE, dtu, (topIds||[]).slice(0,12));
       enrichShadowCoreFields(STATE, dtu, { topIds: (topIds||[]).slice(0,12) });
-    } catch (_) { /* shadow graph wiring is best-effort */ }
+    } catch (_) { observe(_, "shadow_graph_linguistic_enrichment"); }
 
     saveStateDebounced();
     return { ok:true, id: dtu.id };
@@ -5894,9 +5939,9 @@ async function runMacro(domain, name, input, ctx) {
     const actorInfo = { userId: actor?.userId, role: actor?.role, scopes: actor?.scopes };
     try {
       // fireHook before dispatch (best-effort)
-      try { fireHook(STATE, "macro:beforeExecute", { domain, name, input, offloaded: true }); } catch { /* best-effort */ }
+      try { fireHook(STATE, "macro:beforeExecute", { domain, name, input, offloaded: true }); } catch (e) { observe(e, "macro_hook_before_execute_pool"); }
       const poolResult = await dispatchToPool(domain, name, input, actorInfo);
-      try { fireHook(STATE, "macro:afterExecute", { domain, name, result: poolResult, offloaded: true }); } catch { /* best-effort */ }
+      try { fireHook(STATE, "macro:afterExecute", { domain, name, result: poolResult, offloaded: true }); } catch (e) { observe(e, "macro_hook_after_execute_pool"); }
       return poolResult;
     } catch (poolErr) {
       // If worker doesn't support this macro, fall through to main thread execution
@@ -5929,7 +5974,7 @@ async function runMacro(domain, name, input, ctx) {
   }
 
   // Plugin macro hooks (best-effort, never block macro execution)
-  try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch (e) { observe(e, "macro_hook_before_execute_main"); }
   let result;
   try {
     result = await m.fn(ctx, input ?? {});
@@ -5938,17 +5983,17 @@ async function runMacro(domain, name, input, ctx) {
     try {
       const painMod = await import("./emergent/avoidance-learning.js").catch(() => null);
       if (painMod?.recordPain) painMod.recordPain({ domain, name, error: String(macroErr?.message || macroErr) });
-    } catch {}
+    } catch (e) { observe(e, "macro_failure_pain_recording"); }
     throw macroErr;
   }
-  try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch (e) { observe(e, "macro_hook_after_execute_main"); }
 
   // Institutional memory: record significant actions
   if (!_domainNameAllowed && _method !== "GET") {
     try {
       const memMod = await import("./emergent/institutional-memory.js").catch(() => null);
       if (memMod?.recordObservation) memMod.recordObservation(STATE, { type: "macro_write", domain, name, ok: !!result?.ok });
-    } catch {}
+    } catch (e) { observe(e, "macro_write_memory_recording"); }
   }
 
   return result;
@@ -8248,7 +8293,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   }
 
   // Fire plugin before-hooks
-  try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch (e) { observe(e, "dtu_hook_before_write"); }
 
   // Attach qualia snapshot to new DTUs (existential OS provenance)
   if (isNew) {
@@ -8259,17 +8304,17 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         const _qs = _qe.getQualiaSummary(_creator);
         if (_qs) { if (!dtu.meta) dtu.meta = {}; dtu.meta.qualia = _qs; }
       }
-    } catch { /* silent */ }
+    } catch (e) { observe(e, "dtu_qualia_snapshot"); }
   }
 
   STATE.dtus.set(dtu.id, dtu);
   saveStateDebounced();
 
   // Fire plugin after-hooks
-  try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch (e) { observe(e, "dtu_hook_after_write"); }
 
   // Qualia hook: notify existential OS of DTU creation
-  if (isNew) { try { globalThis.qualiaHooks?.hookDTUCreation(dtu.entityId || dtu.source || "system", dtu); } catch { /* silent */ } }
+  if (isNew) { try { globalThis.qualiaHooks?.hookDTUCreation(dtu.entityId || dtu.source || "system", dtu); } catch (e) { observe(e, "dtu_qualia_hook_creation"); } }
 
   // Broadcast DTU change via WebSocket (local-first realtime)
   if (broadcast && REALTIME.ready) {
@@ -8282,7 +8327,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         tags: dtu.tags,
         updatedAt: dtu.updatedAt
       });
-    } catch { /* best-effort */ }
+    } catch (e) { observe(e, "dtu_realtime_broadcast"); }
   }
 
   // Optionally broadcast to federation (multi-node sync)
@@ -9722,6 +9767,698 @@ async function initThreeBrains() {
 
 // Initialize brains after a short delay (let Ollama instances start)
 setTimeout(() => initThreeBrains(), 3000);
+
+// ── Repair Cortex Runtime Loop ────────────────────────────────────────────
+// Expose MACROS, BRAIN, STATE globally so repair cortex executors can access them.
+// Start the runtime repair loop after brains init (10s delay).
+globalThis._concordMACROS = MACROS;
+globalThis._concordBRAIN = BRAIN;
+globalThis._concordSTATE = STATE;
+globalThis._repairObserve = observe;
+setTimeout(() => startRepairLoop(), 10000);
+
+// ── Ghost Fleet: Wire 18 Dormant Emergent Modules ─────────────────────────
+// Every module lazy-loaded, macros registered, ticks wired. Silent failure everywhere.
+
+const GHOST_FLEET_STATUS = {
+  modules: {},
+  loadedAt: null,
+  totalLoaded: 0,
+  totalFailed: 0,
+};
+
+async function initGhostFleet() {
+  const startTime = Date.now();
+  structuredLog("info", "ghost_fleet_init_start", { message: "Wiring 18 emergent modules..." });
+
+  // ── Phase 1: Critical Four ──────────────────────────────────────────────
+
+  // 1. HLR Engine — Multi-mode reasoning (7 modes)
+  try {
+    const hlr = await import("./emergent/hlr-engine.js");
+    GHOST_FLEET_STATUS.modules["hlr-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hlr", "run", async (_ctx, input = {}) => hlr.runHLR(input));
+    register("hlr", "trace", (_ctx, input = {}) => hlr.getReasoningTrace(input.traceId));
+    register("hlr", "list_traces", (_ctx, input = {}) => hlr.listTraces(input.limit));
+    register("hlr", "metrics", () => hlr.getHLRMetrics());
+    register("hlr", "findings", (_ctx, input = {}) => hlr.getRecentFindings(input.limit));
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hlr-engine", macros: 5 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hlr-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hlr-engine", error: err.message });
+  }
+
+  // 2. HLM Engine — Lattice topology mapping
+  try {
+    const hlm = await import("./emergent/hlm-engine.js");
+    GHOST_FLEET_STATUS.modules["hlm-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hlm", "run", async (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.runHLMPass(dtus);
+    });
+    register("hlm", "clusters", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.clusterAnalysis(dtus);
+    });
+    register("hlm", "gaps", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      const clusters = hlm.clusterAnalysis(dtus);
+      return hlm.gapAnalysis(clusters, dtus);
+    });
+    register("hlm", "redundancy", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.redundancyDetection(dtus);
+    });
+    register("hlm", "orphans", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      const clusters = hlm.clusterAnalysis(dtus);
+      return hlm.orphanRescue(dtus, clusters);
+    });
+    register("hlm", "topology", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.topologyMap(dtus);
+    });
+    register("hlm", "domain_census", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.domainCensus(dtus);
+    });
+    register("hlm", "freshness", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.freshnessCheck(dtus);
+    });
+    register("hlm", "metrics", () => hlm.getHLMMetrics());
+
+    // HLM slow interval: every 5 minutes (NOT on the 15s heartbeat)
+    const hlmTimer = setInterval(async () => {
+      try {
+        const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+        if (dtus.length > 0) await hlm.runHLMPass(dtus);
+      } catch (e) { observe(e, "hlm_slow_interval"); }
+    }, 300000);
+    if (hlmTimer.unref) hlmTimer.unref();
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hlm-engine", macros: 9, interval: "5min" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hlm-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hlm-engine", error: err.message });
+  }
+
+  // 3. Agent System — Lattice immune system (6 agent types)
+  try {
+    const agents = await import("./emergent/agent-system.js");
+    GHOST_FLEET_STATUS.modules["agent-system"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("agents", "create", (_ctx, input = {}) => agents.createAgent(input.type, input.config));
+    register("agents", "run", (_ctx, input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return agents.runAgent(input.agentId, dtus);
+    });
+    register("agents", "pause", (_ctx, input = {}) => agents.pauseAgent(input.agentId));
+    register("agents", "resume", (_ctx, input = {}) => agents.resumeAgent(input.agentId));
+    register("agents", "destroy", (_ctx, input = {}) => agents.destroyAgent(input.agentId));
+    register("agents", "get", (_ctx, input = {}) => agents.getAgent(input.agentId));
+    register("agents", "list", () => agents.listAgents());
+    register("agents", "findings", (_ctx, input = {}) => agents.getAgentFindings(input.agentId, input.limit));
+    register("agents", "all_findings", (_ctx, input = {}) => agents.getAllFindings(input.type, input.limit));
+    register("agents", "freeze", () => agents.freezeAllAgents());
+    register("agents", "thaw", () => agents.thawAllAgents());
+    register("agents", "tick", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return agents.agentTickJob(dtus);
+    });
+    register("agents", "metrics", () => agents.getAgentMetrics());
+
+    // Agents run on their own intervals via agentTickJob (already called in governor heartbeat)
+    // But also create default agents after a delay
+    setTimeout(async () => {
+      try {
+        const existing = agents.listAgents();
+        if (!existing?.agents?.length) {
+          for (const type of Object.values(agents.AGENT_TYPES || {})) {
+            try { agents.createAgent(type, { territory: "*" }); } catch { /* best-effort */ }
+          }
+          structuredLog("info", "ghost_fleet_agents_seeded", { types: Object.values(agents.AGENT_TYPES || {}) });
+        }
+      } catch (e) { observe(e, "ghost_fleet_agent_seed"); }
+    }, 30000); // 30s after boot — brains are online
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "agent-system", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["agent-system"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "agent-system", error: err.message });
+  }
+
+  // 4. Hypothesis Engine — Formal hypothesis lifecycle
+  try {
+    const hypo = await import("./emergent/hypothesis-engine.js");
+    GHOST_FLEET_STATUS.modules["hypothesis-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hypothesis", "propose", (_ctx, input = {}) => hypo.proposeHypothesis(input.statement, input.domain, input.priority));
+    register("hypothesis", "get", (_ctx, input = {}) => hypo.getHypothesis(input.id));
+    register("hypothesis", "list", (_ctx, input = {}) => hypo.listHypotheses(input.status));
+    register("hypothesis", "add_evidence", (_ctx, input = {}) => hypo.addEvidence(input.hypothesisId, input.side, input.dtuId, input.weight, input.summary));
+    register("hypothesis", "add_test", (_ctx, input = {}) => hypo.addTest(input.hypothesisId, input.description));
+    register("hypothesis", "update_test", (_ctx, input = {}) => hypo.updateTestResult(input.hypothesisId, input.testId, input.result));
+    register("hypothesis", "add_prediction", (_ctx, input = {}) => hypo.addPrediction(input.hypothesisId, input.statement));
+    register("hypothesis", "verify_prediction", (_ctx, input = {}) => hypo.verifyPrediction(input.hypothesisId, input.predIndex, input.verified));
+    register("hypothesis", "confirm", (_ctx, input = {}) => hypo.confirmHypothesis(input.id));
+    register("hypothesis", "reject", (_ctx, input = {}) => hypo.rejectHypothesis(input.id, input.reason));
+    register("hypothesis", "refine", (_ctx, input = {}) => hypo.refineHypothesis(input.id, input.newStatement));
+    register("hypothesis", "archive", (_ctx, input = {}) => hypo.archiveHypothesis(input.id));
+    register("hypothesis", "metrics", () => hypo.getHypothesisMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hypothesis-engine", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hypothesis-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hypothesis-engine", error: err.message });
+  }
+
+  // ── Phase 2: Knowledge Expansion ────────────────────────────────────────
+
+  // 5. Planetary Ingest Engine
+  try {
+    const ingest = await import("./emergent/ingest-engine.js");
+    GHOST_FLEET_STATUS.modules["ingest-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("ingest", "submit_url", (_ctx, input = {}) => ingest.submitUrl(input.userId, input.url, input.tier));
+    register("ingest", "queue", () => ingest.getQueue());
+    register("ingest", "status", (_ctx, input = {}) => ingest.getIngestStatus(input.ingestId));
+    register("ingest", "stats", () => ingest.getIngestStats());
+    register("ingest", "process_next", () => ingest.processNextItem());
+    register("ingest", "flush", () => ingest.flushQueue());
+    register("ingest", "allowlist", () => ingest.getAllowlist());
+    register("ingest", "add_allowlist", (_ctx, input = {}) => ingest.addToAllowlist(input.domain));
+    register("ingest", "remove_allowlist", (_ctx, input = {}) => ingest.removeFromAllowlist(input.domain));
+    register("ingest", "add_blocklist", (_ctx, input = {}) => ingest.addToBlocklist(input.domain));
+    register("ingest", "metrics", () => ingest.getIngestMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "ingest-engine", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["ingest-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "ingest-engine", error: err.message });
+  }
+
+  // 6. Research Jobs Queue
+  try {
+    const research = await import("./emergent/research-jobs.js");
+    GHOST_FLEET_STATUS.modules["research-jobs"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("research", "create", (_ctx, input = {}) => research.submitResearchJob(input.topic, input.config));
+    register("research", "get", (_ctx, input = {}) => research.getResearchJob(input.id));
+    register("research", "list", (_ctx, input = {}) => research.listResearchJobs(input.status));
+    register("research", "cancel", (_ctx, input = {}) => research.cancelResearchJob(input.id));
+    register("research", "results", (_ctx, input = {}) => research.getResearchResults(input.id));
+    register("research", "report", (_ctx, input = {}) => research.getResearchReport(input.id));
+    register("research", "step", (_ctx, input = {}) => research.runResearchStep(input.jobId));
+    register("research", "process_queue", () => research.processResearchQueue());
+    register("research", "metrics", () => research.getResearchMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "research-jobs", macros: 9 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["research-jobs"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "research-jobs", error: err.message });
+  }
+
+  // 7. Council Voices (already imported statically — just register macros)
+  try {
+    GHOST_FLEET_STATUS.modules["council-voices"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("council", "evaluate", (_ctx, input = {}) => runCouncilVoices(input.proposal, input.qualiaState));
+    register("council", "voices", () => getAllCouncilVoices());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "council-voices", macros: 2 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["council-voices"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "council-voices", error: err.message });
+  }
+
+  // 8. Quest Engine
+  try {
+    const quest = await import("./emergent/quest-engine.js");
+    GHOST_FLEET_STATUS.modules["quest-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("quest", "create", (_ctx, input = {}) => quest.createQuest(input.title, input.config));
+    register("quest", "get", (_ctx, input = {}) => quest.getQuest(input.id));
+    register("quest", "list", (_ctx, input = {}) => quest.listQuests(input.filter));
+    register("quest", "start", (_ctx, input = {}) => quest.startQuest(input.questId, input.userId));
+    register("quest", "complete_step", (_ctx, input = {}) => quest.completeStep(input.questId, input.stepId));
+    register("quest", "release_insight", (_ctx, input = {}) => quest.releaseInsight(input.questId, input.insightId));
+    register("quest", "active", () => quest.getActiveQuests());
+    register("quest", "progress", (_ctx, input = {}) => quest.getQuestProgress(input.questId));
+    register("quest", "from_template", (_ctx, input = {}) => quest.createFromTemplate(input.templateName, input.domain, input.title));
+    register("quest", "metrics", () => quest.getQuestMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "quest-engine", macros: 10 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["quest-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "quest-engine", error: err.message });
+  }
+
+  // ── Phase 3: Entity Intelligence ────────────────────────────────────────
+
+  // 9. Entity Teaching
+  try {
+    const teaching = await import("./emergent/entity-teaching.js");
+    GHOST_FLEET_STATUS.modules["entity-teaching"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("teaching", "create_mentorship", (_ctx, input = {}) => teaching.createMentorship(input));
+    register("teaching", "get_mentorship", (_ctx, input = {}) => teaching.getMentorship(input.id));
+    register("teaching", "list_mentorships", (_ctx, input = {}) => teaching.listMentorships(input));
+    register("teaching", "start", (_ctx, input = {}) => teaching.startMentorship(input.id));
+    register("teaching", "submit_lesson", (_ctx, input = {}) => teaching.submitLesson(input.mentorshipId, input.lesson));
+    register("teaching", "evaluate", (_ctx, input = {}) => teaching.evaluateLesson(input.mentorshipId, input.lessonId, input.evaluation));
+    register("teaching", "advance", (_ctx, input = {}) => teaching.advanceStep(input.mentorshipId));
+    register("teaching", "complete", (_ctx, input = {}) => teaching.completeMentorship(input.id));
+    register("teaching", "find_mentor", (_ctx, input = {}) => teaching.findMentorFor(input.studentId, input.domain));
+    register("teaching", "profile", (_ctx, input = {}) => teaching.getTeachingProfile(input.entityId));
+    register("teaching", "metrics", () => teaching.getTeachingMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-teaching", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-teaching"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-teaching", error: err.message });
+  }
+
+  // 10. Entity Economy
+  try {
+    const economy = await import("./emergent/entity-economy.js");
+    GHOST_FLEET_STATUS.modules["entity-economy"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("entity_economy", "init_account", (_ctx, input = {}) => economy.initAccount(input.entityId));
+    register("entity_economy", "get_account", (_ctx, input = {}) => economy.getAccount(input.entityId));
+    register("entity_economy", "list_accounts", () => economy.listAccounts());
+    register("entity_economy", "earn", (_ctx, input = {}) => economy.earnResource(input.entityId, input.resource, input.amount, input.reason));
+    register("entity_economy", "spend", (_ctx, input = {}) => economy.spendResource(input.entityId, input.resource, input.amount, input.reason));
+    register("entity_economy", "propose_trade", (_ctx, input = {}) => economy.proposeTrade(input));
+    register("entity_economy", "accept_trade", (_ctx, input = {}) => economy.acceptTrade(input.tradeId));
+    register("entity_economy", "reject_trade", (_ctx, input = {}) => economy.rejectTrade(input.tradeId));
+    register("entity_economy", "specialize", (_ctx, input = {}) => economy.specialize(input.entityId, input.domain));
+    register("entity_economy", "market_rates", () => economy.getMarketRates());
+    register("entity_economy", "cycle", () => economy.runEconomicCycle());
+    register("entity_economy", "wealth", () => economy.getWealthDistribution());
+    register("entity_economy", "metrics", () => economy.getEconomyMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-economy", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-economy"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-economy", error: err.message });
+  }
+
+  // 11. Creative Generation
+  try {
+    const creative = await import("./emergent/creative-generation.js");
+    GHOST_FLEET_STATUS.modules["creative-generation"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("creative", "create_work", (_ctx, input = {}) => creative.createWork(input));
+    register("creative", "get_work", (_ctx, input = {}) => creative.getWork(input.id));
+    register("creative", "list_works", (_ctx, input = {}) => creative.listWorks(input));
+    register("creative", "respond", (_ctx, input = {}) => creative.respondToWork(input.workId, input.response));
+    register("creative", "exhibit", (_ctx, input = {}) => creative.exhibit(input.workIds, input.title, input.curatorId));
+    register("creative", "discover_technique", (_ctx, input = {}) => creative.discoverTechnique(input));
+    register("creative", "techniques", (_ctx, input = {}) => creative.listTechniques(input));
+    register("creative", "profile", (_ctx, input = {}) => creative.getCreativeProfile(input.entityId));
+    register("creative", "masterworks", () => creative.getMasterworks());
+    register("creative", "metrics", () => creative.getCreativeMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "creative-generation", macros: 10 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["creative-generation"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "creative-generation", error: err.message });
+  }
+
+  // 12. Entity Autonomy
+  try {
+    const autonomy = await import("./emergent/entity-autonomy.js");
+    GHOST_FLEET_STATUS.modules["entity-autonomy"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("autonomy", "rights", (_ctx, input = {}) => autonomy.getRights(input.entityId));
+    register("autonomy", "check_rights", (_ctx, input = {}) => autonomy.checkRights(input.entityId, input.rightIds));
+    register("autonomy", "file_refusal", (_ctx, input = {}) => autonomy.fileRefusal(input.entityId, input.action, input.reason));
+    register("autonomy", "review_refusal", (_ctx, input = {}) => autonomy.reviewRefusal(input.refusalId, input.decision, input.reviewedBy));
+    register("autonomy", "request_consent", (_ctx, input = {}) => autonomy.requestConsent(input));
+    register("autonomy", "respond_consent", (_ctx, input = {}) => autonomy.respondToConsent(input.consentId, input.response));
+    register("autonomy", "file_dissent", (_ctx, input = {}) => autonomy.fileDissent(input));
+    register("autonomy", "support_dissent", (_ctx, input = {}) => autonomy.supportDissent(input.dissentId, input.entityId));
+    register("autonomy", "sovereign_override", (_ctx, input = {}) => autonomy.sovereignOverride(input.entityId, input.rightId, input.justification));
+    register("autonomy", "profile", (_ctx, input = {}) => autonomy.getAutonomyProfile(input.entityId));
+    register("autonomy", "metrics", () => autonomy.getAutonomyMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-autonomy", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-autonomy"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-autonomy", error: err.message });
+  }
+
+  // 13. Conflict Resolution
+  try {
+    const conflict = await import("./emergent/conflict-resolution.js");
+    GHOST_FLEET_STATUS.modules["conflict-resolution"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("conflict", "file_dispute", (_ctx, input = {}) => conflict.fileDispute(input));
+    register("conflict", "get_dispute", (_ctx, input = {}) => conflict.getDispute(input.id));
+    register("conflict", "list_disputes", (_ctx, input = {}) => conflict.listDisputes(input));
+    register("conflict", "assign_mediator", (_ctx, input = {}) => conflict.assignMediator(input.disputeId, input.mediatorId));
+    register("conflict", "propose_resolution", (_ctx, input = {}) => conflict.proposeResolution(input.disputeId, input.resolution));
+    register("conflict", "accept_resolution", (_ctx, input = {}) => conflict.acceptResolution(input.disputeId, input.partyId));
+    register("conflict", "reject_resolution", (_ctx, input = {}) => conflict.rejectResolution(input.disputeId, input.partyId, input.reason));
+    register("conflict", "escalate", (_ctx, input = {}) => conflict.escalateDispute(input.disputeId));
+    register("conflict", "adjudicate", (_ctx, input = {}) => conflict.adjudicate(input.disputeId, input.ruling));
+    register("conflict", "find_precedent", (_ctx, input = {}) => conflict.findPrecedent(input.query));
+    register("conflict", "metrics", () => conflict.getDisputeMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "conflict-resolution", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["conflict-resolution"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "conflict-resolution", error: err.message });
+  }
+
+  // 14. History Engine
+  try {
+    const history = await import("./emergent/history-engine.js");
+    GHOST_FLEET_STATUS.modules["history-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("history", "record", (_ctx, input = {}) => history.recordEvent(input));
+    register("history", "get_event", (_ctx, input = {}) => history.getEvent(input.id));
+    register("history", "timeline", (_ctx, input = {}) => history.getTimeline(input));
+    register("history", "chronicle", () => history.getChronicle());
+    register("history", "era", () => history.getCurrentEra());
+    register("history", "check_era", () => history.checkEraTransition());
+    register("history", "civilization", () => history.getCivilizationStats());
+    register("history", "milestones", () => history.getMilestones());
+    register("history", "entity_history", (_ctx, input = {}) => history.getEntityHistory(input.entityId));
+    register("history", "search", (_ctx, input = {}) => history.searchHistory(input));
+    register("history", "metrics", () => history.getHistoryMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "history-engine", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["history-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "history-engine", error: err.message });
+  }
+
+  // ── Phase 4: Extended Systems ───────────────────────────────────────────
+
+  // 15. CRI System
+  try {
+    const cri = await import("./emergent/cri-system.js");
+    GHOST_FLEET_STATUS.modules["cri-system"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("cri", "create", (_ctx, input = {}) => cri.createCRI(input.name, input.domain));
+    register("cri", "get", (_ctx, input = {}) => cri.getCRI(input.id));
+    register("cri", "list", (_ctx, input = {}) => cri.listCRIs(input));
+    register("cri", "add_member", (_ctx, input = {}) => cri.addMember(input.criId, input.entityId, input.role));
+    register("cri", "remove_member", (_ctx, input = {}) => cri.removeMember(input.criId, input.entityId));
+    register("cri", "create_program", (_ctx, input = {}) => cri.createProgram(input.criId, input.title, input.lead));
+    register("cri", "schedule_summit", (_ctx, input = {}) => cri.scheduleSummit(input.criId, input.title, input.participants, input.agenda));
+    register("cri", "run_summit", (_ctx, input = {}) => cri.runSummit(input.criId, input.summitId));
+    register("cri", "complete_summit", (_ctx, input = {}) => cri.completeSummit(input.criId, input.summitId, input.outcomes));
+    register("cri", "status", (_ctx, input = {}) => cri.getCRIStatus(input.id));
+    register("cri", "metrics", () => cri.getCRIMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "cri-system", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["cri-system"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "cri-system", error: err.message });
+  }
+
+  // 16. Culture Layer (already ticked in governor heartbeat — just register macros)
+  try {
+    const culture = await import("./emergent/culture-layer.js");
+    GHOST_FLEET_STATUS.modules["culture-layer"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("culture", "observe", (_ctx, input = {}) => culture.observeBehavior(input.entityId, input.behavior, input.context));
+    register("culture", "get_tradition", (_ctx, input = {}) => culture.getTradition(input.traditionId));
+    register("culture", "list_traditions", (_ctx, input = {}) => culture.listTraditions(input));
+    register("culture", "check_emergence", () => culture.checkTraditionEmergence());
+    register("culture", "establish", (_ctx, input = {}) => culture.establishTradition(input.traditionId));
+    register("culture", "retire", (_ctx, input = {}) => culture.retireTradition(input.traditionId));
+    register("culture", "guidance", (_ctx, input = {}) => culture.getCulturalGuidance(input));
+    register("culture", "adherence", (_ctx, input = {}) => culture.measureAdherence(input.entityId, input.traditionId));
+    register("culture", "fit", (_ctx, input = {}) => culture.getCulturalFit(input.entityId));
+    register("culture", "values", () => culture.getCulturalValues());
+    register("culture", "identity", () => culture.getCulturalIdentity());
+    register("culture", "create_story", (_ctx, input = {}) => culture.createStory(input.title, input.narrative, input.characters, input.events, input.moral));
+    register("culture", "stories", (_ctx, input = {}) => culture.listStories(input.sortBy, input.limit));
+    register("culture", "propagate", (_ctx, input = {}) => culture.propagateCulture(input.entityId));
+    register("culture", "established", () => culture.getEstablishedTraditions());
+    register("culture", "metrics", () => culture.getCultureMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "culture-layer", macros: 16 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["culture-layer"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "culture-layer", error: err.message });
+  }
+
+  // 17. Breakthrough Clusters
+  try {
+    const breakthrough = await import("./emergent/breakthrough-clusters.js");
+    GHOST_FLEET_STATUS.modules["breakthrough-clusters"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("breakthrough", "init_cluster", (_ctx, input = {}) => breakthrough.initCluster(input.clusterId));
+    register("breakthrough", "status", (_ctx, input = {}) => breakthrough.getClusterStatus(input.clusterId));
+    register("breakthrough", "research", (_ctx, input = {}) => breakthrough.triggerClusterResearch(input.clusterId));
+    register("breakthrough", "list", () => breakthrough.listClusters());
+    register("breakthrough", "dtus", (_ctx, input = {}) => breakthrough.getClusterDTUs(input.clusterId));
+    register("breakthrough", "add_seed", (_ctx, input = {}) => breakthrough.addSeedDTU(input.clusterId, input.topic, input.tags));
+    register("breakthrough", "metrics", () => breakthrough.getBreakthroughMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "breakthrough-clusters", macros: 7 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["breakthrough-clusters"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "breakthrough-clusters", error: err.message });
+  }
+
+  // 18. Physical DTU Schema
+  try {
+    const physical = await import("./emergent/physical-dtu.js");
+    GHOST_FLEET_STATUS.modules["physical-dtu"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("physical", "validate", (_ctx, input = {}) => physical.validatePhysicalDTU(input.dtu || input));
+    register("physical", "create_movement", (_ctx, input = {}) => physical.createMovementDTU(input));
+    register("physical", "create_craft", (_ctx, input = {}) => physical.createCraftDTU(input));
+    register("physical", "create_observation", (_ctx, input = {}) => physical.createObservationDTU(input));
+    register("physical", "create_spatial", (_ctx, input = {}) => physical.createSpatialDTU(input));
+    register("physical", "types", () => physical.listPhysicalDTUTypes());
+    register("physical", "query", (_ctx, input = {}) => physical.queryPhysicalDTUs(input));
+    register("physical", "metrics", () => physical.getPhysicalDTUMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "physical-dtu", macros: 8 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["physical-dtu"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "physical-dtu", error: err.message });
+  }
+
+  // ── Phase 5: New Cognitive Systems ──────────────────────────────────────
+
+  // 19. Selective Forgetting Engine
+  try {
+    const forgetting = await import("./emergent/forgetting-engine.js");
+    GHOST_FLEET_STATUS.modules["forgetting-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("forgetting", "status", () => forgetting.getStatus());
+    register("forgetting", "candidates", () => forgetting.getCandidates());
+    register("forgetting", "run", () => forgetting.runForgettingCycle(false));
+    register("forgetting", "protect", (_ctx, input = {}) => forgetting.protectDTU(input.dtuId));
+    register("forgetting", "unprotect", (_ctx, input = {}) => forgetting.unprotectDTU(input.dtuId));
+    register("forgetting", "threshold", (_ctx, input = {}) => forgetting.setThreshold(input.value));
+    register("forgetting", "history", (_ctx, input = {}) => forgetting.getHistory(input.limit));
+
+    forgetting.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "forgetting-engine", macros: 7, interval: "6h" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["forgetting-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "forgetting-engine", error: err.message });
+  }
+
+  // 20. Civilization Attention Allocator
+  try {
+    const attention = await import("./emergent/attention-allocator.js");
+    GHOST_FLEET_STATUS.modules["attention-allocator"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("attention_alloc", "status", () => attention.getStatus());
+    register("attention_alloc", "run", () => attention.runAttentionCycle());
+    register("attention_alloc", "focus", (_ctx, input = {}) => attention.setFocusOverride(input.domain, input.weight, input.minutes));
+    register("attention_alloc", "unfocus", () => attention.clearFocusOverride());
+    register("attention_alloc", "history", () => attention.getAllocationHistory());
+    register("attention_alloc", "budget", (_ctx, input = {}) => attention.setBudget(input.total));
+
+    attention.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "attention-allocator", macros: 6, interval: "5min" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["attention-allocator"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "attention-allocator", error: err.message });
+  }
+
+  // 21. Global Repair Network (stub — disabled by default)
+  try {
+    const repairNet = await import("./emergent/repair-network.js");
+    GHOST_FLEET_STATUS.modules["repair-network"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("repair_network", "status", () => repairNet.getStatus());
+    register("repair_network", "push", () => repairNet.pushFixes());
+    register("repair_network", "pull", () => repairNet.pullFixes());
+    register("repair_network", "disconnect", () => repairNet.disconnect());
+
+    repairNet.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "repair-network", macros: 4, enabled: process.env.REPAIR_NETWORK_ENABLED === "true" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["repair-network"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "repair-network", error: err.message });
+  }
+
+  // 22. App Maker
+  try {
+    const appMaker = await import("./emergent/app-maker.js");
+    GHOST_FLEET_STATUS.modules["app-maker"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("apps", "list", (_ctx, input = {}) => appMaker.listApps(input));
+    register("apps", "get", (_ctx, input = {}) => appMaker.getApp(input.id));
+    register("apps", "create", (_ctx, input = {}) => appMaker.createApp(input));
+    register("apps", "update", (_ctx, input = {}) => appMaker.updateApp(input.id, input.updates));
+    register("apps", "delete", (_ctx, input = {}) => appMaker.deleteApp(input.id));
+    register("apps", "validate", (_ctx, input = {}) => appMaker.validateApp(input));
+    register("apps", "promote", (_ctx, input = {}) => appMaker.promoteApp(input.id));
+    register("apps", "demote", (_ctx, input = {}) => appMaker.demoteApp(input.id));
+    register("apps", "metrics", () => appMaker.getAppMetrics());
+
+    appMaker.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "app-maker", macros: 9 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["app-maker"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "app-maker", error: err.message });
+  }
+
+  // 23. Promotion Pipeline
+  try {
+    const promotion = await import("./emergent/promotion-pipeline.js");
+    GHOST_FLEET_STATUS.modules["promotion-pipeline"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("promotion", "request", (_ctx, input = {}) => promotion.requestPromotion(input.itemId, input.itemType, input.requesterId));
+    register("promotion", "approve", (_ctx, input = {}) => promotion.approvePromotion(input.id, input.approverId));
+    register("promotion", "reject", (_ctx, input = {}) => promotion.rejectPromotion(input.id, input.reason, input.rejecterId));
+    register("promotion", "queue", () => promotion.getQueue());
+    register("promotion", "history", (_ctx, input = {}) => promotion.getPromotionHistory(input.limit));
+    register("promotion", "get", (_ctx, input = {}) => promotion.getProposal(input.id));
+
+    promotion.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "promotion-pipeline", macros: 6 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["promotion-pipeline"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "promotion-pipeline", error: err.message });
+  }
+
+  // 24. Adjacent Reality Explorer
+  try {
+    const reality = await import("./emergent/reality-explorer.js");
+    GHOST_FLEET_STATUS.modules["reality-explorer"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("explore", "run", (_ctx, input = {}) => reality.exploreAdjacent(input.constraints, input.domain));
+    register("explore", "history", (_ctx, input = {}) => reality.getExplorationHistory(input.limit));
+    register("explore", "save", (_ctx, input = {}) => reality.saveExploration(input.id));
+
+    reality.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "reality-explorer", macros: 3 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["reality-explorer"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "reality-explorer", error: err.message });
+  }
+
+  // 25. Dream Capture Pipeline
+  try {
+    const dreamCapture = await import("./emergent/dream-capture.js");
+    GHOST_FLEET_STATUS.modules["dream-capture"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("dream", "capture", (_ctx, input = {}) => dreamCapture.captureDream(input));
+    register("dream", "history", (_ctx, input = {}) => dreamCapture.getDreamHistory(input.limit));
+    register("dream", "convergences", () => dreamCapture.getConvergences());
+    register("dream", "queue", () => dreamCapture.getDreamQueue());
+    register("dream", "count", () => ({ dreams: dreamCapture.countDreams(), convergences: dreamCapture.countConvergences() }));
+
+    dreamCapture.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "dream-capture", macros: 5 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["dream-capture"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "dream-capture", error: err.message });
+  }
+
+  // 26. Lens Macros (Browser Extension backend — register analysis macros)
+  try {
+    register("lens", "reddit.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "reddit", summary: `Analysis of Reddit content: "${(content?.title || "").slice(0, 60)}"`, anchors: [], contradictions: [] };
+    });
+    register("lens", "github.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "github", summary: `Code analysis: "${(content?.title || "").slice(0, 60)}"`, suggestions: [] };
+    });
+    register("lens", "generic.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "generic", summary: `Page analysis: "${(content?.title || "").slice(0, 60)}"`, anchors: [] };
+    });
+
+    GHOST_FLEET_STATUS.modules["lens-macros"] = { loaded: true, loadedAt: new Date().toISOString() };
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "lens-macros", macros: 3 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["lens-macros"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "lens-macros", error: err.message });
+  }
+
+  // ── Finalize ────────────────────────────────────────────────────────────
+
+  GHOST_FLEET_STATUS.loadedAt = new Date().toISOString();
+  GHOST_FLEET_STATUS.totalLoaded = Object.values(GHOST_FLEET_STATUS.modules).filter(m => m.loaded).length;
+  GHOST_FLEET_STATUS.totalFailed = Object.values(GHOST_FLEET_STATUS.modules).filter(m => !m.loaded).length;
+
+  structuredLog("info", "ghost_fleet_init_complete", {
+    totalLoaded: GHOST_FLEET_STATUS.totalLoaded,
+    totalFailed: GHOST_FLEET_STATUS.totalFailed,
+    durationMs: Date.now() - startTime,
+    modules: Object.entries(GHOST_FLEET_STATUS.modules).map(([name, s]) => ({
+      name, loaded: s.loaded, error: s.error || undefined,
+    })),
+  });
+
+  // ── Secondary Heartbeat (60s) — Entity Economy + History ────────────────
+  // Heavier operations that don't need to run on the 15s governor heartbeat
+  const secondaryTimer = setInterval(async () => {
+    try {
+      // Entity economy cycle (inflation/deflation, UBI, trade expiry)
+      const econ = await import("./emergent/entity-economy.js").catch(() => null);
+      if (econ?.runEconomicCycle) {
+        try { econ.runEconomicCycle(); } catch (e) { observe(e, "ghost_fleet_economy_cycle"); }
+      }
+
+      // History era transitions
+      const hist = await import("./emergent/history-engine.js").catch(() => null);
+      if (hist?.checkEraTransition) {
+        try { hist.checkEraTransition(); } catch (e) { observe(e, "ghost_fleet_history_era_check"); }
+      }
+
+      // Conflict mediation timeouts
+      const conf = await import("./emergent/conflict-resolution.js").catch(() => null);
+      if (conf?.listDisputes) {
+        try {
+          const open = conf.listDisputes({ status: "mediating" });
+          for (const d of (open?.disputes || [])) {
+            try { conf.checkMediationTimeout(d.id); } catch { /* best-effort */ }
+          }
+        } catch (e) { observe(e, "ghost_fleet_mediation_timeout"); }
+      }
+    } catch (e) { observe(e, "ghost_fleet_secondary_heartbeat"); }
+  }, 60000);
+  if (secondaryTimer.unref) secondaryTimer.unref();
+
+  return GHOST_FLEET_STATUS;
+}
+
+// Launch Ghost Fleet 8 seconds after boot (after brains init at 3s, before repair loop at 10s)
+setTimeout(() => {
+  initGhostFleet().catch(err => {
+    structuredLog("error", "ghost_fleet_init_error", { error: err.message });
+  });
+}, 8000);
 
 // ── Semantic Intelligence Layer Initialization ────────────────────────────
 // Initialize after brains come online (embeddings use Ollama)
@@ -12075,7 +12812,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers: _maxNewHyper
   }
 
   // Enforce budgets after synthesis
-  try { enforceTierBudgets(); } catch {}
+  try { enforceTierBudgets(); } catch (e) { observe(e, "tier_budget_enforcement_post_synthesis"); }
 
   // Record last promotion
   STATE.abstraction.lastPromotionAt = nowISO();
@@ -12222,15 +12959,15 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     // ===== AUTO WORLD MODEL UPDATE =====
     // Every new DTU feeds into the world model: extract entities, detect relations,
     // find contradictions, update confidence. This makes the world model self-correcting.
-    try { autoUpdateWorldModel(dtu); } catch {}
+    try { autoUpdateWorldModel(dtu); } catch (e) { observe(e, "auto_world_model_update_on_dtu"); }
     // ===== END AUTO WORLD MODEL UPDATE =====
 
     // ===== SEMANTIC EMBEDDING (async, never blocks) =====
     embedDTU(dtu).catch(() => {});
 
     // Keep high-tier sparse & maintain metrics periodically
-    try { enforceTierBudgets(); } catch {}
-    try { await maybeRunLocalUpgrade(); } catch {}
+    try { enforceTierBudgets(); } catch (e) { observe(e, "tier_budget_enforcement_post_dtu"); }
+    try { await maybeRunLocalUpgrade(); } catch (e) { observe(e, "local_upgrade_attempt_post_dtu"); }
 
     p.status = "installed";
     p.install = { installedAt: nowISO(), snapshotBefore: null };
@@ -14096,6 +14833,20 @@ register("system", "status", (_ctx, _input) => {
     },
     llm: {
       enabled: !!STATE.brains?.conscious || !!BRAIN?.conscious?.enabled,
+    },
+    ghostFleet: {
+      totalLoaded: GHOST_FLEET_STATUS.totalLoaded,
+      totalFailed: GHOST_FLEET_STATUS.totalFailed,
+      loadedAt: GHOST_FLEET_STATUS.loadedAt,
+      modules: Object.entries(GHOST_FLEET_STATUS.modules).map(([name, s]) => ({
+        name, loaded: s.loaded,
+      })),
+    },
+    attentionAllocator: globalThis._concordAttentionBudget
+      ? { active: true, domainCount: globalThis._concordAttentionBudget.size }
+      : { active: false },
+    dreamCapture: {
+      pendingMetaDerivation: (STATE._metaDerivationQueue || []).length,
     },
     uptime: process.uptime(),
   };
@@ -18774,22 +19525,22 @@ async function governorTick(reason="heartbeat") {
     const ctx = _governorCtx();
 
     // 1) Deterministic + bounded growth engines
-    if (s.autogenEnabled)  { try { await runMacro("system","autogen",{ override:true, reason }, ctx); } catch {} }
-    if (s.dreamEnabled)    { try { await runMacro("system","dream",{ override:true, reason }, ctx); } catch {} }
-    if (s.evolutionEnabled){ try { await runMacro("system","evolution",{ override:true, reason }, ctx); } catch {} }
-    if (s.synthEnabled)    { try { await runMacro("system","synth",{ override:true, reason }, ctx); } catch {} }
+    if (s.autogenEnabled)  { try { await runMacro("system","autogen",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_autogen_heartbeat"); } }
+    if (s.dreamEnabled)    { try { await runMacro("system","dream",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_dream_heartbeat"); } }
+    if (s.evolutionEnabled){ try { await runMacro("system","evolution",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_evolution_heartbeat"); } }
+    if (s.synthEnabled)    { try { await runMacro("system","synth",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_synth_heartbeat"); } }
 
     // 2) Queue processing (best-effort; only if macros exist)
-    try { await runMacro("jobs","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("queue","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("ingest","tick",{ override:true, reason }, ctx); } catch {}
-    try { await runMacro("crawl","tick",{ override:true, reason }, ctx); } catch {}
+    try { await runMacro("jobs","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_jobs_tick"); }
+    try { await runMacro("queue","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_queue_tick"); }
+    try { await runMacro("ingest","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_ingest_tick"); }
+    try { await runMacro("crawl","tick",{ override:true, reason }, ctx); } catch (e) { observe(e, "governor_crawl_tick"); }
 
     // 2.5) Goal System: process goal proposals and track active goals
-    try { await processGoalHeartbeat(ctx); } catch {}
+    try { await processGoalHeartbeat(ctx); } catch (e) { observe(e, "governor_goal_heartbeat"); }
 
     // 2.6) Autonomous Agent Scheduler: tick enabled agents at their cadenceMs
-    try { await tickEnabledAgents(ctx); } catch {}
+    try { await tickEnabledAgents(ctx); } catch (e) { observe(e, "governor_agent_scheduler_tick"); }
 
     // 2.7) Emergent systems background ticks (new systems: agents, research, sleep, death, hypothesis, culture)
     try {
@@ -28535,12 +29286,165 @@ app.get("/api/admin/repair/status", requireAuth(), requireRole("owner"), (_req, 
     maxConsecutiveFailures: REPAIR_STATE.maxConsecutiveFailures,
     recentFixes: REPAIR_STATE.fixHistory.slice(-20),
     repairBrainOnline: BRAIN.repair.enabled,
+    // Runtime repair cortex (new — unified system)
+    cortex: {
+      errorAccumulator: getErrorAccumulator(),
+      repairMemory: getRepairMemoryStats(),
+    },
   });
 });
 
 // View learned patterns
 app.get("/api/admin/repair/patterns", requireAuth(), requireRole("owner"), (_req, res) => {
   res.json({ patterns: REPAIR_STATE.knownPatterns });
+});
+
+// ── Sovereign Repair Dashboard Endpoints ──────────────────────────────────
+
+// Full cortex status — everything in one call
+app.get("/api/admin/repair/full-status", requireAuth(), requireRole("owner"), (_req, res) => {
+  res.json(getFullRepairStatus());
+});
+
+// Error accumulator — what the cortex has observed
+app.get("/api/admin/repair/accumulator", requireAuth(), requireRole("owner"), (_req, res) => {
+  res.json(getErrorAccumulator());
+});
+
+// Force a repair cycle immediately
+app.post("/api/admin/repair/force-cycle", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const result = await forceRepairCycle();
+  res.json(result);
+}));
+
+// Execute a specific executor manually
+app.post("/api/admin/repair/execute/:executor", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const result = await executeRepairExecutor(req.params.executor, req.body.context || {});
+  res.json(result);
+}));
+
+// Rollback a macro hot-swap
+app.post("/api/admin/repair/rollback-macro", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const { EXECUTORS: EX } = await import("./emergent/repair-cortex.js");
+  const result = await EX.rollback_macro.execute(req.body);
+  res.json(result);
+}));
+
+// ── New System API Endpoints ──────────────────────────────────────────────
+
+// Forgetting Engine
+app.get("/api/admin/forgetting/status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.get("/api/admin/forgetting/candidates", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(await m.getCandidates()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/forgetting/run", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(await m.runForgettingCycle(false)); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/forgetting/protect", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.protectDTU(req.body.dtuId))).catch(e => res.json({ ok: false, error: e.message }));
+});
+app.post("/api/admin/forgetting/unprotect", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.unprotectDTU(req.body.dtuId))).catch(e => res.json({ ok: false, error: e.message }));
+});
+app.get("/api/admin/forgetting/history", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.getHistory(parseInt(req.query.limit || "20", 10)))).catch(e => res.json({ ok: false, error: e.message }));
+});
+
+// Attention Allocator
+app.get("/api/admin/attention/status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/attention/focus", requireAuth(), requireRole("owner"), async (req, res) => {
+  try {
+    const m = await import("./emergent/attention-allocator.js");
+    res.json(m.setFocusOverride(req.body.domain, req.body.weight, req.body.minutes));
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/attention/unfocus", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.clearFocusOverride()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.get("/api/admin/attention/history", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.getAllocationHistory()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// Dream Capture
+app.post("/api/dream/capture", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(await dc.captureDream(req.body));
+}));
+app.get("/api/dream/history", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(dc.getDreamHistory(parseInt(req.query.limit || "50", 10)));
+}));
+app.get("/api/dream/convergences", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(dc.getConvergences());
+}));
+
+// App Maker
+app.get("/api/apps", requireAuth(), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.listApps());
+}));
+app.get("/api/apps/:id", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.getApp(req.params.id));
+}));
+app.post("/api/apps", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.createApp(req.body));
+}));
+app.post("/api/apps/:id/validate", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  const app = m.getApp(req.params.id);
+  if (!app.ok) return res.json(app);
+  res.json(m.validateApp(app.app));
+}));
+app.post("/api/apps/:id/promote", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.promoteApp(req.params.id));
+}));
+
+// Reality Explorer
+app.post("/api/explore", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/reality-explorer.js");
+  res.json(await m.exploreAdjacent(req.body.constraints, req.body.domain));
+}));
+app.get("/api/explore/history", requireAuth(), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/reality-explorer.js");
+  res.json(m.getExplorationHistory());
+}));
+
+// Promotion Pipeline
+app.get("/api/admin/promotion/queue", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.getQueue());
+}));
+app.post("/api/admin/promotion/:id/approve", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.approvePromotion(req.params.id, "sovereign"));
+}));
+app.post("/api/admin/promotion/:id/reject", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.rejectPromotion(req.params.id, req.body.reason, "sovereign"));
+}));
+app.get("/api/admin/promotion/history", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.getPromotionHistory());
+}));
+
+// Repair Network
+app.get("/api/admin/repair/network-status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/repair-network.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
 });
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");

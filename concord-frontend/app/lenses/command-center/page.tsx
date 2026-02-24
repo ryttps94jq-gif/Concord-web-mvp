@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 import {
   Shield, Activity, Brain, Layers, Puzzle, Cpu, Users, Settings,
   AlertTriangle, Moon, FileText, Pause, Play,
-  Save, Trash2, XCircle,
-  Zap, Send, MapPin,
+  Save, Trash2, XCircle, Eye, Clock, ArrowUp,
+  Zap, Send, MapPin, Focus, ShieldAlert,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -430,14 +430,209 @@ function LogsPanel() {
   );
 }
 
+// ── New Cognitive System Panels ─────────────────────────────────────────────
+
+function BrainsPanel() {
+  const { data } = useQuery({ queryKey: ['cc-brains'], queryFn: () => apiHelpers.brain.status().then(r => r.data), refetchInterval: 10000 });
+
+  const brains = data?.brains as Record<string, { enabled: boolean; model: string; role: string; url: string; stats: { requests: number; totalMs: number; dtusGenerated: number; errors: number; fixes?: number; sleeping?: boolean; lastCallAt: string | null }; avgResponseMs: number }> | undefined;
+  const mode = data?.mode || 'fallback';
+  const onlineCount = data?.onlineCount ?? 0;
+  const totalBrains = brains ? Object.keys(brains).length : 0;
+
+  const modeColor = (mode === 'four_brain' || mode === 'three_brain') ? 'text-neon-green' : mode === 'partial' ? 'text-yellow-400' : 'text-red-400';
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Four-Brain Architecture</h3>
+      <div className="flex items-center gap-3">
+        <span className={`text-lg font-bold ${modeColor}`}>{mode.replace('_', '-')}</span>
+        <span className="text-sm text-gray-500">{onlineCount}/{totalBrains} online</span>
+      </div>
+      {brains && Object.entries(brains).map(([name, brain]) => (
+        <div key={name} className={`bg-lattice-surface rounded-lg p-3 border border-lattice-border ${!brain.enabled ? 'opacity-50' : ''}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <StatusDot status={brain.enabled ? 'green' : 'red'} />
+              <span className="text-sm font-medium text-white capitalize">{name}</span>
+              <span className="text-[10px] text-gray-500">{brain.model}</span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mb-2">{brain.role}</p>
+          {brain.enabled && (
+            <div className="grid grid-cols-3 gap-3">
+              <Stat label="Requests" value={brain.stats.requests} />
+              <Stat label="Avg ms" value={brain.avgResponseMs || (brain.stats.requests > 0 ? Math.round(brain.stats.totalMs / brain.stats.requests) : 0)} />
+              <Stat label="Errors" value={brain.stats.errors} />
+            </div>
+          )}
+          {brain.stats.fixes !== undefined && (
+            <div className="mt-2 text-xs text-gray-400">Fixes applied: <span className="font-mono text-neon-green">{brain.stats.fixes}</span></div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AttentionPanel() {
+  const { data: status } = useQuery({ queryKey: ['cc-attention'], queryFn: () => apiHelpers.attentionAlloc.status().then(r => r.data), refetchInterval: 15000 });
+  const qc = useQueryClient();
+  const unfocusMutation = useMutation({ mutationFn: () => apiHelpers.attentionAlloc.unfocus(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-attention'] }), onError: (err) => console.error('Unfocus failed:', err instanceof Error ? err.message : err) });
+
+  const allocation = (status?.lastAllocation?.allocation || []) as Array<{ domain: string; budget: number; urgency: number; focused?: boolean }>;
+  const focusOverride = status?.focusOverride as { domain: string; weight: number; expiresAt: string } | null;
+  const totalBudget = allocation.reduce((sum: number, a: { budget: number }) => sum + a.budget, 0) || 1;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Attention Allocator</h3>
+      {focusOverride && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-yellow-400">
+            <Focus className="w-4 h-4" />
+            <span>Focus: <strong>{focusOverride.domain}</strong> @ {(focusOverride.weight * 100).toFixed(0)}%</span>
+          </div>
+          <button onClick={() => unfocusMutation.mutate()} disabled={unfocusMutation.isPending} className="text-xs text-red-400 hover:underline disabled:opacity-50">
+            Clear
+          </button>
+        </div>
+      )}
+      <div className="space-y-2">
+        {allocation.slice(0, 15).map((a: { domain: string; budget: number; urgency: number; focused?: boolean }) => (
+          <div key={a.domain} className="flex items-center gap-2 text-xs">
+            <span className="w-28 truncate text-gray-300" title={a.domain}>{a.domain}</span>
+            <div className="flex-1 h-3 bg-lattice-deep rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${a.focused ? 'bg-yellow-500' : 'bg-neon-cyan/60'}`} style={{ width: `${Math.max(2, (a.budget / totalBudget) * 100)}%` }} />
+            </div>
+            <span className="w-8 text-right text-gray-500 font-mono">{a.budget}</span>
+            <span className="w-12 text-right text-gray-500">{(a.urgency * 100).toFixed(0)}%</span>
+          </div>
+        ))}
+        {allocation.length === 0 && <p className="text-xs text-gray-500 text-center py-3">No allocation data yet</p>}
+      </div>
+    </div>
+  );
+}
+
+function ForgettingPanel() {
+  const { data: status } = useQuery({ queryKey: ['cc-forgetting'], queryFn: () => apiHelpers.forgetting.status().then(r => r.data), refetchInterval: 30000 });
+  const qc = useQueryClient();
+  const runMutation = useMutation({ mutationFn: () => apiHelpers.forgetting.run(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-forgetting'] }), onError: (err) => console.error('Forgetting cycle failed:', err instanceof Error ? err.message : err) });
+  const { data: candidates } = useQuery({ queryKey: ['cc-forgetting-candidates'], queryFn: () => apiHelpers.forgetting.candidates().then(r => r.data), refetchInterval: 60000 });
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Forgetting Engine</h3>
+      {status && (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Tombstones" value={status.tombstones ?? 0} />
+            <Stat label="Lifetime" value={status.lifetimeForgotten ?? 0} />
+            <Stat label="Threshold" value={status.threshold ?? 0} />
+          </div>
+          {status.lastRun && (
+            <p className="text-xs text-gray-500 flex items-center gap-1"><Clock className="w-3 h-3" /> Last: {new Date(status.lastRun).toLocaleString()}</p>
+          )}
+        </>
+      )}
+      {candidates && (
+        <p className="text-xs text-gray-400">{candidates.candidateCount ?? 0} candidates for forgetting</p>
+      )}
+      <div className="flex gap-2">
+        <button onClick={() => runMutation.mutate()} disabled={runMutation.isPending}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50 transition-colors">
+          <Trash2 className="w-4 h-4" /> {runMutation.isPending ? 'Running...' : 'Run Forgetting Cycle'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RepairCortexPanel() {
+  const { data: status } = useQuery({ queryKey: ['cc-repair'], queryFn: () => apiHelpers.repairExtended.status().then(r => r.data), refetchInterval: 15000 });
+  const qc = useQueryClient();
+  const forceMutation = useMutation({ mutationFn: () => apiHelpers.repairExtended.force(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-repair'] }), onError: (err) => console.error('Force repair failed:', err instanceof Error ? err.message : err) });
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Repair Cortex</h3>
+      {status ? (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Cycles" value={status.cycleCount ?? 0} />
+            <Stat label="Error Accum" value={status.errorAccumulatorSize ?? 0} />
+            <Stat label="Executors" value={`${status.executorsReady ?? 0}/${status.executorCount ?? 0}`} />
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <StatusDot status={status.running ? 'green' : 'red'} />
+            <span className="text-gray-400">Loop: {status.running ? 'Active' : 'Stopped'}</span>
+            {status.lastCycleAt && <span className="text-gray-500 ml-auto">Last: {new Date(status.lastCycleAt).toLocaleString()}</span>}
+          </div>
+          {status.networkStatus && (
+            <p className="text-xs text-gray-500">Network: {status.networkStatus}</p>
+          )}
+          <button onClick={() => forceMutation.mutate()} disabled={forceMutation.isPending}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 disabled:opacity-50 transition-colors">
+            <ShieldAlert className="w-4 h-4" /> {forceMutation.isPending ? 'Running...' : 'Force Repair Cycle'}
+          </button>
+        </>
+      ) : (
+        <p className="text-xs text-gray-500">Loading...</p>
+      )}
+    </div>
+  );
+}
+
+function PromotionPanel() {
+  const { data } = useQuery({ queryKey: ['cc-promotions'], queryFn: () => apiHelpers.promotion.queue().then(r => r.data), refetchInterval: 30000 });
+  const qc = useQueryClient();
+  const approveMutation = useMutation({ mutationFn: (id: string) => apiHelpers.promotion.approve(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-promotions'] }), onError: (err) => console.error('Promotion approval failed:', err instanceof Error ? err.message : err) });
+  const rejectMutation = useMutation({ mutationFn: (id: string) => apiHelpers.promotion.reject(id, 'Rejected from command center'), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-promotions'] }), onError: (err) => console.error('Promotion rejection failed:', err instanceof Error ? err.message : err) });
+
+  const queue = (data?.queue || []) as Array<{ id: string; artifactName?: string; fromStage: string; toStage: string; status: string; requestedAt: string }>;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Promotion Pipeline</h3>
+      <div className="space-y-2">
+        {queue.length === 0 && <p className="text-xs text-gray-500 text-center py-3">No pending promotions</p>}
+        {queue.map(p => (
+          <div key={p.id} className="bg-lattice-surface rounded-lg p-3 border border-lattice-border">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm text-white font-medium">{p.artifactName || p.id}</span>
+              <span className={`text-xs px-2 py-0.5 rounded ${p.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : p.status === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {p.status}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400">{p.fromStage} → {p.toStage}</p>
+            <p className="text-[10px] text-gray-500">{new Date(p.requestedAt).toLocaleString()}</p>
+            {p.status === 'pending' && (
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => approveMutation.mutate(p.id)} disabled={approveMutation.isPending} className="flex-1 text-xs px-2 py-1.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 disabled:opacity-50">Approve</button>
+                <button onClick={() => rejectMutation.mutate(p.id)} disabled={rejectMutation.isPending} className="flex-1 text-xs px-2 py-1.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50">Reject</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab Navigation ──────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'vitals', label: 'Vitals', icon: Activity },
-  { id: 'emergents', label: 'Emergents', icon: Brain },
+  { id: 'brains', label: 'Brains', icon: Brain },
+  { id: 'emergents', label: 'Emergents', icon: Cpu },
   { id: 'lattice', label: 'Lattice', icon: Layers },
+  { id: 'attention', label: 'Attention', icon: Focus },
+  { id: 'forgetting', label: 'Forgetting', icon: Trash2 },
+  { id: 'repair', label: 'Repair', icon: ShieldAlert },
+  { id: 'promotions', label: 'Promotions', icon: ArrowUp },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
-  { id: 'pipeline', label: 'Pipeline', icon: Cpu },
+  { id: 'pipeline', label: 'Pipeline', icon: Zap },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'config', label: 'Config', icon: Settings },
   { id: 'emergency', label: 'Emergency', icon: AlertTriangle },
@@ -473,8 +668,13 @@ export default function CommandCenterPage() {
   const renderPanel = () => {
     switch (activeTab) {
       case 'vitals': return <VitalsPanel />;
+      case 'brains': return <BrainsPanel />;
       case 'emergents': return <EmergentPanel />;
       case 'lattice': return <LatticePanel />;
+      case 'attention': return <AttentionPanel />;
+      case 'forgetting': return <ForgettingPanel />;
+      case 'repair': return <RepairCortexPanel />;
+      case 'promotions': return <PromotionPanel />;
       case 'plugins': return <PluginPanel />;
       case 'pipeline': return <PipelinePanel />;
       case 'users': return <UserPanel />;

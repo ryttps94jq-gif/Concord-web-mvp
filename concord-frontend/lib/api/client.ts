@@ -131,14 +131,23 @@ api.interceptors.response.use(
       const status = error.response.status;
 
       // SECURITY: Handle CSRF token expiration
+      // Guard against infinite 403 retry loops with _csrfRetried flag
       if (status === 403) {
+        const config = error.config as InternalAxiosRequestConfig & { _csrfRetried?: boolean };
         const data = error.response.data as { code?: string };
-        if (data?.code === 'CSRF_FAILED') {
-          // Refresh CSRF token and retry
+        const isStateChanging = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(config?.method?.toUpperCase() || '');
+
+        if (data?.code === 'CSRF_FAILED' && isStateChanging && !config?._csrfRetried) {
+          // Refresh CSRF token and retry once
           try {
             await api.get('/api/auth/csrf-token');
-            // Retry original request
-            return api.request(error.config!);
+            // Re-read the fresh CSRF token from cookie for the retried request
+            const freshToken = getCsrfToken();
+            if (freshToken && config) {
+              config.headers['X-CSRF-Token'] = freshToken;
+              config._csrfRetried = true;
+            }
+            return api.request(config!);
           } catch {
             console.error('Failed to refresh CSRF token');
           }
@@ -1619,11 +1628,85 @@ export const apiHelpers = {
     /** Get detected knowledge gaps */
     gaps: () => api.get('/api/skill/gaps'),
   },
+
+  // ── New Cognitive Systems ────────────────────────────────────────
+
+  /** Selective Forgetting Engine */
+  forgetting: {
+    status: () => api.get('/api/admin/forgetting/status'),
+    candidates: () => api.get('/api/admin/forgetting/candidates'),
+    run: () => api.post('/api/admin/forgetting/run', {}),
+    protect: (dtuId: string) => api.post('/api/admin/forgetting/protect', { dtuId }),
+    unprotect: (dtuId: string) => api.post('/api/admin/forgetting/unprotect', { dtuId }),
+    history: (n = 20) => api.get(`/api/admin/forgetting/history?limit=${n}`),
+  },
+
+  /** Civilization Attention Allocator */
+  attentionAlloc: {
+    status: () => api.get('/api/admin/attention/status'),
+    focus: (domain: string, weight: number, minutes?: number) =>
+      api.post('/api/admin/attention/focus', { domain, weight, minutes }),
+    unfocus: () => api.post('/api/admin/attention/unfocus', {}),
+    history: () => api.get('/api/admin/attention/history'),
+  },
+
+  /** Dream Capture Pipeline */
+  dream: {
+    capture: (text: string, tags?: string[], title?: string) =>
+      api.post('/api/dream/capture', { text, tags, title }),
+    history: (limit = 50) => api.get(`/api/dream/history?limit=${limit}`),
+    convergences: () => api.get('/api/dream/convergences'),
+  },
+
+  /** App Maker */
+  apps: {
+    list: () => api.get('/api/apps'),
+    get: (id: string) => api.get(`/api/apps/${id}`),
+    create: (spec: Record<string, unknown>) => api.post('/api/apps', spec),
+    validate: (id: string) => api.post(`/api/apps/${id}/validate`, {}),
+    promote: (id: string) => api.post(`/api/apps/${id}/promote`, {}),
+  },
+
+  /** Reality Explorer */
+  explore: {
+    run: (domain: string, constraints: Record<string, unknown>) =>
+      api.post('/api/explore', { domain, constraints }),
+    history: () => api.get('/api/explore/history'),
+  },
+
+  /** Repair (extended) */
+  repairExtended: {
+    fullStatus: () => api.get('/api/admin/repair/full-status'),
+    forceCycle: () => api.post('/api/admin/repair/force-cycle', {}),
+    execute: (executor: string, context?: Record<string, unknown>) =>
+      api.post(`/api/admin/repair/execute/${executor}`, { context }),
+    networkStatus: () => api.get('/api/admin/repair/network-status'),
+  },
+
+  /** Promotion Pipeline */
+  promotion: {
+    queue: () => api.get('/api/admin/promotion/queue'),
+    approve: (id: string) => api.post(`/api/admin/promotion/${id}/approve`, {}),
+    reject: (id: string, reason: string) =>
+      api.post(`/api/admin/promotion/${id}/reject`, { reason }),
+    history: () => api.get('/api/admin/promotion/history'),
+  },
 };
 
-// CSRF token is fetched lazily before the first state-changing request.
-// Do NOT auto-fetch on module load — that fires before the user logs in
-// and generates error toasts/banners that block the login UI.
+/**
+ * Eagerly fetch CSRF token after successful login.
+ * Call this immediately after login succeeds to ensure the CSRF cookie
+ * is set before any state-changing requests. Silently ignores failures
+ * since the 403 interceptor will retry on the first write request.
+ */
+export async function ensureCsrfToken(): Promise<void> {
+  try {
+    await api.get('/api/auth/csrf-token');
+  } catch {
+    // Non-fatal: the 403 retry handler will catch it on first write
+    console.warn('[Auth] CSRF token pre-fetch failed — will retry on first write');
+  }
+}
 
 /**
  * Safe wrapper for utility brain calls.

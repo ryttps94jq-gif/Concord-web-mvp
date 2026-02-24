@@ -73,9 +73,12 @@ export function useLensData<T = Record<string, unknown>>(
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
-  // Auto-seed if backend returned empty and we have seed data
+  // Auto-seed if backend returned empty and we have seed data.
+  // ONLY in development — in production, empty means genuinely empty,
+  // and seeding would mask real auth/connection failures.
+  const isDev = process.env.NODE_ENV === 'development';
   useEffect(() => {
-    if (noSeed || seeded.current || !response || isLoading) return;
+    if (!isDev || noSeed || seeded.current || !response || isLoading) return;
     if (response.ok && response.total === 0 && seed.length > 0) {
       seeded.current = true;
       api.post(`/api/lens/${domain}/bulk`, { type, items: seed }, { timeout: 60000 })
@@ -87,7 +90,7 @@ export function useLensData<T = Record<string, unknown>>(
           seeded.current = false;
         });
     }
-  }, [response, isLoading, domain, type, seed, noSeed, qc]);
+  }, [isDev, response, isLoading, domain, type, seed, noSeed, qc]);
 
   const items: LensItem<T>[] = response?.artifacts || [];
 

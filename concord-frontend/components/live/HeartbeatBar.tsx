@@ -65,7 +65,7 @@ export function HeartbeatBar() {
       setLiveDtuCount(prev => (prev ?? 0) + 1);
 
       // Invalidate queries so dashboard updates
-      queryClient.invalidateQueries({ queryKey: ['dtus'] });
+      queryClient.invalidateQueries({ queryKey: ['dtus-paginated'] });
       queryClient.invalidateQueries({ queryKey: ['resonance-quick'] });
     });
 

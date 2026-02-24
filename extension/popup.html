@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Concord Lens</title>
+  <style>
+    body {
+      width: 280px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 16px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .logo { font-size: 18px; font-weight: 700; color: #00d4ff; }
+    .version { font-size: 11px; color: #666; }
+    .setting {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .setting label { font-size: 13px; }
+    input[type="text"] {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 160px;
+    }
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #333;
+      border-radius: 10px;
+      transition: 0.2s;
+    }
+    .toggle .slider:before {
+      content: "";
+      position: absolute;
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background: #e0e0e0;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .toggle input:checked + .slider { background: #00d4ff; }
+    .toggle input:checked + .slider:before { transform: translateX(16px); }
+    .status { font-size: 11px; color: #666; margin-top: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">◆ Concord Lens</span>
+    <span class="version">v0.1.0</span>
+  </div>
+
+  <div class="setting">
+    <label>Enabled</label>
+    <div class="toggle">
+      <input type="checkbox" id="enabled" checked>
+      <span class="slider"></span>
+    </div>
+  </div>
+
+  <div class="setting">
+    <label>API URL</label>
+    <input type="text" id="apiUrl" value="http://localhost:5050">
+  </div>
+
+  <div class="status" id="status">Connecting...</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

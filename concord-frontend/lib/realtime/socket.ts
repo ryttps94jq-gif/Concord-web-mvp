@@ -104,18 +104,40 @@ export function disconnectSocket(): void {
   }
 }
 
-// Event types
+// Event types — every event the backend emits
 export type SocketEvent =
+  // Resonance
   | 'resonance:update'
-  | 'dtu:created'
-  | 'dtu:updated'
-  | 'dtu:deleted'
-  | 'dtu:promoted'
-  | 'council:proposal'
-  | 'council:vote'
-  | 'market:listing'
-  | 'market:trade'
-  | 'system:alert';
+  // DTU lifecycle
+  | 'dtu:created' | 'dtu:updated' | 'dtu:deleted' | 'dtu:promoted'
+  // Entity lifecycle
+  | 'entity:death' | 'body:instantiated' | 'body:destroyed'
+  // Pain / qualia
+  | 'pain:recorded' | 'pain:processed' | 'pain:wound_created' | 'pain:wound_healed'
+  | 'affect:pain_signal'
+  // Repair cortex
+  | 'repair:dtu_logged' | 'repair:cycle_complete'
+  // Meta-derivation
+  | 'lattice:meta:derived' | 'lattice:meta:convergence' | 'meta:committed'
+  // System
+  | 'system:alert' | 'queue:notifications:new'
+  // Council
+  | 'council:proposal' | 'council:vote'
+  // Marketplace
+  | 'market:listing' | 'market:trade'
+  // Collaboration
+  | 'collab:change' | 'collab:lock' | 'collab:unlock'
+  | 'collab:session:created' | 'collab:user:joined'
+  // Cognitive systems
+  | 'attention:allocation'
+  | 'forgetting:cycle_complete'
+  | 'dream:captured'
+  | 'promotion:approved' | 'promotion:rejected'
+  | 'app:published'
+  // Music / studio
+  | 'music:toggle'
+  // Whiteboard
+  | 'whiteboard:updated';
 
 // ---- Enriched Event Payload (Category 2+5: Concurrency + Observability) ----
 interface EnrichedPayload {

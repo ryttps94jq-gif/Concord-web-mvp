@@ -3,7 +3,7 @@
 import { useState, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { api } from '@/lib/api/client';
+import { api, ensureCsrfToken } from '@/lib/api/client';
 import { connectSocket } from '@/lib/realtime/socket';
 import { Brain, Lock, Eye, EyeOff } from 'lucide-react';
 
@@ -22,14 +22,14 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      // Fetch CSRF token first
-      await api.get('/api/auth/csrf-token');
+      // Fetch CSRF token before login (needed for the POST itself in production)
+      await ensureCsrfToken();
       const res = await api.post('/api/auth/login', { username, password });
       if (res.data?.ok) {
         // Mark as entered so HomeClient shows dashboard
         localStorage.setItem('concord_entered', 'true');
-        // Ensure CSRF cookie is fresh for the dashboard
-        try { await api.get('/api/auth/csrf-token'); } catch {}
+        // Eagerly refresh CSRF token now that we have a real session
+        await ensureCsrfToken();
         // Connect WebSocket now that we have a session cookie
         connectSocket();
         // Small delay to ensure cookies propagate before navigation
