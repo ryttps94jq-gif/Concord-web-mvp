@@ -219,10 +219,7 @@ export function createSubmission(STATE, sourceDtuId, targetScope, submitter, opt
 
   // Cannot go directly from local to marketplace (must go through global first)
   if (sourceScope === SCOPES.LOCAL && targetScope === SCOPES.MARKETPLACE) {
-    const globalScope = scopeState.dtuScope.get(sourceDtuId);
-    if (globalScope !== SCOPES.GLOBAL) {
-      return { ok: false, error: "Local → Marketplace requires Global verification first" };
-    }
+    return { ok: false, error: "Local → Marketplace requires Global verification first" };
   }
 
   // ── Marketplace rights validation ──────────────────────────────────────
