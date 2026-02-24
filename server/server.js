@@ -4162,10 +4162,14 @@ function authMiddleware(req, res, next) {
     "/api/export",
     // Repair cortex v3.1 (frontend error reporting must work without auth)
     "/api/repair",
+    // Dual Global & Creative Registry (public discovery)
+    "/api/scope", "/api/creative",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
   if (req.method === "POST" && req.path.startsWith("/api/repair")) return next();
+  // Gate 1 POST bypass: allow creative registry POST without auth (public discovery)
+  if (req.method === "POST" && req.path.startsWith("/api/creative/registry")) return next();
 
   // Check Authorization header
   const authHeader = req.headers.authorization || "";
@@ -4540,6 +4544,52 @@ async function initMetrics() {
     METRICS.gauges.activeConnections = new prom.Gauge({
       name: "concord_ws_connections",
       help: "Active WebSocket connections",
+      registers: [METRICS.registry]
+    });
+
+    // Dual Global metrics
+    METRICS.gauges.scopeDtus = new prom.Gauge({
+      name: "concord_scope_dtus_total",
+      help: "Total DTUs by scope",
+      labelNames: ["scope"],
+      registers: [METRICS.registry]
+    });
+
+    METRICS.counters.councilReviews = new prom.Counter({
+      name: "concord_council_reviews_total",
+      help: "Council review outcomes by scope",
+      labelNames: ["scope", "result"],
+      registers: [METRICS.registry]
+    });
+
+    METRICS.gauges.creativeRegistry = new prom.Gauge({
+      name: "concord_creative_registry_total",
+      help: "Creative registry entries by domain",
+      labelNames: ["domain"],
+      registers: [METRICS.registry]
+    });
+
+    METRICS.counters.royaltiesPaid = new prom.Counter({
+      name: "concord_royalties_paid_total",
+      help: "Total royalty payments made",
+      registers: [METRICS.registry]
+    });
+
+    METRICS.counters.royaltiesAmount = new prom.Counter({
+      name: "concord_royalties_amount_total",
+      help: "Total royalty amount paid",
+      registers: [METRICS.registry]
+    });
+
+    METRICS.counters.derivationDetections = new prom.Counter({
+      name: "concord_derivation_detections_total",
+      help: "Total derivation detections during citation checks",
+      registers: [METRICS.registry]
+    });
+
+    METRICS.counters.citationFailures = new prom.Counter({
+      name: "concord_citation_integrity_failures_total",
+      help: "Total citation integrity check failures",
       registers: [METRICS.registry]
     });
 
@@ -6128,7 +6178,8 @@ async function runMacro(domain, name, input, ctx) {
     research: new Set(["list", "get", "results", "report", "metrics"]),
     quest: new Set(["list", "get", "active", "progress", "metrics"]),
     teaching: new Set(["list", "get", "profile", "metrics"]),
-    creative: new Set(["list", "get", "exhibition", "metrics", "profile", "masterworks"]),
+    creative: new Set(["list", "get", "exhibition", "metrics", "profile", "masterworks", "registry", "domains"]),
+    scope: new Set(["promote", "checkCitations", "royaltyPreview"]),
     culture: new Set(["status", "traditions", "values", "stories", "metrics", "identity"]),
     trust: new Set(["get", "network", "metrics"]),
     federation: new Set(["status", "peers"]),
@@ -6184,9 +6235,11 @@ async function runMacro(domain, name, input, ctx) {
     "/api/export",
     // Repair cortex v3.1
     "/api/repair",
+    // Dual Global & Creative Registry
+    "/api/scope", "/api/creative",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
-  const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair"];
+  const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
   const safeReadBypass =
     (_method === "GET" && (
       _safeReadPaths.some(p => _path.startsWith(p)) ||
@@ -11511,6 +11564,61 @@ async function entityExploreLens(entity, lens) {
 }
 
 /**
+ * Entity exploration of Creative Global content.
+ * Entities study creative works to mature sensory organs and generate insights.
+ */
+async function entityExploreCreativeGlobal(entity) {
+  const entityId = entity?.id || "unknown";
+  try {
+    const body = getBody(entityId);
+    const creativeOrgans = (body?.organs || [])
+      .filter(o => ["music", "art", "creative", "code", "game"].includes(o.name))
+      .sort((a, b) => (b.maturity || 0) - (a.maturity || 0));
+
+    if (creativeOrgans.length === 0) return null;
+    const strongestDomain = creativeOrgans[0].name;
+
+    // Query the creative registry
+    const ctx = makeCtx(null);
+    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const registry = await runMacro("creative", "registry", {
+      domain: strongestDomain,
+      limit: 10,
+      sort: "newest",
+    }, ctx);
+
+    if (!registry?.entries?.length) return null;
+
+    // Pick a random entry to study
+    const entry = registry.entries[Math.floor(Math.random() * registry.entries.length)];
+
+    // Generate an insight from studying the creative work
+    const system = `You are entity ${entityId} studying creative work in the ${strongestDomain} domain.`;
+    const result = await callBrain("utility",
+      `Analyze this creative work: "${entry.title}"\nProvide one novel insight about this work.`,
+      { system, temperature: 0.8, maxTokens: 300, timeout: 30000 }
+    );
+
+    if (result.ok && result.content) {
+      await runMacro("dtu", "create", {
+        title: `Entity insight on: ${entry.title}`,
+        creti: result.content.slice(0, 500),
+        tags: [strongestDomain, "entity", "creative_analysis"],
+        source: `entity.${entityId}.creative_explore`,
+        meta: { createdBy: entityId, lens: strongestDomain, type: "creative_analysis" },
+        parents: [entry.dtuId],
+        citationType: "reference",
+        scope: "local",
+      }, ctx);
+    }
+
+    return { explored: entry.dtuId, domain: strongestDomain };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get brain status for monitoring.
  */
 function getBrainStatus() {
@@ -13648,7 +13756,27 @@ register("dtu", "create", async (ctx, input) => {
     createdAt: nowISO(),
     updatedAt: nowISO(),
     authority: { model: "council", score: 0, votes: {} },
+    domain: input.domain || input.lens || meta?.lens || null,
   };
+
+  // Capture context at creation time for citation detection
+  if (Array.isArray(input.contextAtCreation)) {
+    dtu.meta.contextAtCreation = input.contextAtCreation.slice(0, 20);
+  }
+  // Explicit lineage parents and citation type
+  if (Array.isArray(input.parents) && input.parents.length > 0) {
+    dtu.lineage = dtu.lineage || {};
+    if (Array.isArray(dtu.lineage)) {
+      dtu.lineage = { parents: input.parents };
+    } else {
+      dtu.lineage.parents = input.parents;
+    }
+    dtu.lineage.citationType = input.citationType || "reference";
+  }
+  // Track which artifact sources were actively loaded
+  if (Array.isArray(input.artifactSourcesUsed) && input.artifactSourcesUsed.length > 0) {
+    dtu.meta.artifactSourcesUsed = input.artifactSourcesUsed;
+  }
 
   if (rawText) {
     dtu.machine = dtu.machine || {};
@@ -19771,6 +19899,8 @@ function startHeartbeat() {
       } else if (behavior.action === "explore" || behavior.action === "deepen") {
         // Lens exploration via utility brain
         const lensResult = await entityExploreLens(explorer, behavior.lens);
+        // Also explore Creative Global content if available
+        try { await entityExploreCreativeGlobal(explorer); } catch { /* silent */ }
         if (lensResult?.ok) {
           findings = { domain: behavior.lens, results: [{ title: `${behavior.lens} exploration`, content: lensResult.content || "", sourceUrl: "" }], source: "lens" };
           synthesizedDTUs.push({ id: null, title: `${behavior.lens} exploration`, body: lensResult.content || "", confidence: 0.4, noveltyScore: 0.4, tags: [behavior.lens] });
@@ -20433,6 +20563,37 @@ async function governorTick(reason="heartbeat") {
       const memoryMod = await import("./emergent/institutional-memory.js").catch(() => null);
       if (memoryMod?.recordObservation) {
         try { memoryMod.recordObservation(STATE, { type: "heartbeat", tick: STATE.__bgTickCounter || 0, entityCount: _bgEntities.length, dtuCount: STATE.dtus?.size || 0 }); } catch {}
+      }
+
+      // Creative registry maintenance — every 100th tick
+      if ((STATE.__bgTickCounter || 0) % 100 === 0) {
+        try {
+          for (const [domain, entries] of CREATIVE_REGISTRY) {
+            // Remove entries for DTUs that no longer exist
+            CREATIVE_REGISTRY.set(domain, entries.filter(e => STATE.dtus.has(e.dtuId)));
+            // Catch-up: register creative_global DTUs not yet in registry
+            for (const [id, dtu] of STATE.dtus) {
+              if (dtu.scope === "creative_global" && (dtu.domain === domain || dtu.meta?.lens === domain)) {
+                const exists = entries.some(e => e.dtuId === id);
+                if (!exists) registerInCreativeRegistry(dtu);
+              }
+            }
+          }
+          // Update Prometheus gauges
+          if (METRICS.enabled) {
+            const scopeCounts = { local: 0, global: 0, creative_global: 0, marketplace: 0, shadow: 0 };
+            for (const dtu of STATE.dtus.values()) {
+              const s = dtu.scope || "local";
+              if (scopeCounts[s] !== undefined) scopeCounts[s]++;
+            }
+            for (const [scope, count] of Object.entries(scopeCounts)) {
+              METRICS.gauges.scopeDtus?.set({ scope }, count);
+            }
+            for (const [domain, entries] of CREATIVE_REGISTRY) {
+              METRICS.gauges.creativeRegistry?.set({ domain }, entries.length);
+            }
+          }
+        } catch { /* silent */ }
       }
 
       // ══════════════════════════════════════════════════════════════════════
@@ -21999,6 +22160,780 @@ app.post("/api/marketplace/review", asyncHandler(async (req, res) => res.json(aw
 app.get("/api/marketplace/installed", asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "installed", {}, makeCtx(req)))));
 
 structuredLog("info", "module_loaded", { module: "Wave 1: Plugin Marketplace" });
+
+// ============================================================================
+// WAVE 1.5: DUAL GLOBAL SYSTEM, CREATIVE PIPELINE, AND ROYALTY CASCADE
+// ============================================================================
+
+// ── Council Gates Configuration ─────────────────────────────────────────────
+const COUNCIL_GATES = Object.freeze({
+  global: {
+    name: "Concord Global",
+    description: "Academic and instructional knowledge with strict epistemic standards",
+    approvalThreshold: 0.70,
+    reviewCriteria: ["accuracy", "evidence", "consistency", "completeness", "novelty", "authority"],
+    authorityBoostOnApproval: 0.3,
+    allowedContentTypes: "all",
+    requiresEvidence: true,
+    requiresCitations: true,
+    maxReviewTime: 50,
+  },
+  creative_global: {
+    name: "Creative Concord Global",
+    description: "Creative commons with citation integrity and artistic freedom",
+    approvalThreshold: 0.50,
+    reviewCriteria: ["citation_integrity", "content_safety", "metadata_completeness", "artifact_integrity"],
+    authorityBoostOnApproval: 0.15,
+    allowedContentTypes: "all",
+    requiresEvidence: false,
+    requiresCitations: true,
+    maxReviewTime: 30,
+  },
+});
+
+// ── Royalty Rate Constants ───────────────────────────────────────────────────
+const ROYALTY_RATES = Object.freeze({
+  derivative: 0.15,
+  adaptation: 0.10,
+  reference: 0.05,
+  extension: 0.08,
+  MAX_TOTAL: 0.30,
+  DEPTH_DECAY: 0.5,
+});
+
+// ── Creative Registry (in-memory) ───────────────────────────────────────────
+const CREATIVE_REGISTRY = new Map();
+
+const DOMAIN_RELATIONS = Object.freeze({
+  music: ["art", "creative", "studio"],
+  art: ["music", "creative", "studio", "game"],
+  creative: ["music", "art", "education"],
+  code: ["education", "game"],
+  game: ["art", "music", "code", "sim"],
+  food: ["health", "fitness"],
+  fitness: ["health", "food"],
+  education: ["research", "creative", "code"],
+  legal: ["finance", "governance"],
+  finance: ["legal", "realestate"],
+  studio: ["music", "art", "creative"],
+});
+
+function inferRelatedDomains(dtu) {
+  return DOMAIN_RELATIONS[dtu.domain] || [];
+}
+
+function registerInCreativeRegistry(dtu) {
+  try {
+    const domain = dtu.domain;
+    if (!domain) return;
+    if (!CREATIVE_REGISTRY.has(domain)) CREATIVE_REGISTRY.set(domain, []);
+
+    CREATIVE_REGISTRY.get(domain).push({
+      dtuId: dtu.id,
+      registeredAt: new Date().toISOString(),
+      contentType: dtu.artifact?.type || "text",
+      title: dtu.human?.summary || dtu.title,
+      creator: dtu.meta?.createdBy || dtu.ownerId,
+      tier: dtu.tier || "regular",
+    });
+
+    const relatedDomains = inferRelatedDomains(dtu);
+    for (const relDomain of relatedDomains) {
+      if (!CREATIVE_REGISTRY.has(relDomain)) CREATIVE_REGISTRY.set(relDomain, []);
+      CREATIVE_REGISTRY.get(relDomain).push({
+        dtuId: dtu.id,
+        registeredAt: new Date().toISOString(),
+        contentType: dtu.artifact?.type || "text",
+        title: dtu.human?.summary || dtu.title,
+        creator: dtu.meta?.createdBy || dtu.ownerId,
+        tier: dtu.tier || "regular",
+        crossDomain: true,
+        primaryDomain: domain,
+      });
+    }
+
+    realtimeEmit("creative_registry:update", {
+      domain,
+      dtuId: dtu.id,
+      contentType: dtu.artifact?.type,
+      title: dtu.human?.summary || dtu.title,
+      relatedDomains,
+    });
+  } catch { /* silent */ }
+}
+
+// ── Citation Integrity Verification ─────────────────────────────────────────
+
+function verifyCitationIntegrity(dtu) {
+  const issues = [];
+
+  // Check 1: If DTU has parents in lineage, verify they exist
+  const parents = dtu.lineage?.parents || [];
+  for (const parentId of parents) {
+    const parent = STATE.dtus.get(parentId) || rehydrateDTU(parentId);
+    if (!parent) {
+      issues.push({ type: "missing_parent", parentId, detail: "Cited parent DTU not found" });
+    }
+  }
+
+  // Check 2: Detect potential uncited derivations
+  if (dtu.meta?.contextAtCreation) {
+    const contextDtus = dtu.meta.contextAtCreation || [];
+    for (const contextDtuId of contextDtus) {
+      if (parents.includes(contextDtuId)) continue;
+      const contextDtu = STATE.dtus.get(contextDtuId) || rehydrateDTU(contextDtuId);
+      if (!contextDtu) continue;
+
+      const overlap = computeContentOverlap(dtu, contextDtu);
+      if (overlap > 0.3) {
+        issues.push({
+          type: "potential_uncited_derivation",
+          sourceDtuId: contextDtuId,
+          overlap,
+          detail: `Content overlaps ${Math.round(overlap * 100)}% with ${(contextDtu.human?.summary || "").slice(0, 50)}`,
+        });
+      }
+
+      // For artifact DTUs: check if artifact was in context
+      if (dtu.artifact && contextDtu.artifact) {
+        if (dtu.meta?.artifactSourcesUsed?.includes(contextDtuId)) {
+          if (!parents.includes(contextDtuId)) {
+            issues.push({
+              type: "uncited_artifact_source",
+              sourceDtuId: contextDtuId,
+              detail: `Artifact from ${(contextDtu.human?.summary || "").slice(0, 50)} was used but not cited`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Check 3: For audio artifacts, lightweight similarity check
+  if (dtu.artifact?.type?.startsWith("audio/")) {
+    const similarTracks = findSimilarAudioArtifacts(dtu);
+    for (const similar of similarTracks) {
+      if (!parents.includes(similar.dtuId) && similar.similarity > 0.5) {
+        issues.push({
+          type: "potential_uncited_sample",
+          sourceDtuId: similar.dtuId,
+          similarity: similar.similarity,
+          detail: `Audio similarity of ${Math.round(similar.similarity * 100)}% with ${similar.title}`,
+        });
+      }
+    }
+  }
+
+  const hasBlockingIssues = issues.some(i =>
+    i.type === "uncited_artifact_source" || i.type === "potential_uncited_sample"
+  );
+
+  return {
+    ok: !hasBlockingIssues,
+    issues,
+    details: hasBlockingIssues
+      ? "Derivation detected without citation. Add sources to lineage before submitting."
+      : issues.length > 0
+        ? "Minor issues detected but not blocking"
+        : "Citation integrity verified",
+  };
+}
+
+function computeContentOverlap(dtuA, dtuB) {
+  const textA = [
+    dtuA.human?.summary || "",
+    ...(dtuA.core?.claims || []),
+    ...(dtuA.core?.definitions || []),
+  ].join(" ").toLowerCase();
+  const textB = [
+    dtuB.human?.summary || "",
+    ...(dtuB.core?.claims || []),
+    ...(dtuB.core?.definitions || []),
+  ].join(" ").toLowerCase();
+  return keywordOverlap(textA, textB);
+}
+
+function findSimilarAudioArtifacts(dtu) {
+  const results = [];
+  for (const [id, candidate] of STATE.dtus) {
+    if (id === dtu.id) continue;
+    if (!candidate.artifact?.type?.startsWith("audio/")) continue;
+    if (candidate.scope !== "global" && candidate.scope !== "creative_global") continue;
+
+    const metaA = extractAudioMeta(dtu);
+    const metaB = extractAudioMeta(candidate);
+
+    let similarity = 0;
+    if (metaA.bpm && metaB.bpm && Math.abs(metaA.bpm - metaB.bpm) < 3) similarity += 0.3;
+    if (metaA.key && metaB.key && metaA.key === metaB.key) similarity += 0.2;
+    if (metaA.duration && metaB.duration && Math.abs(metaA.duration - metaB.duration) < 10) similarity += 0.1;
+
+    if (similarity > 0.3) {
+      results.push({ dtuId: id, similarity, title: candidate.human?.summary });
+    }
+  }
+  return results.sort((a, b) => b.similarity - a.similarity).slice(0, 10);
+}
+
+function extractAudioMeta(dtu) {
+  const claims = dtu.core?.claims || [];
+  const meta = {};
+  for (const claim of claims) {
+    const bpmMatch = claim.match(/BPM:\s*(\d+)/i);
+    const keyMatch = claim.match(/Key:\s*([A-G][#b]?\s*(?:major|minor)?)/i);
+    const durMatch = claim.match(/Duration:\s*([\d:.]+)/i);
+    if (bpmMatch) meta.bpm = parseInt(bpmMatch[1]);
+    if (keyMatch) meta.key = keyMatch[1].trim().toLowerCase();
+    if (durMatch) {
+      const parts = durMatch[1].split(":").map(Number);
+      meta.duration = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+        : parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0];
+    }
+  }
+  return meta;
+}
+
+// ── Artifact Integrity Verification ─────────────────────────────────────────
+
+function verifyArtifactIntegrity(dtu) {
+  if (!dtu.artifact) return { ok: true };
+  if (dtu.artifact.diskPath && !fs.existsSync(dtu.artifact.diskPath)) {
+    return { ok: false, details: "Artifact file not found on disk" };
+  }
+  if (dtu.artifact.diskPath && dtu.artifact.hash) {
+    try {
+      const buffer = fs.readFileSync(dtu.artifact.diskPath);
+      const currentHash = "sha256:" + crypto.createHash("sha256").update(buffer).digest("hex");
+      if (currentHash !== dtu.artifact.hash) {
+        return { ok: false, details: "Artifact hash mismatch — file may be corrupted" };
+      }
+    } catch {
+      return { ok: false, details: "Could not verify artifact hash" };
+    }
+  }
+  const MAX_ARTIFACT_SIZE = 500 * 1024 * 1024; // 500MB
+  if (dtu.artifact.sizeBytes > MAX_ARTIFACT_SIZE) {
+    return { ok: false, details: `Artifact exceeds max size (${dtu.artifact.sizeBytes} > ${MAX_ARTIFACT_SIZE})` };
+  }
+  return { ok: true };
+}
+
+// ── Pre-Submission Checks ───────────────────────────────────────────────────
+
+function runPreSubmissionChecks(dtu, targetScope, gateConfig) {
+  // Content safety check
+  const contentCheck = detectContentInjection(
+    (dtu.human?.summary || "") + " " + (dtu.core?.claims || []).join(" ")
+  );
+  if (contentCheck.injected) {
+    return { ok: false, error: "content_safety_violation", patterns: contentCheck.patterns };
+  }
+
+  // Citation integrity check
+  if (gateConfig.requiresCitations) {
+    const citationCheck = verifyCitationIntegrity(dtu);
+    if (!citationCheck.ok) {
+      return { ok: false, error: "citation_integrity_failure", details: citationCheck.details };
+    }
+  }
+
+  // Evidence check — required for Concord Global only
+  if (gateConfig.requiresEvidence && targetScope === "global") {
+    if (!dtu.core?.claims?.length && !dtu.core?.definitions?.length) {
+      return { ok: false, error: "insufficient_evidence", details: "Global DTUs require claims or definitions" };
+    }
+  }
+
+  // Artifact integrity check
+  if (dtu.artifact) {
+    const artifactCheck = verifyArtifactIntegrity(dtu);
+    if (!artifactCheck.ok) {
+      return { ok: false, error: "artifact_integrity_failure", details: artifactCheck.details };
+    }
+  }
+
+  // Metadata completeness
+  if (!dtu.domain && !dtu.meta?.lens) {
+    return { ok: false, error: "incomplete_metadata", details: "Domain required for global promotion" };
+  }
+  if (!dtu.human?.summary && !dtu.title) {
+    return { ok: false, error: "incomplete_metadata", details: "Summary or title required" };
+  }
+
+  return { ok: true };
+}
+
+// ── Creative Global Evaluation (deterministic) ──────────────────────────────
+
+function evaluateForCreativeGlobal(entityId, dtu) {
+  const issues = [];
+
+  const citationResult = verifyCitationIntegrity(dtu);
+  if (!citationResult.ok) {
+    issues.push(...citationResult.issues);
+  }
+
+  const safetyCheck = detectContentInjection(
+    (dtu.human?.summary || "") + " " + (dtu.core?.claims || []).join(" ")
+  );
+  if (safetyCheck.injected) {
+    issues.push({ type: "content_safety", detail: "Content safety violation detected" });
+  }
+
+  if (dtu.artifact) {
+    const artifactOk = verifyArtifactIntegrity(dtu);
+    if (!artifactOk.ok) {
+      issues.push({ type: "artifact_broken", detail: artifactOk.details });
+    }
+  }
+
+  if (!dtu.domain && !dtu.meta?.lens) {
+    issues.push({ type: "incomplete_metadata", detail: "Missing domain" });
+  }
+  if (!dtu.human?.summary && !dtu.title) {
+    issues.push({ type: "incomplete_metadata", detail: "Missing summary or title" });
+  }
+
+  const blockingIssues = issues.filter(i =>
+    i.type !== "potential_uncited_derivation"
+  );
+
+  return {
+    entityId,
+    decision: blockingIssues.length === 0 ? "approve" : "reject",
+    reasoning: blockingIssues.length === 0
+      ? "Citation integrity verified, content safe, metadata complete"
+      : `Issues: ${blockingIssues.map(i => i.detail).join("; ")}`,
+    issues,
+  };
+}
+
+// ── Royalty Cascade Computation ──────────────────────────────────────────────
+
+function computeRoyaltyCascade(dtu) {
+  const royalties = [];
+  const visited = new Set();
+
+  function walkLineage(currentDtu, depth) {
+    const parents = currentDtu.lineage?.parents || [];
+    for (const parentId of parents) {
+      if (visited.has(parentId)) continue;
+      visited.add(parentId);
+      const parent = STATE.dtus.get(parentId) || rehydrateDTU(parentId);
+      if (!parent) continue;
+      if (!parent.meta?.createdBy && !parent.ownerId) continue;
+
+      const citationType = currentDtu.lineage?.citationType || "reference";
+      const baseRate = ROYALTY_RATES[citationType] || ROYALTY_RATES.reference;
+      const depthMultiplier = Math.pow(ROYALTY_RATES.DEPTH_DECAY, depth);
+      const rate = baseRate * depthMultiplier;
+
+      if (rate >= 0.005) {
+        royalties.push({
+          sourceDtuId: parentId,
+          originalCreator: parent.meta?.createdBy || parent.ownerId,
+          citationType,
+          rate,
+          depth,
+          sourceTitle: (parent.human?.summary || parent.title || "").slice(0, 50),
+        });
+      }
+
+      if (depth < 5) {
+        walkLineage(parent, depth + 1);
+      }
+    }
+  }
+
+  walkLineage(dtu, 0);
+
+  // Cap total royalties
+  const totalRate = royalties.reduce((sum, r) => sum + r.rate, 0);
+  if (totalRate > ROYALTY_RATES.MAX_TOTAL) {
+    const scaleFactor = ROYALTY_RATES.MAX_TOTAL / totalRate;
+    for (const r of royalties) {
+      r.rate *= scaleFactor;
+      r.rate = Math.round(r.rate * 10000) / 10000;
+    }
+  }
+
+  return royalties;
+}
+
+// ── Scope Promotion Macro (Dual Global) ─────────────────────────────────────
+
+register("scope", "promote", async (ctx, input) => {
+  const { dtuId, targetScope } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+
+  if (!dtu) return { ok: false, error: "dtu_not_found" };
+  if (dtu.scope === targetScope) return { ok: false, error: "already_in_scope" };
+
+  if (!["global", "creative_global"].includes(targetScope)) {
+    return { ok: false, error: "invalid_target_scope" };
+  }
+
+  const gateConfig = COUNCIL_GATES[targetScope];
+
+  // Pre-submission checks
+  const preCheck = runPreSubmissionChecks(dtu, targetScope, gateConfig);
+  if (!preCheck.ok) return preCheck;
+
+  // Simulate council review: for creative_global use deterministic checks,
+  // for global use entity-based council if available
+  let reviewResult;
+
+  if (targetScope === "creative_global") {
+    // Deterministic citation review — no LLM needed
+    const vote = evaluateForCreativeGlobal("system", dtu);
+    const approved = vote.decision === "approve";
+    reviewResult = {
+      approved,
+      votes: { approve: approved ? 1 : 0, reject: approved ? 0 : 1, total: 1 },
+      reason: approved ? null : vote.reasoning,
+      reviewDetails: [vote],
+    };
+  } else {
+    // Academic global — use existing council gate + structure validation
+    const { validateGlobalDtu } = await import("./emergent/scope-separation.js").catch(() => ({}));
+    let globalValid = { ok: true };
+    if (validateGlobalDtu) {
+      globalValid = validateGlobalDtu(dtu);
+    }
+
+    if (!globalValid.ok) {
+      return { ok: false, rejected: true, reason: "global_validation_failed", errors: globalValid.errors };
+    }
+
+    // Simulate council vote based on content quality
+    const score = (dtu.core?.definitions?.length || 0) + (dtu.core?.claims?.length || 0) +
+      (dtu.core?.invariants?.length || 0) + (dtu.core?.examples?.length || 0);
+    const hasEvidence = !!(dtu.meta?.citations?.length || dtu.meta?.evidence?.length);
+    const approveCount = (score >= 3 ? 1 : 0) + (hasEvidence ? 1 : 0) + (dtu.human?.summary?.length > 50 ? 1 : 0);
+    const total = 3;
+    const approved = total > 0 && (approveCount / total) >= gateConfig.approvalThreshold;
+
+    reviewResult = {
+      approved,
+      votes: { approve: approveCount, reject: total - approveCount, total },
+      reason: approved ? null : "Insufficient content quality for Concord Global",
+    };
+  }
+
+  if (reviewResult.approved) {
+    dtu.scope = targetScope;
+    dtu.authority = dtu.authority || {};
+    dtu.authority.score = Math.min(1.0,
+      (dtu.authority.score || 0.5) + gateConfig.authorityBoostOnApproval
+    );
+    dtu.meta = dtu.meta || {};
+    dtu.meta.promotedTo = targetScope;
+    dtu.meta.promotedAt = new Date().toISOString();
+    dtu.meta.councilVotes = reviewResult.votes;
+
+    if (targetScope === "creative_global") {
+      registerInCreativeRegistry(dtu);
+    }
+
+    // Credit the creator
+    const creator = dtu.meta?.createdBy || dtu.ownerId;
+    if (creator) {
+      try {
+        const econMod = await import("./emergent/entity-economy.js").catch(() => null);
+        if (econMod?.earnResource) {
+          econMod.earnResource(creator, "insight",
+            targetScope === "global"
+              ? ENTITY_ECONOMY_CONSTANTS.INCOME_DTU_PROMOTED
+              : Math.floor(ENTITY_ECONOMY_CONSTANTS.INCOME_DTU_PROMOTED * 0.7),
+            `DTU promoted to ${targetScope}`
+          );
+        }
+      } catch { /* silent */ }
+    }
+
+    realtimeEmit("dtu:promoted", { dtuId: dtu.id, targetScope, votes: reviewResult.votes });
+
+    return { ok: true, scope: targetScope, votes: reviewResult.votes };
+  } else {
+    return { ok: false, rejected: true, reason: reviewResult.reason, votes: reviewResult.votes };
+  }
+}, { description: "Promote a DTU to Concord Global or Creative Global." });
+
+// ── Creative Registry Macros ────────────────────────────────────────────────
+
+register("creative", "registry", async (ctx, input) => {
+  const { domain, contentType, limit = 50, offset = 0, sort = "newest" } = input || {};
+
+  let entries = CREATIVE_REGISTRY.get(domain) || [];
+
+  if (contentType) {
+    entries = entries.filter(e => e.contentType?.startsWith(contentType));
+  }
+
+  if (sort === "newest") {
+    entries = [...entries].sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+  } else if (sort === "popular") {
+    entries = [...entries].sort((a, b) => {
+      const dtuA = STATE.dtus.get(a.dtuId);
+      const dtuB = STATE.dtus.get(b.dtuId);
+      return (dtuB?.authority?.score || 0) - (dtuA?.authority?.score || 0);
+    });
+  }
+
+  const page = entries.slice(offset, offset + limit);
+
+  const hydrated = page.map(entry => {
+    const dtu = STATE.dtus.get(entry.dtuId);
+    return {
+      ...entry,
+      dtu: dtu ? {
+        id: dtu.id,
+        human: dtu.human,
+        core: dtu.core,
+        domain: dtu.domain,
+        tier: dtu.tier,
+        artifact: dtu.artifact ? {
+          type: dtu.artifact.type,
+          filename: dtu.artifact.filename,
+          sizeBytes: dtu.artifact.sizeBytes,
+          hasThumbnail: !!dtu.artifact.thumbnail,
+          hasPreview: !!dtu.artifact.preview,
+        } : null,
+        authority: dtu.authority,
+        lineage: { parentCount: dtu.lineage?.parents?.length || 0 },
+        marketplace: dtu.marketplace?.listed ? { price: dtu.marketplace.price, purchases: dtu.marketplace.purchases } : null,
+      } : null,
+    };
+  }).filter(e => e.dtu !== null);
+
+  return {
+    ok: true,
+    domain,
+    entries: hydrated,
+    total: entries.length,
+    hasMore: offset + limit < entries.length,
+  };
+}, { description: "Get creative registry for a domain." });
+
+register("creative", "domains", async (ctx, input) => {
+  const domains = {};
+  for (const [domain, entries] of CREATIVE_REGISTRY) {
+    domains[domain] = {
+      total: entries.length,
+      recent: entries.filter(e =>
+        Date.now() - new Date(e.registeredAt).getTime() < 86400000
+      ).length,
+      contentTypes: [...new Set(entries.map(e => e.contentType))],
+    };
+  }
+  return { ok: true, domains };
+}, { description: "Get all domains with creative content counts." });
+
+// ── Royalty-Aware Marketplace Purchase ───────────────────────────────────────
+
+register("marketplace", "purchaseWithRoyalties", async (ctx, input) => {
+  const { dtuId } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu?.marketplace?.listed) return { ok: false, error: "not_listed" };
+
+  const price = dtu.marketplace.price || 0;
+  if (price === 0) {
+    const clone = JSON.parse(JSON.stringify(dtu));
+    clone.id = uid("dtu");
+    clone.scope = "local";
+    clone.meta = clone.meta || {};
+    clone.meta.purchasedFrom = dtuId;
+    clone.meta.purchasedAt = new Date().toISOString();
+    clone.meta.owner = ctx?.actor?.userId;
+    delete clone.marketplace;
+    STATE.dtus.set(clone.id, clone);
+    return { ok: true, purchasedDtuId: clone.id, price: 0, royalties: [] };
+  }
+
+  const platformFee = price * 0.05;
+  const creatorPool = price * 0.95;
+
+  const royalties = computeRoyaltyCascade(dtu);
+  const payments = [];
+  let remainingPool = creatorPool;
+
+  for (const royalty of royalties) {
+    const amount = Math.round(creatorPool * royalty.rate * 100) / 100;
+    remainingPool -= amount;
+
+    payments.push({
+      recipient: royalty.originalCreator,
+      amount,
+      type: "royalty",
+      citationType: royalty.citationType,
+      sourceDtuId: royalty.sourceDtuId,
+      depth: royalty.depth,
+    });
+
+    // Create royalty DTU for audit trail
+    const royaltyDtuId = uid("dtu");
+    STATE.dtus.set(royaltyDtuId, {
+      id: royaltyDtuId,
+      title: `Royalty: $${amount} to ${royalty.originalCreator}`,
+      tier: "regular",
+      scope: "local",
+      domain: "economy",
+      tags: ["royalty", "audit"],
+      human: { summary: `Royalty: $${amount} to ${royalty.originalCreator} for ${royalty.citationType} of ${royalty.sourceTitle}` },
+      core: { claims: [`Amount: $${amount}`, `Type: ${royalty.citationType}`, `Depth: ${royalty.depth}`], definitions: [], invariants: [], examples: [], nextActions: [] },
+      machine: { kind: "royalty_record" },
+      lineage: { parents: [dtuId, royalty.sourceDtuId] },
+      authority: { score: 0.5 },
+      meta: { createdBy: "system", type: "royalty_record", createdAt: new Date().toISOString() },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  // Seller gets the remainder
+  payments.push({
+    recipient: dtu.marketplace.seller || dtu.meta?.createdBy || dtu.ownerId,
+    amount: Math.round(remainingPool * 100) / 100,
+    type: "sale",
+  });
+
+  // Platform fee
+  payments.push({ recipient: "platform", amount: Math.round(platformFee * 100) / 100, type: "platform_fee" });
+
+  // Clone DTU to buyer
+  const clone = JSON.parse(JSON.stringify(dtu));
+  clone.id = uid("dtu");
+  clone.scope = "local";
+  clone.meta = clone.meta || {};
+  clone.meta.purchasedFrom = dtuId;
+  clone.meta.purchasedAt = new Date().toISOString();
+  clone.meta.owner = ctx?.actor?.userId;
+  delete clone.marketplace;
+  STATE.dtus.set(clone.id, clone);
+
+  dtu.marketplace.purchases = (dtu.marketplace.purchases || 0) + 1;
+
+  realtimeEmit("marketplace:purchase", {
+    dtuId,
+    buyerId: ctx?.actor?.userId,
+    price,
+    royalties: royalties.length,
+    seller: dtu.marketplace.seller || dtu.meta?.createdBy,
+  });
+
+  return {
+    ok: true,
+    purchasedDtuId: clone.id,
+    price,
+    breakdown: {
+      platformFee: Math.round(platformFee * 100) / 100,
+      sellerReceived: Math.round(remainingPool * 100) / 100,
+      royaltiesPaid: payments.filter(p => p.type === "royalty"),
+      totalRoyaltyPercent: Math.round(royalties.reduce((s, r) => s + r.rate, 0) * 100),
+    },
+  };
+}, { description: "Purchase a marketplace listing with royalty cascade." });
+
+// ── Royalties Query Endpoint ────────────────────────────────────────────────
+
+register("marketplace", "royalties", async (ctx, input) => {
+  const userId = input?.userId || ctx?.actor?.userId;
+  if (!userId) return { ok: false, error: "userId required" };
+
+  const royaltyDtus = [];
+  for (const d of STATE.dtus.values()) {
+    if (d.machine?.kind === "royalty_record" && d.human?.summary?.includes(userId)) {
+      royaltyDtus.push(d);
+    }
+  }
+
+  const streams = {};
+  let totalEarned = 0;
+  const thirtyDaysAgo = Date.now() - 30 * 86400000;
+  let thisMonth = 0;
+
+  for (const rd of royaltyDtus) {
+    const amountClaim = rd.core?.claims?.find(c => c.startsWith("Amount:"));
+    const amount = parseFloat(amountClaim?.replace("Amount: $", "") || "0");
+    totalEarned += amount;
+
+    if (new Date(rd.meta?.createdAt).getTime() > thirtyDaysAgo) {
+      thisMonth += amount;
+    }
+
+    const sourceId = rd.lineage?.parents?.[1];
+    if (sourceId) {
+      if (!streams[sourceId]) {
+        const source = STATE.dtus.get(sourceId) || rehydrateDTU(sourceId);
+        const typeClaim = rd.core?.claims?.find(c => c.startsWith("Type:"));
+        streams[sourceId] = {
+          id: sourceId,
+          originalTitle: source?.human?.summary || source?.title || "Unknown",
+          citationType: typeClaim?.replace("Type: ", "") || "reference",
+          derivativeCount: 0,
+          totalSales: 0,
+          totalRoyalties: 0,
+        };
+      }
+      streams[sourceId].totalSales++;
+      streams[sourceId].totalRoyalties += amount;
+    }
+  }
+
+  return {
+    ok: true,
+    totalEarned: Math.round(totalEarned * 100) / 100,
+    thisMonth: Math.round(thisMonth * 100) / 100,
+    streams: Object.values(streams).sort((a, b) => b.totalRoyalties - a.totalRoyalties),
+    recentPayments: royaltyDtus
+      .sort((a, b) => new Date(b.meta?.createdAt) - new Date(a.meta?.createdAt))
+      .slice(0, 20)
+      .map(rd => {
+        const amountClaim = rd.core?.claims?.find(c => c.startsWith("Amount:"));
+        const typeClaim = rd.core?.claims?.find(c => c.startsWith("Type:"));
+        return {
+          id: rd.id,
+          date: rd.meta?.createdAt,
+          amount: parseFloat(amountClaim?.replace("Amount: $", "") || "0"),
+          derivativeTitle: STATE.dtus.get(rd.lineage?.parents?.[0])?.human?.summary || "Unknown",
+          citationType: typeClaim?.replace("Type: ", "") || "reference",
+        };
+      }),
+  };
+}, { description: "Get royalty earnings for a user." });
+
+// ── Citation Check Macro ────────────────────────────────────────────────────
+
+register("scope", "checkCitations", async (ctx, input) => {
+  const { dtuId } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "dtu_not_found" };
+  const result = verifyCitationIntegrity(dtu);
+  return { ok: true, ...result };
+}, { description: "Check citation integrity for a DTU." });
+
+// ── Royalty Preview Macro ───────────────────────────────────────────────────
+
+register("scope", "royaltyPreview", async (ctx, input) => {
+  const { dtuId } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "dtu_not_found" };
+  const royalties = computeRoyaltyCascade(dtu);
+  return { ok: true, royalties, totalRate: royalties.reduce((s, r) => s + r.rate, 0) };
+}, { description: "Preview royalty cascade for a DTU." });
+
+// ── API Routes for Dual Global & Royalties ──────────────────────────────────
+
+app.post("/api/scope/promote", asyncHandler(async (req, res) => res.json(await runMacro("scope", "promote", req.body, makeCtx(req)))));
+app.post("/api/scope/checkCitations", asyncHandler(async (req, res) => res.json(await runMacro("scope", "checkCitations", req.body, makeCtx(req)))));
+app.post("/api/scope/royaltyPreview", asyncHandler(async (req, res) => res.json(await runMacro("scope", "royaltyPreview", req.body, makeCtx(req)))));
+app.post("/api/creative/registry", asyncHandler(async (req, res) => res.json(await runMacro("creative", "registry", req.body, makeCtx(req)))));
+app.get("/api/creative/domains", asyncHandler(async (req, res) => res.json(await runMacro("creative", "domains", {}, makeCtx(req)))));
+app.post("/api/marketplace/purchaseWithRoyalties", asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "purchaseWithRoyalties", req.body, makeCtx(req)))));
+app.get("/api/marketplace/royalties/:userId", asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "royalties", { userId: req.params.userId }, makeCtx(req)))));
+app.get("/api/marketplace/royalties", asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "royalties", {}, makeCtx(req)))));
+
+structuredLog("info", "module_loaded", { module: "Wave 1.5: Dual Global System, Creative Pipeline, Royalty Cascade" });
 
 // ============================================================================
 // WAVE 2: GRAPH-BASED RELATIONAL QUERIES (Surpassing Logseq)
@@ -40416,4 +41351,11 @@ export const __TEST__ = Object.freeze({
   register,
   runMacro,
   MACROS,
+  COUNCIL_GATES,
+  ROYALTY_RATES,
+  CREATIVE_REGISTRY,
+  computeRoyaltyCascade,
+  verifyCitationIntegrity,
+  registerInCreativeRegistry,
+  entityExploreCreativeGlobal,
 });

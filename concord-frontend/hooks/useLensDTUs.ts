@@ -21,7 +21,7 @@
  *   } = useLensDTUs({ lens: 'research', domain: 'science' });
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { DTU, DTUTier } from '@/lib/api/generated-types';
@@ -70,6 +70,8 @@ interface CreateDTUInput {
   tier?: DTUTier;
   source?: string;
   parents?: string[];
+  citationType?: string;
+  artifactSourcesUsed?: string[];
   meta?: Record<string, unknown>;
 }
 
@@ -169,12 +171,32 @@ export function useLensDTUs(options: LensDTUOptions) {
     };
   }, [contextQuery.data?.tiers, hyperDTUs.length, megaDTUs.length, regularDTUs.length, contextDTUs.length]);
 
-  // ---- Create DTU mutation ----
+  // ---- Track which DTUs are in active context for citation detection ----
+  useEffect(() => {
+    if (contextDTUs.length > 0) {
+      const contextIds = contextDTUs.map((d) => d.id).filter(Boolean);
+      try {
+        sessionStorage.setItem(`lens_context_${lens}`, JSON.stringify(contextIds));
+      } catch { /* sessionStorage unavailable */ }
+    }
+  }, [contextDTUs, lens]);
+
+  // ---- Create DTU mutation (with context tracking) ----
   const createMut = useMutation<CreateDTUResponse, Error, CreateDTUInput>({
     mutationFn: async (input) => {
+      let activeContext: string[] = [];
+      try {
+        activeContext = JSON.parse(sessionStorage.getItem(`lens_context_${lens}`) || '[]');
+      } catch { /* silent */ }
+
       const { data } = await api.post('/api/macro/dtu/create', {
         ...input,
         lens,
+        domain: lens,
+        contextAtCreation: activeContext,
+        parents: input.parents || [],
+        citationType: input.citationType || 'reference',
+        artifactSourcesUsed: input.artifactSourcesUsed || [],
       });
       return data as CreateDTUResponse;
     },
@@ -208,6 +230,28 @@ export function useLensDTUs(options: LensDTUOptions) {
     [publishMut],
   );
 
+  // ---- Promote to global scope mutation ----
+  const promoteMut = useMutation<
+    { ok: boolean; scope?: string; votes?: Record<string, number>; error?: string },
+    Error,
+    { dtuId: string; targetScope: 'global' | 'creative_global' }
+  >({
+    mutationFn: async (input) => {
+      const { data } = await api.post('/api/scope/promote', input);
+      return data as { ok: boolean; scope?: string; votes?: Record<string, number>; error?: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lensDTUs', 'context', lens] });
+      qc.invalidateQueries({ queryKey: ['lensDTUs', 'domain'] });
+    },
+  });
+
+  const promoteToGlobal = useCallback(
+    (input: { dtuId: string; targetScope: 'global' | 'creative_global' }) =>
+      promoteMut.mutateAsync(input),
+    [promoteMut],
+  );
+
   // ---- Composite loading / error ----
   const isLoading = contextQuery.isLoading || domainQuery.isLoading;
   const isError = contextQuery.isError || domainQuery.isError;
@@ -230,8 +274,10 @@ export function useLensDTUs(options: LensDTUOptions) {
     // Mutations
     createDTU,
     publishToMarketplace,
+    promoteToGlobal,
     isCreating: createMut.isPending,
     isPublishing: publishMut.isPending,
+    isPromoting: promoteMut.isPending,
 
     // Query state
     isLoading,
