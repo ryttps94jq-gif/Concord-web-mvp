@@ -54,7 +54,8 @@ export default function registerSystemRoutes(app, {
   CRETI_PROJECTION_RULES,
   searchIndexed,
   paginateResults,
-  _auditLog
+  _auditLog,
+  AUDIT_LOG
 }) {
 
   // ---- Root ----
@@ -151,6 +152,11 @@ export default function registerSystemRoutes(app, {
         wrappers: STATE.wrappers.size,
         layers: STATE.layers.size,
         personas: STATE.personas.size,
+        events: AUDIT_LOG?.length || 0,
+        emergents: STATE.__emergent?.emergents?.size || 0,
+      },
+      llm: {
+        enabled: LLM_READY,
       },
       sims: STATE.lastSim ? 1 : 0,
     };

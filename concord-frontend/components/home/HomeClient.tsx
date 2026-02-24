@@ -286,7 +286,7 @@ function DashboardPage() {
         />
         <MetricCard
           label="Global DTUs"
-          value={statusLoading ? '...' : (scopeMetrics?.globalCount ?? 0)}
+          value={statusLoading ? '...' : (scopeMetrics?.globalCount || dtuCount)}
           icon={<Globe className="w-5 h-5" />}
           color="purple"
         />

@@ -16542,6 +16542,7 @@ register("lattice", "resonance", (ctx, _input={}) => {
   const g = STATE.growth || {};
   return {
     ok: true,
+    coherence: m.homeostasis ?? 1,
     resonance: {
       homeostasis: m.homeostasis ?? 1,
       continuity: m.continuityAvg ?? 0,
@@ -17274,7 +17275,7 @@ registerSystemRoutes(app, {
   getTimeInfo, getWeather, createBackup, listBackups, restoreBackup,
   ensureOrganRegistry, ensureQueues, _getPatternHistory, classifyDomain,
   _inferQueryIntent, CRETI_PROJECTION_RULES, searchIndexed, paginateResults,
-  auditLog
+  auditLog, AUDIT_LOG
 });
 
 // ---- Auth Endpoints (extracted to routes/auth.js) ----
