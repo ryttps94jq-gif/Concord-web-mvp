@@ -459,7 +459,16 @@ export function getDtuScope(STATE, dtuId) {
   return scopeState.dtuScope.get(dtuId) || SCOPES.LOCAL;
 }
 
+let _scopeMetricsCache = null;
+let _scopeMetricsCacheAt = 0;
+const SCOPE_METRICS_TTL = 30000; // 30 seconds
+
 export function getScopeMetrics(STATE) {
+  const now = Date.now();
+  if (_scopeMetricsCache && (now - _scopeMetricsCacheAt) < SCOPE_METRICS_TTL) {
+    return { ..._scopeMetricsCache, cached: true };
+  }
+
   const scopeState = getScopeState(STATE);
   const dtuScope = scopeState.dtuScope;
 
@@ -470,12 +479,16 @@ export function getScopeMetrics(STATE) {
     else if (scope === SCOPES.MARKETPLACE) marketCount++;
   }
 
-  return {
+  const result = {
     ok: true,
     ...scopeState.metrics,
     dtusByScope: { local: localCount, global: globalCount, marketplace: marketCount },
     totalSubmissions: scopeState.submissions.size,
   };
+
+  _scopeMetricsCache = result;
+  _scopeMetricsCacheAt = now;
+  return result;
 }
 
 // ── Local Quality Hints (Section 7) ─────────────────────────────────────────

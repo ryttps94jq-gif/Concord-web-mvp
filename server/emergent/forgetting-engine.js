@@ -28,6 +28,16 @@ function getSTATE() { return globalThis._concordSTATE || null; }
 const FORGETTING_INTERVAL_MS = parseInt(process.env.FORGETTING_INTERVAL_MS || String(6 * 3600000), 10);
 const DEFAULT_THRESHOLD = 0.15;
 
+// ── Hardware-Derived Constants ──────────────────────────────────────────────
+// 2GB backend container, ~1.2-1.5GB available for DTU storage
+// At 5-8KB/DTU: ceiling is 150,000-240,000 DTUs
+// Target steady state: 60-70% of ceiling to leave headroom
+const DTU_MEMORY_CEILING = parseInt(process.env.DTU_MEMORY_CEILING || "170000", 10);
+const DTU_TARGET_RATIO = parseFloat(process.env.DTU_TARGET_RATIO || "0.65"); // 65% of ceiling
+const DTU_TARGET_COUNT = Math.round(DTU_MEMORY_CEILING * DTU_TARGET_RATIO); // ~110,500
+// Max DTUs to forget per cycle to prevent batch-delete lag
+const MAX_FORGET_PER_CYCLE = parseInt(process.env.MAX_FORGET_PER_CYCLE || "50", 10);
+
 // ── Module State ────────────────────────────────────────────────────────────
 
 let _timer = null;
