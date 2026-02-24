@@ -33,6 +33,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - AUTH_MODE=${AUTH_MODE:-hybrid}
       - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - SOVEREIGN_USERNAME=${SOVEREIGN_USERNAME:-Concord_Founder_Dutch}
       # LLM - set OPENAI_API_KEY in .env for AI features
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL_FAST=${OPENAI_MODEL_FAST:-gpt-4o-mini}

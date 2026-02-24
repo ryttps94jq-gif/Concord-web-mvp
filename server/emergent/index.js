@@ -568,6 +568,17 @@ function init({ register, STATE, helpers }) {
     return { ok: true, emergent: result };
   }, { description: "Deactivate an emergent", public: false });
 
+  // ── Reproduction macro (sovereign-enabled only) ──
+  register("emergent", "reproduce", async (_ctx, input = {}) => {
+    try {
+      const { attemptReproduction, isReproductionEnabled } = await import("./reproduction.js");
+      if (!isReproductionEnabled()) return { ok: false, error: "reproduction_disabled" };
+      return await attemptReproduction(input.parentA, input.parentB);
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, { description: "Attempt entity reproduction (sovereign only)", public: false });
+
   // ══════════════════════════════════════════════════════════════════════════
   // DIALOGUE SESSION MACROS
   // ══════════════════════════════════════════════════════════════════════════
@@ -577,12 +588,30 @@ function init({ register, STATE, helpers }) {
   }, { description: "Create emergent dialogue session", public: false });
 
   register("emergent", "session.turn", (_ctx, input = {}) => {
-    return submitTurn(STATE, input.sessionId, {
+    const result = submitTurn(STATE, input.sessionId, {
       speakerId: input.speakerId, claim: input.claim,
       support: input.support !== undefined ? input.support : null,
       confidenceLabel: input.confidenceLabel, counterpoint: input.counterpoint,
       question: input.question, intent: input.intent, domains: input.domains,
     });
+    // Wire relational emotion: record entity interaction
+    if (input.speakerId && input.sessionId) {
+      try {
+        import("./relational-emotion.js").then(mod => {
+          if (mod?.triggerEmotionalResponse) {
+            const session = getSession(es, input.sessionId);
+            const otherSpeakers = (session?.turns || [])
+              .map(t => t.speakerId)
+              .filter(id => id && id !== input.speakerId);
+            for (const otherId of new Set(otherSpeakers)) {
+              const interactionType = input.counterpoint ? "challenge" : "collaboration";
+              try { mod.triggerEmotionalResponse(input.speakerId, otherId, interactionType, 0.5); } catch {}
+            }
+          }
+        }).catch(() => {});
+      } catch {}
+    }
+    return result;
   }, { description: "Submit turn to dialogue session", public: false });
 
   register("emergent", "session.complete", (_ctx, input = {}) => {

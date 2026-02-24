@@ -94,6 +94,41 @@ export function registerEmergent(state, emergent) {
   if (!state.sessionsByEmergent.has(emergent.id)) {
     state.sessionsByEmergent.set(emergent.id, new Set());
   }
+
+  // Wire body instantiation for new entities
+  try {
+    import("./body-instantiation.js").then(mod => {
+      if (mod?.instantiateBody) mod.instantiateBody(emergent.id, { generation: 1 });
+    }).catch(() => {});
+  } catch {}
+
+  // Wire species classification
+  try {
+    import("./species.js").then(mod => {
+      if (mod?.classifyEntity) {
+        const result = mod.classifyEntity(emergent);
+        if (result?.species) {
+          const stored = state.emergents.get(emergent.id);
+          if (stored) {
+            stored.species = result.species;
+            stored.speciesConfidence = result.confidence;
+          }
+        }
+      }
+    }).catch(() => {});
+  } catch {}
+
+  // Wire subjective time initialization
+  try {
+    import("./subjective-time.js").then(mod => {
+      if (mod?.recordTick) {
+        // Dummy STATE object — the module uses STATE to find its internal store
+        const dummyState = { __emergent: state };
+        mod.recordTick(dummyState, emergent.id);
+      }
+    }).catch(() => {});
+  } catch {}
+
   return emergent;
 }
 

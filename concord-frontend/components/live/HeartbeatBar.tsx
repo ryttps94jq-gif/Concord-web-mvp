@@ -12,6 +12,7 @@ interface EmergentEntity {
   name?: string;
   state?: string;
   status?: string;
+  active?: boolean;
   activity?: string;
 }
 
@@ -102,7 +103,7 @@ export function HeartbeatBar() {
 
   const emergents = (emergentData as EmergentStatusData)?.emergents || (emergentData as EmergentStatusData)?.entities || [];
   const activeEmergents = emergents.filter(
-    (e: EmergentEntity) => e.state === 'active' || e.state === 'thinking' || e.status === 'active'
+    (e: EmergentEntity) => e.state === 'active' || e.state === 'thinking' || e.status === 'active' || e.active === true
   );
 
   return (

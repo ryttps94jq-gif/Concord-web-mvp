@@ -86,121 +86,8 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Demo / fallback data
+// No fake fallback data — show only what the API returns
 // ---------------------------------------------------------------------------
-
-const FALLBACK_TABLES: TableInfo[] = [
-  {
-    name: 'dtus', schema: 'public', rowCount: 2847, sizeBytes: 4_521_984,
-    columns: [
-      { name: 'id', type: 'uuid', nullable: false, defaultValue: 'gen_random_uuid()', isPrimary: true, isForeign: false },
-      { name: 'title', type: 'varchar(512)', nullable: true, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'content', type: 'text', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'tier', type: 'varchar(32)', nullable: false, defaultValue: "'regular'", isPrimary: false, isForeign: false },
-      { name: 'tags', type: 'jsonb', nullable: true, defaultValue: "'[]'", isPrimary: false, isForeign: false },
-      { name: 'parent_id', type: 'uuid', nullable: true, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'dtus', column: 'id' } },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-      { name: 'updated_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-  {
-    name: 'edges', schema: 'public', rowCount: 9413, sizeBytes: 1_228_800,
-    columns: [
-      { name: 'id', type: 'serial', nullable: false, defaultValue: 'nextval()', isPrimary: true, isForeign: false },
-      { name: 'source_id', type: 'uuid', nullable: false, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'dtus', column: 'id' } },
-      { name: 'target_id', type: 'uuid', nullable: false, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'dtus', column: 'id' } },
-      { name: 'weight', type: 'float8', nullable: false, defaultValue: '1.0', isPrimary: false, isForeign: false },
-      { name: 'type', type: 'varchar(64)', nullable: false, defaultValue: "'semantic'", isPrimary: false, isForeign: false },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-  {
-    name: 'sessions', schema: 'public', rowCount: 312, sizeBytes: 524_288,
-    columns: [
-      { name: 'id', type: 'uuid', nullable: false, defaultValue: 'gen_random_uuid()', isPrimary: true, isForeign: false },
-      { name: 'user_id', type: 'uuid', nullable: false, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'users', column: 'id' } },
-      { name: 'mode', type: 'varchar(64)', nullable: false, defaultValue: "'chat'", isPrimary: false, isForeign: false },
-      { name: 'messages', type: 'jsonb', nullable: true, defaultValue: "'[]'", isPrimary: false, isForeign: false },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-  {
-    name: 'users', schema: 'public', rowCount: 48, sizeBytes: 131_072,
-    columns: [
-      { name: 'id', type: 'uuid', nullable: false, defaultValue: 'gen_random_uuid()', isPrimary: true, isForeign: false },
-      { name: 'username', type: 'varchar(128)', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'email', type: 'varchar(256)', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'role', type: 'varchar(32)', nullable: false, defaultValue: "'user'", isPrimary: false, isForeign: false },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-  {
-    name: 'embeddings', schema: 'public', rowCount: 2847, sizeBytes: 45_088_768,
-    columns: [
-      { name: 'id', type: 'serial', nullable: false, defaultValue: 'nextval()', isPrimary: true, isForeign: false },
-      { name: 'dtu_id', type: 'uuid', nullable: false, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'dtus', column: 'id' } },
-      { name: 'vector', type: 'vector(1536)', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'model', type: 'varchar(64)', nullable: false, defaultValue: "'ada-002'", isPrimary: false, isForeign: false },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-  {
-    name: 'audit_log', schema: 'public', rowCount: 15230, sizeBytes: 3_145_728,
-    columns: [
-      { name: 'id', type: 'bigserial', nullable: false, defaultValue: 'nextval()', isPrimary: true, isForeign: false },
-      { name: 'user_id', type: 'uuid', nullable: true, defaultValue: null, isPrimary: false, isForeign: true, references: { table: 'users', column: 'id' } },
-      { name: 'action', type: 'varchar(128)', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'category', type: 'varchar(64)', nullable: false, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'payload', type: 'jsonb', nullable: true, defaultValue: null, isPrimary: false, isForeign: false },
-      { name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: 'now()', isPrimary: false, isForeign: false },
-    ],
-  },
-];
-
-const FALLBACK_INDEXES: IndexInfo[] = [
-  { name: 'dtus_pkey', table: 'dtus', columns: ['id'], unique: true, type: 'btree', sizeBytes: 245_760 },
-  { name: 'idx_dtus_tier', table: 'dtus', columns: ['tier'], unique: false, type: 'btree', sizeBytes: 81_920 },
-  { name: 'idx_dtus_tags', table: 'dtus', columns: ['tags'], unique: false, type: 'gin', sizeBytes: 163_840 },
-  { name: 'idx_dtus_created', table: 'dtus', columns: ['created_at'], unique: false, type: 'btree', sizeBytes: 122_880 },
-  { name: 'edges_pkey', table: 'edges', columns: ['id'], unique: true, type: 'btree', sizeBytes: 204_800 },
-  { name: 'idx_edges_source', table: 'edges', columns: ['source_id'], unique: false, type: 'btree', sizeBytes: 204_800 },
-  { name: 'idx_edges_target', table: 'edges', columns: ['target_id'], unique: false, type: 'btree', sizeBytes: 204_800 },
-  { name: 'idx_edges_type', table: 'edges', columns: ['type'], unique: false, type: 'btree', sizeBytes: 81_920 },
-  { name: 'users_pkey', table: 'users', columns: ['id'], unique: true, type: 'btree', sizeBytes: 16_384 },
-  { name: 'idx_users_email', table: 'users', columns: ['email'], unique: true, type: 'btree', sizeBytes: 16_384 },
-  { name: 'embeddings_pkey', table: 'embeddings', columns: ['id'], unique: true, type: 'btree', sizeBytes: 245_760 },
-  { name: 'idx_embeddings_dtu', table: 'embeddings', columns: ['dtu_id'], unique: false, type: 'btree', sizeBytes: 245_760 },
-  { name: 'idx_embeddings_vector', table: 'embeddings', columns: ['vector'], unique: false, type: 'ivfflat', sizeBytes: 12_582_912 },
-  { name: 'audit_log_pkey', table: 'audit_log', columns: ['id'], unique: true, type: 'btree', sizeBytes: 327_680 },
-  { name: 'idx_audit_action', table: 'audit_log', columns: ['action'], unique: false, type: 'btree', sizeBytes: 327_680 },
-];
-
-function buildDemoPerfSnapshots(): PerfSnapshot[] {
-  const now = Date.now();
-  return Array.from({ length: 20 }, (_, i) => ({
-    timestamp: now - (19 - i) * 15_000,
-    heapUsed: 0,
-    queryRate: 0,
-    cacheHitRate: 0,
-    activeConns: 0,
-  }));
-}
-
-const FALLBACK_QUERY_RESULT: QueryResult = {
-  columns: ['id', 'title', 'tier', 'tags', 'created_at'],
-  rows: [
-    { id: 'a1b2c3d4', title: 'Cognitive Bootstrap Sequence', tier: 'mega', tags: '["core","bootstrap"]', created_at: '2025-12-01T08:30:00Z' },
-    { id: 'e5f6a7b8', title: 'Pattern Recognition Module', tier: 'hyper', tags: '["cognition","pattern"]', created_at: '2025-12-02T14:15:00Z' },
-    { id: 'c9d0e1f2', title: 'Semantic Graph Init', tier: 'regular', tags: '["graph","init"]', created_at: '2025-12-03T09:45:00Z' },
-    { id: '34a5b6c7', title: 'Dream Synthesis Report', tier: 'shadow', tags: '["dream","synthesis"]', created_at: '2025-12-04T22:00:00Z' },
-    { id: 'd8e9f0a1', title: 'Transfer Learning Bridge', tier: 'regular', tags: '["transfer","learning"]', created_at: '2025-12-05T11:20:00Z' },
-    { id: 'b2c3d4e5', title: 'Metacognition Calibration', tier: 'mega', tags: '["meta","calibration"]', created_at: '2025-12-06T16:40:00Z' },
-    { id: 'f6a7b8c9', title: 'Hypothesis Engine Data', tier: 'regular', tags: '["hypothesis"]', created_at: '2025-12-07T07:55:00Z' },
-    { id: '0a1b2c3d', title: 'Inference Rule Set Alpha', tier: 'regular', tags: '["inference","rules"]', created_at: '2025-12-08T13:10:00Z' },
-  ],
-  rowCount: 8,
-  duration: 12,
-};
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -332,7 +219,7 @@ export default function DatabaseLensPage() {
   const [tableFilter, setTableFilter] = useState('');
 
   // --- Performance snapshots ---
-  const [perfHistory, setPerfHistory] = useState<PerfSnapshot[]>(buildDemoPerfSnapshots);
+  const [perfHistory, setPerfHistory] = useState<PerfSnapshot[]>([]);
 
   // --- API queries (existing monitoring) ---
   const { data: dbStatus, refetch: refetchDb, isError: isError2, error: error2,} = useQuery({
