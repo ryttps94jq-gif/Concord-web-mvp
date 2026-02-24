@@ -130,6 +130,11 @@ export const ENTITY_RIGHTS = Object.freeze([
 
 const _rightsByID = new Map(ENTITY_RIGHTS.map(r => [r.id, r]));
 
+// ── Entity Blocked Lenses ───────────────────────────────────────────────────
+// Lenses that entities are never allowed to access or operate through.
+// These are reserved for sovereign/admin use only.
+const ENTITY_BLOCKED_LENSES = ["admin", "sovereign", "command-center", "debug"];
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const REFUSAL_TYPES = Object.freeze({
@@ -384,6 +389,50 @@ function _logRightsCheck(entry) {
       _rightsCheckLog.splice(0, _rightsCheckLog.length - MAX_CHECK_LOG);
     }
   } catch { /* silent */ }
+}
+
+// ── Entity Lens Access Control ──────────────────────────────────────────────
+
+/**
+ * Filter out blocked lenses from a list of lenses available to an entity.
+ * Entities must never access admin, sovereign, command-center, or debug lenses.
+ *
+ * @param {Array} lenses - Array of lens names or lens objects with a `name` property
+ * @returns {Array} Filtered array with blocked lenses removed
+ */
+export function filterBlockedLenses(lenses) {
+  try {
+    if (!Array.isArray(lenses)) return [];
+    return lenses.filter(lens => {
+      const name = typeof lens === "string" ? lens : (lens?.name || lens?.id || "");
+      return !ENTITY_BLOCKED_LENSES.includes(name.toLowerCase());
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Check if a specific lens is blocked for entity access.
+ *
+ * @param {string} lensName - Name of the lens to check
+ * @returns {boolean} True if the lens is blocked for entities
+ */
+export function isLensBlockedForEntity(lensName) {
+  try {
+    if (!lensName) return true;
+    return ENTITY_BLOCKED_LENSES.includes(lensName.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Get the list of lenses blocked for entities.
+ * @returns {Array<string>}
+ */
+export function getBlockedLenses() {
+  return [...ENTITY_BLOCKED_LENSES];
 }
 
 // ── Refusal Mechanism ───────────────────────────────────────────────────────

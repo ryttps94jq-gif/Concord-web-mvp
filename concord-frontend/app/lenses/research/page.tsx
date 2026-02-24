@@ -7,6 +7,9 @@ import { api } from '@/lib/api/client';
 import { Search, Filter, ArrowRight, BookOpen, Tag, Calendar, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 interface DTUResult {
   id: string;
@@ -22,6 +25,12 @@ interface DTUResult {
 
 export default function ResearchLensPage() {
   useLensNav('research');
+
+  const {
+    hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'research' });
 
   const [query, setQuery] = useState('');
   const [domainFilter, setDomainFilter] = useState('');
@@ -277,6 +286,19 @@ export default function ResearchLensPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* DTU Context */}
+      <div className="mt-6 space-y-3">
+        <LensContextPanel
+          hyperDTUs={hyperDTUs}
+          megaDTUs={megaDTUs}
+          regularDTUs={regularDTUs}
+          tierDistribution={tierDistribution}
+          onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+          title="Research DTUs"
+        />
+        <FeedbackWidget targetType="lens" targetId="research" />
       </div>
     </div>
   );

@@ -7,6 +7,11 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 import {
   Palette, Camera, Image as ImageIcon, Tv, LayoutGrid, FileCheck,
   Plus, Search, Filter, X, Edit2, Trash2, Clock, Eye,
@@ -158,6 +163,15 @@ export default function CreativeLensPage() {
   const { items: allRevisions } = useLensData('creative', 'Revision', { seed: SEED.Revision, noSeed: mode !== 'dashboard' });
 
   const runAction = useRunArtifact('creative');
+
+  // DTU context (v3.0 artifact support)
+  const {
+    contextDTUs: creativeDTUs, hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace: publishDTU,
+    refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'creative' });
+
+  const creativeArtifacts = creativeDTUs.filter((d: any) => d.artifact);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -1528,6 +1542,42 @@ export default function CreativeLensPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* DTU Context & Artifacts Panel */}
+      {mode === 'dashboard' && (
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            {creativeArtifacts.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase">Creative Artifacts</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {creativeArtifacts.slice(0, 4).map((dtu: any) => (
+                    <div key={dtu.id} className="p-3 rounded-lg bg-lattice-elevated/50 border border-lattice-border space-y-2">
+                      <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
+                      <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                      <FeedbackWidget targetType="dtu" targetId={dtu.id} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <ArtifactUploader lens="creative" acceptTypes="image/*,video/*,audio/*" multi onUploadComplete={() => refetchDTUs()} />
+          </div>
+          <div>
+            <LensContextPanel
+              hyperDTUs={hyperDTUs}
+              megaDTUs={megaDTUs}
+              regularDTUs={regularDTUs}
+              tierDistribution={tierDistribution}
+              onPublish={(dtu) => publishDTU({ dtuId: dtu.id })}
+              title="Creative DTUs"
+            />
+            <div className="mt-4">
+              <FeedbackWidget targetType="lens" targetId="creative" />
             </div>
           </div>
         </section>

@@ -155,7 +155,7 @@ export function deactivateEmergent(state, id) {
   const e = state.emergents.get(id);
   if (!e) return null;
   e.active = false;
-  return e;
+  return _withState(e);
 }
 
 // ── Session CRUD ──────────────────────────────────────────────────────────

@@ -1,35 +1,69 @@
 'use client';
 
 /**
- * Sidebar — Consolidated for Core 5 model.
+ * Sidebar — Consolidated for Core 5 model with category-grouped extensions.
  *
  * Shows: Dashboard, 5 core lenses (with absorbed lens sub-items),
- * Hub link, and a collapsible Extensions section.
+ * Hub link, system pages, and a collapsible Extensions section grouped
+ * by category with search/filter and sovereign role gating.
  */
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUIStore } from '@/store/ui';
 import {
   CORE_LENSES,
   getAbsorbedLenses,
-  getExtensionLenses,
+  getExtensionsByCategory,
+  getLensById,
+  isLensVisible,
   type CoreLensConfig,
+  type LensEntry,
 } from '@/lib/lens-registry';
-import { Home, ChevronLeft, ChevronRight, ChevronDown, X, Compass, Puzzle, FlaskConical, Search, Users, Cpu, Building2, Download } from 'lucide-react';
+import {
+  Home, ChevronLeft, ChevronRight, ChevronDown, X, Compass,
+  Puzzle, FlaskConical, Search, Users, Cpu, Building2, Download,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sidebarCollapsed, setSidebarCollapsed, sidebarOpen, setSidebarOpen } = useUIStore();
+  const {
+    sidebarCollapsed, setSidebarCollapsed,
+    sidebarOpen, setSidebarOpen,
+    userRole,
+  } = useUIStore();
   const [expandedCore, setExpandedCore] = useState<string | null>(null);
   const [showExtensions, setShowExtensions] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
 
   // Close mobile sidebar on route change
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname, setSidebarOpen]);
+
+  // Auto-expand the category of the currently active lens
+  useEffect(() => {
+    if (!pathname) return;
+    const match = pathname.match(/^\/lenses\/([^/]+)/);
+    const activeLensId = match?.[1];
+    if (activeLensId) {
+      const categories = getExtensionsByCategory(userRole);
+      for (const group of categories) {
+        if (group.lenses.some((l) => l.id === activeLensId)) {
+          setExpandedCategories((prev) => {
+            if (prev.has(group.category)) return prev;
+            const next = new Set(prev);
+            next.add(group.category);
+            return next;
+          });
+          break;
+        }
+      }
+    }
+  }, [pathname, userRole]);
 
   // Close mobile sidebar on escape
   useEffect(() => {
@@ -41,6 +75,18 @@ export function Sidebar() {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [sidebarOpen, setSidebarOpen]);
+
+  const toggleCategory = useCallback((category: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
 
   const showLabel = !sidebarCollapsed || sidebarOpen;
 
@@ -209,9 +255,16 @@ export function Sidebar() {
             </button>
           )}
 
-          {/* Extension Links (collapsed by default) */}
+          {/* Extension Links — category-grouped with search */}
           {showExtensions && showLabel && (
-            <ExtensionsList pathname={pathname} />
+            <CategoryGroupedExtensions
+              pathname={pathname}
+              userRole={userRole}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              expandedCategories={expandedCategories}
+              onToggleCategory={toggleCategory}
+            />
           )}
         </nav>
 
@@ -316,43 +369,132 @@ const CoreLensNavItem = memo(function CoreLensNavItem({
   );
 });
 
-/** Collapsible list of extension lenses */
-const ExtensionsList = memo(function ExtensionsList({ pathname }: { pathname: string }) {
-  const extensions = getExtensionLenses();
+/**
+ * Category-grouped extensions with search filter and collapsible sections.
+ * Respects sovereign role gating — sovereign-only lenses hidden from regular users.
+ */
+const CategoryGroupedExtensions = memo(function CategoryGroupedExtensions({
+  pathname,
+  userRole,
+  searchQuery,
+  onSearchChange,
+  expandedCategories,
+  onToggleCategory,
+}: {
+  pathname: string;
+  userRole: string;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  expandedCategories: Set<string>;
+  onToggleCategory: (category: string) => void;
+}) {
+  // Get all extension categories filtered by user role
+  const categoryGroups = useMemo(
+    () => getExtensionsByCategory(userRole),
+    [userRole]
+  );
 
-  // Group by category for display, but keep it compact
-  const grouped = new Map<string, typeof extensions>();
-  for (const lens of extensions) {
-    const list = grouped.get(lens.category) || [];
-    list.push(lens);
-    grouped.set(lens.category, list);
-  }
+  // Filter lenses by search query
+  const filteredGroups = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return categoryGroups;
+
+    return categoryGroups
+      .map((group) => ({
+        ...group,
+        lenses: group.lenses.filter((lens) => {
+          const entry = getLensById(lens.id);
+          const haystack = [
+            lens.name,
+            lens.description,
+            ...(entry?.keywords || []),
+          ]
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(q);
+        }),
+      }))
+      .filter((group) => group.lenses.length > 0);
+  }, [categoryGroups, searchQuery]);
+
+  // When searching, all matching categories should appear expanded
+  const isSearching = searchQuery.trim().length > 0;
 
   return (
-    <div className="mt-1 space-y-2">
-      {Array.from(grouped.entries()).map(([, lenses]) => (
-        <div key={lenses[0]?.category} className="space-y-0.5">
-          {lenses.slice(0, 8).map((lens) => {
-            const Icon = lens.icon;
-            const isActive = pathname === lens.path;
-            return (
-              <Link
-                key={lens.id}
-                href={lens.path}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs transition-all',
-                  isActive
-                    ? 'text-neon-blue bg-neon-blue/10'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-lattice-elevated'
-                )}
-              >
-                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{lens.name}</span>
-              </Link>
-            );
-          })}
+    <div className="mt-2 space-y-1">
+      {/* Search input */}
+      <div className="px-2 mb-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Filter lenses..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-lattice-elevated border border-lattice-border rounded-md
+                       text-gray-200 placeholder-gray-500 focus:outline-none focus:border-neon-cyan/50 transition-colors"
+            aria-label="Filter extension lenses"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              aria-label="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
-      ))}
+      </div>
+
+      {/* Category sections */}
+      {filteredGroups.map((group) => {
+        const isExpanded = isSearching || expandedCategories.has(group.category);
+
+        return (
+          <div key={group.category}>
+            {/* Category header — clickable to toggle */}
+            <button
+              onClick={() => onToggleCategory(group.category)}
+              className="w-full flex items-center gap-2 px-3 py-1 text-xs uppercase tracking-wider hover:bg-lattice-elevated/50 rounded-md transition-colors"
+              aria-expanded={isExpanded}
+            >
+              <ChevronRight
+                className={cn(
+                  'w-3 h-3 text-gray-500 transition-transform',
+                  isExpanded && 'rotate-90'
+                )}
+              />
+              <span className={group.color}>{group.category}</span>
+              <span className="ml-auto text-gray-600 text-[10px] font-mono">
+                {group.lenses.length}
+              </span>
+            </button>
+
+            {/* Lens items within category */}
+            {isExpanded && (
+              <div className="mt-0.5 space-y-0.5 ml-2">
+                {group.lenses.map((lens) => (
+                  <ExtensionLensLink
+                    key={lens.id}
+                    lens={lens}
+                    pathname={pathname}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Empty search state */}
+      {filteredGroups.length === 0 && searchQuery && (
+        <p className="px-3 py-2 text-xs text-gray-500 italic">
+          No lenses match &ldquo;{searchQuery}&rdquo;
+        </p>
+      )}
+
+      {/* Hub link */}
       <Link
         href="/hub"
         className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 hover:text-neon-cyan transition-colors"
@@ -361,5 +503,33 @@ const ExtensionsList = memo(function ExtensionsList({ pathname }: { pathname: st
         <ChevronRight className="w-3 h-3" />
       </Link>
     </div>
+  );
+});
+
+/** Single extension lens link inside a category group */
+const ExtensionLensLink = memo(function ExtensionLensLink({
+  lens,
+  pathname,
+}: {
+  lens: LensEntry;
+  pathname: string;
+}) {
+  const Icon = lens.icon;
+  const isActive = pathname === lens.path;
+
+  return (
+    <Link
+      href={lens.path}
+      className={cn(
+        'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs transition-all',
+        isActive
+          ? 'text-neon-blue bg-neon-blue/10'
+          : 'text-gray-500 hover:text-gray-300 hover:bg-lattice-elevated'
+      )}
+      title={lens.description}
+    >
+      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+      <span className="truncate">{lens.name}</span>
+    </Link>
   );
 });

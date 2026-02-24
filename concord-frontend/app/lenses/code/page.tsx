@@ -8,6 +8,9 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 import {
   Play, FileCode, Terminal, FolderTree, Plus, X,
   ChevronRight, ChevronDown, File, Folder, FolderOpen,
@@ -583,6 +586,12 @@ function generateScriptOutput(scriptType: ScriptType, code: string): { log: stri
 export default function CodeLensPage() {
   useLensNav('code');
 
+  const {
+    hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'code' });
+
   // Persist scripts to backend
   const { isLoading, isError, error, refetch, create: saveScript, items: savedScripts } = useLensData('code', 'script', { noSeed: true });
 
@@ -865,6 +874,19 @@ export default function CodeLensPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto py-2">
                   {files.map((file) => renderFileNode(file))}
+                </div>
+                {/* DTU Context */}
+                <div className="p-3 border-t border-white/10 space-y-3">
+                  <LensContextPanel
+                    hyperDTUs={hyperDTUs}
+                    megaDTUs={megaDTUs}
+                    regularDTUs={regularDTUs}
+                    tierDistribution={tierDistribution}
+                    onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+                    title="Code DTUs"
+                    className="!bg-transparent !border-0 !p-0"
+                  />
+                  <FeedbackWidget targetType="lens" targetId="code" />
                 </div>
               </div>
             </motion.aside>

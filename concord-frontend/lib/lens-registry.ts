@@ -390,3 +390,157 @@ export function getLensesByCategory(): Record<LensCategory, LensEntry[]> {
   }
   return grouped;
 }
+
+// ── Sovereign visibility & sidebar category grouping ──────────
+
+/** Lens IDs that require sovereign access */
+export const SOVEREIGN_LENSES = ['admin', 'command-center', 'audit', 'lock'] as const;
+
+/** Set for fast lookup */
+const SOVEREIGN_LENS_SET = new Set<string>(SOVEREIGN_LENSES);
+
+/**
+ * Sidebar category grouping for the "All Lenses" browsable view.
+ * Maps human-readable category labels to arrays of lens IDs.
+ * This is a flattened presentation-layer grouping, distinct from the
+ * data-model `LensCategory` used by LENS_REGISTRY entries.
+ */
+export const SIDEBAR_CATEGORIES: Record<string, string[]> = {
+  Knowledge: ['research', 'hypothesis', 'reasoning', 'metacognition', 'graph', 'education', 'science', 'grounding', 'commonsense', 'inference', 'metalearning', 'reflection', 'meta'],
+  Creative: ['art', 'music', 'creative', 'studio', 'whiteboard', 'game', 'sim', 'voice'],
+  Lifestyle: ['food', 'fitness', 'healthcare', 'realestate', 'travel', 'daily', 'calendar', 'household', 'insurance'],
+  Professional: ['finance', 'legal', 'law', 'code', 'database', 'accounting', 'billing', 'logistics', 'manufacturing', 'retail'],
+  Social: ['feed', 'forum', 'marketplace', 'collab', 'vote', 'global', 'alliance'],
+  System: ['chat', 'entity', 'council', 'organ', 'tick', 'timeline', 'agents', 'queue'],
+  Sovereign: ['admin', 'command-center', 'audit', 'lock'],
+};
+
+/**
+ * Returns sidebar categories visible to the given user role.
+ * Sovereign category is hidden for non-sovereign users.
+ */
+export function getVisibleSidebarCategories(userRole: string): Record<string, string[]> {
+  const categories = { ...SIDEBAR_CATEGORIES };
+  if (userRole !== 'sovereign') {
+    delete categories['Sovereign'];
+  }
+  return categories;
+}
+
+/**
+ * Determines which sidebar category a lens ID belongs to.
+ * Returns 'Other' if the lens isn't in any explicit category.
+ */
+export function getSidebarCategory(lensId: string): string {
+  for (const [category, lenses] of Object.entries(SIDEBAR_CATEGORIES)) {
+    if (lenses.includes(lensId)) return category;
+  }
+  return 'Other';
+}
+
+/**
+ * Checks if a lens is visible to the given user role.
+ * Sovereign-only lenses are hidden from non-sovereign users.
+ */
+export function isLensVisible(lensId: string, userRole: string): boolean {
+  if (SOVEREIGN_LENS_SET.has(lensId)) {
+    return userRole === 'sovereign';
+  }
+  return true;
+}
+
+// ── Convenience aliases ─────────────────────────────────────────
+
+/**
+ * Lightweight config shape for consumers that only need id/label/category.
+ * Compatible with the full LensEntry but smaller surface area.
+ */
+export interface LensConfig {
+  id: string;
+  label: string;
+  category: string;
+  icon?: string;
+  sovereignOnly?: boolean;
+}
+
+/**
+ * Alias for SIDEBAR_CATEGORIES — used by components that reference the
+ * "LENS_CATEGORIES" constant name directly.
+ */
+export { SIDEBAR_CATEGORIES as LENS_CATEGORIES_MAP };
+
+/**
+ * Alias for getSidebarCategory — determines which sidebar category a lens belongs to.
+ */
+export function getLensCategory(lensId: string): string {
+  return getSidebarCategory(lensId);
+}
+
+/**
+ * Alias for getVisibleSidebarCategories — returns categories visible to the role.
+ */
+export function getVisibleCategories(userRole: string): Record<string, string[]> {
+  return getVisibleSidebarCategories(userRole);
+}
+
+/**
+ * Converts a LensEntry to the lightweight LensConfig shape.
+ */
+export function toLensConfig(entry: LensEntry): LensConfig {
+  return {
+    id: entry.id,
+    label: entry.name,
+    category: getSidebarCategory(entry.id),
+    sovereignOnly: SOVEREIGN_LENS_SET.has(entry.id),
+  };
+}
+
+/**
+ * Returns extension lenses grouped by sidebar category for display.
+ * Filters by user role (hides sovereign lenses for non-sovereign users).
+ * Each category entry contains resolved LensEntry objects.
+ */
+export function getExtensionsByCategory(
+  userRole: string = 'user'
+): { category: string; color: string; lenses: LensEntry[] }[] {
+  const extensions = getExtensionLenses();
+  const visibleCategories = getVisibleSidebarCategories(userRole);
+
+  const result: { category: string; color: string; lenses: LensEntry[] }[] = [];
+  const categorized = new Set<string>();
+
+  const categoryColors: Record<string, string> = {
+    Knowledge: 'text-neon-cyan',
+    Creative: 'text-neon-pink',
+    Lifestyle: 'text-neon-green',
+    Professional: 'text-neon-blue',
+    Social: 'text-neon-purple',
+    System: 'text-gray-400',
+    Sovereign: 'text-red-400',
+    Other: 'text-orange-400',
+  };
+
+  for (const [category, lensIds] of Object.entries(visibleCategories)) {
+    const idSet = new Set(lensIds);
+    const lenses = extensions.filter((l) => {
+      if (idSet.has(l.id) && isLensVisible(l.id, userRole)) {
+        categorized.add(l.id);
+        return true;
+      }
+      return false;
+    });
+    if (lenses.length > 0) {
+      result.push({ category, color: categoryColors[category] || 'text-gray-400', lenses });
+    }
+  }
+
+  // Collect uncategorized extensions into "Other"
+  const uncategorized = extensions.filter(
+    (l) => !categorized.has(l.id) && isLensVisible(l.id, userRole)
+  );
+  if (uncategorized.length > 0) {
+    result.push({ category: 'Other', color: categoryColors['Other'], lenses: uncategorized });
+  }
+
+  return result;
+}

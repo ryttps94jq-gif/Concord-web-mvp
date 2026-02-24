@@ -54,6 +54,9 @@ interface UIState {
   // Active backend auth posture
   authPosture: AuthPosture;
 
+  // User role (sovereign | user)
+  userRole: 'sovereign' | 'user';
+
   // Actions
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -68,6 +71,7 @@ interface UIState {
   addRequestError: (error: Omit<RequestError, 'id' | 'at'>) => void;
   clearRequestErrors: () => void;
   setAuthPosture: (authPosture: Partial<AuthPosture>) => void;
+  setUserRole: (role: 'sovereign' | 'user') => void;
 }
 
 
@@ -109,6 +113,7 @@ export const useUIStore = create<UIState>()(
       toasts: [],
       requestErrors: [],
       authPosture: { mode: 'unknown', usesJwt: false, usesApiKey: false },
+      userRole: 'sovereign',
 
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -166,6 +171,8 @@ export const useUIStore = create<UIState>()(
 
       setAuthPosture: (authPosture) =>
         set((state) => ({ authPosture: { ...state.authPosture, ...authPosture } })),
+
+      setUserRole: (role) => set({ userRole: role }),
     }),
     {
       name: 'concord-ui-store',

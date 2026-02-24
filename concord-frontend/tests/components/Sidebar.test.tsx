@@ -20,6 +20,7 @@ const mockUIStore = {
   setSidebarCollapsed: vi.fn(),
   sidebarOpen: false,
   setSidebarOpen: vi.fn(),
+  userRole: 'sovereign' as 'sovereign' | 'user',
 };
 
 vi.mock('@/store/ui', () => ({
@@ -29,11 +30,11 @@ vi.mock('@/store/ui', () => ({
 // Mock lens-registry
 vi.mock('@/lib/lens-registry', () => ({
   CORE_LENSES: [
-    { id: 'chat', name: 'Chat', path: '/lenses/chat', icon: () => <span data-testid="icon-chat">C</span>, color: 'neon-cyan' },
-    { id: 'board', name: 'Board', path: '/lenses/board', icon: () => <span data-testid="icon-board">B</span>, color: 'neon-blue' },
-    { id: 'graph', name: 'Graph', path: '/lenses/graph', icon: () => <span data-testid="icon-graph">G</span>, color: 'neon-purple' },
-    { id: 'code', name: 'Code', path: '/lenses/code', icon: () => <span data-testid="icon-code">Co</span>, color: 'neon-yellow' },
-    { id: 'studio', name: 'Studio', path: '/lenses/studio', icon: () => <span data-testid="icon-studio">S</span>, color: 'neon-green' },
+    { id: 'chat', name: 'Chat', path: '/lenses/chat', icon: () => <span data-testid="icon-chat">C</span>, color: 'neon-cyan', absorbedLensIds: ['finance'] },
+    { id: 'board', name: 'Board', path: '/lenses/board', icon: () => <span data-testid="icon-board">B</span>, color: 'neon-blue', absorbedLensIds: [] },
+    { id: 'graph', name: 'Graph', path: '/lenses/graph', icon: () => <span data-testid="icon-graph">G</span>, color: 'neon-purple', absorbedLensIds: [] },
+    { id: 'code', name: 'Code', path: '/lenses/code', icon: () => <span data-testid="icon-code">Co</span>, color: 'neon-yellow', absorbedLensIds: [] },
+    { id: 'studio', name: 'Studio', path: '/lenses/studio', icon: () => <span data-testid="icon-studio">S</span>, color: 'neon-green', absorbedLensIds: [] },
   ],
   getAbsorbedLenses: (coreId: string) => {
     if (coreId === 'chat') {
@@ -42,9 +43,23 @@ vi.mock('@/lib/lens-registry', () => ({
     return [];
   },
   getExtensionLenses: () => [
-    { id: 'ext1', name: 'Extension 1', path: '/lenses/ext1', category: 'tools', icon: () => <span>E1</span> },
+    { id: 'ext1', name: 'Extension 1', path: '/lenses/ext1', category: 'tools', icon: () => <span>E1</span>, description: 'First extension', keywords: [] },
   ],
-  type: { CoreLensConfig: {} },
+  getExtensionsByCategory: () => [
+    {
+      category: 'Tools',
+      color: 'text-neon-cyan',
+      lenses: [
+        { id: 'ext1', name: 'Extension 1', path: '/lenses/ext1', category: 'tools', icon: () => <span>E1</span>, description: 'First extension', keywords: [] },
+      ],
+    },
+  ],
+  getLensById: (id: string) => {
+    if (id === 'ext1') return { id: 'ext1', name: 'Extension 1', path: '/lenses/ext1', category: 'tools', description: 'First extension', keywords: ['tool'] };
+    return undefined;
+  },
+  isLensVisible: () => true,
+  type: { CoreLensConfig: {}, LensEntry: {} },
 }));
 
 // Mock cn utility
@@ -59,6 +74,7 @@ describe('Sidebar', () => {
     vi.clearAllMocks();
     mockUIStore.sidebarCollapsed = false;
     mockUIStore.sidebarOpen = false;
+    mockUIStore.userRole = 'sovereign';
     mockPathname.mockReturnValue('/');
   });
 
@@ -128,11 +144,18 @@ describe('Sidebar', () => {
       // Extensions hidden by default
       expect(screen.queryByText('Extension 1')).not.toBeInTheDocument();
 
-      // Click to show
+      // Click to show — extensions are grouped by category, need to expand category
       fireEvent.click(toggle);
+
+      // Category header is shown
+      expect(screen.getByText('Tools')).toBeInTheDocument();
+
+      // Expand the "Tools" category to see the lens
+      const categoryToggle = screen.getByText('Tools').closest('button')!;
+      fireEvent.click(categoryToggle);
       expect(screen.getByText('Extension 1')).toBeInTheDocument();
 
-      // Click to hide
+      // Click extensions toggle to hide
       fireEvent.click(toggle);
       expect(screen.queryByText('Extension 1')).not.toBeInTheDocument();
     });
@@ -144,6 +167,36 @@ describe('Sidebar', () => {
 
       fireEvent.click(toggle);
       expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('shows search input when extensions are expanded', () => {
+      render(<Sidebar />);
+      const toggle = screen.getByText('Extensions').closest('button')!;
+      fireEvent.click(toggle);
+      expect(screen.getByPlaceholderText('Filter lenses...')).toBeInTheDocument();
+    });
+
+    it('filters lenses by search query', () => {
+      render(<Sidebar />);
+      const toggle = screen.getByText('Extensions').closest('button')!;
+      fireEvent.click(toggle);
+
+      const searchInput = screen.getByPlaceholderText('Filter lenses...');
+      fireEvent.change(searchInput, { target: { value: 'Extension' } });
+
+      // When searching, categories auto-expand to show results
+      expect(screen.getByText('Extension 1')).toBeInTheDocument();
+    });
+
+    it('shows empty state when search has no results', () => {
+      render(<Sidebar />);
+      const toggle = screen.getByText('Extensions').closest('button')!;
+      fireEvent.click(toggle);
+
+      const searchInput = screen.getByPlaceholderText('Filter lenses...');
+      fireEvent.change(searchInput, { target: { value: 'zzzznonexistent' } });
+
+      expect(screen.queryByText('Extension 1')).not.toBeInTheDocument();
     });
   });
 
@@ -187,6 +240,15 @@ describe('Sidebar', () => {
       render(<Sidebar />);
       expect(screen.getByText('Concord OS v5.0')).toBeInTheDocument();
       expect(screen.getByText('70% Sovereign')).toBeInTheDocument();
+    });
+  });
+
+  describe('sovereign role gating', () => {
+    it('reads userRole from UI store', () => {
+      mockUIStore.userRole = 'user';
+      render(<Sidebar />);
+      // Should render without error with non-sovereign role
+      expect(screen.getByText('Concord')).toBeInTheDocument();
     });
   });
 });
