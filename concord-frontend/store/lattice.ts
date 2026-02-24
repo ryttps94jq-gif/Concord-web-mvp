@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { DTU, DTUTier } from '@/lib/types/dtu';
 
+interface KnowledgeGap {
+  id: string;
+  domain: string;
+  description: string;
+  severity: number;
+  discoveredAt: string;
+}
+
 interface LatticeState {
   // DTU data
   dtus: Map<string, DTU>;
@@ -21,6 +29,13 @@ interface LatticeState {
   tierFilter: DTUTier | 'all';
   searchQuery: string;
 
+  // Real-time expansion
+  dtuCount: number;
+  recentDTUs: DTU[];           // Last 50 DTUs created (fed by socket)
+  activeDomains: string[];     // Domains with recent activity
+  knowledgeGaps: KnowledgeGap[];
+  topologyStats: { nodes: number; edges: number; clusters: number };
+
   // Actions
   setDTUs: (dtus: DTU[]) => void;
   addDTU: (dtu: DTU) => void;
@@ -32,6 +47,13 @@ interface LatticeState {
   setSearchQuery: (query: string) => void;
   setLoadingDTUs: (loading: boolean) => void;
   setLoadingGraph: (loading: boolean) => void;
+
+  // New actions
+  setDTUCount: (count: number) => void;
+  addRecentDTU: (dtu: DTU) => void;
+  setActiveDomains: (domains: string[]) => void;
+  setKnowledgeGaps: (gaps: KnowledgeGap[]) => void;
+  setTopologyStats: (stats: { nodes: number; edges: number; clusters: number }) => void;
 }
 
 interface GraphNode {
@@ -80,6 +102,11 @@ export const useLatticeStore = create<LatticeState>((set, get) => ({
   isLoadingGraph: false,
   tierFilter: 'all',
   searchQuery: '',
+  dtuCount: 0,
+  recentDTUs: [],
+  activeDomains: [],
+  knowledgeGaps: [],
+  topologyStats: { nodes: 0, edges: 0, clusters: 0 },
 
   // Actions
   setDTUs: (dtus) => {
@@ -141,6 +168,21 @@ export const useLatticeStore = create<LatticeState>((set, get) => ({
   setLoadingDTUs: (loading) => set({ isLoadingDTUs: loading }),
 
   setLoadingGraph: (loading) => set({ isLoadingGraph: loading }),
+
+  // New actions
+  setDTUCount: (count) => set({ dtuCount: count }),
+
+  addRecentDTU: (dtu) =>
+    set((state) => ({
+      recentDTUs: [dtu, ...state.recentDTUs].slice(0, 50),
+      dtuCount: state.dtuCount + 1,
+    })),
+
+  setActiveDomains: (domains) => set({ activeDomains: domains }),
+
+  setKnowledgeGaps: (gaps) => set({ knowledgeGaps: gaps }),
+
+  setTopologyStats: (stats) => set({ topologyStats: stats }),
 }));
 
 // Selectors

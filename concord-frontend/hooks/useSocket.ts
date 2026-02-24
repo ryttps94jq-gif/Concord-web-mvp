@@ -5,12 +5,56 @@
  * - Disconnects on unmount — no orphaned connections
  * - Tracks active subscriptions to prevent listener leaks
  * - Logs connection state changes for observability
+ *
+ * FE-WIRING: Universal event forwarder — every socket event goes to:
+ *   1. Event bus (for component-level subscriptions)
+ *   2. Zustand stores (for DTU, system, and sovereign state)
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { emitEvent } from '@/lib/realtime/event-bus';
+import { useLatticeStore } from '@/store/lattice';
+import { useSystemStore } from '@/store/system';
+import { useSovereignStore } from '@/store/sovereign';
+import { useUIStore } from '@/store/ui';
+import type { SocketEvent } from '@/lib/realtime/socket';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+
+// ── All events to forward to the event bus ─────────────────────
+const FORWARDED_EVENTS: SocketEvent[] = [
+  // DTU lifecycle
+  'dtu:created', 'dtu:updated', 'dtu:deleted', 'dtu:promoted',
+  // Entity lifecycle
+  'entity:death', 'body:instantiated', 'body:destroyed',
+  // Pain / qualia
+  'pain:recorded', 'pain:processed', 'pain:wound_created', 'pain:wound_healed',
+  'affect:pain_signal',
+  // Repair cortex
+  'repair:dtu_logged', 'repair:cycle_complete',
+  // Meta-derivation
+  'lattice:meta:derived', 'lattice:meta:convergence', 'meta:committed',
+  // System
+  'system:alert', 'queue:notifications:new',
+  // Council
+  'council:proposal', 'council:vote',
+  // Marketplace
+  'market:listing', 'market:trade',
+  // Collaboration
+  'collab:change', 'collab:lock', 'collab:unlock',
+  'collab:session:created', 'collab:user:joined',
+  // Cognitive systems
+  'attention:allocation', 'forgetting:cycle_complete',
+  'dream:captured', 'promotion:approved', 'promotion:rejected',
+  'app:published',
+  // Music / studio
+  'music:toggle',
+  // Whiteboard
+  'whiteboard:updated',
+  // Resonance
+  'resonance:update',
+];
 
 interface UseSocketOptions {
   /** Connect automatically on mount (default: false — opt-in to reduce idle connections) */
@@ -65,6 +109,17 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
       console.error('[Socket] Connection error:', error.message);
       setIsConnected(false);
     });
+
+    // ── Universal event forwarder ─────────────────────────────
+    for (const event of FORWARDED_EVENTS) {
+      socket.on(event, (data: unknown) => {
+        // 1. Forward to event bus (for component-level subscriptions)
+        emitEvent(event, data);
+
+        // 2. Push into Zustand stores for relevant events
+        routeToStores(event, data);
+      });
+    }
 
     socketRef.current = socket;
 
@@ -126,7 +181,96 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   };
 }
 
-// Specific socket hooks for different features
+// ── Store routing ──────────────────────────────────────────────
+
+function routeToStores(event: SocketEvent, data: unknown) {
+  const d = data as Record<string, unknown>;
+
+  switch (event) {
+    // DTU → lattice store
+    case 'dtu:created':
+      if (d && d.id) {
+        useLatticeStore.getState().addRecentDTU(d as never);
+      }
+      break;
+    case 'dtu:updated':
+      if (d && d.id) {
+        useLatticeStore.getState().updateDTU(d.id as string, d.changes as never ?? d);
+      }
+      break;
+    case 'dtu:deleted':
+      if (d && d.id) {
+        useLatticeStore.getState().removeDTU(d.id as string);
+      }
+      break;
+
+    // System alerts → UI store toast
+    case 'system:alert':
+      if (d && d.message) {
+        useUIStore.getState().addToast({
+          type: (d.type as 'error' | 'warning' | 'info') || 'info',
+          message: d.message as string,
+          duration: 8000,
+        });
+        useSystemStore.getState().addSystemAlert(d as never);
+      }
+      break;
+
+    // Attention → system store
+    case 'attention:allocation':
+      if (d) {
+        if (Array.isArray(d.allocation)) {
+          useSystemStore.getState().setAttentionAllocation(d.allocation as never);
+        }
+        if (d.focusOverride !== undefined) {
+          useSystemStore.getState().setFocusOverride(d.focusOverride as never);
+        }
+      }
+      break;
+
+    // Forgetting → system store
+    case 'forgetting:cycle_complete':
+      // Partial update — components will refetch full stats
+      break;
+
+    // Repair → system store
+    case 'repair:cycle_complete':
+      // Trigger refetch in subscribed components via event bus
+      break;
+
+    // Dream → sovereign store
+    case 'dream:captured':
+      if (d && d.id) {
+        useSovereignStore.getState().addDream(d as never);
+      }
+      break;
+
+    // Promotion → sovereign store
+    case 'promotion:approved':
+    case 'promotion:rejected':
+      if (d && d.id) {
+        useSovereignStore.getState().updatePromotion(d.id as string, d as never);
+      }
+      break;
+
+    // Meta-derivation → sovereign store
+    case 'lattice:meta:derived':
+    case 'lattice:meta:convergence':
+    case 'meta:committed':
+      if (d) {
+        useSovereignStore.getState().addMetaEvent({
+          id: (d.id ?? d.invariantId ?? `meta-${Date.now()}`) as string,
+          summary: (d.summary ?? event) as string,
+          timestamp: new Date().toISOString(),
+          type: event,
+        });
+      }
+      break;
+  }
+}
+
+// ── Specific socket hooks for different features ───────────────
+
 export function useResonanceSocket() {
   const { isConnected, on, off } = useSocket({ autoConnect: true });
   const [resonanceData, setResonanceData] = useState<unknown>(null);

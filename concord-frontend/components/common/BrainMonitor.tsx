@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { Brain, Activity, Zap, Moon, Wrench, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Brain, Activity, Zap, Moon, Wrench, ShieldAlert, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 
 interface BrainStats {
   requests: number;
@@ -57,12 +57,13 @@ interface EmbeddingStatus {
 
 interface BrainStatusResponse {
   ok: boolean;
-  mode: 'three_brain' | 'partial' | 'fallback';
+  mode: 'four_brain' | 'three_brain' | 'partial' | 'fallback';
   onlineCount: number;
   brains: {
     conscious: BrainInfo;
     subconscious: BrainInfo;
     utility: BrainInfo;
+    repair?: BrainInfo;
   };
   embeddings?: EmbeddingStatus;
 }
@@ -91,6 +92,14 @@ const BRAIN_CONFIG = {
     bgClass: 'bg-neon-green/10 border-neon-green/30',
     textClass: 'text-neon-green',
     dotClass: 'bg-neon-green',
+  },
+  repair: {
+    label: 'Repair',
+    icon: ShieldAlert,
+    color: 'red',
+    bgClass: 'bg-red-500/10 border-red-500/30',
+    textClass: 'text-red-400',
+    dotClass: 'bg-red-400',
   },
 } as const;
 
@@ -154,8 +163,9 @@ export function BrainMonitor() {
 
   if (isLoading || !data) return null;
 
-  const modeLabel = data.mode === 'three_brain' ? 'Three-Brain' : data.mode === 'partial' ? 'Partial' : 'Fallback';
-  const modeColor = data.mode === 'three_brain' ? 'text-neon-green' : data.mode === 'partial' ? 'text-yellow-400' : 'text-red-400';
+  const modeLabel = data.mode === 'four_brain' ? 'Four-Brain' : data.mode === 'three_brain' ? 'Three-Brain' : data.mode === 'partial' ? 'Partial' : 'Fallback';
+  const modeColor = (data.mode === 'four_brain' || data.mode === 'three_brain') ? 'text-neon-green' : data.mode === 'partial' ? 'text-yellow-400' : 'text-red-400';
+  const totalBrains = data.brains.repair ? 4 : 3;
 
   if (!expanded) {
     return (
@@ -165,7 +175,7 @@ export function BrainMonitor() {
       >
         <Activity className={cn('w-3 h-3', modeColor)} />
         <span className={modeColor}>{modeLabel}</span>
-        <span className="text-lattice-text-secondary">{data.onlineCount}/3</span>
+        <span className="text-lattice-text-secondary">{data.onlineCount}/{totalBrains}</span>
         <ChevronDown className="w-3 h-3 text-lattice-text-secondary" />
       </button>
     );
@@ -198,13 +208,15 @@ export function BrainMonitor() {
       <div className="flex items-center gap-2 mb-3 text-xs">
         <span className="text-lattice-text-secondary">Mode:</span>
         <span className={cn('font-medium', modeColor)}>{modeLabel}</span>
-        <span className="text-lattice-text-secondary">({data.onlineCount}/3 online)</span>
+        <span className="text-lattice-text-secondary">({data.onlineCount}/{totalBrains} online)</span>
       </div>
 
       <div className="space-y-2">
-        {(Object.keys(BRAIN_CONFIG) as Array<keyof typeof BRAIN_CONFIG>).map((name) => (
-          <BrainCard key={name} name={name} brain={data.brains[name]} />
-        ))}
+        {(Object.keys(BRAIN_CONFIG) as Array<keyof typeof BRAIN_CONFIG>).map((name) => {
+          const brain = data.brains[name];
+          if (!brain) return null;
+          return <BrainCard key={name} name={name} brain={brain} />;
+        })}
       </div>
 
       {/* Embedding Status */}
