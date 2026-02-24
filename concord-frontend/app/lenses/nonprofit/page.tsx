@@ -99,441 +99,13 @@ function progressBarColor(pct: number): string {
 // Seed data
 // ---------------------------------------------------------------------------
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  Donor: [
-    {
-      title: 'Eleanor Whitfield',
-      data: {
-        type: 'Individual', totalGiven: 125000, lastGift: '2026-01-15', lastGiftAmount: 25000,
-        frequency: 'Annual', level: 'major', pledged: 50000, pledgeBalance: 25000,
-        email: 'eleanor.w@whitfield.org', phone: '(503) 555-0142', address: 'Portland, OR',
-        communicationPref: 'Email', firstGiftDate: '2019-03-20', giftCount: 8,
-        lybunt: false, sybunt: false, matchingEmployer: 'Whitfield Corp', matchRatio: '1:1',
-        assignedTo: 'Jessica Torres', notes: 'Board member since 2021. Interested in youth programs.'
-      },
-      meta: { status: 'active', tags: ['major-donor', 'board-member'] }
-    },
-    {
-      title: 'Greenfield Foundation',
-      data: {
-        type: 'Foundation', totalGiven: 500000, lastGift: '2025-12-01', lastGiftAmount: 100000,
-        frequency: 'Annual', level: 'leadership', pledged: 250000, pledgeBalance: 150000,
-        email: 'grants@greenfieldfdn.org', phone: '(212) 555-0198', address: 'New York, NY',
-        communicationPref: 'Formal Letter', firstGiftDate: '2020-06-15', giftCount: 5,
-        lybunt: false, sybunt: false, matchingEmployer: '', matchRatio: '',
-        assignedTo: 'Michael Chen', notes: 'Multi-year commitment through 2028. Requires impact reports.'
-      },
-      meta: { status: 'active', tags: ['foundation', 'multi-year'] }
-    },
-    {
-      title: 'Marcus & Tina Okafor',
-      data: {
-        type: 'Individual', totalGiven: 8500, lastGift: '2026-02-01', lastGiftAmount: 100,
-        frequency: 'Monthly', level: 'sustaining', pledged: 0, pledgeBalance: 0,
-        email: 'okafor.family@gmail.com', phone: '(503) 555-0267', address: 'Beaverton, OR',
-        communicationPref: 'Email', firstGiftDate: '2024-08-15', giftCount: 18,
-        lybunt: false, sybunt: false, matchingEmployer: 'Intel', matchRatio: '1:1',
-        assignedTo: 'Jessica Torres', notes: 'Monthly sustaining donors. Very engaged on social media.'
-      },
-      meta: { status: 'active', tags: ['monthly', 'sustainer'] }
-    },
-    {
-      title: 'TechForward Inc',
-      data: {
-        type: 'Corporate', totalGiven: 75000, lastGift: '2025-06-15', lastGiftAmount: 75000,
-        frequency: 'One-time', level: 'partner', pledged: 0, pledgeBalance: 0,
-        email: 'csr@techforward.com', phone: '(415) 555-0312', address: 'San Francisco, CA',
-        communicationPref: 'Email', firstGiftDate: '2025-06-15', giftCount: 1,
-        lybunt: true, sybunt: false, matchingEmployer: '', matchRatio: '',
-        assignedTo: 'Michael Chen', notes: 'Sponsored annual gala. Renewal conversation needed.'
-      },
-      meta: { status: 'prospect', tags: ['corporate', 'renewal-due', 'lybunt'] }
-    },
-    {
-      title: 'Dr. Ramesh Gupta',
-      data: {
-        type: 'Individual', totalGiven: 42000, lastGift: '2024-12-20', lastGiftAmount: 5000,
-        frequency: 'Annual', level: 'mid', pledged: 10000, pledgeBalance: 10000,
-        email: 'r.gupta@clinic.org', phone: '(503) 555-0489', address: 'Lake Oswego, OR',
-        communicationPref: 'Phone', firstGiftDate: '2021-04-10', giftCount: 6,
-        lybunt: false, sybunt: true, matchingEmployer: '', matchRatio: '',
-        assignedTo: 'Jessica Torres', notes: 'Physician. SYBUNT donor - gave in 2024 but not yet in current FY.'
-      },
-      meta: { status: 'active', tags: ['mid-level', 'sybunt', 'planned-giving-prospect'] }
-    },
-  ],
-  Gift: [
-    {
-      title: 'Whitfield Annual Gift',
-      data: {
-        donorName: 'Eleanor Whitfield', amount: 25000, date: '2026-01-15',
-        fund: 'Youth Development Fund', campaign: 'Spring Gala 2026',
-        paymentMethod: 'check', checkNumber: '4521', recurring: false,
-        pledgePayment: true, pledgeId: 'PLG-001', matchingGift: true,
-        matchedAmount: 25000, matchEmployer: 'Whitfield Corp',
-        acknowledged: true, ackDate: '2026-01-17', ackMethod: 'Personal Letter',
-        taxDeductible: true, inKind: false, notes: 'Annual gift toward pledge',
-      },
-      meta: { status: 'active', tags: ['major-gift', 'pledge-payment'] }
-    },
-    {
-      title: 'Greenfield Q1 Installment',
-      data: {
-        donorName: 'Greenfield Foundation', amount: 100000, date: '2025-12-01',
-        fund: 'General Operating', campaign: '',
-        paymentMethod: 'wire', checkNumber: '', recurring: false,
-        pledgePayment: true, pledgeId: 'PLG-002', matchingGift: false,
-        matchedAmount: 0, matchEmployer: '',
-        acknowledged: true, ackDate: '2025-12-03', ackMethod: 'Formal Letter',
-        taxDeductible: true, inKind: false, notes: 'First of 3 annual installments',
-      },
-      meta: { status: 'active', tags: ['foundation', 'pledge-payment'] }
-    },
-    {
-      title: 'Okafor Monthly Feb',
-      data: {
-        donorName: 'Marcus & Tina Okafor', amount: 100, date: '2026-02-01',
-        fund: 'General Operating', campaign: '',
-        paymentMethod: 'credit_card', checkNumber: '', recurring: true,
-        pledgePayment: false, pledgeId: '', matchingGift: true,
-        matchedAmount: 100, matchEmployer: 'Intel',
-        acknowledged: false, ackDate: '', ackMethod: '',
-        taxDeductible: true, inKind: false, notes: 'Auto-recurring monthly gift',
-      },
-      meta: { status: 'active', tags: ['recurring', 'monthly'] }
-    },
-    {
-      title: 'TechForward Sponsorship',
-      data: {
-        donorName: 'TechForward Inc', amount: 75000, date: '2025-06-15',
-        fund: 'Events Fund', campaign: 'Spring Gala 2025',
-        paymentMethod: 'ach', checkNumber: '', recurring: false,
-        pledgePayment: false, pledgeId: '', matchingGift: false,
-        matchedAmount: 0, matchEmployer: '',
-        acknowledged: true, ackDate: '2025-06-18', ackMethod: 'Email + Plaque',
-        taxDeductible: false, inKind: false, notes: 'Gala title sponsorship - partial benefits received',
-      },
-      meta: { status: 'active', tags: ['corporate', 'sponsorship'] }
-    },
-    {
-      title: 'Anonymous Online Gift',
-      data: {
-        donorName: 'Anonymous', amount: 250, date: '2026-02-10',
-        fund: 'Where Needed Most', campaign: 'Spring Appeal 2026',
-        paymentMethod: 'credit_card', checkNumber: '', recurring: false,
-        pledgePayment: false, pledgeId: '', matchingGift: false,
-        matchedAmount: 0, matchEmployer: '',
-        acknowledged: false, ackDate: '', ackMethod: '',
-        taxDeductible: true, inKind: false, notes: 'Came through website donation form',
-      },
-      meta: { status: 'active', tags: ['online', 'unacknowledged'] }
-    },
-  ],
-  Grant: [
-    {
-      title: 'Ford Foundation - Community Resilience',
-      data: {
-        funder: 'Ford Foundation', amount: 350000, amountReceived: 175000,
-        period: '2026-2028', program: 'Community Resilience',
-        deadline: '2026-03-15', nextReportDue: '2026-06-30',
-        matchRequired: false, matchAmount: 0,
-        stage: 'awarded', contactName: 'Lisa Park', contactEmail: 'lpark@fordfdn.org',
-        deliverables: 'Quarterly narrative + financial reports, final evaluation',
-        budgetTotal: 350000, budgetSpent: 82000,
-        reportingFrequency: 'Quarterly', lastReportDate: '2025-12-15',
-        notes: '3-year grant for community resilience infrastructure. Year 1 complete.',
-      },
-      meta: { status: 'awarded', tags: ['multi-year', 'resilience'] }
-    },
-    {
-      title: 'NEA Arts Access Grant',
-      data: {
-        funder: 'National Endowment for the Arts', amount: 50000, amountReceived: 0,
-        period: '2026-2027', program: 'Arts Access',
-        deadline: '2026-04-01', nextReportDue: '',
-        matchRequired: true, matchAmount: 50000,
-        stage: 'submitted', contactName: 'Robert James', contactEmail: 'rjames@arts.gov',
-        deliverables: 'Final report with attendance data and evaluation',
-        budgetTotal: 100000, budgetSpent: 0,
-        reportingFrequency: 'Final only', lastReportDate: '',
-        notes: 'Requires 1:1 match. Have committed $35k so far toward match.',
-      },
-      meta: { status: 'submitted', tags: ['arts', 'match-required'] }
-    },
-    {
-      title: 'City of Portland Community Dev',
-      data: {
-        funder: 'City of Portland', amount: 120000, amountReceived: 0,
-        period: '2026', program: 'Youth Development',
-        deadline: '2026-02-28', nextReportDue: '',
-        matchRequired: false, matchAmount: 0,
-        stage: 'application', contactName: 'Maria Santos', contactEmail: 'msantos@portland.gov',
-        deliverables: 'Monthly reports, site visits, annual audit',
-        budgetTotal: 120000, budgetSpent: 0,
-        reportingFrequency: 'Monthly', lastReportDate: '',
-        notes: 'Application due Feb 28. Draft in review with ED.',
-      },
-      meta: { status: 'application', tags: ['government', 'youth'] }
-    },
-    {
-      title: 'Kresge Foundation Climate',
-      data: {
-        funder: 'Kresge Foundation', amount: 200000, amountReceived: 0,
-        period: '2026-2027', program: 'Climate Justice',
-        deadline: '2026-05-01', nextReportDue: '',
-        matchRequired: false, matchAmount: 0,
-        stage: 'loi', contactName: 'David Wu', contactEmail: 'dwu@kresge.org',
-        deliverables: 'TBD upon full proposal',
-        budgetTotal: 200000, budgetSpent: 0,
-        reportingFrequency: 'TBD', lastReportDate: '',
-        notes: 'LOI invited. Full proposal by May if LOI approved.',
-      },
-      meta: { status: 'loi', tags: ['climate'] }
-    },
-    {
-      title: 'USDA Rural Development',
-      data: {
-        funder: 'USDA', amount: 85000, amountReceived: 85000,
-        period: '2025-2026', program: 'Food Access',
-        deadline: '', nextReportDue: '2026-03-31',
-        matchRequired: true, matchAmount: 42500,
-        stage: 'reporting', contactName: 'Tom Allen', contactEmail: 'tallen@usda.gov',
-        deliverables: 'Semi-annual progress report, financial report, final evaluation',
-        budgetTotal: 85000, budgetSpent: 71000,
-        reportingFrequency: 'Semi-annual', lastReportDate: '2025-09-30',
-        notes: 'Final report due March 31. Grant closes June 30.',
-      },
-      meta: { status: 'reporting', tags: ['federal', 'food'] }
-    },
-  ],
-  Volunteer: [
-    {
-      title: 'Sarah Martinez',
-      data: {
-        role: 'Event Coordinator', hoursThisYear: 120, hoursLifetime: 450,
-        skills: 'Event planning, Spanish fluency, social media',
-        availability: 'Weekends', startDate: '2024-05-01',
-        email: 'sarah.m@email.com', phone: '(503) 555-0721',
-        emergencyContact: 'Carlos Martinez (503) 555-0722',
-        checkedIn: false, lastCheckIn: '2026-02-08', lastCheckOut: '2026-02-08',
-        currentAssignment: 'Spring Gala Planning Committee',
-        assignmentHistory: 'Fall Festival 2025, Summer Camp 2025, Year-End Gala 2024',
-        hourValuation: 31.80, backgroundCheck: true, backgroundCheckDate: '2024-04-15',
-        notes: 'Bilingual - invaluable for community outreach events',
-      },
-      meta: { status: 'active', tags: ['events', 'bilingual', 'leadership'] }
-    },
-    {
-      title: 'David Kim',
-      data: {
-        role: 'Tutoring Lead', hoursThisYear: 85, hoursLifetime: 220,
-        skills: 'STEM tutoring, curriculum design, Python, data analysis',
-        availability: 'Tues/Thurs evenings', startDate: '2025-01-15',
-        email: 'david.k@email.com', phone: '(503) 555-0834',
-        emergencyContact: 'Jin Kim (503) 555-0835',
-        checkedIn: true, lastCheckIn: '2026-02-12', lastCheckOut: '',
-        currentAssignment: 'After-School STEM Program',
-        assignmentHistory: 'Summer Code Camp 2025, Math Tutoring Fall 2025',
-        hourValuation: 31.80, backgroundCheck: true, backgroundCheckDate: '2025-01-10',
-        notes: 'Software engineer at Intel. Great with middle school students.',
-      },
-      meta: { status: 'active', tags: ['education', 'stem'] }
-    },
-    {
-      title: 'Aisha Johnson',
-      data: {
-        role: 'Social Media Manager', hoursThisYear: 42, hoursLifetime: 42,
-        skills: 'Content creation, graphic design, Canva, Instagram, TikTok',
-        availability: 'Remote / flexible', startDate: '2025-09-01',
-        email: 'aisha.j@email.com', phone: '(971) 555-0445',
-        emergencyContact: 'Maya Johnson (971) 555-0446',
-        checkedIn: false, lastCheckIn: '2026-02-11', lastCheckOut: '2026-02-11',
-        currentAssignment: 'Spring Gala Social Media Campaign',
-        assignmentHistory: 'Year-End Campaign Social 2025',
-        hourValuation: 31.80, backgroundCheck: true, backgroundCheckDate: '2025-08-20',
-        notes: 'College student studying marketing. Very creative.',
-      },
-      meta: { status: 'active', tags: ['marketing', 'remote', 'social-media'] }
-    },
-    {
-      title: 'Robert Chen',
-      data: {
-        role: 'Board Member Volunteer', hoursThisYear: 30, hoursLifetime: 180,
-        skills: 'Financial analysis, strategic planning, fundraising',
-        availability: 'Monthly board meetings + events', startDate: '2023-01-01',
-        email: 'robert.c@finance.com', phone: '(503) 555-0553',
-        emergencyContact: 'Linda Chen (503) 555-0554',
-        checkedIn: false, lastCheckIn: '2026-01-28', lastCheckOut: '2026-01-28',
-        currentAssignment: 'Finance Committee Chair',
-        assignmentHistory: 'Annual Audit 2025, Budget Committee 2024, Gala Host Committee 2024',
-        hourValuation: 31.80, backgroundCheck: true, backgroundCheckDate: '2023-01-05',
-        notes: 'CFO at local firm. Donates expertise for financial oversight.',
-      },
-      meta: { status: 'active', tags: ['board', 'finance', 'leadership'] }
-    },
-  ],
-  Campaign: [
-    {
-      title: 'Spring Gala 2026',
-      data: {
-        type: 'Event', goal: 150000, raised: 98000, startDate: '2026-02-01',
-        endDate: '2026-04-15', channel: 'In-person + Online', donors: 245,
-        newDonors: 42, avgGift: 400, responseRate: 18.5, appealsSent: 1325,
-        expenses: 28000, netRevenue: 70000,
-        timeline: 'Save-the-date sent, sponsorships open, silent auction accepting items',
-        notes: 'Theme: "Building Tomorrow Together". Venue: Portland Art Museum.',
-      },
-      meta: { status: 'active', tags: ['annual', 'gala'] }
-    },
-    {
-      title: 'Year-End Giving 2025',
-      data: {
-        type: 'Appeal', goal: 200000, raised: 218000, startDate: '2025-11-01',
-        endDate: '2025-12-31', channel: 'Email + Direct Mail', donors: 892,
-        newDonors: 156, avgGift: 244, responseRate: 12.3, appealsSent: 7250,
-        expenses: 4200, netRevenue: 213800,
-        timeline: 'Completed. Final report submitted.',
-        notes: 'Exceeded goal by 9%. Strong email performance.',
-      },
-      meta: { status: 'completed', tags: ['annual', 'year-end'] }
-    },
-    {
-      title: 'Community Garden Capital Campaign',
-      data: {
-        type: 'Capital', goal: 500000, raised: 175000, startDate: '2025-09-01',
-        endDate: '2026-09-01', channel: 'Major Gifts + Grants', donors: 48,
-        newDonors: 12, avgGift: 3646, responseRate: 0, appealsSent: 0,
-        expenses: 5000, netRevenue: 170000,
-        timeline: 'Quiet phase. Lead gifts being solicited.',
-        notes: '$100k lead gift from Greenfield Foundation secured.',
-      },
-      meta: { status: 'active', tags: ['capital', 'multi-year'] }
-    },
-    {
-      title: 'GivingTuesday 2026',
-      data: {
-        type: 'Day-of-Giving', goal: 50000, raised: 0, startDate: '2026-12-01',
-        endDate: '2026-12-01', channel: 'Social Media + Email', donors: 0,
-        newDonors: 0, avgGift: 0, responseRate: 0, appealsSent: 0,
-        expenses: 0, netRevenue: 0,
-        timeline: 'Planning phase. Challenge match donor being identified.',
-        notes: 'Target: $50k with matching gift. Social media strategy in development.',
-      },
-      meta: { status: 'planning', tags: ['givingtuesday'] }
-    },
-  ],
-  ImpactMetric: [
-    {
-      title: 'Youth Served',
-      data: {
-        category: 'People', value: 1250, unit: 'individuals', period: 'FY 2026 YTD',
-        target: 2000, program: 'Youth Development', previousYear: 1800,
-        trend: 'up', successStory: 'Maria G. earned her GED through our tutoring program and was accepted to community college.',
-        outputs: 'Tutoring sessions: 480, Mentorship matches: 65, Career workshops: 12',
-      },
-      meta: { status: 'active', tags: ['youth'] }
-    },
-    {
-      title: 'Meals Distributed',
-      data: {
-        category: 'Services', value: 45000, unit: 'meals', period: 'FY 2026 YTD',
-        target: 80000, program: 'Food Access', previousYear: 72000,
-        trend: 'up', successStory: 'Expanded to 3 new distribution sites serving 200 additional families.',
-        outputs: 'Distribution events: 96, Families served: 1,200, Pantry visits: 8,400',
-      },
-      meta: { status: 'active', tags: ['food'] }
-    },
-    {
-      title: 'Volunteer Hours',
-      data: {
-        category: 'Engagement', value: 3200, unit: 'hours', period: 'FY 2026 YTD',
-        target: 6000, program: 'All Programs', previousYear: 5400,
-        trend: 'steady', successStory: '',
-        outputs: 'Active volunteers: 47, New volunteers: 12, Retention rate: 78%',
-      },
-      meta: { status: 'active', tags: [] }
-    },
-    {
-      title: 'Community Events Held',
-      data: {
-        category: 'Events', value: 18, unit: 'events', period: 'FY 2026 YTD',
-        target: 36, program: 'Community Engagement', previousYear: 32,
-        trend: 'steady', successStory: 'Fall Festival drew 2,000+ attendees, our largest community event ever.',
-        outputs: 'Total attendance: 4,500, Partner organizations: 15, Media mentions: 8',
-      },
-      meta: { status: 'active', tags: [] }
-    },
-    {
-      title: 'Trees Planted',
-      data: {
-        category: 'Environment', value: 520, unit: 'trees', period: 'FY 2026 YTD',
-        target: 1000, program: 'Climate Justice', previousYear: 750,
-        trend: 'up', successStory: 'Community tree planting day engaged 120 volunteers and planted 200 trees in one weekend.',
-        outputs: 'Planting events: 8, Acres restored: 12, Species planted: 15',
-      },
-      meta: { status: 'active', tags: ['climate'] }
-    },
-  ],
-  Fund: [
-    {
-      title: 'General Operating Fund',
-      data: {
-        type: 'unrestricted', balance: 284000, budgeted: 450000, spent: 166000,
-        ytdRevenue: 312000, ytdExpenses: 166000,
-        description: 'Unrestricted operating fund for day-to-day organizational expenses',
-        restrictions: 'None', endowment: false,
-        allocations: 'Staff: 60%, Programs: 25%, Admin: 10%, Fundraising: 5%',
-      },
-      meta: { status: 'active', tags: ['operating'] }
-    },
-    {
-      title: 'Youth Development Fund',
-      data: {
-        type: 'restricted', balance: 142000, budgeted: 200000, spent: 58000,
-        ytdRevenue: 175000, ytdExpenses: 58000,
-        description: 'Restricted fund for youth tutoring, mentorship, and after-school programs',
-        restrictions: 'Must be used for youth ages 12-18 in program services',
-        endowment: false,
-        allocations: 'Tutoring: 40%, Mentorship: 30%, Supplies: 20%, Transport: 10%',
-      },
-      meta: { status: 'active', tags: ['restricted', 'youth'] }
-    },
-    {
-      title: 'Food Access Fund',
-      data: {
-        type: 'restricted', balance: 67000, budgeted: 120000, spent: 53000,
-        ytdRevenue: 98000, ytdExpenses: 53000,
-        description: 'Restricted fund for food distribution and food pantry operations',
-        restrictions: 'Food procurement, distribution logistics, and pantry operations only',
-        endowment: false,
-        allocations: 'Food procurement: 70%, Logistics: 20%, Staff: 10%',
-      },
-      meta: { status: 'active', tags: ['restricted', 'food'] }
-    },
-    {
-      title: 'Capital Campaign Fund',
-      data: {
-        type: 'temporarily_restricted', balance: 175000, budgeted: 500000, spent: 0,
-        ytdRevenue: 175000, ytdExpenses: 0,
-        description: 'Temporarily restricted for Community Garden capital project',
-        restrictions: 'Land acquisition, construction, and garden infrastructure',
-        endowment: false,
-        allocations: 'Construction: 60%, Land: 25%, Equipment: 10%, Contingency: 5%',
-      },
-      meta: { status: 'active', tags: ['capital', 'temporarily-restricted'] }
-    },
-    {
-      title: 'Whitfield Endowment',
-      data: {
-        type: 'restricted', balance: 1200000, budgeted: 0, spent: 0,
-        ytdRevenue: 48000, ytdExpenses: 48000,
-        description: 'Permanently restricted endowment. Annual distribution of 4% for scholarships.',
-        restrictions: 'Principal permanently restricted. Income for scholarships only.',
-        endowment: true,
-        allocations: 'Annual distribution: $48,000 for student scholarships',
-      },
-      meta: { status: 'active', tags: ['endowment', 'scholarships'] }
-    },
-  ],
+  Donor: [],
+  Gift: [],
+  Grant: [],
+  Volunteer: [],
+  Campaign: [],
+  ImpactMetric: [],
+  Fund: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -587,6 +159,14 @@ export default function NonprofitLensPage() {
     seed: SEED[currentType],
   });
 
+  // Dashboard data — fetch each artifact type for metrics
+  const { items: allDonors } = useLensData('nonprofit', 'Donor', { seed: SEED.Donor, noSeed: mode !== 'dashboard' });
+  const { items: allGifts } = useLensData('nonprofit', 'Gift', { seed: SEED.Gift, noSeed: mode !== 'dashboard' });
+  const { items: allGrants } = useLensData('nonprofit', 'Grant', { seed: SEED.Grant, noSeed: mode !== 'dashboard' });
+  const { items: allCampaigns } = useLensData('nonprofit', 'Campaign', { seed: SEED.Campaign, noSeed: mode !== 'dashboard' });
+  const { items: allVolunteers } = useLensData('nonprofit', 'Volunteer', { seed: SEED.Volunteer, noSeed: mode !== 'dashboard' });
+  const { items: allFunds } = useLensData('nonprofit', 'Fund', { seed: SEED.Fund, noSeed: mode !== 'dashboard' });
+
   const runAction = useRunArtifact('nonprofit');
 
   // Filtered items
@@ -612,20 +192,20 @@ export default function NonprofitLensPage() {
     }
   }, [mode]);
 
-  // Dashboard metrics (computed from seed data)
+  // Dashboard metrics (computed from fetched data)
   const metrics = useMemo(() => {
-    const donors = SEED.Donor;
-    const gifts = SEED.Gift;
-    const grants = SEED.Grant;
-    const campaigns = SEED.Campaign;
-    const volunteers = SEED.Volunteer;
-    const funds = SEED.Fund;
+    const donors = allDonors as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+    const gifts = allGifts as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+    const grants = allGrants as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+    const campaigns = allCampaigns as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+    const volunteers = allVolunteers as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+    const funds = allFunds as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
 
-    const totalRaisedYTD = campaigns.reduce((s, c) => s + (c.data.raised as number), 0);
+    const totalRaisedYTD = campaigns.reduce((s, c) => s + ((c.data.raised as number) || 0), 0);
     const totalDonors = donors.length;
     const activeDonors = donors.filter(d => d.meta.status === 'active').length;
-    const retentionRate = Math.round((activeDonors / totalDonors) * 100);
-    const totalVolunteerHours = volunteers.reduce((s, v) => s + (v.data.hoursThisYear as number), 0);
+    const retentionRate = totalDonors > 0 ? Math.round((activeDonors / totalDonors) * 100) : 0;
+    const totalVolunteerHours = volunteers.reduce((s, v) => s + ((v.data.hoursThisYear as number) || 0), 0);
     const pendingAcks = gifts.filter(g => !(g.data.acknowledged as boolean)).length;
     const upcomingDeadlines = grants.filter(g => {
       const d = daysUntil(g.data.deadline as string);
@@ -633,9 +213,9 @@ export default function NonprofitLensPage() {
     });
     const lybuntDonors = donors.filter(d => d.data.lybunt as boolean).length;
     const sybuntDonors = donors.filter(d => d.data.sybunt as boolean).length;
-    const totalPledgeBalance = donors.reduce((s, d) => s + (d.data.pledgeBalance as number), 0);
-    const totalGrantPipeline = grants.reduce((s, g) => s + (g.data.amount as number), 0);
-    const totalFundBalance = funds.reduce((s, f) => s + (f.data.balance as number), 0);
+    const totalPledgeBalance = donors.reduce((s, d) => s + ((d.data.pledgeBalance as number) || 0), 0);
+    const totalGrantPipeline = grants.reduce((s, g) => s + ((g.data.amount as number) || 0), 0);
+    const totalFundBalance = funds.reduce((s, f) => s + ((f.data.balance as number) || 0), 0);
     const volunteerValue = totalVolunteerHours * 31.80;
 
     return {
@@ -644,7 +224,7 @@ export default function NonprofitLensPage() {
       lybuntDonors, sybuntDonors, totalPledgeBalance,
       totalGrantPipeline, totalFundBalance, volunteerValue,
     };
-  }, []);
+  }, [allDonors, allGifts, allGrants, allCampaigns, allVolunteers, allFunds]);
 
   // Form helpers
   const resetForm = useCallback(() => {

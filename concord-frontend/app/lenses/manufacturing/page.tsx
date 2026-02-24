@@ -119,61 +119,36 @@ function calcBOMCost(node: BOMNode): number {
 // Seed data
 // ---------------------------------------------------------------------------
 const SEED: Record<ArtifactType, Array<{ title: string; data: Record<string, unknown>; meta: Record<string, unknown> }>> = {
-  WorkOrder: [
-    { title: 'WO-2026-0201', data: { product: 'Hydraulic Actuator HA-400', qty: 250, line: 'Line A', priority: 'high', dueDate: '2026-02-15', completedQty: 80, bomRef: 'BOM-HA400 Rev C', routingSteps: ['CNC Machining', 'Assembly', 'Pressure Test', 'Paint', 'Pack'], currentStep: 1, scrapQty: 3, setupTime: 45 }, meta: { status: 'in_progress', tags: ['priority'] } },
-    { title: 'WO-2026-0198', data: { product: 'Bearing Assembly BA-12', qty: 1000, line: 'Line B', priority: 'medium', dueDate: '2026-02-20', completedQty: 1000, bomRef: 'BOM-BA12 Rev A', routingSteps: ['Turning', 'Grinding', 'Assembly', 'QC Inspect'], currentStep: 4, scrapQty: 8, setupTime: 30 }, meta: { status: 'complete', tags: [] } },
-    { title: 'WO-2026-0205', data: { product: 'Precision Gear PG-7', qty: 500, line: 'Line C', priority: 'high', dueDate: '2026-02-12', completedQty: 340, bomRef: 'BOM-PG7 Rev B', routingSteps: ['Hobbing', 'Heat Treat', 'Grinding', 'QC Inspect', 'Pack'], currentStep: 3, scrapQty: 12, setupTime: 60 }, meta: { status: 'qc', tags: ['urgent'] } },
-    { title: 'WO-2026-0210', data: { product: 'Shaft Coupling SC-3', qty: 150, line: 'Line A', priority: 'low', dueDate: '2026-03-01', completedQty: 0, bomRef: 'BOM-SC3 Rev A', routingSteps: ['Turning', 'Milling', 'Assembly', 'Test'], currentStep: 0, scrapQty: 0, setupTime: 25 }, meta: { status: 'planned', tags: [] } },
-    { title: 'WO-2026-0212', data: { product: 'Valve Block VB-50', qty: 300, line: 'Line B', priority: 'medium', dueDate: '2026-02-25', completedQty: 0, bomRef: 'BOM-VB50 Rev D', routingSteps: ['CNC Mill', 'Deburr', 'Anodize', 'Assembly', 'Test'], currentStep: 0, scrapQty: 0, setupTime: 55 }, meta: { status: 'released', tags: [] } },
-  ],
-  BOM: [
-    { title: 'BOM-HA400 Rev C', data: { product: 'Hydraulic Actuator HA-400', revision: 'C', prevRevision: 'B', components: 14, levels: 3, totalCost: 186.50, approvedBy: 'J. Chen - Engineering', approvedDate: '2026-01-15', changeNote: 'Updated valve block specs per ECO-2026-044' }, meta: { status: 'active', tags: ['current'] } },
-    { title: 'BOM-BA12 Rev A', data: { product: 'Bearing Assembly BA-12', revision: 'A', prevRevision: '-', components: 8, levels: 2, totalCost: 42.30, approvedBy: 'J. Chen - Engineering', approvedDate: '2025-11-20', changeNote: 'Initial release' }, meta: { status: 'active', tags: [] } },
-    { title: 'BOM-PG7 Rev B', data: { product: 'Precision Gear PG-7', revision: 'B', prevRevision: 'A', components: 6, levels: 2, totalCost: 67.80, approvedBy: 'R. Singh - Engineering', approvedDate: '2026-01-28', changeNote: 'Material change: 8620 to 4340 steel' }, meta: { status: 'active', tags: [] } },
-    { title: 'BOM-HA400 Rev B', data: { product: 'Hydraulic Actuator HA-400', revision: 'B', prevRevision: 'A', components: 13, levels: 3, totalCost: 178.20, approvedBy: 'J. Chen - Engineering', approvedDate: '2025-09-10', changeNote: 'Added secondary seal' }, meta: { status: 'inactive', tags: ['superseded'] } },
-  ],
-  QCInspection: [
-    { title: 'QC-2026-0401', data: { workOrder: 'WO-2026-0205', product: 'Precision Gear PG-7', inspector: 'T. Nakamura', inspectionDate: '2026-02-11', sampleSize: 50, passCount: 47, failCount: 3, defectRate: 6.0, disposition: 'hold', defects: [{ type: 'Dimensional', severity: 'major', desc: 'OD out of tolerance +0.003"', rootCause: 'Tool wear' }, { type: 'Surface', severity: 'minor', desc: 'Surface finish Ra 64 vs spec Ra 32', rootCause: 'Feed rate' }, { type: 'Dimensional', severity: 'major', desc: 'Bore undersize -0.002"', rootCause: 'Tool wear' }], measurements: [{ param: 'OD', nominal: 2.500, tolerance: 0.001, actual: 2.503, pass: false }, { param: 'Bore ID', nominal: 1.000, tolerance: 0.001, actual: 0.998, pass: false }, { param: 'Face Width', nominal: 0.750, tolerance: 0.002, actual: 0.751, pass: true }, { param: 'Tooth Profile', nominal: 'Class 10', tolerance: 'AGMA', actual: 'Class 10', pass: true }] }, meta: { status: 'review', tags: ['critical'] } },
-    { title: 'QC-2026-0399', data: { workOrder: 'WO-2026-0198', product: 'Bearing Assembly BA-12', inspector: 'R. Patel', inspectionDate: '2026-02-10', sampleSize: 100, passCount: 100, failCount: 0, defectRate: 0.0, disposition: 'accept', defects: [], measurements: [{ param: 'Bore ID', nominal: 12.000, tolerance: 0.005, actual: 12.002, pass: true }, { param: 'OD', nominal: 28.000, tolerance: 0.005, actual: 27.998, pass: true }, { param: 'Width', nominal: 8.000, tolerance: 0.010, actual: 8.003, pass: true }] }, meta: { status: 'active', tags: ['passed'] } },
-    { title: 'QC-2026-0395', data: { workOrder: 'WO-2026-0201', product: 'Hydraulic Actuator HA-400', inspector: 'T. Nakamura', inspectionDate: '2026-02-09', sampleSize: 30, passCount: 29, failCount: 1, defectRate: 3.3, disposition: 'accept', defects: [{ type: 'Cosmetic', severity: 'minor', desc: 'Paint chip on housing', rootCause: 'Handling' }], measurements: [{ param: 'Pressure Test', nominal: 3000, tolerance: 50, actual: 3010, pass: true }, { param: 'Stroke Length', nominal: 6.000, tolerance: 0.010, actual: 5.998, pass: true }] }, meta: { status: 'active', tags: [] } },
-  ],
-  Schedule: [
-    { title: 'SCH-Line A - Week 7', data: { line: 'Line A', week: '2026-W07', slots: [{ machine: 'CNC Mill #M-01', wo: 'WO-2026-0201', product: 'HA-400', startHr: 0, endHr: 8, day: 'Mon' }, { machine: 'CNC Mill #M-01', wo: 'WO-2026-0201', product: 'HA-400', startHr: 0, endHr: 8, day: 'Tue' }, { machine: 'CNC Mill #M-01', wo: 'WO-2026-0210', product: 'SC-3', startHr: 0, endHr: 6, day: 'Wed' }, { machine: 'Assembly #A-01', wo: 'WO-2026-0201', product: 'HA-400', startHr: 0, endHr: 8, day: 'Mon' }, { machine: 'Assembly #A-01', wo: 'WO-2026-0201', product: 'HA-400', startHr: 0, endHr: 8, day: 'Tue' }], capacityPct: 78, bottleneck: 'CNC Mill #M-01' }, meta: { status: 'active', tags: [] } },
-    { title: 'SCH-Line B - Week 7', data: { line: 'Line B', week: '2026-W07', slots: [{ machine: 'Lathe #L-03', wo: 'WO-2026-0212', product: 'VB-50', startHr: 0, endHr: 8, day: 'Mon' }, { machine: 'Lathe #L-03', wo: 'WO-2026-0212', product: 'VB-50', startHr: 0, endHr: 8, day: 'Tue' }, { machine: 'Lathe #L-03', wo: 'WO-2026-0212', product: 'VB-50', startHr: 0, endHr: 6, day: 'Wed' }], capacityPct: 91, bottleneck: 'Lathe #L-03' }, meta: { status: 'active', tags: [] } },
-    { title: 'SCH-Line C - Week 7', data: { line: 'Line C', week: '2026-W07', slots: [{ machine: 'Hobbing #H-01', wo: 'WO-2026-0205', product: 'PG-7', startHr: 0, endHr: 8, day: 'Mon' }, { machine: 'Hobbing #H-01', wo: 'WO-2026-0205', product: 'PG-7', startHr: 0, endHr: 8, day: 'Tue' }, { machine: 'Heat Treat #HT-01', wo: 'WO-2026-0205', product: 'PG-7', startHr: 0, endHr: 8, day: 'Wed' }], capacityPct: 45, bottleneck: 'Heat Treat #HT-01' }, meta: { status: 'active', tags: [] } },
-  ],
-  Machine: [
-    { title: 'CNC Mill #M-01', data: { type: 'CNC 5-Axis', manufacturer: 'Haas', model: 'UMC-750', machineStatus: 'running', installDate: '2023-06-15', cycleTime: 4.2, hoursRun: 6.5, hoursAvail: 8, idealCycleTime: 4.0, totalParts: 155, goodParts: 150, availability: 92, performance: 88, quality: 96.8, oee: 78.4, nextMaintenance: '2026-02-20', maintenanceType: 'Spindle bearing inspection', downtimeLog: [{ date: '2026-02-08', duration: 45, reason: 'Tool change delay' }, { date: '2026-02-05', duration: 120, reason: 'Coolant pump failure' }] }, meta: { status: 'active', tags: ['line-a'] } },
-    { title: 'Lathe #L-03', data: { type: 'CNC Lathe', manufacturer: 'Mazak', model: 'QT-250', machineStatus: 'running', installDate: '2022-01-10', cycleTime: 2.8, hoursRun: 7.2, hoursAvail: 8, idealCycleTime: 2.5, totalParts: 310, goodParts: 305, availability: 95, performance: 91, quality: 98.4, oee: 85.1, nextMaintenance: '2026-02-18', maintenanceType: 'Chuck jaw replacement', downtimeLog: [{ date: '2026-02-10', duration: 30, reason: 'Material changeover' }] }, meta: { status: 'active', tags: ['line-b'] } },
-    { title: 'Press #P-02', data: { type: 'Hydraulic Press', manufacturer: 'Schuler', model: 'TBS-200', machineStatus: 'maintenance', installDate: '2021-09-20', cycleTime: 1.5, hoursRun: 0, hoursAvail: 8, idealCycleTime: 1.2, totalParts: 0, goodParts: 0, availability: 0, performance: 0, quality: 0, oee: 0, nextMaintenance: '2026-02-12', maintenanceType: 'Hydraulic seal replacement', downtimeLog: [{ date: '2026-02-11', duration: 480, reason: 'Hydraulic seal failure' }, { date: '2026-02-10', duration: 60, reason: 'Pressure fluctuation investigation' }] }, meta: { status: 'inactive', tags: ['maintenance'] } },
-    { title: 'Hobbing #H-01', data: { type: 'Gear Hobbing', manufacturer: 'Gleason', model: 'Genesis 210H', machineStatus: 'running', installDate: '2024-03-01', cycleTime: 6.5, hoursRun: 5.8, hoursAvail: 8, idealCycleTime: 6.0, totalParts: 88, goodParts: 85, availability: 88, performance: 84, quality: 96.6, oee: 71.3, nextMaintenance: '2026-03-01', maintenanceType: 'Hob cutter inspection', downtimeLog: [] }, meta: { status: 'active', tags: ['line-c'] } },
-    { title: 'Assembly #A-01', data: { type: 'Assembly Station', manufacturer: 'Custom', model: 'AS-400', machineStatus: 'idle', installDate: '2023-01-15', cycleTime: 12.0, hoursRun: 4.0, hoursAvail: 8, idealCycleTime: 10.0, totalParts: 32, goodParts: 31, availability: 75, performance: 80, quality: 96.9, oee: 58.1, nextMaintenance: '2026-02-28', maintenanceType: 'Torque wrench calibration', downtimeLog: [{ date: '2026-02-11', duration: 90, reason: 'Waiting for parts from CNC' }] }, meta: { status: 'active', tags: ['line-a'] } },
-  ],
-  SafetyItem: [
-    { title: 'SI-2026-012 Near Miss - Line A', data: { incidentType: 'near_miss', location: 'Line A, Station 4', reportedBy: 'J. Hernandez', reportDate: '2026-02-10', description: 'Unsecured tooling fell from overhead rack', severity: 'medium', rootCause: 'Improper storage of tooling on overhead rack', correctiveAction: 'Install retention clips on all overhead racks', dueDate: '2026-02-20', oshaRecordable: false, lostTimeDays: 0, trainingRequired: 'Tool Storage Safety Refresher' }, meta: { status: 'investigating', tags: ['open'] } },
-    { title: 'SI-2026-008 PPE Violation', data: { incidentType: 'observation', location: 'Welding Bay 2', reportedBy: 'M. Brown', reportDate: '2026-02-07', description: 'Employee missing face shield during grinding', severity: 'low', rootCause: 'PPE not readily accessible at station', correctiveAction: 'Install PPE dispensers at each welding bay', dueDate: '2026-02-14', oshaRecordable: false, lostTimeDays: 0, trainingRequired: 'PPE Compliance Training' }, meta: { status: 'corrective_action', tags: [] } },
-    { title: 'SI-2026-003 Slip Incident', data: { incidentType: 'incident', location: 'Loading Dock', reportedBy: 'S. Kim', reportDate: '2026-01-28', description: 'Employee slipped on coolant leak near dock entrance, minor ankle sprain', severity: 'high', rootCause: 'Coolant line fitting failure, no drip pan installed', correctiveAction: 'Replaced fitting, installed drip pans, added non-slip mats', dueDate: '2026-02-05', oshaRecordable: true, lostTimeDays: 2, trainingRequired: 'Spill Response Procedure' }, meta: { status: 'closed', tags: ['resolved'] } },
-    { title: 'SI-2026-015 Audit Finding', data: { incidentType: 'audit', location: 'Paint Booth 1', reportedBy: 'Safety Committee', reportDate: '2026-02-11', description: 'Fire extinguisher expired, ventilation filter overdue for replacement', severity: 'medium', rootCause: 'Missed maintenance schedule item', correctiveAction: 'Replace extinguisher and filters, update PM schedule', dueDate: '2026-02-15', oshaRecordable: false, lostTimeDays: 0, trainingRequired: 'Fire Safety Awareness' }, meta: { status: 'reported', tags: ['audit'] } },
-  ],
+  WorkOrder: [],
+  BOM: [],
+  QCInspection: [],
+  Schedule: [],
+  Machine: [],
+  SafetyItem: [],
 };
 
 // ---------------------------------------------------------------------------
 // Dashboard metric helpers
 // ---------------------------------------------------------------------------
-function computeDashboardMetrics() {
-  const wos = SEED.WorkOrder;
-  const machines = SEED.Machine;
-  const qcs = SEED.QCInspection;
-  const safety = SEED.SafetyItem;
+function computeDashboardMetrics(data?: {
+  wos?: Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+  machines?: Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+  qcs?: Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+  safety?: Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>;
+}) {
+  const wos = data?.wos || [];
+  const machines = data?.machines || [];
+  const qcs = data?.qcs || [];
+  const safety = data?.safety || [];
 
-  const unitsToday = wos.reduce((s, w) => s + (w.data.completedQty as number), 0);
+  const unitsToday = wos.reduce((s, w) => s + ((w.data.completedQty as number) || 0), 0);
   const openWOs = wos.filter(w => w.meta.status !== 'complete').length;
-  const totalQCSamples = qcs.reduce((s, q) => s + (q.data.sampleSize as number), 0);
-  const totalQCPass = qcs.reduce((s, q) => s + (q.data.passCount as number), 0);
+  const totalQCSamples = qcs.reduce((s, q) => s + ((q.data.sampleSize as number) || 0), 0);
+  const totalQCPass = qcs.reduce((s, q) => s + ((q.data.passCount as number) || 0), 0);
   const qcPassRate = totalQCSamples > 0 ? ((totalQCPass / totalQCSamples) * 100) : 0;
   const activeMachines = machines.filter(m => (m.data.machineStatus as string) !== 'maintenance');
   const avgOEE = activeMachines.length > 0
-    ? activeMachines.reduce((s, m) => s + (m.data.oee as number), 0) / activeMachines.length
+    ? activeMachines.reduce((s, m) => s + ((m.data.oee as number) || 0), 0) / activeMachines.length
     : 0;
   const safetyMTD = safety.filter(s => s.meta.status !== 'closed').length;
   const oshaRecordables = safety.filter(s => s.data.oshaRecordable === true).length;
@@ -183,7 +158,7 @@ function computeDashboardMetrics() {
   }).length;
   const totalDueWOs = wos.filter(w => w.meta.status === 'complete' || new Date(w.data.dueDate as string) <= new Date()).length;
   const onTimeRate = totalDueWOs > 0 ? ((onTimeWOs / totalDueWOs) * 100) : 100;
-  const totalLostDays = safety.reduce((s, si) => s + (si.data.lostTimeDays as number), 0);
+  const totalLostDays = safety.reduce((s, si) => s + ((si.data.lostTimeDays as number) || 0), 0);
 
   return { unitsToday, openWOs, qcPassRate, avgOEE, safetyMTD, oshaRecordables, onTimeRate, totalLostDays };
 }
@@ -357,6 +332,12 @@ export default function ManufacturingLensPage() {
     seed: SEED[currentType],
   });
 
+  // Fetch all types for dashboard metrics (independent of active tab)
+  const { items: dashWOs } = useLensData('manufacturing', 'WorkOrder', { seed: SEED.WorkOrder, noSeed: currentType === 'WorkOrder' });
+  const { items: dashMachines } = useLensData('manufacturing', 'Machine', { seed: SEED.Machine, noSeed: currentType === 'Machine' });
+  const { items: dashQCs } = useLensData('manufacturing', 'QCInspection', { seed: SEED.QCInspection, noSeed: currentType === 'QCInspection' });
+  const { items: dashSafety } = useLensData('manufacturing', 'SafetyItem', { seed: SEED.SafetyItem, noSeed: currentType === 'SafetyItem' });
+
   const runAction = useRunArtifact('manufacturing');
 
   const filtered = useMemo(() => {
@@ -474,8 +455,13 @@ export default function ManufacturingLensPage() {
     ],
   };
 
-  // Dashboard metrics
-  const metrics = useMemo(() => computeDashboardMetrics(), []);
+  // Dashboard metrics — computed from real API data
+  const metrics = useMemo(() => computeDashboardMetrics({
+    wos: dashWOs as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>,
+    machines: dashMachines as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>,
+    qcs: dashQCs as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>,
+    safety: dashSafety as Array<{ data: Record<string, unknown>; meta: Record<string, unknown> }>,
+  }), [dashWOs, dashMachines, dashQCs, dashSafety]);
   const oeeCalcResult = useMemo(() => {
     const a = parseFloat(oeeAvail) || 0;
     const p = parseFloat(oeePerf) || 0;

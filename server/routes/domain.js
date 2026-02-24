@@ -135,9 +135,17 @@ export default function registerDomainRoutes(app, {
   app.get("/api/macros/:domain", (req,res)=> res.json({ ok:true, domain:req.params.domain, macros: listMacros(req.params.domain) }));
   app.post("/api/macros/run", async (req, res) => {
     const ctx = makeCtx(req);
-    const domain = req.body?.domain;
-    const name = req.body?.name;
-    const input = req.body?.input;
+    let domain = req.body?.domain;
+    let name = req.body?.name;
+    const input = req.body?.input || req.body?.ctx || {};
+
+    // Support recipeName format: "emergent.list" → domain="emergent", name="list"
+    if (!domain && req.body?.recipeName) {
+      const parts = req.body.recipeName.split(".");
+      domain = parts[0];
+      name = parts.slice(1).join(".");
+    }
+
     if (!domain || !name) return res.status(400).json({ ok:false, error:"domain and name required" });
     try {
       const out = await runMacro(domain, name, input, ctx);
