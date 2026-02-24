@@ -76,39 +76,7 @@ interface BOMNode {
   children?: BOMNode[];
 }
 
-const BOM_TREE: BOMNode[] = [
-  {
-    id: 'asm-ha400', part: 'Hydraulic Actuator HA-400', partNumber: 'HA-400', qtyPer: 1, unitCost: 0,
-    children: [
-      {
-        id: 'sub-cyl', part: 'Cylinder Assembly', partNumber: 'CYL-100', qtyPer: 1, unitCost: 45.00,
-        children: [
-          { id: 'cyl-tube', part: 'Cylinder Tube 4140', partNumber: 'PT-4421', qtyPer: 1, unitCost: 18.50 },
-          { id: 'cyl-cap', part: 'End Cap Machined', partNumber: 'PT-4422', qtyPer: 2, unitCost: 6.25 },
-          { id: 'cyl-seal', part: 'O-Ring Seal Viton', partNumber: 'PT-7891', qtyPer: 4, unitCost: 0.45 },
-        ]
-      },
-      {
-        id: 'sub-piston', part: 'Piston Assembly', partNumber: 'PIS-200', qtyPer: 1, unitCost: 32.00,
-        children: [
-          { id: 'pis-rod', part: 'Piston Rod Chrome', partNumber: 'PT-5501', qtyPer: 1, unitCost: 14.00 },
-          { id: 'pis-head', part: 'Piston Head Forged', partNumber: 'PT-5502', qtyPer: 1, unitCost: 9.50 },
-          { id: 'pis-ring', part: 'Piston Ring Set', partNumber: 'PT-5503', qtyPer: 1, unitCost: 4.25 },
-        ]
-      },
-      {
-        id: 'sub-valve', part: 'Valve Block', partNumber: 'VLV-300', qtyPer: 1, unitCost: 52.00,
-        children: [
-          { id: 'vlv-body', part: 'Valve Body AL6061', partNumber: 'PT-6601', qtyPer: 1, unitCost: 22.00 },
-          { id: 'vlv-spool', part: 'Spool Valve', partNumber: 'PT-6602', qtyPer: 2, unitCost: 8.75 },
-          { id: 'vlv-spring', part: 'Return Spring', partNumber: 'PT-6603', qtyPer: 2, unitCost: 1.20 },
-        ]
-      },
-      { id: 'bsh-main', part: 'Bronze Bushing', partNumber: 'PT-2233', qtyPer: 2, unitCost: 8.90 },
-      { id: 'hwd-bolts', part: 'Mounting Bolt Kit', partNumber: 'PT-9901', qtyPer: 1, unitCost: 3.50 },
-    ]
-  }
-];
+const BOM_TREE: BOMNode[] = [];
 
 function calcBOMCost(node: BOMNode): number {
   if (!node.children || node.children.length === 0) return node.unitCost * node.qtyPer;
@@ -816,49 +784,62 @@ export default function ManufacturingLensPage() {
               <span className="w-12 text-right">Qty</span>
               <span className="w-20 text-right">Cost Rollup</span>
             </div>
-            {BOM_TREE.map(node => (
-              <BOMTreeNode key={node.id} node={node} />
-            ))}
-            <div className="mt-3 pt-3 border-t border-lattice-border flex items-center justify-between px-2">
-              <span className="text-sm font-semibold text-white">Total BOM Cost</span>
-              <span className="text-lg font-bold text-neon-cyan font-mono">${calcBOMCost(BOM_TREE[0]).toFixed(2)}</span>
-            </div>
+            {BOM_TREE.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No BOM tree data available. Create BOMs to see the component breakdown.</p>
+            ) : (
+              <>
+                {BOM_TREE.map(node => (
+                  <BOMTreeNode key={node.id} node={node} />
+                ))}
+                <div className="mt-3 pt-3 border-t border-lattice-border flex items-center justify-between px-2">
+                  <span className="text-sm font-semibold text-white">Total BOM Cost</span>
+                  <span className="text-lg font-bold text-neon-cyan font-mono">${calcBOMCost(BOM_TREE[0]).toFixed(2)}</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* BOM Comparison */}
-      <div className={ds.panel}>
-        <h3 className={ds.heading3 + ' mb-3'}>BOM Revision Comparison</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left border-b border-lattice-border">
-                <th className="pb-2 pr-4 font-medium">Attribute</th>
-                <th className="pb-2 pr-4 font-medium">Rev B (Previous)</th>
-                <th className="pb-2 pr-4 font-medium">Rev C (Current)</th>
-                <th className="pb-2 font-medium">Delta</th>
-              </tr>
-            </thead>
-            <tbody className="text-gray-300">
-              {[
-                { attr: 'Components', revB: '13', revC: '14', delta: '+1', color: 'text-amber-400' },
-                { attr: 'Total Cost', revB: '$178.20', revC: '$186.50', delta: '+$8.30', color: 'text-red-400' },
-                { attr: 'Valve Block Spec', revB: 'VLV-300 Rev A', revC: 'VLV-300 Rev B', delta: 'Changed', color: 'text-neon-blue' },
-                { attr: 'Secondary Seal', revB: 'Added', revC: 'Retained', delta: 'No change', color: 'text-gray-500' },
-                { attr: 'Approved', revB: '2025-09-10', revC: '2026-01-15', delta: '-', color: 'text-gray-500' },
-              ].map(row => (
-                <tr key={row.attr} className="border-b border-lattice-border/30">
-                  <td className="py-2 pr-4 text-gray-400">{row.attr}</td>
-                  <td className="py-2 pr-4">{row.revB}</td>
-                  <td className="py-2 pr-4 font-medium">{row.revC}</td>
-                  <td className={cn('py-2 font-medium', row.color)}>{row.delta}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* BOM Comparison — populated when multiple revisions exist */}
+      {filtered.length >= 2 && (() => {
+        const sorted = [...filtered].sort((a, b) => String((b.data as Record<string, unknown>).revision || '').localeCompare(String((a.data as Record<string, unknown>).revision || '')));
+        const current = sorted[0]?.data as Record<string, unknown> | undefined;
+        const previous = sorted[1]?.data as Record<string, unknown> | undefined;
+        if (!current || !previous) return null;
+        const rows = [
+          { attr: 'Components', revB: String(previous.components ?? '-'), revC: String(current.components ?? '-'), delta: current.components && previous.components ? `${(current.components as number) - (previous.components as number) >= 0 ? '+' : ''}${(current.components as number) - (previous.components as number)}` : '-', color: 'text-amber-400' },
+          { attr: 'Total Cost', revB: `$${((previous.totalCost as number) || 0).toFixed(2)}`, revC: `$${((current.totalCost as number) || 0).toFixed(2)}`, delta: `$${(((current.totalCost as number) || 0) - ((previous.totalCost as number) || 0)).toFixed(2)}`, color: ((current.totalCost as number) || 0) > ((previous.totalCost as number) || 0) ? 'text-red-400' : 'text-green-400' },
+          { attr: 'Approved', revB: String(previous.approvedDate ?? '-'), revC: String(current.approvedDate ?? '-'), delta: '-', color: 'text-gray-500' },
+        ];
+        return (
+          <div className={ds.panel}>
+            <h3 className={ds.heading3 + ' mb-3'}>BOM Revision Comparison</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-500 text-left border-b border-lattice-border">
+                    <th className="pb-2 pr-4 font-medium">Attribute</th>
+                    <th className="pb-2 pr-4 font-medium">Rev {String(previous.revision ?? 'B')} (Previous)</th>
+                    <th className="pb-2 pr-4 font-medium">Rev {String(current.revision ?? 'C')} (Current)</th>
+                    <th className="pb-2 font-medium">Delta</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-300">
+                  {rows.map(row => (
+                    <tr key={row.attr} className="border-b border-lattice-border/30">
+                      <td className="py-2 pr-4 text-gray-400">{row.attr}</td>
+                      <td className="py-2 pr-4">{row.revB}</td>
+                      <td className="py-2 pr-4 font-medium">{row.revC}</td>
+                      <td className={cn('py-2 font-medium', row.color)}>{row.delta}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* BOM List */}
       <div className={ds.grid2}>
