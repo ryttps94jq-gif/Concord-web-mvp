@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { RotateCcw, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
 
 interface Node3D {
   id: string;
@@ -284,18 +285,20 @@ export function KnowledgeSpace3D({
 
   return (
     <div className={cn('relative h-full w-full bg-black', className)}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas
-          camera={{ position: [0, 10, 25], fov: 60 }}
-          gl={{ antialias: true }}
-        >
-          <Scene
-            nodes={nodes3D}
-            onNodeClick={onNodeClick}
-            selectedNodeId={selectedNodeId}
-          />
-        </Canvas>
-      </Suspense>
+      <LensErrorBoundary name="Resonance Universe">
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas
+            camera={{ position: [0, 10, 25], fov: 60 }}
+            gl={{ antialias: true }}
+          >
+            <Scene
+              nodes={nodes3D}
+              onNodeClick={onNodeClick}
+              selectedNodeId={selectedNodeId}
+            />
+          </Canvas>
+        </Suspense>
+      </LensErrorBoundary>
 
       {/* Controls overlay */}
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
