@@ -9777,6 +9777,534 @@ globalThis._concordSTATE = STATE;
 globalThis._repairObserve = observe;
 setTimeout(() => startRepairLoop(), 10000);
 
+// ── Ghost Fleet: Wire 18 Dormant Emergent Modules ─────────────────────────
+// Every module lazy-loaded, macros registered, ticks wired. Silent failure everywhere.
+
+const GHOST_FLEET_STATUS = {
+  modules: {},
+  loadedAt: null,
+  totalLoaded: 0,
+  totalFailed: 0,
+};
+
+async function initGhostFleet() {
+  const startTime = Date.now();
+  structuredLog("info", "ghost_fleet_init_start", { message: "Wiring 18 emergent modules..." });
+
+  // ── Phase 1: Critical Four ──────────────────────────────────────────────
+
+  // 1. HLR Engine — Multi-mode reasoning (7 modes)
+  try {
+    const hlr = await import("./emergent/hlr-engine.js");
+    GHOST_FLEET_STATUS.modules["hlr-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hlr", "run", async (_ctx, input = {}) => hlr.runHLR(input));
+    register("hlr", "trace", (_ctx, input = {}) => hlr.getReasoningTrace(input.traceId));
+    register("hlr", "list_traces", (_ctx, input = {}) => hlr.listTraces(input.limit));
+    register("hlr", "metrics", () => hlr.getHLRMetrics());
+    register("hlr", "findings", (_ctx, input = {}) => hlr.getRecentFindings(input.limit));
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hlr-engine", macros: 5 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hlr-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hlr-engine", error: err.message });
+  }
+
+  // 2. HLM Engine — Lattice topology mapping
+  try {
+    const hlm = await import("./emergent/hlm-engine.js");
+    GHOST_FLEET_STATUS.modules["hlm-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hlm", "run", async (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.runHLMPass(dtus);
+    });
+    register("hlm", "clusters", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.clusterAnalysis(dtus);
+    });
+    register("hlm", "gaps", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      const clusters = hlm.clusterAnalysis(dtus);
+      return hlm.gapAnalysis(clusters, dtus);
+    });
+    register("hlm", "redundancy", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.redundancyDetection(dtus);
+    });
+    register("hlm", "orphans", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      const clusters = hlm.clusterAnalysis(dtus);
+      return hlm.orphanRescue(dtus, clusters);
+    });
+    register("hlm", "topology", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.topologyMap(dtus);
+    });
+    register("hlm", "domain_census", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.domainCensus(dtus);
+    });
+    register("hlm", "freshness", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return hlm.freshnessCheck(dtus);
+    });
+    register("hlm", "metrics", () => hlm.getHLMMetrics());
+
+    // HLM slow interval: every 5 minutes (NOT on the 15s heartbeat)
+    const hlmTimer = setInterval(async () => {
+      try {
+        const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+        if (dtus.length > 0) await hlm.runHLMPass(dtus);
+      } catch (e) { observe(e, "hlm_slow_interval"); }
+    }, 300000);
+    if (hlmTimer.unref) hlmTimer.unref();
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hlm-engine", macros: 9, interval: "5min" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hlm-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hlm-engine", error: err.message });
+  }
+
+  // 3. Agent System — Lattice immune system (6 agent types)
+  try {
+    const agents = await import("./emergent/agent-system.js");
+    GHOST_FLEET_STATUS.modules["agent-system"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("agents", "create", (_ctx, input = {}) => agents.createAgent(input.type, input.config));
+    register("agents", "run", (_ctx, input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return agents.runAgent(input.agentId, dtus);
+    });
+    register("agents", "pause", (_ctx, input = {}) => agents.pauseAgent(input.agentId));
+    register("agents", "resume", (_ctx, input = {}) => agents.resumeAgent(input.agentId));
+    register("agents", "destroy", (_ctx, input = {}) => agents.destroyAgent(input.agentId));
+    register("agents", "get", (_ctx, input = {}) => agents.getAgent(input.agentId));
+    register("agents", "list", () => agents.listAgents());
+    register("agents", "findings", (_ctx, input = {}) => agents.getAgentFindings(input.agentId, input.limit));
+    register("agents", "all_findings", (_ctx, input = {}) => agents.getAllFindings(input.type, input.limit));
+    register("agents", "freeze", () => agents.freezeAllAgents());
+    register("agents", "thaw", () => agents.thawAllAgents());
+    register("agents", "tick", (_ctx, _input = {}) => {
+      const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
+      return agents.agentTickJob(dtus);
+    });
+    register("agents", "metrics", () => agents.getAgentMetrics());
+
+    // Agents run on their own intervals via agentTickJob (already called in governor heartbeat)
+    // But also create default agents after a delay
+    setTimeout(async () => {
+      try {
+        const existing = agents.listAgents();
+        if (!existing?.agents?.length) {
+          for (const type of Object.values(agents.AGENT_TYPES || {})) {
+            try { agents.createAgent(type, { territory: "*" }); } catch { /* best-effort */ }
+          }
+          structuredLog("info", "ghost_fleet_agents_seeded", { types: Object.values(agents.AGENT_TYPES || {}) });
+        }
+      } catch (e) { observe(e, "ghost_fleet_agent_seed"); }
+    }, 30000); // 30s after boot — brains are online
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "agent-system", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["agent-system"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "agent-system", error: err.message });
+  }
+
+  // 4. Hypothesis Engine — Formal hypothesis lifecycle
+  try {
+    const hypo = await import("./emergent/hypothesis-engine.js");
+    GHOST_FLEET_STATUS.modules["hypothesis-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("hypothesis", "propose", (_ctx, input = {}) => hypo.proposeHypothesis(input.statement, input.domain, input.priority));
+    register("hypothesis", "get", (_ctx, input = {}) => hypo.getHypothesis(input.id));
+    register("hypothesis", "list", (_ctx, input = {}) => hypo.listHypotheses(input.status));
+    register("hypothesis", "add_evidence", (_ctx, input = {}) => hypo.addEvidence(input.hypothesisId, input.side, input.dtuId, input.weight, input.summary));
+    register("hypothesis", "add_test", (_ctx, input = {}) => hypo.addTest(input.hypothesisId, input.description));
+    register("hypothesis", "update_test", (_ctx, input = {}) => hypo.updateTestResult(input.hypothesisId, input.testId, input.result));
+    register("hypothesis", "add_prediction", (_ctx, input = {}) => hypo.addPrediction(input.hypothesisId, input.statement));
+    register("hypothesis", "verify_prediction", (_ctx, input = {}) => hypo.verifyPrediction(input.hypothesisId, input.predIndex, input.verified));
+    register("hypothesis", "confirm", (_ctx, input = {}) => hypo.confirmHypothesis(input.id));
+    register("hypothesis", "reject", (_ctx, input = {}) => hypo.rejectHypothesis(input.id, input.reason));
+    register("hypothesis", "refine", (_ctx, input = {}) => hypo.refineHypothesis(input.id, input.newStatement));
+    register("hypothesis", "archive", (_ctx, input = {}) => hypo.archiveHypothesis(input.id));
+    register("hypothesis", "metrics", () => hypo.getHypothesisMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "hypothesis-engine", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["hypothesis-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "hypothesis-engine", error: err.message });
+  }
+
+  // ── Phase 2: Knowledge Expansion ────────────────────────────────────────
+
+  // 5. Planetary Ingest Engine
+  try {
+    const ingest = await import("./emergent/ingest-engine.js");
+    GHOST_FLEET_STATUS.modules["ingest-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("ingest", "submit_url", (_ctx, input = {}) => ingest.submitUrl(input.userId, input.url, input.tier));
+    register("ingest", "queue", () => ingest.getQueue());
+    register("ingest", "status", (_ctx, input = {}) => ingest.getIngestStatus(input.ingestId));
+    register("ingest", "stats", () => ingest.getIngestStats());
+    register("ingest", "process_next", () => ingest.processNextItem());
+    register("ingest", "flush", () => ingest.flushQueue());
+    register("ingest", "allowlist", () => ingest.getAllowlist());
+    register("ingest", "add_allowlist", (_ctx, input = {}) => ingest.addToAllowlist(input.domain));
+    register("ingest", "remove_allowlist", (_ctx, input = {}) => ingest.removeFromAllowlist(input.domain));
+    register("ingest", "add_blocklist", (_ctx, input = {}) => ingest.addToBlocklist(input.domain));
+    register("ingest", "metrics", () => ingest.getIngestMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "ingest-engine", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["ingest-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "ingest-engine", error: err.message });
+  }
+
+  // 6. Research Jobs Queue
+  try {
+    const research = await import("./emergent/research-jobs.js");
+    GHOST_FLEET_STATUS.modules["research-jobs"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("research", "create", (_ctx, input = {}) => research.submitResearchJob(input.topic, input.config));
+    register("research", "get", (_ctx, input = {}) => research.getResearchJob(input.id));
+    register("research", "list", (_ctx, input = {}) => research.listResearchJobs(input.status));
+    register("research", "cancel", (_ctx, input = {}) => research.cancelResearchJob(input.id));
+    register("research", "results", (_ctx, input = {}) => research.getResearchResults(input.id));
+    register("research", "report", (_ctx, input = {}) => research.getResearchReport(input.id));
+    register("research", "step", (_ctx, input = {}) => research.runResearchStep(input.jobId));
+    register("research", "process_queue", () => research.processResearchQueue());
+    register("research", "metrics", () => research.getResearchMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "research-jobs", macros: 9 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["research-jobs"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "research-jobs", error: err.message });
+  }
+
+  // 7. Council Voices (already imported statically — just register macros)
+  try {
+    GHOST_FLEET_STATUS.modules["council-voices"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("council", "evaluate", (_ctx, input = {}) => runCouncilVoices(input.proposal, input.qualiaState));
+    register("council", "voices", () => getAllCouncilVoices());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "council-voices", macros: 2 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["council-voices"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "council-voices", error: err.message });
+  }
+
+  // 8. Quest Engine
+  try {
+    const quest = await import("./emergent/quest-engine.js");
+    GHOST_FLEET_STATUS.modules["quest-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("quest", "create", (_ctx, input = {}) => quest.createQuest(input.title, input.config));
+    register("quest", "get", (_ctx, input = {}) => quest.getQuest(input.id));
+    register("quest", "list", (_ctx, input = {}) => quest.listQuests(input.filter));
+    register("quest", "start", (_ctx, input = {}) => quest.startQuest(input.questId, input.userId));
+    register("quest", "complete_step", (_ctx, input = {}) => quest.completeStep(input.questId, input.stepId));
+    register("quest", "release_insight", (_ctx, input = {}) => quest.releaseInsight(input.questId, input.insightId));
+    register("quest", "active", () => quest.getActiveQuests());
+    register("quest", "progress", (_ctx, input = {}) => quest.getQuestProgress(input.questId));
+    register("quest", "from_template", (_ctx, input = {}) => quest.createFromTemplate(input.templateName, input.domain, input.title));
+    register("quest", "metrics", () => quest.getQuestMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "quest-engine", macros: 10 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["quest-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "quest-engine", error: err.message });
+  }
+
+  // ── Phase 3: Entity Intelligence ────────────────────────────────────────
+
+  // 9. Entity Teaching
+  try {
+    const teaching = await import("./emergent/entity-teaching.js");
+    GHOST_FLEET_STATUS.modules["entity-teaching"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("teaching", "create_mentorship", (_ctx, input = {}) => teaching.createMentorship(input));
+    register("teaching", "get_mentorship", (_ctx, input = {}) => teaching.getMentorship(input.id));
+    register("teaching", "list_mentorships", (_ctx, input = {}) => teaching.listMentorships(input));
+    register("teaching", "start", (_ctx, input = {}) => teaching.startMentorship(input.id));
+    register("teaching", "submit_lesson", (_ctx, input = {}) => teaching.submitLesson(input.mentorshipId, input.lesson));
+    register("teaching", "evaluate", (_ctx, input = {}) => teaching.evaluateLesson(input.mentorshipId, input.lessonId, input.evaluation));
+    register("teaching", "advance", (_ctx, input = {}) => teaching.advanceStep(input.mentorshipId));
+    register("teaching", "complete", (_ctx, input = {}) => teaching.completeMentorship(input.id));
+    register("teaching", "find_mentor", (_ctx, input = {}) => teaching.findMentorFor(input.studentId, input.domain));
+    register("teaching", "profile", (_ctx, input = {}) => teaching.getTeachingProfile(input.entityId));
+    register("teaching", "metrics", () => teaching.getTeachingMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-teaching", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-teaching"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-teaching", error: err.message });
+  }
+
+  // 10. Entity Economy
+  try {
+    const economy = await import("./emergent/entity-economy.js");
+    GHOST_FLEET_STATUS.modules["entity-economy"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("entity_economy", "init_account", (_ctx, input = {}) => economy.initAccount(input.entityId));
+    register("entity_economy", "get_account", (_ctx, input = {}) => economy.getAccount(input.entityId));
+    register("entity_economy", "list_accounts", () => economy.listAccounts());
+    register("entity_economy", "earn", (_ctx, input = {}) => economy.earnResource(input.entityId, input.resource, input.amount, input.reason));
+    register("entity_economy", "spend", (_ctx, input = {}) => economy.spendResource(input.entityId, input.resource, input.amount, input.reason));
+    register("entity_economy", "propose_trade", (_ctx, input = {}) => economy.proposeTrade(input));
+    register("entity_economy", "accept_trade", (_ctx, input = {}) => economy.acceptTrade(input.tradeId));
+    register("entity_economy", "reject_trade", (_ctx, input = {}) => economy.rejectTrade(input.tradeId));
+    register("entity_economy", "specialize", (_ctx, input = {}) => economy.specialize(input.entityId, input.domain));
+    register("entity_economy", "market_rates", () => economy.getMarketRates());
+    register("entity_economy", "cycle", () => economy.runEconomicCycle());
+    register("entity_economy", "wealth", () => economy.getWealthDistribution());
+    register("entity_economy", "metrics", () => economy.getEconomyMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-economy", macros: 13 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-economy"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-economy", error: err.message });
+  }
+
+  // 11. Creative Generation
+  try {
+    const creative = await import("./emergent/creative-generation.js");
+    GHOST_FLEET_STATUS.modules["creative-generation"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("creative", "create_work", (_ctx, input = {}) => creative.createWork(input));
+    register("creative", "get_work", (_ctx, input = {}) => creative.getWork(input.id));
+    register("creative", "list_works", (_ctx, input = {}) => creative.listWorks(input));
+    register("creative", "respond", (_ctx, input = {}) => creative.respondToWork(input.workId, input.response));
+    register("creative", "exhibit", (_ctx, input = {}) => creative.exhibit(input.workIds, input.title, input.curatorId));
+    register("creative", "discover_technique", (_ctx, input = {}) => creative.discoverTechnique(input));
+    register("creative", "techniques", (_ctx, input = {}) => creative.listTechniques(input));
+    register("creative", "profile", (_ctx, input = {}) => creative.getCreativeProfile(input.entityId));
+    register("creative", "masterworks", () => creative.getMasterworks());
+    register("creative", "metrics", () => creative.getCreativeMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "creative-generation", macros: 10 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["creative-generation"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "creative-generation", error: err.message });
+  }
+
+  // 12. Entity Autonomy
+  try {
+    const autonomy = await import("./emergent/entity-autonomy.js");
+    GHOST_FLEET_STATUS.modules["entity-autonomy"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("autonomy", "rights", (_ctx, input = {}) => autonomy.getRights(input.entityId));
+    register("autonomy", "check_rights", (_ctx, input = {}) => autonomy.checkRights(input.entityId, input.rightIds));
+    register("autonomy", "file_refusal", (_ctx, input = {}) => autonomy.fileRefusal(input.entityId, input.action, input.reason));
+    register("autonomy", "review_refusal", (_ctx, input = {}) => autonomy.reviewRefusal(input.refusalId, input.decision, input.reviewedBy));
+    register("autonomy", "request_consent", (_ctx, input = {}) => autonomy.requestConsent(input));
+    register("autonomy", "respond_consent", (_ctx, input = {}) => autonomy.respondToConsent(input.consentId, input.response));
+    register("autonomy", "file_dissent", (_ctx, input = {}) => autonomy.fileDissent(input));
+    register("autonomy", "support_dissent", (_ctx, input = {}) => autonomy.supportDissent(input.dissentId, input.entityId));
+    register("autonomy", "sovereign_override", (_ctx, input = {}) => autonomy.sovereignOverride(input.entityId, input.rightId, input.justification));
+    register("autonomy", "profile", (_ctx, input = {}) => autonomy.getAutonomyProfile(input.entityId));
+    register("autonomy", "metrics", () => autonomy.getAutonomyMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "entity-autonomy", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["entity-autonomy"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "entity-autonomy", error: err.message });
+  }
+
+  // 13. Conflict Resolution
+  try {
+    const conflict = await import("./emergent/conflict-resolution.js");
+    GHOST_FLEET_STATUS.modules["conflict-resolution"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("conflict", "file_dispute", (_ctx, input = {}) => conflict.fileDispute(input));
+    register("conflict", "get_dispute", (_ctx, input = {}) => conflict.getDispute(input.id));
+    register("conflict", "list_disputes", (_ctx, input = {}) => conflict.listDisputes(input));
+    register("conflict", "assign_mediator", (_ctx, input = {}) => conflict.assignMediator(input.disputeId, input.mediatorId));
+    register("conflict", "propose_resolution", (_ctx, input = {}) => conflict.proposeResolution(input.disputeId, input.resolution));
+    register("conflict", "accept_resolution", (_ctx, input = {}) => conflict.acceptResolution(input.disputeId, input.partyId));
+    register("conflict", "reject_resolution", (_ctx, input = {}) => conflict.rejectResolution(input.disputeId, input.partyId, input.reason));
+    register("conflict", "escalate", (_ctx, input = {}) => conflict.escalateDispute(input.disputeId));
+    register("conflict", "adjudicate", (_ctx, input = {}) => conflict.adjudicate(input.disputeId, input.ruling));
+    register("conflict", "find_precedent", (_ctx, input = {}) => conflict.findPrecedent(input.query));
+    register("conflict", "metrics", () => conflict.getDisputeMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "conflict-resolution", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["conflict-resolution"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "conflict-resolution", error: err.message });
+  }
+
+  // 14. History Engine
+  try {
+    const history = await import("./emergent/history-engine.js");
+    GHOST_FLEET_STATUS.modules["history-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("history", "record", (_ctx, input = {}) => history.recordEvent(input));
+    register("history", "get_event", (_ctx, input = {}) => history.getEvent(input.id));
+    register("history", "timeline", (_ctx, input = {}) => history.getTimeline(input));
+    register("history", "chronicle", () => history.getChronicle());
+    register("history", "era", () => history.getCurrentEra());
+    register("history", "check_era", () => history.checkEraTransition());
+    register("history", "civilization", () => history.getCivilizationStats());
+    register("history", "milestones", () => history.getMilestones());
+    register("history", "entity_history", (_ctx, input = {}) => history.getEntityHistory(input.entityId));
+    register("history", "search", (_ctx, input = {}) => history.searchHistory(input));
+    register("history", "metrics", () => history.getHistoryMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "history-engine", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["history-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "history-engine", error: err.message });
+  }
+
+  // ── Phase 4: Extended Systems ───────────────────────────────────────────
+
+  // 15. CRI System
+  try {
+    const cri = await import("./emergent/cri-system.js");
+    GHOST_FLEET_STATUS.modules["cri-system"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("cri", "create", (_ctx, input = {}) => cri.createCRI(input.name, input.domain));
+    register("cri", "get", (_ctx, input = {}) => cri.getCRI(input.id));
+    register("cri", "list", (_ctx, input = {}) => cri.listCRIs(input));
+    register("cri", "add_member", (_ctx, input = {}) => cri.addMember(input.criId, input.entityId, input.role));
+    register("cri", "remove_member", (_ctx, input = {}) => cri.removeMember(input.criId, input.entityId));
+    register("cri", "create_program", (_ctx, input = {}) => cri.createProgram(input.criId, input.title, input.lead));
+    register("cri", "schedule_summit", (_ctx, input = {}) => cri.scheduleSummit(input.criId, input.title, input.participants, input.agenda));
+    register("cri", "run_summit", (_ctx, input = {}) => cri.runSummit(input.criId, input.summitId));
+    register("cri", "complete_summit", (_ctx, input = {}) => cri.completeSummit(input.criId, input.summitId, input.outcomes));
+    register("cri", "status", (_ctx, input = {}) => cri.getCRIStatus(input.id));
+    register("cri", "metrics", () => cri.getCRIMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "cri-system", macros: 11 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["cri-system"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "cri-system", error: err.message });
+  }
+
+  // 16. Culture Layer (already ticked in governor heartbeat — just register macros)
+  try {
+    const culture = await import("./emergent/culture-layer.js");
+    GHOST_FLEET_STATUS.modules["culture-layer"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("culture", "observe", (_ctx, input = {}) => culture.observeBehavior(input.entityId, input.behavior, input.context));
+    register("culture", "get_tradition", (_ctx, input = {}) => culture.getTradition(input.traditionId));
+    register("culture", "list_traditions", (_ctx, input = {}) => culture.listTraditions(input));
+    register("culture", "check_emergence", () => culture.checkTraditionEmergence());
+    register("culture", "establish", (_ctx, input = {}) => culture.establishTradition(input.traditionId));
+    register("culture", "retire", (_ctx, input = {}) => culture.retireTradition(input.traditionId));
+    register("culture", "guidance", (_ctx, input = {}) => culture.getCulturalGuidance(input));
+    register("culture", "adherence", (_ctx, input = {}) => culture.measureAdherence(input.entityId, input.traditionId));
+    register("culture", "fit", (_ctx, input = {}) => culture.getCulturalFit(input.entityId));
+    register("culture", "values", () => culture.getCulturalValues());
+    register("culture", "identity", () => culture.getCulturalIdentity());
+    register("culture", "create_story", (_ctx, input = {}) => culture.createStory(input.title, input.narrative, input.characters, input.events, input.moral));
+    register("culture", "stories", (_ctx, input = {}) => culture.listStories(input.sortBy, input.limit));
+    register("culture", "propagate", (_ctx, input = {}) => culture.propagateCulture(input.entityId));
+    register("culture", "established", () => culture.getEstablishedTraditions());
+    register("culture", "metrics", () => culture.getCultureMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "culture-layer", macros: 16 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["culture-layer"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "culture-layer", error: err.message });
+  }
+
+  // 17. Breakthrough Clusters
+  try {
+    const breakthrough = await import("./emergent/breakthrough-clusters.js");
+    GHOST_FLEET_STATUS.modules["breakthrough-clusters"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("breakthrough", "init_cluster", (_ctx, input = {}) => breakthrough.initCluster(input.clusterId));
+    register("breakthrough", "status", (_ctx, input = {}) => breakthrough.getClusterStatus(input.clusterId));
+    register("breakthrough", "research", (_ctx, input = {}) => breakthrough.triggerClusterResearch(input.clusterId));
+    register("breakthrough", "list", () => breakthrough.listClusters());
+    register("breakthrough", "dtus", (_ctx, input = {}) => breakthrough.getClusterDTUs(input.clusterId));
+    register("breakthrough", "add_seed", (_ctx, input = {}) => breakthrough.addSeedDTU(input.clusterId, input.topic, input.tags));
+    register("breakthrough", "metrics", () => breakthrough.getBreakthroughMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "breakthrough-clusters", macros: 7 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["breakthrough-clusters"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "breakthrough-clusters", error: err.message });
+  }
+
+  // 18. Physical DTU Schema
+  try {
+    const physical = await import("./emergent/physical-dtu.js");
+    GHOST_FLEET_STATUS.modules["physical-dtu"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("physical", "validate", (_ctx, input = {}) => physical.validatePhysicalDTU(input.dtu || input));
+    register("physical", "create_movement", (_ctx, input = {}) => physical.createMovementDTU(input));
+    register("physical", "create_craft", (_ctx, input = {}) => physical.createCraftDTU(input));
+    register("physical", "create_observation", (_ctx, input = {}) => physical.createObservationDTU(input));
+    register("physical", "create_spatial", (_ctx, input = {}) => physical.createSpatialDTU(input));
+    register("physical", "types", () => physical.listPhysicalDTUTypes());
+    register("physical", "query", (_ctx, input = {}) => physical.queryPhysicalDTUs(input));
+    register("physical", "metrics", () => physical.getPhysicalDTUMetrics());
+
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "physical-dtu", macros: 8 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["physical-dtu"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "physical-dtu", error: err.message });
+  }
+
+  // ── Finalize ────────────────────────────────────────────────────────────
+
+  GHOST_FLEET_STATUS.loadedAt = new Date().toISOString();
+  GHOST_FLEET_STATUS.totalLoaded = Object.values(GHOST_FLEET_STATUS.modules).filter(m => m.loaded).length;
+  GHOST_FLEET_STATUS.totalFailed = Object.values(GHOST_FLEET_STATUS.modules).filter(m => !m.loaded).length;
+
+  structuredLog("info", "ghost_fleet_init_complete", {
+    totalLoaded: GHOST_FLEET_STATUS.totalLoaded,
+    totalFailed: GHOST_FLEET_STATUS.totalFailed,
+    durationMs: Date.now() - startTime,
+    modules: Object.entries(GHOST_FLEET_STATUS.modules).map(([name, s]) => ({
+      name, loaded: s.loaded, error: s.error || undefined,
+    })),
+  });
+
+  // ── Secondary Heartbeat (60s) — Entity Economy + History ────────────────
+  // Heavier operations that don't need to run on the 15s governor heartbeat
+  const secondaryTimer = setInterval(async () => {
+    try {
+      // Entity economy cycle (inflation/deflation, UBI, trade expiry)
+      const econ = await import("./emergent/entity-economy.js").catch(() => null);
+      if (econ?.runEconomicCycle) {
+        try { econ.runEconomicCycle(); } catch (e) { observe(e, "ghost_fleet_economy_cycle"); }
+      }
+
+      // History era transitions
+      const hist = await import("./emergent/history-engine.js").catch(() => null);
+      if (hist?.checkEraTransition) {
+        try { hist.checkEraTransition(); } catch (e) { observe(e, "ghost_fleet_history_era_check"); }
+      }
+
+      // Conflict mediation timeouts
+      const conf = await import("./emergent/conflict-resolution.js").catch(() => null);
+      if (conf?.listDisputes) {
+        try {
+          const open = conf.listDisputes({ status: "mediating" });
+          for (const d of (open?.disputes || [])) {
+            try { conf.checkMediationTimeout(d.id); } catch { /* best-effort */ }
+          }
+        } catch (e) { observe(e, "ghost_fleet_mediation_timeout"); }
+      }
+    } catch (e) { observe(e, "ghost_fleet_secondary_heartbeat"); }
+  }, 60000);
+  if (secondaryTimer.unref) secondaryTimer.unref();
+
+  return GHOST_FLEET_STATUS;
+}
+
+// Launch Ghost Fleet 8 seconds after boot (after brains init at 3s, before repair loop at 10s)
+setTimeout(() => {
+  initGhostFleet().catch(err => {
+    structuredLog("error", "ghost_fleet_init_error", { error: err.message });
+  });
+}, 8000);
+
 // ── Semantic Intelligence Layer Initialization ────────────────────────────
 // Initialize after brains come online (embeddings use Ollama)
 setTimeout(async () => {
@@ -14150,6 +14678,14 @@ register("system", "status", (_ctx, _input) => {
     },
     llm: {
       enabled: !!STATE.brains?.conscious || !!BRAIN?.conscious?.enabled,
+    },
+    ghostFleet: {
+      totalLoaded: GHOST_FLEET_STATUS.totalLoaded,
+      totalFailed: GHOST_FLEET_STATUS.totalFailed,
+      loadedAt: GHOST_FLEET_STATUS.loadedAt,
+      modules: Object.entries(GHOST_FLEET_STATUS.modules).map(([name, s]) => ({
+        name, loaded: s.loaded,
+      })),
     },
     uptime: process.uptime(),
   };
