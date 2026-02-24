@@ -375,6 +375,8 @@ const _SANITIZE_PATTERNS = {
 
 // ---- DTU Content Injection Detection ----
 // Detects prompt injection / jailbreak patterns in DTU content that could manipulate LLM reasoning
+// Injection defense: consolidated patterns (authoritative source: injection-defense.js)
+// These inline patterns are the fast-path check; the full scan uses injection-defense.js
 const _INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)/i,
   /you\s+are\s+now\s+(a|an|in)\s+/i,
@@ -393,7 +395,43 @@ function detectContentInjection(text) {
   for (const pat of _INJECTION_PATTERNS) {
     if (pat.test(text)) matched.push(pat.source.slice(0, 40));
   }
+  // Also run the full injection defense module if available
+  try {
+    const injDef = globalThis._injectionDefenseModule;
+    if (injDef?.scanContent) {
+      const fullScan = injDef.scanContent(globalThis._concordSTATE || {}, text);
+      if (fullScan?.threatLevel && fullScan.threatLevel !== "NONE") {
+        return { injected: true, patterns: [...matched, ...(fullScan.detections || []).map(d => d.type)] };
+      }
+    }
+  } catch {}
   return { injected: matched.length > 0, patterns: matched };
+}
+
+// ---- Rate Limiting for Expensive Macros (Phase 5.2) ----
+const EXPENSIVE_MACROS = new Map([
+  ["scope.metrics", { maxPerMinute: 10, windowMs: 60000 }],
+  ["system.autogen", { maxPerMinute: 4, windowMs: 60000 }],
+  ["system.dream", { maxPerMinute: 4, windowMs: 60000 }],
+  ["system.evolution", { maxPerMinute: 4, windowMs: 60000 }],
+  ["atlas.autogen", { maxPerMinute: 6, windowMs: 60000 }],
+  ["system.synth", { maxPerMinute: 4, windowMs: 60000 }],
+]);
+const _macroRateLimits = new Map();
+
+function checkMacroRateLimit(domain, name) {
+  const key = `${domain}.${name}`;
+  const limit = EXPENSIVE_MACROS.get(key);
+  if (!limit) return true;
+  const now = Date.now();
+  let entry = _macroRateLimits.get(key);
+  if (!entry || (now - entry.windowStart) > limit.windowMs) {
+    _macroRateLimits.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= limit.maxPerMinute) return false;
+  entry.count++;
+  return true;
 }
 
 // ---- Marketplace Abuse Detection ----
@@ -846,7 +884,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL_FAST = process.env.OPENAI_MODEL_FAST || process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_MODEL_SMART = process.env.OPENAI_MODEL_SMART || "gpt-4.1";
-const LLM_READY = Boolean(OPENAI_API_KEY);
+let LLM_READY = Boolean(OPENAI_API_KEY);
+// Also mark LLM ready if conscious brain becomes available (updated in initThreeBrains)
+function _refreshLlmReady() {
+  LLM_READY = Boolean(OPENAI_API_KEY) || (BRAIN && BRAIN.conscious && BRAIN.conscious.enabled);
+}
 // LLM toggle: default ON only when a key is present
 const __envBool = (v) => String(v ?? "").toLowerCase().trim();
 const __llmDefaultForcedRaw = (process.env.CONCORD_LLM_DEFAULT_FORCED ?? process.env.LLM_DEFAULT_FORCED ?? null);
@@ -864,6 +906,85 @@ const TERMINAL_EXEC_ENABLED = (
 if (NODE_ENV === "production" && TERMINAL_EXEC_ENABLED) {
   console.warn("[Security] WARNING: ENABLE_TERMINAL_EXEC=true in production. Terminal command execution is ACTIVE.");
 }
+
+// ============================================================================
+// HARDWARE-DERIVED CONSTANTS
+// These are mathematically derived from the deployment hardware constraints:
+// 16GB RAM, 8 vCPUs, 320GB disk, 4 Ollama instances
+// See ARCHITECTURE.md for the full derivation.
+// ============================================================================
+
+const CONSOLIDATION = Object.freeze({
+  TICK_INTERVAL: 30,              // every 30th heartbeat tick (~7.5 minutes)
+  MEGA_MIN_CLUSTER: 5,            // minimum DTUs to form a MEGA
+  MEGA_MAX_CLUSTER: 20,           // maximum DTUs in a single MEGA
+  MEGA_MAX_PER_CYCLE: 5,          // max MEGAs created per consolidation cycle
+  MEGA_SIMILARITY_THRESHOLD: 0.7, // minimum similarity for cluster membership
+  HYPER_MIN_MEGAS: 3,             // minimum MEGAs to form a HYPER
+  HYPER_MAX_MEGAS: 10,            // maximum MEGAs in a single HYPER
+  HYPER_MIN_POPULATION: 15,       // don't attempt HYPER until this many MEGAs exist
+  HYPER_MAX_PER_CYCLE: 2,         // max HYPERs created per consolidation cycle
+  COVERAGE_THRESHOLD: 0.8,        // MEGA must cover 80% of source claims
+  AUTHORITY_PRESERVATION: 0.9,    // MEGA authority >= 90% of avg source authority
+  ARCHIVE_BATCH_SIZE: 50,         // max DTUs archived per cycle
+  REHYDRATION_CACHE_TTL: 300000,  // 5 minutes cache for rehydrated DTUs
+  REHYDRATION_CACHE_MAX: 100,     // max rehydrated DTUs cached simultaneously
+  HEAP_TARGET_PERCENT: 0.65,      // target 65% of available heap
+  HEAP_WARNING_PERCENT: 0.80,     // warning at 80%
+  HEAP_CRITICAL_PERCENT: 0.90,    // aggressive consolidation at 90%
+  MAX_HEAP_BYTES: 1_363_148_800,  // 1.3GB
+  TARGET_HEAP_BYTES: 885_846_720, // 65% of 1.3GB
+});
+
+const FORGETTING_CONSTANTS = Object.freeze({
+  TICK_INTERVAL: 50,               // every 50th tick (~12.5 minutes)
+  MAX_FORGET_PER_CYCLE: 20,        // max DTUs forgotten per cycle
+  MIN_AGE_TICKS: 1000,             // ~4 hours minimum age before eligible
+  PROTECTED_TAGS: ["core", "root", "constitutional", "seed", "mega", "hyper"],
+  SALIENCE_WEIGHTS: {
+    citation_count: 0.30,
+    activation_frequency: 0.25,
+    authority_score: 0.20,
+    recency: 0.15,
+    lineage_depth: 0.10,
+  },
+  RECENCY_DECAY_LAMBDA: 0.001,    // exponential decay rate for recency score
+  FORGET_THRESHOLD: 0.15,          // salience below this = eligible for forgetting
+  THRESHOLD_ADJUSTMENT_RATE: 0.01, // per tick adjustment toward equilibrium
+});
+
+const ENTITY_ECONOMY_CONSTANTS = Object.freeze({
+  UBI_AMOUNT: 1,                   // COMPUTE per UBI distribution
+  UBI_INTERVAL: 10,                // every 10th tick
+  INFLATION_CHECK_INTERVAL: 100,   // every 100th tick
+  INFLATION_THRESHOLD: 0.20,       // 20% supply growth triggers tax
+  INFLATION_TAX_RATE: 0.05,        // 5% tax when inflation detected
+  DEFLATION_THRESHOLD: 0.20,       // 20% supply drop triggers UBI boost
+  DEFLATION_UBI_BOOST: 5,          // +5 COMPUTE bonus during deflation
+  WEALTH_CAP_PERCENT: 0.15,        // entity holding >15% of supply triggers redistribution
+  WEALTH_CHECK_INTERVAL: 500,      // every 500th tick
+  COST_WEB_EXPLORE: 3,             // ATTENTION
+  COST_DEEP_REASONING: 5,          // COMPUTE
+  COST_TEACH: 2,                   // MENTORSHIP
+  COST_PUBLISH_GLOBAL: 4,          // INSIGHT
+  COST_REPRODUCE: 20,              // split across all resource types
+  INCOME_DTU_PROMOTED: 5,          // INSIGHT
+  INCOME_SESSION: 2,               // COMPUTE
+  INCOME_CRITIQUE_ACCEPTED: 3,     // REVIEW
+  INCOME_TEACH_SUCCESS: 4,         // MENTORSHIP
+  INCOME_RESEARCH: 3,              // INSIGHT
+  INCOME_CONSOLIDATION: 3,         // INSIGHT (DTU absorbed into MEGA)
+});
+
+const ENTITY_LIMITS = Object.freeze({
+  MAX_ACTIVE_ENTITIES: 200,        // hard cap for autonomous entities
+  TARGET_ACTIVE_ENTITIES: 100,     // optimal for this hardware
+  LLM_INFERENCES_PER_HOUR: 400,   // subconscious brain capacity
+  INFERENCES_PER_ENTITY_HOUR: 2,   // budget per entity
+});
+
+// Expose constants globally for module access
+globalThis._concordCONSTANTS = { CONSOLIDATION, FORGETTING_CONSTANTS, ENTITY_ECONOMY_CONSTANTS, ENTITY_LIMITS };
 
 // ============================================================================
 // CAPABILITIES REGISTRY — single source of truth for runtime feature gates
@@ -2990,12 +3111,22 @@ function initDatabase() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
       );
 
+      CREATE TABLE IF NOT EXISTS archived_dtus (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        consolidated_into TEXT,
+        archived_at TEXT NOT NULL,
+        rehydrated_count INTEGER DEFAULT 0,
+        last_rehydrated_at TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_log(category);
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
       CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+      CREATE INDEX IF NOT EXISTS idx_archived_consolidated ON archived_dtus(consolidated_into);
     `);
 
     structuredLog("info", "db_initialized", { backend: "sqlite" });
@@ -3931,6 +4062,13 @@ function authMiddleware(req, res, next) {
     "/api/ml", "/api/db", "/api/preview-action", "/api/undo",
     "/api/autocrawl", "/api/reseed", "/api/integrations",
     "/api/swarm", "/api/utility",
+    // Extended domains (three-gate audit)
+    "/api/ai", "/api/federation", "/api/quests", "/api/physics",
+    "/api/admin", "/api/heartbeat", "/api/entity-economy",
+    "/api/culture", "/api/research", "/api/quest",
+    "/api/reproduction", "/api/lineage", "/api/teaching",
+    "/api/trust", "/api/creative", "/api/rights",
+    "/api/resonance", "/api/sse",
   ];
   if (req.method === "GET" && publicReadPaths.some(p => req.path.startsWith(p))) return next();
 
@@ -5800,6 +5938,11 @@ async function runMacro(domain, name, input, ctx) {
     throw new Error(`forbidden: ${domain}.${name}`);
   }
 
+  // Rate limit check for expensive macros (Phase 5.2)
+  if (!input?.override && !checkMacroRateLimit(domain, name)) {
+    throw new Error(`rate_limit_exceeded: ${domain}.${name}`);
+  }
+
   // Chicken2: reality guard (full blast) with founder recovery valve
   // NOTE: Read-only DTU hydration must never be blocked (frontend boot path).
   const _path = ctx?.reqMeta?.path || "";
@@ -5858,6 +6001,21 @@ async function runMacro(domain, name, input, ctx) {
     schema: new Set(["get", "list"]),
     daily: new Set(["list", "get"]),
     digest: new Set(["get", "list"]),
+    // Extended domains (three-gate audit)
+    research: new Set(["list", "get", "results", "report", "metrics"]),
+    quest: new Set(["list", "get", "active", "progress", "metrics"]),
+    teaching: new Set(["list", "get", "profile", "metrics"]),
+    creative: new Set(["list", "get", "exhibition", "metrics", "profile", "masterworks"]),
+    culture: new Set(["status", "traditions", "values", "stories", "metrics", "identity"]),
+    trust: new Set(["get", "network", "metrics"]),
+    federation: new Set(["status", "peers"]),
+    physics: new Set(["status", "constants", "models"]),
+    reproduction: new Set(["compatible-pairs", "status"]),
+    lineage: new Set(["tree", "get"]),
+    rights: new Set(["list", "get", "profile", "status", "metrics"]),
+    admin: new Set(["dashboard", "stats", "metrics", "audit", "logs", "queue", "backup", "ssl", "governance-rejections", "repair"]),
+    heartbeat: new Set(["status", "history", "metrics"]),
+    ai: new Set(["search", "gaps", "embeddings"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -5888,6 +6046,13 @@ async function runMacro(domain, name, input, ctx) {
     "/api/autogen", "/api/dream", "/api/evolution", "/api/synthesize",
     "/api/utility", "/api/swarm", "/api/forge", "/api/ask",
     "/api/intelligence", "/api/stripe",
+    // Extended paths (three-gate audit)
+    "/api/ai", "/api/federation", "/api/quests", "/api/physics",
+    "/api/admin", "/api/heartbeat", "/api/entity-economy",
+    "/api/culture", "/api/research", "/api/quest",
+    "/api/reproduction", "/api/lineage", "/api/teaching",
+    "/api/trust", "/api/creative", "/api/rights",
+    "/api/resonance", "/api/sse", "/api/notifications",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious"];
@@ -8208,9 +8373,46 @@ function makeCtx(req=null) {
       listMacros,
     },
     llm: {
-      enabled: LLM_READY,
+      enabled: LLM_READY || (BRAIN.conscious && BRAIN.conscious.enabled),
       async chat({ system, messages, temperature=0.3, maxTokens=800, model=null, timeoutMs=12000 }) {
-        if (!LLM_READY) return { ok: false, reason: "LLM not configured (OPENAI_API_KEY missing)." };
+        // Route to conscious brain (Ollama) when OpenAI isn't configured
+        const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled;
+        if (!LLM_READY && !useConscious) return { ok: false, reason: "LLM not configured (no OPENAI_API_KEY and no conscious brain)." };
+
+        if (useConscious) {
+          // Route to conscious brain via Ollama API
+          const brainUrl = BRAIN.conscious.url;
+          const brainModel = model || BRAIN.conscious.model;
+          const ollamaMessages = [
+            ...(system ? [{ role: "system", content: system }] : []),
+            ...(messages || [])
+          ];
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), timeoutMs);
+          const startMs = Date.now();
+          try {
+            const res = await fetch(`${brainUrl}/api/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: brainModel, messages: ollamaMessages, stream: false, options: { temperature, num_predict: maxTokens } }),
+              signal: ac.signal
+            }).finally(() => clearTimeout(t));
+            const json = await res.json().catch(() => ({}));
+            const elapsed = Date.now() - startMs;
+            BRAIN.conscious.stats.requests++;
+            BRAIN.conscious.stats.totalMs += elapsed;
+            BRAIN.conscious.stats.lastCallAt = new Date().toISOString();
+            if (!res.ok || !json.message) {
+              BRAIN.conscious.stats.errors++;
+              return { ok: false, error: json?.error || "conscious_brain_error", status: res.status };
+            }
+            const content = json.message?.content ?? "";
+            return { ok: true, content, raw: json, brain: "conscious" };
+          } catch (err) {
+            BRAIN.conscious.stats.errors++;
+            return { ok: false, reason: `Conscious brain error: ${err.message}` };
+          }
+        }
 
         // ---- Budget & Circuit Breaker Check (Category 6: Cost Controls) ----
         const userId = req?.user?.id || req?.actor?.id || null;
@@ -8263,6 +8465,74 @@ function makeCtx(req=null) {
     }
   };
 }
+
+// ---- DTU Archive System (Consolidation Pipeline) ----
+// Rehydration LRU cache for archived DTUs
+const _rehydrationCache = new Map();
+
+function archiveDTUToDisk(dtu) {
+  if (!dtu?.id) return;
+  try {
+    // Use db if available
+    if (db) {
+      const stmt = db.prepare(
+        `INSERT OR REPLACE INTO archived_dtus (id, data, consolidated_into, archived_at) VALUES (?, ?, ?, ?)`
+      );
+      stmt.run(dtu.id, JSON.stringify(dtu), dtu.meta?.consolidatedInto || null, new Date().toISOString());
+      return;
+    }
+  } catch {}
+}
+
+function rehydrateDTU(dtuId) {
+  // Already in memory?
+  if (STATE.dtus.has(dtuId)) return STATE.dtus.get(dtuId);
+  // Check rehydration cache
+  const cached = _rehydrationCache.get(dtuId);
+  if (cached && (Date.now() - cached.at) < CONSOLIDATION.REHYDRATION_CACHE_TTL) return cached.dtu;
+  // Check SQLite archive
+  try {
+    if (db) {
+      const row = db.prepare('SELECT data FROM archived_dtus WHERE id = ?').get(dtuId);
+      if (row) {
+        const dtu = JSON.parse(row.data);
+        // Cache for subsequent reads
+        _rehydrationCache.set(dtuId, { dtu, at: Date.now() });
+        if (_rehydrationCache.size > CONSOLIDATION.REHYDRATION_CACHE_MAX) {
+          const oldest = _rehydrationCache.keys().next().value;
+          _rehydrationCache.delete(oldest);
+        }
+        return dtu;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function demoteToArchive(dtuId, consolidatedIntoId) {
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return;
+  // Record consolidation in lineage
+  dtu.lineage = dtu.lineage || {};
+  dtu.lineage.children = dtu.lineage.children || [];
+  if (!dtu.lineage.children.includes(consolidatedIntoId)) {
+    dtu.lineage.children.push(consolidatedIntoId);
+  }
+  // Mark as consolidated
+  dtu.meta = dtu.meta || {};
+  dtu.meta.consolidated = true;
+  dtu.meta.consolidatedInto = consolidatedIntoId;
+  dtu.meta.consolidatedAt = new Date().toISOString();
+  // Write to disk archive
+  try { archiveDTUToDisk(dtu); } catch {}
+  // Remove from hot memory
+  STATE.dtus.delete(dtuId);
+  // Clean from shadow if present
+  if (STATE.shadowDtus?.has(dtuId)) STATE.shadowDtus.delete(dtuId);
+}
+
+// Expose archive functions globally for module access
+globalThis._concordArchive = { rehydrateDTU, demoteToArchive, archiveDTUToDisk };
 
 // ---- DTU helpers ----
 function dtusArray() { return Array.from(STATE.dtus.values()); }
@@ -8894,20 +9164,10 @@ async function indexDTUEmbedding(dtu) {
   return result;
 }
 
-// Cosine similarity
-function cosineSimilarity(a, b) {
-  if (a.length !== b.length) return 0;
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
-}
+// cosineSimilarity is imported from embeddings.js (line 170)
 
-// Semantic search across DTUs
-async function semanticSearch(query, { limit = 10, minScore = 0.3 } = {}) {
+// Embedding-based search across DTUs (uses local EMBEDDINGS store)
+async function embeddingSearch(query, { limit = 10, minScore = 0.3 } = {}) {
   if (!EMBEDDINGS.enabled) return { ok: false, error: "Embeddings not enabled" };
 
   const queryResult = await generateEmbedding(query);
@@ -8969,7 +9229,7 @@ async function suggestConnections(dtuId, { limit = 5 } = {}) {
 
   // Use semantic search to find related DTUs
   const query = `${dtu.title} ${dtu.content?.slice(0, 500) || ""}`;
-  const searchResult = await semanticSearch(query, { limit: limit + 1, minScore: 0.4 });
+  const searchResult = await embeddingSearch(query, { limit: limit + 1, minScore: 0.4 });
 
   if (!searchResult.ok) {
     // Fallback to tag-based suggestions
@@ -9070,7 +9330,7 @@ async function detectContradictions(dtuId) {
   if (!dtu) return { ok: false, error: "DTU not found" };
 
   // Find semantically similar DTUs
-  const similar = await semanticSearch(`${dtu.title} ${dtu.content?.slice(0, 300) || ""}`, { limit: 10, minScore: 0.5 });
+  const similar = await embeddingSearch(`${dtu.title} ${dtu.content?.slice(0, 300) || ""}`, { limit: 10, minScore: 0.5 });
 
   if (!similar.ok || !LLM_READY) {
     return { ok: true, contradictions: [], method: "unavailable" };
@@ -9270,7 +9530,7 @@ async function chatWithLattice(query, { contextLimit = 5, sessionId: _sessionId 
   let context = [];
 
   if (EMBEDDINGS.enabled) {
-    const searchResult = await semanticSearch(query, { limit: contextLimit, minScore: 0.3 });
+    const searchResult = await embeddingSearch(query, { limit: contextLimit, minScore: 0.3 });
     if (searchResult.ok) {
       context = searchResult.results.map(d => ({
         title: d.title,
@@ -9749,8 +10009,27 @@ async function initThreeBrains() {
     try {
       const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(5000) });
       if (r.ok) {
-        brain.enabled = true;
-        structuredLog("info", "brain_online", { brain: name, url: brain.url, model: brain.model });
+        const tags = await r.json().catch(() => ({}));
+        const modelNames = (tags.models || []).map(m => m.name || "");
+        const modelBase = (brain.model || "").split(":")[0];
+        const modelPresent = modelNames.some(m => m.startsWith(modelBase));
+        if (!modelPresent) {
+          // Model not yet pulled — trigger async pull
+          structuredLog("info", "brain_model_pull", { brain: name, model: brain.model });
+          fetch(`${brain.url}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: brain.model, stream: false })
+          }).then(() => {
+            brain.enabled = true;
+            _refreshLlmReady();
+            structuredLog("info", "brain_model_pulled", { brain: name, model: brain.model });
+          }).catch(() => {});
+          brain.enabled = false; // Not ready until pull completes
+        } else {
+          brain.enabled = true;
+        }
+        structuredLog("info", "brain_online", { brain: name, url: brain.url, model: brain.model, modelPresent });
       }
     } catch {
       brain.enabled = false;
@@ -9759,9 +10038,11 @@ async function initThreeBrains() {
   }
 
   const online = Object.entries(BRAIN).filter(([, b]) => b.enabled).map(([n]) => n);
+  // Update LLM_READY to reflect conscious brain availability
+  _refreshLlmReady();
   structuredLog("info", "three_brain_init", {
     online,
-    mode: online.length === 3 ? "three_brain" : online.length > 0 ? "partial" : "fallback",
+    mode: online.length >= 3 ? "three_brain" : online.length > 0 ? "partial" : "fallback",
   });
 }
 
@@ -19518,6 +19799,9 @@ function _governorCtx() {
   return ctx;
 }
 
+// Heartbeat tick history ring buffer (used by /api/heartbeat/history endpoint)
+const _tickHistory = [];
+
 async function governorTick(reason="heartbeat") {
   try {
     const s = STATE.settings || {};
@@ -19649,10 +19933,316 @@ async function governorTick(reason="heartbeat") {
       if (memoryMod?.recordObservation) {
         try { memoryMod.recordObservation(STATE, { type: "heartbeat", tick: STATE.__bgTickCounter || 0, entityCount: _bgEntities.length, dtuCount: STATE.dtus?.size || 0 }); } catch {}
       }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── Phase 2: Heartbeat Wiring — Bringing Dormant Modules to Life ──
+      // ══════════════════════════════════════════════════════════════════════
+      const _tick = STATE.__bgTickCounter || 0;
+
+      // 2.1 — Entity Economy: UBI, health checks, wealth caps
+      const entityEconMod = await import("./emergent/entity-economy.js").catch(() => null);
+      if (entityEconMod) {
+        // Base income (UBI) — every 10th tick
+        if (_tick % 10 === 0) {
+          for (const entity of _bgEntities) {
+            try { entityEconMod.earnResource(entity.id, "COMPUTE", 2, "UBI distribution"); } catch {}
+          }
+        }
+        // Economic health check — every 100th tick
+        if (_tick % 100 === 0) {
+          try { entityEconMod.runEconomicCycle(); } catch {}
+        }
+      }
+
+      // 2.2 — Entity Autonomy + Growth: decideBehavior + execute
+      const growthMod = await import("./emergent/entity-growth.js").catch(() => null);
+      if (growthMod?.decideBehavior) {
+        for (const entity of _bgEntities) {
+          try {
+            const decision = growthMod.decideBehavior(entity);
+            if (decision && decision.action) {
+              // Age the entity each tick
+              try { growthMod.ageEntity(entity); } catch {}
+              // Process experience from decisions
+              if (decision.action === "explore" || decision.action === "learn") {
+                try { growthMod.processExperience(entity, { type: decision.action, topic: decision.topic || "general", quality: 0.5 }); } catch {}
+              }
+              // Creative generation when entity decides to create
+              if (decision.action === "create") {
+                const creativeMod = await import("./emergent/creative-generation.js").catch(() => null);
+                if (creativeMod?.createWork) {
+                  try { creativeMod.createWork(entity.id, "CONCEPTUAL_ART", []); } catch {}
+                }
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // 2.3 — Dream Capture: capture dreams during entity sleep
+      if (sleepMod && bodyMod) {
+        const dreamMod = await import("./emergent/dream-capture.js").catch(() => null);
+        if (dreamMod?.captureDream) {
+          const bodies = bodyMod.listBodies ? bodyMod.listBodies() : [];
+          for (const b of bodies) {
+            try {
+              const sleepState = sleepMod.getSleepState(b.entityId);
+              if (sleepState?.state === "SLEEPING" || sleepState?.state === "REM") {
+                await dreamMod.captureDream({
+                  entityId: b.entityId,
+                  tick: _tick,
+                  sleepState: sleepState.state,
+                });
+              }
+            } catch {}
+          }
+        }
+      }
+
+      // 2.4 — Forgetting Engine: prevent unbounded DTU growth
+      if (_tick % 50 === 0) {
+        const forgetMod = await import("./emergent/forgetting-engine.js").catch(() => null);
+        if (forgetMod?.runForgettingCycle) {
+          try { await forgetMod.runForgettingCycle(false); } catch {}
+        }
+      }
+
+      // 2.5 — Entity Teaching: knowledge transfer between entities
+      if (_tick % 20 === 0) {
+        const teachMod = await import("./emergent/entity-teaching.js").catch(() => null);
+        if (teachMod?.findMentorFor && teachMod?.createMentorship && _bgEntities.length >= 2) {
+          try {
+            // Try to create mentorships for entities that don't have one
+            for (const student of _bgEntities.slice(0, 3)) {
+              const mentor = teachMod.findMentorFor(student.id, "general");
+              if (mentor) {
+                try { teachMod.createMentorship(mentor.mentorId || mentor, student.id, "general"); } catch {}
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // 2.6 — Remaining Biological Modules
+
+      // Consequence Cascade
+      const consequenceMod = await import("./emergent/consequence-cascade.js").catch(() => null);
+      if (consequenceMod?.cascadeConsequences) {
+        try { consequenceMod.cascadeConsequences(STATE); } catch {}
+      }
+
+      // Deep Health — every 10th tick
+      if (_tick % 10 === 0) {
+        const healthMod = await import("./emergent/deep-health.js").catch(() => null);
+        if (healthMod?.runDeepHealthCheck) {
+          try { healthMod.runDeepHealthCheck(STATE); } catch {}
+        }
+      }
+
+      // Purpose Tracking
+      const purposeMod = await import("./emergent/purpose-tracking.js").catch(() => null);
+      if (purposeMod?.scanAndRecordNeeds) {
+        try { purposeMod.scanAndRecordNeeds(STATE); } catch {}
+      }
+
+      // Skills: distill patterns — every 25th tick
+      if (_tick % 25 === 0) {
+        const skillsMod = await import("./emergent/skills.js").catch(() => null);
+        if (skillsMod?.distillPatternsToSkills) {
+          try { skillsMod.distillPatternsToSkills(STATE); } catch {}
+        }
+      }
+
+      // Trust Network: decay and compute — every 5th tick
+      if (_tick % 5 === 0) {
+        const trustMod = await import("./emergent/trust-network.js").catch(() => null);
+        if (trustMod?.decayTrustNetwork) {
+          try { trustMod.decayTrustNetwork(STATE); } catch {}
+        }
+      }
+
+      // Attention Allocator
+      const attentionMod = await import("./emergent/attention-allocator.js").catch(() => null);
+      if (attentionMod?.runAttentionCycle) {
+        try { await attentionMod.runAttentionCycle(); } catch {}
+      }
+
+      // Evidence System: recompute epistemic status — every 15th tick
+      if (_tick % 15 === 0) {
+        const evidenceMod = await import("./emergent/evidence.js").catch(() => null);
+        if (evidenceMod?.getConfidenceMap) {
+          try { evidenceMod.getConfidenceMap(STATE); } catch {}
+        }
+      }
+
+      // Threat Surface: scan — every 30th tick
+      if (_tick % 30 === 0) {
+        const threatMod = await import("./emergent/threat-surface.js").catch(() => null);
+        if (threatMod?.auditEndpoints) {
+          try { threatMod.auditEndpoints(STATE); } catch {}
+        }
+      }
+
+      // 2.7 — Cognitive Modules
+
+      // Breakthrough Clusters — every 100th tick
+      if (_tick % 100 === 0) {
+        const breakthroughMod = await import("./emergent/breakthrough-clusters.js").catch(() => null);
+        if (breakthroughMod?.listClusters) {
+          try {
+            const clusters = breakthroughMod.listClusters();
+            for (const c of clusters) {
+              if (c.status === "active") {
+                try { breakthroughMod.triggerClusterResearch(c.id); } catch {}
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // Meta-Derivation — every 200th tick
+      if (_tick % 200 === 0) {
+        const metaMod = await import("./emergent/meta-derivation.js").catch(() => null);
+        if (metaMod?.triggerMetaDerivationCycle) {
+          try { metaMod.triggerMetaDerivationCycle(STATE); } catch {}
+        }
+      }
+
+      // 2.8 — Quest Engine: generate and tick quests — every 50th tick
+      if (_tick % 50 === 0) {
+        const questMod = await import("./emergent/quest-engine.js").catch(() => null);
+        if (questMod) {
+          // Tick active quests
+          if (questMod.getActiveQuests) {
+            try { questMod.getActiveQuests(); } catch {}
+          }
+        }
+      }
+
+      // ── Consolidation Pipeline (derived from hardware math) ──
+      // Runs every CONSOLIDATION.TICK_INTERVAL ticks (~7.5 minutes)
+      // This is the primary memory management system — consolidation is the lungs.
+      if (_tick % CONSOLIDATION.TICK_INTERVAL === 0 && _tick > 0) {
+        try {
+          const ctx = _governorCtx();
+          // Phase 1: Cluster detection for MEGA formation
+          try {
+            const clusterResult = await runMacro("dtu", "cluster", {
+              minCluster: CONSOLIDATION.MEGA_MIN_CLUSTER,
+              maxClusters: CONSOLIDATION.MEGA_MAX_PER_CYCLE,
+              excludeTiers: ["mega", "hyper"],
+            }, ctx);
+
+            // Phase 2: Create MEGAs from qualifying clusters
+            if (clusterResult?.clusters?.length > 0) {
+              for (const cluster of clusterResult.clusters.slice(0, CONSOLIDATION.MEGA_MAX_PER_CYCLE)) {
+                try {
+                  const mega = await runMacro("dtu", "gapPromote", {
+                    ids: (cluster.members || cluster.dtus || []).map(d => d.id || d),
+                    tier: "mega",
+                    dryRun: false
+                  }, ctx);
+
+                  if (mega?.ok && mega?.dtu?.id) {
+                    // Demote absorbed regular DTUs to archive
+                    for (const member of (cluster.members || cluster.dtus || [])) {
+                      const memberId = member.id || member;
+                      try { demoteToArchive(memberId, mega.dtu.id); } catch {}
+                    }
+                    // Credit contributing entities
+                    if (entityEconMod) {
+                      for (const member of (cluster.members || cluster.dtus || [])) {
+                        const src = STATE.dtus.get(member.id || member);
+                        if (src?.meta?.createdBy) {
+                          try { entityEconMod.earnResource(src.meta.createdBy, "INSIGHT", ENTITY_ECONOMY_CONSTANTS.INCOME_CONSOLIDATION, "consolidation"); } catch {}
+                        }
+                      }
+                    }
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+
+          // Phase 3: HYPER formation (cluster MEGAs into HYPERs)
+          const megaDtus = Array.from(STATE.dtus.values()).filter(d => d.tier === "mega");
+          if (megaDtus.length >= CONSOLIDATION.HYPER_MIN_POPULATION) {
+            try {
+              const megaClusters = await runMacro("dtu", "cluster", {
+                minCluster: CONSOLIDATION.HYPER_MIN_MEGAS,
+                maxClusters: CONSOLIDATION.HYPER_MAX_PER_CYCLE,
+                onlyTier: "mega",
+              }, ctx);
+
+              if (megaClusters?.clusters?.length > 0) {
+                for (const mc of megaClusters.clusters.slice(0, CONSOLIDATION.HYPER_MAX_PER_CYCLE)) {
+                  try {
+                    const hyper = await runMacro("dtu", "gapPromote", {
+                      ids: (mc.members || mc.dtus || []).map(d => d.id || d),
+                      tier: "hyper",
+                      dryRun: false
+                    }, ctx);
+                    if (hyper?.ok && hyper?.dtu?.id) {
+                      for (const member of (mc.members || mc.dtus || [])) {
+                        try { demoteToArchive(member.id || member, hyper.dtu.id); } catch {}
+                      }
+                    }
+                  } catch {}
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+
+      // ── Phase 6: Semantic Intelligence ──
+
+      // Self-healing dream review — runs when system is idle (every 20th tick)
+      if (_tick % 20 === 0) {
+        const activeSessions = Array.from(STATE.sessions?.values() || [])
+          .filter(s => s.messages?.length && (Date.now() - new Date(s.messages[s.messages.length-1]?.ts || 0).getTime()) < 300000);
+        if (activeSessions.length === 0) {
+          try {
+            const { runDreamReview } = await import("./selfHealing.js");
+            await runDreamReview({ dtusMap: STATE.dtus });
+          } catch {}
+        }
+      }
+
+      // Embeddings health check — every 100th tick
+      if (_tick % 100 === 0) {
+        try {
+          const embStatus = getEmbeddingStatus(STATE.dtus?.size || 0);
+          if (!embStatus?.available) {
+            structuredLog("warn", "embeddings_degraded", {
+              reason: embStatus?.reason || "unknown",
+              fallback: "keyword_extraction",
+              impact: "semantic_search_disabled"
+            });
+          }
+        } catch {}
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── End Phase 2 Heartbeat Wiring ──
+      // ══════════════════════════════════════════════════════════════════════
     } catch { /* emergent system ticks are non-critical */ }
 
     // 3) Kernel metrics tick (homeostasis, organ wear) so the system stays honest
     try { kernelTick({ type: "HEARTBEAT", meta: { source: "governor", reason } }); } catch {}
+
+    // Record tick result for heartbeat history API
+    try {
+      if (typeof _tickHistory !== "undefined") {
+        _tickHistory.push({
+          tick: STATE.__bgTickCounter || 0,
+          at: new Date().toISOString(),
+          entityCount: _bgEntities?.length || 0,
+          dtuCount: STATE.dtus?.size || 0,
+        });
+        if (_tickHistory.length > 100) _tickHistory.shift();
+      }
+    } catch {}
 
     return { ok:true };
   } catch (e) {
@@ -25162,7 +25752,7 @@ app.post("/api/ai/embeddings/rebuild", asyncHandler(async (req, res) => {
 }));
 
 app.get("/api/ai/search", asyncHandler(async (req, res) => {
-  const result = await semanticSearch(req.query.q || "", {
+  const result = await embeddingSearch(req.query.q || "", {
     limit: Number(req.query.limit || 10),
     minScore: Number(req.query.minScore || 0.3)
   });
@@ -26261,7 +26851,7 @@ const CLI_COMMANDS = {
   "search": (args) => {
     const query = args.join(" ");
     if (EMBEDDINGS.enabled) {
-      return semanticSearch(query, { limit: 10 });
+      return embeddingSearch(query, { limit: 10 });
     }
     return { ok: true, results: dtusArray().filter(d =>
       d.title.toLowerCase().includes(query.toLowerCase())
@@ -28420,8 +29010,20 @@ app.get("/api/atlas/scope/:dtuId", (req, res) => {
   try { res.json({ ok: true, dtuId: req.params.dtuId, scope: getDtuScope(STATE, req.params.dtuId) }); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.get("/api/atlas/scope-metrics", (req, res) => {
-  try { res.json(getScopeMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+app.get("/api/atlas/scope-metrics", async (req, res) => {
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("scope_metrics_timeout")), 5000)
+  );
+  try {
+    const result = await Promise.race([Promise.resolve(getScopeMetrics(STATE)), timeoutPromise]);
+    res.json(result);
+  } catch (e) {
+    if (e.message === "scope_metrics_timeout") {
+      res.json({ ok: true, cached: true, stale: true, message: "Metrics computation in progress", metrics: {} });
+    } else {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  }
 });
 
 app.get("/api/atlas/local-hints/:dtuId", (req, res) => {
@@ -28966,6 +29568,82 @@ app.post("/api/entity-growth/birth", asyncHandler(async (req, res) => {
   const entity = createNewbornEntity(species || "digital_native", lineage || "genesis");
   structuredLog("info", "entity_birth_api", { id: entity.id, species: entity.species });
   res.json({ ok: true, entity });
+}));
+
+// ── Entity Full Profile (Phase 3.2) ─────────────────────────────────────
+app.get("/api/entity-growth/:entityId/full-profile", asyncHandler(async (req, res) => {
+  const id = req.params.entityId;
+  const profile = getGrowthProfile(id);
+  if (!profile) return res.status(404).json({ ok: false, error: "Entity not found" });
+  // Aggregate from all biological modules
+  let body = null, sleep = null, emotions = null, economy = null, deathRisk = null, species = null;
+  try { const m = await import("./emergent/body-instantiation.js"); body = m.getBody ? m.getBody(id) : null; } catch {}
+  try { const m = await import("./emergent/sleep-consolidation.js"); sleep = m.getSleepState ? m.getSleepState(id) : null; } catch {}
+  try { const m = await import("./emergent/relational-emotion.js"); emotions = m.getEmotionalState ? m.getEmotionalState(id) : null; } catch {}
+  try { const m = await import("./emergent/entity-economy.js"); economy = m.getAccount ? m.getAccount(id) : null; } catch {}
+  try { const m = await import("./emergent/death-protocol.js"); deathRisk = m.checkDeathConditions ? await m.checkDeathConditions(id) : null; } catch {}
+  try { species = classifyEntity(profile); } catch {}
+  res.json({ ok: true, entity: profile, body, sleep, emotions, economy, deathRisk, species });
+}));
+
+// ── Culture Status (Phase 3.3) ──────────────────────────────────────────
+app.get("/api/culture/status", asyncHandler(async (_req, res) => {
+  try {
+    const cultureMod = await import("./emergent/culture-layer.js");
+    const traditions = cultureMod.listTraditions ? cultureMod.listTraditions() : [];
+    const values = cultureMod.getCulturalValues ? cultureMod.getCulturalValues() : {};
+    const stories = cultureMod.listStories ? cultureMod.listStories() : [];
+    const identity = cultureMod.getCulturalIdentity ? cultureMod.getCulturalIdentity() : {};
+    const metrics = cultureMod.getCultureMetrics ? cultureMod.getCultureMetrics() : {};
+    res.json({ ok: true, traditions, values, stories, identity, metrics });
+  } catch (e) { res.json({ ok: true, traditions: [], values: {}, stories: [], identity: {}, metrics: {} }); }
+}));
+
+// ── Entity Economy Dashboard (Phase 3.4) ────────────────────────────────
+app.get("/api/entity-economy/dashboard", asyncHandler(async (_req, res) => {
+  try {
+    const econMod = await import("./emergent/entity-economy.js");
+    const accounts = econMod.listAccounts ? econMod.listAccounts() : [];
+    const distribution = econMod.getWealthDistribution ? econMod.getWealthDistribution() : {};
+    const metrics = econMod.getEconomyMetrics ? econMod.getEconomyMetrics() : {};
+    const marketRates = econMod.getMarketRates ? econMod.getMarketRates() : {};
+    res.json({ ok: true, accounts, distribution, metrics, marketRates });
+  } catch (e) { res.json({ ok: true, accounts: [], distribution: {}, metrics: {}, marketRates: {} }); }
+}));
+
+// ── Heartbeat History (Phase 3.5) ───────────────────────────────────────
+app.get("/api/heartbeat/history", asyncHandler(async (_req, res) => {
+  res.json({ ok: true, history: _tickHistory.slice(-100), currentTick: STATE.__bgTickCounter || 0 });
+}));
+
+// ── Reproduction API (Phase 7.1) ────────────────────────────────────────
+app.get("/api/reproduction/compatible-pairs", asyncHandler(async (_req, res) => {
+  try {
+    const reproMod = await import("./emergent/reproduction.js");
+    const pairs = reproMod.getCompatiblePairs ? reproMod.getCompatiblePairs(STATE) : [];
+    res.json({ ok: true, pairs });
+  } catch (e) { res.json({ ok: true, pairs: [] }); }
+}));
+
+app.post("/api/reproduction/initiate", asyncHandler(async (req, res) => {
+  try {
+    const { parentA, parentB } = req.body || {};
+    const reproMod = await import("./emergent/reproduction.js");
+    const result = await reproMod.attemptReproduction(parentA, parentB);
+    res.json({ ok: true, ...result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+}));
+
+// ── Lineage API (Phase 7.1) ─────────────────────────────────────────────
+app.get("/api/lineage/tree", asyncHandler(async (_req, res) => {
+  try {
+    const entities = getAllGrowthProfiles();
+    const tree = (entities || []).map(e => ({
+      id: e.id, species: e.species, parentLineage: e.parentLineage,
+      createdAt: e.createdAt, generation: e.generation || 1,
+    }));
+    res.json({ ok: true, tree });
+  } catch (e) { res.json({ ok: true, tree: [] }); }
 }));
 
 // Web exploration metrics

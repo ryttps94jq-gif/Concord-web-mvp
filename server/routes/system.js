@@ -115,15 +115,74 @@ export default function registerSystemRoutes(app, {
   });
 
   app.get("/metrics", async (req, res) => {
-    if (!METRICS.enabled || !METRICS.registry) {
-      return res.status(501).json({ ok: false, error: "Metrics not enabled" });
-    }
+    // Prometheus-compatible plain text metrics for Concord system
+    const lines = [];
     try {
-      res.set("Content-Type", METRICS.registry.contentType);
-      res.end(await METRICS.registry.metrics());
+      // Entity metrics
+      const emergents = STATE.__emergent?.emergents;
+      const activeCount = emergents ? Array.from(emergents.values()).filter(e => e.active).length : 0;
+      const inactiveCount = emergents ? emergents.size - activeCount : 0;
+      lines.push(`# HELP concord_entities_total Total number of entities`);
+      lines.push(`# TYPE concord_entities_total gauge`);
+      lines.push(`concord_entities_total{status="active"} ${activeCount}`);
+      lines.push(`concord_entities_total{status="inactive"} ${inactiveCount}`);
+
+      // DTU metrics
+      const dtuCount = STATE.dtus?.size || 0;
+      const shadowCount = STATE.shadowDtus?.size || 0;
+      lines.push(`# HELP concord_dtus_total Total number of DTUs`);
+      lines.push(`# TYPE concord_dtus_total gauge`);
+      lines.push(`concord_dtus_total{scope="all"} ${dtuCount}`);
+      lines.push(`concord_dtus_total{scope="shadow"} ${shadowCount}`);
+
+      // Brain metrics
+      const BRAIN = globalThis._concordBRAIN;
+      if (BRAIN) {
+        lines.push(`# HELP concord_brain_requests_total Total brain requests`);
+        lines.push(`# TYPE concord_brain_requests_total counter`);
+        lines.push(`# HELP concord_brain_errors_total Total brain errors`);
+        lines.push(`# TYPE concord_brain_errors_total counter`);
+        lines.push(`# HELP concord_brain_avg_latency_ms Average brain latency`);
+        lines.push(`# TYPE concord_brain_avg_latency_ms gauge`);
+        lines.push(`# HELP concord_brain_enabled Brain enabled status`);
+        lines.push(`# TYPE concord_brain_enabled gauge`);
+        for (const [name, brain] of Object.entries(BRAIN)) {
+          lines.push(`concord_brain_requests_total{brain="${name}"} ${brain.stats?.requests || 0}`);
+          lines.push(`concord_brain_errors_total{brain="${name}"} ${brain.stats?.errors || 0}`);
+          const avgMs = brain.stats?.requests > 0 ? Math.round(brain.stats.totalMs / brain.stats.requests) : 0;
+          lines.push(`concord_brain_avg_latency_ms{brain="${name}"} ${avgMs}`);
+          lines.push(`concord_brain_enabled{brain="${name}"} ${brain.enabled ? 1 : 0}`);
+        }
+      }
+
+      // Heartbeat metrics
+      const tickCount = STATE.__bgTickCounter || 0;
+      lines.push(`# HELP concord_heartbeat_tick_total Total heartbeat ticks`);
+      lines.push(`# TYPE concord_heartbeat_tick_total counter`);
+      lines.push(`concord_heartbeat_tick_total ${tickCount}`);
+
+      // Session metrics
+      lines.push(`# HELP concord_sessions_total Total active sessions`);
+      lines.push(`# TYPE concord_sessions_total gauge`);
+      lines.push(`concord_sessions_total ${STATE.sessions?.size || 0}`);
+
+      // Process metrics
+      const mem = process.memoryUsage();
+      lines.push(`# HELP concord_process_memory_bytes Process memory usage`);
+      lines.push(`# TYPE concord_process_memory_bytes gauge`);
+      lines.push(`concord_process_memory_bytes{type="rss"} ${mem.rss}`);
+      lines.push(`concord_process_memory_bytes{type="heapUsed"} ${mem.heapUsed}`);
+      lines.push(`concord_process_memory_bytes{type="heapTotal"} ${mem.heapTotal}`);
+
+      lines.push(`# HELP concord_uptime_seconds Process uptime`);
+      lines.push(`# TYPE concord_uptime_seconds gauge`);
+      lines.push(`concord_uptime_seconds ${Math.round(process.uptime())}`);
     } catch (e) {
-      res.status(500).json({ ok: false, error: String(e.message) });
+      lines.push(`# Error collecting metrics: ${e.message}`);
     }
+
+    res.set("Content-Type", "text/plain; charset=utf-8");
+    res.send(lines.join("\n") + "\n");
   });
 
   // ---- Backup ----

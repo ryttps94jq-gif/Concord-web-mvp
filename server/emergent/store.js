@@ -132,8 +132,15 @@ export function registerEmergent(state, emergent) {
   return emergent;
 }
 
+// Add computed 'state' field for frontend compatibility (frontend uses e.state, backend stores e.active)
+function _withState(e) {
+  if (!e) return e;
+  return { ...e, state: e.active ? "active" : "inactive" };
+}
+
 export function getEmergent(state, id) {
-  return state.emergents.get(id) || null;
+  const e = state.emergents.get(id) || null;
+  return _withState(e);
 }
 
 export function listEmergents(state, { role, active, instanceScope } = {}) {
@@ -141,7 +148,7 @@ export function listEmergents(state, { role, active, instanceScope } = {}) {
   if (role) results = results.filter(e => e.role === role);
   if (active !== undefined) results = results.filter(e => e.active === active);
   if (instanceScope) results = results.filter(e => (e.instanceScope || "local") === instanceScope);
-  return results;
+  return results.map(_withState);
 }
 
 export function deactivateEmergent(state, id) {

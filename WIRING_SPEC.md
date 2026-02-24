@@ -21,20 +21,41 @@ Always wrap in `try/catch`. Never let a module crash the heartbeat.
 
 ## WIRED MODULES (Applied)
 
-| # | Module | File | Wired Into | Status |
-|---|--------|------|-----------|--------|
-| 1 | Body Instantiation | body-instantiation.js | Entity creation + heartbeat | Pre-existing + enhanced |
-| 2 | Sleep Consolidation | sleep-consolidation.js | Heartbeat | Pre-existing |
-| 3 | Death Protocol | death-protocol.js | Heartbeat | Pre-existing |
-| 4 | Relational Emotion | relational-emotion.js | Heartbeat + session.turn | **NEW** |
-| 5 | Constitution | constitution.js | Macro execution pipeline | **NEW** |
-| 6 | Species | species.js | Entity creation | Pre-existing + enhanced |
-| 7 | Reproduction | reproduction.js | Registered as macro | **NEW** |
-| 8 | Avoidance Learning | avoidance-learning.js | Heartbeat + macro errors | **NEW** |
-| 9 | Drift Monitor | drift-monitor.js | Heartbeat | **NEW** |
-| 10 | Subjective Time | subjective-time.js | Entity creation + heartbeat | **NEW** |
-| 11 | Vulnerability Engine | vulnerability-engine.js | Heartbeat (every 5th tick) | **NEW** |
-| 12 | Institutional Memory | institutional-memory.js | Heartbeat + macro writes | **NEW** |
+| # | Module | File | Wired Into | Tick Freq | Status |
+|---|--------|------|-----------|-----------|--------|
+| 1 | Body Instantiation | body-instantiation.js | Entity creation + heartbeat | Every tick | Pre-existing |
+| 2 | Sleep Consolidation | sleep-consolidation.js | Heartbeat | Every tick | Pre-existing |
+| 3 | Death Protocol | death-protocol.js | Heartbeat | Every tick | Pre-existing |
+| 4 | Relational Emotion | relational-emotion.js | Heartbeat + session.turn | Every tick | Pre-existing |
+| 5 | Constitution | constitution.js | Macro execution pipeline | On write | Pre-existing |
+| 6 | Species | species.js | Entity creation | On create | Pre-existing |
+| 7 | Reproduction | reproduction.js | Registered as macro | On demand | Pre-existing |
+| 8 | Avoidance Learning | avoidance-learning.js | Heartbeat + macro errors | Every tick | Pre-existing |
+| 9 | Drift Monitor | drift-monitor.js | Heartbeat | Every tick | Pre-existing |
+| 10 | Subjective Time | subjective-time.js | Entity creation + heartbeat | Every tick | Pre-existing |
+| 11 | Vulnerability Engine | vulnerability-engine.js | Heartbeat | Every 5th tick | Pre-existing |
+| 12 | Institutional Memory | institutional-memory.js | Heartbeat + macro writes | Every tick | Pre-existing |
+| 13 | Entity Economy | entity-economy.js | Heartbeat (UBI + health) | 10th/100th tick | **NEW** |
+| 14 | Entity Growth | entity-growth.js | Heartbeat (decideBehavior) | Every tick | **NEW** |
+| 15 | Dream Capture | dream-capture.js | Heartbeat (during sleep) | Every tick | **NEW** |
+| 16 | Forgetting Engine | forgetting-engine.js | Heartbeat | Every 50th tick | **NEW** |
+| 17 | Entity Teaching | entity-teaching.js | Heartbeat | Every 20th tick | **NEW** |
+| 18 | Consequence Cascade | consequence-cascade.js | Heartbeat | Every tick | **NEW** |
+| 19 | Deep Health | deep-health.js | Heartbeat | Every 10th tick | **NEW** |
+| 20 | Purpose Tracking | purpose-tracking.js | Heartbeat | Every tick | **NEW** |
+| 21 | Skills | skills.js | Heartbeat | Every 25th tick | **NEW** |
+| 22 | Trust Network | trust-network.js | Heartbeat | Every 5th tick | **NEW** |
+| 23 | Attention Allocator | attention-allocator.js | Heartbeat | Every tick | **NEW** |
+| 24 | Evidence | evidence.js | Heartbeat | Every 15th tick | **NEW** |
+| 25 | Threat Surface | threat-surface.js | Heartbeat | Every 30th tick | **NEW** |
+| 26 | Breakthrough Clusters | breakthrough-clusters.js | Heartbeat | Every 100th tick | **NEW** |
+| 27 | Meta-Derivation | meta-derivation.js | Heartbeat | Every 200th tick | **NEW** |
+| 28 | Quest Engine | quest-engine.js | Heartbeat | Every 50th tick | **NEW** |
+| 29 | Culture Layer | culture-layer.js | Heartbeat | Every tick | Pre-existing |
+| 30 | Research Jobs | research-jobs.js | Heartbeat | Every tick | Pre-existing |
+| 31 | Hypothesis Engine | hypothesis-engine.js | Heartbeat | Every tick | Pre-existing |
+| 32 | Self-Healing | selfHealing.js | Heartbeat (idle) | Every 20th tick | **NEW** |
+| 33 | Consolidation Pipeline | (server.js inline) | Heartbeat | Every 30th tick | **NEW** |
 
 ## HEARTBEAT WIRING (governorTick)
 
