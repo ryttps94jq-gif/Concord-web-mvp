@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 // --- Types ---
 
@@ -151,6 +154,12 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, node: GraphNode, cx: number
 
 export default function GraphLensPage() {
   useLensNav('graph');
+
+  const {
+    hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'graph' });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1585,6 +1594,19 @@ export default function GraphLensPage() {
           </motion.aside>
         )}
       </AnimatePresence>
+      </div>
+
+      {/* DTU Context */}
+      <div className="mt-6 space-y-3">
+        <LensContextPanel
+          hyperDTUs={hyperDTUs}
+          megaDTUs={megaDTUs}
+          regularDTUs={regularDTUs}
+          tierDistribution={tierDistribution}
+          onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+          title="Graph DTUs"
+        />
+        <FeedbackWidget targetType="lens" targetId="graph" />
       </div>
     </div>
   );

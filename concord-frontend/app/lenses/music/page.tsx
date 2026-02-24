@@ -37,6 +37,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { LensWrapper } from '@/components/lens/LensWrapper';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 interface Track {
   id: string;
@@ -137,6 +143,15 @@ export default function MusicLensPage() {
   });
   const allTracks: Track[] = trackItems.map(i => ({ ...(i.data as unknown as Track), id: i.id }));
   const playlists: Playlist[] = playlistItems.map(i => ({ ...(i.data as unknown as Playlist), id: i.id }));
+
+  // DTU context (v3.0 artifact support)
+  const {
+    contextDTUs, hyperDTUs, megaDTUs, regularDTUs, domainDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'music' });
+
+  const audioArtifacts = contextDTUs.filter((d: any) => d.artifact?.type?.startsWith('audio/'));
 
   // Queue
   const [queue, setQueue] = useState<Track[]>([]);
@@ -388,6 +403,21 @@ export default function MusicLensPage() {
           ))}
         </div>
       </div>
+
+      {/* DTU Context & Artifacts */}
+      <div className="px-4 py-3 border-t border-white/10 space-y-3">
+        <ArtifactUploader lens="music" acceptTypes="audio/*" multi compact onUploadComplete={() => refetchDTUs()} />
+        <LensContextPanel
+          hyperDTUs={hyperDTUs}
+          megaDTUs={megaDTUs}
+          regularDTUs={regularDTUs}
+          tierDistribution={tierDistribution}
+          onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+          title="Music DTUs"
+          className="!bg-transparent !border-0 !p-0"
+        />
+        <FeedbackWidget targetType="lens" targetId="music" />
+      </div>
     </aside>
   );
 
@@ -485,6 +515,28 @@ export default function MusicLensPage() {
               })()}
             </div>
           </section>
+
+          {/* Audio Artifacts from DTU Context */}
+          {audioArtifacts.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Audio Artifacts</h2>
+                <span className="text-xs text-gray-400">{audioArtifacts.length} tracks</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {audioArtifacts.slice(0, 6).map((dtu: any) => (
+                  <div key={dtu.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</h3>
+                      <span className={cn('text-xs px-1.5 py-0.5 rounded', dtu.tier === 'hyper' ? 'bg-purple-900 text-purple-200' : dtu.tier === 'mega' ? 'bg-blue-900 text-blue-200' : 'bg-gray-800 text-gray-400')}>{dtu.tier?.toUpperCase() || 'REGULAR'}</span>
+                    </div>
+                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="inline" />
+                    <FeedbackWidget targetType="dtu" targetId={dtu.id} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Trending Now */}
           <section>

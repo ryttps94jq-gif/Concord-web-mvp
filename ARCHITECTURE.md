@@ -134,6 +134,94 @@ Emergent cultural traditions arise from repeated entity behaviors:
 - Cultural stories and retellings
 - `cultureTick()` runs every heartbeat
 
+## Artifact System (v2.1)
+
+DTUs have a fourth optional layer — `artifact` — for binary data:
+
+```
+DTU {
+  human: { summary, bullets }       // Human-readable
+  core:  { claims, definitions }     // Structured knowledge
+  machine: { kind, verifier }        // Machine metadata
+  artifact: { type, size, path, ... } // Binary reference (~200B in heap)
+}
+```
+
+### Storage
+- Binary files stored on disk at `./data/artifacts/{dtuId}/{filename}`
+- 280GB disk budget, auto-cleanup when >90% full
+- Supported: audio, image, video, PDF, documents, code archives
+- Features: compression detection, thumbnail generation, waveform extraction, text preview
+
+### API Endpoints
+- `POST /api/artifact/upload` — multipart upload, creates artifact DTU
+- `GET /api/artifact/:dtuId/stream` — range-request streaming (audio/video seeking)
+- `GET /api/artifact/:dtuId/download` — full file download
+- `GET /api/artifact/:dtuId/info` — metadata without binary
+- `GET /api/artifact/:dtuId/thumbnail` — generated preview image
+
+### Constants (ARTIFACT)
+- MAX_ARTIFACT_SIZE: 100MB
+- DISK_USAGE_WARNING: 70%, DISK_USAGE_CRITICAL: 90%
+- AVAILABLE_DISK_BYTES: 280GB
+
+## Feedback Engine (v2.1)
+
+User feedback creates DTUs that drive evolution proposals:
+
+```
+User submits feedback → feedback DTU created → aggregated by target
+  → If enough feature requests → evolution proposal DTU
+  → If enough bug reports → repair proposal
+  → If negative sentiment → council review flag
+  → DTU authority scores adjusted by feedback
+```
+
+### Processing
+- Feedback queue processed periodically in heartbeat (FEEDBACK.PROCESS_INTERVAL ticks)
+- Thresholds: 3 requests → proposal, 2 reports → repair, -5 sentiment → council
+- Authority adjustment rate: 0.01 per sentiment point
+
+## Marketplace (v2.0)
+
+DTUs can be listed and purchased on the marketplace:
+
+### Content Types (20)
+dtu_pack, recipe, workout_program, music_composition, artwork, creative_writing,
+course, template, code_module, game_world, simulation, style_theme, workflow,
+lens_app, entity_personality, whiteboard, dataset, video, document, binary_artifact
+
+### Macros
+- `marketplace.browse` — paginated listing with category/search/sort filters
+- `marketplace.list` — create a listing (scope-validated)
+- `marketplace.purchase` — buy a listing, transfer ownership
+- `marketplace.dtu_browse` — browse DTU-backed marketplace items
+
+## Sovereign Audit (v3.0)
+
+Three audit endpoints for the sovereign dashboard:
+
+- `GET /api/sovereign/audit/heartbeat` — tick timing, module failures, stalled entities
+- `GET /api/sovereign/audit/dtu-lifecycle` — tier distribution, consolidation health, archive stats
+- `GET /api/sovereign/audit/gates` — three-gate configuration dump for permission verification
+
+All sovereign endpoints protected by SOVEREIGN_ROUTES check (requires sovereign role).
+
+## Rate Limiting
+
+Expensive macros are rate-limited to prevent abuse:
+
+```javascript
+EXPENSIVE_MACROS: {
+  "system.synthesize": 2/min,
+  "system.analogize": 2/min,
+  "system.consolidate": 1/min,
+  "context.query": 10/min,
+  "marketplace.purchase": 5/min,
+  "emergent.bridge.heartbeatTick": 1/min,
+}
+```
+
 ## Repair Cortex
 
 The repair brain (0.5B) runs a continuous loop:

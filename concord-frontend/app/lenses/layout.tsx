@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { CoreLensNav } from '@/components/common/CoreLensNav';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
+import { RepairBoundary } from '@/components/RepairBoundary';
 import { SmartContextBar } from '@/components/common/SmartContextBar';
 import { QuickCapture } from '@/components/common/QuickCapture';
 import { ExportMenu } from '@/components/common/ExportMenu';
@@ -112,25 +113,30 @@ function UniversalLensFeatures({ children }: { children: React.ReactNode }) {
  * Palette with Cmd+K).
  */
 export default function LensLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const lensName = pathname.split('/lenses/')[1]?.split('/')[0] || 'unknown';
+
   return (
     <>
       <CommandPalette />
       <CoreLensNavWrapper />
       <LensErrorBoundary name="Lens">
-        <Suspense
-          fallback={
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-10 h-10 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-400">Loading lens...</p>
+        <RepairBoundary lens={lensName}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-10 h-10 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">Loading lens...</p>
+                </div>
               </div>
-            </div>
-          }
-        >
-          <UniversalLensFeatures>
-            {children}
-          </UniversalLensFeatures>
-        </Suspense>
+            }
+          >
+            <UniversalLensFeatures>
+              {children}
+            </UniversalLensFeatures>
+          </Suspense>
+        </RepairBoundary>
       </LensErrorBoundary>
     </>
   );

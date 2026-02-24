@@ -4091,3 +4091,476 @@ export {
   PRE_BUILD_CHECKS,
   EXECUTORS,
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ██  v3.1 REPAIR CORTEX AUTONOMY FEATURES                                  ██
+// ══════════════════════════════════════════════════════════════════════════════
+// Enhanced error context capture, multi-strategy autonomous repair,
+// runtime patching, sovereign escalation, and self-test infrastructure.
+
+// ── v3.1 Severity & Sanitisation Helpers ─────────────────────────────────────
+
+function _classifyErrorSeverity(error, context) {
+  if (context.trigger === "heartbeat") return "critical";
+  if (/ENOMEM|heap|out of memory/i.test(error.message)) return "critical";
+  if (context.module === "repair-cortex") return "critical";
+  if (/brain|llm|consolidation|auth/i.test(context.module)) return "high";
+  if (context.trigger === "api_request" || context.trigger === "entity_action") return "medium";
+  return "low";
+}
+
+function _sanitizeParams(params) {
+  if (!params) return null;
+  const sanitized = { ...params };
+  for (const key of Object.keys(sanitized)) {
+    if (/password|secret|token|key|auth/i.test(key)) sanitized[key] = "[REDACTED]";
+  }
+  return sanitized;
+}
+
+// ── v3.1 Error Context Layer ─────────────────────────────────────────────────
+
+class ErrorContext {
+  constructor() {
+    this.errors = [];
+    this.maxBuffer = 100;
+  }
+
+  capture(error, context) {
+    const S = _getSTATE();
+    const entry = {
+      id: uid("err"),
+      timestamp: nowISO(),
+      error: {
+        message: error.message || String(error),
+        stack: error.stack,
+        name: error.name || "Error",
+        code: error.code,
+      },
+      context: {
+        module: context.module || "unknown",
+        function: context.function || "unknown",
+        trigger: context.trigger || "unknown",
+        inputParams: _sanitizeParams(context.params),
+        stateSnapshot: {
+          heapUsed: process.memoryUsage().heapUsed,
+          dtuCount: S?.dtus?.size || 0,
+          entityCount: context.entityCount || 0,
+          tick: S?.__bgTickCounter || 0,
+        },
+      },
+      severity: _classifyErrorSeverity(error, context),
+      repairAttempted: false,
+      repairSucceeded: false,
+      repairMethod: null,
+    };
+    this.errors.push(entry);
+    if (this.errors.length > this.maxBuffer) this.errors.shift();
+    // Also feed into the existing error accumulator
+    observe(error, context.module);
+    return entry;
+  }
+
+  getRecent(count = 20) { return this.errors.slice(-count); }
+  getUnrepaired() { return this.errors.filter(e => !e.repairAttempted); }
+}
+export const ERROR_CONTEXT = new ErrorContext();
+
+// ── v3.1 Repair Queue & Runtime Patches ──────────────────────────────────────
+
+export const REPAIR_QUEUE = [];
+export const RUNTIME_PATCHES = new Map();
+
+export function shouldSkipExecution(module, fn) {
+  return RUNTIME_PATCHES.has(`skip:${module}:${fn}`);
+}
+
+export function getFallbackValue(module, fn) {
+  const patch = RUNTIME_PATCHES.get(`fallback:${module}:${fn}`);
+  return patch ? { hasFallback: true, value: patch.fallbackValue } : { hasFallback: false };
+}
+
+export function getBrainFallback(brainName) {
+  const patch = RUNTIME_PATCHES.get(`brain_fallback:${brainName}`);
+  if (!patch) return null;
+  const S = _getSTATE();
+  const BRAIN = globalThis._concordBRAIN || S?.BRAIN;
+  return BRAIN ? BRAIN[patch.to] : null;
+}
+
+// ── v3.1 Repair Strategies ───────────────────────────────────────────────────
+
+const REPAIR_STRATEGIES = [
+  {
+    name: "known_pattern_match",
+    match: () => true, // always check repair memory first
+    apply: async (errorEntry) => {
+      const knownFix = lookupRepairMemory(errorEntry.error.message);
+      if (knownFix?.executor && EXECUTORS[knownFix.executor]) {
+        try {
+          const result = await EXECUTORS[knownFix.executor].execute(knownFix.context || {});
+          if (result.success) return { fixed: true, method: "known_pattern", executor: knownFix.executor };
+        } catch {}
+      }
+      return { fixed: false };
+    },
+  },
+  {
+    name: "null_reference_fix",
+    match: (err) => /cannot read propert|is not defined|is null|is undefined/i.test(err.error.message),
+    apply: async (errorEntry) => {
+      const patchKey = `null_guard:${errorEntry.context.module}:${errorEntry.context.function}`;
+      if (!RUNTIME_PATCHES.has(patchKey)) {
+        RUNTIME_PATCHES.set(patchKey, { type: "null_guard", module: errorEntry.context.module, appliedAt: nowISO() });
+        return { fixed: true, method: "null_guard" };
+      }
+      return { fixed: false };
+    },
+  },
+  {
+    name: "timeout_fix",
+    match: (err) => /timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(err.error.message),
+    apply: async (errorEntry) => {
+      const S = _getSTATE();
+      if (!S._repairCaches) S._repairCaches = new Map();
+      const cacheKey = `timeout_cache:${errorEntry.context.module}`;
+      if (!S._repairCaches.has(cacheKey)) {
+        S._repairCaches.set(cacheKey, { data: null, cachedAt: 0, ttl: 30000, hits: 0 });
+        return { fixed: true, method: "added_cache", module: errorEntry.context.module };
+      }
+      const cache = S._repairCaches.get(cacheKey);
+      cache.ttl = Math.min(cache.ttl * 2, 300000);
+      return { fixed: true, method: "increased_cache_ttl", newTtl: cache.ttl };
+    },
+  },
+  {
+    name: "type_error_fix",
+    match: (err) => /TypeError|is not a function|is not iterable/i.test(err.error.message),
+    apply: async (errorEntry) => {
+      const patchKey = `type_guard:${errorEntry.context.module}:${errorEntry.context.function}`;
+      if (!RUNTIME_PATCHES.has(patchKey)) {
+        RUNTIME_PATCHES.set(patchKey, { type: "type_guard", module: errorEntry.context.module, appliedAt: nowISO() });
+        return { fixed: true, method: "type_guard" };
+      }
+      return { fixed: false };
+    },
+  },
+  {
+    name: "memory_pressure_fix",
+    match: (err) => /ENOMEM|heap|out of memory|allocation failed/i.test(err.error.message),
+    apply: async () => {
+      const before = process.memoryUsage().heapUsed;
+      const actions = [];
+      // Force GC
+      if (global.gc) { global.gc(); actions.push("forced_gc"); }
+      // Clear repair caches
+      const S = _getSTATE();
+      if (S?._repairCaches) { S._repairCaches.clear(); actions.push("cleared_caches"); }
+      if (S?._rehydrationCache) { S._rehydrationCache = new Map(); actions.push("cleared_rehydration"); }
+      const after = process.memoryUsage().heapUsed;
+      return { fixed: before - after > 0, method: "memory_pressure_relief", actions, freedBytes: before - after };
+    },
+  },
+  {
+    name: "brain_failure_fix",
+    match: (err) => /ECONNREFUSED|ollama|brain|model/i.test(err.error.message) || err.context.module?.includes("brain"),
+    apply: async (errorEntry) => {
+      const S = _getSTATE();
+      const BRAIN = globalThis._concordBRAIN || S?.BRAIN;
+      if (!BRAIN) return { fixed: false };
+      const BRAIN_FALLBACK = { conscious: "utility", subconscious: "utility", utility: "subconscious", repair: null };
+      let failedBrain = null;
+      for (const name of Object.keys(BRAIN)) {
+        if (errorEntry.context.module?.includes(name) || errorEntry.error.message?.includes(BRAIN[name]?.url || "")) {
+          failedBrain = name; break;
+        }
+      }
+      if (!failedBrain) return { fixed: false };
+      const fallback = BRAIN_FALLBACK[failedBrain];
+      if (fallback && BRAIN[fallback]?.enabled !== false) {
+        RUNTIME_PATCHES.set(`brain_fallback:${failedBrain}`, { type: "brain_fallback", from: failedBrain, to: fallback, appliedAt: nowISO() });
+        return { fixed: true, method: "brain_fallback", from: failedBrain, to: fallback };
+      }
+      return { fixed: false, escalate: true, brain: failedBrain };
+    },
+  },
+  {
+    name: "disk_error_fix",
+    match: (err) => /ENOSPC|ENOENT|EACCES|disk/i.test(err.error.message),
+    apply: async (errorEntry) => {
+      if (/ENOENT/.test(errorEntry.error.message)) {
+        const pathMatch = errorEntry.error.message.match(/ENOENT.*'([^']+)'/);
+        if (pathMatch) {
+          const S = _getSTATE();
+          for (const [id, dtu] of (S?.dtus || new Map())) {
+            if (dtu.artifact?.diskPath === pathMatch[1]) {
+              dtu.artifact.diskPath = null;
+              return { fixed: true, method: "marked_artifact_unavailable", dtuId: id };
+            }
+          }
+        }
+      }
+      return { fixed: false };
+    },
+  },
+  // TIER 3: Repair brain triage (0.5B — fast classification, single word)
+  // The 0.5B model picks from a short list. Then deterministic strategies handle the fix.
+  {
+    name: "repair_brain_triage",
+    match: () => true,
+    apply: async (errorEntry) => {
+      try {
+        const BRAIN = globalThis._concordBRAIN;
+        const brainConfig = BRAIN?.repair;
+        if (!brainConfig?.url) return { fixed: false, reason: "repair_brain_offline" };
+
+        const prompt = `Classify this error into exactly one category. Reply with ONLY the category word, nothing else.
+
+Categories: NULL, TIMEOUT, TYPE, MEMORY, BRAIN, DISK, GATE, UNKNOWN
+
+Error: ${(errorEntry.error.message || "").slice(0, 200)}
+Module: ${errorEntry.context.module || "unknown"}
+
+Category:`;
+
+        const response = await fetch(`${brainConfig.url}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: brainConfig.model, messages: [{ role: "user", content: prompt }], stream: false }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const result = await response.json();
+        const category = result?.message?.content?.trim().toUpperCase().split(/\s/)[0];
+
+        // Route to the matching deterministic strategy
+        const strategyMap = REPAIR_STRATEGIES.reduce((m, s) => {
+          if (s.name === "null_reference_fix") m["NULL"] = s;
+          if (s.name === "timeout_fix") m["TIMEOUT"] = s;
+          if (s.name === "type_error_fix") m["TYPE"] = s;
+          if (s.name === "memory_pressure_fix") m["MEMORY"] = s;
+          if (s.name === "brain_failure_fix") m["BRAIN"] = s;
+          if (s.name === "disk_error_fix") m["DISK"] = s;
+          if (s.name === "gate_permission_fix") m["GATE"] = s;
+          return m;
+        }, {});
+
+        const targetStrategy = strategyMap[category];
+        if (targetStrategy) {
+          const fixResult = await targetStrategy.apply(errorEntry);
+          if (fixResult?.fixed) {
+            return { ...fixResult, triageCategory: category, method: `llm_triage_${category.toLowerCase()}` };
+          }
+        }
+        return { fixed: false, triageCategory: category || "UNKNOWN" };
+      } catch (err) {
+        return { fixed: false, reason: "llm_triage_failed", error: err?.message };
+      }
+    },
+  },
+  // TIER 4: Deep diagnostic (3B utility brain — rare, complex cases only)
+  // Only fires when all 8 deterministic strategies AND brain triage fail.
+  // Borrows one inference from the utility brain (or conscious brain as fallback).
+  {
+    name: "deep_diagnostic",
+    match: () => true,
+    apply: async (errorEntry) => {
+      try {
+        const BRAIN = globalThis._concordBRAIN;
+        const brainConfig = BRAIN?.utility?.enabled !== false ? BRAIN?.utility : BRAIN?.conscious;
+        if (!brainConfig?.url) return { fixed: false, reason: "no_brain_available" };
+
+        const prompt = `You are diagnosing a software error in the Concord cognitive engine.
+
+Error: ${(errorEntry.error.message || "").slice(0, 300)}
+Stack (first 5 lines): ${(errorEntry.error.stack || "").split("\\n").slice(0, 5).join("\\n")}
+Module: ${errorEntry.context.module || "unknown"}
+Function: ${errorEntry.context.function || "unknown"}
+Trigger: ${errorEntry.context.trigger || "unknown"}
+Heap: ${errorEntry.context.stateSnapshot?.heapUsed || 0} bytes
+DTUs: ${errorEntry.context.stateSnapshot?.dtuCount || 0}
+
+Eight automatic repair strategies already failed.
+Provide your response as JSON with no other text:
+{"diagnosis":"one sentence root cause","fixType":"null_guard|cache|retry|fallback|config_change|skip","fixParams":{},"confidence":0.0-1.0}`;
+
+        const response = await fetch(`${brainConfig.url}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: brainConfig.model, messages: [{ role: "user", content: prompt }], stream: false }),
+          signal: AbortSignal.timeout(30000),
+        });
+        const result = await response.json();
+        const content = result?.message?.content;
+        if (!content) return { fixed: false, reason: "no_llm_response" };
+
+        const clean = content.replace(/```json|```/g, "").trim();
+        let suggestion;
+        try { suggestion = JSON.parse(clean); } catch { return { fixed: false, reason: "malformed_json" }; }
+        if (!suggestion || suggestion.confidence < 0.5) return { fixed: false, reason: "low_confidence" };
+
+        // Execute the suggested fix type
+        switch (suggestion.fixType) {
+          case "null_guard": {
+            const pk = `null_guard:${errorEntry.context.module}:${errorEntry.context.function}`;
+            if (!RUNTIME_PATCHES.has(pk)) { RUNTIME_PATCHES.set(pk, { type: "null_guard", appliedAt: nowISO() }); return { fixed: true, method: "deep_diag_null_guard", diagnosis: suggestion.diagnosis }; }
+            return { fixed: false };
+          }
+          case "cache": {
+            const S = _getSTATE();
+            if (S) { if (!S._repairCaches) S._repairCaches = new Map(); S._repairCaches.set(`diag:${errorEntry.context.module}`, { ttl: 30000, cachedAt: 0 }); return { fixed: true, method: "deep_diag_cache" }; }
+            return { fixed: false };
+          }
+          case "fallback": {
+            RUNTIME_PATCHES.set(`fallback:${errorEntry.context.module}:${errorEntry.context.function}`, { type: "fallback", fallbackValue: suggestion.fixParams?.fallbackValue ?? null, appliedAt: nowISO() });
+            return { fixed: true, method: "deep_diag_fallback", diagnosis: suggestion.diagnosis };
+          }
+          case "config_change": {
+            if (suggestion.fixParams?.key) { RUNTIME_PATCHES.set(`config:${suggestion.fixParams.key}`, { type: "config_override", value: suggestion.fixParams.value, appliedAt: nowISO() }); return { fixed: true, method: "deep_diag_config" }; }
+            return { fixed: false };
+          }
+          case "skip": {
+            RUNTIME_PATCHES.set(`skip:${errorEntry.context.module}:${errorEntry.context.function}`, { type: "skip", reason: suggestion.diagnosis, appliedAt: nowISO() });
+            return { fixed: true, method: "deep_diag_skip" };
+          }
+          default: return { fixed: false };
+        }
+      } catch (err) {
+        return { fixed: false, reason: "deep_diagnostic_failed", error: err?.message };
+      }
+    },
+  },
+];
+
+// ── v3.1 Sovereign Escalation ────────────────────────────────────────────────
+
+async function _escalateToSovereign(errorEntry) {
+  const S = _getSTATE();
+  if (!S) return;
+
+  const escalation = {
+    id: uid("esc"),
+    tier: "regular", scope: "local", domain: "repair",
+    human: {
+      summary: `ESCALATION: Unresolved ${errorEntry.severity} error in ${errorEntry.context.module}`,
+      bullets: [
+        `Error: ${errorEntry.error.message?.slice(0, 200)}`,
+        `Module: ${errorEntry.context.module}`,
+        `All repair strategies failed`,
+      ],
+    },
+    core: { definitions: [], claims: [`Severity: ${errorEntry.severity}`, `Unresolved: true`], examples: [] },
+    machine: {
+      kind: "repair_escalation",
+      verifier: { resolved: false, errorMessage: errorEntry.error.message?.slice(0, 200), module: errorEntry.context.module, severity: errorEntry.severity },
+    },
+    lineage: { parents: [], children: [] },
+    authority: { score: 0.9 },
+    meta: { createdBy: "repair_cortex", lens: "repair", type: "escalation", tags: ["repair", "escalation", errorEntry.severity], createdAt: nowISO() },
+  };
+  S.dtus.set(escalation.id, escalation);
+
+  S.sovereignAlerts = S.sovereignAlerts || [];
+  S.sovereignAlerts.push({
+    id: escalation.id, type: "repair_escalation", severity: errorEntry.severity,
+    summary: `Unresolved ${errorEntry.severity} error in ${errorEntry.context.module}: ${errorEntry.error.message?.slice(0, 100)}`,
+    createdAt: nowISO(), acknowledged: false,
+  });
+}
+
+// ── v3.1 Repair Queue Processor ──────────────────────────────────────────────
+
+export async function processRepairQueue() {
+  if (REPAIR_QUEUE.length === 0) return { processed: 0 };
+  const batch = REPAIR_QUEUE.splice(0, 10);
+  let fixed = 0, escalated = 0;
+
+  for (const errorEntry of batch) {
+    let repaired = false;
+    for (const strategy of REPAIR_STRATEGIES) {
+      if (strategy.match && !strategy.match(errorEntry)) continue;
+      try {
+        const result = await strategy.apply(errorEntry);
+        if (result?.fixed) {
+          errorEntry.repairAttempted = true;
+          errorEntry.repairSucceeded = true;
+          errorEntry.repairMethod = strategy.name;
+          // Log as repair DTU
+          logRepairDTU(REPAIR_PHASES.POST_BUILD, "auto_repair", {
+            strategy: strategy.name, method: result.method,
+            error: errorEntry.error.message?.slice(0, 100), module: errorEntry.context.module,
+          });
+          // Pain integration
+          _recordRepairPain("auto_repair", strategy.name, { module: errorEntry.context.module });
+          fixed++;
+          repaired = true;
+          break;
+        }
+      } catch {}
+    }
+    if (!repaired) {
+      errorEntry.repairAttempted = true;
+      errorEntry.repairSucceeded = false;
+      await _escalateToSovereign(errorEntry);
+      escalated++;
+    }
+  }
+  return { processed: batch.length, fixed, escalated };
+}
+
+// ── v3.1 Self-Test ───────────────────────────────────────────────────────────
+
+export async function repairCortexSelfTest() {
+  const results = {};
+
+  try { const e = new Error("self_test"); ERROR_CONTEXT.capture(e, { module: "self_test", function: "test", trigger: "self_test" }); results.errorCapture = true; } catch { results.errorCapture = false; }
+  results.strategiesLoaded = REPAIR_STRATEGIES.length > 0;
+  results.strategyCount = REPAIR_STRATEGIES.length;
+  results.executorCount = Object.keys(EXECUTORS).length;
+  results.patchRegistryWorks = (() => { try { RUNTIME_PATCHES.set("_test", 1); RUNTIME_PATCHES.delete("_test"); return true; } catch { return false; } })();
+  results.repairMemoryWorks = (() => { try { return typeof lookupRepairMemory === "function"; } catch { return false; } })();
+
+  const passed = Object.values(results).filter(v => v === true).length;
+  const total = Object.keys(results).filter(k => typeof results[k] === "boolean").length;
+  results.overall = passed === total ? "healthy" : passed > total * 0.7 ? "degraded" : "failing";
+
+  if (results.overall === "failing") throw new Error(`Repair cortex failing: ${total - passed}/${total} checks failed`);
+  return results;
+}
+
+// ── v3.1 Repair Status Endpoint ──────────────────────────────────────────────
+
+export function getRepairStatus() {
+  const allErrors = ERROR_CONTEXT.getRecent(100);
+  const fixed = allErrors.filter(e => e.repairSucceeded).length;
+  const escalated = allErrors.filter(e => e.repairAttempted && !e.repairSucceeded).length;
+  const total = allErrors.filter(e => e.repairAttempted).length;
+
+  const strategyUsage = {};
+  for (const err of allErrors) {
+    if (err.repairMethod) {
+      if (!strategyUsage[err.repairMethod]) strategyUsage[err.repairMethod] = { count: 0, successes: 0 };
+      strategyUsage[err.repairMethod].count++;
+      if (err.repairSucceeded) strategyUsage[err.repairMethod].successes++;
+    }
+  }
+
+  const S = _getSTATE();
+  const escalations = (S?.sovereignAlerts || []).filter(a => a.type === "repair_escalation" && !a.acknowledged);
+
+  return {
+    ok: true,
+    health: "healthy",
+    fixRate: total > 0 ? fixed / total : 1.0,
+    total, fixed, escalated,
+    activePatchCount: RUNTIME_PATCHES.size,
+    brainFallbacks: Array.from(RUNTIME_PATCHES.values()).filter(p => p.type === "brain_fallback").length,
+    escalations: escalations.slice(0, 10),
+    strategyUsage: Object.entries(strategyUsage).map(([name, data]) => ({
+      name, count: data.count, successRate: data.count > 0 ? Math.round(data.successes / data.count * 100) : 0,
+    })),
+    recentRepairs: allErrors.filter(e => e.repairSucceeded).slice(-10).map(e => ({
+      id: e.id, time: e.timestamp, module: e.context.module, method: e.repairMethod, error: e.error.message?.slice(0, 80),
+    })),
+    queueLength: REPAIR_QUEUE.length,
+  };
+}

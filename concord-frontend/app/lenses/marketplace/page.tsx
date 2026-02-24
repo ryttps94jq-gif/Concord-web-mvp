@@ -40,6 +40,11 @@ import {
 import { cn } from '@/lib/utils';
 // marketplace-demo.ts has been deprecated — all data comes from API
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -440,6 +445,15 @@ export default function MarketplaceLensPage() {
   });
   const isError3 = false as boolean; const error3 = null as Error | null; const refetch3 = () => {};
   const isError4 = false as boolean; const error4 = null as Error | null; const refetch4 = () => {};
+
+  // DTU context (v3.0 artifact support)
+  const {
+    contextDTUs: marketDTUs, hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace: publishDTU,
+    refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'marketplace' });
+
+  const marketArtifacts = marketDTUs.filter((d: any) => d.artifact);
 
   // Real API queries — no demo fallback
   const { data: beatsData } = useQuery({
@@ -1140,6 +1154,44 @@ export default function MarketplaceLensPage() {
             onToggle={() => setIsPlaying(p => !p)} onClose={closePreview} />
         )}
       </AnimatePresence>
+
+      {/* ================================================================== */}
+      {/* DTU CONTEXT PANEL & ARTIFACTS (v3.0)                               */}
+      {/* ================================================================== */}
+      {tab === 'browse' && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
+          {marketArtifacts.length > 0 && (
+            <div className="lg:col-span-3 space-y-3">
+              <h3 className="text-lg font-bold">DTU Artifacts</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {marketArtifacts.slice(0, 6).map((dtu: any) => (
+                  <div key={dtu.id} className="p-3 rounded-lg bg-lattice-surface border border-lattice-border space-y-2">
+                    <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
+                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                    <FeedbackWidget targetType="dtu" targetId={dtu.id} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className={marketArtifacts.length > 0 ? '' : 'lg:col-start-4'}>
+            <ArtifactUploader lens="marketplace" acceptTypes="audio/*,image/*" multi compact onUploadComplete={() => refetchDTUs()} />
+            <div className="mt-4">
+              <LensContextPanel
+                hyperDTUs={hyperDTUs}
+                megaDTUs={megaDTUs}
+                regularDTUs={regularDTUs}
+                tierDistribution={tierDistribution}
+                onPublish={(dtu) => publishDTU({ dtuId: dtu.id })}
+                title="Marketplace DTUs"
+              />
+            </div>
+            <div className="mt-4">
+              <FeedbackWidget targetType="lens" targetId="marketplace" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

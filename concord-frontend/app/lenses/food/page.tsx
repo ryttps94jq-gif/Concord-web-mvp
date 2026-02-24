@@ -16,6 +16,11 @@ import {
 import { cn } from '@/lib/utils';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -273,6 +278,15 @@ export default function FoodLensPage() {
   const { items, isLoading, isError, error, refetch, create, update, remove } = useLensData<FoodArtifact>('food', activeArtifactType, {
     seed: seedData.filter(s => (s.data as Record<string, unknown>).type === activeArtifactType),
   });
+
+  // DTU context (v3.0 artifact support)
+  const {
+    contextDTUs: foodDTUs, hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace: publishDTU,
+    refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'food' });
+
+  const foodArtifacts = foodDTUs.filter((d: any) => d.artifact);
 
   // Additional hooks for cross-tab data
   const { items: allRecipes } = useLensData<FoodArtifact>('food', 'Recipe', { noSeed: true });
@@ -2490,7 +2504,36 @@ export default function FoodLensPage() {
         ))}
       </nav>
 
-      {showDashboard ? renderDashboard() : renderLibrary()}
+      <div className="flex gap-6">
+        <div className="flex-1 min-w-0">
+          {showDashboard ? renderDashboard() : renderLibrary()}
+        </div>
+        {showDashboard && (
+          <aside className="w-72 shrink-0 hidden xl:block space-y-4">
+            <ArtifactUploader lens="food" acceptTypes="image/*" multi compact onUploadComplete={() => refetchDTUs()} />
+            <LensContextPanel
+              hyperDTUs={hyperDTUs}
+              megaDTUs={megaDTUs}
+              regularDTUs={regularDTUs}
+              tierDistribution={tierDistribution}
+              onPublish={(dtu) => publishDTU({ dtuId: dtu.id })}
+              title="Food DTUs"
+            />
+            {foodArtifacts.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase">Food Artifacts</h4>
+                {foodArtifacts.slice(0, 3).map((dtu: any) => (
+                  <div key={dtu.id} className="p-2 rounded bg-lattice-elevated/50 border border-lattice-border">
+                    <p className="text-xs font-medium truncate mb-1">{dtu.title || 'Untitled'}</p>
+                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <FeedbackWidget targetType="lens" targetId="food" />
+          </aside>
+        )}
+      </div>
       {renderEditor()}
       {renderRecipeScaler()}
     </div>

@@ -40,6 +40,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { LensWrapper } from '@/components/lens/LensWrapper';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 type ViewMode = 'gallery' | 'canvas' | 'marketplace' | 'my-art';
 type CanvasTool = 'brush' | 'eraser' | 'fill' | 'text' | 'shape-rect' | 'shape-circle' | 'eyedropper' | 'move' | 'pen';
@@ -123,6 +129,15 @@ export default function ArtLensPage() {
     queryFn: () => apiHelpers.artistry.marketplace.art.list().then(r => r.data?.artworks || []).catch((err) => { console.error('Failed to fetch art listings:', err instanceof Error ? err.message : err); return []; }),
     initialData: [],
   });
+
+  // DTU context (v3.0 artifact support)
+  const {
+    contextDTUs, hyperDTUs, megaDTUs, regularDTUs, domainDTUs,
+    tierDistribution, publishToMarketplace: publishDTU,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'art' });
+
+  const imageArtifacts = contextDTUs.filter((d: any) => d.artifact?.type?.startsWith('image/'));
 
   const uploadMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => apiHelpers.artistry.assets.create(data as { type: string; title?: string; description?: string; tags?: string[]; genre?: string; bpm?: number; key?: string; ownerId?: string; metadata?: Record<string, unknown> }),
@@ -609,11 +624,43 @@ export default function ArtLensPage() {
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-to-b from-pink-900/10 to-black">
       {renderNav()}
-      <div className="flex-1 overflow-hidden">
-        {viewMode === 'gallery' && <div className="h-full overflow-y-auto">{renderGallery()}</div>}
-        {viewMode === 'canvas' && renderCanvas()}
-        {viewMode === 'marketplace' && <div className="h-full overflow-y-auto">{renderMarketplace()}</div>}
-        {viewMode === 'my-art' && <div className="h-full overflow-y-auto">{renderMyArt()}</div>}
+      <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden">
+          {viewMode === 'gallery' && <div className="h-full overflow-y-auto">{renderGallery()}{/* Image Artifacts from DTU Context */}
+            {imageArtifacts.length > 0 && (
+              <section className="px-6 pb-6 space-y-4">
+                <h2 className="text-lg font-bold">Image Artifacts</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imageArtifacts.slice(0, 8).map((dtu: any) => (
+                    <div key={dtu.id} className="rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-neon-pink/30 transition-colors">
+                      <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                      <div className="p-3">
+                        <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
+                        <FeedbackWidget targetType="dtu" targetId={dtu.id} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}</div>}
+          {viewMode === 'canvas' && renderCanvas()}
+          {viewMode === 'marketplace' && <div className="h-full overflow-y-auto">{renderMarketplace()}</div>}
+          {viewMode === 'my-art' && <div className="h-full overflow-y-auto">{renderMyArt()}</div>}
+        </div>
+        {/* DTU Context Sidebar */}
+        <aside className="w-72 shrink-0 hidden xl:block border-l border-white/10 bg-black/20 overflow-y-auto p-4 space-y-4">
+          <ArtifactUploader lens="art" acceptTypes="image/*" multi compact onUploadComplete={() => refetchDTUs()} />
+          <LensContextPanel
+            hyperDTUs={hyperDTUs}
+            megaDTUs={megaDTUs}
+            regularDTUs={regularDTUs}
+            tierDistribution={tierDistribution}
+            onPublish={(dtu) => publishDTU({ dtuId: dtu.id })}
+            title="Art DTUs"
+            className="!bg-transparent !border-0 !p-0"
+          />
+          <FeedbackWidget targetType="lens" targetId="art" />
+        </aside>
       </div>
 
       {/* Upload Modal */}

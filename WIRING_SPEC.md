@@ -93,6 +93,52 @@ At entity registration:
 - `classifyEntity` (species) — assigns species classification
 - `recordTick` (subjective-time) — initializes time perception
 
+## NEW MODULE WIRING (v2.0-v3.0)
+
+| # | Module | File | Wired Into | Tick Freq | Status |
+|---|--------|------|-----------|-----------|--------|
+| 34 | Artifact Store | server/lib/artifact-store.js | API endpoints | On demand | **NEW v2.1** |
+| 35 | Feedback Engine | server/lib/feedback-engine.js | Heartbeat | Every 200th tick | **NEW v2.1** |
+| 36 | Marketplace Types | server/lib/marketplace-types.js | Marketplace macros | On demand | **NEW v2.0** |
+| 37 | Artifact Constants | server/lib/artifact-constants.js | API + heartbeat | On demand | **NEW v2.1** |
+
+### Frozen Constants Added (server.js)
+
+| Constant | Purpose | Location |
+|----------|---------|----------|
+| TICK_FREQUENCIES | 31 module tick intervals | ~line 986 |
+| CONTEXT_TIER_BOOST | Tier diversity multipliers | ~line 1019 |
+| ARTIFACT | Artifact storage limits | ~line 1028 |
+| FEEDBACK | Feedback engine thresholds | ~line 1037 |
+
+### API Endpoints Added
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| /api/artifact/upload | POST | Required | Upload artifact binary |
+| /api/artifact/:id/stream | GET | Public | Stream with range requests |
+| /api/artifact/:id/download | GET | Public | Full download |
+| /api/artifact/:id/info | GET | Public | Metadata only |
+| /api/artifact/:id/thumbnail | GET | Public | Preview image |
+| /api/feedback/submit | POST | Required | Submit user feedback |
+| /api/feedback/aggregate/:type/:id | GET | Public | Get feedback summary |
+| /api/ingest/bulk-upload | POST | Required | Bulk DTU import (max 500) |
+| /api/export/my-data | GET | Required | Export user's DTUs |
+| /api/sovereign/audit/heartbeat | GET | Sovereign | Heartbeat audit data |
+| /api/sovereign/audit/dtu-lifecycle | GET | Sovereign | DTU tier/consolidation stats |
+| /api/sovereign/audit/gates | GET | Sovereign | Three-gate config dump |
+
+### Frontend Components Added
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| useLensDTUs | hooks/useLensDTUs.ts | Universal lens DTU hook with tier filtering |
+| LensContextPanel | components/lens/LensContextPanel.tsx | DTU context sidebar with tier bars |
+| LensWrapper | components/lens/LensWrapper.tsx | Loading/error/empty state wrapper |
+| ArtifactRenderer | components/artifact/ArtifactRenderer.tsx | Universal artifact display (audio/image/video/code) |
+| ArtifactUploader | components/artifact/ArtifactUploader.tsx | Drag-and-drop file upload |
+| FeedbackWidget | components/feedback/FeedbackWidget.tsx | Like/dislike + detailed feedback form |
+
 ## CRITICAL RULES
 
 - ALWAYS wrap module calls in `try/catch`

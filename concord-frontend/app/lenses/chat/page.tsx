@@ -50,6 +50,12 @@ import {
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { LensWrapper } from '@/components/lens/LensWrapper';
+import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
+import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 // ──────────────────────────────────────────────
 // Types
@@ -204,6 +210,12 @@ function fileToBase64(file: File): Promise<string> {
 export default function ChatLensPage() {
   useLensNav('chat');
   const queryClient = useQueryClient();
+
+  const {
+    hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'chat' });
 
   // Existing state
   const [input, setInput] = useState('');
@@ -1161,6 +1173,21 @@ export default function ChatLensPage() {
             <Plus className="w-4 h-4" />
             New Chat
           </button>
+        </div>
+
+        {/* DTU Context */}
+        <div className="p-3 border-t border-white/10 space-y-3">
+          <ArtifactUploader lens="chat" acceptTypes="*/*" multi compact onUploadComplete={() => refetchDTUs()} />
+          <LensContextPanel
+            hyperDTUs={hyperDTUs}
+            megaDTUs={megaDTUs}
+            regularDTUs={regularDTUs}
+            tierDistribution={tierDistribution}
+            onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+            title="Chat DTUs"
+            className="!bg-transparent !border-0 !p-0"
+          />
+          <FeedbackWidget targetType="lens" targetId="chat" />
         </div>
 
         <div className="p-4">

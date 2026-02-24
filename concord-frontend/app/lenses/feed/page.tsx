@@ -40,6 +40,9 @@ import {
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useUIStore } from '@/store/ui';
+import { useLensDTUs } from '@/hooks/useLensDTUs';
+import { LensContextPanel } from '@/components/lens/LensContextPanel';
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -320,6 +323,13 @@ function CollabCard({ collab }: { collab: CollabAttachment }) {
 
 export default function FeedLensPage() {
   useLensNav('feed');
+
+  const {
+    hyperDTUs, megaDTUs, regularDTUs,
+    tierDistribution, publishToMarketplace,
+    isLoading: dtusLoading, refetch: refetchDTUs,
+  } = useLensDTUs({ lens: 'feed' });
+
   const queryClient = useQueryClient();
 
   const [newPost, setNewPost] = useState('');
@@ -365,8 +375,8 @@ export default function FeedLensPage() {
               dtuId: dtu.id as string,
             });
           });
-        });
-      }
+        }
+
 
         if (serverPosts.length > 0) return serverPosts;
         // Fall back to persisted lens items (which include seeded data)
@@ -920,6 +930,19 @@ export default function FeedLensPage() {
           Terms &middot; Privacy &middot; Cookies &middot; Accessibility &middot; About &middot; Concord &copy; 2026
         </div>
       </aside>
+
+      {/* DTU Context */}
+      <div className="mt-6 space-y-3">
+        <LensContextPanel
+          hyperDTUs={hyperDTUs}
+          megaDTUs={megaDTUs}
+          regularDTUs={regularDTUs}
+          tierDistribution={tierDistribution}
+          onPublish={(dtu) => publishToMarketplace({ dtuId: dtu.id })}
+          title="Feed DTUs"
+        />
+        <FeedbackWidget targetType="lens" targetId="feed" />
+      </div>
     </div>
   );
 }

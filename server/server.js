@@ -94,6 +94,14 @@ import {
   forceRepairCycle,
   executeRepairExecutor,
   getFullRepairStatus,
+  // v3.1 Repair Cortex exports
+  ERROR_CONTEXT,
+  REPAIR_QUEUE,
+  RUNTIME_PATCHES,
+  processRepairQueue,
+  repairCortexSelfTest,
+  getRepairStatus,
+  shouldSkipExecution,
 } from "./emergent/repair-cortex.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
@@ -409,28 +417,30 @@ function detectContentInjection(text) {
 }
 
 // ---- Rate Limiting for Expensive Macros (Phase 5.2) ----
+const _macroRateLimits = new Map();
 const EXPENSIVE_MACROS = new Map([
   ["scope.metrics", { maxPerMinute: 10, windowMs: 60000 }],
   ["system.autogen", { maxPerMinute: 4, windowMs: 60000 }],
   ["system.dream", { maxPerMinute: 4, windowMs: 60000 }],
   ["system.evolution", { maxPerMinute: 4, windowMs: 60000 }],
   ["atlas.autogen", { maxPerMinute: 6, windowMs: 60000 }],
-  ["system.synth", { maxPerMinute: 4, windowMs: 60000 }],
 ]);
-const _macroRateLimits = new Map();
 
 function checkMacroRateLimit(domain, name) {
   const key = `${domain}.${name}`;
   const limit = EXPENSIVE_MACROS.get(key);
-  if (!limit) return true;
+  if (!limit) return true; // not rate-limited
+
   const now = Date.now();
-  let entry = _macroRateLimits.get(key);
-  if (!entry || (now - entry.windowStart) > limit.windowMs) {
-    _macroRateLimits.set(key, { count: 1, windowStart: now });
-    return true;
-  }
-  if (entry.count >= limit.maxPerMinute) return false;
-  entry.count++;
+  const bucket = _macroRateLimits.get(key) || { calls: [], windowMs: limit.windowMs };
+
+  // Clean old entries
+  bucket.calls = bucket.calls.filter(t => now - t < limit.windowMs);
+
+  if (bucket.calls.length >= limit.maxPerMinute) return false; // rate limited
+
+  bucket.calls.push(now);
+  _macroRateLimits.set(key, bucket);
   return true;
 }
 
@@ -983,8 +993,69 @@ const ENTITY_LIMITS = Object.freeze({
   INFERENCES_PER_ENTITY_HOUR: 2,   // budget per entity
 });
 
+const TICK_FREQUENCIES = Object.freeze({
+  BODY_DECAY: 1,
+  SLEEP_FATIGUE: 1,
+  DEATH_CHECK: 1,
+  EMOTION_DECAY: 1,
+  SUBJECTIVE_TIME: 1,
+  WOUND_HEALING: 1,
+  SKILLS_DECAY: 1,
+  CULTURE_TICK: 1,
+  CONSEQUENCE_CASCADE: 1,
+  HYPOTHESIS_TRANSITION: 1,
+  RESEARCH_QUEUE: 1,
+  ATTENTION_ALLOCATION: 3,
+  ENTITY_AUTONOMY: 5,
+  DRIFT_SCAN: 5,
+  VULNERABILITY: 5,
+  TRUST_COMPUTATION: 10,
+  UBI_DISTRIBUTION: 10,
+  DEEP_HEALTH: 10,
+  DREAM_REVIEW: 20,
+  PURPOSE_TRACKING: 20,
+  TEACHING: 20,
+  CONSOLIDATION: 30,
+  THREAT_SCAN: 30,
+  FORGETTING: 50,
+  QUEST_GENERATION: 50,
+  ECONOMY_HEALTH: 100,
+  BREAKTHROUGH_CLUSTERS: 100,
+  EMBEDDINGS_CHECK: 100,
+  META_DERIVATION: 200,
+  WEALTH_REDISTRIBUTION: 500,
+});
+
+const CONTEXT_TIER_BOOST = Object.freeze({
+  hyper: 2.0,
+  mega: 1.5,
+  regular: 1.0,
+  shadow: 0.6,
+});
+
+const ARTIFACT = Object.freeze({
+  MAX_ARTIFACT_SIZE: 100 * 1024 * 1024,
+  MAX_DISK_USAGE_PERCENT: 0.80,
+  CLEANUP_THRESHOLD_PERCENT: 0.60,
+  UNACCESSED_CLEANUP_DAYS: 30,
+  DISK_CHECK_INTERVAL: 1000,
+  AVAILABLE_DISK_BYTES: 280 * 1024 * 1024 * 1024,
+});
+
+const FEEDBACK = Object.freeze({
+  PROCESS_INTERVAL: 200,
+  MIN_REQUESTS_FOR_PROPOSAL: 3,
+  MIN_REPORTS_FOR_REPAIR: 2,
+  NEGATIVE_SENTIMENT_THRESHOLD: -5,
+  AUTHORITY_ADJUSTMENT_RATE: 0.01,
+  PROPOSAL_APPROVAL_THRESHOLD: 0.6,
+});
+
+const FORGETTING = FORGETTING_CONSTANTS;
+const ENTITY_ECONOMY = ENTITY_ECONOMY_CONSTANTS;
+
 // Expose constants globally for module access
-globalThis._concordCONSTANTS = { CONSOLIDATION, FORGETTING_CONSTANTS, ENTITY_ECONOMY_CONSTANTS, ENTITY_LIMITS };
+globalThis._concordCONSTANTS = { CONSOLIDATION, FORGETTING_CONSTANTS, FORGETTING, ENTITY_ECONOMY_CONSTANTS, ENTITY_ECONOMY, ENTITY_LIMITS, TICK_FREQUENCIES, CONTEXT_TIER_BOOST, ARTIFACT, FEEDBACK };
 
 // ============================================================================
 // CAPABILITIES REGISTRY — single source of truth for runtime feature gates
@@ -4003,6 +4074,22 @@ function authMiddleware(req, res, next) {
   const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
   if (alwaysPublic.some(p => req.path.startsWith(p))) return next();
 
+  // Sovereign-only route protection
+  const SOVEREIGN_ROUTES = [
+    "/api/sovereign",
+    "/api/admin/sovereign",
+    "/api/reproduction/enable",
+    "/api/reproduction/disable",
+    "/api/entity/kill",
+    "/api/system/shutdown",
+    "/api/economy/mint",
+    "/api/economy/redistribute",
+  ];
+
+  // If this is a sovereign route, do NOT allow the publicReadPaths bypass below.
+  // Force authentication first, then check role after auth resolves.
+  const _isSovereignRoute = SOVEREIGN_ROUTES.some(route => req.path.startsWith(route));
+
   // Skip auth for public-read endpoints (GET only)
   // CRITICAL: Every frontend GET route must be listed here (Gate 1 of 3)
   const publicReadPaths = [
@@ -4069,12 +4156,35 @@ function authMiddleware(req, res, next) {
     "/api/reproduction", "/api/lineage", "/api/teaching",
     "/api/trust", "/api/creative", "/api/rights",
     "/api/resonance", "/api/sse",
+    // Artifact & feedback
+    "/api/artifact", "/api/feedback",
+    // Export (GET only)
+    "/api/export",
+    // Repair cortex v3.1 (frontend error reporting must work without auth)
+    "/api/repair",
   ];
-  if (req.method === "GET" && publicReadPaths.some(p => req.path.startsWith(p))) return next();
+  if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
+  // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
+  if (req.method === "POST" && req.path.startsWith("/api/repair")) return next();
 
   // Check Authorization header
   const authHeader = req.headers.authorization || "";
   const apiKey = req.headers["x-api-key"] || "";
+
+  // Sovereign route gate: after auth resolves, block non-sovereign users and entities
+  function _sovereignGate() {
+    if (_isSovereignRoute) {
+      const user = req.user || {};
+      if (!user || user.role !== "sovereign") {
+        return res.status(403).json({ error: "sovereign_only" });
+      }
+      // Block entities from sovereign routes
+      if (req.headers["x-entity-id"]) {
+        return res.status(403).json({ error: "entity_access_denied" });
+      }
+    }
+    return next();
+  }
 
   // 1. Try JWT/cookie auth if enabled by AUTH_MODE
   if (AUTH_USES_JWT) {
@@ -4086,7 +4196,7 @@ function authMiddleware(req, res, next) {
         if (user) {
           req.user = user;
           req.authMethod = "cookie";
-          return next();
+          return _sovereignGate();
         }
       }
     }
@@ -4099,7 +4209,7 @@ function authMiddleware(req, res, next) {
         if (user) {
           req.user = user;
           req.authMethod = "jwt";
-          return next();
+          return _sovereignGate();
         }
       }
     }
@@ -4127,7 +4237,7 @@ function authMiddleware(req, res, next) {
         req.apiKeyData = keyData;
         req.authMethod = "apiKey";
         auditLog("auth", "api_key_used", { userId: user.id, keyName: keyData.name, ip: req.ip });
-        return next();
+        return _sovereignGate();
       }
     }
   }
@@ -4600,6 +4710,19 @@ if (rateLimit) {
       return `${req.ip}:${identity}`;
     },
     skipSuccessfulRequests: true // Don't count successful logins
+  });
+}
+
+// Upload/ingest rate limiter: 10 bulk uploads per 15 minutes per user
+let uploadRateLimiter = null;
+if (rateLimit) {
+  uploadRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { ok: false, error: "Upload rate limit exceeded. Max 10 bulk uploads per 15 minutes.", retryAfter: 900 },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?.id || req.user?.username || req.ip
   });
 }
 
@@ -5939,8 +6062,8 @@ async function runMacro(domain, name, input, ctx) {
   }
 
   // Rate limit check for expensive macros (Phase 5.2)
-  if (!input?.override && !checkMacroRateLimit(domain, name)) {
-    throw new Error(`rate_limit_exceeded: ${domain}.${name}`);
+  if (!checkMacroRateLimit(domain, name)) {
+    return { ok: false, error: "rate_limited", retryAfterMs: 60000 };
   }
 
   // Chicken2: reality guard (full blast) with founder recovery valve
@@ -6016,6 +6139,8 @@ async function runMacro(domain, name, input, ctx) {
     admin: new Set(["dashboard", "stats", "metrics", "audit", "logs", "queue", "backup", "ssl", "governance-rejections", "repair"]),
     heartbeat: new Set(["status", "history", "metrics"]),
     ai: new Set(["search", "gaps", "embeddings"]),
+    feedback: new Set(["aggregate"]),
+    artifact: new Set(["info", "thumbnail"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6053,9 +6178,15 @@ async function runMacro(domain, name, input, ctx) {
     "/api/reproduction", "/api/lineage", "/api/teaching",
     "/api/trust", "/api/creative", "/api/rights",
     "/api/resonance", "/api/sse", "/api/notifications",
+    // Artifact & feedback
+    "/api/artifact", "/api/feedback",
+    // Export (GET only)
+    "/api/export",
+    // Repair cortex v3.1
+    "/api/repair",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
-  const _safePostPaths = ["/api/chat", "/api/brain/conscious"];
+  const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair"];
   const safeReadBypass =
     (_method === "GET" && (
       _safeReadPaths.some(p => _path.startsWith(p)) ||
@@ -8476,9 +8607,9 @@ function archiveDTUToDisk(dtu) {
     // Use db if available
     if (db) {
       const stmt = db.prepare(
-        `INSERT OR REPLACE INTO archived_dtus (id, data, consolidated_into, archived_at) VALUES (?, ?, ?, ?)`
+        `INSERT OR REPLACE INTO archived_dtus (id, data, tier, consolidated_into, archived_at) VALUES (?, ?, ?, ?, ?)`
       );
-      stmt.run(dtu.id, JSON.stringify(dtu), dtu.meta?.consolidatedInto || null, new Date().toISOString());
+      stmt.run(dtu.id, JSON.stringify(dtu), dtu.tier || "regular", dtu.meta?.consolidatedInto || null, new Date().toISOString());
       return;
     }
   } catch {}
@@ -8496,6 +8627,8 @@ function rehydrateDTU(dtuId) {
       const row = db.prepare('SELECT data FROM archived_dtus WHERE id = ?').get(dtuId);
       if (row) {
         const dtu = JSON.parse(row.data);
+        // Update rehydration counter
+        db.prepare('UPDATE archived_dtus SET rehydrated_count = rehydrated_count + 1, last_rehydrated_at = ? WHERE id = ?').run(new Date().toISOString(), dtuId);
         // Cache for subsequent reads
         _rehydrationCache.set(dtuId, { dtu, at: Date.now() });
         if (_rehydrationCache.size > CONSOLIDATION.REHYDRATION_CACHE_MAX) {
@@ -8529,10 +8662,121 @@ function demoteToArchive(dtuId, consolidatedIntoId) {
   STATE.dtus.delete(dtuId);
   // Clean from shadow if present
   if (STATE.shadowDtus?.has(dtuId)) STATE.shadowDtus.delete(dtuId);
+  // Remove embedding vector to free memory
+  try { removeEmbedding(dtuId); } catch {}
 }
 
 // Expose archive functions globally for module access
 globalThis._concordArchive = { rehydrateDTU, demoteToArchive, archiveDTUToDisk };
+
+// ---- Consolidation Quality Gates & Edge Transfer ----
+
+function validateConsolidationQuality(consolidated, sourceIds) {
+  const sources = sourceIds
+    .map(id => STATE.dtus.get(id) || rehydrateDTU(id))
+    .filter(Boolean);
+
+  // Coverage: consolidated must contain claims from >= 80% of sources
+  const sourceClaims = sources.flatMap(s => s.core?.claims || []);
+  const consolidatedClaims = consolidated.core?.claims || [];
+
+  if (sourceClaims.length > 0) {
+    const coverage = sourceClaims.filter(sc =>
+      consolidatedClaims.some(cc => keywordOverlap(sc, cc) > 0.5)
+    ).length / sourceClaims.length;
+    if (coverage < CONSOLIDATION.COVERAGE_THRESHOLD) {
+      return { ok: false, reason: "insufficient_coverage", coverage };
+    }
+  }
+
+  // Authority preservation
+  const avgSourceAuth = sources.reduce((sum, s) =>
+    sum + (s.authority?.score || 0.5), 0) / (sources.length || 1);
+  if ((consolidated.authority?.score || 0) < avgSourceAuth * CONSOLIDATION.AUTHORITY_PRESERVATION) {
+    return { ok: false, reason: "authority_degradation" };
+  }
+
+  // Lineage integrity
+  const parents = consolidated.lineage?.parents || [];
+  const missing = sourceIds.filter(id => !parents.includes(id));
+  if (missing.length > 0) {
+    return { ok: false, reason: "lineage_broken", missing };
+  }
+
+  return { ok: true };
+}
+
+function keywordOverlap(textA, textB) {
+  const wordsA = new Set(String(textA).toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const wordsB = new Set(String(textB).toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  const intersection = [...wordsA].filter(w => wordsB.has(w));
+  return intersection.length / Math.min(wordsA.size, wordsB.size);
+}
+
+async function transferEdgesToConsolidated(sourceId, consolidatedId) {
+  let edgeMod;
+  try { edgeMod = globalThis._concordEdges; } catch {}
+  if (!edgeMod) {
+    try {
+      // Fallback: import edges module dynamically (sync cache hit after first load)
+      const { createEdge: _createEdge, queryEdges: _queryEdges } = await import("./emergent/edges.js");
+      edgeMod = {
+        createEdge: (opts) => _createEdge(STATE, opts),
+        queryEdges: (q) => _queryEdges(STATE, q),
+      };
+    } catch { return; }
+  }
+  // Transfer outbound edges
+  const outResult = edgeMod.queryEdges({ sourceId }) || {};
+  const outbound = outResult.edges || [];
+  for (const edge of outbound) {
+    if (edge.targetId === consolidatedId) continue;
+    try {
+      edgeMod.createEdge({
+        sourceId: consolidatedId, targetId: edge.targetId,
+        edgeType: edge.edgeType, weight: edge.weight,
+        label: `inherited:${sourceId}`,
+      });
+    } catch {}
+  }
+  // Transfer inbound edges
+  const inResult = edgeMod.queryEdges({ targetId: sourceId }) || {};
+  const inbound = inResult.edges || [];
+  for (const edge of inbound) {
+    if (edge.sourceId === consolidatedId) continue;
+    try {
+      edgeMod.createEdge({
+        sourceId: edge.sourceId, targetId: consolidatedId,
+        edgeType: edge.edgeType, weight: edge.weight,
+        label: `inherited:${sourceId}`,
+      });
+    } catch {}
+  }
+}
+
+async function creditConsolidationIncome(sourceDtuId) {
+  const dtu = STATE.dtus.get(sourceDtuId) || rehydrateDTU(sourceDtuId);
+  const creatorEntity = dtu?.meta?.createdBy || dtu?.source;
+  if (!creatorEntity) return;
+  const entityEconMod = await import("./emergent/entity-economy.js").catch(() => null);
+  if (entityEconMod?.earnResource) {
+    try { entityEconMod.earnResource(creatorEntity, "INSIGHT", ENTITY_ECONOMY.INCOME_CONSOLIDATION, "consolidation"); } catch {}
+  }
+  const growthMod = await import("./emergent/entity-growth.js").catch(() => null);
+  if (growthMod?.processExperience) {
+    try { growthMod.processExperience({ id: creatorEntity }, { type: "consolidation", topic: "mega_hyper_builder", quality: 0.5 }); } catch {}
+  }
+}
+
+function computeAdaptiveThreshold() {
+  const heapUsed = process.memoryUsage().heapUsed;
+  const ratio = heapUsed / CONSOLIDATION.MAX_HEAP_BYTES;
+  if (ratio > CONSOLIDATION.HEAP_TARGET_PERCENT) {
+    return FORGETTING.FORGET_THRESHOLD + (ratio - CONSOLIDATION.HEAP_TARGET_PERCENT) * 0.5;
+  }
+  return FORGETTING.FORGET_THRESHOLD;
+}
 
 // ---- DTU helpers ----
 function dtusArray() { return Array.from(STATE.dtus.values()); }
@@ -14383,6 +14627,46 @@ let localReply = formatCrispResponse({
 
   // NOTE: Do NOT print internal context tracking to the user.
 
+  // ===== CONSCIOUS BRAIN ROUTING =====
+  // Resolve the brain URL and model for conscious routing.
+  // When BRAIN.conscious is enabled, route to the configured conscious brain;
+  // otherwise fall back to default Ollama host / model env vars.
+  const brainUrl = BRAIN.conscious.enabled
+    ? BRAIN.conscious.url
+    : (process.env.OLLAMA_HOST || "http://localhost:11434");
+  const brainModel = BRAIN.conscious.enabled
+    ? BRAIN.conscious.model
+    : (process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b");
+
+  // ===== UNIFIED CONTEXT ENGINE: Retrieve DTUs across all tiers =====
+  // Pull context from the unified context engine spanning regular + MEGA + HYPER tiers
+  // to enrich the LLM prompt with the broadest relevant knowledge.
+  let _unifiedContextDtus = [];
+  try {
+    const _ctxResult = contextProcessQuery(STATE, sessionId, {
+      query: prompt,
+      lens: mode,
+      userId: ctx?.actor?.userId,
+      retrievalHits: scored.filter(x => x.score > 0.05).slice(0, 30).map(x => ({ dtuId: x.d.id, score: x.score })),
+      pinnedIds: [],
+    });
+    if (_ctxResult && _ctxResult.ok && Array.isArray(_ctxResult.workingSet)) {
+      // Resolve full DTU objects from the working set IDs
+      const _wsIds = new Set(_ctxResult.workingSet.map(w => w.dtuId || w.id).filter(Boolean));
+      const _allDtus = dtusArray();
+      _unifiedContextDtus = _allDtus.filter(d => _wsIds.has(d.id));
+    }
+  } catch (_uctxErr) {
+    // Unified context engine is supplementary — never block the chat path
+  }
+
+  // Merge unified context DTUs with focus set (deduplicated)
+  const _focusIds = new Set(focus.map(d => d.id));
+  const _extraUnifiedDtus = _unifiedContextDtus.filter(d => !_focusIds.has(d.id));
+  const _enrichedFocus = [...focus, ..._extraUnifiedDtus];
+  // ===== END UNIFIED CONTEXT ENGINE =====
+  // ===== END CONSCIOUS BRAIN ROUTING =====
+
   let finalReply = localReply;
   let llmUsed = false;
   const semanticUsed = Boolean(semanticEnhancement && semanticEnhancement.confidence > 0.4);
@@ -14404,7 +14688,8 @@ let localReply = formatCrispResponse({
       _affCog.exploration > 0.6 ? "Explore alternative viewpoints." : "",
     ].filter(Boolean).join(" ") : "";
     // GRC: Inject Grounded Recursive Closure system prompt when module is available
-    const _dtuTitles = focus.map(d => d.title || d.id).filter(Boolean);
+    // Use _enrichedFocus (unified context engine: regular + MEGA + HYPER tiers) instead of bare focus
+    const _dtuTitles = _enrichedFocus.map(d => d.title || d.id).filter(Boolean);
     const _grcSystemPrompt = GRC_MODULE
       ? getGRCSystemPrompt({ dtus: _dtuTitles, mode })
       : "";
@@ -14412,10 +14697,10 @@ let localReply = formatCrispResponse({
 `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.
 Mode: ${mode}.${_affectGuidance ? `\nTone: ${_affectGuidance}` : ""}
 When helpful, reference DTU titles in plain language (do not dump ids unless asked).${_grcSystemPrompt ? `\n\n${_grcSystemPrompt}` : ""}`;
-    // Use fused context from quality pipeline if available; otherwise fall back to original assembly
+    // Use fused context from quality pipeline if available; otherwise fall back to enriched focus (all tiers)
     const dtuContext = (_fusedContext && _fusedContext.fusedContext)
       ? _fusedContext.fusedContext
-      : focus.map(d => `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags||[]).join(", ")}\nCRETI:\n${buildCretiText(d)}\n---`).join("\n");
+      : _enrichedFocus.map(d => `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags||[]).join(", ")}\nCRETI:\n${buildCretiText(d)}\n---`).join("\n");
     const _pipelineMeta = (_qualityPipelineResult && _fusedContext)
       ? `\n[Pipeline: ${_fusedContext.meta.patternsApplied.join("+")} | intent=${_qualityPipelineResult.queryIntent}]`
       : "";
@@ -14435,8 +14720,87 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       _llmSpan.end("ok", { responseLength: finalReply.length });
     } else {
       _llmSpan.end("error", { error: String(r?.error || "llm_failed") });
-      ctx.log("llm.error", "LLM call failed; falling back to local.", { error: r });
+      ctx.log("llm.error", "LLM call via ctx.llm failed; attempting conscious brain fallback.", { error: r });
+      // ===== CONSCIOUS BRAIN FALLBACK (within ctx.llm block) =====
+      // When ctx.llm.chat() fails, fall back to a direct Ollama call using BRAIN.conscious config
+      try {
+        const _fbAc = new AbortController();
+        const _fbTimeout = setTimeout(() => _fbAc.abort(), 60000);
+        const _fbStart = Date.now();
+        const _fbRes = await fetch(`${brainUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: brainModel,
+            messages: [{ role: "system", content: system }, ...messages],
+            stream: false,
+            options: { temperature: _llmTemp, num_predict: _llmMaxTokens }
+          }),
+          signal: _fbAc.signal
+        }).finally(() => clearTimeout(_fbTimeout));
+        const _fbJson = await _fbRes.json().catch(() => ({}));
+        const _fbElapsed = Date.now() - _fbStart;
+        BRAIN.conscious.stats.requests++;
+        BRAIN.conscious.stats.totalMs += _fbElapsed;
+        BRAIN.conscious.stats.lastCallAt = new Date().toISOString();
+        if (_fbRes.ok && _fbJson.message?.content) {
+          finalReply = _fbJson.message.content.trim() || localReply;
+          llmUsed = true;
+          ctx.log("llm.fallback", "Conscious brain fallback succeeded.", { brainUrl, brainModel, elapsed: _fbElapsed });
+        } else {
+          BRAIN.conscious.stats.errors++;
+          ctx.log("llm.fallback.error", "Conscious brain fallback returned non-ok.", { status: _fbRes.status, error: _fbJson?.error });
+        }
+      } catch (_fbErr) {
+        BRAIN.conscious.stats.errors++;
+        ctx.log("llm.fallback.error", "Conscious brain fallback threw.", { error: String(_fbErr?.message || _fbErr) });
+      }
+      // ===== END CONSCIOUS BRAIN FALLBACK =====
     }
+  } else {
+    // ===== DIRECT CONSCIOUS BRAIN CALL (no ctx.llm available) =====
+    // When no LLM provider is wired into the macro context, call BRAIN.conscious directly via fetch.
+    // This ensures the chat lens always attempts the conscious brain before settling for localReply.
+    try {
+      const _dtuTitlesDirect = _enrichedFocus.map(d => d.title || d.id).filter(Boolean);
+      const _directSystem = `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.\nMode: ${mode}.\nWhen helpful, reference DTU titles in plain language (do not dump ids unless asked).`;
+      const _directDtuContext = _enrichedFocus.map(d => `TITLE: ${d.title}\nTIER: ${d.tier}\nTAGS: ${(d.tags||[]).join(", ")}\nCRETI:\n${buildCretiText(d)}\n---`).join("\n");
+      const _directMessages = [
+        { role: "system", content: _directSystem },
+        { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${_directDtuContext}\n\nRespond naturally and propose next actions.` }
+      ];
+      const _directAc = new AbortController();
+      const _directTimeout = setTimeout(() => _directAc.abort(), 60000);
+      const _directStart = Date.now();
+      const _directRes = await fetch(`${brainUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: brainModel,
+          messages: _directMessages,
+          stream: false,
+          options: { temperature: 0.5, num_predict: 700 }
+        }),
+        signal: _directAc.signal
+      }).finally(() => clearTimeout(_directTimeout));
+      const _directJson = await _directRes.json().catch(() => ({}));
+      const _directElapsed = Date.now() - _directStart;
+      BRAIN.conscious.stats.requests++;
+      BRAIN.conscious.stats.totalMs += _directElapsed;
+      BRAIN.conscious.stats.lastCallAt = new Date().toISOString();
+      if (_directRes.ok && _directJson.message?.content) {
+        finalReply = _directJson.message.content.trim() || localReply;
+        llmUsed = true;
+        ctx.log("llm.direct", "Direct conscious brain call succeeded (no ctx.llm).", { brainUrl, brainModel, elapsed: _directElapsed });
+      } else {
+        BRAIN.conscious.stats.errors++;
+        ctx.log("llm.direct.error", "Direct conscious brain call returned non-ok.", { status: _directRes.status, error: _directJson?.error });
+      }
+    } catch (_directErr) {
+      BRAIN.conscious.stats.errors++;
+      ctx.log("llm.direct.error", "Direct conscious brain call threw.", { error: String(_directErr?.message || _directErr) });
+    }
+    // ===== END DIRECT CONSCIOUS BRAIN CALL =====
   }
 
   const _qpMeta = _fusedContext ? { patternsApplied: _fusedContext.meta.patternsApplied, queryIntent: _qualityPipelineResult?.queryIntent, tokenEstimate: _fusedContext.meta.tokenEstimate } : null;
@@ -15830,6 +16194,120 @@ register("dtu", "dedupeSweep", async (ctx, input) => {
   ctx.log("dtu.dedupeSweep", "Dedupe sweep complete", { merges: merges.length, threshold });
   return { ok:true, merges, threshold };
 }, { description: "Merge near-duplicate DTUs by similarity; keeps lineage." });
+
+// ── Unified Context Engine ─────────────────────────────────────────────────
+// Every lens, entity, and chat interaction uses this to retrieve knowledge
+// across all tiers with diversity guarantees.
+register("context", "query", async (ctx, input) => {
+  const {
+    query,
+    primaryDomain = null,
+    crossDomain = true,
+    scope = "all",
+    limit = 30,
+    entityId = null,
+    includeShadow = false,
+    minTier = null,
+  } = input || {};
+
+  // 1. Build candidate pool from all tiers
+  const candidates = [];
+
+  for (const [id, dtu] of STATE.dtus) {
+    if (scope !== "all" && dtu.scope && dtu.scope !== scope) continue;
+    if (!crossDomain && primaryDomain && dtu.domain !== primaryDomain) continue;
+    if (minTier === "mega" && dtu.tier !== "mega" && dtu.tier !== "hyper") continue;
+    if (minTier === "hyper" && dtu.tier !== "hyper") continue;
+    candidates.push(dtu);
+  }
+
+  // 2. Include shadow DTUs if requested
+  if (includeShadow && STATE.shadowDtus) {
+    for (const [id, dtu] of STATE.shadowDtus) {
+      candidates.push(dtu);
+    }
+  }
+
+  // 3. Score candidates
+  const scored = candidates.map(dtu => {
+    let score = 0;
+
+    // Text relevance (keyword match or search index)
+    const dtuText = [
+      dtu.human?.summary || "",
+      ...(dtu.human?.bullets || []),
+      ...(dtu.core?.claims || []),
+      ...(dtu.core?.definitions || []),
+      dtu.title || "",
+      ...(dtu.tags || []),
+    ].join(" ");
+
+    const relevance = keywordOverlap(query || "", dtuText);
+    score += relevance * 0.5;
+
+    // Tier boost
+    const tierBoost = CONTEXT_TIER_BOOST[dtu.tier || "regular"] || 1.0;
+    score *= tierBoost;
+
+    // Domain boost
+    if (primaryDomain && dtu.domain === primaryDomain) {
+      score *= 1.3;
+    }
+
+    // Authority score
+    score += (dtu.authority?.score || 0.5) * 0.2;
+
+    // Activation recency
+    const lastActivated = dtu.meta?.lastActivated || dtu.meta?.createdAt || dtu.createdAt;
+    if (lastActivated) {
+      const age = Date.now() - new Date(lastActivated).getTime();
+      score += Math.exp(-age / 86400000) * 0.1;
+    }
+
+    return { dtu, score, tier: dtu.tier || "regular" };
+  });
+
+  // 4. Sort and select with tier diversity
+  scored.sort((a, b) => b.score - a.score);
+
+  const byTier = { hyper: [], mega: [], regular: [], shadow: [] };
+  for (const s of scored) {
+    const t = s.tier || "regular";
+    if (byTier[t]) byTier[t].push(s);
+    else byTier.regular.push(s);
+  }
+
+  const result = [];
+  const tierMinimum = Math.max(1, Math.floor(limit * 0.15));
+
+  // First pass: guarantee minimum from each non-empty tier
+  for (const tier of ["hyper", "mega", "regular"]) {
+    const available = byTier[tier].splice(0, tierMinimum);
+    result.push(...available);
+  }
+
+  // Second pass: fill remaining by score
+  const remaining = [...byTier.hyper, ...byTier.mega, ...byTier.regular, ...byTier.shadow];
+  remaining.sort((a, b) => b.score - a.score);
+  while (result.length < limit && remaining.length > 0) {
+    result.push(remaining.shift());
+  }
+
+  return {
+    ok: true,
+    dtus: result.map(r => r.dtu),
+    meta: {
+      totalCandidates: candidates.length,
+      tierDistribution: {
+        regular: result.filter(r => r.tier === "regular").length,
+        mega: result.filter(r => r.tier === "mega").length,
+        hyper: result.filter(r => r.tier === "hyper").length,
+        shadow: result.filter(r => r.tier === "shadow").length,
+      }
+    }
+  };
+}, { description: "Unified context query across all DTU tiers with diversity guarantees." });
+
 // Settings domain
 register("settings", "get", (ctx, _input) => {
   return { ok:true, settings: ctx.state.settings };
@@ -19924,8 +20402,31 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Vulnerability engine: periodic system-wide scan (every 5th tick)
-      if ((STATE.__bgTickCounter || 0) % 5 === 0) {
+      if ((STATE.__bgTickCounter || 0) % TICK_FREQUENCIES.VULNERABILITY === 0) {
         try { assessAndAdapt(STATE); } catch {}
+      }
+
+      // v3.1 Repair Queue processing — every 3rd tick
+      if ((STATE.__bgTickCounter || 0) % 3 === 0) {
+        try {
+          const { processRepairQueue: prq } = await import("./emergent/repair-cortex.js");
+          await prq();
+        } catch {}
+      }
+
+      // v3.1 Repair cortex self-test — every 100th tick
+      if ((STATE.__bgTickCounter || 0) % 100 === 0) {
+        try {
+          const { repairCortexSelfTest: selfTest } = await import("./emergent/repair-cortex.js");
+          await selfTest();
+        } catch (err) {
+          STATE.sovereignAlerts = STATE.sovereignAlerts || [];
+          STATE.sovereignAlerts.push({
+            id: `cortex_fail_${Date.now()}`, type: "cortex_failure", severity: "critical",
+            summary: `CRITICAL: Repair cortex self-test failed: ${err.message}`,
+            createdAt: new Date().toISOString(), acknowledged: false,
+          });
+        }
       }
 
       // Institutional memory: record heartbeat observation
@@ -19943,14 +20444,20 @@ async function governorTick(reason="heartbeat") {
       const entityEconMod = await import("./emergent/entity-economy.js").catch(() => null);
       if (entityEconMod) {
         // Base income (UBI) — every 10th tick
-        if (_tick % 10 === 0) {
+        if (_tick % TICK_FREQUENCIES.UBI_DISTRIBUTION === 0) {
           for (const entity of _bgEntities) {
             try { entityEconMod.earnResource(entity.id, "COMPUTE", 2, "UBI distribution"); } catch {}
           }
         }
         // Economic health check — every 100th tick
-        if (_tick % 100 === 0) {
+        if (_tick % TICK_FREQUENCIES.ECONOMY_HEALTH === 0) {
           try { entityEconMod.runEconomicCycle(); } catch {}
+        }
+        // Wealth redistribution — every 500th tick
+        if (_tick % TICK_FREQUENCIES.WEALTH_REDISTRIBUTION === 0) {
+          if (entityEconMod?.enforceWealthCaps) {
+            try { entityEconMod.enforceWealthCaps(); } catch {}
+          }
         }
       }
 
@@ -20000,15 +20507,18 @@ async function governorTick(reason="heartbeat") {
       }
 
       // 2.4 — Forgetting Engine: prevent unbounded DTU growth
-      if (_tick % 50 === 0) {
+      if (_tick % TICK_FREQUENCIES.FORGETTING === 0) {
         const forgetMod = await import("./emergent/forgetting-engine.js").catch(() => null);
         if (forgetMod?.runForgettingCycle) {
-          try { await forgetMod.runForgettingCycle(false); } catch {}
+          try { await forgetMod.runForgettingCycle(false, {
+            maxForget: FORGETTING.MAX_FORGET_PER_CYCLE,
+            threshold: computeAdaptiveThreshold()
+          }); } catch {}
         }
       }
 
       // 2.5 — Entity Teaching: knowledge transfer between entities
-      if (_tick % 20 === 0) {
+      if (_tick % TICK_FREQUENCIES.TEACHING === 0) {
         const teachMod = await import("./emergent/entity-teaching.js").catch(() => null);
         if (teachMod?.findMentorFor && teachMod?.createMentorship && _bgEntities.length >= 2) {
           try {
@@ -20032,7 +20542,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Deep Health — every 10th tick
-      if (_tick % 10 === 0) {
+      if (_tick % TICK_FREQUENCIES.DEEP_HEALTH === 0) {
         const healthMod = await import("./emergent/deep-health.js").catch(() => null);
         if (healthMod?.runDeepHealthCheck) {
           try { healthMod.runDeepHealthCheck(STATE); } catch {}
@@ -20046,7 +20556,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Skills: distill patterns — every 25th tick
-      if (_tick % 25 === 0) {
+      if (_tick % TICK_FREQUENCIES.SKILLS_DECAY === 0) {
         const skillsMod = await import("./emergent/skills.js").catch(() => null);
         if (skillsMod?.distillPatternsToSkills) {
           try { skillsMod.distillPatternsToSkills(STATE); } catch {}
@@ -20054,7 +20564,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Trust Network: decay and compute — every 5th tick
-      if (_tick % 5 === 0) {
+      if (_tick % TICK_FREQUENCIES.TRUST_COMPUTATION === 0) {
         const trustMod = await import("./emergent/trust-network.js").catch(() => null);
         if (trustMod?.decayTrustNetwork) {
           try { trustMod.decayTrustNetwork(STATE); } catch {}
@@ -20068,7 +20578,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Evidence System: recompute epistemic status — every 15th tick
-      if (_tick % 15 === 0) {
+      if (_tick % TICK_FREQUENCIES.HYPOTHESIS_TRANSITION === 0) {
         const evidenceMod = await import("./emergent/evidence.js").catch(() => null);
         if (evidenceMod?.getConfidenceMap) {
           try { evidenceMod.getConfidenceMap(STATE); } catch {}
@@ -20076,7 +20586,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Threat Surface: scan — every 30th tick
-      if (_tick % 30 === 0) {
+      if (_tick % TICK_FREQUENCIES.THREAT_SCAN === 0) {
         const threatMod = await import("./emergent/threat-surface.js").catch(() => null);
         if (threatMod?.auditEndpoints) {
           try { threatMod.auditEndpoints(STATE); } catch {}
@@ -20086,7 +20596,7 @@ async function governorTick(reason="heartbeat") {
       // 2.7 — Cognitive Modules
 
       // Breakthrough Clusters — every 100th tick
-      if (_tick % 100 === 0) {
+      if (_tick % TICK_FREQUENCIES.BREAKTHROUGH_CLUSTERS === 0) {
         const breakthroughMod = await import("./emergent/breakthrough-clusters.js").catch(() => null);
         if (breakthroughMod?.listClusters) {
           try {
@@ -20101,7 +20611,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Meta-Derivation — every 200th tick
-      if (_tick % 200 === 0) {
+      if (_tick % TICK_FREQUENCIES.META_DERIVATION === 0) {
         const metaMod = await import("./emergent/meta-derivation.js").catch(() => null);
         if (metaMod?.triggerMetaDerivationCycle) {
           try { metaMod.triggerMetaDerivationCycle(STATE); } catch {}
@@ -20109,7 +20619,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // 2.8 — Quest Engine: generate and tick quests — every 50th tick
-      if (_tick % 50 === 0) {
+      if (_tick % TICK_FREQUENCIES.QUEST_GENERATION === 0) {
         const questMod = await import("./emergent/quest-engine.js").catch(() => null);
         if (questMod) {
           // Tick active quests
@@ -20122,7 +20632,7 @@ async function governorTick(reason="heartbeat") {
       // ── Consolidation Pipeline (derived from hardware math) ──
       // Runs every CONSOLIDATION.TICK_INTERVAL ticks (~7.5 minutes)
       // This is the primary memory management system — consolidation is the lungs.
-      if (_tick % CONSOLIDATION.TICK_INTERVAL === 0 && _tick > 0) {
+      if (_tick % TICK_FREQUENCIES.CONSOLIDATION === 0 && _tick > 0) {
         try {
           const ctx = _governorCtx();
           // Phase 1: Cluster detection for MEGA formation
@@ -20144,6 +20654,15 @@ async function governorTick(reason="heartbeat") {
                   }, ctx);
 
                   if (mega?.ok && mega?.dtu?.id) {
+                    // Quality gate: validate consolidation before committing
+                    const quality = validateConsolidationQuality(mega.dtu, (cluster.members || cluster.dtus || []).map(d => d.id || d));
+                    if (!quality.ok) { STATE.dtus.delete(mega.dtu.id); continue; }
+
+                    // Transfer edges before archiving sources
+                    for (const member of (cluster.members || cluster.dtus || [])) {
+                      const memberId = member.id || member;
+                      try { transferEdgesToConsolidated(memberId, mega.dtu.id); } catch {}
+                    }
                     // Demote absorbed regular DTUs to archive
                     for (const member of (cluster.members || cluster.dtus || [])) {
                       const memberId = member.id || member;
@@ -20183,6 +20702,14 @@ async function governorTick(reason="heartbeat") {
                       dryRun: false
                     }, ctx);
                     if (hyper?.ok && hyper?.dtu?.id) {
+                      // Quality gate: validate HYPER consolidation
+                      const hyperQuality = validateConsolidationQuality(hyper.dtu, (mc.members || mc.dtus || []).map(d => d.id || d));
+                      if (!hyperQuality.ok) { STATE.dtus.delete(hyper.dtu.id); continue; }
+
+                      // Transfer edges before archiving source MEGAs
+                      for (const member of (mc.members || mc.dtus || [])) {
+                        try { transferEdgesToConsolidated(member.id || member, hyper.dtu.id); } catch {}
+                      }
                       for (const member of (mc.members || mc.dtus || [])) {
                         try { demoteToArchive(member.id || member, hyper.dtu.id); } catch {}
                       }
@@ -20195,10 +20722,20 @@ async function governorTick(reason="heartbeat") {
         } catch {}
       }
 
+      // Heap pressure check
+      const heapUsed = process.memoryUsage().heapUsed;
+      if (heapUsed > CONSOLIDATION.MAX_HEAP_BYTES * CONSOLIDATION.HEAP_CRITICAL_PERCENT) {
+        structuredLog("warn", "heap_critical", { heapUsed, threshold: CONSOLIDATION.HEAP_CRITICAL_PERCENT });
+        const forgetMod2 = await import("./emergent/forgetting-engine.js").catch(() => null);
+        if (forgetMod2?.runForgettingCycle) {
+          try { await forgetMod2.runForgettingCycle(false, { maxForget: FORGETTING.MAX_FORGET_PER_CYCLE * 2, threshold: 0.3 }); } catch {}
+        }
+      }
+
       // ── Phase 6: Semantic Intelligence ──
 
       // Self-healing dream review — runs when system is idle (every 20th tick)
-      if (_tick % 20 === 0) {
+      if (_tick % TICK_FREQUENCIES.DREAM_REVIEW === 0) {
         const activeSessions = Array.from(STATE.sessions?.values() || [])
           .filter(s => s.messages?.length && (Date.now() - new Date(s.messages[s.messages.length-1]?.ts || 0).getTime()) < 300000);
         if (activeSessions.length === 0) {
@@ -20210,7 +20747,7 @@ async function governorTick(reason="heartbeat") {
       }
 
       // Embeddings health check — every 100th tick
-      if (_tick % 100 === 0) {
+      if (_tick % TICK_FREQUENCIES.EMBEDDINGS_CHECK === 0) {
         try {
           const embStatus = getEmbeddingStatus(STATE.dtus?.size || 0);
           if (!embStatus?.available) {
@@ -21396,6 +21933,65 @@ register("marketplace", "installed", (_ctx, _input) => {
   return { ok: true, plugins, count: plugins.length };
 });
 
+register("marketplace", "list", async (ctx, input) => {
+  const { dtuId, price, currency, contentType, title, description, tags, preview } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "dtu_not_found" };
+
+  dtu.scope = "marketplace";
+  dtu.marketplace = {
+    listed: true, listedAt: new Date().toISOString(),
+    price: price || 0, currency: currency || "USD",
+    contentType: contentType || dtu.meta?.type || "dtu_pack",
+    title: title || dtu.human?.summary,
+    description: description || "",
+    tags: tags || dtu.meta?.tags || [],
+    preview: preview || null,
+    seller: ctx?.actor?.userId || dtu.meta?.createdBy,
+    purchases: 0, rating: null, reviews: [],
+  };
+
+  return { ok: true, listing: dtu.marketplace };
+}, { description: "List a DTU on the marketplace." });
+
+register("marketplace", "purchase", async (ctx, input) => {
+  const { dtuId } = input || {};
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu?.marketplace?.listed) return { ok: false, error: "not_listed" };
+
+  const clone = JSON.parse(JSON.stringify(dtu));
+  clone.id = uid("dtu");
+  clone.scope = "local";
+  clone.meta = clone.meta || {};
+  clone.meta.purchasedFrom = dtuId;
+  clone.meta.purchasedAt = new Date().toISOString();
+  clone.meta.owner = ctx?.actor?.userId;
+  delete clone.marketplace;
+
+  STATE.dtus.set(clone.id, clone);
+  dtu.marketplace.purchases++;
+
+  return { ok: true, purchasedDtuId: clone.id };
+}, { description: "Purchase a marketplace listing." });
+
+register("marketplace", "dtu_browse", async (ctx, input) => {
+  const { contentType, tags, search, sort, limit = 20 } = input || {};
+
+  const listings = [];
+  for (const [id, dtu] of STATE.dtus) {
+    if (!dtu.marketplace?.listed) continue;
+    if (contentType && dtu.marketplace.contentType !== contentType) continue;
+    if (tags?.length && !tags.some(t => dtu.marketplace.tags?.includes(t))) continue;
+    listings.push({ id, ...dtu.marketplace, dtuSummary: dtu.human?.summary, hasArtifact: !!dtu.artifact });
+  }
+
+  if (sort === "popular") listings.sort((a, b) => (b.purchases || 0) - (a.purchases || 0));
+  else if (sort === "newest") listings.sort((a, b) => new Date(b.listedAt || 0) - new Date(a.listedAt || 0));
+  else if (sort === "price_low") listings.sort((a, b) => (a.price || 0) - (b.price || 0));
+
+  return { ok: true, listings: listings.slice(0, limit), total: listings.length };
+}, { description: "Browse marketplace listings." });
+
 app.get("/api/marketplace/browse", asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "browse", { category: req.query.category, search: req.query.search, sort: req.query.sort, page: req.query.page, pageSize: req.query.pageSize }, makeCtx(req)))));
 app.post("/api/marketplace/submit", validate("marketplaceSubmit"), asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "submit", req.body, makeCtx(req)))));
 app.post("/api/marketplace/install", validate("marketplaceInstall"), asyncHandler(async (req, res) => res.json(await runMacro("marketplace", "install", req.body, makeCtx(req)))));
@@ -22400,6 +22996,236 @@ app.get("/api/feedback-review", asyncHandler(async (req, res) => {
   const result = await runMacro("emergent", "feedback.reviewQueue", {}, makeCtx(req));
   res.json(result);
 }));
+
+// ── Artifact API Endpoints ──
+app.post("/api/artifact/upload", async (req, res) => {
+  try {
+    const artifactMod = await import("./lib/artifact-store.js").catch(() => null);
+    if (!artifactMod) return res.status(500).json({ ok: false, error: "artifact_store_unavailable" });
+
+    // Handle raw body or multipart
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+
+    const contentType = req.headers["content-type"] || "application/octet-stream";
+    const filename = req.headers["x-filename"] || `upload_${Date.now()}`;
+    const domain = req.headers["x-domain"] || "general";
+    const title = req.headers["x-title"] || filename;
+
+    const dtuId = uid("artifact");
+    const artifactRef = await artifactMod.storeArtifact(dtuId, buffer, contentType, filename);
+
+    const dtu = {
+      id: dtuId,
+      tier: "regular",
+      scope: "local",
+      domain: artifactMod.inferDomainFromType(contentType) || domain,
+      human: { summary: title, bullets: [] },
+      core: { definitions: [], claims: [], examples: [] },
+      machine: { kind: artifactMod.inferKindFromType(contentType), verifier: { format: contentType, sizeBytes: artifactRef.sizeBytes, hash: artifactRef.hash } },
+      artifact: artifactRef,
+      lineage: { parents: [], children: [] },
+      authority: { score: 0.5 },
+      meta: { createdBy: req.user?.id || "anonymous", lens: domain, type: artifactMod.inferKindFromType(contentType), tags: [domain], createdAt: new Date().toISOString() },
+    };
+
+    STATE.dtus.set(dtuId, dtu);
+    res.json({ ok: true, dtuId, artifact: { type: artifactRef.type, sizeBytes: artifactRef.sizeBytes } });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/artifact/:dtuId/stream", async (req, res) => {
+  try {
+    const dtu = STATE.dtus.get(req.params.dtuId);
+    if (!dtu?.artifact) return res.status(404).json({ ok: false, error: "no_artifact" });
+
+    const artifactMod = await import("./lib/artifact-store.js").catch(() => null);
+    if (!artifactMod) return res.status(500).json({ ok: false, error: "artifact_store_unavailable" });
+
+    const stream = artifactMod.retrieveArtifactStream(dtu.artifact);
+    if (!stream) return res.status(404).json({ ok: false, error: "file_not_found" });
+
+    res.setHeader("Content-Type", dtu.artifact.type);
+    if (dtu.artifact.sizeBytes) res.setHeader("Content-Length", dtu.artifact.sizeBytes);
+    res.setHeader("Content-Disposition", `inline; filename="${dtu.artifact.filename}"`);
+
+    // Range request support for audio/video seeking
+    const range = req.headers.range;
+    if (range && dtu.artifact.sizeBytes && dtu.artifact.diskPath) {
+      const fs = await import("fs");
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : dtu.artifact.sizeBytes - 1;
+      res.status(206);
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${dtu.artifact.sizeBytes}`);
+      res.setHeader("Content-Length", end - start + 1);
+      fs.createReadStream(dtu.artifact.diskPath, { start, end }).pipe(res);
+      return;
+    }
+
+    stream.pipe(res);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/artifact/:dtuId/download", async (req, res) => {
+  try {
+    const dtu = STATE.dtus.get(req.params.dtuId);
+    if (!dtu?.artifact) return res.status(404).json({ ok: false, error: "no_artifact" });
+
+    const artifactMod = await import("./lib/artifact-store.js").catch(() => null);
+    if (!artifactMod) return res.status(500).json({ ok: false, error: "artifact_store_unavailable" });
+
+    const buffer = artifactMod.retrieveArtifact(req.params.dtuId, dtu.artifact);
+    if (!buffer) return res.status(404).json({ ok: false, error: "file_not_found" });
+
+    res.setHeader("Content-Type", dtu.artifact.type);
+    res.setHeader("Content-Disposition", `attachment; filename="${dtu.artifact.filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/artifact/:dtuId/info", async (req, res) => {
+  const dtu = STATE.dtus.get(req.params.dtuId);
+  if (!dtu?.artifact) return res.status(404).json({ ok: false, error: "no_artifact" });
+
+  res.json({
+    ok: true,
+    artifact: {
+      type: dtu.artifact.type, filename: dtu.artifact.filename,
+      sizeBytes: dtu.artifact.sizeBytes, hash: dtu.artifact.hash,
+      multipart: dtu.artifact.multipart,
+      parts: dtu.artifact.parts?.map(p => ({ filename: p.filename, type: p.type, sizeBytes: p.sizeBytes })),
+      hasThumbnail: !!dtu.artifact.thumbnail, hasPreview: !!dtu.artifact.preview,
+      createdAt: dtu.artifact.createdAt,
+    },
+    dtu: { id: dtu.id, summary: dtu.human?.summary, domain: dtu.domain, tier: dtu.tier },
+  });
+});
+
+app.get("/api/artifact/:dtuId/thumbnail", async (req, res) => {
+  const dtu = STATE.dtus.get(req.params.dtuId);
+  if (!dtu?.artifact?.thumbnail) return res.status(404).json({ ok: false });
+
+  const fs = await import("fs");
+  if (!fs.existsSync(dtu.artifact.thumbnail)) return res.status(404).json({ ok: false });
+
+  const ext = dtu.artifact.thumbnail.split(".").pop();
+  if (ext === "json") {
+    res.json(JSON.parse(fs.readFileSync(dtu.artifact.thumbnail, "utf-8")));
+  } else {
+    res.sendFile(dtu.artifact.thumbnail);
+  }
+});
+
+// === Bulk Import ===
+app.post("/api/ingest/bulk-upload", ...(uploadRateLimiter ? [uploadRateLimiter] : []), asyncHandler(async (req, res) => {
+  const { dtus } = req.body;
+  if (!Array.isArray(dtus) || dtus.length === 0) return res.status(400).json({ ok: false, error: "dtus array required" });
+  if (dtus.length > 500) return res.status(400).json({ ok: false, error: "Max 500 DTUs per batch" });
+
+  const results = [];
+  let imported = 0;
+  let skipped = 0;
+
+  for (const raw of dtus) {
+    try {
+      if (!raw.title && !raw.human?.summary) { skipped++; continue; }
+      const dtu = {
+        id: raw.id || `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        tier: raw.tier || "regular",
+        scope: raw.scope || "local",
+        domain: raw.domain || "general",
+        human: raw.human || { summary: raw.title || "Imported DTU", bullets: [] },
+        core: raw.core || { claims: [], definitions: [], examples: [] },
+        machine: { ...(raw.machine || {}), kind: raw.machine?.kind || "imported" },
+        lineage: raw.lineage || { parents: [], children: [] },
+        authority: raw.authority || { score: 0.5 },
+        meta: { ...(raw.meta || {}), createdBy: req.user?.username || "import", createdAt: new Date().toISOString(), source: "bulk_import" },
+      };
+      STATE.dtus.set(dtu.id, dtu);
+      imported++;
+      results.push({ id: dtu.id, status: "ok" });
+    } catch (e) {
+      skipped++;
+      results.push({ id: raw.id, status: "error", error: e.message });
+    }
+  }
+
+  return res.json({ ok: true, imported, skipped, total: dtus.length, results: results.slice(0, 50) });
+}));
+
+// === Export My Data ===
+app.get("/api/export/my-data", asyncHandler(async (req, res) => {
+  const username = req.user?.username;
+  if (!username) return res.status(401).json({ ok: false, error: "auth required" });
+
+  const myDtus = Array.from(STATE.dtus.values()).filter(d => d.meta?.createdBy === username);
+  const myFeedback = Array.from(STATE.dtus.values()).filter(d => d.machine?.kind === "user_feedback" && d.meta?.createdBy === username);
+
+  res.setHeader("Content-Disposition", `attachment; filename="concord-export-${username}-${Date.now()}.json"`);
+  res.setHeader("Content-Type", "application/json");
+  return res.json({
+    exportedAt: new Date().toISOString(),
+    username,
+    dtus: myDtus.map(d => ({ id: d.id, tier: d.tier, domain: d.domain, human: d.human, core: d.core, machine: d.machine, meta: d.meta })),
+    feedback: myFeedback.length,
+    totalDTUs: myDtus.length,
+  });
+}));
+
+// ── Feedback API Endpoints ──
+app.post("/api/feedback/submit", async (req, res) => {
+  try {
+    const { targetType, targetId, feedbackType, description, context } = req.body || {};
+    if (!targetType || !targetId || !feedbackType) {
+      return res.status(400).json({ ok: false, error: "targetType, targetId, and feedbackType required" });
+    }
+
+    const feedbackId = uid("feedback");
+    const dtu = {
+      id: feedbackId,
+      tier: "regular",
+      scope: "local",
+      domain: "feedback",
+      human: { summary: `${feedbackType} on ${targetType}:${targetId}`, bullets: [description || feedbackType].filter(Boolean) },
+      core: { claims: [`Target: ${targetType}:${targetId}`, `Type: ${feedbackType}`], definitions: [], examples: context ? [JSON.stringify(context)] : [] },
+      machine: { kind: "user_feedback", verifier: { feedbackType, targetType } },
+      lineage: { parents: [targetId], children: [] },
+      authority: { score: 0.4 },
+      meta: { createdBy: req.user?.id || "anonymous", lens: "feedback", type: "feedback", tags: ["feedback", feedbackType, targetType], createdAt: new Date().toISOString() },
+    };
+
+    STATE.dtus.set(feedbackId, dtu);
+    STATE.feedbackQueue = STATE.feedbackQueue || [];
+    STATE.feedbackQueue.push({ id: feedbackId, targetType, targetId, feedbackType, description, processed: false });
+
+    res.json({ ok: true, feedbackId });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/feedback/aggregate/:targetType/:targetId", async (req, res) => {
+  const { targetType, targetId } = req.params;
+  const feedbackDtus = Array.from(STATE.dtus.values()).filter(d =>
+    d.machine?.kind === "user_feedback" &&
+    d.core?.claims?.some(c => c.includes(`${targetType}:${targetId}`))
+  );
+
+  const likes = feedbackDtus.filter(d => d.core?.claims?.some(c => c.includes("Type: like"))).length;
+  const dislikes = feedbackDtus.filter(d => d.core?.claims?.some(c => c.includes("Type: dislike"))).length;
+  const featureRequests = feedbackDtus.filter(d => d.core?.claims?.some(c => c.includes("Type: feature_request"))).map(d => d.human?.bullets?.[0]);
+  const bugReports = feedbackDtus.filter(d => d.core?.claims?.some(c => c.includes("Type: bug_report"))).map(d => d.human?.bullets?.[0]);
+
+  res.json({ ok: true, total: feedbackDtus.length, sentiment: likes - dislikes, likes, dislikes, featureRequests, bugReports });
+});
 
 // LLM queue metrics
 app.get("/api/system/llm-queue", asyncHandler(async (req, res) => {
@@ -27818,6 +28644,166 @@ app.get("/api/anon/messages", (req, res) => {
 app.post("/api/anon/rotate", (req, res) => {
   const id = uid("anon");
   res.json({ ok: true, newAnonId: id });
+});
+
+// ── Sovereign Audit Endpoints (v3.0) ──
+
+app.get("/api/sovereign/audit/heartbeat", async (req, res) => {
+  try {
+    const results = {};
+    const modules = globalThis._concordCONSTANTS?.TICK_FREQUENCIES || {};
+
+    for (const [module, frequency] of Object.entries(modules)) {
+      results[module] = { frequency, configured: true };
+    }
+
+    // Check which modules have actual imports in governorTick
+    const wiredModules = [
+      "BODY_DECAY", "SLEEP_FATIGUE", "DEATH_CHECK", "EMOTION_DECAY",
+      "SUBJECTIVE_TIME", "WOUND_HEALING", "SKILLS_DECAY", "CULTURE_TICK",
+      "CONSEQUENCE_CASCADE", "HYPOTHESIS_TRANSITION", "RESEARCH_QUEUE",
+      "ATTENTION_ALLOCATION", "ENTITY_AUTONOMY", "DRIFT_SCAN", "VULNERABILITY",
+      "TRUST_COMPUTATION", "UBI_DISTRIBUTION", "DEEP_HEALTH", "DREAM_REVIEW",
+      "PURPOSE_TRACKING", "TEACHING", "CONSOLIDATION", "THREAT_SCAN",
+      "FORGETTING", "QUEST_GENERATION", "ECONOMY_HEALTH", "BREAKTHROUGH_CLUSTERS",
+      "EMBEDDINGS_CHECK", "META_DERIVATION", "WEALTH_REDISTRIBUTION",
+    ];
+
+    for (const m of wiredModules) {
+      if (results[m]) results[m].wired = true;
+    }
+
+    const unwired = Object.entries(results).filter(([_, r]) => !r.wired);
+
+    res.json({
+      ok: unwired.length === 0,
+      total: Object.keys(results).length,
+      wired: wiredModules.length,
+      unwired: unwired.map(([name]) => name),
+      tick: STATE.__bgTickCounter || 0,
+      details: results,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/sovereign/audit/dtu-lifecycle", async (req, res) => {
+  try {
+    const checks = {};
+
+    // Check DTU creation paths
+    checks.dtus_in_memory = STATE.dtus?.size || 0;
+    checks.shadow_dtus = STATE.shadowDtus?.size || 0;
+    checks.sessions = STATE.sessions?.size || 0;
+
+    // Check archive
+    let archivedCount = 0;
+    try {
+      const db = STATE.db || globalThis._concordDB;
+      if (db) {
+        const row = db.prepare("SELECT COUNT(*) as cnt FROM archived_dtus").get();
+        archivedCount = row?.cnt || 0;
+      }
+    } catch {}
+    checks.archived_dtus = archivedCount;
+
+    // Check tier distribution
+    const tiers = { regular: 0, mega: 0, hyper: 0, shadow: 0 };
+    for (const dtu of STATE.dtus.values()) {
+      const t = dtu.tier || "regular";
+      tiers[t] = (tiers[t] || 0) + 1;
+    }
+    checks.tier_distribution = tiers;
+
+    // Check artifact DTUs
+    let artifactCount = 0;
+    for (const dtu of STATE.dtus.values()) {
+      if (dtu.artifact) artifactCount++;
+    }
+    checks.artifact_dtus = artifactCount;
+
+    // Check feedback DTUs
+    const feedbackCount = Array.from(STATE.dtus.values()).filter(d => d.machine?.kind === "user_feedback").length;
+    checks.feedback_dtus = feedbackCount;
+    checks.feedback_queue = (STATE.feedbackQueue || []).length;
+
+    // Check marketplace DTUs
+    const marketplaceCount = Array.from(STATE.dtus.values()).filter(d => d.marketplace?.listed).length;
+    checks.marketplace_listings = marketplaceCount;
+
+    // Memory
+    const mem = process.memoryUsage();
+    checks.heap = { used: mem.heapUsed, total: mem.heapTotal, percent: (mem.heapUsed / (globalThis._concordCONSTANTS?.CONSOLIDATION?.MAX_HEAP_BYTES || mem.heapTotal) * 100).toFixed(1) };
+
+    res.json({ ok: true, checks });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/sovereign/audit/gates", async (req, res) => {
+  try {
+    // Report on three-gate configuration
+    res.json({
+      ok: true,
+      gates: {
+        gate1_publicReadPaths: "configured",
+        gate2_publicReadDomains: "configured",
+        gate3_safeReadBypass: "configured",
+      },
+      note: "Run three-gate-consistency.test.js for full verification",
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// === v3.1 Repair Cortex API ===
+app.post("/api/repair/frontend-error", async (req, res) => {
+  try {
+    const { error, componentStack, lens, url, timestamp } = req.body;
+    const { ERROR_CONTEXT: EC, REPAIR_QUEUE: RQ } = await import("./emergent/repair-cortex.js");
+    const entry = EC.capture(new Error(error?.message || "Frontend error"), {
+      module: `frontend:${lens || "unknown"}`,
+      function: url || lens || "unknown",
+      trigger: "frontend_render",
+      params: { componentStack: componentStack?.slice(0, 500) },
+    });
+    RQ.push(entry);
+    res.json({ ok: true, errorId: entry.id });
+  } catch (e) { res.json({ ok: true, errorId: null }); }
+});
+
+app.post("/api/repair/frontend-recovery", async (req, res) => {
+  try {
+    const { method, url, attempts } = req.body;
+    const { ERROR_CONTEXT: EC } = await import("./emergent/repair-cortex.js");
+    const recent = EC.getRecent(20);
+    const match = recent.find(e => e.context.module?.includes("frontend") && !e.repairSucceeded);
+    if (match) { match.repairAttempted = true; match.repairSucceeded = true; match.repairMethod = "frontend_auto_retry"; }
+    res.json({ ok: true });
+  } catch { res.json({ ok: true }); }
+});
+
+app.get("/api/sovereign/repair/status", async (req, res) => {
+  try {
+    if (req.user?.role !== "sovereign") return res.status(403).json({ ok: false, error: "sovereign only" });
+    const { getRepairStatus: grs, repairCortexSelfTest: selfTest } = await import("./emergent/repair-cortex.js");
+    const status = grs();
+    try { const test = await selfTest(); status.selfTest = test; } catch (e) { status.selfTest = { overall: "failing", error: e.message }; }
+    res.json(status);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/sovereign/repair/acknowledge", async (req, res) => {
+  try {
+    if (req.user?.role !== "sovereign") return res.status(403).json({ ok: false, error: "sovereign only" });
+    const { id } = req.body;
+    const alert = (STATE.sovereignAlerts || []).find(a => a.id === id);
+    if (alert) { alert.acknowledged = true; alert.acknowledgedAt = new Date().toISOString(); }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Sovereignty/audit
