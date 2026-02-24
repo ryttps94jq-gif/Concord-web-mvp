@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Concord Lens",
+  "version": "0.1.0",
+  "description": "Structural truth overlay for any website",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://localhost:5050/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "css": ["styles/overlay.css"],
+    "run_at": "document_idle"
+  }],
+  "action": { "default_popup": "popup.html" }
+}

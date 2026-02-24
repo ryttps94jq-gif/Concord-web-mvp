@@ -1619,6 +1619,69 @@ export const apiHelpers = {
     /** Get detected knowledge gaps */
     gaps: () => api.get('/api/skill/gaps'),
   },
+
+  // ── New Cognitive Systems ────────────────────────────────────────
+
+  /** Selective Forgetting Engine */
+  forgetting: {
+    status: () => api.get('/api/admin/forgetting/status'),
+    candidates: () => api.get('/api/admin/forgetting/candidates'),
+    run: () => api.post('/api/admin/forgetting/run', {}),
+    protect: (dtuId: string) => api.post('/api/admin/forgetting/protect', { dtuId }),
+    unprotect: (dtuId: string) => api.post('/api/admin/forgetting/unprotect', { dtuId }),
+    history: (n = 20) => api.get(`/api/admin/forgetting/history?limit=${n}`),
+  },
+
+  /** Civilization Attention Allocator */
+  attentionAlloc: {
+    status: () => api.get('/api/admin/attention/status'),
+    focus: (domain: string, weight: number, minutes?: number) =>
+      api.post('/api/admin/attention/focus', { domain, weight, minutes }),
+    unfocus: () => api.post('/api/admin/attention/unfocus', {}),
+    history: () => api.get('/api/admin/attention/history'),
+  },
+
+  /** Dream Capture Pipeline */
+  dream: {
+    capture: (text: string, tags?: string[], title?: string) =>
+      api.post('/api/dream/capture', { text, tags, title }),
+    history: (limit = 50) => api.get(`/api/dream/history?limit=${limit}`),
+    convergences: () => api.get('/api/dream/convergences'),
+  },
+
+  /** App Maker */
+  apps: {
+    list: () => api.get('/api/apps'),
+    get: (id: string) => api.get(`/api/apps/${id}`),
+    create: (spec: Record<string, unknown>) => api.post('/api/apps', spec),
+    validate: (id: string) => api.post(`/api/apps/${id}/validate`, {}),
+    promote: (id: string) => api.post(`/api/apps/${id}/promote`, {}),
+  },
+
+  /** Reality Explorer */
+  explore: {
+    run: (domain: string, constraints: Record<string, unknown>) =>
+      api.post('/api/explore', { domain, constraints }),
+    history: () => api.get('/api/explore/history'),
+  },
+
+  /** Repair (extended) */
+  repairExtended: {
+    fullStatus: () => api.get('/api/admin/repair/full-status'),
+    forceCycle: () => api.post('/api/admin/repair/force-cycle', {}),
+    execute: (executor: string, context?: Record<string, unknown>) =>
+      api.post(`/api/admin/repair/execute/${executor}`, { context }),
+    networkStatus: () => api.get('/api/admin/repair/network-status'),
+  },
+
+  /** Promotion Pipeline */
+  promotion: {
+    queue: () => api.get('/api/admin/promotion/queue'),
+    approve: (id: string) => api.post(`/api/admin/promotion/${id}/approve`, {}),
+    reject: (id: string, reason: string) =>
+      api.post(`/api/admin/promotion/${id}/reject`, { reason }),
+    history: () => api.get('/api/admin/promotion/history'),
+  },
 };
 
 // CSRF token is fetched lazily before the first state-changing request.

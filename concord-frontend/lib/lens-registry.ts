@@ -297,6 +297,10 @@ export const LENS_REGISTRY: LensEntry[] = [
   { id: 'security', name: 'Security', icon: ShieldCheck, description: 'Security operations', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/security', order: 220, keywords: ['patrol', 'incident', 'surveillance', 'investigation'] },
   { id: 'services', name: 'Services', icon: Scissors, description: 'Personal services', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/services', order: 221, keywords: ['salon', 'cleaning', 'daycare', 'appointment'] },
   { id: 'insurance', name: 'Insurance', icon: Umbrella, description: 'Insurance & risk management', category: 'superlens', showInSidebar: false, showInCommandPalette: true, path: '/lenses/insurance', order: 222, keywords: ['policy', 'claim', 'premium', 'coverage'] },
+
+  // ── New Cognitive System Lenses ──────────────────────────────────
+  { id: 'lab', name: 'Lab', icon: FlaskConical, description: 'Adjacent reality explorer — constraint-based parameter space exploration', category: 'science', showInSidebar: false, showInCommandPalette: true, path: '/lenses/lab', order: 230, keywords: ['explore', 'adjacent', 'reality', 'constraints', 'physics', 'research'] },
+  { id: 'app-maker', name: 'App Maker', icon: Boxes, description: 'Compose apps from existing primitives', category: 'system', showInSidebar: false, showInCommandPalette: true, path: '/lenses/app-maker', order: 231, keywords: ['app', 'maker', 'compose', 'primitives', 'builder'] },
 ];
 
 /** Category display configuration */

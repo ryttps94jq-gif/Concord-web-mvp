@@ -10250,6 +10250,161 @@ async function initGhostFleet() {
     structuredLog("warn", "ghost_fleet_module_failed", { name: "physical-dtu", error: err.message });
   }
 
+  // ── Phase 5: New Cognitive Systems ──────────────────────────────────────
+
+  // 19. Selective Forgetting Engine
+  try {
+    const forgetting = await import("./emergent/forgetting-engine.js");
+    GHOST_FLEET_STATUS.modules["forgetting-engine"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("forgetting", "status", () => forgetting.getStatus());
+    register("forgetting", "candidates", () => forgetting.getCandidates());
+    register("forgetting", "run", () => forgetting.runForgettingCycle(false));
+    register("forgetting", "protect", (_ctx, input = {}) => forgetting.protectDTU(input.dtuId));
+    register("forgetting", "unprotect", (_ctx, input = {}) => forgetting.unprotectDTU(input.dtuId));
+    register("forgetting", "threshold", (_ctx, input = {}) => forgetting.setThreshold(input.value));
+    register("forgetting", "history", (_ctx, input = {}) => forgetting.getHistory(input.limit));
+
+    forgetting.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "forgetting-engine", macros: 7, interval: "6h" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["forgetting-engine"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "forgetting-engine", error: err.message });
+  }
+
+  // 20. Civilization Attention Allocator
+  try {
+    const attention = await import("./emergent/attention-allocator.js");
+    GHOST_FLEET_STATUS.modules["attention-allocator"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("attention_alloc", "status", () => attention.getStatus());
+    register("attention_alloc", "run", () => attention.runAttentionCycle());
+    register("attention_alloc", "focus", (_ctx, input = {}) => attention.setFocusOverride(input.domain, input.weight, input.minutes));
+    register("attention_alloc", "unfocus", () => attention.clearFocusOverride());
+    register("attention_alloc", "history", () => attention.getAllocationHistory());
+    register("attention_alloc", "budget", (_ctx, input = {}) => attention.setBudget(input.total));
+
+    attention.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "attention-allocator", macros: 6, interval: "5min" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["attention-allocator"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "attention-allocator", error: err.message });
+  }
+
+  // 21. Global Repair Network (stub — disabled by default)
+  try {
+    const repairNet = await import("./emergent/repair-network.js");
+    GHOST_FLEET_STATUS.modules["repair-network"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("repair_network", "status", () => repairNet.getStatus());
+    register("repair_network", "push", () => repairNet.pushFixes());
+    register("repair_network", "pull", () => repairNet.pullFixes());
+    register("repair_network", "disconnect", () => repairNet.disconnect());
+
+    repairNet.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "repair-network", macros: 4, enabled: process.env.REPAIR_NETWORK_ENABLED === "true" });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["repair-network"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "repair-network", error: err.message });
+  }
+
+  // 22. App Maker
+  try {
+    const appMaker = await import("./emergent/app-maker.js");
+    GHOST_FLEET_STATUS.modules["app-maker"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("apps", "list", (_ctx, input = {}) => appMaker.listApps(input));
+    register("apps", "get", (_ctx, input = {}) => appMaker.getApp(input.id));
+    register("apps", "create", (_ctx, input = {}) => appMaker.createApp(input));
+    register("apps", "update", (_ctx, input = {}) => appMaker.updateApp(input.id, input.updates));
+    register("apps", "delete", (_ctx, input = {}) => appMaker.deleteApp(input.id));
+    register("apps", "validate", (_ctx, input = {}) => appMaker.validateApp(input));
+    register("apps", "promote", (_ctx, input = {}) => appMaker.promoteApp(input.id));
+    register("apps", "demote", (_ctx, input = {}) => appMaker.demoteApp(input.id));
+    register("apps", "metrics", () => appMaker.getAppMetrics());
+
+    appMaker.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "app-maker", macros: 9 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["app-maker"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "app-maker", error: err.message });
+  }
+
+  // 23. Promotion Pipeline
+  try {
+    const promotion = await import("./emergent/promotion-pipeline.js");
+    GHOST_FLEET_STATUS.modules["promotion-pipeline"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("promotion", "request", (_ctx, input = {}) => promotion.requestPromotion(input.itemId, input.itemType, input.requesterId));
+    register("promotion", "approve", (_ctx, input = {}) => promotion.approvePromotion(input.id, input.approverId));
+    register("promotion", "reject", (_ctx, input = {}) => promotion.rejectPromotion(input.id, input.reason, input.rejecterId));
+    register("promotion", "queue", () => promotion.getQueue());
+    register("promotion", "history", (_ctx, input = {}) => promotion.getPromotionHistory(input.limit));
+    register("promotion", "get", (_ctx, input = {}) => promotion.getProposal(input.id));
+
+    promotion.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "promotion-pipeline", macros: 6 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["promotion-pipeline"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "promotion-pipeline", error: err.message });
+  }
+
+  // 24. Adjacent Reality Explorer
+  try {
+    const reality = await import("./emergent/reality-explorer.js");
+    GHOST_FLEET_STATUS.modules["reality-explorer"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("explore", "run", (_ctx, input = {}) => reality.exploreAdjacent(input.constraints, input.domain));
+    register("explore", "history", (_ctx, input = {}) => reality.getExplorationHistory(input.limit));
+    register("explore", "save", (_ctx, input = {}) => reality.saveExploration(input.id));
+
+    reality.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "reality-explorer", macros: 3 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["reality-explorer"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "reality-explorer", error: err.message });
+  }
+
+  // 25. Dream Capture Pipeline
+  try {
+    const dreamCapture = await import("./emergent/dream-capture.js");
+    GHOST_FLEET_STATUS.modules["dream-capture"] = { loaded: true, loadedAt: new Date().toISOString() };
+
+    register("dream", "capture", (_ctx, input = {}) => dreamCapture.captureDream(input));
+    register("dream", "history", (_ctx, input = {}) => dreamCapture.getDreamHistory(input.limit));
+    register("dream", "convergences", () => dreamCapture.getConvergences());
+    register("dream", "queue", () => dreamCapture.getDreamQueue());
+    register("dream", "count", () => ({ dreams: dreamCapture.countDreams(), convergences: dreamCapture.countConvergences() }));
+
+    dreamCapture.init({ STATE });
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "dream-capture", macros: 5 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["dream-capture"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "dream-capture", error: err.message });
+  }
+
+  // 26. Lens Macros (Browser Extension backend — register analysis macros)
+  try {
+    register("lens", "reddit.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "reddit", summary: `Analysis of Reddit content: "${(content?.title || "").slice(0, 60)}"`, anchors: [], contradictions: [] };
+    });
+    register("lens", "github.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "github", summary: `Code analysis: "${(content?.title || "").slice(0, 60)}"`, suggestions: [] };
+    });
+    register("lens", "generic.analyze", async (_ctx, input = {}) => {
+      const { content } = input;
+      return { ok: true, lens: "generic", summary: `Page analysis: "${(content?.title || "").slice(0, 60)}"`, anchors: [] };
+    });
+
+    GHOST_FLEET_STATUS.modules["lens-macros"] = { loaded: true, loadedAt: new Date().toISOString() };
+    structuredLog("info", "ghost_fleet_module_loaded", { name: "lens-macros", macros: 3 });
+  } catch (err) {
+    GHOST_FLEET_STATUS.modules["lens-macros"] = { loaded: false, error: err.message };
+    structuredLog("warn", "ghost_fleet_module_failed", { name: "lens-macros", error: err.message });
+  }
+
   // ── Finalize ────────────────────────────────────────────────────────────
 
   GHOST_FLEET_STATUS.loadedAt = new Date().toISOString();
@@ -14686,6 +14841,12 @@ register("system", "status", (_ctx, _input) => {
       modules: Object.entries(GHOST_FLEET_STATUS.modules).map(([name, s]) => ({
         name, loaded: s.loaded,
       })),
+    },
+    attentionAllocator: globalThis._concordAttentionBudget
+      ? { active: true, domainCount: globalThis._concordAttentionBudget.size }
+      : { active: false },
+    dreamCapture: {
+      pendingMetaDerivation: (STATE._metaDerivationQueue || []).length,
     },
     uptime: process.uptime(),
   };
@@ -29168,6 +29329,123 @@ app.post("/api/admin/repair/rollback-macro", requireAuth(), requireRole("owner")
   const result = await EX.rollback_macro.execute(req.body);
   res.json(result);
 }));
+
+// ── New System API Endpoints ──────────────────────────────────────────────
+
+// Forgetting Engine
+app.get("/api/admin/forgetting/status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.get("/api/admin/forgetting/candidates", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(await m.getCandidates()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/forgetting/run", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/forgetting-engine.js"); res.json(await m.runForgettingCycle(false)); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/forgetting/protect", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.protectDTU(req.body.dtuId))).catch(e => res.json({ ok: false, error: e.message }));
+});
+app.post("/api/admin/forgetting/unprotect", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.unprotectDTU(req.body.dtuId))).catch(e => res.json({ ok: false, error: e.message }));
+});
+app.get("/api/admin/forgetting/history", requireAuth(), requireRole("owner"), (req, res) => {
+  import("./emergent/forgetting-engine.js").then(m => res.json(m.getHistory(parseInt(req.query.limit || "20", 10)))).catch(e => res.json({ ok: false, error: e.message }));
+});
+
+// Attention Allocator
+app.get("/api/admin/attention/status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/attention/focus", requireAuth(), requireRole("owner"), async (req, res) => {
+  try {
+    const m = await import("./emergent/attention-allocator.js");
+    res.json(m.setFocusOverride(req.body.domain, req.body.weight, req.body.minutes));
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.post("/api/admin/attention/unfocus", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.clearFocusOverride()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+app.get("/api/admin/attention/history", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/attention-allocator.js"); res.json(m.getAllocationHistory()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// Dream Capture
+app.post("/api/dream/capture", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(await dc.captureDream(req.body));
+}));
+app.get("/api/dream/history", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(dc.getDreamHistory(parseInt(req.query.limit || "50", 10)));
+}));
+app.get("/api/dream/convergences", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const dc = await import("./emergent/dream-capture.js");
+  res.json(dc.getConvergences());
+}));
+
+// App Maker
+app.get("/api/apps", requireAuth(), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.listApps());
+}));
+app.get("/api/apps/:id", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.getApp(req.params.id));
+}));
+app.post("/api/apps", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.createApp(req.body));
+}));
+app.post("/api/apps/:id/validate", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  const app = m.getApp(req.params.id);
+  if (!app.ok) return res.json(app);
+  res.json(m.validateApp(app.app));
+}));
+app.post("/api/apps/:id/promote", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/app-maker.js");
+  res.json(m.promoteApp(req.params.id));
+}));
+
+// Reality Explorer
+app.post("/api/explore", requireAuth(), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/reality-explorer.js");
+  res.json(await m.exploreAdjacent(req.body.constraints, req.body.domain));
+}));
+app.get("/api/explore/history", requireAuth(), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/reality-explorer.js");
+  res.json(m.getExplorationHistory());
+}));
+
+// Promotion Pipeline
+app.get("/api/admin/promotion/queue", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.getQueue());
+}));
+app.post("/api/admin/promotion/:id/approve", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.approvePromotion(req.params.id, "sovereign"));
+}));
+app.post("/api/admin/promotion/:id/reject", requireAuth(), requireRole("owner"), asyncHandler(async (req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.rejectPromotion(req.params.id, req.body.reason, "sovereign"));
+}));
+app.get("/api/admin/promotion/history", requireAuth(), requireRole("owner"), asyncHandler(async (_req, res) => {
+  const m = await import("./emergent/promotion-pipeline.js");
+  res.json(m.getPromotionHistory());
+}));
+
+// Repair Network
+app.get("/api/admin/repair/network-status", requireAuth(), requireRole("owner"), async (_req, res) => {
+  try { const m = await import("./emergent/repair-network.js"); res.json(m.getStatus()); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 

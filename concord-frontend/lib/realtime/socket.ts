@@ -115,7 +115,13 @@ export type SocketEvent =
   | 'council:vote'
   | 'market:listing'
   | 'market:trade'
-  | 'system:alert';
+  | 'system:alert'
+  | 'attention:allocation'
+  | 'dream:captured'
+  | 'forgetting:cycle_complete'
+  | 'repair:cycle_complete'
+  | 'promotion:approved'
+  | 'app:published';
 
 // ---- Enriched Event Payload (Category 2+5: Concurrency + Observability) ----
 interface EnrichedPayload {

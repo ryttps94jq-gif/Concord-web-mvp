@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { FlaskConical, Play, Square, History, Zap } from 'lucide-react';
+import { FlaskConical, Play, Square, History, Zap, Search, Plus, Trash2, CheckCircle, AlertTriangle, Lightbulb } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
 export default function LabLensPage() {
@@ -143,6 +143,9 @@ export default function LabLensPage() {
         </div>
       </div>
 
+      {/* Adjacent Reality Explorer */}
+      <RealityExplorerSection />
+
       {/* Experiment History */}
       <div className="panel p-4">
         <h2 className="font-semibold mb-4 flex items-center gap-2">
@@ -171,6 +174,115 @@ export default function LabLensPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Adjacent Reality Explorer Section ──────────────────────────────────── */
+
+interface ExploreConstraint { key: string; min: string; max: string; }
+
+function RealityExplorerSection() {
+  const [domain, setDomain] = useState('');
+  const [constraints, setConstraints] = useState<ExploreConstraint[]>([{ key: '', min: '', max: '' }]);
+  const [results, setResults] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const addConstraint = () => setConstraints([...constraints, { key: '', min: '', max: '' }]);
+  const removeConstraint = (idx: number) => setConstraints(constraints.filter((_, i) => i !== idx));
+  const updateConstraint = (idx: number, field: keyof ExploreConstraint, value: string) => {
+    const updated = [...constraints];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setConstraints(updated);
+  };
+
+  const explore = async () => {
+    if (!domain.trim()) return;
+    setLoading(true);
+    const constraintObj: Record<string, { min: number; max: number }> = {};
+    for (const c of constraints) {
+      if (c.key.trim() && c.min && c.max) {
+        constraintObj[c.key.trim()] = { min: parseFloat(c.min), max: parseFloat(c.max) };
+      }
+    }
+    try {
+      const resp = await apiHelpers.explore.run(domain, constraintObj);
+      setResults(resp.data);
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  const adjacentRealities = (results as Record<string, unknown>)?.adjacentRealities as Array<{
+    configuration: Record<string, unknown>; confidence: number;
+    physicsCheck: { valid: boolean }; nextStep: string;
+  }> | undefined;
+
+  return (
+    <div className="panel p-4 space-y-4">
+      <h2 className="font-semibold flex items-center gap-2">
+        <Search className="w-4 h-4 text-neon-cyan" />
+        Adjacent Reality Explorer
+      </h2>
+      <p className="text-xs text-gray-400">
+        Explore what COULD BE. Define constraints, discover configurations beyond known data.
+      </p>
+
+      <div className="flex items-center gap-3">
+        <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)}
+          placeholder="Domain (e.g., physics)" className="flex-1 input-lattice" />
+      </div>
+
+      <div className="space-y-2">
+        {constraints.map((c, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <input type="text" value={c.key} onChange={(e) => updateConstraint(idx, 'key', e.target.value)}
+              placeholder="parameter" className="flex-1 input-lattice text-sm" />
+            <input type="text" value={c.min} onChange={(e) => updateConstraint(idx, 'min', e.target.value)}
+              placeholder="min" className="w-20 input-lattice text-sm" />
+            <span className="text-gray-500">–</span>
+            <input type="text" value={c.max} onChange={(e) => updateConstraint(idx, 'max', e.target.value)}
+              placeholder="max" className="w-20 input-lattice text-sm" />
+            {constraints.length > 1 && (
+              <button onClick={() => removeConstraint(idx)} className="text-gray-500 hover:text-red-400">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ))}
+        <button onClick={addConstraint} className="text-xs text-neon-cyan flex items-center gap-1 hover:underline">
+          <Plus className="w-3 h-3" /> Add constraint
+        </button>
+      </div>
+
+      <button onClick={explore} disabled={loading}
+        className="btn-neon cyan flex items-center gap-2">
+        <FlaskConical className="w-4 h-4" />
+        {loading ? 'Exploring...' : 'Explore'}
+      </button>
+
+      {adjacentRealities && adjacentRealities.length > 0 && (
+        <div className="space-y-2 mt-4">
+          <h3 className="text-sm font-medium flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-yellow-400" />
+            {adjacentRealities.length} configurations found
+          </h3>
+          {adjacentRealities.slice(0, 8).map((cfg, idx) => (
+            <div key={idx} className="lens-card text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className={`font-mono ${cfg.confidence > 0.7 ? 'text-green-400' : cfg.confidence > 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {(cfg.confidence * 100).toFixed(0)}%
+                </span>
+                {cfg.physicsCheck.valid
+                  ? <span className="text-green-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> valid</span>
+                  : <span className="text-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> violation</span>
+                }
+              </div>
+              <pre className="text-gray-300 bg-black/30 rounded p-1 overflow-x-auto">{JSON.stringify(cfg.configuration, null, 2)}</pre>
+              <p className="text-gray-400">{cfg.nextStep}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
