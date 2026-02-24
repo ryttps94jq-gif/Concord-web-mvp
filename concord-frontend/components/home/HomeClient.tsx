@@ -13,7 +13,7 @@ import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { api, apiHelpers } from '@/lib/api/client';
+import { api, apiHelpers, ensureCsrfToken } from '@/lib/api/client';
 import dynamic from 'next/dynamic';
 const KnowledgeSpace3D = dynamic(
   () => import('@/components/graphs/KnowledgeSpace3D').then(mod => ({ default: mod.KnowledgeSpace3D })),
@@ -26,6 +26,7 @@ const KnowledgeSpace3D = dynamic(
     </div>
   )}
 );
+import { ResonanceEmpireGraph } from '@/components/graphs/ResonanceEmpireGraph';
 import { DTUEmpireCard } from '@/components/dtu/DTUEmpireCard';
 import { LockDashboard } from '@/components/sovereignty/LockDashboard';
 import { CoherenceBadge } from '@/components/graphs/CoherenceBadge';
@@ -74,15 +75,21 @@ export function HomeClient() {
 
       const authCheck = api.get('/api/auth/me')
         .then(async () => {
-          try { await api.get('/api/auth/csrf-token'); } catch {}
+          // Auth succeeded — eagerly fetch CSRF token for subsequent writes
+          await ensureCsrfToken();
           return 'ok' as const;
         })
         .catch(() => {
-          // Not authenticated — the 401 interceptor will redirect to /login
           return 'failed' as const;
         });
 
       Promise.race([authCheck, timeout]).then((result) => {
+        if (result === 'failed') {
+          // Not authenticated — redirect to login
+          try { localStorage.removeItem('concord_entered'); } catch {}
+          window.location.href = '/login';
+          return;
+        }
         if (result === 'timeout') {
           // Auth check hung — allow through so the page isn't stuck forever.
           // API calls will still get 401-redirected if session is truly dead.
@@ -138,10 +145,11 @@ function DashboardPage() {
     retry: 1,
   });
 
-  const { data: dtusData, isLoading: dtusLoading } = useQuery({
-    queryKey: ['dtus'],
-    queryFn: () => api.get('/api/dtus').then((r) => r.data).catch(() => ({ dtus: [] })),
-    retry: 1,
+  const { data: dtusData, isLoading: dtusLoading, isError: dtusError } = useQuery({
+    queryKey: ['dtus-paginated'],
+    queryFn: () => apiHelpers.dtus.paginated({ limit: 50, pageSize: 50 }).then((r) => r.data),
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
   const { data: scopeMetrics } = useQuery({
@@ -177,16 +185,17 @@ function DashboardPage() {
     retry: false,
   });
 
-  // Fetch graph visual data for the Resonance Universe
-  const { data: _graphData } = useQuery({
-    queryKey: ['graph-visual'],
-    queryFn: () => apiHelpers.graph.visual({ limit: 200 }).then((r) => r.data).catch(() => null),
-    retry: false,
+  // Fetch graph force-directed data for the Resonance Universe
+  const { data: graphData, isLoading: graphLoading } = useQuery({
+    queryKey: ['graph-force'],
+    queryFn: () => apiHelpers.graph.force({ maxNodes: 200 }).then((r) => r.data).catch(() => null),
+    retry: 1,
     staleTime: 30000,
   });
 
   // Normalize DTU data to handle field name variations from backend
-  const dtus = (dtusData?.dtus || []).map((d: Record<string, unknown>) => ({
+  const rawDtus = dtusData?.dtus || dtusData?.results || [];
+  const dtus = (rawDtus as Record<string, unknown>[]).map((d: Record<string, unknown>) => ({
     id: d.id as string,
     tier: ((d.tier as string) || 'regular') as 'regular' | 'mega' | 'hyper' | 'shadow',
     summary: ((d.summary || d.title || (d.human as Record<string, unknown>)?.summary || d.content || 'Untitled') as string),
@@ -327,7 +336,7 @@ function DashboardPage() {
         </LensErrorBoundary>
       </div>
 
-      {/* Resonance Universe 3D + Sovereignty */}
+      {/* Resonance Universe Graph + Sovereignty */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <LensErrorBoundary name="Resonance Universe">
           <div className="lg:col-span-2 rounded-xl border border-lattice-border bg-lattice-surface/50 overflow-hidden">
@@ -337,12 +346,27 @@ function DashboardPage() {
                 Resonance Universe
               </h2>
               <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span>{graph3DNodesWithEdges.length} nodes</span>
+                <span>{graphData?.nodes?.length || graph3DNodesWithEdges.length} nodes</span>
                 <span className="text-neon-cyan">{(coherence * 100).toFixed(0)}% coherence</span>
               </div>
             </div>
             <div className="h-[420px]">
-              {graph3DNodesWithEdges.length > 0 ? (
+              {graphLoading ? (
+                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                  <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    Loading resonance graph...
+                  </div>
+                </div>
+              ) : graphData?.nodes?.length > 0 ? (
+                <ResonanceEmpireGraph
+                  nodes={graphData.nodes}
+                  edges={graphData.edges || []}
+                  height={420}
+                  showLabels
+                  onNodeClick={(node) => setInspecting({ type: 'dtu', id: node.id })}
+                />
+              ) : graph3DNodesWithEdges.length > 0 ? (
                 <KnowledgeSpace3D nodes={graph3DNodesWithEdges} />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">
@@ -385,6 +409,14 @@ function DashboardPage() {
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-28 bg-lattice-deep animate-pulse rounded-lg" />
             ))}
+          </div>
+        ) : dtusError ? (
+          <div className="col-span-full text-center py-10">
+            <p className="text-yellow-400 mb-1">Unable to load DTUs</p>
+            <p className="text-gray-500 text-sm">
+              Check your connection or{' '}
+              <Link href="/login" className="text-neon-cyan hover:underline">sign in again</Link>
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
