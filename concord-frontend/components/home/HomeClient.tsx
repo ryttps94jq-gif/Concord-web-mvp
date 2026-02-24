@@ -94,7 +94,8 @@ export function HomeClient() {
   }, []);
 
   const handleEnter = () => {
-    router.push('/register');
+    localStorage.setItem('concord_entered', 'true');
+    setHasEntered(true);
   };
 
   // Still loading from localStorage

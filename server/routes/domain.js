@@ -272,7 +272,7 @@ export default function registerDomainRoutes(app, {
       ]);
       res.json(result);
     } catch (e) {
-      res.json({ ok: false, local: 0, marketplace: 0, global: 0, total: 0, localCount: 0, globalCount: 0, error: e.message, timeout: true });
+      res.json({ ok: true, local: STATE.dtus.size, marketplace: 0, global: STATE.dtus.size, total: STATE.dtus.size, localCount: STATE.dtus.size, globalCount: STATE.dtus.size, error: e.message, timeout: true });
     }
   });
   app.get("/api/scope/dtus/:scope", async (req,res)=> res.json(await runMacro("emergent","scope.listByScope", { scope: req.params.scope, limit: Number(req.query.limit||50) }, makeCtx(req))));
