@@ -146,6 +146,11 @@ api.interceptors.response.use(
       }
 
       if (status === 401 && typeof window !== 'undefined') {
+        // Don't redirect on auth-check calls — let the component handle it
+        const requestUrl = error.config?.url || '';
+        if (requestUrl.includes('/api/auth/me') || requestUrl.includes('/api/auth/csrf-token')) {
+          return Promise.reject(error);
+        }
         // Redirect to login if not already on an auth page
         // Session is managed via httpOnly cookies, cleared by server
         const path = window.location.pathname;

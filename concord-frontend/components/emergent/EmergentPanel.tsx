@@ -25,7 +25,7 @@ export function EmergentPanel() {
           Emergent Council
         </h2>
         <span className="text-xs text-gray-500">
-          {emergents.filter(e => e.state === 'active' || e.status === 'active').length} / {emergents.length} active
+          {emergents.filter(e => e.state === 'active' || e.status === 'active' || e.active === true).length} / {emergents.length} active
         </span>
       </div>
 

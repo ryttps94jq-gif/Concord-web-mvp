@@ -568,6 +568,17 @@ function init({ register, STATE, helpers }) {
     return { ok: true, emergent: result };
   }, { description: "Deactivate an emergent", public: false });
 
+  // ── Reproduction macro (sovereign-enabled only) ──
+  register("emergent", "reproduce", async (_ctx, input = {}) => {
+    try {
+      const { attemptReproduction, isReproductionEnabled } = await import("./reproduction.js");
+      if (!isReproductionEnabled()) return { ok: false, error: "reproduction_disabled" };
+      return await attemptReproduction(input.parentA, input.parentB);
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, { description: "Attempt entity reproduction (sovereign only)", public: false });
+
   // ══════════════════════════════════════════════════════════════════════════
   // DIALOGUE SESSION MACROS
   // ══════════════════════════════════════════════════════════════════════════
@@ -577,12 +588,30 @@ function init({ register, STATE, helpers }) {
   }, { description: "Create emergent dialogue session", public: false });
 
   register("emergent", "session.turn", (_ctx, input = {}) => {
-    return submitTurn(STATE, input.sessionId, {
+    const result = submitTurn(STATE, input.sessionId, {
       speakerId: input.speakerId, claim: input.claim,
       support: input.support !== undefined ? input.support : null,
       confidenceLabel: input.confidenceLabel, counterpoint: input.counterpoint,
       question: input.question, intent: input.intent, domains: input.domains,
     });
+    // Wire relational emotion: record entity interaction
+    if (input.speakerId && input.sessionId) {
+      try {
+        import("./relational-emotion.js").then(mod => {
+          if (mod?.triggerEmotionalResponse) {
+            const session = getSession(es, input.sessionId);
+            const otherSpeakers = (session?.turns || [])
+              .map(t => t.speakerId)
+              .filter(id => id && id !== input.speakerId);
+            for (const otherId of new Set(otherSpeakers)) {
+              const interactionType = input.counterpoint ? "challenge" : "collaboration";
+              try { mod.triggerEmotionalResponse(input.speakerId, otherId, interactionType, 0.5); } catch {}
+            }
+          }
+        }).catch(() => {});
+      } catch {}
+    }
+    return result;
   }, { description: "Submit turn to dialogue session", public: false });
 
   register("emergent", "session.complete", (_ctx, input = {}) => {
@@ -2625,8 +2654,79 @@ function init({ register, STATE, helpers }) {
   }, { description: "Run pre-build prophet scan", public: false });
 
   register("emergent", "repair.agent.tick", async (_ctx) => {
-    return repairAgentTick();
-  }, { description: "Run repair agent tick (all guardian monitors)", public: false });
+    const guardianResult = await repairAgentTick();
+
+    // ── Lattice Health Audit ──────────────────────────────────────────────
+    // Scans for structural issues: stale DTUs, orphaned lineage, low quality, contradictions
+    const audit = { staleDtus: [], orphanedLineage: [], lowQuality: [], contradictions: [] };
+    try {
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      const allIds = new Set(STATE.dtus.keys());
+
+      for (const [id, dtu] of STATE.dtus) {
+        // Stale: 7+ days old with no lineage connections
+        const updatedAt = dtu.updatedAt ? new Date(dtu.updatedAt).getTime() : 0;
+        const createdAt = dtu.createdAt ? new Date(dtu.createdAt).getTime() : 0;
+        const age = now - (updatedAt || createdAt || now);
+        const hasLineage = (dtu.lineage || []).length > 0;
+        if (age > sevenDays && !hasLineage && audit.staleDtus.length < 10) {
+          audit.staleDtus.push({ id, title: dtu.title?.slice(0, 60), ageDays: Math.floor(age / 86400000) });
+        }
+
+        // Orphaned lineage: references non-existent parent DTUs
+        for (const parentId of (dtu.lineage || [])) {
+          if (!allIds.has(parentId) && audit.orphanedLineage.length < 10) {
+            audit.orphanedLineage.push({ id, parentId, title: dtu.title?.slice(0, 60) });
+          }
+        }
+
+        // Low quality: no definitions, claims, or invariants (exclude analogies and user DTUs)
+        if (dtu.source !== "system.analogize" && dtu.source !== "user") {
+          const defs = dtu.core?.definitions?.length || 0;
+          const cls = dtu.core?.claims?.length || 0;
+          const inv = dtu.core?.invariants?.length || 0;
+          if (defs === 0 && cls === 0 && inv === 0 && audit.lowQuality.length < 10) {
+            audit.lowQuality.push({ id, title: dtu.title?.slice(0, 60), source: dtu.source });
+          }
+        }
+      }
+
+      // Contradiction detection: DTUs with directly opposing claims (simple keyword heuristic)
+      const claimMap = [];
+      for (const [id, dtu] of STATE.dtus) {
+        for (const claim of (dtu.core?.claims || [])) {
+          if (typeof claim === "string" && claim.length > 10) {
+            claimMap.push({ id, title: dtu.title, claim: claim.toLowerCase() });
+          }
+        }
+      }
+      for (let i = 0; i < claimMap.length && audit.contradictions.length < 5; i++) {
+        for (let j = i + 1; j < claimMap.length && audit.contradictions.length < 5; j++) {
+          const a = claimMap[i].claim;
+          const b = claimMap[j].claim;
+          if (claimMap[i].id !== claimMap[j].id) {
+            if ((a.includes("not ") && b === a.replace("not ", "")) ||
+                (b.includes("not ") && a === b.replace("not ", ""))) {
+              audit.contradictions.push({
+                dtuA: { id: claimMap[i].id, claim: claimMap[i].claim.slice(0, 80) },
+                dtuB: { id: claimMap[j].id, claim: claimMap[j].claim.slice(0, 80) },
+              });
+            }
+          }
+        }
+      }
+
+      const totalIssues = audit.staleDtus.length + audit.orphanedLineage.length + audit.lowQuality.length + audit.contradictions.length;
+      if (totalIssues > 0) {
+        console.log(`[REPAIR] Lattice audit: ${audit.staleDtus.length} stale, ${audit.orphanedLineage.length} orphaned, ${audit.lowQuality.length} low-quality, ${audit.contradictions.length} contradictions`);
+      }
+    } catch (e) {
+      console.error("[REPAIR] Lattice audit error:", e.message);
+    }
+
+    return { ...guardianResult, audit };
+  }, { description: "Run repair agent tick (guardian monitors + lattice health audit)", public: false });
 
   register("emergent", "repair.agent.config", (_ctx) => {
     return { ok: true, config: REPAIR_AGENT_CONFIG };

@@ -3813,9 +3813,71 @@ function cookieParserMiddleware(req, res, next) {
 function authMiddleware(req, res, next) {
   if (AUTH_MODE === "public") return next();
 
-  // Skip auth for public endpoints
-  const publicPaths = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status"];
-  if (publicPaths.some(p => req.path.startsWith(p))) return next();
+  // Skip auth for always-public endpoints (any method)
+  const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
+  if (alwaysPublic.some(p => req.path.startsWith(p))) return next();
+
+  // Skip auth for public-read endpoints (GET only)
+  // CRITICAL: Every frontend GET route must be listed here (Gate 1 of 3)
+  const publicReadPaths = [
+    // Core data
+    "/api/dtus", "/api/lenses", "/api/lens", "/api/emergent", "/api/knowledge",
+    "/api/search", "/api/species", "/api/events", "/api/schema",
+    // System
+    "/api/brain", "/api/system", "/api/cognitive", "/api/status",
+    "/api/backpressure", "/api/embeddings", "/api/pwa",
+    // Governance & lattice
+    "/api/lattice", "/api/guidance", "/api/graph", "/api/scope",
+    "/api/inspect", "/api/worldmodel", "/api/council", "/api/resonance",
+    // Chat & AI
+    "/api/chat", "/api/ask", "/api/forge",
+    // Atlas
+    "/api/atlas",
+    // Plugins & extensions
+    "/api/plugins", "/api/macros",
+    // Growth & entities
+    "/api/entity-growth", "/api/entity-exploration", "/api/goals",
+    "/api/hypothesis",
+    // Analytics & metrics
+    "/api/analytics", "/api/intelligence", "/api/precompute",
+    "/api/perf", "/api/distillation",
+    // Collaboration
+    "/api/collab", "/api/social",
+    // Content pipelines
+    "/api/autogen", "/api/dream", "/api/evolution", "/api/synthesize",
+    "/api/ingest", "/api/digest", "/api/daily",
+    // Economy & marketplace
+    "/api/economy", "/api/marketplace", "/api/credits",
+    "/api/distribution", "/api/stripe",
+    // Agent systems
+    "/api/agents", "/api/personas", "/api/automations",
+    // Specialized domains
+    "/api/affect", "/api/attention", "/api/commonsense",
+    "/api/explanation", "/api/grounding", "/api/hive",
+    "/api/inference", "/api/metacognition", "/api/metalearning",
+    "/api/reasoning", "/api/reflection", "/api/temporal",
+    "/api/voice", "/api/visual",
+    // Content management
+    "/api/artifacts", "/api/notifications", "/api/reminders",
+    "/api/webhooks", "/api/webhooks-metrics", "/api/whiteboard",
+    "/api/whiteboards", "/api/queue", "/api/jobs",
+    // Learning & review
+    "/api/srs", "/api/skill", "/api/onboarding",
+    // Import/export
+    "/api/obsidian", "/api/notion",
+    // RBAC & compliance
+    "/api/rbac", "/api/compliance",
+    // Studio & artistry
+    "/api/studio", "/api/artistry",
+    // Misc
+    "/api/heal", "/api/cache", "/api/redis", "/api/efficiency",
+    "/api/model-optimizer", "/api/lens-items", "/api/mobile",
+    "/api/global", "/api/sovereign", "/api/autotag",
+    "/api/ml", "/api/db", "/api/preview-action", "/api/undo",
+    "/api/autocrawl", "/api/reseed", "/api/integrations",
+    "/api/swarm", "/api/utility",
+  ];
+  if (req.method === "GET" && publicReadPaths.some(p => req.path.startsWith(p))) return next();
 
   // Check Authorization header
   const authHeader = req.headers.authorization || "";
@@ -3900,6 +3962,7 @@ function requireRole(...roles) {
   return (req, res, next) => {
     if (AUTH_MODE === "public") return next();
     if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    if (req.user.role === "sovereign") return next(); // sovereign passes ALL role checks
     if (roles.length === 0 || roles.includes(req.user.role) || req.user.scopes?.includes("*")) {
       return next();
     }
@@ -5687,28 +5750,99 @@ async function runMacro(domain, name, input, ctx) {
   const _path = ctx?.reqMeta?.path || "";
   const _method = (ctx?.reqMeta?.method || "").toUpperCase();
 
-  const safeReadBypass =
-    _method === "GET" && (
-      // Absolute path-based safe reads (frontend boot must never be blocked)
-      _path === "/api/status" ||
-      _path.startsWith("/api/dtus") ||
-      _path.startsWith("/api/dtu") ||
-      _path.startsWith("/api/settings") ||
-      _path.startsWith("/api/lens") ||
-      _path.startsWith("/api/goals") ||
-      _path.startsWith("/api/growth") ||
-      _path.startsWith("/api/metrics") ||
-      _path.startsWith("/api/resonance") ||
-      _path.startsWith("/api/lattice") ||
+  // publicReadDomains: domain+name allowlist for read-only macros
+  // publicReadDomains: domain+name allowlist for read-only macros (Gate 2 of 3)
+  // CRITICAL: Every frontend macro call domain must be listed here
+  const publicReadDomains = {
+    emergent: new Set(["status", "get", "list", "schema", "patterns", "reputation", "scope.metrics", "bridge.heartbeatTick"]),
+    dtu: new Set(["list", "get", "search", "recent", "stats", "count", "export", "paginated"]),
+    lens: new Set(["list", "get", "export", "run"]),
+    system: new Set(["status", "getStatus", "health", "analogize"]),
+    settings: new Set(["get", "status"]),
+    scope: new Set(["metrics", "status", "dtus"]),
+    lattice: new Set(["resonance", "status", "stats"]),
+    guidance: new Set(["suggestions", "status"]),
+    graph: new Set(["visual", "visualData", "forceGraph", "edges", "stats", "neighbors"]),
+    events: new Set(["list", "recent", "log", "paginated"]),
+    worldmodel: new Set(["list_relations", "get", "status", "entities", "simulations"]),
+    goals: new Set(["list", "get", "status", "config"]),
+    council: new Set(["tally", "status", "list"]),
+    hypothesis: new Set(["list", "get", "status"]),
+    analytics: new Set(["dashboard", "growth", "density", "citations", "marketplace", "personal"]),
+    atlas: new Set(["status", "get", "list", "scope", "config", "thresholds", "autogen", "chat", "contradictions", "score-explain", "submission", "search", "antigaming", "rights", "write-guard", "scope-metrics", "local-hints"]),
+    agents: new Set(["list", "get", "status"]),
+    personas: new Set(["list", "get"]),
+    affect: new Set(["state", "events", "health", "system", "policy"]),
+    attention: new Set(["status", "get"]),
+    metacognition: new Set(["status", "predictions"]),
+    metalearning: new Set(["strategies", "status"]),
+    reasoning: new Set(["chains", "steps", "status"]),
+    reflection: new Set(["status", "list"]),
+    temporal: new Set(["status", "get"]),
+    inference: new Set(["status"]),
+    collab: new Set(["comments", "revisions", "workspace", "edit-session"]),
+    social: new Set(["profile", "followers", "following", "discover", "cited-by"]),
+    economy: new Set(["status", "balance", "transactions", "withdrawals"]),
+    marketplace: new Set(["listings", "list", "get"]),
+    credits: new Set(["balance", "status"]),
+    hive: new Set(["status", "list"]),
+    heal: new Set(["status"]),
+    grounding: new Set(["ground", "status"]),
+    commonsense: new Set(["assumptions", "surface"]),
+    explanation: new Set(["dtu", "get"]),
+    ingest: new Set(["stats", "queue", "allowlist", "status"]),
+    jobs: new Set(["list", "status"]),
+    queue: new Set(["list", "status"]),
+    cache: new Set(["status"]),
+    cognitive: new Set(["status"]),
+    brain: new Set(["status", "health"]),
+    species: new Set(["registry", "census", "all", "get"]),
+    onboarding: new Set(["hints", "progress"]),
+    srs: new Set(["status", "get"]),
+    skill: new Set(["gaps"]),
+    schema: new Set(["get", "list"]),
+    daily: new Set(["list", "get"]),
+    digest: new Set(["get", "list"]),
+  };
+  const _domainSet = publicReadDomains[domain];
+  const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
 
-      // Domain/name allowlist for read-only macros (covers alternate routers)
-      (domain === "system" && (name === "status" || name === "getStatus")) ||
-      (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-      (domain === "settings" && (name === "get" || name === "status")) ||
-      (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
-      (domain === "goals" && (name === "list" || name === "get" || name === "status")) ||
-      _path.startsWith("/api/plugins")
-    );
+  // safeReadBypass: comprehensive path check for ALL frontend GET routes (Gate 3 of 3, outer)
+  const _safeReadPaths = [
+    "/api/status", "/api/dtus", "/api/dtu", "/api/settings", "/api/lens",
+    "/api/goals", "/api/growth", "/api/metrics", "/api/resonance", "/api/lattice",
+    "/api/emergent", "/api/plugins", "/api/scope", "/api/events", "/api/guidance",
+    "/api/graph", "/api/system", "/api/inspect", "/api/worldmodel", "/api/chat",
+    "/api/brain", "/api/species", "/api/atlas", "/api/knowledge", "/api/search",
+    "/api/council", "/api/hypothesis", "/api/analytics", "/api/agents", "/api/personas",
+    "/api/affect", "/api/attention", "/api/metacognition", "/api/metalearning",
+    "/api/reasoning", "/api/reflection", "/api/temporal", "/api/inference",
+    "/api/collab", "/api/social", "/api/economy", "/api/marketplace", "/api/credits",
+    "/api/hive", "/api/heal", "/api/grounding", "/api/commonsense", "/api/explanation",
+    "/api/ingest", "/api/jobs", "/api/queue", "/api/cache", "/api/cognitive",
+    "/api/onboarding", "/api/srs", "/api/skill", "/api/schema", "/api/daily",
+    "/api/digest", "/api/entity-growth", "/api/entity-exploration",
+    "/api/artifacts", "/api/notifications", "/api/reminders", "/api/webhooks",
+    "/api/whiteboard", "/api/whiteboards", "/api/mobile", "/api/global",
+    "/api/sovereign", "/api/autotag", "/api/efficiency", "/api/model-optimizer",
+    "/api/lens-items", "/api/ml", "/api/db", "/api/preview-action", "/api/pwa",
+    "/api/obsidian", "/api/integrations", "/api/distribution", "/api/backpressure",
+    "/api/embeddings", "/api/perf", "/api/precompute", "/api/distillation",
+    "/api/redis", "/api/lenses", "/api/studio", "/api/artistry", "/api/rbac",
+    "/api/compliance", "/api/voice", "/api/visual", "/api/autocrawl",
+    "/api/autogen", "/api/dream", "/api/evolution", "/api/synthesize",
+    "/api/utility", "/api/swarm", "/api/forge", "/api/ask",
+    "/api/intelligence", "/api/stripe",
+  ];
+  // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
+  const _safePostPaths = ["/api/chat", "/api/brain/conscious"];
+  const safeReadBypass =
+    (_method === "GET" && (
+      _safeReadPaths.some(p => _path.startsWith(p)) ||
+      _domainNameAllowed
+    )) ||
+    (_method === "POST" && _safePostPaths.some(p => _path.startsWith(p))) ||
+    (domain === "chat" && (name === "respond" || name === "feedback"));
 
   if (!safeReadBypass) {
     const c2 = inLatticeReality({ type:"macro", domain, name, input, ctx });
@@ -5718,26 +5852,14 @@ async function runMacro(domain, name, input, ctx) {
       const reqPath = String(ctx?.reqMeta?.path || ctx?.reqMeta?.pathname || ctx?.reqMeta?.originalUrl || ctx?.reqMeta?.url || "");
       const reqMethod = String(ctx?.reqMeta?.method || "").toUpperCase();
 
+      // Inner safeReadBypass: reuses same path list (Gate 3 of 3, inner)
       const safeReadBypass =
-        reqMethod === "GET" && (
-          reqPath === "/api/status" ||
-          reqPath.startsWith("/api/dtus") ||
-          reqPath.startsWith("/api/dtu") ||
-          reqPath.startsWith("/api/settings") ||
-          reqPath.startsWith("/api/lens") ||
-          reqPath.startsWith("/api/goals") ||
-          reqPath.startsWith("/api/growth") ||
-          reqPath.startsWith("/api/metrics") ||
-          reqPath.startsWith("/api/resonance") ||
-          reqPath.startsWith("/api/lattice") ||
-
-          // Domain/name allowlist for read-only macros (covers alternate routers)
-          (domain === "system" && (name === "status" || name === "getStatus")) ||
-          (domain === "dtu" && (name === "list" || name === "get" || name === "search" || name === "recent" || name === "stats" || name === "count" || name === "export")) ||
-          (domain === "settings" && (name === "get" || name === "status")) ||
-          (domain === "lens" && (name === "list" || name === "get" || name === "export")) ||
-          (domain === "goals" && (name === "list" || name === "get" || name === "status"))
-        );
+        (reqMethod === "GET" && (
+          _safeReadPaths.some(p => reqPath.startsWith(p)) ||
+          _domainNameAllowed
+        )) ||
+        (reqMethod === "POST" && _safePostPaths.some(p => reqPath.startsWith(p))) ||
+        (domain === "chat" && (name === "respond" || name === "feedback"));
 
       const internalTick =
         !ctx?.reqMeta && (ctx?.internal === true || ["system","owner","founder"].includes(String(ctx?.actor?.role || "")));
@@ -5780,10 +5902,45 @@ async function runMacro(domain, name, input, ctx) {
   const m = d.get(name);
   if (!m) throw new Error(`macro not found: ${domain}.${name}`);
 
+  // Constitution check: enforce immutable rules on write macros
+  if (!_domainNameAllowed && _method !== "GET") {
+    try {
+      const constitutionMod = await import("./emergent/constitution.js").catch(() => null);
+      if (constitutionMod?.checkRules) {
+        const ruleCheck = constitutionMod.checkRules(STATE, { type: domain, name, input });
+        if (ruleCheck && !ruleCheck.ok && ruleCheck.violations?.length > 0) {
+          throw new Error(`constitution_violation: ${ruleCheck.violations.map(v => v.rule || v.message).join(", ")}`);
+        }
+      }
+    } catch (e) {
+      if (e?.message?.startsWith("constitution_violation")) throw e;
+      // Non-fatal: don't block macro if constitution module itself fails
+    }
+  }
+
   // Plugin macro hooks (best-effort, never block macro execution)
   try { fireHook(STATE, "macro:beforeExecute", { domain, name, input }); } catch { /* best-effort */ }
-  const result = m.fn(ctx, input ?? {});
+  let result;
+  try {
+    result = await m.fn(ctx, input ?? {});
+  } catch (macroErr) {
+    // Avoidance learning: record macro failures for pattern learning
+    try {
+      const painMod = await import("./emergent/avoidance-learning.js").catch(() => null);
+      if (painMod?.recordPain) painMod.recordPain({ domain, name, error: String(macroErr?.message || macroErr) });
+    } catch {}
+    throw macroErr;
+  }
   try { fireHook(STATE, "macro:afterExecute", { domain, name, result }); } catch { /* best-effort */ }
+
+  // Institutional memory: record significant actions
+  if (!_domainNameAllowed && _method !== "GET") {
+    try {
+      const memMod = await import("./emergent/institutional-memory.js").catch(() => null);
+      if (memMod?.recordObservation) memMod.recordObservation(STATE, { type: "macro_write", domain, name, ok: !!result?.ok });
+    } catch {}
+  }
+
   return result;
 }
 
@@ -8064,6 +8221,21 @@ function dtusByIds(ids=[]) {
 }
 function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   const isNew = !STATE.dtus.has(dtu.id);
+
+  // Dedup gate: block system-generated template/duplicate DTUs
+  if (isNew && dtu.source !== "user" && dtu.source !== "import") {
+    const firstDef = dtu.core?.definitions?.[0] || "";
+    if (firstDef.startsWith("Working definition:") || firstDef.includes("synthesis from")) {
+      console.log("[DEDUP] Blocked template DTU:", dtu.title?.slice(0, 60));
+      return dtu;
+    }
+    for (const existing of STATE.dtus.values()) {
+      if (existing.title === dtu.title) {
+        console.log("[DEDUP] Blocked duplicate title:", dtu.title?.slice(0, 60));
+        return dtu;
+      }
+    }
+  }
 
   // Fire plugin before-hooks
   try { fireHook(STATE, isNew ? "dtu:beforeCreate" : "dtu:beforeUpdate", dtu); } catch { /* best-effort */ }
@@ -11929,6 +12101,21 @@ async function maybeRunLocalUpgrade() {
 // ================= END ABSTRACTION GOVERNOR =================
 
 async function pipelineCommitDTU(ctx, dtu, opts={}) {
+  // DEDUP GATE: block templates and exact title dupes (system-generated only)
+  if (dtu.source !== "user" && dtu.source !== "import") {
+    const firstDef = dtu.core?.definitions?.[0] || "";
+    if (firstDef.startsWith("Working definition:") || firstDef.includes("synthesis from")) {
+      console.log("[DEDUP] Blocked template DTU in pipeline:", dtu.title?.slice(0, 60));
+      return { ok: false, error: "template_blocked" };
+    }
+    for (const existing of STATE.dtus.values()) {
+      if (existing.title === dtu.title) {
+        console.log("[DEDUP] Blocked duplicate title in pipeline:", dtu.title?.slice(0, 60));
+        return { ok: false, error: "duplicate_blocked" };
+      }
+    }
+  }
+
   if (!PIPE.enabled) {
     // fallback to legacy write
     if (isShadowDTU(dtu)) STATE.shadowDtus.set(dtu.id, dtu);
@@ -12036,7 +12223,7 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     try { await maybeRunLocalUpgrade(); } catch {}
 
     p.status = "installed";
-    p.install = { installedAt: nowISO(), snapshotBefore: snap };
+    p.install = { installedAt: nowISO(), snapshotBefore: null };
     p.updatedAt = nowISO();
     pipeWal("proposal.install", { id: p.id, action: p.action });
     pipeAudit("dtu.commit", `DTU committed: ${dtu.title}`, { id: dtu.id, proposalId: p.id, hash: dtu.hash });
@@ -14157,7 +14344,105 @@ register("system", "synthesize", async (ctx, input) => {
   return { ok: true, dtus: r?.ok ? [r.dtu] : [], trace: result.trace, writePolicy: result.writePolicy };
 });
 
+// ===================== Analogize Engine =====================
+// Fifth cognitive pipeline: translates abstract DTUs into human-relatable analogies
+register("system", "analogize", async (ctx, _input) => {
+  if (!STATE.dtus.size) return { ok: false, error: "No DTUs to analogize." };
 
+  const ollamaCallback = getSubconsciousOllamaCallback();
+  if (!ollamaCallback) return { ok: false, error: "No subconscious brain available." };
+
+  const allDtus = Array.from(STATE.dtus.values()).filter(d =>
+    d.source !== "system.analogize" &&
+    !(d.core?.examples || []).some(e => typeof e === "string" && e.startsWith("Analogy:"))
+  );
+  if (!allDtus.length) return { ok: false, error: "All DTUs already have analogies." };
+
+  const target = allDtus[Math.floor(Math.random() * allDtus.length)];
+  const defs = (target.core?.definitions || []).join(", ");
+  const claims = (target.core?.claims || []).join("; ");
+  const inv = (target.core?.invariants || []).join("; ");
+
+  // Pick a random emergent entity to voice this analogy
+  const es = STATE.__emergent;
+  const entities = es ? Array.from(es.emergents.values()).filter(e => e.active) : [];
+  const voiceEntity = entities.length ? entities[Math.floor(Math.random() * entities.length)] : null;
+
+  const PERSONALITY = {
+    synthesizer: { style: "warm, connective, finding bridges between distant ideas", domains: "nature, music, cooking, architecture", voice: "You see connections others miss. You weave ideas together like threads in a tapestry." },
+    critic: { style: "sharp, precise, exposing hidden assumptions through contrast", domains: "engineering, law, sports competition, surgery", voice: "You find the flaw, the edge case, the thing everyone overlooked. Your analogies cut to the bone." },
+    builder: { style: "practical, constructive, showing how to build from first principles", domains: "construction, farming, woodworking, chemistry", voice: "You build understanding brick by brick. Every analogy is a foundation someone can stand on." },
+    default: { style: "clear, vivid, surprising", domains: "everyday life, nature, cooking, sports", voice: "Make the abstract feel tangible." },
+  };
+
+  const personality = PERSONALITY[voiceEntity?.role] || PERSONALITY.default;
+  const entityName = voiceEntity?.name || "Concord";
+
+  const prompt = `Concept: "${target.title}"
+Definitions: ${defs || "(none)"}
+Claims: ${claims || "(none)"}
+Invariants: ${inv || "(none)"}
+
+You are ${entityName} (${voiceEntity?.role || "thinker"}). Your style: ${personality.style}.
+Preferred domains: ${personality.domains}.
+${personality.voice}
+
+Explain this concept using an everyday analogy. Be creative, vivid, and precise.
+Return JSON: {"analogy":"your analogy","metaphor":"one-sentence metaphor","domain":"domain you drew from","voice":"${entityName}"}`;
+
+  try {
+    const response = await ollamaCallback(prompt, {
+      system: "You are Concord's translation cortex. Your job is to make abstract concepts feel intuitive by connecting them to everyday experience. Be creative and original. Never use cliches. Return only valid JSON.",
+      temperature: 0.8,
+      maxTokens: 300,
+    });
+
+    if (!response?.ok || !response.content) return { ok: false, error: response?.error || "No response from subconscious" };
+
+    let parsed;
+    try {
+      const clean = response.content.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      try {
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        parsed = { analogy: response.content.slice(0, 300), metaphor: response.content.slice(0, 100), domain: "general" };
+      }
+    }
+
+    if (!parsed || !parsed.analogy) return { ok: false, error: "No analogy in response" };
+
+    const analogyTitle = `Analogy: ${target.title.slice(0, 80)}`;
+    const r = await ctx.macro.run("dtu", "create", {
+      title: analogyTitle,
+      tags: ["analogy", "translation", ...(target.tags || []).slice(0, 5)],
+      lineage: [target.id],
+      source: "system.analogize",
+      core: {
+        definitions: [parsed.metaphor || parsed.analogy.slice(0, 120)],
+        examples: ["Analogy: " + parsed.analogy],
+        claims: [],
+        invariants: [],
+      },
+      meta: {
+        analogyOf: target.id,
+        analogyDomain: parsed.domain || "general",
+        sourceTitle: target.title,
+        voice: parsed.voice || entityName,
+        entityId: voiceEntity?.id || null,
+        entityRole: voiceEntity?.role || null,
+        personality: personality.style,
+      },
+    });
+
+    console.log("[ANALOGIZE]", target.title.slice(0, 50), "->", parsed.domain || "general");
+    return { ok: true, analogy: parsed, sourceDtu: target.id, dtu: r?.dtu, created: r?.ok };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+});
 
 // ===================== Smoothness Specs Implementation (Continuity/Gaps/Definitions/Reconcile/Experiments) =====================
 
@@ -16257,6 +16542,7 @@ register("lattice", "resonance", (ctx, _input={}) => {
   const g = STATE.growth || {};
   return {
     ok: true,
+    coherence: m.homeostasis ?? 1,
     resonance: {
       homeostasis: m.homeostasis ?? 1,
       continuity: m.continuityAvg ?? 0,
@@ -16989,7 +17275,7 @@ registerSystemRoutes(app, {
   getTimeInfo, getWeather, createBackup, listBackups, restoreBackup,
   ensureOrganRegistry, ensureQueues, _getPatternHistory, classifyDomain,
   _inferQueryIntent, CRETI_PROJECTION_RULES, searchIndexed, paginateResults,
-  auditLog
+  auditLog, AUDIT_LOG
 });
 
 // ---- Auth Endpoints (extracted to routes/auth.js) ----
@@ -17796,6 +18082,15 @@ function startHeartbeat() {
     // v5.5: capability bridge tick — beacon check + dedup scan + auto-hypothesis
     try { await runMacro("emergent","bridge.heartbeatTick", {}, ctx).catch((err) => { console.error('[system] Emergent bridge heartbeat tick error:', err); }); } catch (err) { console.error('[system] Heartbeat tick error:', err); }
 
+    // v5.6: repair agent tick — lattice health audit (stale DTUs, orphaned lineage, contradictions)
+    try { await runMacro("emergent","repair.agent.tick", {}, ctx).catch((err) => { console.error('[system] Repair agent tick error:', err); }); } catch (err) { console.error('[system] Repair agent tick error:', err); }
+
+    // v5.7: analogize engine — staggered 5s after main pipelines
+    try {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      await runMacro("system","analogize", {}, ctx).catch((err) => { console.error('[system] Analogize error:', err); });
+    } catch (err) { console.error('[system] Analogize error:', err); }
+
     // Plugin system tick — runs tick() on all loaded plugins
     try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }
 
@@ -18122,6 +18417,29 @@ startWeeklyCouncil();
 // Extended DTU endpoints extracted to routes/dtus.js
 
 // verify, experiments, synth, heartbeat, system, temporal, proposals, jobs, agents — extracted to routes/operations.js
+
+// ===== Direct Emergent Routes (bypass router for public access) =====
+app.get("/api/emergent/status", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("emergent", "status", {}, ctx);
+    const listOut = await runMacro("emergent", "list", {}, ctx);
+    out.emergents = listOut?.emergents || [];
+    out.entities = out.emergents;
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+app.get("/api/emergent/entities", async (req, res) => {
+  try {
+    const ctx = makeCtx(req);
+    const out = await runMacro("emergent", "list", {}, ctx);
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
 app.use("/api/emergent", createEmergentRouter({ makeCtx, runMacro }));
@@ -18465,6 +18783,55 @@ async function governorTick(reason="heartbeat") {
       const cultureMod = await import("./emergent/culture-layer.js").catch(() => null);
       if (cultureMod?.cultureTick) {
         cultureMod.cultureTick(STATE.__bgTickCounter || 0);
+      }
+
+      // ── Biological Systems Tick (wired from WIRING_SPEC.md) ──
+      const _bgEntities = STATE.__emergent
+        ? Array.from((STATE.__emergent?.emergents || new Map()).values()).filter(e => e.active)
+        : [];
+
+      // Relational emotion: decay bonds over time
+      const emotionMod = await import("./emergent/relational-emotion.js").catch(() => null);
+      if (emotionMod?.tickEmotions) {
+        for (const entity of _bgEntities) {
+          try { emotionMod.tickEmotions(entity.id); } catch {}
+        }
+      }
+
+      // Drift monitor: detect capability drift
+      const driftMod = await import("./emergent/drift-monitor.js").catch(() => null);
+      if (driftMod?.runDriftScan) {
+        for (const entity of _bgEntities) {
+          try { driftMod.runDriftScan(STATE, entity.id); } catch {}
+        }
+      }
+
+      // Subjective time: track entity time perception
+      const timeMod = await import("./emergent/subjective-time.js").catch(() => null);
+      if (timeMod?.recordTick) {
+        for (const entity of _bgEntities) {
+          try { timeMod.recordTick(STATE, entity.id); } catch {}
+        }
+      }
+
+      // Avoidance learning: decay old wounds
+      const painMod = await import("./emergent/avoidance-learning.js").catch(() => null);
+      if (painMod?.tickWounds) {
+        for (const entity of _bgEntities) {
+          try { painMod.tickWounds(entity.id); } catch {}
+        }
+        try { painMod.decayAvoidances(); } catch {}
+      }
+
+      // Vulnerability engine: periodic system-wide scan (every 5th tick)
+      if ((STATE.__bgTickCounter || 0) % 5 === 0) {
+        try { assessAndAdapt(STATE); } catch {}
+      }
+
+      // Institutional memory: record heartbeat observation
+      const memoryMod = await import("./emergent/institutional-memory.js").catch(() => null);
+      if (memoryMod?.recordObservation) {
+        try { memoryMod.recordObservation(STATE, { type: "heartbeat", tick: STATE.__bgTickCounter || 0, entityCount: _bgEntities.length, dtuCount: STATE.dtus?.size || 0 }); } catch {}
       }
     } catch { /* emergent system ticks are non-critical */ }
 

@@ -94,7 +94,8 @@ export function HomeClient() {
   }, []);
 
   const handleEnter = () => {
-    router.push('/register');
+    localStorage.setItem('concord_entered', 'true');
+    setHasEntered(true);
   };
 
   // Still loading from localStorage
@@ -286,7 +287,7 @@ function DashboardPage() {
         />
         <MetricCard
           label="Global DTUs"
-          value={statusLoading ? '...' : (scopeMetrics?.globalCount ?? 0)}
+          value={statusLoading ? '...' : (scopeMetrics?.globalCount || dtuCount)}
           icon={<Globe className="w-5 h-5" />}
           color="purple"
         />

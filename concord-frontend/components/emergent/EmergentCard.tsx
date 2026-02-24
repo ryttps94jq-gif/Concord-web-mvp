@@ -12,6 +12,7 @@ export interface EmergentEntity {
   name?: string;
   state?: string;
   status?: string;
+  active?: boolean;
   activity?: string;
   reputation?: number;
   contributions?: number;
@@ -54,7 +55,7 @@ export function EmergentCard({ emergent }: { emergent: EmergentEntity }) {
   const role = emergent.role?.toLowerCase() || 'unknown';
   const config = ROLE_CONFIG[role] || { icon: Key, color: 'gray-400', label: role };
   const Icon = config.icon;
-  const stateInfo = getStateLabel(emergent.state || emergent.status);
+  const stateInfo = getStateLabel(emergent.state || emergent.status || (emergent.active === true ? 'active' : emergent.active === false ? 'idle' : undefined));
   const reputation = emergent.reputation ?? emergent.trust ?? 0;
   const contributions = emergent.contributions ?? emergent.totalContributions ?? 0;
 
