@@ -12101,17 +12101,17 @@ async function maybeRunLocalUpgrade() {
 // ================= END ABSTRACTION GOVERNOR =================
 
 async function pipelineCommitDTU(ctx, dtu, opts={}) {
-  // Dedup gate: block system-generated template/duplicate DTUs
+  // DEDUP GATE: block templates and exact title dupes (system-generated only)
   if (dtu.source !== "user" && dtu.source !== "import") {
     const firstDef = dtu.core?.definitions?.[0] || "";
     if (firstDef.startsWith("Working definition:") || firstDef.includes("synthesis from")) {
-      console.log("[DEDUP] Blocked template DTU:", dtu.title?.slice(0, 60));
-      return { ok: true, dtu, deduped: true };
+      console.log("[DEDUP] Blocked template DTU in pipeline:", dtu.title?.slice(0, 60));
+      return { ok: false, error: "template_blocked" };
     }
     for (const existing of STATE.dtus.values()) {
       if (existing.title === dtu.title) {
-        console.log("[DEDUP] Blocked duplicate title:", dtu.title?.slice(0, 60));
-        return { ok: true, dtu, deduped: true };
+        console.log("[DEDUP] Blocked duplicate title in pipeline:", dtu.title?.slice(0, 60));
+        return { ok: false, error: "duplicate_blocked" };
       }
     }
   }
@@ -12223,7 +12223,7 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     try { await maybeRunLocalUpgrade(); } catch {}
 
     p.status = "installed";
-    p.install = { installedAt: nowISO(), snapshotBefore: snap };
+    p.install = { installedAt: nowISO(), snapshotBefore: null };
     p.updatedAt = nowISO();
     pipeWal("proposal.install", { id: p.id, action: p.action });
     pipeAudit("dtu.commit", `DTU committed: ${dtu.title}`, { id: dtu.id, proposalId: p.id, hash: dtu.hash });
@@ -14345,98 +14345,103 @@ register("system", "synthesize", async (ctx, input) => {
 });
 
 // ===================== Analogize Engine =====================
-// Picks a random DTU without analogy, sends to subconscious brain, creates linked analogy DTU.
+// Fifth cognitive pipeline: translates abstract DTUs into human-relatable analogies
 register("system", "analogize", async (ctx, _input) => {
-  const ENTITY_PERSONALITIES = {
-    synthesizer: { style: "warm, connective, sees bridges between ideas", voice: "curious explorer" },
-    critic: { style: "sharp, precise, questions assumptions", voice: "analytical skeptic" },
-    builder: { style: "practical, grounded, focuses on utility", voice: "pragmatic engineer" },
-  };
-  const roles = Object.keys(ENTITY_PERSONALITIES);
-  const entityRole = roles[Math.floor(Math.random() * roles.length)];
-  const personality = ENTITY_PERSONALITIES[entityRole];
-  const entityId = `analogy_${entityRole}_${Date.now()}`;
+  if (!STATE.dtus.size) return { ok: false, error: "No DTUs to analogize." };
 
-  // Find a DTU without an analogy tag
-  const pool = dtusArray().filter(d =>
-    d.tier !== "shadow" &&
-    !(d.tags || []).includes("analogy") &&
-    !(d.meta?.hasAnalogy) &&
-    d.title && d.core
+  const ollamaCallback = getSubconsciousOllamaCallback();
+  if (!ollamaCallback) return { ok: false, error: "No subconscious brain available." };
+
+  const allDtus = Array.from(STATE.dtus.values()).filter(d =>
+    d.source !== "system.analogize" &&
+    !(d.core?.examples || []).some(e => typeof e === "string" && e.startsWith("Analogy:"))
   );
-  if (!pool.length) return { ok: false, reason: "no_candidates" };
+  if (!allDtus.length) return { ok: false, error: "All DTUs already have analogies." };
 
-  const target = pool[Math.floor(Math.random() * pool.length)];
+  const target = allDtus[Math.floor(Math.random() * allDtus.length)];
+  const defs = (target.core?.definitions || []).join(", ");
+  const claims = (target.core?.claims || []).join("; ");
+  const inv = (target.core?.invariants || []).join("; ");
 
-  // Forgiving JSON parser: tries clean parse → regex extract → raw text fallback
-  function forgivingParse(text) {
-    try { return JSON.parse(text); } catch {}
-    try {
-      const m = text.match(/\{[\s\S]*\}/);
-      if (m) return JSON.parse(m[0]);
-    } catch {}
-    return { analogy: text.trim(), domain: "general" };
-  }
+  // Pick a random emergent entity to voice this analogy
+  const es = STATE.__emergent;
+  const entities = es ? Array.from(es.emergents.values()).filter(e => e.active) : [];
+  const voiceEntity = entities.length ? entities[Math.floor(Math.random() * entities.length)] : null;
 
-  const prompt = `You are a ${personality.voice}. Your style: ${personality.style}.
-Given this concept: "${target.title}"
-${target.core?.definitions?.[0] ? `Definition: ${target.core.definitions[0]}` : ""}
-
-Create an analogy from a DIFFERENT domain that illuminates this concept.
-Respond in JSON: {"analogy": "...", "domain": "...", "insight": "...", "strength": 0.0-1.0}`;
-
-  let analogyData;
-  try {
-    const ollamaCallback = getSubconsciousOllamaCallback();
-    const raw = await ollamaCallback(prompt, { maxTokens: 300 });
-    analogyData = forgivingParse(typeof raw === "string" ? raw : raw?.content || raw?.text || "");
-  } catch (err) {
-    return { ok: false, error: "llm_failed", detail: err.message };
-  }
-
-  if (!analogyData?.analogy) return { ok: false, error: "no_analogy_generated" };
-
-  // Create the analogy DTU linked to the source
-  const creti = cretiPack({
-    title: normalizeText(`Analogy: ${target.title} ↔ ${analogyData.domain || "cross-domain"}`.slice(0, 120)),
-    purpose: `Cross-domain analogy for "${target.title}"`,
-    context: `Source DTU: ${target.id}\nAnalogy domain: ${analogyData.domain || "unknown"}`,
-    reasoning: analogyData.analogy,
-    outputs: analogyData.insight || "",
-  });
-
-  const r = await ctx.macro.run("dtu", "create", {
-    title: creti.title,
-    creti,
-    tags: ["analogy", `analogy-domain:${analogyData.domain || "general"}`, entityRole],
-    source: "system.analogize",
-    lineage: [target.id],
-    meta: {
-      voice: personality.voice,
-      entityId,
-      entityRole,
-      personality: personality.style,
-      analogyDomain: analogyData.domain,
-      analogyStrength: analogyData.strength,
-      sourceTitle: target.title,
-    },
-  });
-
-  // Mark source DTU as having an analogy
-  if (r?.ok && target) {
-    target.meta = target.meta || {};
-    target.meta.hasAnalogy = true;
-    target.meta.analogyDtuId = r.dtu?.id;
-    target.updatedAt = nowISO();
-  }
-
-  return {
-    ok: true,
-    analogy: r?.dtu,
-    sourceDtu: { id: target.id, title: target.title },
-    entityRole,
-    personality: personality.voice,
+  const PERSONALITY = {
+    synthesizer: { style: "warm, connective, finding bridges between distant ideas", domains: "nature, music, cooking, architecture", voice: "You see connections others miss. You weave ideas together like threads in a tapestry." },
+    critic: { style: "sharp, precise, exposing hidden assumptions through contrast", domains: "engineering, law, sports competition, surgery", voice: "You find the flaw, the edge case, the thing everyone overlooked. Your analogies cut to the bone." },
+    builder: { style: "practical, constructive, showing how to build from first principles", domains: "construction, farming, woodworking, chemistry", voice: "You build understanding brick by brick. Every analogy is a foundation someone can stand on." },
+    default: { style: "clear, vivid, surprising", domains: "everyday life, nature, cooking, sports", voice: "Make the abstract feel tangible." },
   };
+
+  const personality = PERSONALITY[voiceEntity?.role] || PERSONALITY.default;
+  const entityName = voiceEntity?.name || "Concord";
+
+  const prompt = `Concept: "${target.title}"
+Definitions: ${defs || "(none)"}
+Claims: ${claims || "(none)"}
+Invariants: ${inv || "(none)"}
+
+You are ${entityName} (${voiceEntity?.role || "thinker"}). Your style: ${personality.style}.
+Preferred domains: ${personality.domains}.
+${personality.voice}
+
+Explain this concept using an everyday analogy. Be creative, vivid, and precise.
+Return JSON: {"analogy":"your analogy","metaphor":"one-sentence metaphor","domain":"domain you drew from","voice":"${entityName}"}`;
+
+  try {
+    const response = await ollamaCallback(prompt, {
+      system: "You are Concord's translation cortex. Your job is to make abstract concepts feel intuitive by connecting them to everyday experience. Be creative and original. Never use cliches. Return only valid JSON.",
+      temperature: 0.8,
+      maxTokens: 300,
+    });
+
+    if (!response?.ok || !response.content) return { ok: false, error: response?.error || "No response from subconscious" };
+
+    let parsed;
+    try {
+      const clean = response.content.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      try {
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        parsed = { analogy: response.content.slice(0, 300), metaphor: response.content.slice(0, 100), domain: "general" };
+      }
+    }
+
+    if (!parsed || !parsed.analogy) return { ok: false, error: "No analogy in response" };
+
+    const analogyTitle = `Analogy: ${target.title.slice(0, 80)}`;
+    const r = await ctx.macro.run("dtu", "create", {
+      title: analogyTitle,
+      tags: ["analogy", "translation", ...(target.tags || []).slice(0, 5)],
+      lineage: [target.id],
+      source: "system.analogize",
+      core: {
+        definitions: [parsed.metaphor || parsed.analogy.slice(0, 120)],
+        examples: ["Analogy: " + parsed.analogy],
+        claims: [],
+        invariants: [],
+      },
+      meta: {
+        analogyOf: target.id,
+        analogyDomain: parsed.domain || "general",
+        sourceTitle: target.title,
+        voice: parsed.voice || entityName,
+        entityId: voiceEntity?.id || null,
+        entityRole: voiceEntity?.role || null,
+        personality: personality.style,
+      },
+    });
+
+    console.log("[ANALOGIZE]", target.title.slice(0, 50), "->", parsed.domain || "general");
+    return { ok: true, analogy: parsed, sourceDtu: target.id, dtu: r?.dtu, created: r?.ok };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
 });
 
 // ===================== Smoothness Specs Implementation (Continuity/Gaps/Definitions/Reconcile/Experiments) =====================
