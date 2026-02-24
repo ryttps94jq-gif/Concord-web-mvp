@@ -41,6 +41,8 @@ const FORWARDED_EVENTS: SocketEvent[] = [
   'council:proposal', 'council:vote',
   // Marketplace
   'market:listing', 'market:trade',
+  // Creative Registry & Royalties
+  'creative_registry:update', 'marketplace:purchase',
   // Collaboration
   'collab:change', 'collab:lock', 'collab:unlock',
   'collab:session:created', 'collab:user:joined',
