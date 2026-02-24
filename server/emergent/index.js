@@ -548,7 +548,25 @@ function init({ register, STATE, helpers }) {
     if (!validation.valid) {
       return { ok: false, error: "invalid_emergent", validationErrors: validation.errors };
     }
-    return { ok: true, emergent: registerEmergent(es, emergent) };
+    const registered = registerEmergent(es, emergent);
+
+    // ── Biological system hooks for new entities ──
+    try {
+      const bodyMod = await import("./body-instantiation.js").catch(() => null);
+      if (bodyMod?.instantiateBody) bodyMod.instantiateBody(registered.id);
+    } catch { /* silent */ }
+    try {
+      const sleepMod = await import("./sleep-consolidation.js").catch(() => null);
+      if (sleepMod?.initSleepState) sleepMod.initSleepState(registered.id, registered.species || "digital_native");
+    } catch { /* silent */ }
+    try {
+      const speciesMod = await import("./species.js").catch(() => null);
+      if (speciesMod?.classifyEntity) {
+        registered.species = speciesMod.classifyEntity(registered)?.id || "digital_native";
+      }
+    } catch { /* silent */ }
+
+    return { ok: true, emergent: registered };
   }, { description: "Register a new emergent agent", public: false });
 
   register("emergent", "get", (_ctx, input = {}) => {

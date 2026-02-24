@@ -59,6 +59,16 @@ import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergen
 import { attemptReproduction, getLineage, getLineageTree, enableReproduction, disableReproduction, isReproductionEnabled } from "./emergent/reproduction.js";
 import { classifyEntity, classifyAllEntities, getSpeciesCensus, getSpeciesRegistry, checkReproductionCompatibility, getSpecies } from "./emergent/species.js";
 import { runDualPathSimulation, getSimulation, listSimulations } from "./emergent/dual-path.js";
+// ---- Biological Systems: emergent module wiring ----
+import { instantiateBody, getBody, entityKernelTick as tickBodyDecay, getBodyMetrics } from "./emergent/body-instantiation.js";
+import { initSleepState, tickFatigue, checkSleepTransition, getSleepState, getSleepMetrics } from "./emergent/sleep-consolidation.js";
+import { checkDeathConditions, checkAllEntities as checkAllDeathConditions } from "./emergent/death-protocol.js";
+import { tickEmotions as tickEmotionDecay, triggerEmotionalResponse, getRelationalMetrics } from "./emergent/relational-emotion.js";
+import { checkRules as checkConstitution, getConstitutionMetrics } from "./emergent/constitution.js";
+import { recordPain, checkAvoidance, tickWounds, getPainMetrics } from "./emergent/avoidance-learning.js";
+import { runDriftScan, getDriftMetrics } from "./emergent/drift-monitor.js";
+import { recordTick as tickSubjectiveTime, getSubjectiveTimeMetrics } from "./emergent/subjective-time.js";
+import { recordObservation as recordInstitutionalDecision, getInstitutionalMemoryMetrics } from "./emergent/institutional-memory.js";
 
 // ---- Worker Pool: offload heavy macros to worker threads ----
 import { initPool, isHeavy, dispatch as dispatchToPool, syncState as syncPoolState, getPoolStats, shutdownPool } from "./workers/macro-pool.js";
@@ -12228,6 +12238,9 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     pipeWal("proposal.install", { id: p.id, action: p.action });
     pipeAudit("dtu.commit", `DTU committed: ${dtu.title}`, { id: dtu.id, proposalId: p.id, hash: dtu.hash });
 
+    // Record to institutional memory (fire-and-forget)
+    try { recordInstitutionalDecision(STATE, { category: "quality_observation", domain: "dtu", action: "commit", detail: dtu.title?.slice(0, 120), context: { dtuId: dtu.id, source: dtu.source, proposalId: p.id } }); } catch { /* silent */ }
+
     return { ok:true, dtu, proposalId: p.id };
   } catch (e) {
     const rb = pipeRestoreSnapshot(snap);
@@ -14069,6 +14082,24 @@ register("quality", "preview", (_ctx, input) => {
     projectionRules: CRETI_PROJECTION_RULES[intent] || CRETI_PROJECTION_RULES.default
   };
 }, { description: "Preview which quality pipeline patterns would apply to a query" });
+
+// ===================== System Status =====================
+// Returns live system metrics consumed by dashboard, header bar, and status cards
+register("system", "status", (_ctx, _input) => {
+  return {
+    ok: true,
+    version: "5.1.0",
+    counts: {
+      dtus: STATE.dtus.size,
+      events: AUDIT_LOG?.length || 0,
+      emergents: STATE.__emergent?.emergents?.size || 0,
+    },
+    llm: {
+      enabled: !!STATE.brains?.conscious || !!BRAIN?.conscious?.enabled,
+    },
+    uptime: process.uptime(),
+  };
+});
 
 // System domain (dream/autogen/evolution/synthesize) — powered by 6-stage autogen pipeline
 register("system", "dream", async (ctx, input) => {
@@ -17545,7 +17576,7 @@ function ensureRootIdentity() {
       console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED (set DATA_DIR to enable file-based key delivery)`);
     }
   } else {
-    console.log(`X-API-Key: ${rawKey}`);
+    console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED`);
   }
   console.log("================================\n");
 }
@@ -17842,6 +17873,7 @@ let weeklyTimer = null;
 let globalTickTimer = null;  // Scope Separation: separate 5-min Global tick
 let cognitiveWorker = null;
 let cognitiveWorkerReady = false;
+let _heartbeatCount = 0;
 
 // ── Cognitive Worker: snapshot builder ────────────────────────────────────────
 // Serializes only what the pipeline needs — never the full STATE.
@@ -18090,6 +18122,39 @@ function startHeartbeat() {
       await new Promise(resolve => setTimeout(resolve, 5000));
       await runMacro("system","analogize", {}, ctx).catch((err) => { console.error('[system] Analogize error:', err); });
     } catch (err) { console.error('[system] Analogize error:', err); }
+
+    // ── v5.8: Biological Systems Tick ──────────────────────────────────────
+    // Wire all 12 emergent modules into the heartbeat for living biology
+    try {
+      const entities = STATE.__emergent
+        ? Array.from(STATE.__emergent.emergents.values()).filter(e => e.active)
+        : [];
+
+      for (const entity of entities) {
+        // Body decay & organ simulation
+        try { tickBodyDecay(entity.id); } catch { /* silent */ }
+        // Sleep cycle transitions (fatigue → drowsy → sleep → REM → wake)
+        try { tickFatigue(entity.id); } catch { /* silent */ }
+        try { checkSleepTransition(entity.id); } catch { /* silent */ }
+        // Subjective time perception
+        try { tickSubjectiveTime(STATE, entity.id); } catch { /* silent */ }
+        // Relational emotion decay between entity pairs
+        try { tickEmotionDecay(); } catch { /* silent */ }
+        // Avoidance learning wound healing
+        try { tickWounds(entity.id); } catch { /* silent */ }
+        // Death condition check (telomere, homeostasis, organ failure)
+        try {
+          const body = getBody(entity.id);
+          checkDeathConditions(entity.id, body || {});
+        } catch { /* silent */ }
+      }
+
+      // System-wide drift scan (runs every 5th heartbeat to avoid overhead)
+      _heartbeatCount = (_heartbeatCount || 0) + 1;
+      if (_heartbeatCount % 5 === 0) {
+        try { runDriftScan(STATE); } catch { /* silent */ }
+      }
+    } catch (err) { console.error('[system] Biological systems tick error:', err); }
 
     // Plugin system tick — runs tick() on all loaded plugins
     try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }

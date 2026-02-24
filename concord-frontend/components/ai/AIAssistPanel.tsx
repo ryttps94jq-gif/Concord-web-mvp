@@ -114,8 +114,8 @@ export function AIAssistPanel({
     await generateResponse('question', input.trim());
   };
 
-  // Generate AI response (simulated)
-  const generateResponse = async (action: AIAction, _content: string) => {
+  // Generate AI response via backend chat API
+  const generateResponse = async (action: AIAction, content: string) => {
     setIsLoading(true);
 
     // Create placeholder message
@@ -130,28 +130,41 @@ export function AIAssistPanel({
 
     setMessages(prev => [...prev, assistantMessage]);
 
-    // Simulate streaming response
-    const responses: Record<AIAction, string> = {
-      expand: `Based on the content provided, here's an expanded analysis:\n\nThe core concepts touch on several interconnected ideas. First, consider the foundational aspects that underpin the main argument. These establish the framework for understanding the broader implications.\n\nFurthermore, when we examine the secondary themes, we find rich connections to established research in cognitive science and philosophy of mind. The interplay between these elements suggests a more nuanced interpretation than initially apparent.\n\nKey considerations:\n• The relationship between perception and cognition\n• How memory consolidation affects understanding\n• The role of context in meaning-making`,
-      summarize: `**Summary**\n\nThis content explores the intersection of cognitive frameworks and knowledge representation. The main points are:\n\n1. Discrete thought units provide atomic building blocks\n2. Connections between units form meaningful networks\n3. Higher-order consolidation enables efficient retrieval\n\nThe key insight is that structured thinking leads to better understanding.`,
-      question: `Based on your question and the available context, here's my analysis:\n\nThe concept you're asking about relates to how we organize and retrieve knowledge. In the Concord framework, this is handled through DTUs (Discrete Thought Units) which can be connected, consolidated, and queried.\n\nWould you like me to elaborate on any specific aspect?`,
-      connections: `I found several related DTUs that might be relevant:\n\n🔗 **Epistemology Notes** (85% match)\nDiscusses the foundations of knowledge\n\n🔗 **Cognitive Architecture** (72% match)\nExplores how the mind organizes information\n\n🔗 **Memory Systems** (68% match)\nCovers consolidation and retrieval processes\n\nShall I explore any of these connections further?`,
-      rewrite: `Here's a revised version with improved clarity:\n\n---\n\nThought units serve as the fundamental building blocks of knowledge representation. When connected through meaningful relationships, they form networks that enable sophisticated reasoning and retrieval.\n\nThe key advantage of this approach is modularity: each unit remains discrete while participating in larger cognitive structures.\n\n---\n\nThis version emphasizes clarity and removes redundancy while preserving the core message.`,
-      explain: `Let me break this down simply:\n\n**What it is:**\nThink of your thoughts like LEGO blocks. Each block (DTU) is one complete idea.\n\n**How it works:**\nBlocks connect to other blocks. When many blocks connect, they form bigger structures (MEGA/HYPER DTUs).\n\n**Why it matters:**\nThis helps you:\n- Find ideas faster\n- See connections you missed\n- Build complex understanding from simple pieces\n\nDoes this help clarify things?`,
-      challenge: `Let me present some counterpoints to consider:\n\n**Alternative Perspective 1:**\nThe assumption that discrete units are the optimal representation may not hold for all types of knowledge. Some understanding is inherently holistic.\n\n**Alternative Perspective 2:**\nThe consolidation process might lose important nuance. What criteria determine what gets preserved?\n\n**Questions to Consider:**\n- How do we handle contradictory information?\n- What about implicit knowledge that resists explicit representation?\n- Is structure always beneficial, or can it constrain thinking?\n\nThese challenges don't invalidate the approach but suggest areas for deeper consideration.`
+    const actionPrompts: Record<AIAction, string> = {
+      expand: `Expand and analyze the following content in depth:\n\n${content}`,
+      summarize: `Summarize the key points of the following content:\n\n${content}`,
+      question: content,
+      connections: `Find related DTUs and concepts connected to:\n\n${content}`,
+      rewrite: `Rewrite the following for improved clarity:\n\n${content}`,
+      explain: `Explain the following simply, as if to someone unfamiliar:\n\n${content}`,
+      challenge: `Present counterpoints and challenges to the following:\n\n${content}`,
     };
 
-    const fullResponse = responses[action];
-    let currentText = '';
+    try {
+      const { api: apiClient } = await import('@/lib/api/client');
+      const response = await apiClient.post('/api/chat', {
+        prompt: actionPrompts[action],
+        mode: 'explore',
+      }, { params: { full: '1' } });
 
-    // Simulate streaming
-    for (let i = 0; i < fullResponse.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      currentText += fullResponse[i];
+      const fullResponse = response.data?.answer || response.data?.response || response.data?.content || response.data?.text || 'No response from the cognitive engine.';
+      let currentText = '';
 
+      // Stream the response character by character for UX
+      for (let i = 0; i < fullResponse.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 8));
+        currentText += fullResponse[i];
+
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessage.id
+            ? { ...msg, content: currentText }
+            : msg
+        ));
+      }
+    } catch {
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessage.id
-          ? { ...msg, content: currentText }
+          ? { ...msg, content: 'Unable to reach the cognitive engine. Please check the backend connection.' }
           : msg
       ));
     }

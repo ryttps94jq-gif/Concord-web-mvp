@@ -42,6 +42,7 @@ import {
   Activity, Zap, Compass, TrendingUp, Heart, Globe,
   MessageSquare, Layout, Share2, Code, Music,
 } from 'lucide-react';
+import { use70Lock } from '@/hooks/use70Lock';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -127,6 +128,7 @@ export function HomeClient() {
 
 function DashboardPage() {
   const [inspecting, setInspecting] = useState<{ type: string; id: string } | null>(null);
+  const { lockPercentage, isLoading: sovereigntyLoading } = use70Lock();
 
   // All queries are resilient — each catches errors independently so one failure
   // doesn't crash the dashboard. Each section renders a fallback on error.
@@ -305,10 +307,10 @@ function DashboardPage() {
         />
         <MetricCard
           label="Sovereignty"
-          value="70%"
+          value={sovereigntyLoading ? '...' : `${lockPercentage}%`}
           icon={<Heart className="w-5 h-5" />}
           color="green"
-          locked
+          locked={lockPercentage >= 70}
         />
       </div>
 
