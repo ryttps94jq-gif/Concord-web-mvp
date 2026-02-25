@@ -3008,6 +3008,9 @@ const STATE = {
   // v3: Generic lens artifact store (domain.type → artifact)
   lensArtifacts: new Map(), // artifactId → {id, domain, type, ownerId, title, data, meta, createdAt, updatedAt, version}
   lensDomainIndex: new Map(), // domain → Set<artifactId> — O(1) domain lookup
+  // v4: User Universes (local/global multiverse substrate)
+  userUniverses: new Map(), // userId → { userId, localDTUs: Map, localLensArtifacts: Map, syncedFromGlobal: Set, preferences, stats, discoveryLog }
+  globalThread: { councilQueue: [], acceptedContributions: [] }, // council submission queue + audit trail
   __chicken2: {
     enabled: true,
     mode: "full_blast",
@@ -5413,6 +5416,17 @@ function _serializeState() {
     lensArtifacts: Array.from(STATE.lensArtifacts.values()),
     _scopeSeparation: STATE._scopeSeparation || null,
     _autogenPipeline: STATE._autogenPipeline || null,
+    // v4: User Universes
+    userUniverses: Array.from(STATE.userUniverses.entries()).map(([userId, u]) => ({
+      userId,
+      localDTUs: Array.from(u.localDTUs.values()),
+      localLensArtifacts: Array.from(u.localLensArtifacts.values()),
+      syncedFromGlobal: Array.from(u.syncedFromGlobal),
+      preferences: u.preferences,
+      stats: u.stats,
+      discoveryLog: (u.discoveryLog || []).slice(-500),
+    })),
+    globalThread: STATE.globalThread || { councilQueue: [], acceptedContributions: [] },
   };
 }
 
@@ -5537,6 +5551,33 @@ function _hydrateState(obj) {
   // Autogen Pipeline state
   if (obj._autogenPipeline && typeof obj._autogenPipeline === "object") {
     STATE._autogenPipeline = obj._autogenPipeline;
+  }
+
+  // v4: User Universes hydration
+  STATE.userUniverses.clear();
+  if (Array.isArray(obj.userUniverses)) {
+    for (const u of obj.userUniverses) {
+      if (!u || !u.userId) continue;
+      const localDTUs = new Map();
+      if (Array.isArray(u.localDTUs)) for (const d of u.localDTUs) if (d && d.id) localDTUs.set(d.id, d);
+      const localLensArtifacts = new Map();
+      if (Array.isArray(u.localLensArtifacts)) for (const a of u.localLensArtifacts) if (a && a.id) localLensArtifacts.set(a.id, a);
+      STATE.userUniverses.set(u.userId, {
+        userId: u.userId,
+        localDTUs,
+        localLensArtifacts,
+        syncedFromGlobal: new Set(Array.isArray(u.syncedFromGlobal) ? u.syncedFromGlobal : []),
+        preferences: u.preferences || { autoSyncEnabled: false, autoSyncDomains: [], syncDepth: "shallow", personalityBias: null },
+        stats: u.stats || { localDTUCount: 0, syncedCount: 0, artifactsCreated: 0, lensesUsed: [], createdAt: nowISO(), lastActive: nowISO() },
+        discoveryLog: Array.isArray(u.discoveryLog) ? u.discoveryLog : [],
+      });
+    }
+  }
+  if (obj.globalThread && typeof obj.globalThread === "object") {
+    STATE.globalThread = {
+      councilQueue: Array.isArray(obj.globalThread.councilQueue) ? obj.globalThread.councilQueue : [],
+      acceptedContributions: Array.isArray(obj.globalThread.acceptedContributions) ? obj.globalThread.acceptedContributions : [],
+    };
   }
 }
 
@@ -13601,6 +13642,14 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     // Sync DTU to lens artifacts for domain-based lens views
     try { if (typeof syncDTUToLensArtifacts === "function") syncDTUToLensArtifacts(dtu); } catch {}
 
+    // v4 Universe: also add DTU to the creating user's local universe
+    try {
+      const _creatorId = ctx?.actor?.userId || dtu.ownerId || dtu.createdBy;
+      if (_creatorId && _creatorId !== "anon" && typeof addDTUToUserUniverse === "function") {
+        addDTUToUserUniverse(_creatorId, dtu);
+      }
+    } catch {}
+
     // ===== AUTO WORLD MODEL UPDATE =====
     // Every new DTU feeds into the world model: extract entities, detect relations,
     // find contradictions, update confidence. This makes the world model self-correcting.
@@ -14489,7 +14538,10 @@ const _updateAnchorsFromTurn = ({ promptText, bestScoreHint = 0, wantsStructured
 };
 
 // Retrieve relevant DTUs (local) — search-like semantics (synonyms + fuzzy) + temporal recency (soft-gate)
-const all = dtusArray();
+// v4 Universe: check user's local universe first, fall back to global
+const _universeUserId = ctx?.actor?.userId;
+const _userContextDTUs = (() => { try { return typeof getContextDTUsForUser === "function" ? getContextDTUsForUser(_universeUserId, prompt) : null; } catch { return null; } })();
+const all = _userContextDTUs || dtusArray();
 const qRaw = String(prompt || "");
 const qBase = tokensNoStop(qRaw);
 const qExp  = expandQueryTokens(qRaw);
@@ -16351,9 +16403,24 @@ register("context", "query", async (ctx, input) => {
   } = input || {};
 
   // 1. Build candidate pool from all tiers
+  // v4 Universe: include user's local DTUs in candidate pool (prioritized)
   const candidates = [];
+  const _ctxUserId = ctx?.actor?.userId;
+  try {
+    if (_ctxUserId && _ctxUserId !== "anon" && typeof getUserUniverse === "function") {
+      const _uniCtx = getUserUniverse(_ctxUserId);
+      if (_uniCtx && _uniCtx.localDTUs.size > 0) {
+        for (const [id, dtu] of _uniCtx.localDTUs) {
+          if (scope !== "all" && dtu.scope && dtu.scope !== scope) continue;
+          if (!crossDomain && primaryDomain && dtu.domain !== primaryDomain) continue;
+          candidates.push({ ...dtu, _fromLocalUniverse: true });
+        }
+      }
+    }
+  } catch {}
 
   for (const [id, dtu] of STATE.dtus) {
+    if (candidates.some(c => c.id === id)) continue; // skip if already from local
     if (scope !== "all" && dtu.scope && dtu.scope !== scope) continue;
     if (!crossDomain && primaryDomain && dtu.domain !== primaryDomain) continue;
     if (minTier === "mega" && dtu.tier !== "mega" && dtu.tier !== "hyper") continue;
@@ -41660,6 +41727,644 @@ structuredLog("info", "autotag_init", { detail: "DTU Domain Auto-Tagging & Lens 
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // END DTU DOMAIN AUTO-TAGGING & LENS SYNC ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USER UNIVERSE / MULTIVERSE SUBSTRATE
+// Local/Global DTU split: Sacred Timeline (global) + personal branches (user).
+// ADDITIVE — does not modify existing STATE.dtus usage. Layers on top.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get or create a user's universe. Idempotent.
+ */
+function getOrCreateUserUniverse(userId) {
+  if (!userId) return null;
+  if (STATE.userUniverses.has(userId)) {
+    const u = STATE.userUniverses.get(userId);
+    u.stats.lastActive = new Date().toISOString();
+    return u;
+  }
+  const universe = {
+    userId,
+    localDTUs: new Map(),
+    localLensArtifacts: new Map(),
+    syncedFromGlobal: new Set(),
+    preferences: {
+      autoSyncEnabled: false,
+      autoSyncDomains: [],
+      syncDepth: "shallow",
+      personalityBias: null,
+    },
+    stats: {
+      localDTUCount: 0,
+      syncedCount: 0,
+      artifactsCreated: 0,
+      lensesUsed: [],
+      createdAt: new Date().toISOString(),
+      lastActive: new Date().toISOString(),
+    },
+    discoveryLog: [],
+  };
+  STATE.userUniverses.set(userId, universe);
+  saveStateDebounced();
+  console.log(`[Universe] Created universe for user ${userId}`);
+  return universe;
+}
+
+/**
+ * Get user universe (read-only; returns null if not found).
+ */
+function getUserUniverse(userId) {
+  if (!userId) return null;
+  return STATE.userUniverses.get(userId) || null;
+}
+
+/**
+ * Get starter pack DTU IDs — curated essentials across key domains.
+ * Returns IDs of the most important global DTUs for new users.
+ */
+function getStarterPackDTUIds() {
+  const starters = [];
+  const tierPriority = { hyper: 3, mega: 2, core: 1, regular: 0 };
+  const sorted = Array.from(STATE.dtus.values())
+    .filter(d => d.scope === "global" || !d.scope)
+    .sort((a, b) => (tierPriority[b.tier] || 0) - (tierPriority[a.tier] || 0));
+  // Take top 50: prioritize mega/hyper tier
+  for (const d of sorted) {
+    starters.push(d.id);
+    if (starters.length >= 50) break;
+  }
+  return starters;
+}
+
+/**
+ * Search DTUs within a specific Map using text scoring.
+ */
+function searchDTUsInMap(dtuMap, query) {
+  if (!dtuMap || dtuMap.size === 0) return [];
+  const qTokens = simpleTokens(String(query || "").toLowerCase()).filter(t => t.length >= 2);
+  if (qTokens.length === 0) return Array.from(dtuMap.values()).slice(0, 20);
+
+  const scored = [];
+  for (const dtu of dtuMap.values()) {
+    const text = [
+      dtu.title || "",
+      (dtu.tags || []).join(" "),
+      dtu.cretiHuman || dtu.human?.summary || "",
+      (dtu.human?.bullets || []).join(" "),
+    ].join(" ").toLowerCase();
+    const dTokens = simpleTokens(text).filter(t => t.length >= 2);
+    const overlap = qTokens.filter(t => dTokens.includes(t) || text.includes(t)).length;
+    if (overlap > 0) scored.push({ dtu, score: overlap / Math.max(qTokens.length, 1) });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map(s => s.dtu);
+}
+
+/**
+ * Enrich local context with borrowed global DTUs for an Ollama call.
+ * Borrowed DTUs are NOT synced — they're temporary context supplements.
+ */
+function enrichContextForOllamaCall(userId, query, localContext) {
+  try {
+    if (localContext.length >= 5) return localContext;
+
+    const qTokens = simpleTokens(String(query || "").toLowerCase()).filter(t => t.length >= 2);
+    if (qTokens.length === 0) return localContext;
+
+    const localIds = new Set(localContext.map(d => d.id));
+    const globalMatches = [];
+
+    for (const [id, dtu] of STATE.dtus) {
+      if (localIds.has(id)) continue;
+      const text = [
+        dtu.title || "",
+        (dtu.tags || []).join(" "),
+        dtu.cretiHuman || dtu.human?.summary || "",
+      ].join(" ").toLowerCase();
+      const relevance = qTokens.filter(t => text.includes(t)).length;
+      if (relevance > 0) {
+        globalMatches.push({ ...dtu, _relevance: relevance, _source: "global-borrow" });
+      }
+    }
+
+    globalMatches.sort((a, b) => b._relevance - a._relevance);
+    const borrowed = globalMatches.slice(0, 10);
+    const enriched = [...localContext, ...borrowed];
+
+    if (borrowed.length > 0) {
+      console.log(`[Enrich] User ${userId} borrowed ${borrowed.length} DTUs from global for query context`);
+    }
+
+    return enriched;
+  } catch (e) {
+    console.error("[Enrich] Error:", String(e?.message || e));
+    return localContext;
+  }
+}
+
+/**
+ * Get context DTUs for a user — checks local universe first, then enriches from global.
+ * Returns an array of DTUs suitable for the chat/RAG pipeline.
+ */
+function getContextDTUsForUser(userId, query) {
+  try {
+    const universe = getUserUniverse(userId);
+    if (!universe || universe.localDTUs.size === 0) {
+      // No universe or empty — fall back to global (backward compatible)
+      return null; // null signals "use global as before"
+    }
+
+    // Search local universe
+    const localResults = searchDTUsInMap(universe.localDTUs, query);
+
+    // If local is thin, enrich from global
+    if (localResults.length < 5) {
+      return enrichContextForOllamaCall(userId, query, localResults);
+    }
+
+    return localResults;
+  } catch (e) {
+    console.error("[GetContextDTUs] Error:", String(e?.message || e));
+    return null;
+  }
+}
+
+/**
+ * Add a DTU to a user's local universe. Used when a user creates or generates a DTU.
+ */
+function addDTUToUserUniverse(userId, dtu) {
+  try {
+    if (!userId || !dtu || !dtu.id) return false;
+    const universe = getOrCreateUserUniverse(userId);
+    if (!universe) return false;
+    universe.localDTUs.set(dtu.id, dtu);
+    universe.stats.localDTUCount = universe.localDTUs.size;
+    universe.stats.lastActive = new Date().toISOString();
+    return true;
+  } catch (e) {
+    console.error("[AddDTUToUniverse] Error:", String(e?.message || e));
+    return false;
+  }
+}
+
+// ── Global Browse API ────────────────────────────────────────────────────────
+app.get("/api/global/browse", (req, res) => {
+  try {
+    const { domain, search, limit: lim, offset: off, tier } = req.query;
+    const limit = Math.min(Number(lim) || 50, 200);
+    const offset = Number(off) || 0;
+    const userId = req.actor?.userId || req.user?.id;
+
+    let results = Array.from(STATE.dtus.values());
+
+    if (domain) results = results.filter(d => (d.tags || []).includes(domain));
+    if (tier) results = results.filter(d => d.tier === tier);
+    if (search) {
+      const q = String(search).toLowerCase();
+      results = results.filter(d =>
+        (d.title || "").toLowerCase().includes(q) ||
+        (d.tags || []).some(t => t.includes(q)) ||
+        (d.cretiHuman || "").toLowerCase().includes(q)
+      );
+    }
+
+    results.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    const total = results.length;
+    const universe = getUserUniverse(userId);
+
+    const previews = results.slice(offset, offset + limit).map(d => ({
+      id: d.id,
+      title: d.title,
+      tags: d.tags,
+      tier: d.tier,
+      domain: d.tags?.[0],
+      createdAt: d.createdAt,
+      preview: (d.cretiHuman || d.human?.summary || "").slice(0, 200),
+      alreadySynced: universe ? universe.syncedFromGlobal.has(d.id) : false,
+    }));
+
+    res.json({ ok: true, results: previews, total, limit, offset });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Global Sync API (pull global → local) ────────────────────────────────────
+app.post("/api/global/sync", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const { dtuIds } = req.body;
+    if (!Array.isArray(dtuIds) || dtuIds.length === 0) {
+      return res.status(400).json({ ok: false, error: "dtuIds array required" });
+    }
+
+    const universe = getOrCreateUserUniverse(userId);
+    let synced = 0;
+
+    for (const id of dtuIds.slice(0, 500)) {
+      const globalDTU = STATE.dtus.get(id);
+      if (!globalDTU) continue;
+      if (universe.syncedFromGlobal.has(id)) continue;
+
+      const localCopy = JSON.parse(JSON.stringify(globalDTU));
+      localCopy._syncedFrom = "global";
+      localCopy._syncedAt = new Date().toISOString();
+      localCopy._originalId = id;
+
+      universe.localDTUs.set(id, localCopy);
+      universe.syncedFromGlobal.add(id);
+      synced++;
+    }
+
+    universe.stats.syncedCount = universe.syncedFromGlobal.size;
+    universe.stats.localDTUCount = universe.localDTUs.size;
+    saveStateDebounced();
+    res.json({ ok: true, synced, totalLocal: universe.localDTUs.size });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Global Unsync API (remove synced DTU from local) ─────────────────────────
+app.post("/api/global/unsync", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const { dtuIds } = req.body;
+    if (!Array.isArray(dtuIds)) return res.status(400).json({ ok: false, error: "dtuIds array required" });
+
+    const universe = getUserUniverse(userId);
+    if (!universe) return res.status(404).json({ ok: false, error: "universe not found" });
+
+    let removed = 0;
+    for (const id of dtuIds) {
+      if (universe.syncedFromGlobal.has(id)) {
+        universe.localDTUs.delete(id);
+        universe.syncedFromGlobal.delete(id);
+        removed++;
+      }
+    }
+
+    universe.stats.syncedCount = universe.syncedFromGlobal.size;
+    universe.stats.localDTUCount = universe.localDTUs.size;
+    saveStateDebounced();
+    res.json({ ok: true, removed, totalLocal: universe.localDTUs.size });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Universe Initialize API (onboarding) ─────────────────────────────────────
+app.post("/api/universe/initialize", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const { mode, domains } = req.body;
+    // mode: "empty" | "starter" | "domain-specific" | "full"
+    const universe = getOrCreateUserUniverse(userId);
+
+    if (universe.localDTUs.size > 0) {
+      return res.json({ ok: true, mode: "already_initialized", localDTUs: universe.localDTUs.size, message: "Universe already has content." });
+    }
+
+    if (mode === "empty") {
+      // Nothing to do — universe starts empty
+    } else if (mode === "starter") {
+      const starterIds = getStarterPackDTUIds();
+      for (const id of starterIds) {
+        const dtu = STATE.dtus.get(id);
+        if (dtu) {
+          const copy = JSON.parse(JSON.stringify(dtu));
+          copy._syncedFrom = "global";
+          copy._syncedAt = new Date().toISOString();
+          universe.localDTUs.set(id, copy);
+          universe.syncedFromGlobal.add(id);
+        }
+      }
+    } else if (mode === "domain-specific" && Array.isArray(domains) && domains.length > 0) {
+      for (const [id, dtu] of STATE.dtus) {
+        if ((dtu.tags || []).some(t => domains.includes(t))) {
+          const copy = JSON.parse(JSON.stringify(dtu));
+          copy._syncedFrom = "global";
+          copy._syncedAt = new Date().toISOString();
+          universe.localDTUs.set(id, copy);
+          universe.syncedFromGlobal.add(id);
+        }
+      }
+    } else if (mode === "full") {
+      for (const [id, dtu] of STATE.dtus) {
+        const copy = JSON.parse(JSON.stringify(dtu));
+        copy._syncedFrom = "global";
+        copy._syncedAt = new Date().toISOString();
+        universe.localDTUs.set(id, copy);
+        universe.syncedFromGlobal.add(id);
+      }
+    }
+
+    universe.stats.syncedCount = universe.syncedFromGlobal.size;
+    universe.stats.localDTUCount = universe.localDTUs.size;
+    saveStateDebounced();
+
+    const message = mode === "empty"
+      ? "Your universe is ready. A blank canvas."
+      : `Synced ${universe.localDTUs.size} DTUs into your universe.`;
+
+    res.json({ ok: true, mode: mode || "empty", localDTUs: universe.localDTUs.size, message });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Universe Stats API ───────────────────────────────────────────────────────
+app.get("/api/universe/stats", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const universe = getUserUniverse(userId);
+    if (!universe) {
+      return res.json({ ok: true, initialized: false, stats: null });
+    }
+
+    // Compute domain distribution in local universe
+    const domainCounts = {};
+    for (const dtu of universe.localDTUs.values()) {
+      for (const tag of (dtu.tags || [])) {
+        if (LENS_DOMAIN_KEYWORDS[tag]) {
+          domainCounts[tag] = (domainCounts[tag] || 0) + 1;
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      initialized: true,
+      stats: {
+        ...universe.stats,
+        localDTUCount: universe.localDTUs.size,
+        syncedCount: universe.syncedFromGlobal.size,
+        domainCounts,
+        globalDTUCount: STATE.dtus.size,
+        discoveryCount: universe.discoveryLog.length,
+      },
+      preferences: universe.preferences,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Universe Preferences API ─────────────────────────────────────────────────
+app.put("/api/universe/preferences", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const universe = getOrCreateUserUniverse(userId);
+    const updates = req.body || {};
+
+    if (typeof updates.autoSyncEnabled === "boolean") universe.preferences.autoSyncEnabled = updates.autoSyncEnabled;
+    if (Array.isArray(updates.autoSyncDomains)) universe.preferences.autoSyncDomains = updates.autoSyncDomains.slice(0, 50);
+    if (typeof updates.syncDepth === "string") universe.preferences.syncDepth = updates.syncDepth === "deep" ? "deep" : "shallow";
+    if (updates.personalityBias !== undefined) universe.preferences.personalityBias = updates.personalityBias;
+
+    saveStateDebounced();
+    res.json({ ok: true, preferences: universe.preferences });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Universe Local DTU List API ──────────────────────────────────────────────
+app.get("/api/universe/dtus", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const universe = getUserUniverse(userId);
+    if (!universe) return res.json({ ok: true, dtus: [], total: 0 });
+
+    const { domain, search, limit: lim, offset: off } = req.query;
+    const limit = Math.min(Number(lim) || 50, 200);
+    const offset = Number(off) || 0;
+
+    let results = Array.from(universe.localDTUs.values());
+    if (domain) results = results.filter(d => (d.tags || []).includes(domain));
+    if (search) {
+      const q = String(search).toLowerCase();
+      results = results.filter(d =>
+        (d.title || "").toLowerCase().includes(q) ||
+        (d.tags || []).some(t => t.includes(q))
+      );
+    }
+
+    results.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    const total = results.length;
+    const page = results.slice(offset, offset + limit).map(d => ({
+      id: d.id,
+      title: d.title,
+      tags: d.tags,
+      tier: d.tier,
+      createdAt: d.createdAt,
+      _syncedFrom: d._syncedFrom || null,
+      preview: (d.cretiHuman || d.human?.summary || "").slice(0, 200),
+    }));
+
+    res.json({ ok: true, dtus: page, total, limit, offset });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Council Submission API (local → global) ──────────────────────────────────
+app.post("/api/global/submit", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    const username = req.user?.username || req.user?.handle || userId;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const { dtuId, reason } = req.body;
+    if (!dtuId) return res.status(400).json({ ok: false, error: "dtuId required" });
+
+    const universe = getUserUniverse(userId);
+    const dtu = universe ? universe.localDTUs.get(dtuId) : null;
+
+    if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found in your universe" });
+
+    // Prevent duplicate submissions
+    if (STATE.globalThread.councilQueue.some(s => s.dtuId === dtuId && s.status === "pending")) {
+      return res.status(409).json({ ok: false, error: "DTU already submitted and pending review" });
+    }
+
+    STATE.globalThread.councilQueue.push({
+      id: `submission_${uid("sub")}`,
+      dtuId: dtu.id,
+      dtu: JSON.parse(JSON.stringify(dtu)),
+      submittedBy: userId,
+      username,
+      reason: String(reason || "").slice(0, 1000),
+      submittedAt: new Date().toISOString(),
+      status: "pending",
+      councilVotes: [],
+    });
+
+    saveStateDebounced();
+    try { pipeAudit("council.submit", `User ${username} submitted DTU for council review`, { dtuId, userId }); } catch {}
+    res.json({ ok: true, message: "Submitted for council review" });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Council Review API (sovereign/admin only) ────────────────────────────────
+app.post("/api/global/review/:submissionId", (req, res) => {
+  try {
+    const role = req.user?.role || req.actor?.role || "guest";
+    if (!["founder", "owner", "admin", "sovereign"].includes(role)) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    const { decision, notes } = req.body;
+    if (!["approve", "reject"].includes(decision)) {
+      return res.status(400).json({ ok: false, error: "decision must be 'approve' or 'reject'" });
+    }
+
+    const submission = STATE.globalThread.councilQueue.find(s => s.id === req.params.submissionId);
+    if (!submission) return res.status(404).json({ ok: false, error: "submission not found" });
+    if (submission.status !== "pending") return res.status(409).json({ ok: false, error: "already reviewed" });
+
+    const reviewerId = req.actor?.userId || req.user?.id;
+    submission.status = decision === "approve" ? "approved" : "rejected";
+    submission.reviewedBy = reviewerId;
+    submission.reviewedAt = new Date().toISOString();
+    submission.notes = String(notes || "").slice(0, 2000);
+
+    if (decision === "approve") {
+      const dtu = submission.dtu;
+      dtu._contributedBy = submission.username;
+      dtu._acceptedAt = new Date().toISOString();
+      dtu._submissionId = submission.id;
+      dtu.scope = "global";
+
+      // Auto-tag and sync to lenses
+      try { if (typeof applyAutoTagging === "function") applyAutoTagging(dtu); } catch {}
+
+      STATE.dtus.set(dtu.id, dtu);
+
+      try { if (typeof syncDTUToLensArtifacts === "function") syncDTUToLensArtifacts(dtu); } catch {}
+
+      STATE.globalThread.acceptedContributions.push({
+        dtuId: dtu.id,
+        submittedBy: submission.username,
+        acceptedAt: dtu._acceptedAt,
+        reviewedBy: reviewerId,
+      });
+
+      try { pipeAudit("council.approve", `Council approved DTU from ${submission.username}`, { dtuId: dtu.id, submissionId: submission.id }); } catch {}
+    } else {
+      try { pipeAudit("council.reject", `Council rejected DTU from ${submission.username}`, { dtuId: submission.dtuId, submissionId: submission.id, notes: submission.notes }); } catch {}
+    }
+
+    saveStateDebounced();
+    res.json({ ok: true, status: submission.status });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Council Queue API (view pending submissions) ─────────────────────────────
+app.get("/api/global/queue", (req, res) => {
+  try {
+    const role = req.user?.role || req.actor?.role || "guest";
+    if (!["founder", "owner", "admin", "sovereign", "member"].includes(role)) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    const status = req.query.status || "pending";
+    const queue = STATE.globalThread.councilQueue
+      .filter(s => s.status === status)
+      .map(s => ({
+        id: s.id,
+        dtuId: s.dtuId,
+        title: s.dtu?.title || "Untitled",
+        submittedBy: s.username,
+        reason: s.reason,
+        submittedAt: s.submittedAt,
+        status: s.status,
+        tags: s.dtu?.tags || [],
+        tier: s.dtu?.tier || "regular",
+      }));
+
+    res.json({ ok: true, queue, total: queue.length, status });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Accepted Contributions API ───────────────────────────────────────────────
+app.get("/api/global/contributions", (req, res) => {
+  try {
+    const contributions = (STATE.globalThread.acceptedContributions || []).slice(-100).reverse();
+    res.json({ ok: true, contributions, total: contributions.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Register universe macros ─────────────────────────────────────────────────
+register("universe", "status", (ctx, _input = {}) => {
+  const userId = ctx.actor?.userId;
+  const universe = getUserUniverse(userId);
+  if (!universe) return { ok: true, initialized: false };
+  return {
+    ok: true,
+    initialized: true,
+    localDTUs: universe.localDTUs.size,
+    syncedFromGlobal: universe.syncedFromGlobal.size,
+    preferences: universe.preferences,
+    stats: universe.stats,
+  };
+}, { summary: "Get current user's universe status." });
+
+register("universe", "create", (ctx, input = {}) => {
+  const userId = ctx.actor?.userId;
+  if (!userId || userId === "anon") return { ok: false, error: "authentication required" };
+  const universe = getOrCreateUserUniverse(userId);
+  return { ok: true, userId, localDTUs: universe.localDTUs.size };
+}, { summary: "Create or get user universe." });
+
+register("universe", "addDTU", (ctx, input = {}) => {
+  const userId = ctx.actor?.userId;
+  const { dtuId } = input;
+  if (!userId || !dtuId) return { ok: false, error: "userId and dtuId required" };
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found in global" };
+  const universe = getOrCreateUserUniverse(userId);
+  const copy = JSON.parse(JSON.stringify(dtu));
+  copy._syncedFrom = "global";
+  copy._syncedAt = new Date().toISOString();
+  universe.localDTUs.set(dtuId, copy);
+  universe.syncedFromGlobal.add(dtuId);
+  universe.stats.syncedCount = universe.syncedFromGlobal.size;
+  universe.stats.localDTUCount = universe.localDTUs.size;
+  saveStateDebounced();
+  return { ok: true, synced: true, localDTUs: universe.localDTUs.size };
+}, { summary: "Sync a global DTU into user's local universe." });
+
+// ── ACL for universe domain ──────────────────────────────────────────────────
+allowDomain("universe", _ACL_MEMBER);
+allowMacro("universe", "status", _ACL_PUB);
+
+structuredLog("info", "universe_init", { detail: "User Universe / Multiverse Substrate initialized" });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END USER UNIVERSE / MULTIVERSE SUBSTRATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ---- test surface (safe exports; no side effects) ----
