@@ -19296,6 +19296,10 @@ for (const d of [
   "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
   "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
   "lattice","backpressure",
+  "verify","graph","schema","autotag","experiment","synth","export",
+  "eco","board","finance","health","engineering","social","creative","theory","math",
+  "physics","cognitive","ai","news","forum","governance","feed","daily","anonymous",
+  "emergent","studio","code","meta","dimensional",
 ]) allowDomain(d, _ACL_MEMBER);
 
 // Admin-level domains (system management)
@@ -22205,17 +22209,79 @@ const ROYALTY_RATES = Object.freeze({
 const CREATIVE_REGISTRY = new Map();
 
 const DOMAIN_RELATIONS = Object.freeze({
+  // Original relations preserved
   music: ["art", "creative", "studio"],
   art: ["music", "creative", "studio", "game"],
-  creative: ["music", "art", "education"],
-  code: ["education", "game"],
   game: ["art", "music", "code", "sim"],
-  food: ["health", "fitness"],
-  fitness: ["health", "food"],
+  food: ["health", "eco"],
+  fitness: ["health", "eco"],
   education: ["research", "creative", "code"],
   legal: ["finance", "governance"],
-  finance: ["legal", "realestate"],
-  studio: ["music", "art", "creative"],
+  // Full 60+ domain cross-domain map
+  code: ["math", "theory", "engineering", "ai", "schema", "tools"],
+  studio: ["math", "physics", "creative", "voice", "temporal", "style"],
+  paper: ["research", "theory", "meta", "cognitive", "social"],
+  graph: ["entity", "social", "eco", "schema", "temporal"],
+  eco: ["health", "physics", "graph", "temporal", "engineering"],
+  board: ["governance", "social", "temporal", "entity", "collab"],
+  finance: ["math", "governance", "graph", "board", "market"],
+  health: ["eco", "cognitive", "research", "temporal"],
+  governance: ["social", "entity", "board", "finance", "forum"],
+  research: ["paper", "code", "math", "theory", "eco"],
+  theory: ["math", "physics", "meta", "cognitive", "research"],
+  math: ["theory", "physics", "code", "finance", "studio"],
+  physics: ["math", "engineering", "eco", "theory", "studio"],
+  cognitive: ["ai", "health", "theory", "entity", "meta"],
+  meta: ["theory", "cognitive", "research", "temporal", "schema"],
+  temporal: ["meta", "research", "eco", "graph", "board"],
+  entity: ["cognitive", "social", "governance", "graph", "persona"],
+  schema: ["code", "graph", "meta", "engineering"],
+  social: ["governance", "forum", "entity", "board", "collab"],
+  voice: ["studio", "social", "forum", "entity"],
+  news: ["social", "temporal", "forum", "research"],
+  forum: ["social", "governance", "news", "voice"],
+  creative: ["studio", "paper", "visual", "code", "style"],
+  ai: ["cognitive", "code", "research", "math"],
+  engineering: ["materials", "physics", "code", "math"],
+  materials: ["engineering", "physics", "eco", "research"],
+  market: ["finance", "social", "graph", "board"],
+  marketplace: ["market", "finance", "social", "creative"],
+  visual: ["creative", "studio", "graph", "dimensional"],
+  dimensional: ["visual", "physics", "math", "lattice"],
+  lattice: ["theory", "math", "dimensional", "emergent"],
+  emergent: ["entity", "cognitive", "lattice", "meta"],
+  reasoning: ["math", "theory", "hypothesis", "inference"],
+  hypothesis: ["research", "reasoning", "theory"],
+  inference: ["reasoning", "ai", "cognitive", "hypothesis"],
+  semantic: ["meta", "reasoning", "schema", "cognitive"],
+  reflection: ["metacognition", "meta", "cognitive", "entity"],
+  metacognition: ["reflection", "cognitive", "meta", "metalearning"],
+  metalearning: ["metacognition", "ai", "cognitive", "research"],
+  attention: ["cognitive", "experience", "interface", "entity"],
+  experience: ["attention", "interface", "cognitive", "creative"],
+  interface: ["experience", "visual", "code", "tools"],
+  intent: ["cognitive", "reasoning", "entity", "skill"],
+  skill: ["code", "intent", "metalearning", "tools"],
+  tools: ["code", "interface", "skill", "engineering"],
+  search: ["research", "semantic", "inference", "graph"],
+  grounding: ["worldmodel", "commonsense", "semantic", "reasoning"],
+  worldmodel: ["grounding", "physics", "eco", "commonsense"],
+  commonsense: ["worldmodel", "grounding", "reasoning", "social"],
+  explanation: ["reasoning", "paper", "research", "semantic"],
+  transfer: ["metalearning", "skill", "code", "creative"],
+  style: ["creative", "studio", "visual", "paper"],
+  layer: ["schema", "meta", "code", "lattice"],
+  wrapper: ["layer", "interface", "code", "tools"],
+  persona: ["entity", "voice", "social", "creative"],
+  collab: ["social", "board", "tools", "forum"],
+  whiteboard: ["visual", "collab", "creative", "graph"],
+  backpressure: ["engineering", "lattice", "code", "meta"],
+  chat: ["voice", "social", "forum", "entity"],
+  threads: ["forum", "chat", "social"],
+  daily: ["temporal", "board", "reflection", "news"],
+  anonymous: ["forum", "social", "voice", "chat"],
+  feed: ["news", "social", "temporal", "forum"],
+  multimodal: ["visual", "voice", "creative", "ai"],
 });
 
 function inferRelatedDomains(dtu) {
@@ -23205,6 +23271,7 @@ structuredLog("info", "module_loaded", { module: "Wave 3: Dynamic Schemas" });
 // WAVE 4: AI-ASSISTED AUTO-TAGGING & VISUAL LENS (Surpassing Capacities)
 // ============================================================================
 const DOMAIN_KEYWORDS = {
+  // Original academic domains
   philosophy: ["ethics", "epistemology", "ontology", "metaphysics", "consciousness", "mind", "being", "existence", "moral", "virtue", "justice"],
   science: ["experiment", "hypothesis", "data", "evidence", "empirical", "theory", "research", "observation", "method", "scientific"],
   technology: ["algorithm", "software", "code", "system", "architecture", "api", "database", "network", "programming", "computer"],
@@ -23212,7 +23279,71 @@ const DOMAIN_KEYWORDS = {
   psychology: ["behavior", "cognition", "emotion", "perception", "memory", "learning", "motivation", "personality", "mental"],
   economics: ["market", "price", "supply", "demand", "trade", "value", "currency", "investment", "capital", "growth"],
   physics: ["quantum", "particle", "wave", "energy", "mass", "force", "field", "spacetime", "relativity", "momentum"],
-  biology: ["cell", "gene", "organism", "evolution", "species", "protein", "dna", "ecosystem", "life", "organism"]
+  biology: ["cell", "gene", "organism", "evolution", "species", "protein", "dna", "ecosystem", "life", "organism"],
+  // Full 60+ lens domain keywords
+  chat: ["conversation", "message", "talk", "discuss", "greet", "ask", "reply", "dialogue"],
+  threads: ["thread", "discussion", "topic", "reply", "comment", "conversation", "post"],
+  forum: ["forum", "debate", "opinion", "discuss", "community", "post", "topic", "argument"],
+  daily: ["daily", "today", "journal", "morning", "routine", "habit", "schedule", "log"],
+  governance: ["governance", "policy", "proposal", "vote", "council", "rule", "regulation", "democracy", "consensus"],
+  anonymous: ["anonymous", "privacy", "secret", "identity", "pseudonym", "confidential"],
+  voice: ["voice", "speech", "speak", "audio", "podcast", "narrate", "tone", "oral", "storytelling"],
+  feed: ["feed", "news", "update", "stream", "timeline", "notification", "digest"],
+  news: ["news", "report", "headline", "journalism", "press", "breaking", "current", "media"],
+  paper: ["paper", "essay", "article", "publication", "journal", "research", "manuscript", "thesis", "peer"],
+  studio: ["music", "audio", "sound", "compose", "rhythm", "melody", "harmony", "beat", "instrument", "song", "frequency"],
+  code: ["code", "program", "algorithm", "function", "variable", "compile", "debug", "software", "script", "api"],
+  graph: ["graph", "network", "node", "edge", "connection", "topology", "relationship", "map", "link", "cluster"],
+  eco: ["ecology", "ecosystem", "environment", "climate", "species", "habitat", "biodiversity", "sustainability", "nature"],
+  meta: ["meta", "self-reference", "recursion", "abstraction", "framework", "pattern", "structure", "higher-order"],
+  temporal: ["time", "temporal", "history", "timeline", "evolution", "era", "period", "chronology", "future", "past"],
+  entity: ["entity", "agent", "identity", "persona", "character", "autonomous", "emergent", "being"],
+  schema: ["schema", "structure", "model", "ontology", "type", "format", "specification", "definition"],
+  board: ["board", "project", "task", "milestone", "goal", "sprint", "kanban", "plan", "roadmap"],
+  finance: ["finance", "money", "budget", "investment", "stock", "portfolio", "accounting", "asset", "debt", "revenue"],
+  health: ["health", "medical", "nutrition", "exercise", "sleep", "wellness", "therapy", "mental-health", "fitness"],
+  engineering: ["engineering", "build", "construct", "design", "infrastructure", "material", "structural", "mechanical"],
+  social: ["social", "community", "relationship", "group", "culture", "interaction", "society", "collaboration"],
+  creative: ["creative", "art", "design", "imagination", "aesthetic", "beauty", "inspiration", "expression", "craft"],
+  theory: ["theory", "hypothesis", "model", "framework", "principle", "axiom", "conjecture", "abstraction"],
+  math: ["math", "algebra", "geometry", "calculus", "statistics", "probability", "proof", "theorem", "number"],
+  cognitive: ["cognitive", "thinking", "reasoning", "attention", "perception", "awareness", "consciousness", "intelligence"],
+  ai: ["ai", "artificial", "intelligence", "machine-learning", "neural", "deep-learning", "nlp", "model", "training"],
+  research: ["research", "study", "experiment", "methodology", "analysis", "findings", "literature", "peer-review"],
+  materials: ["material", "substance", "composite", "alloy", "polymer", "ceramic", "crystal", "nano", "fabrication"],
+  market: ["market", "marketplace", "exchange", "buyer", "seller", "listing", "auction", "pricing"],
+  marketplace: ["marketplace", "commerce", "product", "service", "vendor", "catalog", "storefront"],
+  tools: ["tool", "utility", "instrument", "framework", "library", "sdk", "plugin", "extension"],
+  multimodal: ["multimodal", "image", "video", "audio", "text", "cross-modal", "sensory", "perception"],
+  collab: ["collaborate", "teamwork", "shared", "co-create", "pair", "group-work", "cooperative"],
+  whiteboard: ["whiteboard", "sketch", "diagram", "draw", "brainstorm", "visual-thinking", "canvas"],
+  persona: ["persona", "character", "role", "identity", "avatar", "archetype", "personality"],
+  wrapper: ["wrapper", "adapter", "bridge", "interface", "proxy", "facade", "middleware"],
+  layer: ["layer", "tier", "level", "stack", "abstraction", "hierarchy", "depth"],
+  grounding: ["grounding", "reality", "fact", "verification", "truth", "anchor", "concrete", "real-world"],
+  worldmodel: ["worldmodel", "simulation", "environment", "physics", "spatial", "causation", "prediction"],
+  commonsense: ["commonsense", "intuition", "obvious", "everyday", "practical", "tacit", "implicit"],
+  explanation: ["explanation", "why", "because", "clarify", "interpret", "elucidate", "rationale"],
+  transfer: ["transfer", "adapt", "generalize", "apply", "cross-domain", "port", "translate"],
+  style: ["style", "aesthetic", "tone", "voice", "manner", "form", "genre", "artistic"],
+  visual: ["visual", "image", "color", "composition", "design", "graphic", "illustration", "render"],
+  dimensional: ["dimension", "space", "3d", "spatial", "geometry", "volume", "projection", "coordinate"],
+  lattice: ["lattice", "grid", "crystal", "structure", "periodic", "arrangement", "tessellation"],
+  backpressure: ["backpressure", "throttle", "rate-limit", "queue", "overflow", "load", "congestion"],
+  emergent: ["emergent", "self-organize", "bottom-up", "swarm", "collective", "spontaneous", "complexity"],
+  skill: ["skill", "ability", "competence", "expertise", "proficiency", "mastery", "technique"],
+  intent: ["intent", "goal", "purpose", "motivation", "objective", "desire", "aim"],
+  interface: ["interface", "ui", "ux", "interaction", "usability", "accessibility", "frontend"],
+  experience: ["experience", "sensation", "feeling", "subjective", "phenomenal", "qualia", "lived"],
+  attention: ["attention", "focus", "concentrate", "salience", "awareness", "spotlight", "selective"],
+  reflection: ["reflection", "introspection", "self-awareness", "review", "contemplation", "mirror"],
+  metacognition: ["metacognition", "thinking-about-thinking", "self-monitor", "awareness", "regulation", "strategy"],
+  metalearning: ["metalearning", "learn-to-learn", "curriculum", "adaptation", "few-shot", "transfer"],
+  semantic: ["semantic", "meaning", "concept", "ontology", "relationship", "word", "interpretation"],
+  reasoning: ["reasoning", "logic", "deduction", "induction", "abduction", "argument", "inference"],
+  hypothesis: ["hypothesis", "conjecture", "prediction", "test", "falsifiable", "experiment", "theory"],
+  inference: ["inference", "conclude", "deduce", "imply", "derive", "reason", "entail"],
+  search: ["search", "find", "query", "index", "retrieve", "lookup", "discover", "explore"],
 };
 
 register("autotag", "analyze", (ctx, input) => {
@@ -23405,9 +23536,29 @@ register("lens", "list", (ctx, input={}) => {
   if (tags && tags.length) artifacts = artifacts.filter(a => tags.some(t => (a.meta?.tags||[]).includes(t)));
   if (status) artifacts = artifacts.filter(a => a.meta?.status === status);
   artifacts.sort((a,b) => (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
-  const total = artifacts.length;
-  artifacts = artifacts.slice(offset, offset + limit);
-  return { ok: true, artifacts, total, domain, type };
+  const primaryTotal = artifacts.length;
+
+  // Cross-domain results from DOMAIN_RELATIONS
+  let crossDomainArtifacts = [];
+  try {
+    const relatedDomains = DOMAIN_RELATIONS[domain] || [];
+    const primaryIds = new Set(artifacts.map(a => a.id));
+    for (const relDomain of relatedDomains) {
+      const relArts = _lensDomainArtifacts(relDomain);
+      for (const a of relArts) {
+        if (!primaryIds.has(a.id)) {
+          crossDomainArtifacts.push({ ...a, _crossDomain: true, _sourceDomain: relDomain });
+          primaryIds.add(a.id);
+        }
+      }
+    }
+    crossDomainArtifacts.sort((a,b) => (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
+    crossDomainArtifacts = crossDomainArtifacts.slice(0, 20);
+  } catch { /* silent */ }
+
+  const total = primaryTotal + crossDomainArtifacts.length;
+  const paged = artifacts.slice(offset, offset + limit);
+  return { ok: true, artifacts: paged, crossDomain: crossDomainArtifacts, total, primaryTotal, domain, type };
 });
 
 register("lens", "get", (ctx, input={}) => {
