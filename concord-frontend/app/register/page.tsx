@@ -36,9 +36,9 @@ export default function RegisterPage() {
       await api.get('/api/auth/csrf-token');
       const res = await api.post('/api/auth/register', { username, email, password });
       if (res.data?.ok) {
-        // Registration auto-sets auth cookies, go straight to dashboard
+        // Registration auto-sets auth cookies, redirect to onboarding for universe setup
         localStorage.setItem('concord_entered', 'true');
-        router.push('/');
+        router.push('/onboarding');
       } else {
         setError(res.data?.error || 'Registration failed');
       }

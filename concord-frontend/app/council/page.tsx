@@ -30,7 +30,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type ConsoleTab = 'decisions' | 'voices' | 'heatmap' | 'evaluate';
+type ConsoleTab = 'decisions' | 'voices' | 'heatmap' | 'evaluate' | 'submissions';
 
 type VoiceName = 'skeptic' | 'socratic' | 'opposer' | 'idealist' | 'pragmatist';
 
@@ -1017,11 +1017,218 @@ function EvaluateTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Submissions Tab — Multiverse Council Submission Queue
+// ---------------------------------------------------------------------------
+
+interface Submission {
+  id: string;
+  dtuId: string;
+  title: string;
+  submittedBy: string;
+  reason: string;
+  submittedAt: string;
+  status: string;
+  tags: string[];
+  tier: string;
+}
+
+function SubmissionsTab() {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string>('pending');
+
+  const { data: queueData, isLoading: queueLoading } = useQuery({
+    queryKey: ['council-queue', statusFilter],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/global/queue', { params: { status: statusFilter } });
+        return res.data;
+      } catch {
+        return { ok: false, queue: [], total: 0 };
+      }
+    },
+    refetchInterval: 15000,
+  });
+
+  const { data: contributionsData } = useQuery({
+    queryKey: ['council-contributions'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/global/contributions');
+        return res.data;
+      } catch {
+        return { ok: false, contributions: [], total: 0 };
+      }
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, decision, notes }: { id: string; decision: 'approve' | 'reject'; notes: string }) => {
+      const res = await api.post(`/api/global/review/${id}`, { decision, notes });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['council-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['council-contributions'] });
+    },
+  });
+
+  const queue: Submission[] = queueData?.queue || [];
+  const contributions = contributionsData?.contributions || [];
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+
+  function handleReview(id: string, decision: 'approve' | 'reject') {
+    reviewMutation.mutate({ id, decision, notes: reviewNotes });
+    setReviewingId(null);
+    setReviewNotes('');
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filter buttons */}
+      <div className="flex items-center gap-2">
+        {['pending', 'approved', 'rejected'].map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              statusFilter === s
+                ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30'
+                : 'bg-lattice-surface text-gray-400 border border-lattice-border hover:text-white'
+            )}
+          >
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+        <span className={cn(ds.textMuted, 'ml-auto')}>
+          {queue.length} submission{queue.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Queue */}
+      {queueLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : queue.length === 0 ? (
+        <div className={cn(ds.panel, 'text-center py-12')}>
+          <Send className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No {statusFilter} submissions</p>
+          <p className="text-gray-600 text-sm mt-1">
+            {statusFilter === 'pending'
+              ? 'Users can submit DTUs from their local universe for global inclusion.'
+              : 'Submissions will appear here when reviewed.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {queue.map((sub) => (
+            <div key={sub.id} className={cn(ds.panel, 'hover:border-neon-cyan/30 transition-colors')}>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-white">{sub.title || 'Untitled DTU'}</h4>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span>by {sub.submittedBy}</span>
+                    <span>{sub.submittedAt ? formatTime(sub.submittedAt) : ''}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-lattice-deep">{sub.tier}</span>
+                  </div>
+                  {sub.reason && (
+                    <p className="text-sm text-gray-400 mt-2">{sub.reason}</p>
+                  )}
+                  {sub.tags && sub.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {sub.tags.slice(0, 6).map((tag) => (
+                        <span key={tag} className="text-xs px-2 py-0.5 rounded bg-lattice-deep text-gray-500">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Review Actions (only for pending) */}
+                {sub.status === 'pending' && (
+                  <div className="flex items-center gap-2 ml-4">
+                    {reviewingId === sub.id ? (
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="text"
+                          value={reviewNotes}
+                          onChange={(e) => setReviewNotes(e.target.value)}
+                          placeholder="Notes (optional)"
+                          className="px-2 py-1 text-sm bg-lattice-deep border border-lattice-border rounded text-white w-48"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleReview(sub.id, 'approve')}
+                            disabled={reviewMutation.isPending}
+                            className="px-3 py-1 text-xs rounded bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                          >
+                            <ThumbsUp className="w-3 h-3 inline mr-1" />Approve
+                          </button>
+                          <button
+                            onClick={() => handleReview(sub.id, 'reject')}
+                            disabled={reviewMutation.isPending}
+                            className="px-3 py-1 text-xs rounded bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30"
+                          >
+                            <ThumbsDown className="w-3 h-3 inline mr-1" />Reject
+                          </button>
+                          <button
+                            onClick={() => { setReviewingId(null); setReviewNotes(''); }}
+                            className="px-2 py-1 text-xs text-gray-500 hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setReviewingId(sub.id)}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 hover:bg-neon-cyan/20"
+                      >
+                        Review
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent Contributions */}
+      {contributions.length > 0 && (
+        <div className="mt-6">
+          <h3 className={cn(ds.heading3, 'mb-3')}>Recent Contributions</h3>
+          <div className="space-y-2">
+            {contributions.slice(0, 10).map((c: { dtuId: string; submittedBy: string; acceptedAt: string; reviewedBy: string }) => (
+              <div key={c.dtuId} className="flex items-center justify-between px-3 py-2 rounded-lg bg-lattice-deep/50">
+                <div className="flex items-center gap-2 text-sm">
+                  <ThumbsUp className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-gray-300">DTU {c.dtuId?.slice(0, 12)}</span>
+                  <span className="text-gray-600">by {c.submittedBy}</span>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {c.acceptedAt ? formatTime(c.acceptedAt) : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
 const TABS: { key: ConsoleTab; label: string; icon: typeof Scale }[] = [
   { key: 'decisions', label: 'Decisions', icon: Scale },
+  { key: 'submissions', label: 'Submissions', icon: Send },
   { key: 'voices', label: 'Voices', icon: Users },
   { key: 'heatmap', label: 'Heatmap', icon: BarChart3 },
   { key: 'evaluate', label: 'Evaluate', icon: Eye },
@@ -1122,6 +1329,7 @@ export default function CouncilConsolePage() {
       {/* Tab Content */}
       <div>
         {activeTab === 'decisions' && <DecisionsTab />}
+        {activeTab === 'submissions' && <SubmissionsTab />}
         {activeTab === 'voices' && <VoicesTab />}
         {activeTab === 'heatmap' && <HeatmapTab />}
         {activeTab === 'evaluate' && <EvaluateTab />}

@@ -24,6 +24,7 @@ import {
 import {
   Home, ChevronLeft, ChevronRight, ChevronDown, X, Compass,
   Puzzle, FlaskConical, Search, Users, Cpu, Building2, Download,
+  Globe, Brain,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -215,6 +216,8 @@ export function Sidebar() {
           )}
           <div className="space-y-0.5 mb-4">
             {[
+              { href: '/global', label: 'Global Library', Icon: Globe },
+              { href: '/profile', label: 'Profile', Icon: Brain },
               { href: '/hypothesis-lab', label: 'Hypothesis Lab', Icon: FlaskConical },
               { href: '/research', label: 'Research', Icon: Search },
               { href: '/council', label: 'Council', Icon: Users },
