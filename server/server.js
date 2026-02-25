@@ -42367,6 +42367,377 @@ structuredLog("info", "universe_init", { detail: "User Universe / Multiverse Sub
 // END USER UNIVERSE / MULTIVERSE SUBSTRATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPLETION: SEARCH, BACKUPS, RATE LIMITS, PERSONALITY, DREAM LOG
+// ADDITIVE — fills remaining gaps for public launch readiness.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Full-Text Search API ─────────────────────────────────────────────────────
+// Searches local universe, global, or both with text scoring and domain filtering.
+app.get("/api/search", (req, res) => {
+  try {
+    const { q, scope: searchScope, domain, limit: lim, offset: off } = req.query;
+    if (!q || !String(q).trim()) return res.json({ ok: true, results: [], total: 0 });
+
+    const query = String(q).toLowerCase().trim();
+    const terms = query.split(/\s+/).filter(t => t.length >= 2);
+    if (terms.length === 0) return res.json({ ok: true, results: [], total: 0 });
+
+    const limit = Math.min(Number(lim) || 30, 200);
+    const offset = Number(off) || 0;
+    const userId = req.actor?.userId || req.user?.id;
+    const universe = userId ? getUserUniverse(userId) : null;
+
+    // Build search pool based on scope
+    const pool = new Map();
+    const localIds = new Set();
+
+    if (searchScope !== "global" && universe && universe.localDTUs.size > 0) {
+      for (const [id, dtu] of universe.localDTUs) {
+        pool.set(id, dtu);
+        localIds.add(id);
+      }
+    }
+    if (searchScope !== "local") {
+      for (const [id, dtu] of STATE.dtus) {
+        if (!pool.has(id)) pool.set(id, dtu);
+      }
+    }
+
+    const scored = [];
+    for (const [id, dtu] of pool) {
+      if (domain && !(dtu.tags || []).includes(domain)) continue;
+
+      const searchable = [
+        dtu.title || "",
+        (dtu.tags || []).join(" "),
+        dtu.cretiHuman || "",
+        dtu.human?.summary || "",
+        (dtu.human?.bullets || []).join(" "),
+        (dtu.core?.claims || []).join(" ").slice(0, 500),
+        (dtu.core?.definitions || []).join(" ").slice(0, 500),
+        dtu.notes || "",
+      ].join(" ").toLowerCase();
+
+      const matchCount = terms.filter(t => searchable.includes(t)).length;
+      if (matchCount === 0) continue;
+
+      const relevance = matchCount / terms.length;
+      // Tier boost
+      const tierBoost = dtu.tier === "hyper" ? 0.15 : dtu.tier === "mega" ? 0.10 : 0;
+
+      scored.push({
+        id: dtu.id,
+        title: dtu.title,
+        tags: dtu.tags,
+        tier: dtu.tier,
+        preview: (dtu.cretiHuman || dtu.human?.summary || "").slice(0, 200),
+        relevance: Math.min(relevance + tierBoost, 1),
+        scope: localIds.has(id) ? "local" : "global",
+        createdAt: dtu.createdAt,
+      });
+    }
+
+    scored.sort((a, b) => b.relevance - a.relevance);
+    const total = scored.length;
+    res.json({ ok: true, results: scored.slice(offset, offset + limit), total, limit, offset });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Automated Backup System ──────────────────────────────────────────────────
+// BACKUP_DIR already declared at top-level (line ~4626)
+const _BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const _BACKUP_RETENTION_DAYS = 7;
+
+function runBackup() {
+  try {
+    const timestamp = new Date().toISOString().split("T")[0];
+    const backupDir = `${BACKUP_DIR}/${timestamp}`;
+
+    try { if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {}
+    try { if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true }); } catch {}
+
+    // Backup main state
+    try {
+      const stateData = JSON.stringify(_serializeState());
+      fs.writeFileSync(`${backupDir}/state.json`, stateData);
+    } catch (e) { console.error("[Backup] State backup failed:", String(e?.message || e)); }
+
+    // Backup council queue
+    try {
+      fs.writeFileSync(`${backupDir}/councilQueue.json`,
+        JSON.stringify(STATE.globalThread?.councilQueue || []));
+    } catch {}
+
+    // Backup SQLite DB if exists
+    try {
+      const dbPath = "/data/db/concord.db";
+      if (fs.existsSync(dbPath)) {
+        fs.copyFileSync(dbPath, `${backupDir}/concord.db`);
+      }
+    } catch {}
+
+    // Clean old backups (keep BACKUP_RETENTION_DAYS)
+    try {
+      const backups = fs.readdirSync(BACKUP_DIR).sort();
+      while (backups.length > _BACKUP_RETENTION_DAYS) {
+        const oldest = backups.shift();
+        const oldPath = `${BACKUP_DIR}/${oldest}`;
+        fs.rmSync(oldPath, { recursive: true, force: true });
+      }
+    } catch {}
+
+    console.log(`[Backup] Complete: ${backupDir}`);
+    return { ok: true, path: backupDir, timestamp };
+  } catch (e) {
+    console.error("[Backup] Failed:", String(e?.message || e));
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// Run backup on startup (delayed) and periodically
+setTimeout(() => { try { runBackup(); } catch {} }, 60000); // 1 min after start
+setInterval(() => { try { runBackup(); } catch {} }, _BACKUP_INTERVAL_MS);
+
+register("admin", "backup", (ctx, _input = {}) => {
+  return runBackup();
+}, { summary: "Run a manual backup of all state data." });
+
+// ── Council Submission Rate Limiting ─────────────────────────────────────────
+const _councilSubmitTracker = new Map(); // userId → { count, resetAt }
+
+function canSubmitToCouncil(userId) {
+  const MAX_PER_HOUR = 5;
+  const WINDOW_MS = 60 * 60 * 1000;
+  const now = Date.now();
+  const tracker = _councilSubmitTracker.get(userId) || { count: 0, resetAt: now + WINDOW_MS };
+
+  if (now > tracker.resetAt) {
+    tracker.count = 0;
+    tracker.resetAt = now + WINDOW_MS;
+  }
+
+  if (tracker.count >= MAX_PER_HOUR) return false;
+
+  tracker.count++;
+  _councilSubmitTracker.set(userId, tracker);
+  return true;
+}
+
+// ── Personality Profile API ──────────────────────────────────────────────────
+app.get("/api/universe/personality", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const universe = getUserUniverse(userId);
+    if (!universe || universe.localDTUs.size === 0) {
+      return res.json({ ok: true, initialized: false, personality: null });
+    }
+
+    // Domain distribution
+    const domainCounts = {};
+    for (const dtu of universe.localDTUs.values()) {
+      for (const tag of (dtu.tags || [])) {
+        if (LENS_DOMAIN_KEYWORDS[tag]) {
+          domainCounts[tag] = (domainCounts[tag] || 0) + 1;
+        }
+      }
+    }
+
+    const totalTagged = Object.values(domainCounts).reduce((a, b) => a + b, 0) || 1;
+
+    // Map domains to personality archetypes
+    const archetypes = {
+      analytical: ["math", "code", "schema", "graph", "research", "physics"],
+      creative: ["studio", "voice", "daily", "anonymous"],
+      philosophical: ["theory", "meta", "governance", "cognitive", "entity"],
+      practical: ["engineering", "board", "finance", "health", "healthcare", "real-estate"],
+      social: ["social", "chat", "forum", "threads", "news", "feed"],
+      scientific: ["research", "eco", "physics", "health", "ai"],
+    };
+
+    const archetypeScores = {};
+    for (const [archetype, domains] of Object.entries(archetypes)) {
+      const score = domains.reduce((sum, d) => sum + (domainCounts[d] || 0), 0);
+      archetypeScores[archetype] = Math.round((score / totalTagged) * 100);
+    }
+
+    // Top and least explored domains
+    const sorted = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
+    const topDomains = sorted.slice(0, 5).map(([d, c]) => ({ domain: d, count: c }));
+    const leastExplored = Object.keys(LENS_DOMAIN_KEYWORDS)
+      .filter(d => !domainCounts[d] || domainCounts[d] === 0)
+      .slice(0, 8);
+
+    // Diversity score (Shannon entropy normalized)
+    const probs = Object.values(domainCounts).map(c => c / totalTagged);
+    const entropy = -probs.reduce((sum, p) => p > 0 ? sum + p * Math.log2(p) : sum, 0);
+    const maxEntropy = Math.log2(Object.keys(LENS_DOMAIN_KEYWORDS).length);
+    const diversityScore = Math.round((entropy / maxEntropy) * 100);
+
+    // Generate personality description
+    const topArchetype = Object.entries(archetypeScores).sort((a, b) => b[1] - a[1])[0];
+    const secondArchetype = Object.entries(archetypeScores).sort((a, b) => b[1] - a[1])[1];
+    const description = topArchetype && secondArchetype
+      ? `Your Concord leans ${topArchetype[0]} (${topArchetype[1]}%) with strong ${secondArchetype[0]} tendencies (${secondArchetype[1]}%). ${diversityScore > 60 ? "Broad exploration across domains." : diversityScore > 30 ? "Moderate domain focus." : "Deep specialization in a few areas."}`
+      : "Still developing. Keep exploring.";
+
+    res.json({
+      ok: true,
+      initialized: true,
+      personality: {
+        totalDTUs: universe.localDTUs.size,
+        domainCount: Object.keys(domainCounts).length,
+        diversityScore,
+        archetypeScores,
+        topDomains,
+        leastExplored,
+        domainCounts,
+        description,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Dream Log API ────────────────────────────────────────────────────────────
+// Returns DTUs created by emergent processes in the user's local universe since
+// their last session (auto-generated content they haven't seen yet).
+app.get("/api/universe/dreams", (req, res) => {
+  try {
+    const userId = req.actor?.userId || req.user?.id;
+    if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "authentication required" });
+
+    const universe = getUserUniverse(userId);
+    if (!universe) return res.json({ ok: true, dreams: [], total: 0 });
+
+    const { since, limit: lim } = req.query;
+    const limit = Math.min(Number(lim) || 20, 100);
+    const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000); // default: last 24h
+
+    const dreams = [];
+    for (const dtu of universe.localDTUs.values()) {
+      const created = new Date(dtu.createdAt);
+      if (created < sinceDate) continue;
+      // Filter to auto-generated content
+      const isAutoGenerated = dtu.source === "emergent" || dtu.source === "dream" || dtu.source === "autogen"
+        || dtu.source === "evolution" || dtu.source === "synth" || dtu.source === "system"
+        || (dtu.machine?.kind && dtu.machine.kind !== "user_forged");
+      if (!isAutoGenerated) continue;
+
+      dreams.push({
+        id: dtu.id,
+        title: dtu.title,
+        tags: dtu.tags,
+        tier: dtu.tier,
+        createdAt: dtu.createdAt,
+        source: dtu.source || dtu.machine?.kind || "unknown",
+        preview: (dtu.cretiHuman || dtu.human?.summary || "").slice(0, 300),
+      });
+    }
+
+    // Also check global DTUs that were auto-generated and might be relevant
+    for (const dtu of STATE.dtus.values()) {
+      if (universe.localDTUs.has(dtu.id)) continue; // skip already in local
+      const created = new Date(dtu.createdAt);
+      if (created < sinceDate) continue;
+      const isAutoGenerated = dtu.source === "emergent" || dtu.source === "dream" || dtu.source === "autogen";
+      if (!isAutoGenerated) continue;
+      dreams.push({
+        id: dtu.id,
+        title: dtu.title,
+        tags: dtu.tags,
+        tier: dtu.tier,
+        createdAt: dtu.createdAt,
+        source: dtu.source || "global-emergent",
+        preview: (dtu.cretiHuman || dtu.human?.summary || "").slice(0, 300),
+        fromGlobal: true,
+      });
+    }
+
+    dreams.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    res.json({ ok: true, dreams: dreams.slice(0, limit), total: dreams.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── Liveness / Health with Universe Metrics ──────────────────────────────────
+app.get("/api/system/liveness", (req, res) => {
+  try {
+    const heapUsed = process.memoryUsage().heapUsed;
+    const uptimeMs = Date.now() - (STATE._startedAt || Date.now());
+
+    res.json({
+      ok: true,
+      alive: true,
+      version: VERSION,
+      uptime: Math.round(uptimeMs / 1000 / 60),
+      memoryMb: Math.round(heapUsed / 1024 / 1024),
+      totalGlobalDTUs: STATE.dtus.size,
+      totalUserUniverses: STATE.userUniverses.size,
+      totalLensArtifacts: STATE.lensArtifacts.size,
+      lensDomains: STATE.lensDomainIndex.size,
+      councilQueueSize: (STATE.globalThread?.councilQueue || []).filter(s => s.status === "pending").length,
+      currentRoyaltyRate: (() => {
+        try {
+          const total = STATE.dtus.size || 1;
+          const sovereign = Array.from(STATE.dtus.values()).filter(d => d.source === "sovereign" || d.authority?.model === "sovereign").length;
+          return Math.round((0.02 + 0.28 * (sovereign / total)) * 1000) / 1000;
+        } catch { return 0.30; }
+      })(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ── API Documentation (augmented with multiverse endpoints) ──────────────────
+app.get("/api/docs/universe", (req, res) => {
+  res.json({
+    version: VERSION,
+    multiverse: {
+      "POST /api/universe/initialize": {
+        description: "Initialize user universe with onboarding mode",
+        body: { mode: "empty|starter|domain-specific|full", domains: "[optional array of domain strings]" },
+      },
+      "GET /api/universe/stats": { description: "Get user universe statistics and domain distribution" },
+      "GET /api/universe/dtus": { description: "List DTUs in user's local universe", query: "domain, search, limit, offset" },
+      "GET /api/universe/personality": { description: "Get personality profile derived from local universe" },
+      "GET /api/universe/dreams": { description: "Get auto-generated DTUs since last session", query: "since, limit" },
+      "PUT /api/universe/preferences": { description: "Update sync preferences", body: "autoSyncEnabled, autoSyncDomains, syncDepth, personalityBias" },
+    },
+    global: {
+      "GET /api/global/browse": { description: "Browse global sacred timeline", query: "domain, search, limit, offset, tier" },
+      "POST /api/global/sync": { description: "Sync global DTUs to local universe", body: { dtuIds: "[array of DTU IDs]" } },
+      "POST /api/global/unsync": { description: "Remove synced DTUs from local", body: { dtuIds: "[array of DTU IDs]" } },
+      "POST /api/global/submit": { description: "Submit local DTU for council review", body: { dtuId: "string", reason: "string" } },
+      "POST /api/global/review/:id": { description: "Council approve/reject (admin/owner)", body: { decision: "approve|reject", notes: "string" } },
+      "GET /api/global/queue": { description: "View pending council submissions", query: "status" },
+      "GET /api/global/contributions": { description: "View accepted contributions history" },
+    },
+    search: {
+      "GET /api/search": { description: "Full-text search across local/global", query: "q, scope=local|global|both, domain, limit, offset" },
+    },
+    system: {
+      "GET /api/system/liveness": { description: "System health with universe metrics and royalty rate" },
+    },
+  });
+});
+
+// Record startup time for liveness
+STATE._startedAt = STATE._startedAt || Date.now();
+
+structuredLog("info", "completion_init", { detail: "Completion layer: search, backups, personality, dreams initialized" });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END COMPLETION LAYER
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // ---- test surface (safe exports; no side effects) ----
 export const __TEST__ = Object.freeze({
   VERSION,
