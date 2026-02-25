@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Shuffle, Search, ArrowRight, History, Layers, GitCompare
 } from 'lucide-react';
@@ -16,6 +18,9 @@ export default function TransferLensPage() {
   const [targetDomain, setTargetDomain] = useState('');
   const [classifyText, setClassifyText] = useState('');
   const [results, setResults] = useState<unknown>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('transfer', 'analogy');
 
   const { data: history, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['transfer-history'],
@@ -36,6 +41,13 @@ export default function TransferLensPage() {
 
   const transfers = history?.transfers || history || [];
 
+  // Bridge transfer history into lens artifacts
+  useEffect(() => {
+    bridge.syncList(Array.isArray(transfers) ? transfers : [], (t) => {
+      const xfer = t as Record<string, unknown>;
+      return { title: `Transfer: ${xfer.source || xfer.id || 'unknown'}`, data: xfer };
+    });
+  }, [transfers, bridge]);
 
   if (isLoading) {
     return (
@@ -66,6 +78,9 @@ export default function TransferLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="transfer" artifactId={bridge.selectedId} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="lens-card">

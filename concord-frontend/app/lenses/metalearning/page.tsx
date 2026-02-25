@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   GraduationCap, Plus, TrendingUp, Award,
   ArrowRight, BarChart3, Zap, BookOpen
@@ -26,6 +28,9 @@ export default function MetalearningLensPage() {
   const [newType, setNewType] = useState('exploration');
   const [curriculumTopic, setCurriculumTopic] = useState('');
   const [results, setResults] = useState<unknown>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('metalearning', 'strategy');
 
   const { data: status, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['metalearning-status'],
@@ -65,6 +70,14 @@ export default function MetalearningLensPage() {
   const statusInfo = status?.status || status || {};
   const bestStrategy = best?.strategy || best || null;
 
+  // Bridge strategies into lens artifacts
+  useEffect(() => {
+    bridge.syncList(strategyList, (s) => {
+      const strat = s as Strategy;
+      return { title: strat.name, data: s as Record<string, unknown>, meta: { type: strat.type } };
+    });
+  }, [strategyList, bridge]);
+
 
   if (isLoading) {
     return (
@@ -95,6 +108,9 @@ export default function MetalearningLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="metalearning" artifactId={bridge.selectedId} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

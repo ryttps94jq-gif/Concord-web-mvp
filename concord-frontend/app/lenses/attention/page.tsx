@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Eye, Plus, Play, CheckCircle2, Layers, Clock, BarChart3,
   Sliders, Focus, Pause, AlertTriangle, ArrowUpDown,
@@ -43,6 +45,9 @@ export default function AttentionLensPage() {
   const [threadFilter, setThreadFilter] = useState<'all' | 'active' | 'pending' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'priority' | 'created' | 'status'>('priority');
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('attention', 'thread');
 
   const { data: status, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['attention-status'],
@@ -107,6 +112,14 @@ export default function AttentionLensPage() {
   const stats = status?.stats || {};
   const queueData = queue?.queue || [];
   const completedData = queue?.completed || [];
+
+  // Bridge attention threads into lens artifacts
+  useEffect(() => {
+    bridge.syncList(threadList, (t) => {
+      const thread = t as Thread;
+      return { title: `${thread.type}: ${thread.description}`, data: t as Record<string, unknown>, meta: { status: thread.status } };
+    });
+  }, [threadList, bridge]);
 
   const filteredThreads = useMemo(() => {
     let filtered = [...threadList];
@@ -184,6 +197,9 @@ export default function AttentionLensPage() {
           <RefreshCw className="w-4 h-4" />
         </button>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="attention" artifactId={bridge.selectedId} compact />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

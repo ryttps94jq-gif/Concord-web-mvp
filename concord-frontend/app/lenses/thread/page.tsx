@@ -5,6 +5,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
 import { useUIStore } from '@/store/ui';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
@@ -59,6 +61,9 @@ type ViewMode = 'tree' | 'timeline' | 'linear';
 export default function ThreadLensPage() {
   useLensNav('thread');
 
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('thread', 'conversation');
+
   const [selectedNode, setSelectedNode] = useState<ThreadNode | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['msg-1', 'msg-2']));
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
@@ -104,6 +109,14 @@ export default function ThreadLensPage() {
   }, [conversationsData]);
 
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+
+  // Bridge threads into lens artifacts
+  useEffect(() => {
+    bridge.syncList(threads, (t) => {
+      const thread = t as Thread;
+      return { title: thread.name, data: t as Record<string, unknown>, meta: { messageCount: String(thread.messageCount) } };
+    });
+  }, [threads, bridge]);
 
   // Auto-select first thread when data loads
   useEffect(() => {
@@ -290,6 +303,7 @@ export default function ThreadLensPage() {
         </div>
 
         <div className="flex items-center gap-4">
+          <UniversalActions domain="thread" artifactId={bridge.selectedId} compact />
           {/* View mode toggle */}
           <div className="flex items-center gap-1 bg-lattice-surface rounded-lg p-1">
             {(['tree', 'timeline', 'linear'] as ViewMode[]).map((mode) => (

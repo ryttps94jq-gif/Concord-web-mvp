@@ -32,6 +32,7 @@ import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { Loading } from '@/components/common/Loading';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import { Search, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -65,6 +66,10 @@ interface LensShellProps {
   /** Filter controls slot */
   filters?: ReactNode;
 
+  /** Universal AI actions — pass selected artifact ID to enable analyze/generate/suggest */
+  aiActions?: boolean;
+  selectedArtifactId?: string | null;
+
   /** Data loading states */
   isLoading?: boolean;
   isError?: boolean;
@@ -89,6 +94,8 @@ export function LensShell({
   onSearchChange,
   searchPlaceholder = 'Search...',
   filters,
+  aiActions,
+  selectedArtifactId,
   isLoading,
   isError,
   error,
@@ -159,6 +166,11 @@ export function LensShell({
           )}
           {filters}
         </div>
+      )}
+
+      {/* Universal AI Actions */}
+      {aiActions && (
+        <UniversalActions domain={domain} artifactId={selectedArtifactId} compact />
       )}
 
       {/* Content area with standard loading/error states */}

@@ -26590,7 +26590,65 @@ registerLensAction("game", "balance", (ctx, artifact, params) => {
 const { default: domainModules } = await import('./domains/index.js');
 domainModules.forEach(mod => mod(registerLensAction));
 
-console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains)`);
+// ── Universal Action Registrar ──────────────────────────────────────────────
+// Gives EVERY lens domain three AI-powered actions (analyze, generate, suggest)
+// powered by the utility brain (qwen2.5:3b via Ollama). Domains that already
+// have custom handlers for these actions keep them — we only fill gaps.
+const UNIVERSAL_ACTIONS = ["analyze", "generate", "suggest"];
+const ALL_LENS_DOMAINS = [
+  "accounting","admin","affect","agents","agriculture","all","alliance",
+  "anon","app-maker","ar","art","attention","audit","aviation","billing",
+  "bio","board","calendar","chat","chem","code","collab","command-center",
+  "commonsense","council","creative","cri","crypto","custom","daily",
+  "database","debug","docs","eco","education","entity","environment",
+  "ethics","events","experience","export","feed","finance","fitness",
+  "food","fork","forum","fractal","game","global","goals","government",
+  "graph","grounding","healthcare","household","hypothesis","import",
+  "inference","ingest","insurance","integrations","invariant","lab",
+  "law","legacy","legal","lock","logistics","manufacturing","market",
+  "marketplace","math","meta","metacognition","metalearning","ml",
+  "music","neuro","news","nonprofit","offline","organ","paper","physics",
+  "platform","quantum","questmarket","queue","realestate","reasoning",
+  "reflection","repos","research","resonance","retail","schema","science",
+  "security","services","sim","srs","studio","suffering","temporal",
+  "thread","tick","timeline","trades","transfer","voice","vote","whiteboard"
+];
+
+function registerUniversalLensActions() {
+  let registered = 0;
+  for (const domain of ALL_LENS_DOMAINS) {
+    for (const action of UNIVERSAL_ACTIONS) {
+      const key = `${domain}.${action}`;
+      if (LENS_ACTIONS.has(key)) continue; // respect custom handlers
+      LENS_ACTIONS.set(key, async (ctx, artifact, params) => {
+        const result = await utilityCall(action, domain, {
+          artifactTitle: artifact?.title,
+          artifactData: artifact?.data,
+          artifactMeta: artifact?.meta,
+          ...params
+        });
+        return {
+          ok: result.ok,
+          output: result.content || result.error,
+          source: "utility-brain",
+          model: result.model,
+          action,
+          domain,
+        };
+      });
+      registered++;
+    }
+  }
+  structuredLog("info", "universal_lens_actions_registered", {
+    domains: ALL_LENS_DOMAINS.length,
+    actionsPerDomain: UNIVERSAL_ACTIONS.length,
+    totalRegistered: registered,
+    skippedCustom: (ALL_LENS_DOMAINS.length * UNIVERSAL_ACTIONS.length) - registered,
+  });
+}
+registerUniversalLensActions();
+
+console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains + ${LENS_ACTIONS.size} total actions)`);
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
