@@ -8874,8 +8874,14 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
     } catch (e) { observe(e, "dtu_qualia_snapshot"); }
   }
 
+  // Auto-tag DTU with lens domain classifications
+  try { if (typeof applyAutoTagging === "function") applyAutoTagging(dtu); } catch {}
+
   STATE.dtus.set(dtu.id, dtu);
   saveStateDebounced();
+
+  // Sync DTU to lens artifacts for domain-based lens views
+  if (isNew) { try { if (typeof syncDTUToLensArtifacts === "function") syncDTUToLensArtifacts(dtu); } catch {} }
 
   // Fire plugin after-hooks
   try { fireHook(STATE, isNew ? "dtu:afterCreate" : "dtu:afterUpdate", dtu); } catch (e) { observe(e, "dtu_hook_after_write"); }
@@ -13581,6 +13587,9 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
     dtu.hash = dtu.hash || pipeContentFingerprint(dtu);
     dtu.updatedAt = nowISO();
 
+    // Auto-tag DTU with lens domain classifications
+    try { if (typeof applyAutoTagging === "function") applyAutoTagging(dtu); } catch {}
+
     // Conservation ledger: record abstraction added
     try {
       STATE.abstraction.ledger.added += estimateAbstractionDelta(dtu);
@@ -13588,6 +13597,9 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
 
     STATE.dtus.set(dtu.id, dtu);
     saveStateDebounced();
+
+    // Sync DTU to lens artifacts for domain-based lens views
+    try { if (typeof syncDTUToLensArtifacts === "function") syncDTUToLensArtifacts(dtu); } catch {}
 
     // ===== AUTO WORLD MODEL UPDATE =====
     // Every new DTU feeds into the world model: extract entities, detect relations,
@@ -19310,6 +19322,11 @@ for (const d of [
 for (const d of [
   "shard","governor","global","sovereign","council","org","auth",
 ]) allowDomain(d, _ACL_OWNER);
+
+// Domain overrides: move user-facing domains from admin to member
+// verify, export — needed by frontend for DTU verification and data export
+// autotag — needed for classification macros
+for (const d of ["verify", "export", "autotag"]) allowDomain(d, _ACL_MEMBER);
 
 // Per-macro overrides for sensitive operations within member domains
 allowMacro("dtu", "delete", _ACL_ADMIN);
@@ -41336,6 +41353,313 @@ structuredLog("info", "artistry_init", { detail: "All phases (1-10) initialized 
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // END ARTISTRY GLOBAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DTU DOMAIN AUTO-TAGGING & LENS SYNC ENGINE
+// Classifies DTUs into lens domains and syncs them as lens artifacts.
+// ADDITIVE — does not modify existing classifyDomain or lens runtime.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const LENS_DOMAIN_KEYWORDS = {
+  // Core theoretical
+  math: ["equation", "theorem", "proof", "algebra", "geometry", "calculus", "formula", "mathematical", "arithmetic", "topology"],
+  theory: ["constraint", "dynamics", "primal", "recursion", "structural", "foundational", "ontolog", "axiomatic", "formalism", "paradigm"],
+  physics: ["energy", "entropy", "quantum", "field", "wave", "particle", "force", "thermodynamic", "relativity", "gravitational"],
+
+  // Cognitive/AI
+  cognitive: ["cognition", "neural", "brain", "consciousness", "awareness", "perception", "qualia", "sentience", "thought", "mind"],
+  ai: ["artificial intelligence", "model", "training", "inference", "llm", "machine learning", "deep learning", "transformer", "embedding", "prompt"],
+
+  // Engineering
+  engineering: ["repair", "materials", "structural", "build", "construct", "infrastructure", "mechanical", "fabricat", "manufacturing"],
+  code: ["code", "programming", "algorithm", "function", "api", "software", "debug", "script", "compiler", "syntax", "repository", "commit"],
+
+  // Life/Health
+  health: ["health", "medical", "disease", "biology", "longevity", "repair dominance", "therapeutic", "clinical", "diagnosis", "wellness"],
+  eco: ["ecology", "ecosystem", "environment", "sustainability", "organism", "biodiversity", "conservation", "habitat", "species"],
+
+  // Social/Governance
+  governance: ["governance", "council", "vote", "policy", "ethics", "alignment", "democracy", "regulation", "constitution", "sovereign"],
+  social: ["social", "community", "collaboration", "communication", "network", "collective", "cooperation", "dialogue"],
+
+  // Knowledge
+  research: ["research", "hypothesis", "experiment", "study", "analysis", "investigation", "empirical", "methodology", "peer review"],
+  meta: ["meta", "abstraction", "self-reference", "recursive", "reflection", "introspection", "metacognition", "higher-order"],
+
+  // Creative
+  studio: ["creative", "art", "music", "design", "composition", "aesthetic", "visual", "painting", "sculpture", "artistic"],
+
+  // Temporal
+  temporal: ["time", "temporal", "history", "timeline", "evolution", "progression", "chronolog", "epoch", "duration"],
+
+  // Entity
+  entity: ["entity", "agent", "emergent", "persona", "identity", "being", "organism", "autonomous", "sentient"],
+
+  // Graph/Schema
+  graph: ["graph", "network", "connection", "relation", "node", "edge", "topology", "lattice", "mesh"],
+  schema: ["schema", "structure", "definition", "type", "format", "specification", "ontology", "taxonomy"],
+
+  // Board/Tasks
+  board: ["task", "project", "milestone", "deadline", "plan", "roadmap", "goal", "sprint", "backlog", "kanban"],
+
+  // Finance
+  finance: ["token", "economy", "market", "price", "transaction", "value", "currency", "trade", "asset", "portfolio"],
+
+  // Forum/Chat/Threads
+  forum: ["forum", "discussion", "debate", "thread", "opinion", "consensus"],
+  chat: ["chat", "message", "conversation", "dialogue", "real-time"],
+  threads: ["thread", "reply", "conversation chain", "nested"],
+
+  // News/Feed
+  news: ["news", "update", "announcement", "bulletin", "report", "breaking"],
+  feed: ["feed", "stream", "timeline", "activity", "digest"],
+
+  // Daily
+  daily: ["daily", "journal", "log", "routine", "habit", "morning", "evening", "ritual"],
+
+  // Anonymous
+  anonymous: ["anonymous", "anon", "privacy", "pseudonym", "confidential"],
+
+  // Voice
+  voice: ["voice", "speech", "audio", "transcription", "spoken", "vocal", "sound"],
+
+  // Real Estate
+  "real-estate": ["property", "real estate", "housing", "mortgage", "lease", "tenant", "zoning", "building"],
+
+  // Healthcare (distinct from health — clinical systems)
+  healthcare: ["hospital", "patient", "treatment", "prescription", "surgery", "nurse", "clinic", "pharmacy"],
+};
+
+/**
+ * Auto-classify a DTU into multiple lens domains based on content analysis.
+ * Returns an array of domain strings (e.g., ["theory", "cognitive", "meta"]).
+ */
+function autoClassifyDTU(dtu) {
+  try {
+    if (!dtu) return [];
+
+    // Build searchable text from DTU content
+    const textParts = [
+      dtu.title || "",
+      ...(dtu.tags || []),
+      dtu.human?.summary || "",
+      dtu.cretiHuman || "",
+      (dtu.human?.bullets || []).join(" "),
+      (dtu.core?.definitions || []).join(" ").slice(0, 500),
+      (dtu.core?.claims || []).join(" ").slice(0, 500),
+      (dtu.core?.invariants || []).join(" ").slice(0, 300),
+      dtu.notes || "",
+      dtu.kind || "",
+    ];
+    const text = textParts.join(" ").toLowerCase();
+
+    if (!text.trim()) return [];
+
+    const matched = [];
+
+    for (const [domain, keywords] of Object.entries(LENS_DOMAIN_KEYWORDS)) {
+      let score = 0;
+      for (const kw of keywords) {
+        if (text.includes(kw)) score++;
+      }
+      if (score >= 1) {
+        matched.push({ domain, score });
+      }
+    }
+
+    // Sort by score descending, take top 5 domains max
+    matched.sort((a, b) => b.score - a.score);
+    const domains = matched.slice(0, 5).map(m => m.domain);
+
+    // Tier-based bonus domains
+    if (dtu.tier === "mega" || dtu.tier === "hyper") {
+      if (!domains.includes("theory")) domains.push("theory");
+      if (!domains.includes("research")) domains.push("research");
+    }
+
+    return [...new Set(domains)];
+  } catch (e) {
+    console.error("[AutoClassifyDTU] Error:", String(e?.message || e));
+    return [];
+  }
+}
+
+/**
+ * Apply auto-tagging to a DTU (merges domain tags with existing tags).
+ * Call this before STATE.dtus.set() to ensure domain tags are present.
+ */
+function applyAutoTagging(dtu) {
+  try {
+    if (!dtu || dtu._skipAutoTag) return;
+    const autoDomains = autoClassifyDTU(dtu);
+    if (autoDomains.length === 0) return;
+    const existing = new Set(dtu.tags || []);
+    for (const d of autoDomains) existing.add(d);
+    dtu.tags = Array.from(existing);
+  } catch (e) {
+    console.error("[ApplyAutoTag] Error:", String(e?.message || e));
+  }
+}
+
+/**
+ * Sync a single DTU into lens artifacts based on its domain tags.
+ * Creates lens artifacts for each domain tag the DTU has.
+ */
+function syncDTUToLensArtifacts(dtu) {
+  try {
+    if (!dtu || !dtu.id) return 0;
+    const domains = (dtu.tags || []).filter(t => LENS_DOMAIN_KEYWORDS[t]);
+    let synced = 0;
+    for (const domain of domains) {
+      const key = `dtu_lens_${domain}_${dtu.id}`;
+      if (!STATE.lensArtifacts.has(key)) {
+        const artifact = {
+          id: key,
+          domain,
+          type: dtu.tier || "regular",
+          ownerId: dtu.createdBy || dtu.entityId || "system",
+          title: dtu.title || "Untitled DTU",
+          data: {
+            dtuId: dtu.id,
+            summary: dtu.human?.summary || dtu.cretiHuman || "",
+            tier: dtu.tier || "regular",
+            claims: (dtu.core?.claims || []).slice(0, 5),
+            definitions: (dtu.core?.definitions || []).slice(0, 3),
+          },
+          meta: {
+            tags: dtu.tags || [],
+            status: "published",
+            visibility: "public",
+            scope: dtu.scope || "local",
+            createdFrom: "dtu-auto-sync",
+          },
+          createdAt: dtu.createdAt || new Date().toISOString(),
+          updatedAt: dtu.updatedAt || dtu.createdAt || new Date().toISOString(),
+          version: 1,
+        };
+        STATE.lensArtifacts.set(key, artifact);
+        _lensDomainIndexAdd(domain, key);
+        synced++;
+      }
+    }
+    return synced;
+  } catch (e) {
+    console.error("[SyncDTUToLens] Error:", String(e?.message || e));
+    return 0;
+  }
+}
+
+/**
+ * Retroactive tagger: classify and tag ALL existing DTUs, then sync to lenses.
+ */
+function retroTagAllDTUs() {
+  try {
+    let tagged = 0, lensArtifactsCreated = 0;
+    const startTime = Date.now();
+
+    for (const [id, dtu] of STATE.dtus) {
+      // Auto-classify and merge tags
+      const domains = autoClassifyDTU(dtu);
+      if (domains.length > 0) {
+        const existing = new Set(dtu.tags || []);
+        const before = existing.size;
+        for (const d of domains) existing.add(d);
+        if (existing.size > before) {
+          dtu.tags = Array.from(existing);
+          dtu.updatedAt = new Date().toISOString();
+          tagged++;
+        }
+      }
+
+      // Sync to lens artifacts
+      lensArtifactsCreated += syncDTUToLensArtifacts(dtu);
+    }
+
+    // Backfill missing hashes
+    let hashesBackfilled = 0;
+    for (const [id, dtu] of STATE.dtus) {
+      if (!dtu.hash) {
+        try {
+          dtu.hash = pipeContentFingerprint(dtu);
+          hashesBackfilled++;
+        } catch {}
+      }
+    }
+
+    saveStateDebounced();
+
+    const elapsed = Date.now() - startTime;
+    const msg = `[RetroTag] Tagged ${tagged}/${STATE.dtus.size} DTUs, created ${lensArtifactsCreated} lens artifacts, backfilled ${hashesBackfilled} hashes in ${elapsed}ms`;
+    console.log(msg);
+    try { pipeAudit("retro_tag", msg, { tagged, lensArtifactsCreated, hashesBackfilled, elapsed }); } catch {}
+
+    return { ok: true, tagged, lensArtifactsCreated, hashesBackfilled, elapsed, total: STATE.dtus.size };
+  } catch (e) {
+    console.error("[RetroTag] Fatal error:", String(e?.message || e));
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+/**
+ * Full lens sync: ensures all tagged DTUs have corresponding lens artifacts.
+ * Safe to run multiple times (idempotent).
+ */
+function syncAllDTUsToLenses() {
+  try {
+    let synced = 0;
+    for (const [id, dtu] of STATE.dtus) {
+      synced += syncDTUToLensArtifacts(dtu);
+    }
+    if (synced > 0) {
+      saveStateDebounced();
+      console.log(`[LensSync] Synced ${synced} DTU→lens artifacts`);
+    }
+    return { ok: true, synced };
+  } catch (e) {
+    console.error("[LensSync] Error:", String(e?.message || e));
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// ── Run retroactive tagging on startup (delayed to avoid blocking boot) ──────
+setTimeout(() => {
+  try {
+    console.log("[RetroTag] Starting retroactive DTU domain tagging...");
+    const result = retroTagAllDTUs();
+    console.log("[RetroTag] Complete:", JSON.stringify(result));
+  } catch (e) {
+    console.error("[RetroTag] Startup error:", String(e?.message || e));
+  }
+}, 30000); // 30s after startup
+
+// ── Periodic lens sync (every 2 hours) ──────────────────────────────────────
+setInterval(() => {
+  try { syncAllDTUsToLenses(); } catch {}
+}, 2 * 60 * 60 * 1000);
+
+// ── Register macros for manual triggering ────────────────────────────────────
+register("autotag", "retro", (ctx, _input = {}) => {
+  return retroTagAllDTUs();
+}, { summary: "Retroactively tag all DTUs with lens domain classifications." });
+
+register("autotag", "sync_lenses", (ctx, _input = {}) => {
+  return syncAllDTUsToLenses();
+}, { summary: "Sync all tagged DTUs to lens artifact store." });
+
+register("autotag", "classify", (ctx, input = {}) => {
+  const { dtuId } = input;
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+  const domains = autoClassifyDTU(dtu);
+  return { ok: true, dtuId, title: dtu.title, domains, currentTags: dtu.tags || [] };
+}, { summary: "Preview domain classification for a specific DTU." });
+
+structuredLog("info", "autotag_init", { detail: "DTU Domain Auto-Tagging & Lens Sync Engine initialized" });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END DTU DOMAIN AUTO-TAGGING & LENS SYNC ENGINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ---- test surface (safe exports; no side effects) ----
