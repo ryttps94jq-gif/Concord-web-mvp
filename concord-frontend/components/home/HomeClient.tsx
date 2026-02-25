@@ -55,6 +55,9 @@ import { TaskDelegation } from '@/components/tasks/TaskDelegation';
 import { KnowledgeGardens } from '@/components/gardens/KnowledgeGardens';
 import { BountiesAndFutures } from '@/components/economy/BountiesAndFutures';
 import { SubstrateWeather } from '@/components/weather/SubstrateWeather';
+import { CognitiveDigitalTwin } from '@/components/twin/CognitiveDigitalTwin';
+import { SwarmIntelligence } from '@/components/swarm/SwarmIntelligence';
+import { TimeCrystals } from '@/components/temporal/TimeCrystals';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -440,6 +443,19 @@ function DashboardPage() {
         </LensErrorBoundary>
         <LensErrorBoundary name="Bounties & Futures">
           <BountiesAndFutures />
+        </LensErrorBoundary>
+      </div>
+
+      {/* Cognitive Civilization — Digital Twin, Swarms, Temporal Intelligence */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <LensErrorBoundary name="Cognitive Digital Twin">
+          <CognitiveDigitalTwin />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="DTU Swarms">
+          <SwarmIntelligence />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Temporal Intelligence">
+          <TimeCrystals />
         </LensErrorBoundary>
       </div>
 

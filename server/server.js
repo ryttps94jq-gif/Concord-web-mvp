@@ -35764,6 +35764,811 @@ app.get("/api/subscription/tiers", (_req, res) => {
 // END SPEC II WAVE 4
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC III: THE COGNITIVE CIVILIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- COGNITIVE DIGITAL TWIN — A Living Model of How You Think ----------
+// Tracks: processing speed by domain, cognitive load threshold, decision patterns,
+// learning curves, bias fingerprint, circadian cognition, social reasoning style.
+
+if (!STATE.cognitiveDigitalTwins) STATE.cognitiveDigitalTwins = new Map();
+
+function initializeTwin(userId) {
+  return {
+    userId: userId || "default",
+    processingSpeed: {},        // domain → { avgTimeMs, qualityScore, count }
+    cognitiveLoad: {
+      threshold: 3,             // domains active simultaneously before quality drops
+      currentLoad: 0,
+      history: [],
+    },
+    decisionPatterns: {
+      quickDecisions: 0,
+      deliberateDecisions: 0,
+      averageDeliberationMs: 0,
+      paralysisEvents: 0,
+    },
+    learningCurves: {},         // domain → [{ date, qualityScore, dtuCount }]
+    biasFingerprint: {
+      anchoring: 0,
+      confirmation: 0,
+      recency: 0,
+      availabilityHeuristic: 0,
+      sunkCost: 0,
+    },
+    circadianProfile: {},       // hour (0-23) → { avgQuality, count }
+    communicationStyle: {
+      verbosity: "moderate",    // terse, moderate, verbose
+      formality: "casual",      // formal, casual, mixed
+      preferredLength: 150,     // avg DTU content length
+    },
+    lastUpdated: null,
+    snapshots: [],
+  };
+}
+
+function updateCognitiveDigitalTwin(userId) {
+  const uid = userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(uid) || initializeTwin(uid);
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+  // Gather user's recent DTUs
+  const recentDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const created = new Date(dtu.createdAt || 0).getTime();
+    if (created >= thirtyDaysAgo) recentDTUs.push(dtu);
+  }
+
+  // Processing speed by domain
+  const domainTimes = {};
+  for (const dtu of recentDTUs) {
+    const domain = dtu.domain || "general";
+    if (!domainTimes[domain]) domainTimes[domain] = { totalMs: 0, totalQuality: 0, count: 0 };
+    // Estimate quality from content length and tier
+    const quality = (dtu.tier === "hyper" ? 0.9 : dtu.tier === "mega" ? 0.7 : 0.5) + Math.min(0.3, (dtu.content?.length || 0) / 1000);
+    domainTimes[domain].totalQuality += quality;
+    domainTimes[domain].count++;
+  }
+  for (const [domain, data] of Object.entries(domainTimes)) {
+    twin.processingSpeed[domain] = {
+      avgQuality: data.count > 0 ? data.totalQuality / data.count : 0,
+      count: data.count,
+    };
+  }
+
+  // Learning curves by domain
+  for (const [domain, data] of Object.entries(domainTimes)) {
+    if (!twin.learningCurves[domain]) twin.learningCurves[domain] = [];
+    twin.learningCurves[domain].push({
+      date: new Date().toISOString().slice(0, 10),
+      qualityScore: data.totalQuality / Math.max(1, data.count),
+      dtuCount: data.count,
+    });
+    // Keep last 90 entries
+    if (twin.learningCurves[domain].length > 90) {
+      twin.learningCurves[domain] = twin.learningCurves[domain].slice(-90);
+    }
+  }
+
+  // Circadian cognition: which hours produce best DTUs
+  for (const dtu of recentDTUs) {
+    const hour = new Date(dtu.createdAt || 0).getHours();
+    if (!twin.circadianProfile[hour]) twin.circadianProfile[hour] = { totalQuality: 0, count: 0 };
+    const quality = (dtu.tier === "hyper" ? 0.9 : dtu.tier === "mega" ? 0.7 : 0.5);
+    twin.circadianProfile[hour].totalQuality += quality;
+    twin.circadianProfile[hour].count++;
+  }
+  // Compute averages
+  for (const [hour, data] of Object.entries(twin.circadianProfile)) {
+    twin.circadianProfile[hour].avgQuality = data.count > 0 ? data.totalQuality / data.count : 0;
+  }
+
+  // Bias fingerprint: analyze DTU content patterns
+  let anchoringSignals = 0, confirmationSignals = 0, recencySignals = 0;
+  const biasPatterns = {
+    anchoring: /first|initial|original|started with|began as/i,
+    confirmation: /confirms|proves|validates|as expected|knew it/i,
+    recency: /just|recently|latest|new|current/i,
+  };
+  for (const dtu of recentDTUs.slice(0, 100)) {
+    const text = (dtu.content || dtu.title || "").toLowerCase();
+    if (biasPatterns.anchoring.test(text)) anchoringSignals++;
+    if (biasPatterns.confirmation.test(text)) confirmationSignals++;
+    if (biasPatterns.recency.test(text)) recencySignals++;
+  }
+  const total = Math.max(1, recentDTUs.length);
+  twin.biasFingerprint.anchoring = Math.min(1, anchoringSignals / total);
+  twin.biasFingerprint.confirmation = Math.min(1, confirmationSignals / total);
+  twin.biasFingerprint.recency = Math.min(1, recencySignals / total);
+
+  // Communication style
+  const contentLengths = recentDTUs.map(d => (d.content || "").length).filter(l => l > 0);
+  if (contentLengths.length > 0) {
+    const avg = contentLengths.reduce((a, b) => a + b, 0) / contentLengths.length;
+    twin.communicationStyle.preferredLength = Math.round(avg);
+    twin.communicationStyle.verbosity = avg > 500 ? "verbose" : avg > 150 ? "moderate" : "terse";
+  }
+
+  twin.lastUpdated = new Date().toISOString();
+  STATE.cognitiveDigitalTwins.set(uid, twin);
+
+  return twin;
+}
+
+// Digital Twin API routes
+app.get("/api/twin", (req, res) => {
+  const userId = req.query.userId || "default";
+  let twin = STATE.cognitiveDigitalTwins.get(userId);
+  if (!twin) twin = updateCognitiveDigitalTwin(userId);
+  res.json({ ok: true, twin });
+});
+
+app.post("/api/twin/update", (req, res) => {
+  try {
+    const twin = updateCognitiveDigitalTwin(req.body.userId);
+    res.json({ ok: true, twin });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/twin/circadian", (req, res) => {
+  const userId = req.query.userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(userId) || initializeTwin(userId);
+  res.json({ ok: true, circadian: twin.circadianProfile, peakHours: findPeakHours(twin.circadianProfile) });
+});
+
+function findPeakHours(circadian) {
+  const entries = Object.entries(circadian).map(([h, d]) => ({ hour: parseInt(h), avgQuality: d.avgQuality }));
+  entries.sort((a, b) => b.avgQuality - a.avgQuality);
+  return entries.slice(0, 3).map(e => e.hour);
+}
+
+// ---------- FUTURE SELF SIMULATOR — decision path simulation ----------
+// Simulates two possible futures based on a decision using twin + domain DTUs.
+
+async function simulateFuture(question, options = {}) {
+  const userId = options.userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(userId) || initializeTwin(userId);
+
+  // Gather relevant DTUs
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const text = (dtu.title || "") + " " + (dtu.content || "");
+    const words = question.toLowerCase().split(/\s+/);
+    if (words.some(w => w.length > 3 && text.toLowerCase().includes(w))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  const context = relevantDTUs.slice(0, 10).map(d => `- ${d.title}: ${(d.content || "").slice(0, 80)}`).join("\n");
+
+  const paths = options.paths || ["Path A: Do it", "Path B: Don't do it"];
+  const simulations = [];
+
+  for (const path of paths) {
+    try {
+      if (BRAIN.conscious?.enabled) {
+        const prompt = `You are simulating a possible future. The user is considering: "${question}"
+
+Path: ${path}
+
+User's cognitive profile:
+- Top domains: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}
+- Communication style: ${twin.communicationStyle.verbosity}
+- Key biases: ${Object.entries(twin.biasFingerprint).filter(([, v]) => v > 0.3).map(([k]) => k).join(", ") || "none detected"}
+
+Relevant knowledge:
+${context || "(no relevant DTUs)"}
+
+Simulate what happens if the user takes this path. Consider practical outcomes, emotional impact, and timeline. Be specific and grounded in the available data. 3-4 sentences.`;
+
+        const result = await callBrain("conscious", prompt, { temperature: 0.5, maxTokens: 250 });
+        simulations.push({
+          path,
+          scenario: result.ok ? result.content?.trim() : "Unable to simulate — brain offline",
+          confidence: result.confidence?.score || 0.5,
+        });
+      } else {
+        simulations.push({
+          path,
+          scenario: `Simulation for "${path}": Based on ${relevantDTUs.length} relevant DTUs in your substrate, this path would affect domains: ${Object.keys(twin.processingSpeed).slice(0, 3).join(", ")}. Detailed simulation requires active conscious brain.`,
+          confidence: 0.3,
+        });
+      }
+    } catch (e) {
+      simulations.push({ path, scenario: `Error: ${String(e?.message || e)}`, confidence: 0.1 });
+    }
+  }
+
+  // Create simulation DTU
+  const simDTU = {
+    id: `sim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `Future Sim: ${question.slice(0, 60)}`,
+    content: simulations.map(s => `**${s.path}**\n${s.scenario}`).join("\n\n---\n\n"),
+    tags: ["future-simulation", "digital-twin"],
+    tier: "regular",
+    source: "substrate.simulator",
+    domain: "metacognition",
+    meta: { simulatedAt: new Date().toISOString(), paths: paths.length },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(simDTU, { broadcast: false });
+
+  return { simulations, dtuId: simDTU.id };
+}
+
+app.post("/api/simulate/future", async (req, res) => {
+  const { question, paths } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await simulateFuture(question, { paths });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- COGNITIVE CLONE — answer questions as the user ----------
+// Uses the twin + DTU substrate to respond in the user's voice.
+
+async function cloneRespond(question, userId) {
+  const uid = userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(uid) || initializeTwin(uid);
+
+  // Find relevant DTUs for context
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const text = (dtu.title || "") + " " + (dtu.content || "");
+    const words = question.toLowerCase().split(/\s+/);
+    if (words.some(w => w.length > 3 && text.toLowerCase().includes(w))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  const context = relevantDTUs.slice(0, 15).map(d => `- ${d.title}: ${(d.content || "").slice(0, 100)}`).join("\n");
+
+  const prompt = `You are a cognitive clone — you respond as the user would, based on their knowledge substrate and thinking patterns.
+
+User's cognitive profile:
+- Verbosity: ${twin.communicationStyle.verbosity}
+- Preferred response length: ~${twin.communicationStyle.preferredLength} chars
+- Top domains: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}
+- Known biases: ${Object.entries(twin.biasFingerprint).filter(([, v]) => v > 0.3).map(([k, v]) => `${k}(${Math.round(v * 100)}%)`).join(", ") || "none"}
+
+Knowledge base (from their DTU substrate):
+${context || "(no relevant DTUs found)"}
+
+Question: ${question}
+
+Respond as this user would. Be transparent that this is a cognitive clone, not the actual person. Match their communication style.`;
+
+  try {
+    if (BRAIN.conscious?.enabled) {
+      const result = await callBrain("conscious", prompt, { temperature: 0.4, maxTokens: 300 });
+      return {
+        ok: true,
+        response: result.content?.trim() || "Unable to generate clone response",
+        confidence: result.confidence?.score || 0.5,
+        source: "cognitive-clone",
+        disclaimer: "This response was generated by a cognitive clone — not the actual person. It represents an approximation based on their knowledge substrate.",
+      };
+    }
+    return {
+      ok: true,
+      response: `Based on ${relevantDTUs.length} relevant DTUs in the substrate, the user's knowledge spans: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}. A more detailed clone response requires an active conscious brain.`,
+      confidence: 0.3,
+      source: "cognitive-clone-heuristic",
+      disclaimer: "Heuristic clone response — brain offline.",
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+app.post("/api/clone/ask", async (req, res) => {
+  const { question, userId } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await cloneRespond(question, userId);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- DTU SWARMS — self-organizing knowledge clusters ----------
+// DTUs form swarms based on tag overlap and structural similarity.
+
+if (!STATE.swarms) STATE.swarms = [];
+
+function detectSwarms() {
+  const dtus = [...STATE.dtus.values()];
+  if (dtus.length < 3) return [];
+
+  // Build adjacency based on shared tags
+  const tagIndex = {}; // tag → [dtu ids]
+  for (const dtu of dtus) {
+    for (const tag of (dtu.tags || [])) {
+      if (!tagIndex[tag]) tagIndex[tag] = [];
+      tagIndex[tag].push(dtu.id);
+    }
+  }
+
+  // Find connected components via shared tags (minimum 2 shared tags)
+  const visited = new Set();
+  const communities = [];
+
+  for (const dtu of dtus) {
+    if (visited.has(dtu.id)) continue;
+
+    const community = new Set();
+    const queue = [dtu.id];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+      community.add(current);
+
+      // Find neighbors (DTUs sharing 2+ tags)
+      const currentDTU = STATE.dtus.get(current);
+      if (!currentDTU) continue;
+
+      const neighborCounts = {};
+      for (const tag of (currentDTU.tags || [])) {
+        for (const neighborId of (tagIndex[tag] || [])) {
+          if (neighborId !== current && !visited.has(neighborId)) {
+            neighborCounts[neighborId] = (neighborCounts[neighborId] || 0) + 1;
+          }
+        }
+      }
+
+      for (const [neighborId, sharedCount] of Object.entries(neighborCounts)) {
+        if (sharedCount >= 2) queue.push(neighborId);
+      }
+    }
+
+    if (community.size >= 3) {
+      communities.push([...community]);
+    }
+  }
+
+  return communities;
+}
+
+function updateSwarms() {
+  const communities = detectSwarms();
+  const newSwarms = [];
+
+  for (const members of communities) {
+    // Check if this matches an existing swarm (>70% overlap)
+    const existing = STATE.swarms.find(s => {
+      const overlap = s.members.filter(m => members.includes(m)).length;
+      const ratio = overlap / Math.max(s.members.length, members.length);
+      return ratio > 0.7;
+    });
+
+    if (existing) {
+      existing.members = members;
+      existing.lastUpdated = new Date().toISOString();
+      existing.size = members.length;
+      newSwarms.push(existing);
+    } else {
+      // New swarm — name it from the most common tags
+      const tagCounts = {};
+      for (const id of members) {
+        const dtu = STATE.dtus.get(id);
+        for (const tag of (dtu?.tags || [])) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      }
+      const topTags = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([t]) => t);
+
+      // Find queen (most connected DTU)
+      let queen = members[0];
+      let maxConnections = 0;
+      for (const id of members) {
+        const dtu = STATE.dtus.get(id);
+        const connections = (dtu?.meta?._consolidatedLinks || []).length + ((dtu?.lineage?.children || []).length);
+        if (connections > maxConnections) { maxConnections = connections; queen = id; }
+      }
+
+      newSwarms.push({
+        id: `swarm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: topTags.join(" × ") || "Unnamed Cluster",
+        members,
+        queen,
+        size: members.length,
+        topTags,
+        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      });
+    }
+  }
+
+  STATE.swarms = newSwarms;
+  return newSwarms;
+}
+
+app.get("/api/swarms", (_req, res) => {
+  res.json({ ok: true, swarms: STATE.swarms, total: STATE.swarms.length });
+});
+
+app.post("/api/swarms/detect", (_req, res) => {
+  try {
+    const swarms = updateSwarms();
+    res.json({ ok: true, swarms, detected: swarms.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/swarms/:id", (req, res) => {
+  const swarm = STATE.swarms.find(s => s.id === req.params.id);
+  if (!swarm) return res.status(404).json({ ok: false, error: "Swarm not found" });
+  // Enrich with DTU details
+  const memberDTUs = swarm.members.map(id => {
+    const dtu = STATE.dtus.get(id);
+    return dtu ? { id: dtu.id, title: dtu.title, tier: dtu.tier, domain: dtu.domain } : null;
+  }).filter(Boolean);
+  res.json({ ok: true, swarm: { ...swarm, memberDTUs } });
+});
+
+// ---------- STIGMERGIC LEARNING — knowledge leaves trails ----------
+// Navigation paths between DTUs get strengthened with use.
+
+if (!STATE.pathWeights) STATE.pathWeights = new Map(); // "sourceId:targetId" → { weight, lastTraversed }
+
+function recordTraversal(sourceId, targetId) {
+  const key = `${sourceId}:${targetId}`;
+  const existing = STATE.pathWeights.get(key) || { weight: 0, traversals: 0, lastTraversed: null };
+  existing.weight = Math.min(10, existing.weight + 1);
+  existing.traversals++;
+  existing.lastTraversed = new Date().toISOString();
+  STATE.pathWeights.set(key, existing);
+}
+
+function getStrongPaths(dtuId, limit = 10) {
+  const paths = [];
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const [source, target] = key.split(":");
+    if (source === dtuId || target === dtuId) {
+      paths.push({ source, target, ...data });
+    }
+  }
+  paths.sort((a, b) => b.weight - a.weight);
+  return paths.slice(0, limit);
+}
+
+function decayPaths() {
+  // Pheromone evaporation: reduce all path weights by 10%
+  const now = Date.now();
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const lastMs = new Date(data.lastTraversed || 0).getTime();
+    const daysSince = (now - lastMs) / (1000 * 60 * 60 * 24);
+    if (daysSince > 30) {
+      data.weight = Math.max(0, data.weight * 0.9);
+      if (data.weight < 0.1) STATE.pathWeights.delete(key);
+    }
+  }
+}
+
+app.post("/api/paths/traverse", (req, res) => {
+  const { sourceId, targetId } = req.body;
+  if (!sourceId || !targetId) return res.status(400).json({ ok: false, error: "sourceId and targetId required" });
+  recordTraversal(sourceId, targetId);
+  res.json({ ok: true });
+});
+
+app.get("/api/paths/:dtuId", (req, res) => {
+  const paths = getStrongPaths(req.params.dtuId);
+  res.json({ ok: true, paths });
+});
+
+app.get("/api/paths/highways", (_req, res) => {
+  // Get the strongest paths across the whole substrate
+  const allPaths = [];
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const [source, target] = key.split(":");
+    allPaths.push({ source, target, ...data });
+  }
+  allPaths.sort((a, b) => b.weight - a.weight);
+  res.json({ ok: true, highways: allPaths.slice(0, 20) });
+});
+
+// ---------- TIME CRYSTALS — recurring knowledge patterns ----------
+// Discovers repeating patterns in DTU creation across time dimensions.
+
+if (!STATE.timeCrystals) STATE.timeCrystals = [];
+
+function detectTimeCrystals() {
+  const dtus = [...STATE.dtus.values()];
+  if (dtus.length < 20) return []; // Need enough data
+
+  const crystals = [];
+
+  // Analyze by hour of day
+  const hourBuckets = Array.from({ length: 24 }, () => ({ count: 0, totalQuality: 0 }));
+  for (const dtu of dtus) {
+    const hour = new Date(dtu.createdAt || 0).getHours();
+    hourBuckets[hour].count++;
+    hourBuckets[hour].totalQuality += (dtu.tier === "hyper" ? 3 : dtu.tier === "mega" ? 2 : 1);
+  }
+
+  const avgCount = dtus.length / 24;
+  for (let h = 0; h < 24; h++) {
+    if (hourBuckets[h].count > avgCount * 2) {
+      crystals.push({
+        id: `crystal-hour-${h}`,
+        type: "hourly",
+        pattern: `Peak activity at ${h}:00`,
+        description: `DTU creation is ${Math.round((hourBuckets[h].count / avgCount - 1) * 100)}% above average at ${h}:00`,
+        dimension: "hour",
+        value: h,
+        strength: hourBuckets[h].count / avgCount,
+        detectedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Analyze by day of week
+  const dayBuckets = Array.from({ length: 7 }, () => ({ count: 0 }));
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  for (const dtu of dtus) {
+    const day = new Date(dtu.createdAt || 0).getDay();
+    dayBuckets[day].count++;
+  }
+  const avgDayCount = dtus.length / 7;
+  for (let d = 0; d < 7; d++) {
+    if (dayBuckets[d].count > avgDayCount * 1.5) {
+      crystals.push({
+        id: `crystal-day-${d}`,
+        type: "weekly",
+        pattern: `${dayNames[d]} is your most productive day`,
+        description: `${Math.round((dayBuckets[d].count / avgDayCount - 1) * 100)}% more DTUs created on ${dayNames[d]}s`,
+        dimension: "dayOfWeek",
+        value: d,
+        strength: dayBuckets[d].count / avgDayCount,
+        detectedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Analyze domain bursts
+  const domainTimeline = {};
+  for (const dtu of dtus) {
+    const domain = dtu.domain || "general";
+    const week = Math.floor(new Date(dtu.createdAt || 0).getTime() / (7 * 24 * 60 * 60 * 1000));
+    if (!domainTimeline[domain]) domainTimeline[domain] = {};
+    domainTimeline[domain][week] = (domainTimeline[domain][week] || 0) + 1;
+  }
+
+  STATE.timeCrystals = crystals;
+  return crystals;
+}
+
+app.get("/api/time-crystals", (_req, res) => {
+  res.json({ ok: true, crystals: STATE.timeCrystals });
+});
+
+app.post("/api/time-crystals/detect", (_req, res) => {
+  try {
+    const crystals = detectTimeCrystals();
+    res.json({ ok: true, crystals, count: crystals.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- TEMPORAL DIFFING — how your knowledge changed ----------
+
+app.get("/api/substrate/diff", (req, res) => {
+  const fromDate = req.query.fromDate ? new Date(req.query.fromDate).getTime() : Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const toDate = req.query.toDate ? new Date(req.query.toDate).getTime() : Date.now();
+
+  const beforeDTUs = [];
+  const afterDTUs = [];
+  const newDTUs = [];
+
+  for (const dtu of STATE.dtus.values()) {
+    const created = new Date(dtu.createdAt || 0).getTime();
+    if (created < fromDate) beforeDTUs.push(dtu);
+    if (created <= toDate) afterDTUs.push(dtu);
+    if (created >= fromDate && created <= toDate) newDTUs.push(dtu);
+  }
+
+  // Domain growth
+  const domainGrowth = {};
+  for (const dtu of newDTUs) {
+    const d = dtu.domain || "general";
+    domainGrowth[d] = (domainGrowth[d] || 0) + 1;
+  }
+
+  // Tier changes
+  const tiersBefore = { regular: 0, mega: 0, hyper: 0 };
+  const tiersAfter = { regular: 0, mega: 0, hyper: 0 };
+  for (const d of beforeDTUs) tiersBefore[d.tier || "regular"]++;
+  for (const d of afterDTUs) tiersAfter[d.tier || "regular"]++;
+
+  res.json({
+    ok: true,
+    diff: {
+      period: { from: new Date(fromDate).toISOString(), to: new Date(toDate).toISOString() },
+      newDTUs: newDTUs.length,
+      totalBefore: beforeDTUs.length,
+      totalAfter: afterDTUs.length,
+      domainGrowth,
+      tiersBefore,
+      tiersAfter,
+      newSwarms: STATE.swarms.filter(s => new Date(s.created).getTime() >= fromDate).length,
+      newCrystals: STATE.timeCrystals.filter(c => new Date(c.detectedAt).getTime() >= fromDate).length,
+    },
+  });
+});
+
+// ---------- KNOWLEDGE ARCHAEOLOGY — "On This Day" ----------
+
+app.get("/api/archaeology", (_req, res) => {
+  const now = new Date();
+  const periods = [
+    { label: "1 week ago", ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: "1 month ago", ms: 30 * 24 * 60 * 60 * 1000 },
+    { label: "3 months ago", ms: 90 * 24 * 60 * 60 * 1000 },
+    { label: "6 months ago", ms: 180 * 24 * 60 * 60 * 1000 },
+    { label: "1 year ago", ms: 365 * 24 * 60 * 60 * 1000 },
+  ];
+
+  const results = {};
+  for (const period of periods) {
+    const targetDate = new Date(now.getTime() - period.ms);
+    const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
+
+    const matches = [];
+    for (const dtu of STATE.dtus.values()) {
+      const created = new Date(dtu.createdAt || 0).getTime();
+      if (created >= dayStart.getTime() && created <= dayEnd.getTime()) {
+        matches.push({ id: dtu.id, title: dtu.title, domain: dtu.domain, tier: dtu.tier });
+      }
+    }
+    results[period.label] = matches;
+  }
+
+  res.json({ ok: true, memories: results });
+});
+
+// ---------- RED TEAM BRAIN — adversarial fifth brain ----------
+// Uses the repair brain with an adversarial prompt to challenge outputs.
+
+async function redTeamCheck(output, context = {}) {
+  const target = typeof output === "string" ? output : (output.content || JSON.stringify(output));
+
+  const prompt = `You are a ruthless intellectual adversary. Your job is to find EVERY weakness, logical flaw, unsupported claim, hidden assumption, and potential failure mode in the following analysis. Be merciless but fair.
+
+Target output to attack:
+"${target.slice(0, 1000)}"
+
+${context.domain ? `Domain: ${context.domain}` : ""}
+
+Respond in this format:
+VULNERABILITIES: [list each flaw on a new line, prefixed with -]
+SEVERITY: [low|medium|high|critical]
+SUGGESTIONS: [how to improve, one per line prefixed with -]`;
+
+  try {
+    const brainName = BRAIN.repair?.enabled ? "repair" : (BRAIN.utility?.enabled ? "utility" : null);
+    if (!brainName) {
+      // Heuristic red team when no brain available
+      const issues = [];
+      if (target.length < 50) issues.push("Response is very short — may lack depth");
+      if (/always|never|everyone|no one/i.test(target)) issues.push("Contains absolute language — may be overgeneralized");
+      if (!/because|since|therefore|evidence/i.test(target)) issues.push("No explicit reasoning chain detected");
+      if (/I think|probably|maybe|might/i.test(target)) issues.push("Contains hedging language — confidence may be low");
+
+      return {
+        vulnerabilities: issues,
+        severity: issues.length > 2 ? "medium" : "low",
+        suggestions: ["Add supporting evidence", "Qualify absolute claims"],
+        confidence_adjusted: Math.max(0.3, 1 - issues.length * 0.15),
+      };
+    }
+
+    const result = await callBrain(brainName, prompt, { temperature: 0.3, maxTokens: 300 });
+    if (!result.ok) throw new Error(result.error);
+
+    const content = result.content || "";
+    const vulnerabilities = (content.match(/- .+/g) || []).map(v => v.replace(/^- /, ""));
+    const severityMatch = content.match(/SEVERITY:\s*(low|medium|high|critical)/i);
+    const severity = (severityMatch?.[1] || "medium").toLowerCase();
+
+    return {
+      vulnerabilities,
+      severity,
+      suggestions: vulnerabilities.length > 0 ? ["Address identified vulnerabilities", "Add supporting evidence"] : [],
+      confidence_adjusted: severity === "critical" ? 0.3 : severity === "high" ? 0.5 : severity === "medium" ? 0.7 : 0.9,
+    };
+  } catch (e) {
+    return { vulnerabilities: [`Red team error: ${String(e?.message || e)}`], severity: "low", suggestions: [], confidence_adjusted: 0.8 };
+  }
+}
+
+app.post("/api/red-team/check", async (req, res) => {
+  const { output, domain } = req.body;
+  if (!output) return res.status(400).json({ ok: false, error: "Output required" });
+  try {
+    const result = await redTeamCheck(output, { domain });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- EMERGENT TAXONOMIES — categories that grow themselves ----------
+// Auto-generated from tag clustering and swarm structure.
+
+function generateTaxonomies() {
+  const tagCounts = {};
+  const tagCooccurrence = {};
+
+  for (const dtu of STATE.dtus.values()) {
+    const tags = dtu.tags || [];
+    for (const tag of tags) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      for (const other of tags) {
+        if (other !== tag) {
+          const key = [tag, other].sort().join(":");
+          tagCooccurrence[key] = (tagCooccurrence[key] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Build hierarchy: high-count tags are categories, co-occurring tags are subcategories
+  const categories = [];
+  const usedTags = new Set();
+
+  const sortedTags = Object.entries(tagCounts).sort(([, a], [, b]) => b - a);
+  for (const [tag, count] of sortedTags) {
+    if (usedTags.has(tag) || count < 3) continue;
+
+    const subcategories = [];
+    for (const [pair, coCount] of Object.entries(tagCooccurrence)) {
+      if (!pair.includes(tag)) continue;
+      const otherTag = pair.split(":").find(t => t !== tag);
+      if (otherTag && !usedTags.has(otherTag) && coCount >= 2) {
+        subcategories.push({ tag: otherTag, count: tagCounts[otherTag] || 0, cooccurrence: coCount });
+        usedTags.add(otherTag);
+      }
+    }
+    subcategories.sort((a, b) => b.cooccurrence - a.cooccurrence);
+
+    categories.push({
+      tag,
+      count,
+      subcategories: subcategories.slice(0, 10),
+      isAlive: count > 0, // Would check for recent activity in production
+    });
+    usedTags.add(tag);
+  }
+
+  return categories.slice(0, 30);
+}
+
+app.get("/api/taxonomies", (_req, res) => {
+  try {
+    const taxonomies = generateTaxonomies();
+    res.json({ ok: true, taxonomies });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC III
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
