@@ -5,8 +5,8 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState, useMemo, useCallback } from 'react';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Plane, Plus, Search, Clock, Users, Calendar, X, Navigation,
   Shield, Wrench, FileText, DollarSign, Weight, AlertTriangle, CheckCircle,
   XCircle, ChevronDown, ChevronRight, Fuel, MapPin,

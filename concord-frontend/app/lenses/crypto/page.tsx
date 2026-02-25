@@ -2,8 +2,8 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState, useCallback } from 'react';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Coins, TrendingUp, TrendingDown, Lock, RefreshCw, ArrowRightLeft,
   Wallet, Loader2, Plus, Send, ArrowDownLeft, ArrowUpRight,
   Eye, EyeOff, Copy, Check, X, Settings, BarChart3

@@ -5,8 +5,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   BookOpen, Receipt, Wallet, PiggyBank, Building2, FileSpreadsheet,
   Plus, Search, Filter, X, Edit3, Trash2, TrendingUp, DollarSign,
   BarChart3, AlertCircle, ChevronDown, ChevronRight, ArrowUpRight,

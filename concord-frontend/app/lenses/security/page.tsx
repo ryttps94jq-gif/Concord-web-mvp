@@ -6,8 +6,8 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Shield,
   Plus,
   Search,

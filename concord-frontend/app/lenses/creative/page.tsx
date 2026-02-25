@@ -12,8 +12,8 @@ import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Palette, Camera, Image as ImageIcon, Tv, LayoutGrid, FileCheck,
   Plus, Search, Filter, X, Edit2, Trash2, Clock, Eye,
   TrendingUp, FileImage, Video, Aperture, ChevronRight,

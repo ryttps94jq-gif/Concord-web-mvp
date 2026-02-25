@@ -7,8 +7,8 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   CalendarDays, MapPin, Plus, Search, Filter, X, Edit2, Trash2,
   Ticket, Star, DollarSign, Users, Clock, CheckCircle2, AlertTriangle,
   Building2, Utensils, Speaker, Palette, Camera, Shield, Music,

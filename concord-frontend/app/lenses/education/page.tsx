@@ -5,8 +5,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   GraduationCap,
   Users,
   BookOpen,

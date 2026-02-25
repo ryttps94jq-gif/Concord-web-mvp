@@ -5,8 +5,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Wheat,
   Tractor,
   Bug,

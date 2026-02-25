@@ -2,8 +2,8 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState, useCallback, useMemo } from 'react';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Calculator, Play, CheckCircle, XCircle, Sigma, Pi, Loader2,
   History, TrendingUp, Hash, Plus, Trash2, BarChart3
 } from 'lucide-react';

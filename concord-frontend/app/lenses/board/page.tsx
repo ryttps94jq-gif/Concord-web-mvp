@@ -4,8 +4,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Lightbulb,
   Pen,
   Mic,

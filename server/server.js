@@ -11200,8 +11200,22 @@ async function callBrain(brainName, prompt, options = {}) {
     return { ok: false, error: `Brain ${brainName} offline and no fallback`, source: brainName };
   }
 
-  const start = Date.now();
-  try {
+  // Wire through SpecV circuit breaker if available
+  const breakerKey = `brain.${brainName}`;
+  const breaker = (typeof circuitBreakers !== "undefined") ? circuitBreakers[breakerKey] : null;
+
+  // Rate limit check (Spec V #85)
+  if (typeof checkRateLimit === "function") {
+    const userId = options._userId || "default";
+    const tier = options._tier || "sovereign";
+    const rl = checkRateLimit(userId, tier);
+    if (!rl.allowed) {
+      return { ok: false, error: rl.reason, source: brainName, rateLimited: true, resetAt: rl.resetAt };
+    }
+  }
+
+  const _doBrainCall = async () => {
+    const start = Date.now();
     const fullPrompt = options.system ? `${options.system}\n\n${prompt}` : prompt;
     const payload = {
       model: brain.model,
@@ -11225,12 +11239,17 @@ async function callBrain(brainName, prompt, options = {}) {
 
     if (!response.ok) {
       brain.stats.errors++;
-      return { ok: false, error: `Brain ${brainName} error: ${response.status}`, source: brainName };
+      throw new Error(`Brain ${brainName} error: ${response.status}`);
     }
 
     const data = await response.json();
     const elapsed = Date.now() - start;
     brain.stats.totalMs += elapsed;
+
+    // Record cost (Spec V #85)
+    if (typeof recordCost === "function") {
+      try { recordCost(options._userId || "default", brainName, prompt.length, data.eval_count || 0, elapsed); } catch {}
+    }
 
     const result = {
       ok: true,
@@ -11249,6 +11268,17 @@ async function callBrain(brainName, prompt, options = {}) {
     } catch {}
 
     return result;
+  };
+
+  const _brainFallback = async () => {
+    return { ok: false, error: `Circuit breaker open for ${brainName}`, source: brainName, circuitOpen: true };
+  };
+
+  try {
+    if (breaker) {
+      return await breaker.call(_doBrainCall, _brainFallback);
+    }
+    return await _doBrainCall();
   } catch (e) {
     brain.stats.errors++;
     return { ok: false, error: String(e.message || e), source: brainName };
@@ -20674,10 +20704,13 @@ function _governorCtx() {
 // Heartbeat tick history ring buffer (used by /api/heartbeat/history endpoint)
 const _tickHistory = [];
 
+let _governorTickRunning = false;
 async function governorTick(reason="heartbeat") {
+  if (_governorTickRunning) return { ok: false, reason: "tick_already_running" };
+  _governorTickRunning = true;
   try {
     const s = STATE.settings || {};
-    if (s.heartbeatEnabled === false) return { ok:false, reason:"heartbeat_disabled" };
+    if (s.heartbeatEnabled === false) { _governorTickRunning = false; return { ok:false, reason:"heartbeat_disabled" }; }
     const ctx = _governorCtx();
 
     // 1) Deterministic + bounded growth engines
@@ -20820,6 +20853,7 @@ async function governorTick(reason="heartbeat") {
             summary: `CRITICAL: Repair cortex self-test failed: ${err.message}`,
             createdAt: new Date().toISOString(), acknowledged: false,
           });
+          if (STATE.sovereignAlerts.length > 200) STATE.sovereignAlerts = STATE.sovereignAlerts.slice(-200);
         }
       }
 
@@ -21209,6 +21243,8 @@ async function governorTick(reason="heartbeat") {
     return { ok:true };
   } catch (e) {
     return { ok:false, error:String(e?.message||e) };
+  } finally {
+    _governorTickRunning = false;
   }
 }
 
@@ -31166,9 +31202,13 @@ app.post("/api/council/debate", validate("councilDebate"), (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  // Store in state
+  // Store in state (bounded to 200 entries)
   if (!STATE.debates) STATE.debates = new Map();
   STATE.debates.set(debateId, debate);
+  if (STATE.debates.size > 200) {
+    const oldest = STATE.debates.keys().next().value;
+    STATE.debates.delete(oldest);
+  }
 
   res.json({ ok: true, debate });
 });
@@ -34434,36 +34474,69 @@ function metabolismDigest() {
 }
 
 function metabolismConsolidate() {
-  // Consolidation: find clusters of related DTUs and suggest merges
+  // Consolidation: find clusters of related DTUs and suggest merges.
+  // Uses a tag→DTU index to avoid O(n²) all-pairs scan.
   const now = Date.now();
   const candidates = [];
   const seen = new Set();
 
+  // Phase 1: collect eligible DTUs
+  const eligible = [];
   for (const dtu of STATE.dtus.values()) {
     if (!dtu.meta?._digested) continue;
     const ageDays = (now - new Date(dtu.createdAt || 0).getTime()) / (1000 * 60 * 60 * 24);
     if (ageDays < METABOLISM_CONFIG.consolidationAge) continue;
+    if (!dtu.tags || dtu.tags.length === 0) continue;
+    eligible.push(dtu);
+  }
 
-    // Look for other DTUs with highly overlapping tags
-    for (const other of STATE.dtus.values()) {
-      if (other.id === dtu.id || seen.has(`${dtu.id}:${other.id}`)) continue;
-      if (!other.meta?._digested) continue;
+  // Phase 2: build tag→Set<dtuIndex> index
+  const tagIndex = new Map();
+  for (let i = 0; i < eligible.length; i++) {
+    const tagSet = new Set(eligible[i].tags);
+    eligible[i]._tagSet = tagSet;
+    for (const tag of tagSet) {
+      if (!tagIndex.has(tag)) tagIndex.set(tag, []);
+      tagIndex.get(tag).push(i);
+    }
+  }
 
-      const sharedTags = (dtu.tags || []).filter(t => (other.tags || []).includes(t));
-      const totalTags = new Set([...(dtu.tags || []), ...(other.tags || [])]).size;
+  // Phase 3: compare only DTUs that share at least one tag
+  for (let i = 0; i < eligible.length; i++) {
+    const dtu = eligible[i];
+    const neighbors = new Set();
+    for (const tag of dtu._tagSet) {
+      for (const j of (tagIndex.get(tag) || [])) {
+        if (j > i) neighbors.add(j); // only check each pair once
+      }
+    }
 
-      if (totalTags > 0 && sharedTags.length / totalTags > 0.6) {
+    for (const j of neighbors) {
+      const other = eligible[j];
+      const pairKey = `${dtu.id}:${other.id}`;
+      if (seen.has(pairKey)) continue;
+
+      let sharedCount = 0;
+      for (const t of dtu._tagSet) {
+        if (other._tagSet.has(t)) sharedCount++;
+      }
+      const totalTags = dtu._tagSet.size + other._tagSet.size - sharedCount;
+
+      if (totalTags > 0 && sharedCount / totalTags > 0.6) {
+        const sharedTags = [...dtu._tagSet].filter(t => other._tagSet.has(t));
         candidates.push({
           pair: [dtu.id, other.id],
           titles: [dtu.title, other.title],
-          overlap: sharedTags.length / totalTags,
+          overlap: sharedCount / totalTags,
           sharedTags,
         });
-        seen.add(`${dtu.id}:${other.id}`);
-        seen.add(`${other.id}:${dtu.id}`);
+        seen.add(pairKey);
       }
     }
   }
+
+  // Cleanup temp _tagSet
+  for (const dtu of eligible) delete dtu._tagSet;
 
   return candidates.slice(0, 20); // Return top 20 consolidation candidates
 }
@@ -36801,6 +36874,48 @@ class ConcordEventBus {
 
 const eventBus = new ConcordEventBus();
 STATE._eventBus = eventBus;
+
+// ── Event Bus Subscribers ────────────────────────────────────────────────────
+// Wire critical event handlers so the bus isn't fire-and-forget.
+
+eventBus.on("health.critical", (evt) => {
+  const { component, status } = evt.payload || {};
+  structuredLog("error", "health_critical_event", { component, status });
+  // Auto-open circuit breaker for the affected brain
+  const breakerKey = `brain.${component}`;
+  if (typeof circuitBreakers !== "undefined" && circuitBreakers[breakerKey]) {
+    const breaker = circuitBreakers[breakerKey];
+    if (breaker.state === "closed") {
+      breaker._onFailure(new Error(`Health critical for ${component}`));
+      structuredLog("warn", "circuit_auto_opened_by_health", { breaker: breakerKey });
+    }
+  }
+});
+
+eventBus.on("circuit.open", (evt) => {
+  const { breaker, failures } = evt.payload || {};
+  structuredLog("warn", "circuit_open_event", { breaker, failures });
+  // Update pulse system to reflect degraded health
+  if (typeof recordPulse === "function" && breaker) {
+    try { recordPulse(breaker, "degraded", 30, [`Circuit breaker open after ${failures} failures`]); } catch {}
+  }
+});
+
+eventBus.on("circuit.closed", (evt) => {
+  const { breaker } = evt.payload || {};
+  structuredLog("info", "circuit_closed_event", { breaker });
+  if (typeof recordPulse === "function" && breaker) {
+    try { recordPulse(breaker, "healthy", 100, []); } catch {}
+  }
+});
+
+eventBus.on("trace.completed", (evt) => {
+  const { traceId, totalDuration } = evt.payload || {};
+  // Log slow traces (>10s) for visibility
+  if (totalDuration && totalDuration > 10000) {
+    structuredLog("warn", "slow_trace_detected", { traceId, durationMs: totalDuration });
+  }
+});
 
 // Event Bus API routes
 app.get("/api/events/bus", (req, res) => {
@@ -44403,6 +44518,35 @@ function kernelTick(event) {
     // Spec V: Stigmergic path decay — every 1000 ticks
     if (STATE.__bgTickCounter % 1000 === 0 && typeof decayPaths === "function") {
       try { decayPaths(); } catch {}
+    }
+
+    // Spec V: Time crystal detection — every 500 ticks (~2 hours)
+    if (STATE.__bgTickCounter % 500 === 0 && typeof detectTimeCrystals === "function") {
+      try {
+        const crystals = detectTimeCrystals();
+        if (crystals && crystals.length > 0) {
+          STATE.timeCrystals = crystals;
+          structuredLog("info", "time_crystals_detected", { count: crystals.length });
+        }
+      } catch (e) { observe(e, "time_crystal_tick"); }
+    }
+
+    // Spec V: Evict stale rate-limit / cost-accounting entries — every 2000 ticks (~8h)
+    if (STATE.__bgTickCounter % 2000 === 0) {
+      try {
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        if (STATE._rateLimits) {
+          for (const [uid, data] of STATE._rateLimits) {
+            data.calls = (data.calls || []).filter(t => t > dayAgo);
+            if (data.calls.length === 0) STATE._rateLimits.delete(uid);
+          }
+        }
+        if (STATE._costAccounting && STATE._costAccounting.size > 500) {
+          // Keep most-active 500 users
+          const entries = [...STATE._costAccounting.entries()].sort((a, b) => b[1].total - a[1].total);
+          STATE._costAccounting = new Map(entries.slice(0, 500));
+        }
+      } catch {}
     }
 
     // Spec V: Emit tick event

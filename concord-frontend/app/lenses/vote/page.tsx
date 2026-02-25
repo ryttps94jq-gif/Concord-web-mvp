@@ -7,8 +7,8 @@ import { useUIStore } from '@/store/ui';
 import { Loading } from '@/components/common/Loading';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
-import {
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import {
   Check, X, Users, Scale, Plus, Clock, MessageSquare,
   ThumbsUp, ThumbsDown, Minus, BarChart3, ChevronDown,
   ChevronUp, Send, AlertCircle, Vote,
