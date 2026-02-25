@@ -13456,7 +13456,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers: _maxNewHyper
       if (cluster.length < 4) continue; // don't synthesize tiny clusters
 
       const mega = await _makeMegaFromCluster(cluster, "usage_coactivation");
-      const res = pipelineCommitDTU(ctx, mega, { op:"auto.promo.mega", allowRewrite:false });
+      const res = await pipelineCommitDTU(ctx, mega, { op:"auto.promo.mega", allowRewrite:false });
       if (res?.ok) {
         made.megas.push(res.dtu?.id || mega.id);
         madeCount += 1;
@@ -13486,7 +13486,7 @@ async function runAutoPromotion(ctx, { maxNewMegas=2, maxNewHypers: _maxNewHyper
 
     if (megas.length >= 2) {
       const hyper = await _makeHyperFromMegas(megas, "top_megas");
-      const res = pipelineCommitDTU(ctx, hyper, { op:"auto.promo.hyper", allowRewrite:false });
+      const res = await pipelineCommitDTU(ctx, hyper, { op:"auto.promo.hyper", allowRewrite:false });
       if (res?.ok) made.hypers.push(res.dtu?.id || hyper.id);
     }
   }
@@ -14177,8 +14177,8 @@ register("dtu", "gapPromote", async (ctx, input) => {
 // Chat domain
 register("chat", "respond", async (ctx, input) => {
   const sessionId = normalizeText(input.sessionId || "default");
-  
-const prompt = String(input.prompt || "");
+
+const prompt = String(input.prompt || input.message || input.query || "");
 const mode = normalizeText(input.mode || "explore");
 
 // --- Concord Identity Invariant (hardwired; prevents "random assistant" drift) ---
@@ -15890,7 +15890,7 @@ ClusterSig: ${p.clusterSig}`,
       tags: ["mega","auto"],
       meta: { clusterSig: p.clusterSig, clusterSize: inner.length, lineage: inner.map(d=>d.id).slice(0,200), promotedFrom:"promotionTick" }
     };
-    const commit = pipelineCommitDTU(ctx, mega, { op:"system.promotionTick" });
+    const commit = await pipelineCommitDTU(ctx, mega, { op:"system.promotionTick" });
     if (commit.ok) {
       p.status="fulfilled";
       p.updatedAt=nowISO();
@@ -18131,7 +18131,7 @@ register("verify","deriveSecondOrder", async (ctx, input) => {
     hash: ""
   };
 
-  const res = pipelineCommitDTU(ctx, dtu, { allowRewrite:false });
+  const res = await pipelineCommitDTU(ctx, dtu, { allowRewrite:false });
   if (res?.ok) {
     // Ensure explicit lineage links for parents (best-effort)
     try { await ctx.macro.run("verify","lineageLink", { childId: res.dtu.id, parents: seeds.map(d=>d.id) }); } catch {}
@@ -42197,6 +42197,17 @@ app.post("/api/global/submit", (req, res) => {
 
     if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found in your universe" });
 
+    // Rate limit council submissions
+    try {
+      if (typeof canSubmitToCouncil === "function" && !canSubmitToCouncil(userId)) {
+        return res.status(429).json({ ok: false, error: "Rate limit: max 5 submissions per hour" });
+      }
+    } catch {}
+
+    // Ensure globalThread structure exists
+    if (!STATE.globalThread) STATE.globalThread = { councilQueue: [], acceptedContributions: [] };
+    if (!Array.isArray(STATE.globalThread.councilQueue)) STATE.globalThread.councilQueue = [];
+
     // Prevent duplicate submissions
     if (STATE.globalThread.councilQueue.some(s => s.dtuId === dtuId && s.status === "pending")) {
       return res.status(409).json({ ok: false, error: "DTU already submitted and pending review" });
@@ -42235,7 +42246,8 @@ app.post("/api/global/review/:submissionId", (req, res) => {
       return res.status(400).json({ ok: false, error: "decision must be 'approve' or 'reject'" });
     }
 
-    const submission = STATE.globalThread.councilQueue.find(s => s.id === req.params.submissionId);
+    if (!STATE.globalThread) STATE.globalThread = { councilQueue: [], acceptedContributions: [] };
+    const submission = (STATE.globalThread.councilQueue || []).find(s => s.id === req.params.submissionId);
     if (!submission) return res.status(404).json({ ok: false, error: "submission not found" });
     if (submission.status !== "pending") return res.status(409).json({ ok: false, error: "already reviewed" });
 
@@ -42259,6 +42271,7 @@ app.post("/api/global/review/:submissionId", (req, res) => {
 
       try { if (typeof syncDTUToLensArtifacts === "function") syncDTUToLensArtifacts(dtu); } catch {}
 
+      if (!Array.isArray(STATE.globalThread.acceptedContributions)) STATE.globalThread.acceptedContributions = [];
       STATE.globalThread.acceptedContributions.push({
         dtuId: dtu.id,
         submittedBy: submission.username,
@@ -42287,7 +42300,8 @@ app.get("/api/global/queue", (req, res) => {
     }
 
     const status = req.query.status || "pending";
-    const queue = STATE.globalThread.councilQueue
+    if (!STATE.globalThread) STATE.globalThread = { councilQueue: [], acceptedContributions: [] };
+    const queue = (STATE.globalThread.councilQueue || [])
       .filter(s => s.status === status)
       .map(s => ({
         id: s.id,
