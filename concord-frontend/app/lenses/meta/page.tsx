@@ -6,6 +6,7 @@ import { Wand2, Layout, Code, Eye, Palette, Settings, Loader2 } from 'lucide-rea
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface LensTemplateData {
   name: string;
@@ -162,6 +163,9 @@ export default function MetaLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="meta" artifactId={items[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

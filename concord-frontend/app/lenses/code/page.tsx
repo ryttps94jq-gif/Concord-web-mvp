@@ -12,6 +12,7 @@ import { useLensDTUs } from '@/hooks/useLensDTUs';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Play, FileCode, Terminal, FolderTree, Plus, X,
   ChevronRight, ChevronDown, File, Folder, FolderOpen,
   Sparkles, RefreshCw, Copy,
@@ -850,6 +851,9 @@ export default function CodeLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="code" artifactId={savedScripts[0]?.id} compact />
       <div className="flex-1 flex overflow-hidden">
         {/* File Tree Sidebar */}
         <AnimatePresence>

@@ -7,6 +7,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { FlaskConical, Play, Square, History, Zap, Search, Plus, Trash2, CheckCircle, AlertTriangle, Lightbulb } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 export default function LabLensPage() {
   useLensNav('lab');
@@ -63,6 +64,9 @@ export default function LabLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="lab" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Experiment Editor */}
         <div className="lg:col-span-2 panel p-4 space-y-4">

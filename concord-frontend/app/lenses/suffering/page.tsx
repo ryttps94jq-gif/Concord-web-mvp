@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { AlertTriangle, Heart, Brain, Zap, TrendingDown, Shield } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 export default function SufferingLensPage() {
   useLensNav('suffering');
@@ -68,6 +69,9 @@ export default function SufferingLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="suffering" artifactId={items[0]?.id} compact />
       {/* Main Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <MetricCard

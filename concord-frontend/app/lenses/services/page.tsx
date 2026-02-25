@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Scissors,
   Users,
   CalendarCheck,
@@ -748,6 +749,9 @@ export default function ServicesLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="services" artifactId={items[0]?.id} compact />
       {/* Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

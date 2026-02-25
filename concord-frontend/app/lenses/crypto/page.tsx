@@ -3,6 +3,7 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState, useCallback } from 'react';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Coins, TrendingUp, TrendingDown, Lock, RefreshCw, ArrowRightLeft,
   Wallet, Loader2, Plus, Send, ArrowDownLeft, ArrowUpRight,
   Eye, EyeOff, Copy, Check, X, Settings, BarChart3
@@ -342,6 +343,9 @@ export default function CryptoLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="crypto" artifactId={items[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

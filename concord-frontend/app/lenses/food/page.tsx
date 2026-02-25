@@ -5,6 +5,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   ChefHat, UtensilsCrossed, Warehouse, CalendarClock, FlaskConical, Clock,
   Plus, Search, Filter, X, Edit2, Trash2, Users, AlertTriangle, CheckCircle2,
   BarChart3, ArrowUpRight, Thermometer, Timer, ShoppingCart, Percent,
@@ -2476,6 +2477,9 @@ export default function FoodLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="food" artifactId={items[0]?.id} compact />
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => (
           <button

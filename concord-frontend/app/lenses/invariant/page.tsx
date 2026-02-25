@@ -7,6 +7,7 @@ import { apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Shield, Check, X, AlertTriangle, Lock, Eye, Zap, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface Invariant {
   id: string;
@@ -133,6 +134,9 @@ export default function InvariantLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="invariant" artifactId={items[0]?.id} compact />
       {/* Action Tester */}
       <div className="panel p-4">
         <h2 className="font-semibold mb-4 flex items-center gap-2">

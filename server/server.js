@@ -11617,6 +11617,111 @@ async function utilityCall(action, lens, data) {
 }
 
 /**
+ * Subconscious lens call: background processing, batch ops, autonomous generation.
+ * Uses 1.5B model (fast, cheap) for tasks that don't need real-time interaction.
+ * @param {string} action - Action name (e.g. "discover-patterns", "generate-digest")
+ * @param {string} domain - Lens domain
+ * @param {object} data - Input data
+ * @returns {Promise<{ok:boolean, content?:string, source:string, model?:string}>}
+ */
+async function subconsciousLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 10);
+  const system = `You are Concord's subconscious mind working on ${domain}. Process this autonomously.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Background task: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("subconscious", prompt, {
+    system,
+    temperature: 0.6,
+    maxTokens: 400,
+    timeout: 45000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${domain}: ${action}`,
+        creti: result.content,
+        tags: [domain, "subconscious", action].filter(Boolean),
+        source: `subconscious.${domain}.${action}`,
+        meta: { brainSource: "subconscious", confidence: 0.5, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.subconscious.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "subconscious_lens_dtu_save_failed", { error: String(e?.message || e), action, domain });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Repair lens call: validation, consistency checking, error detection.
+ * Uses 0.5B model (tiny, fast) for binary pass/fail type checks.
+ * Returns structured validation result.
+ */
+async function repairLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 5);
+  const system = `You are Concord's repair brain validating ${domain} data. Be strict and precise. Return JSON with {valid:boolean, issues:string[], suggestions:string[]}.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Validate: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("repair", prompt, {
+    system,
+    temperature: 0.1,
+    maxTokens: 300,
+    timeout: 20000,
+  });
+
+  if (result.ok && result.content) {
+    BRAIN.repair.stats.dtusGenerated = (BRAIN.repair.stats.dtusGenerated || 0) + 1;
+  }
+
+  return result;
+}
+
+/**
+ * Conscious lens call: interactive, user-facing, Socratic, higher quality.
+ * Uses 7B model for tasks requiring nuanced understanding and interaction.
+ */
+async function consciousLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 15);
+  const system = `You are Concord's conscious mind engaging with the user on ${domain}. Be thoughtful, nuanced, and interactive. Ask clarifying questions when appropriate.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Interactive: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("conscious", prompt, {
+    system,
+    temperature: 0.7,
+    maxTokens: 800,
+    timeout: 120000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${domain}: ${action}`,
+        creti: result.content,
+        tags: [domain, "conscious", action].filter(Boolean),
+        source: `conscious.${domain}.${action}`,
+        meta: { brainSource: "conscious", confidence: 0.7, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.conscious.stats.dtusGenerated = (BRAIN.conscious.stats.dtusGenerated || 0) + 1;
+    } catch (e) {
+      structuredLog("warn", "conscious_lens_dtu_save_failed", { error: String(e?.message || e), action, domain });
+    }
+  }
+
+  return result;
+}
+
+/**
  * Entity exploration via utility brain.
  * Born entities use the utility brain to interact with lenses autonomously.
  */
@@ -26647,6 +26752,654 @@ function registerUniversalLensActions() {
   });
 }
 registerUniversalLensActions();
+
+// ── Domain-Specific Action Manifest ─────────────────────────────────────────
+// ~450 domain-specific actions across 113 lenses, each routed to the
+// appropriate brain: U=utility(3b), S=subconscious(1.5b), R=repair(0.5b), C=conscious(7b)
+// These go beyond the 3 universal actions (analyze/generate/suggest) with
+// domain-specific intelligence: "generate-pattern" for studio, "check-interactions"
+// for healthcare, "detect-fallacy" for reasoning, etc.
+const DOMAIN_ACTION_MANIFEST = {
+  // ── CREATIVE & MUSIC ──
+  studio: [
+    { action: "generate-pattern", brain: "U", desc: "Generate genre-appropriate drum/melody patterns given BPM and genre" },
+    { action: "suggest-chords", brain: "U", desc: "Suggest chord progressions based on music theory and genre conventions" },
+    { action: "analyze-mix", brain: "U", desc: "Analyze frequency balance, dynamic range, stereo width of a mix" },
+    { action: "auto-arrange", brain: "S", desc: "Generate song structure arrangements from pattern blocks" },
+    { action: "validate-track", brain: "R", desc: "Check for clipping, phase issues, format problems" },
+  ],
+  music: [
+    { action: "analyze-lyrics", brain: "U", desc: "Identify verse/chorus structure, rhyme scheme, syllable patterns" },
+    { action: "tag-mood", brain: "U", desc: "Auto-tag mood from lyric content and musical attributes" },
+    { action: "analyze-structure", brain: "U", desc: "Decompose song into sections with transition analysis" },
+    { action: "discover-similar", brain: "S", desc: "Find related music artifacts in the substrate" },
+    { action: "generate-lyrics", brain: "U", desc: "Generate lyrics given theme, style, and structural constraints" },
+  ],
+  art: [
+    { action: "critique", brain: "U", desc: "Structural analysis: composition, color theory, focal point, balance" },
+    { action: "generate-style-dna", brain: "S", desc: "Analyze recurring themes, palette, compositional tendencies" },
+    { action: "extract-palette", brain: "U", desc: "Extract and name colors, suggest complementary schemes" },
+    { action: "suggest-references", brain: "U", desc: "Suggest reference works and inspiration connections" },
+    { action: "analyze-process", brain: "U", desc: "Evaluate artistic process and iteration quality" },
+  ],
+  creative: [
+    { action: "workshop-prompt", brain: "U", desc: "Generate prompt variations for creative iteration" },
+    { action: "generate-brief", brain: "U", desc: "Generate structured creative brief from minimal input" },
+    { action: "find-inspiration", brain: "S", desc: "Cross-reference with science, philosophy, nature for unexpected connections" },
+    { action: "analyze-mood-board", brain: "U", desc: "Analyze mood board elements for thematic coherence" },
+    { action: "refine-concept", brain: "C", desc: "Interactive concept refinement through dialogue" },
+  ],
+  voice: [
+    { action: "extract-insights", brain: "U", desc: "Extract key insights from transcript text" },
+    { action: "extract-meeting", brain: "U", desc: "Identify decisions, action items, open questions from meeting transcript" },
+    { action: "summarize-journal", brain: "S", desc: "Generate weekly digest linking patterns across voice entries" },
+    { action: "identify-speakers", brain: "U", desc: "Diarize multi-speaker transcript segments" },
+    { action: "generate-pronunciation", brain: "U", desc: "Generate phonetic guides for domain-specific terms" },
+  ],
+  game: [
+    { action: "suggest-branches", brain: "U", desc: "Suggest narrative branches given story context" },
+    { action: "generate-gdd", brain: "U", desc: "Generate game design document: mechanics, core loop, progression" },
+    { action: "analyze-feedback", brain: "U", desc: "Sentiment analysis on playtester feedback by feature area" },
+    { action: "balance-simulate", brain: "U", desc: "Simulate game balance outcomes from parameter inputs" },
+    { action: "discover-mechanics", brain: "S", desc: "Find cross-domain patterns applicable to game mechanics" },
+    { action: "validate-balance", brain: "R", desc: "Validate game economy/stat balance for exploits" },
+  ],
+  whiteboard: [
+    { action: "detect-clusters", brain: "U", desc: "Analyze card positions and connections, identify thematic clusters" },
+    { action: "capture-session", brain: "U", desc: "Generate structured summary: themes, decisions, connections" },
+    { action: "suggest-template", brain: "S", desc: "Suggest layout template based on usage patterns" },
+    { action: "promote-sticky", brain: "R", desc: "Validate sticky note content before promoting to full DTU" },
+  ],
+  collab: [
+    { action: "resolve-conflict", brain: "R", desc: "Resolve field-level edit conflicts between collaborators" },
+    { action: "suggest-review", brain: "U", desc: "Suggest edits and improvements for review" },
+    { action: "compute-attribution", brain: "R", desc: "Compute edit attribution weights for shared artifacts" },
+    { action: "generate-team-pulse", brain: "S", desc: "Weekly team activity summary: domains, DTUs, collaborations" },
+    { action: "validate-merge", brain: "R", desc: "Validate fork-merge operations for consistency" },
+  ],
+
+  // ── KNOWLEDGE & RESEARCH ──
+  paper: [
+    { action: "generate-lit-review", brain: "U", desc: "Scan DTU substrate for relevant knowledge, generate structured literature review" },
+    { action: "analyze-abstract", brain: "U", desc: "Extract hypothesis, methodology, finding, limitations from abstract" },
+    { action: "refine-question", brain: "C", desc: "Generate 5 refined research question versions with different scopes" },
+    { action: "detect-contradictions", brain: "S", desc: "Scan paper-tagged DTUs for contradictory claims" },
+    { action: "build-citation-network", brain: "R", desc: "Compute citation network from reference chains" },
+  ],
+  research: [
+    { action: "synthesize-weekly", brain: "S", desc: "Generate weekly synthesis linking daily research logs" },
+    { action: "evaluate-source", brain: "U", desc: "Assess source credibility: methodology, bias, peer review status" },
+    { action: "find-gaps", brain: "S", desc: "Identify topics referenced but lacking supporting evidence" },
+    { action: "match-questions", brain: "R", desc: "Match new DTUs against open research questions" },
+    { action: "generate-bibliography", brain: "U", desc: "Generate formatted annotated bibliography from source artifacts" },
+  ],
+  hypothesis: [
+    { action: "wizard-step", brain: "C", desc: "Guide through observation → question → hypothesis → prediction → test" },
+    { action: "score-evidence", brain: "U", desc: "Compute cumulative confidence from supporting/contradicting evidence" },
+    { action: "design-experiment", brain: "U", desc: "Suggest experimental design: variables, controls, methodology" },
+    { action: "validate-conclusions", brain: "R", desc: "Validate that conclusions match the data" },
+    { action: "find-transfers", brain: "S", desc: "Find structurally similar hypotheses in other domains" },
+  ],
+  science: [
+    { action: "validate-claims", brain: "R", desc: "Validate consistency between related scientific claims" },
+    { action: "suggest-methods", brain: "U", desc: "Suggest research methods given research question" },
+    { action: "interpret-data", brain: "U", desc: "Suggest interpretations, identify confounds, recommend follow-up" },
+    { action: "check-reproducibility", brain: "U", desc: "Evaluate reproducibility markers: data sharing, methodology detail" },
+    { action: "generate-digest", brain: "S", desc: "Summarize connections between user research and domain developments" },
+  ],
+  math: [
+    { action: "evaluate-expression", brain: "U", desc: "Parse and evaluate mathematical expressions" },
+    { action: "suggest-proof-step", brain: "U", desc: "Suggest next logical step in proof construction" },
+    { action: "validate-proof", brain: "R", desc: "Validate logical consistency of proof chain" },
+    { action: "describe-visualization", brain: "U", desc: "Generate descriptions of graphs/plots for functions" },
+    { action: "explore-theorem", brain: "C", desc: "Interactive theorem exploration and explanation" },
+  ],
+  physics: [
+    { action: "check-dimensions", brain: "U", desc: "Check equations for dimensional consistency" },
+    { action: "link-concepts", brain: "U", desc: "Surface related concepts from math, chemistry, engineering" },
+    { action: "solve-problem", brain: "C", desc: "Interactive step-by-step physics problem solving" },
+    { action: "generate-constants", brain: "U", desc: "Generate physical constants reference with context" },
+    { action: "validate-equations", brain: "R", desc: "Validate equation correctness and unit consistency" },
+  ],
+  chem: [
+    { action: "profile-molecule", brain: "U", desc: "Generate properties, uses, safety data for a compound" },
+    { action: "balance-reaction", brain: "U", desc: "Balance chemical equation and explain stoichiometry" },
+    { action: "generate-safety", brain: "U", desc: "Generate safety profile: handling, storage, hazards, first aid" },
+    { action: "check-interactions", brain: "R", desc: "Cross-reference for known chemical interactions" },
+    { action: "explore-element", brain: "U", desc: "Generate element profile: properties, uses, history, compounds" },
+  ],
+  bio: [
+    { action: "profile-organism", brain: "U", desc: "Generate taxonomy, habitat, characteristics, evolutionary context" },
+    { action: "map-pathway", brain: "U", desc: "Structure biological pathway as chain of relationships" },
+    { action: "review-protocol", brain: "U", desc: "Suggest missing controls, safety steps, time estimates for lab protocol" },
+    { action: "link-gene-function", brain: "U", desc: "Explain gene → protein → function relationships" },
+    { action: "trace-evolution", brain: "U", desc: "Map evolutionary relationship between organisms" },
+  ],
+  neuro: [
+    { action: "explore-region", brain: "U", desc: "Profile brain region: functions, connections, conditions" },
+    { action: "decompose-process", brain: "U", desc: "Decompose cognitive process into components with brain regions" },
+    { action: "profile-neurotransmitter", brain: "U", desc: "Effects, conditions, drug interactions for neurotransmitter" },
+    { action: "map-concord-parallel", brain: "C", desc: "Map Concord four-brain architecture to human neuroscience" },
+  ],
+  quantum: [
+    { action: "explain-concept", brain: "U", desc: "Explain quantum concept calibrated to user's level" },
+    { action: "run-thought-experiment", brain: "C", desc: "Interactive quantum thought experiment discussion" },
+    { action: "bridge-classical", brain: "U", desc: "Map quantum concepts to classical analogies" },
+    { action: "explain-algorithm", brain: "U", desc: "Explain quantum algorithm with use cases and complexity" },
+  ],
+
+  // ── BUSINESS & FINANCE ──
+  finance: [
+    { action: "analyze-budget", brain: "U", desc: "Analyze spending patterns and suggest optimizations" },
+    { action: "evaluate-investment", brain: "U", desc: "Evaluate risk/reward, market conditions, portfolio fit" },
+    { action: "build-model", brain: "U", desc: "Build financial model with revenue projections and scenarios" },
+    { action: "plan-taxes", brain: "U", desc: "Identify deductions, estimate liability, quarterly schedules" },
+    { action: "forecast-cashflow", brain: "S", desc: "Project future cash flow, flag potential shortfalls" },
+  ],
+  accounting: [
+    { action: "validate-ledger", brain: "R", desc: "Validate double-entry books always balance" },
+    { action: "generate-invoice", brain: "U", desc: "Generate invoice with line items and tax calculations" },
+    { action: "reconcile", brain: "U", desc: "Suggest matches for unreconciled bank transactions" },
+    { action: "generate-statements", brain: "U", desc: "Compile income statement, balance sheet, cash flow" },
+    { action: "audit-trail", brain: "R", desc: "Verify no gaps in financial artifact audit trail" },
+  ],
+  billing: [
+    { action: "forecast-usage", brain: "U", desc: "Project token consumption and suggest optimal tier" },
+    { action: "generate-receipt", brain: "U", desc: "Generate formatted transaction receipt" },
+    { action: "monitor-spending", brain: "R", desc: "Monitor spending against configured thresholds" },
+  ],
+  insurance: [
+    { action: "analyze-policy", brain: "U", desc: "Identify coverage gaps, exclusions, cost optimization" },
+    { action: "assess-risk", brain: "U", desc: "Evaluate risk profiles for different scenarios" },
+    { action: "compare-coverage", brain: "U", desc: "Side-by-side comparison highlighting key differences" },
+    { action: "track-renewal", brain: "S", desc: "Track policy expiration and generate renewal alerts" },
+    { action: "validate-claims", brain: "R", desc: "Validate claim documentation completeness" },
+  ],
+  realestate: [
+    { action: "analyze-property", brain: "U", desc: "Evaluate cap rate, cash-on-cash return, comparables" },
+    { action: "calculate-deal", brain: "U", desc: "Compute ROI, DSCR, break-even timeline" },
+    { action: "generate-report", brain: "U", desc: "Compile market analysis from property artifacts" },
+    { action: "alert-lease", brain: "S", desc: "Generate alerts for upcoming lease actions" },
+    { action: "validate-portfolio", brain: "R", desc: "Validate portfolio aggregation accuracy" },
+  ],
+  trades: [
+    { action: "analyze-journal", brain: "U", desc: "Identify patterns in winning/losing trades" },
+    { action: "validate-risk", brain: "R", desc: "Validate trade parameters match risk management rules" },
+    { action: "detect-patterns", brain: "U", desc: "Detect behavioral patterns: revenge trading, position sizing errors" },
+    { action: "generate-performance", brain: "S", desc: "Generate performance DTU: win rate, risk/reward, drawdowns" },
+    { action: "evaluate-strategy", brain: "U", desc: "Evaluate trading strategy against historical patterns" },
+  ],
+  crypto: [
+    { action: "suggest-rebalance", brain: "U", desc: "Suggest portfolio rebalancing based on allocation targets" },
+    { action: "analyze-protocol", brain: "U", desc: "Evaluate DeFi protocol: TVL, audit status, risk rating" },
+    { action: "categorize-transaction", brain: "U", desc: "Categorize on-chain transaction for tax purposes" },
+    { action: "optimize-yield", brain: "U", desc: "Analyze yield opportunities with risk assessment" },
+    { action: "evaluate-tokenomics", brain: "U", desc: "Analyze token supply, distribution, utility, governance" },
+  ],
+  marketplace: [
+    { action: "optimize-listing", brain: "U", desc: "Suggest better title, tags, pricing for marketplace listing" },
+    { action: "generate-bundle", brain: "U", desc: "Package multiple artifacts into bundle with pricing" },
+    { action: "analyze-reviews", brain: "U", desc: "Summarize review sentiment across listings" },
+    { action: "compute-trending", brain: "S", desc: "Compute trending score from sales velocity and reviews" },
+    { action: "validate-listing", brain: "R", desc: "Validate listing completeness and policy compliance" },
+  ],
+  nonprofit: [
+    { action: "segment-donors", brain: "U", desc: "Segment donors by capacity and affinity" },
+    { action: "suggest-ask", brain: "U", desc: "Suggest ask amounts per donor for campaigns" },
+    { action: "generate-impact", brain: "U", desc: "Compile impact report from program data artifacts" },
+    { action: "match-volunteers", brain: "U", desc: "Match volunteers to needs by skills and availability" },
+    { action: "alert-grants", brain: "S", desc: "Generate deadline alerts for grant pipeline" },
+  ],
+  government: [
+    { action: "analyze-policy", brain: "U", desc: "Identify stakeholders, requirements, precedent, consequences" },
+    { action: "track-legislation", brain: "S", desc: "Alert on legislative status changes" },
+    { action: "aggregate-feedback", brain: "U", desc: "Identify themes and priorities across constituent feedback" },
+    { action: "assess-impact", brain: "U", desc: "Evaluate regulatory impact against existing rules" },
+    { action: "validate-budget", brain: "R", desc: "Validate budget artifact internal consistency" },
+  ],
+  law: [
+    { action: "analyze-contract", brain: "U", desc: "Identify key clauses, unusual terms, risk areas" },
+    { action: "generate-brief", brain: "U", desc: "Generate FIRAC case brief: facts, issue, rule, analysis, conclusion" },
+    { action: "check-compliance", brain: "U", desc: "Evaluate against regulatory framework, flag gaps" },
+    { action: "alert-deadlines", brain: "S", desc: "Generate countdown alerts for legal deadlines" },
+    { action: "validate-clauses", brain: "R", desc: "Validate clause library entries for consistency" },
+  ],
+  legal: [
+    { action: "organize-discovery", brain: "U", desc: "Categorize and tag documents for litigation" },
+    { action: "research-question", brain: "C", desc: "Interactive legal research discussion with DTU-backed citations" },
+    { action: "build-timeline", brain: "U", desc: "Chronological event reconstruction from case artifacts" },
+    { action: "log-privilege", brain: "R", desc: "Validate privilege log entries with justification" },
+  ],
+
+  // ── HEALTH & WELLNESS ──
+  healthcare: [
+    { action: "detect-patterns", brain: "U", desc: "Identify patterns in symptom logs over time" },
+    { action: "check-interactions", brain: "R", desc: "Validate no known interactions between concurrent medications" },
+    { action: "answer-clinical", brain: "U", desc: "Provide evidence-based health information with disclaimers" },
+    { action: "build-care-plan", brain: "U", desc: "Generate structured care plan with goals and milestones" },
+    { action: "generate-progress", brain: "S", desc: "Generate care plan progress reports" },
+  ],
+  fitness: [
+    { action: "suggest-workout", brain: "U", desc: "Analyze progressive overload and suggest next session" },
+    { action: "generate-program", brain: "U", desc: "Generate multi-week training program for goals" },
+    { action: "validate-pr", brain: "R", desc: "Validate new PR consistency with training trajectory" },
+    { action: "assess-recovery", brain: "U", desc: "Analyze training load, suggest recovery/deload" },
+    { action: "analyze-trends", brain: "S", desc: "Generate monthly body composition trend analysis" },
+  ],
+  food: [
+    { action: "suggest-substitutions", brain: "U", desc: "Suggest ingredient substitutions for dietary restrictions" },
+    { action: "generate-meal-plan", brain: "U", desc: "Generate weekly meal plan given calorie target and preferences" },
+    { action: "analyze-nutrition", brain: "U", desc: "Compute daily/weekly macros and micros from meal logs" },
+    { action: "generate-grocery-list", brain: "R", desc: "Consolidate ingredients from meal plan into shopping list" },
+    { action: "explore-cuisine", brain: "U", desc: "Generate cuisine profile: ingredients, techniques, flavors" },
+  ],
+  affect: [
+    { action: "detect-patterns", brain: "U", desc: "Identify emotional triggers, cycles, correlations" },
+    { action: "suggest-coping", brain: "U", desc: "Suggest evidence-based coping strategies for current state" },
+    { action: "generate-reflection", brain: "U", desc: "Generate personalized reflection prompts from emotional patterns" },
+    { action: "check-wellbeing", brain: "R", desc: "Wellbeing guardrail check, surface resources if needed" },
+  ],
+  suffering: [
+    { action: "detect-flare-patterns", brain: "S", desc: "Analyze pain logs for weather, activity, medication correlations" },
+    { action: "track-capacity", brain: "U", desc: "Identify gradual changes in functional capacity" },
+    { action: "evaluate-treatments", brain: "U", desc: "Cross-reference treatments with suffering data for effectiveness" },
+    { action: "validate-log", brain: "R", desc: "Validate pain log entry completeness and consistency" },
+  ],
+
+  // ── PRODUCTIVITY & ORGANIZATION ──
+  daily: [
+    { action: "generate-summary", brain: "S", desc: "Generate overnight summary of yesterday's activities" },
+    { action: "prompt-gratitude", brain: "U", desc: "Generate contextual gratitude prompt from recent activity" },
+    { action: "compile-wins", brain: "S", desc: "Compile weekly wins digest from tagged daily entries" },
+    { action: "generate-review", brain: "U", desc: "Generate end-of-day review questions based on activity" },
+  ],
+  goals: [
+    { action: "suggest-okr", brain: "U", desc: "Suggest measurable key results for objectives" },
+    { action: "decompose-goal", brain: "U", desc: "Break large goal into sub-goals with dependencies" },
+    { action: "generate-accountability", brain: "S", desc: "Generate weekly progress report, identify at-risk goals" },
+    { action: "check-alignment", brain: "R", desc: "Validate sub-goals actually contribute to parent goal" },
+  ],
+  calendar: [
+    { action: "optimize-schedule", brain: "U", desc: "Suggest batching, deep work protection, overcommitment fixes" },
+    { action: "audit-time", brain: "S", desc: "Categorize events and generate weekly time allocation report" },
+    { action: "detect-conflicts", brain: "R", desc: "Validate no overlapping events or travel time violations" },
+    { action: "suggest-scheduling", brain: "U", desc: "Suggest optimal meeting times from energy and productivity patterns" },
+  ],
+  events: [
+    { action: "validate-tasks", brain: "R", desc: "Validate no orphaned dependencies in event task list" },
+    { action: "validate-budget", brain: "R", desc: "Validate event budget total against cap" },
+    { action: "generate-review", brain: "U", desc: "Generate post-event structured review from feedback" },
+    { action: "suggest-template", brain: "U", desc: "Suggest event template based on type" },
+  ],
+  board: [
+    { action: "enforce-wip", brain: "R", desc: "Validate WIP limits per column" },
+    { action: "predict-sprint", brain: "U", desc: "Predict sprint completion based on historical velocity" },
+    { action: "detect-blockers", brain: "U", desc: "Analyze in-progress items for age and potential blockers" },
+    { action: "generate-retro", brain: "U", desc: "Generate sprint retrospective: completed, velocity, sentiment" },
+  ],
+  queue: [
+    { action: "score-priority", brain: "U", desc: "Auto-score queue items by age, urgency, impact" },
+    { action: "monitor-sla", brain: "R", desc: "Monitor time-in-queue and escalate on SLA breach" },
+    { action: "auto-categorize", brain: "U", desc: "Read content and auto-assign category, tags, owner" },
+    { action: "generate-performance", brain: "S", desc: "Generate resolution time performance DTUs" },
+  ],
+  feed: [
+    { action: "compute-relevance", brain: "S", desc: "Compute relevance scores for feed items" },
+    { action: "analyze-content", brain: "U", desc: "Analyze feed content for quality and substance" },
+    { action: "rank-feed", brain: "S", desc: "Rank feed items by engagement, quality, recency" },
+  ],
+  news: [
+    { action: "analyze-bias", brain: "U", desc: "Evaluate source perspective, framing, missing context" },
+    { action: "summarize-topic", brain: "U", desc: "Generate concise summary of multiple DTUs on same topic" },
+    { action: "generate-digest", brain: "S", desc: "Generate periodic digest of tracked topics" },
+    { action: "check-facts", brain: "U", desc: "Cross-reference claims against established DTUs" },
+    { action: "monitor-topics", brain: "S", desc: "Monitor global thread for DTUs matching tracked topics" },
+  ],
+  docs: [
+    { action: "auto-document", brain: "U", desc: "Generate documentation from code, research, or project artifacts" },
+    { action: "generate-toc", brain: "U", desc: "Auto-generate navigable table of contents for artifact collection" },
+    { action: "suggest-template", brain: "U", desc: "Suggest documentation template for content type" },
+    { action: "index-search", brain: "S", desc: "Build search index across documentation artifacts" },
+  ],
+  "export": [
+    { action: "convert-format", brain: "U", desc: "Convert artifact to Markdown, JSON, CSV, HTML format" },
+    { action: "generate-obsidian", brain: "U", desc: "Export DTU network as Obsidian-compatible markdown with wiki-links" },
+    { action: "validate-export", brain: "R", desc: "Validate export completeness and integrity" },
+  ],
+  "import": [
+    { action: "smart-parse", brain: "U", desc: "Identify structure in raw text and create appropriate artifacts" },
+    { action: "extract-url", brain: "U", desc: "Fetch URL content and extract key information into DTU" },
+    { action: "detect-duplicates", brain: "R", desc: "Check incoming data against existing artifacts for duplicates" },
+    { action: "process-batch", brain: "S", desc: "Process import queue in background" },
+  ],
+  ingest: [
+    { action: "auto-tag", brain: "U", desc: "Auto-tag ingested content by analyzing text" },
+    { action: "group-highlights", brain: "U", desc: "Group highlights by source and extract themes" },
+    { action: "filter-quality", brain: "R", desc: "Evaluate ingested content for substance, novelty, relevance" },
+    { action: "process-batch", brain: "S", desc: "Process ingest queue in background" },
+  ],
+
+  // ── COGNITIVE SYSTEMS ──
+  metacognition: [
+    { action: "calibrate-confidence", brain: "R", desc: "Track prediction accuracy, identify over/under-confidence" },
+    { action: "detect-blindspots", brain: "S", desc: "Analyze DTU distribution for high activity but low quality domains" },
+    { action: "audit-thinking", brain: "U", desc: "Evaluate reasoning chain for cognitive biases" },
+    { action: "update-self-model", brain: "S", desc: "Maintain evolving DTU of cognitive strengths and weaknesses" },
+    { action: "prompt-metacognition", brain: "U", desc: "Generate metacognitive journal prompts" },
+  ],
+  reasoning: [
+    { action: "detect-fallacy", brain: "U", desc: "Analyze argument for logical fallacies with explanations" },
+    { action: "devils-advocate", brain: "C", desc: "Argue against user's position to stress-test reasoning" },
+    { action: "socratic-question", brain: "C", desc: "Ask probing questions to deepen understanding" },
+    { action: "validate-proof", brain: "R", desc: "Check multi-step argument for gaps and invalid steps" },
+    { action: "map-argument", brain: "U", desc: "Structure argument as premises → inference → conclusion" },
+  ],
+  inference: [
+    { action: "forward-chain", brain: "U", desc: "Derive new conclusions from facts and rules" },
+    { action: "validate-syllogism", brain: "R", desc: "Validate syllogism form: major premise, minor, conclusion" },
+    { action: "find-contradictions", brain: "S", desc: "Scan fact database for inconsistencies" },
+    { action: "what-if", brain: "U", desc: "Compute consequences of hypothetical facts" },
+  ],
+  reflection: [
+    { action: "guide-reflection", brain: "U", desc: "Generate contextual reflection prompts from activity and emotion" },
+    { action: "track-growth", brain: "S", desc: "Compare artifacts over time, identify growth and stagnation" },
+    { action: "shift-perspective", brain: "C", desc: "Present situation from alternative viewpoints" },
+    { action: "match-wisdom", brain: "U", desc: "Surface relevant philosophical insights for current challenges" },
+  ],
+  attention: [
+    { action: "allocate-budget", brain: "U", desc: "Allocate daily attention tokens across domains by priority" },
+    { action: "analyze-distractions", brain: "U", desc: "Identify distraction patterns and suggest mitigation" },
+    { action: "compute-switching-cost", brain: "U", desc: "Compute context switching frequency and productivity cost" },
+    { action: "score-deep-work", brain: "S", desc: "Evaluate weekly deep work ratio with improvement suggestions" },
+  ],
+  transfer: [
+    { action: "find-analogies", brain: "U", desc: "Search for structural analogies across domains" },
+    { action: "catalog-pattern", brain: "U", desc: "Catalog abstract pattern with concrete examples from multiple fields" },
+    { action: "discover-transfers", brain: "S", desc: "Generate cross-domain transfer suggestions from new DTUs" },
+    { action: "validate-analogy", brain: "R", desc: "Evaluate analogy for structural soundness vs superficial similarity" },
+  ],
+  metalearning: [
+    { action: "evaluate-strategy", brain: "U", desc: "Assess which learning strategies work best from outcome data" },
+    { action: "profile-style", brain: "S", desc: "Analyze artifact creation patterns for learning modalities" },
+    { action: "generate-curriculum", brain: "U", desc: "Design optimal learning path for a topic given existing knowledge" },
+    { action: "compare-ab", brain: "U", desc: "Evaluate A/B tested learning strategies" },
+  ],
+  srs: [
+    { action: "generate-cards", brain: "U", desc: "Generate flashcards from DTU: cloze, Q&A, conceptual" },
+    { action: "optimize-interleaving", brain: "U", desc: "Select optimal cross-domain interleaving ratio" },
+    { action: "detect-leeches", brain: "R", desc: "Identify consistently failing cards, suggest reformulation" },
+  ],
+  commonsense: [
+    { action: "derive-implications", brain: "U", desc: "Derive implicit knowledge from stated facts" },
+    { action: "surface-assumptions", brain: "U", desc: "Identify unstated assumptions in any DTU" },
+    { action: "check-cultural", brain: "U", desc: "Note when claims are culturally specific vs universal" },
+    { action: "explain-simply", brain: "C", desc: "Explain DTU in terms a child would understand" },
+  ],
+  grounding: [
+    { action: "build-context", brain: "S", desc: "Assemble current context from all sensor data" },
+    { action: "analyze-correlations", brain: "U", desc: "Find correlations between environment and productivity/mood/health" },
+    { action: "link-observation", brain: "U", desc: "Connect physical-world observations with DTU concepts" },
+    { action: "monitor-environment", brain: "S", desc: "Track environmental variables and identify trends" },
+  ],
+  experience: [
+    { action: "mine-patterns", brain: "S", desc: "Analyze experience logs for recurring themes and predictors" },
+    { action: "consolidate", brain: "S", desc: "Merge similar experiences into distilled wisdom DTUs" },
+    { action: "extract-strategies", brain: "U", desc: "Identify successful strategies from positive experiences" },
+    { action: "retrieve-relevant", brain: "U", desc: "Search past experiences for applicable lessons" },
+  ],
+  temporal: [
+    { action: "validate-temporal", brain: "R", desc: "Check temporal claims: no effects before causes, no anachronisms" },
+    { action: "track-decay", brain: "S", desc: "Flag time-sensitive DTUs that may be outdated" },
+    { action: "analyze-causation", brain: "U", desc: "Evaluate whether causal claims are justified" },
+    { action: "project-trend", brain: "U", desc: "Extrapolate temporal trend with confidence interval" },
+  ],
+
+  // ── EDUCATION ──
+  education: [
+    { action: "optimize-course", brain: "U", desc: "Suggest lesson ordering based on prerequisite knowledge" },
+    { action: "adapt-difficulty", brain: "U", desc: "Adjust question difficulty based on learner performance" },
+    { action: "find-gaps", brain: "U", desc: "Compare course content against learner's existing DTUs" },
+    { action: "teach", brain: "C", desc: "Answer questions about course material using Socratic method" },
+    { action: "validate-progress", brain: "R", desc: "Validate skill mastery against assessment criteria" },
+  ],
+  ethics: [
+    { action: "analyze-frameworks", brain: "U", desc: "Evaluate dilemma through utilitarian, deontological, virtue, care ethics" },
+    { action: "map-stakeholders", brain: "U", desc: "Identify all affected stakeholders and their interests" },
+    { action: "find-precedent", brain: "U", desc: "Search substrate for similar ethical dilemmas and resolutions" },
+    { action: "clarify-values", brain: "C", desc: "Interactive trade-off exercise to articulate values" },
+    { action: "assess-impact", brain: "U", desc: "Evaluate second and third-order consequences" },
+  ],
+
+  // ── INFRASTRUCTURE & DEV ──
+  code: [
+    { action: "review-code", brain: "U", desc: "Identify bugs, performance issues, security concerns, style violations" },
+    { action: "document-architecture", brain: "U", desc: "Generate architecture documentation: components, data flow, API surface" },
+    { action: "debug-assist", brain: "C", desc: "Interactive debugging walkthrough using relevant code DTUs" },
+    { action: "suggest-refactoring", brain: "U", desc: "Analyze for DRY violations, complexity, coupling issues" },
+    { action: "search-snippets", brain: "U", desc: "Find relevant code snippets based on context" },
+  ],
+  database: [
+    { action: "validate-schema", brain: "R", desc: "Validate referential integrity of schema design" },
+    { action: "generate-query", brain: "U", desc: "Translate natural language to queries against DTU substrate" },
+    { action: "plan-migration", brain: "U", desc: "Generate migration plan for schema changes" },
+    { action: "score-quality", brain: "R", desc: "Evaluate artifacts for completeness, consistency, freshness" },
+    { action: "suggest-indexes", brain: "U", desc: "Suggest indexing strategies from query patterns" },
+  ],
+  schema: [
+    { action: "validate-schema", brain: "R", desc: "Validate artifacts against declared schema" },
+    { action: "check-evolution", brain: "R", desc: "Validate backward compatibility of schema changes" },
+    { action: "infer-schema", brain: "U", desc: "Infer schema from collection of similar artifacts" },
+    { action: "map-schemas", brain: "U", desc: "Identify structural similarities between schemas across domains" },
+  ],
+  debug: [
+    { action: "check-integrity", brain: "R", desc: "Validate DTU substrate: orphaned refs, circular lineage, corruption" },
+    { action: "analyze-performance", brain: "U", desc: "Identify performance bottlenecks per endpoint, brain, lens" },
+    { action: "suggest-fix", brain: "U", desc: "Suggest fixes for identified issues" },
+  ],
+  admin: [
+    { action: "validate-config", brain: "R", desc: "Validate system configuration consistency" },
+    { action: "generate-analytics", brain: "S", desc: "Compute system-wide metrics: DTUs, users, brain utilization" },
+    { action: "audit-access", brain: "R", desc: "Review access patterns for anomalies" },
+  ],
+  security: [
+    { action: "audit-access", brain: "R", desc: "Review access patterns for unusual activity" },
+    { action: "check-compliance", brain: "U", desc: "Evaluate against security frameworks (OWASP, SOC2, GDPR)" },
+    { action: "scan-secrets", brain: "R", desc: "Check artifacts for accidentally committed secrets" },
+    { action: "detect-patterns", brain: "S", desc: "Detect security pattern anomalies over time" },
+    { action: "log-incident", brain: "R", desc: "Validate incident log completeness" },
+  ],
+  repos: [
+    { action: "analyze-commits", brain: "U", desc: "Evaluate commit messages for quality and convention" },
+    { action: "check-dependencies", brain: "R", desc: "Flag vulnerable dependencies by version and license" },
+    { action: "review-pr", brain: "U", desc: "Generate initial code review for pull request" },
+    { action: "validate-coverage", brain: "R", desc: "Flag untested components from coverage data" },
+  ],
+  integrations: [
+    { action: "suggest-pipeline", brain: "U", desc: "Suggest data transformations for integration pipeline" },
+    { action: "monitor-sync", brain: "R", desc: "Monitor sync status and flag failures" },
+    { action: "validate-webhook", brain: "R", desc: "Validate webhook delivery and format" },
+  ],
+  "app-maker": [
+    { action: "generate-spec", brain: "U", desc: "Generate structured app spec: pages, data models, flows" },
+    { action: "validate-spec", brain: "R", desc: "Validate spec: missing pages, undefined refs, broken flows" },
+    { action: "suggest-improvements", brain: "U", desc: "Suggest improvements based on usage analytics" },
+  ],
+  ml: [
+    { action: "profile-dataset", brain: "U", desc: "Analyze feature distributions, missing values, class balance, bias" },
+    { action: "generate-model-card", brain: "U", desc: "Generate model documentation: use, limitations, metrics" },
+    { action: "explain-features", brain: "U", desc: "Explain feature importance with domain knowledge context" },
+    { action: "validate-pipeline", brain: "R", desc: "Validate ML pipeline stages for consistency" },
+    { action: "compare-experiments", brain: "U", desc: "Compare experiment runs across hyperparameters and metrics" },
+  ],
+  invariant: [
+    { action: "check-all", brain: "R", desc: "Verify all registered invariants against current state" },
+    { action: "suggest-invariants", brain: "U", desc: "Suggest new invariants based on system behavior analysis" },
+    { action: "analyze-violations", brain: "U", desc: "Analyze violation patterns and probable causes" },
+  ],
+
+  // ── DOMAIN-SPECIFIC ──
+  logistics: [
+    { action: "optimize-schedule", brain: "U", desc: "Optimize production/shipping schedule given constraints" },
+    { action: "alert-inventory", brain: "R", desc: "Alert when inventory below reorder threshold" },
+    { action: "analyze-quality", brain: "U", desc: "Identify quality trends from QC results" },
+    { action: "validate-chain", brain: "R", desc: "Validate supply chain integrity" },
+  ],
+  manufacturing: [
+    { action: "optimize-production", brain: "U", desc: "Optimize production schedule for orders and capacity" },
+    { action: "monitor-quality", brain: "R", desc: "Monitor QC pass/fail rates and alert on degradation" },
+    { action: "predict-maintenance", brain: "S", desc: "Predict maintenance needs from equipment data" },
+  ],
+  retail: [
+    { action: "analyze-sales", brain: "S", desc: "Generate daily/weekly sales trends and top products" },
+    { action: "segment-customers", brain: "U", desc: "Segment by purchase frequency, average order, preferences" },
+    { action: "optimize-pricing", brain: "U", desc: "Suggest pricing from margin targets and demand patterns" },
+    { action: "predict-promotion", brain: "U", desc: "Predict promotion impact on sales" },
+  ],
+  agriculture: [
+    { action: "plan-crop", brain: "U", desc: "Plan crop rotation given soil, climate, market conditions" },
+    { action: "track-season", brain: "S", desc: "Generate weekly crop status vs expected milestones" },
+    { action: "analyze-soil", brain: "U", desc: "Identify soil health trends and suggest amendments" },
+    { action: "identify-pest", brain: "U", desc: "Identify probable pest/disease causes and suggest treatments" },
+    { action: "predict-yield", brain: "U", desc: "Estimate yield from crop type, conditions, history" },
+  ],
+  aviation: [
+    { action: "calculate-wb", brain: "U", desc: "Compute weight and balance for aircraft configuration" },
+    { action: "validate-wb", brain: "R", desc: "Validate W&B within aircraft limits" },
+    { action: "format-weather", brain: "U", desc: "Parse weather data into pilot-friendly format with go/no-go" },
+    { action: "check-currency", brain: "R", desc: "Check pilot currency requirements and alert on expiration" },
+  ],
+  household: [
+    { action: "schedule-maintenance", brain: "S", desc: "Generate maintenance reminders based on schedules" },
+    { action: "analyze-utilities", brain: "U", desc: "Identify utility usage trends and suggest savings" },
+    { action: "plan-project", brain: "U", desc: "Plan home improvement: budget, materials, steps, timeline" },
+    { action: "track-inventory", brain: "R", desc: "Validate household inventory and flag missing records" },
+  ],
+  environment: [
+    { action: "calculate-carbon", brain: "U", desc: "Calculate carbon footprint and suggest reductions" },
+    { action: "identify-species", brain: "U", desc: "Assist with wildlife species identification" },
+    { action: "score-sustainability", brain: "U", desc: "Evaluate practices against sustainability frameworks" },
+    { action: "track-trends", brain: "S", desc: "Identify environmental metric trends and generate alerts" },
+  ],
+  services: [
+    { action: "generate-proposal", brain: "U", desc: "Generate structured proposal from client needs" },
+    { action: "analyze-time", brain: "U", desc: "Generate invoiceable time summaries per client/project" },
+    { action: "collect-feedback", brain: "U", desc: "Identify improvement areas from post-project feedback" },
+  ],
+  forum: [
+    { action: "compute-reputation", brain: "S", desc: "Compute user reputation from helpful answers and upvotes" },
+    { action: "evaluate-answer", brain: "U", desc: "Evaluate answer relevance and accuracy against DTU substrate" },
+    { action: "detect-duplicates", brain: "R", desc: "Check new questions against existing threads" },
+    { action: "auto-tag", brain: "U", desc: "Suggest tags based on post content analysis" },
+  ],
+  vote: [
+    { action: "tally-votes", brain: "R", desc: "Tally votes using selected method: majority, ranked, quadratic" },
+    { action: "analyze-results", brain: "U", desc: "Interpret results: consensus level, factions, minority concerns" },
+    { action: "measure-consensus", brain: "U", desc: "Measure consensus degree across voting dimensions" },
+    { action: "validate-delegation", brain: "R", desc: "Validate vote delegation chain integrity" },
+  ],
+  council: [
+    { action: "validate-constitution", brain: "R", desc: "Validate council action against constitutional principles" },
+    { action: "find-precedent", brain: "U", desc: "Search past council decisions for consistent governance" },
+    { action: "assess-impact", brain: "U", desc: "Predict consequences of approval/rejection before vote" },
+  ],
+
+  // ── SYSTEM LENSES ──
+  lock: [
+    { action: "verify-encryption", brain: "R", desc: "Verify all sensitive artifacts are properly encrypted" },
+    { action: "audit-permissions", brain: "R", desc: "Audit access permissions for completeness" },
+  ],
+  offline: [
+    { action: "resolve-conflicts", brain: "U", desc: "Suggest resolution for offline edit conflicts" },
+    { action: "predict-needs", brain: "S", desc: "Pre-sync artifacts likely to be needed based on patterns" },
+  ],
+  tick: [
+    { action: "analyze-performance", brain: "U", desc: "Analyze tick cycle duration trends" },
+    { action: "validate-cycle", brain: "R", desc: "Validate tick cycle completeness and flag degradation" },
+  ],
+  cri: [
+    { action: "compute-credibility", brain: "U", desc: "Composite score from evidence, citations, votes, reliability" },
+    { action: "detect-challenges", brain: "R", desc: "Process credibility challenges with counter-evidence" },
+  ],
+  graph: [
+    { action: "compute-layout", brain: "U", desc: "Compute force-directed layout for knowledge subgraph" },
+    { action: "detect-communities", brain: "U", desc: "Identify community clusters in the DTU network" },
+  ],
+  entity: [
+    { action: "assess-growth", brain: "U", desc: "Evaluate entity growth trajectory and maturity" },
+    { action: "validate-state", brain: "R", desc: "Validate entity state consistency" },
+  ],
+  sim: [
+    { action: "design-scenario", brain: "U", desc: "Design simulation scenario with parameters and expected outcomes" },
+    { action: "validate-results", brain: "R", desc: "Validate simulation results for internal consistency" },
+  ],
+  lab: [
+    { action: "design-experiment", brain: "U", desc: "Design experiment with controls, variables, methodology" },
+    { action: "validate-protocol", brain: "R", desc: "Validate lab protocol for safety and completeness" },
+  ],
+  fork: [
+    { action: "suggest-modifications", brain: "U", desc: "Suggest modifications for a forked DTU" },
+    { action: "validate-fork", brain: "R", desc: "Validate fork maintains structural integrity" },
+  ],
+  custom: [
+    { action: "generate-template", brain: "U", desc: "Generate lens template from description" },
+    { action: "validate-lens", brain: "R", desc: "Validate custom lens definition completeness" },
+  ],
+  meta: [
+    { action: "cross-lens-analysis", brain: "U", desc: "Analyze patterns across multiple lens domains" },
+    { action: "generate-insights", brain: "S", desc: "Generate cross-domain insights from lens activity" },
+  ],
+};
+
+// Brain dispatch: route action to appropriate brain based on manifest
+const BRAIN_DISPATCHERS = {
+  U: utilityCall,
+  S: subconsciousLensCall,
+  R: repairLensCall,
+  C: consciousLensCall,
+};
+
+function registerDomainSpecificActions() {
+  let registered = 0;
+  let skipped = 0;
+  const brainCounts = { U: 0, S: 0, R: 0, C: 0 };
+
+  for (const [domain, actions] of Object.entries(DOMAIN_ACTION_MANIFEST)) {
+    for (const { action, brain, desc } of actions) {
+      const key = `${domain}.${action}`;
+      if (LENS_ACTIONS.has(key)) { skipped++; continue; }
+
+      const dispatcher = BRAIN_DISPATCHERS[brain] || utilityCall;
+      LENS_ACTIONS.set(key, async (ctx, artifact, params) => {
+        const result = await dispatcher(action, domain, {
+          artifactTitle: artifact?.title,
+          artifactData: artifact?.data,
+          artifactMeta: artifact?.meta,
+          description: desc,
+          ...params,
+        });
+        return {
+          ok: result.ok,
+          output: result.content || result.error,
+          source: `${brain.toLowerCase()}-brain`,
+          model: result.model,
+          action,
+          domain,
+          brain,
+        };
+      });
+      registered++;
+      brainCounts[brain] = (brainCounts[brain] || 0) + 1;
+    }
+  }
+
+  structuredLog("info", "domain_specific_actions_registered", {
+    domains: Object.keys(DOMAIN_ACTION_MANIFEST).length,
+    totalRegistered: registered,
+    skippedExisting: skipped,
+    brainDistribution: brainCounts,
+  });
+}
+registerDomainSpecificActions();
 
 console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains + ${LENS_ACTIONS.size} total actions)`);
 

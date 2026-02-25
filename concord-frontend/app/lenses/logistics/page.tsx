@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Truck, Users, Package, Warehouse, Route, ShieldCheck,
   Plus, Search, Filter, X, Edit2, Trash2, MapPin,
   AlertTriangle, CheckCircle, Clock, Calendar,
@@ -1323,6 +1324,9 @@ export default function LogisticsLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="logistics" artifactId={items[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

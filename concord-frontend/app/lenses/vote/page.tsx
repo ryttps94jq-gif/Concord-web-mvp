@@ -8,6 +8,7 @@ import { Loading } from '@/components/common/Loading';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Check, X, Users, Scale, Plus, Clock, MessageSquare,
   ThumbsUp, ThumbsDown, Minus, BarChart3, ChevronDown,
   ChevronUp, Send, AlertCircle, Vote,
@@ -204,6 +205,9 @@ export default function VoteLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="vote" artifactId={items[0]?.id} compact />
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

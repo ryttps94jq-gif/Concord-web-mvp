@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Brain, Network, Activity, Layers, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface NetworkData {
   name: string;
@@ -80,6 +81,9 @@ export default function NeuroLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="neuro" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Brain className="w-5 h-5 text-neon-pink mb-2" />

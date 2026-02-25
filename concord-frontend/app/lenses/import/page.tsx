@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { Upload, FileJson, Database, Check, AlertTriangle, Loader2, FileText, Archive, RefreshCw } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import { apiHelpers } from '@/lib/api/client';
 import { ErrorState } from '@/components/common/EmptyState';
 
@@ -298,6 +299,9 @@ export default function ImportLens() {
           </div>
         </div>
       </div>
+
+      {/* AI Actions */}
+      <UniversalActions domain="import" artifactId={importJobItems[0]?.id} compact />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upload Zone */}

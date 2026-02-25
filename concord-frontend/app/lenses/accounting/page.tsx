@@ -6,6 +6,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   BookOpen, Receipt, Wallet, PiggyBank, Building2, FileSpreadsheet,
   Plus, Search, Filter, X, Edit3, Trash2, TrendingUp, DollarSign,
   BarChart3, AlertCircle, ChevronDown, ChevronRight, ArrowUpRight,
@@ -2121,6 +2122,9 @@ export default function AccountingLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="accounting" artifactId={items[0]?.id} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

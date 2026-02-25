@@ -6,6 +6,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Wand2, Plus, Code, Eye, Trash2, Copy, Settings } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface CustomLens {
   id: string;
@@ -106,6 +107,9 @@ export default function CustomLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="custom" artifactId={items[0]?.id} compact />
       {/* Lens Builder Modal */}
       {showBuilder && (
         <div className="panel p-4 space-y-4 border-neon-purple">

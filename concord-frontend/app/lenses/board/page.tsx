@@ -5,6 +5,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Lightbulb,
   Pen,
   Mic,
@@ -561,6 +562,9 @@ export default function BoardLensPage() {
           </AnimatePresence>
         </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="board" artifactId={items[0]?.id} compact />
         {/* Board columns */}
         <div className="flex-1 overflow-x-auto px-6 pb-6">
           <div

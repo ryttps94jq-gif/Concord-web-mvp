@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Heart, FileText, HeartHandshake, Megaphone, BarChart3,
   Plus, Search, Filter, X, Edit2, Trash2,
   DollarSign, Clock, TrendingUp, AlertTriangle, CheckCircle2,
@@ -1401,6 +1402,9 @@ export default function NonprofitLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="nonprofit" artifactId={items[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

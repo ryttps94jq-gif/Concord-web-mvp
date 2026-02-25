@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   Home, Users, UtensilsCrossed, CheckSquare, Wrench, PawPrint,
   Plus, Search, Filter, X, Edit3, Trash2,
   ShoppingCart, RotateCcw, AlertTriangle, Clock,
@@ -1561,6 +1562,9 @@ export default function HouseholdLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="household" artifactId={items[0]?.id} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

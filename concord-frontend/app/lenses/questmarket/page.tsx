@@ -6,6 +6,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Target, Trophy, Coins, Clock, Users } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface Quest {
   id: string;
@@ -85,6 +86,9 @@ export default function QuestmarketLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="questmarket" artifactId={items[0]?.id} compact />
       {/* Filter Tabs */}
       <div className="flex gap-2">
         {['all', 'open', 'in_progress', 'completed'].map((status) => (

@@ -6,6 +6,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import {
+import { UniversalActions } from '@/components/lens/UniversalActions';
   GraduationCap,
   Users,
   BookOpen,
@@ -824,6 +825,9 @@ export default function EducationLensPage() {
           </div>
         </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="education" artifactId={items[0]?.id} compact />
         {/* Key Metrics */}
         <div className={ds.grid4}>
           <div className={ds.panel}>
