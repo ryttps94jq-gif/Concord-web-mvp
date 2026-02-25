@@ -39,6 +39,7 @@ interface ActionResult {
   output: string;
   source?: string;
   model?: string;
+  confidence?: { score: number; label: string; factors?: Record<string, number> };
 }
 
 const ACTIONS = [
@@ -67,11 +68,13 @@ export function UniversalActions({
         params: params || {},
       });
       const r = res.result as Record<string, unknown> | undefined;
+      const confidence = r?.confidence as { score: number; label: string; factors?: Record<string, number> } | undefined;
       setResult({
         action,
         output: String(r?.output || r?.content || JSON.stringify(r, null, 2)),
         source: String(r?.source || 'utility-brain'),
         model: r?.model ? String(r.model) : undefined,
+        confidence: confidence || undefined,
       });
       setExpanded(true);
     } catch (err) {
@@ -150,10 +153,21 @@ export function UniversalActions({
             onClick={() => setExpanded(!expanded)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            <span>
+            <span className="flex items-center gap-2">
               <span className="text-neon-cyan font-medium">{result.action}</span>
-              {result.source && <span className="ml-2 text-gray-500">via {result.source}</span>}
-              {result.model && <span className="ml-2 text-gray-500">({result.model})</span>}
+              {result.source && <span className="text-gray-500">via {result.source}</span>}
+              {result.model && <span className="text-gray-500">({result.model})</span>}
+              {result.confidence && (
+                <span className={cn(
+                  'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
+                  result.confidence.score >= 0.75 ? 'bg-neon-green/20 text-neon-green' :
+                  result.confidence.score >= 0.5 ? 'bg-neon-cyan/20 text-neon-cyan' :
+                  result.confidence.score >= 0.25 ? 'bg-amber-400/20 text-amber-400' :
+                  'bg-red-400/20 text-red-400'
+                )}>
+                  {Math.round(result.confidence.score * 100)}% conf
+                </span>
+              )}
             </span>
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>

@@ -13,6 +13,8 @@ import { FirstWinWizard } from '@/components/guidance/FirstWinWizard';
 import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineFallback } from '@/components/pwa/OfflineFallback';
+import { QuickCapture, useQuickCapture } from '@/components/capture/QuickCapture';
+
 interface AppShellProps {
   children: React.ReactNode;
 }
@@ -20,6 +22,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const { sidebarCollapsed, commandPaletteOpen, setCommandPaletteOpen, fullPageMode } = useUIStore();
   const [mounted, setMounted] = useState(false);
+  const quickCapture = useQuickCapture();
 
   useEffect(() => {
     setMounted(true);
@@ -103,6 +106,7 @@ export function AppShell({ children }: AppShellProps) {
       <FirstWinWizard />
       <OfflineFallback />
       <InstallPrompt />
+      <QuickCapture isOpen={quickCapture.isOpen} onClose={quickCapture.close} />
     </div>
   );
 }

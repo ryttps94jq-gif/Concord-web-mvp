@@ -44,6 +44,7 @@ import {
   MessageSquare, Layout, Share2, Code, Music,
 } from 'lucide-react';
 import { use70Lock } from '@/hooks/use70Lock';
+import { MorningBrief } from '@/components/brief/MorningBrief';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -322,6 +323,11 @@ function DashboardPage() {
           locked={lockPercentage >= 70}
         />
       </div>
+
+      {/* Morning Brief */}
+      <LensErrorBoundary name="Morning Brief">
+        <MorningBrief />
+      </LensErrorBoundary>
 
       {/* Live Feed + Emergent Council + Governance — each wrapped independently */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

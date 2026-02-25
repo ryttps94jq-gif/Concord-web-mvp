@@ -11232,7 +11232,7 @@ async function callBrain(brainName, prompt, options = {}) {
     const elapsed = Date.now() - start;
     brain.stats.totalMs += elapsed;
 
-    return {
+    const result = {
       ok: true,
       content: data.response || "",
       source: brainName,
@@ -11240,6 +11240,15 @@ async function callBrain(brainName, prompt, options = {}) {
       tokens: data.eval_count || 0,
       elapsed,
     };
+
+    // Attach confidence score to every brain output
+    try {
+      if (typeof estimateConfidence === "function") {
+        result.confidence = estimateConfidence(result, { dtuCount: 0 });
+      }
+    } catch {}
+
+    return result;
   } catch (e) {
     brain.stats.errors++;
     return { ok: false, error: String(e.message || e), source: brainName };
@@ -14149,6 +14158,15 @@ register("dtu", "list", (ctx, input) => {
   if (q) items = items.filter(d => tokenish(d.title).includes(q) || tokenish((d.tags||[]).join(" ")).includes(q) || tokenish((d.cretiHuman || d.creti || "")).includes(q));
   const total = items.length;
   items = items.slice(offset, offset + limit);
+
+  // Attach freshness scores to each DTU in response
+  if (typeof calculateFreshness === "function") {
+    for (const d of items) {
+      d._freshness = calculateFreshness(d);
+      d._freshnessLabel = freshnessLabel(d._freshness);
+    }
+  }
+
   return { ok: true, dtus: items, limit, offset, total };
 });
 register("dtu", "listShadow", (ctx, input) => {
@@ -32998,6 +33016,466 @@ app.get("/api/admin/repair/network-status", requireAuth(), requireRole("owner"),
   try { const m = await import("./emergent/repair-network.js"); res.json(m.getStatus()); }
   catch (e) { res.json({ ok: false, error: e.message }); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WAVE 1: FRESHNESS SCORING, CONFIDENCE, MORNING BRIEF, NLP COMMAND, QUICK CAPTURE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Freshness Scoring — Exponential decay based on age + access ──────────
+
+/**
+ * Calculate freshness score for a DTU (0.0 = stale, 1.0 = fresh).
+ * Formula: base_decay * access_boost * tier_boost
+ *   base_decay = e^(-age_days / half_life)
+ *   half_life  = 30 days (configurable)
+ *   access_boost = 1 + 0.1 * min(accessCount, 10) — recently accessed items decay slower
+ *   tier_boost = HYPER 1.5x, MEGA 1.3x, regular 1.0x
+ */
+const FRESHNESS_HALF_LIFE_DAYS = Number(process.env.FRESHNESS_HALF_LIFE || 30);
+
+function calculateFreshness(dtu) {
+  if (!dtu) return 0;
+  const now = Date.now();
+  const created = new Date(dtu.createdAt || dtu.created || now).getTime();
+  const updated = new Date(dtu.updatedAt || dtu.updated || created).getTime();
+  const lastTouched = Math.max(created, updated, dtu.meta?.lastAccessedAt ? new Date(dtu.meta.lastAccessedAt).getTime() : 0);
+
+  const ageDays = (now - lastTouched) / (1000 * 60 * 60 * 24);
+  const baseFreshness = Math.exp(-ageDays / FRESHNESS_HALF_LIFE_DAYS);
+
+  // Access boost: frequently accessed items stay fresh
+  const accessCount = dtu.meta?.accessCount || 0;
+  const accessBoost = 1 + 0.1 * Math.min(accessCount, 10);
+
+  // Tier boost: higher-tier DTUs decay slower
+  const tierMultiplier = dtu.tier === "hyper" ? 1.5 : dtu.tier === "mega" ? 1.3 : 1.0;
+
+  // Connection boost: well-connected DTUs decay slower
+  const connectionCount = (dtu.lineage?.parentIds?.length || 0) + (dtu.lineage?.childIds?.length || 0);
+  const connectionBoost = 1 + 0.05 * Math.min(connectionCount, 10);
+
+  const raw = baseFreshness * accessBoost * tierMultiplier * connectionBoost;
+  return Math.min(1.0, Math.max(0.0, raw));
+}
+
+/**
+ * Get freshness label from score.
+ */
+function freshnessLabel(score) {
+  if (score >= 0.8) return "fresh";
+  if (score >= 0.5) return "warm";
+  if (score >= 0.2) return "cooling";
+  return "stale";
+}
+
+// Track DTU access for freshness
+app.get("/api/dtus/:id/freshness", (req, res) => {
+  const dtu = STATE.dtus.get(req.params.id);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+
+  // Record access
+  if (!dtu.meta) dtu.meta = {};
+  dtu.meta.accessCount = (dtu.meta.accessCount || 0) + 1;
+  dtu.meta.lastAccessedAt = nowISO();
+
+  const score = calculateFreshness(dtu);
+  res.json({
+    ok: true,
+    id: dtu.id,
+    freshness: score,
+    label: freshnessLabel(score),
+    factors: {
+      ageDays: Math.floor((Date.now() - new Date(dtu.updatedAt || dtu.createdAt || Date.now()).getTime()) / 86400000),
+      accessCount: dtu.meta.accessCount,
+      tier: dtu.tier || "regular",
+      connections: (dtu.lineage?.parentIds?.length || 0) + (dtu.lineage?.childIds?.length || 0),
+    },
+  });
+});
+
+// Batch freshness for multiple DTUs
+app.get("/api/freshness/batch", (req, res) => {
+  const { domain, limit: lim, sort } = req.query;
+  const limit = Math.min(Number(lim) || 50, 200);
+  const all = dtusArray();
+
+  let pool = domain ? all.filter(d => (d.tags || []).includes(String(domain))) : all;
+
+  const scored = pool.map(d => ({
+    id: d.id,
+    title: d.title,
+    freshness: calculateFreshness(d),
+    label: freshnessLabel(calculateFreshness(d)),
+    tier: d.tier || "regular",
+    tags: (d.tags || []).slice(0, 5),
+    updatedAt: d.updatedAt || d.createdAt,
+  }));
+
+  if (sort === "stale") scored.sort((a, b) => a.freshness - b.freshness);
+  else scored.sort((a, b) => b.freshness - a.freshness);
+
+  res.json({ ok: true, items: scored.slice(0, limit), total: scored.length });
+});
+
+// ── 2. Confidence Scoring — Calibrated confidence on all AI outputs ─────────
+
+/**
+ * Estimate confidence for a brain output based on multiple signals.
+ * Returns 0.0–1.0 score with calibration factors.
+ */
+function estimateConfidence(brainResult, context = {}) {
+  if (!brainResult?.ok) return { score: 0, label: "failed", factors: {} };
+
+  const factors = {};
+
+  // 1. Brain reliability: conscious > utility > subconscious > repair
+  const brainScores = { conscious: 0.8, utility: 0.7, subconscious: 0.5, repair: 0.6 };
+  factors.brainBase = brainScores[brainResult.source] || 0.5;
+
+  // 2. Content length: very short or very long responses are less reliable
+  const contentLen = (brainResult.content || "").length;
+  if (contentLen < 20) factors.lengthPenalty = 0.5;
+  else if (contentLen < 100) factors.lengthPenalty = 0.8;
+  else if (contentLen > 3000) factors.lengthPenalty = 0.85;
+  else factors.lengthPenalty = 1.0;
+
+  // 3. Context richness: more DTU context = more grounded response
+  const contextDTUs = context.dtuCount || 0;
+  factors.contextBoost = Math.min(1.0, 0.5 + contextDTUs * 0.05);
+
+  // 4. Hedging detection: responses with hedging language are self-aware of uncertainty
+  const hedges = /\b(might|perhaps|possibly|unclear|uncertain|I think|could be|not sure|approximately)\b/gi;
+  const hedgeCount = (brainResult.content || "").match(hedges)?.length || 0;
+  factors.hedgingAdjust = hedgeCount > 3 ? 0.7 : hedgeCount > 1 ? 0.85 : 1.0;
+
+  // 5. Error/refusal detection
+  const hasError = /\b(error|failed|cannot|unable|sorry)\b/i.test(brainResult.content || "");
+  factors.errorPenalty = hasError ? 0.6 : 1.0;
+
+  // Composite score
+  const raw = factors.brainBase * factors.lengthPenalty * factors.contextBoost * factors.hedgingAdjust * factors.errorPenalty;
+  const score = Math.min(1.0, Math.max(0.0, raw));
+
+  return {
+    score: Math.round(score * 100) / 100,
+    label: score >= 0.75 ? "high" : score >= 0.5 ? "medium" : score >= 0.25 ? "low" : "very-low",
+    factors,
+  };
+}
+
+// ── 3. Morning Brief Generator — Subconscious digest of recent activity ─────
+
+const MORNING_BRIEF_CACHE = { brief: null, generatedAt: null };
+
+app.post("/api/brief/generate", asyncHandler(async (req, res) => {
+  const { force } = req.body || {};
+
+  // Cache for 6 hours unless forced
+  if (!force && MORNING_BRIEF_CACHE.brief && MORNING_BRIEF_CACHE.generatedAt) {
+    const age = Date.now() - new Date(MORNING_BRIEF_CACHE.generatedAt).getTime();
+    if (age < 6 * 60 * 60 * 1000) {
+      return res.json({ ok: true, brief: MORNING_BRIEF_CACHE.brief, cached: true });
+    }
+  }
+
+  // Gather recent DTU activity (last 24h)
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const recentDTUs = dtusArray()
+    .filter(d => new Date(d.updatedAt || d.createdAt || 0).getTime() > cutoff)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+
+  // Compute domain distribution
+  const domainCounts = {};
+  for (const d of recentDTUs) {
+    for (const tag of (d.tags || [])) {
+      domainCounts[tag] = (domainCounts[tag] || 0) + 1;
+    }
+  }
+  const topDomains = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([domain, count]) => ({ domain, count }));
+
+  // Find stale DTUs that need attention
+  const staleDTUs = dtusArray()
+    .map(d => ({ ...d, freshness: calculateFreshness(d) }))
+    .filter(d => d.freshness < 0.2)
+    .sort((a, b) => a.freshness - b.freshness)
+    .slice(0, 5);
+
+  // Build summary for the brain
+  const summaryInput = {
+    totalDTUs: STATE.dtus.size,
+    recentCount: recentDTUs.length,
+    topDomains,
+    recentTitles: recentDTUs.slice(0, 15).map(d => d.title),
+    staleCount: staleDTUs.length,
+    staleTitles: staleDTUs.map(d => d.title),
+    date: new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+  };
+
+  // Call subconscious brain for the brief
+  const result = await callBrain("subconscious", JSON.stringify(summaryInput), {
+    system: `You are Concord's morning brief generator. Create a concise, motivating daily brief for the user.
+
+Format your response EXACTLY as:
+## Good morning! Here's your cognitive brief for today.
+
+**Activity Summary**: [1-2 sentences about recent activity]
+
+**Active Domains**: [list top 3-5 active domains with emoji]
+
+**Fresh Insights**: [2-3 key recent DTUs worth revisiting]
+
+**Needs Attention**: [1-2 stale items that could use updating]
+
+**Suggestion**: [One actionable recommendation for today]
+
+Keep it under 300 words. Be warm but concise. Use the data provided — do not fabricate DTU titles.`,
+    temperature: 0.7,
+    maxTokens: 600,
+    timeout: 45000,
+  });
+
+  const confidence = estimateConfidence(result, { dtuCount: recentDTUs.length });
+
+  const brief = {
+    content: result.ok ? result.content : "Unable to generate brief. Your cognitive engine is healthy — check back later.",
+    generatedAt: nowISO(),
+    stats: {
+      totalDTUs: STATE.dtus.size,
+      recentDTUs: recentDTUs.length,
+      topDomains,
+      staleDTUs: staleDTUs.length,
+    },
+    confidence,
+    source: result.source || "subconscious",
+    model: result.model,
+  };
+
+  MORNING_BRIEF_CACHE.brief = brief;
+  MORNING_BRIEF_CACHE.generatedAt = brief.generatedAt;
+
+  res.json({ ok: true, brief, cached: false });
+}));
+
+app.get("/api/brief/latest", (_req, res) => {
+  if (!MORNING_BRIEF_CACHE.brief) {
+    return res.json({ ok: true, brief: null, message: "No brief generated yet. POST /api/brief/generate to create one." });
+  }
+  res.json({ ok: true, brief: MORNING_BRIEF_CACHE.brief });
+});
+
+// ── 4. Quick Capture API — External capture endpoint ────────────────────────
+
+app.post("/api/capture/quick", asyncHandler(async (req, res) => {
+  const { content, title, tags: userTags, type: captureType } = req.body || {};
+  if (!content || !String(content).trim()) {
+    return res.status(400).json({ ok: false, error: "Content is required" });
+  }
+
+  const trimmed = String(content).trim();
+
+  // Auto-detect domain from content using utility brain (fast, background)
+  let detectedTags = Array.isArray(userTags) ? [...userTags] : [];
+  if (detectedTags.length === 0) {
+    // Quick heuristic domain detection (no brain call needed)
+    const domainKeywords = {
+      finance: /\b(money|investment|stock|portfolio|budget|expense|revenue|profit)\b/i,
+      health: /\b(health|exercise|workout|diet|sleep|meditation|wellness|calories)\b/i,
+      education: /\b(learn|study|course|class|exam|lecture|curriculum|teach)\b/i,
+      code: /\b(code|function|bug|api|deploy|commit|refactor|typescript|react)\b/i,
+      music: /\b(music|song|chord|melody|beat|track|guitar|piano|synth)\b/i,
+      writing: /\b(write|essay|draft|chapter|novel|poem|story|edit)\b/i,
+      research: /\b(research|paper|hypothesis|experiment|data|analysis|study)\b/i,
+    };
+    for (const [domain, regex] of Object.entries(domainKeywords)) {
+      if (regex.test(trimmed)) detectedTags.push(domain);
+    }
+  }
+
+  // Add capture type tag
+  if (captureType) detectedTags.push(String(captureType));
+  detectedTags.push("quick-capture");
+
+  try {
+    const ctx = makeCtx(null);
+    ctx.actor = { userId: req.actor?.userId || "anonymous", orgId: "internal", role: "owner", scopes: ["*"] };
+    const result = await runMacro("dtu", "create", {
+      title: title || trimmed.slice(0, 100),
+      creti: trimmed,
+      tags: [...new Set(detectedTags)],
+      source: "quick-capture",
+      meta: {
+        captureType: captureType || "thought",
+        capturedAt: nowISO(),
+        confidence: { score: 0.9, label: "high" },
+      },
+      scope: "local",
+    }, ctx);
+
+    res.json({
+      ok: true,
+      dtu: result?.dtu || result,
+      tags: detectedTags,
+      message: "Captured successfully",
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+}));
+
+// ── 5. NLP Command Dispatch — Natural language intent parsing ────────────────
+
+const NLP_COMMAND_INTENTS = [
+  { pattern: /^(go to|open|navigate to|show)\s+(.+)/i, intent: "navigate", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(search|find|look for|where is)\s+(.+)/i, intent: "search", extract: (m) => ({ query: m[2] }) },
+  { pattern: /^(create|new|add|capture)\s+(?:a?\s*)?(.+)/i, intent: "create", extract: (m) => ({ content: m[2] }) },
+  { pattern: /^(analyze|examine|review)\s+(?:my\s+)?(?:latest\s+)?(.+)/i, intent: "analyze", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(generate|make|produce|write)\s+(?:a?\s*)?(.+)/i, intent: "generate", extract: (m) => ({ content: m[2] }) },
+  { pattern: /^(suggest|recommend|what should)\s*(.+)?/i, intent: "suggest", extract: (m) => ({ context: m[2] || "" }) },
+  { pattern: /^(summarize|brief|digest|overview)\s*(?:of\s+)?(.+)?/i, intent: "brief", extract: (m) => ({ target: m[2] || "" }) },
+  { pattern: /^(how many|count|total)\s+(.+)/i, intent: "count", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(stale|needs attention|forgotten|neglected)/i, intent: "stale", extract: () => ({}) },
+  { pattern: /^(fresh|recent|latest|newest)/i, intent: "recent", extract: () => ({}) },
+];
+
+app.post("/api/command/nlp", asyncHandler(async (req, res) => {
+  const { input } = req.body || {};
+  if (!input || !String(input).trim()) {
+    return res.status(400).json({ ok: false, error: "Input is required" });
+  }
+
+  const text = String(input).trim();
+  let matched = null;
+
+  // Try pattern matching first (fast path)
+  for (const { pattern, intent, extract } of NLP_COMMAND_INTENTS) {
+    const m = text.match(pattern);
+    if (m) {
+      matched = { intent, params: extract(m), confidence: 0.9 };
+      break;
+    }
+  }
+
+  // If no pattern match, try simple keyword classification
+  if (!matched) {
+    const lower = text.toLowerCase();
+    if (lower.includes("?")) matched = { intent: "search", params: { query: text }, confidence: 0.6 };
+    else matched = { intent: "search", params: { query: text }, confidence: 0.5 };
+  }
+
+  // Execute intent
+  let result;
+  switch (matched.intent) {
+    case "navigate": {
+      // Find matching lens from all known domains
+      const target = String(matched.params.target || "").toLowerCase().trim();
+      const lensMatch = ALL_LENS_DOMAINS.find(d =>
+        d === target || d.includes(target) || target.includes(d)
+      );
+      result = {
+        action: "navigate",
+        path: lensMatch ? `/lenses/${lensMatch}` : null,
+        domain: lensMatch || null,
+        fallback: lensMatch ? null : "No matching lens found",
+      };
+      break;
+    }
+    case "search": {
+      const query = String(matched.params.query || text).toLowerCase().trim();
+      const terms = query.split(/\s+/).filter(t => t.length >= 2);
+      const scored = [];
+
+      for (const dtu of dtusArray()) {
+        const searchable = [
+          dtu.title || "",
+          (dtu.tags || []).join(" "),
+          dtu.cretiHuman || "",
+        ].join(" ").toLowerCase();
+
+        const matchCount = terms.filter(t => searchable.includes(t)).length;
+        if (matchCount > 0) {
+          scored.push({
+            id: dtu.id,
+            title: dtu.title,
+            score: matchCount / terms.length,
+            tags: (dtu.tags || []).slice(0, 3),
+            freshness: calculateFreshness(dtu),
+          });
+        }
+      }
+      scored.sort((a, b) => b.score - a.score);
+      result = { action: "search", results: scored.slice(0, 10), total: scored.length };
+      break;
+    }
+    case "create": {
+      const content = String(matched.params.content || "");
+      result = { action: "create", content, ready: true, endpoint: "/api/capture/quick" };
+      break;
+    }
+    case "analyze": {
+      const target = String(matched.params.target || "").toLowerCase();
+      const domain = ALL_LENS_DOMAINS.find(d => target.includes(d));
+      result = { action: "analyze", domain: domain || "general", target: matched.params.target };
+      break;
+    }
+    case "generate": {
+      result = { action: "generate", content: matched.params.content, ready: true };
+      break;
+    }
+    case "suggest": {
+      result = { action: "suggest", context: matched.params.context };
+      break;
+    }
+    case "brief": {
+      result = { action: "brief", redirect: "/api/brief/generate" };
+      break;
+    }
+    case "count": {
+      const target = String(matched.params.target || "").toLowerCase();
+      const domain = ALL_LENS_DOMAINS.find(d => target.includes(d));
+      if (domain) {
+        const count = dtusArray().filter(d => (d.tags || []).includes(domain)).length;
+        result = { action: "count", domain, count, message: `${count} DTUs tagged with "${domain}"` };
+      } else {
+        result = { action: "count", total: STATE.dtus.size, message: `${STATE.dtus.size} total DTUs` };
+      }
+      break;
+    }
+    case "stale": {
+      const stale = dtusArray()
+        .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d) }))
+        .filter(d => d.freshness < 0.2)
+        .sort((a, b) => a.freshness - b.freshness)
+        .slice(0, 10);
+      result = { action: "stale", items: stale, total: stale.length };
+      break;
+    }
+    case "recent": {
+      const recent = dtusArray()
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+        .slice(0, 10)
+        .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d), updatedAt: d.updatedAt }));
+      result = { action: "recent", items: recent };
+      break;
+    }
+    default:
+      result = { action: "unknown", message: "Could not parse command" };
+  }
+
+  res.json({
+    ok: true,
+    input: text,
+    intent: matched.intent,
+    confidence: matched.confidence,
+    result,
+  });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END WAVE 1 FEATURES
+// ═══════════════════════════════════════════════════════════════════════════════
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
