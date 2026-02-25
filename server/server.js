@@ -27365,6 +27365,125 @@ const DOMAIN_ACTION_MANIFEST = {
   meta: [
     { action: "cross-lens-analysis", brain: "U", desc: "Analyze patterns across multiple lens domains" },
     { action: "generate-insights", brain: "S", desc: "Generate cross-domain insights from lens activity" },
+    { action: "score_lenses", brain: "U", desc: "Score lens effectiveness across domains" },
+    { action: "policy_check", brain: "R", desc: "Validate policies across all lenses" },
+    { action: "capability_audit", brain: "R", desc: "Audit available capabilities across lens system" },
+    { action: "generate_status_report", brain: "U", desc: "Generate overall system status report" },
+  ],
+
+  // ── SPEC VI AUDIT: MISSING FRONTEND-DECLARED DOMAINS ──
+  chat: [
+    { action: "send", brain: "U", desc: "Process and route a chat message" },
+    { action: "summarize", brain: "U", desc: "Summarize conversation thread" },
+    { action: "branch", brain: "U", desc: "Branch conversation into a new topic thread" },
+    { action: "export_transcript", brain: "U", desc: "Export conversation as structured transcript" },
+    { action: "search_history", brain: "S", desc: "Search through conversation history" },
+    { action: "merge_threads", brain: "U", desc: "Merge related conversation threads" },
+  ],
+  alliance: [
+    { action: "propose_alliance", brain: "U", desc: "Draft alliance proposal between entities" },
+    { action: "ratify_charter", brain: "R", desc: "Validate and ratify alliance charter" },
+    { action: "add_member", brain: "U", desc: "Process new member addition to alliance" },
+    { action: "vote_on_governance", brain: "U", desc: "Process governance vote within alliance" },
+    { action: "compliance_check", brain: "R", desc: "Check compliance with alliance charter terms" },
+    { action: "dissolve", brain: "R", desc: "Process alliance dissolution" },
+  ],
+  anon: [
+    { action: "create_room", brain: "U", desc: "Create anonymous discussion room" },
+    { action: "post_anonymous", brain: "U", desc: "Post anonymous content with provenance tracking" },
+    { action: "verify_provenance", brain: "R", desc: "Verify anonymous content provenance chain" },
+    { action: "rotate_identity", brain: "R", desc: "Rotate anonymous identity keys" },
+    { action: "export_sanitized", brain: "U", desc: "Export sanitized content stripped of identity markers" },
+    { action: "moderate", brain: "R", desc: "Moderate anonymous content for policy compliance" },
+  ],
+  ar: [
+    { action: "place_anchor", brain: "U", desc: "Place spatial anchor for AR content" },
+    { action: "render_scene", brain: "U", desc: "Render AR scene composition" },
+    { action: "capture", brain: "U", desc: "Capture AR scene state" },
+    { action: "export_3d", brain: "U", desc: "Export AR scene as 3D model" },
+    { action: "collision_detect", brain: "R", desc: "Detect spatial collisions between AR objects" },
+    { action: "lighting_estimate", brain: "U", desc: "Estimate lighting conditions for AR scene" },
+  ],
+  eco: [
+    { action: "map_dependencies", brain: "U", desc: "Map system dependency graph" },
+    { action: "flow_analysis", brain: "U", desc: "Analyze data/resource flow through system" },
+    { action: "health_check", brain: "R", desc: "Run ecosystem health diagnostics" },
+    { action: "bottleneck_detect", brain: "U", desc: "Detect performance bottlenecks in ecosystem" },
+    { action: "impact_simulation", brain: "U", desc: "Simulate impact of changes across ecosystem" },
+  ],
+  market: [
+    { action: "place_bid", brain: "U", desc: "Place a bid in knowledge market" },
+    { action: "accept_offer", brain: "U", desc: "Accept a market offer" },
+    { action: "settle", brain: "R", desc: "Settle a completed market transaction" },
+    { action: "price_history", brain: "S", desc: "Analyze price history and trends" },
+    { action: "volume_analysis", brain: "U", desc: "Analyze trading volume patterns" },
+    { action: "liquidity_check", brain: "R", desc: "Check market liquidity depth" },
+  ],
+  questmarket: [
+    { action: "post_bounty", brain: "U", desc: "Post a knowledge bounty to the market" },
+    { action: "submit_work", brain: "U", desc: "Submit completed work for a bounty" },
+    { action: "verify_submission", brain: "R", desc: "Verify bounty submission meets requirements" },
+    { action: "release_payout", brain: "R", desc: "Release payout for completed bounty" },
+    { action: "reputation_score", brain: "S", desc: "Calculate participant reputation score" },
+    { action: "dispute_resolve", brain: "U", desc: "Resolve disputes on bounty submissions" },
+  ],
+  resonance: [
+    { action: "acknowledge", brain: "U", desc: "Acknowledge and strengthen a resonance connection" },
+    { action: "dismiss", brain: "U", desc: "Dismiss a false-positive resonance" },
+  ],
+  timeline: [
+    { action: "replay", brain: "U", desc: "Replay timeline events in sequence" },
+    { action: "diff_timelines", brain: "U", desc: "Compare two timeline branches" },
+    { action: "annotate", brain: "U", desc: "Add annotation to timeline event" },
+    { action: "cluster_events", brain: "S", desc: "Cluster related timeline events" },
+    { action: "gap_analysis", brain: "U", desc: "Identify temporal gaps in timeline" },
+    { action: "causality_trace", brain: "U", desc: "Trace causal chains through timeline" },
+  ],
+  fractal: [
+    { action: "animate", brain: "U", desc: "Animate fractal parameter transitions" },
+    { action: "dimension_morph", brain: "U", desc: "Morph between fractal dimensions" },
+    { action: "explore", brain: "U", desc: "Interactive fractal exploration" },
+    { action: "export_render", brain: "U", desc: "Export high-resolution fractal render" },
+    { action: "parameter_sweep", brain: "U", desc: "Sweep fractal parameters and generate gallery" },
+  ],
+
+  // ── FRONTEND-DECLARED ACTIONS MISSING FROM EXISTING DOMAINS ──
+  // board: additional actions beyond enforce-wip/predict-sprint/detect-blockers/generate-retro
+  // (adding only missing ones — frontend uses move_card, assign, set_wip_limit, burndown, velocity_calc, sprint_review, archive_done)
+};
+
+// Supplement existing domains with frontend-manifest actions that aren't already registered
+const FRONTEND_MANIFEST_SUPPLEMENTS = {
+  board: [
+    { action: "move_card", brain: "U", desc: "Move card between board columns" },
+    { action: "assign", brain: "U", desc: "Assign card to team member" },
+    { action: "set_wip_limit", brain: "R", desc: "Set WIP limit for a column" },
+    { action: "burndown", brain: "U", desc: "Generate burndown chart data" },
+    { action: "velocity_calc", brain: "U", desc: "Calculate sprint velocity metrics" },
+    { action: "sprint_review", brain: "U", desc: "Generate sprint review summary" },
+    { action: "archive_done", brain: "U", desc: "Archive completed cards" },
+  ],
+  goals: [
+    { action: "evaluate", brain: "U", desc: "Evaluate goal progress and effectiveness" },
+    { action: "activate", brain: "U", desc: "Activate a goal and set tracking" },
+    { action: "complete", brain: "U", desc: "Mark goal as completed with review" },
+    { action: "milestone_check", brain: "R", desc: "Check milestone completion status" },
+    { action: "dependency_analysis", brain: "U", desc: "Analyze goal dependencies" },
+    { action: "progress_report", brain: "U", desc: "Generate goal progress report" },
+  ],
+  invariant: [
+    { action: "add_invariant", brain: "U", desc: "Register a new system invariant" },
+    { action: "monitor_start", brain: "R", desc: "Start monitoring an invariant" },
+    { action: "violation_report", brain: "U", desc: "Generate invariant violation report" },
+    { action: "trend_analysis", brain: "S", desc: "Analyze invariant violation trends" },
+    { action: "auto_repair_suggest", brain: "U", desc: "Suggest auto-repair for invariant violations" },
+  ],
+  temporal: [
+    { action: "replay", brain: "U", desc: "Replay temporal state at a point in time" },
+    { action: "diff", brain: "U", desc: "Compute diff between temporal states" },
+    { action: "temporal_query", brain: "U", desc: "Query substrate at a specific point in time" },
+    { action: "truth_at_time", brain: "U", desc: "Determine what was known at a given time" },
+    { action: "version_compare", brain: "U", desc: "Compare DTU versions across time" },
   ],
 };
 
@@ -27381,7 +27500,16 @@ function registerDomainSpecificActions() {
   let skipped = 0;
   const brainCounts = { U: 0, S: 0, R: 0, C: 0 };
 
-  for (const [domain, actions] of Object.entries(DOMAIN_ACTION_MANIFEST)) {
+  // Merge DOMAIN_ACTION_MANIFEST + FRONTEND_MANIFEST_SUPPLEMENTS into one pass
+  const allManifests = { ...DOMAIN_ACTION_MANIFEST };
+  if (typeof FRONTEND_MANIFEST_SUPPLEMENTS !== "undefined") {
+    for (const [domain, actions] of Object.entries(FRONTEND_MANIFEST_SUPPLEMENTS)) {
+      if (!allManifests[domain]) allManifests[domain] = [];
+      allManifests[domain] = [...allManifests[domain], ...actions];
+    }
+  }
+
+  for (const [domain, actions] of Object.entries(allManifests)) {
     for (const { action, brain, desc } of actions) {
       const key = `${domain}.${action}`;
       if (LENS_ACTIONS.has(key)) { skipped++; continue; }
@@ -27411,7 +27539,7 @@ function registerDomainSpecificActions() {
   }
 
   structuredLog("info", "domain_specific_actions_registered", {
-    domains: Object.keys(DOMAIN_ACTION_MANIFEST).length,
+    domains: Object.keys(allManifests).length,
     totalRegistered: registered,
     skippedExisting: skipped,
     brainDistribution: brainCounts,
@@ -28378,14 +28506,14 @@ app.get("/api/db/tables", (req, res) => {
   try {
     const tables = db.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name").all();
     res.json({ ok: true, tables });
-  } catch (e) { res.json({ ok: true, tables: [], error: String(e?.message || e) }); }
+  } catch (e) { res.status(500).json({ ok: false, tables: [], error: String(e?.message || e) }); }
 });
 app.get("/api/db/indexes", (req, res) => {
   if (!db) return res.json({ ok: true, indexes: [] });
   try {
     const indexes = db.prepare("SELECT name, tbl_name as tableName, sql FROM sqlite_master WHERE type='index' ORDER BY tbl_name, name").all();
     res.json({ ok: true, indexes });
-  } catch (e) { res.json({ ok: true, indexes: [], error: String(e?.message || e) }); }
+  } catch (e) { res.status(500).json({ ok: false, indexes: [], error: String(e?.message || e) }); }
 });
 app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req))));
 
@@ -30086,10 +30214,15 @@ app.get("/api/state/sessions", (req, res) => {
   res.json({ ok: true, sessions });
 });
 
-// Simulations (alias for worldmodel)
-app.get("/api/simulations", (req, res) => {
-  res.json({ ok: true, simulations: [], note: "Use /api/worldmodel/simulations" });
-});
+// Simulations — proxies to worldmodel
+app.get("/api/simulations", asyncHandler(async (req, res) => {
+  try {
+    const out = await runMacro("sim", "list", {}, makeCtx(req));
+    res.json({ ok: true, simulations: out.simulations || [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), simulations: [] });
+  }
+}));
 
 app.post("/api/simulations/whatif", asyncHandler(async (req, res) => {
   try {
@@ -30127,8 +30260,8 @@ app.get("/api/quests", asyncHandler(async (req, res) => {
   try {
     const out = await runMacro("goals", "list", {}, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch {
-    res.json({ ok: true, quests: [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), quests: [] });
   }
 }));
 
@@ -30136,8 +30269,8 @@ app.get("/api/quests/mine", asyncHandler(async (req, res) => {
   try {
     const out = await runMacro("goals", "list", { mine: true }, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch {
-    res.json({ ok: true, quests: [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), quests: [] });
   }
 }));
 
@@ -30268,7 +30401,19 @@ app.get("/api/lattice/fractal", (req, res) => {
   try {
     const dtus = dtusArray().slice(-50);
     const nodes = dtus.map(d => ({ id: d.id, title: d.title, tier: d.tier, tags: d.tags }));
-    res.json({ ok: true, nodes, edges: [] });
+    // Compute edges from shared tags between DTUs
+    const edges = [];
+    for (let i = 0; i < dtus.length; i++) {
+      const tagsA = new Set(dtus[i].tags || []);
+      if (tagsA.size === 0) continue;
+      for (let j = i + 1; j < dtus.length; j++) {
+        const shared = (dtus[j].tags || []).filter(t => tagsA.has(t));
+        if (shared.length > 0) {
+          edges.push({ source: dtus[i].id, target: dtus[j].id, weight: shared.length, sharedTags: shared });
+        }
+      }
+    }
+    res.json({ ok: true, nodes, edges });
   } catch (e) {
     res.json({ ok: false, error: String(e?.message || e) });
   }
@@ -30678,7 +30823,7 @@ app.post("/api/repair/frontend-error", async (req, res) => {
     });
     RQ.push(entry);
     res.json({ ok: true, errorId: entry.id });
-  } catch (e) { res.json({ ok: true, errorId: null }); }
+  } catch (e) { res.status(500).json({ ok: false, errorId: null, error: String(e?.message || e) }); }
 });
 
 app.post("/api/repair/frontend-recovery", async (req, res) => {
@@ -30689,7 +30834,7 @@ app.post("/api/repair/frontend-recovery", async (req, res) => {
     const match = recent.find(e => e.context.module?.includes("frontend") && !e.repairSucceeded);
     if (match) { match.repairAttempted = true; match.repairSucceeded = true; match.repairMethod = "frontend_auto_retry"; }
     res.json({ ok: true });
-  } catch { res.json({ ok: true }); }
+  } catch (e) { res.status(500).json({ ok: false, error: String(e?.message || e) }); }
 });
 
 app.get("/api/sovereign/repair/status", async (req, res) => {
@@ -30897,9 +31042,11 @@ app.post("/api/chem/react", (req, res) => {
     id: reactionId,
     reactants,
     conditions: conditions || {},
-    products: [], // Would be computed by a chemistry engine
+    products: reactants.length >= 2
+      ? [{ formula: reactants.join("+"), note: "Stored reaction — full computation requires chemistry engine integration" }]
+      : [],
     createdAt: nowISO(),
-    status: "computed",
+    status: "recorded",
   };
 
   // Create a DTU to record this reaction
@@ -31911,7 +32058,7 @@ app.get("/api/atlas/scope-metrics", async (req, res) => {
     res.json(result);
   } catch (e) {
     if (e.message === "scope_metrics_timeout") {
-      res.json({ ok: true, cached: true, stale: true, message: "Metrics computation in progress", metrics: {} });
+      res.json({ ok: false, timeout: true, message: "Metrics computation timed out — retry shortly", metrics: {} });
     } else {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -32488,7 +32635,7 @@ app.get("/api/culture/status", asyncHandler(async (_req, res) => {
     const identity = cultureMod.getCulturalIdentity ? cultureMod.getCulturalIdentity() : {};
     const metrics = cultureMod.getCultureMetrics ? cultureMod.getCultureMetrics() : {};
     res.json({ ok: true, traditions, values, stories, identity, metrics });
-  } catch (e) { res.json({ ok: true, traditions: [], values: {}, stories: [], identity: {}, metrics: {} }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, traditions: [], values: {}, stories: [], identity: {}, metrics: {} }); }
 }));
 
 // ── Entity Economy Dashboard (Phase 3.4) ────────────────────────────────
@@ -32500,7 +32647,7 @@ app.get("/api/entity-economy/dashboard", asyncHandler(async (_req, res) => {
     const metrics = econMod.getEconomyMetrics ? econMod.getEconomyMetrics() : {};
     const marketRates = econMod.getMarketRates ? econMod.getMarketRates() : {};
     res.json({ ok: true, accounts, distribution, metrics, marketRates });
-  } catch (e) { res.json({ ok: true, accounts: [], distribution: {}, metrics: {}, marketRates: {} }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, accounts: [], distribution: {}, metrics: {}, marketRates: {} }); }
 }));
 
 // ── Heartbeat History (Phase 3.5) ───────────────────────────────────────
@@ -32514,7 +32661,7 @@ app.get("/api/reproduction/compatible-pairs", asyncHandler(async (_req, res) => 
     const reproMod = await import("./emergent/reproduction.js");
     const pairs = reproMod.getCompatiblePairs ? reproMod.getCompatiblePairs(STATE) : [];
     res.json({ ok: true, pairs });
-  } catch (e) { res.json({ ok: true, pairs: [] }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, pairs: [] }); }
 }));
 
 app.post("/api/reproduction/initiate", asyncHandler(async (req, res) => {
@@ -32535,7 +32682,7 @@ app.get("/api/lineage/tree", asyncHandler(async (_req, res) => {
       createdAt: e.createdAt, generation: e.generation || 1,
     }));
     res.json({ ok: true, tree });
-  } catch (e) { res.json({ ok: true, tree: [] }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), tree: [] }); }
 }));
 
 // Web exploration metrics
@@ -36762,9 +36909,11 @@ app.get("/api/pulse/:component", (req, res) => {
   res.json({ ok: true, component: req.params.component, ...pulse });
 });
 
-// ---------- #79: CIRCUIT BREAKER SYSTEM ----------
+// ---------- #79: CIRCUIT BREAKER SYSTEM (Advanced — Spec V) ----------
+// Extended circuit breakers with stats, fallback, event bus integration.
+// Named SpecVCircuitBreaker to avoid conflict with base CircuitBreaker (line ~612).
 
-class CircuitBreaker {
+class SpecVCircuitBreaker {
   constructor(name, options = {}) {
     this.name = name;
     this.failureThreshold = options.failureThreshold || 5;
@@ -36844,11 +36993,11 @@ class CircuitBreaker {
 
 // Create breakers for each brain
 const circuitBreakers = {
-  "brain.conscious": new CircuitBreaker("brain.conscious", { failureThreshold: 3, resetTimeout: 60000 }),
-  "brain.subconscious": new CircuitBreaker("brain.subconscious", { failureThreshold: 5, resetTimeout: 30000 }),
-  "brain.utility": new CircuitBreaker("brain.utility", { failureThreshold: 5, resetTimeout: 30000 }),
-  "brain.repair": new CircuitBreaker("brain.repair", { failureThreshold: 7, resetTimeout: 20000 }),
-  "api.ollama": new CircuitBreaker("api.ollama", { failureThreshold: 3, resetTimeout: 45000 }),
+  "brain.conscious": new SpecVCircuitBreaker("brain.conscious", { failureThreshold: 3, resetTimeout: 60000 }),
+  "brain.subconscious": new SpecVCircuitBreaker("brain.subconscious", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.utility": new SpecVCircuitBreaker("brain.utility", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.repair": new SpecVCircuitBreaker("brain.repair", { failureThreshold: 7, resetTimeout: 20000 }),
+  "api.ollama": new SpecVCircuitBreaker("api.ollama", { failureThreshold: 3, resetTimeout: 45000 }),
 };
 
 STATE._circuitBreakers = circuitBreakers;
@@ -37178,7 +37327,7 @@ const MIGRATIONS = [
   },
 ];
 
-function simpleHash(str) {
+function specVSimpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
@@ -37188,7 +37337,7 @@ function simpleHash(str) {
   return Math.abs(hash).toString(36);
 }
 
-function runMigrations() {
+function runSpecVMigrations() {
   const applied = STATE._migrations.applied.map(m => m.id);
   const results = [];
 
@@ -37223,7 +37372,7 @@ app.get("/api/migrations", (_req, res) => {
 
 app.post("/api/migrations/run", (_req, res) => {
   try {
-    const results = runMigrations();
+    const results = runSpecVMigrations();
     res.json({ ok: true, results });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -37343,7 +37492,7 @@ app.post("/api/wisdom/synthesize", async (req, res) => {
 // ---------- #81: CONFIDENCE NETWORK ----------
 // Confidence propagates through DTU relationships.
 
-function propagateConfidence() {
+function propagateNetworkConfidence() {
   const iterations = 3; // Number of propagation passes
   let totalAdjustments = 0;
 
@@ -37390,7 +37539,7 @@ function propagateConfidence() {
 
 app.post("/api/confidence/propagate", (_req, res) => {
   try {
-    const result = propagateConfidence();
+    const result = propagateNetworkConfidence();
     res.json({ ok: true, ...result });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -44236,8 +44385,8 @@ function kernelTick(event) {
     }
 
     // Spec V: Confidence propagation — every 100 ticks
-    if (STATE.__bgTickCounter % 100 === 0 && typeof propagateConfidence === "function") {
-      try { propagateConfidence(); } catch {}
+    if (STATE.__bgTickCounter % 100 === 0 && typeof propagateNetworkConfidence === "function") {
+      try { propagateNetworkConfidence(); } catch {}
     }
 
     // Spec V: Data integrity check — every 500 ticks
@@ -44259,7 +44408,7 @@ function kernelTick(event) {
     // Spec V: Emit tick event
     if (typeof eventBus !== "undefined") {
       try {
-        eventBus.emit("tick.completed", { tick: STATE.__bgTickCounter, source: "governor" });
+        eventBus.emit("tick.completed", { tick: STATE.__bgTickCounter, source: "kernelTick" });
       } catch {}
     }
   } catch {}
