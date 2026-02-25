@@ -46,6 +46,10 @@ import {
 import { use70Lock } from '@/hooks/use70Lock';
 import { MorningBrief } from '@/components/brief/MorningBrief';
 import { ContextResurrection } from '@/components/common/ContextResurrection';
+import { SubstrateDreams } from '@/components/dreams/SubstrateDreams';
+import { MetabolismPanel } from '@/components/metabolism/MetabolismPanel';
+import { EpisodicMemory } from '@/components/memory/EpisodicMemory';
+import { BrainCouncil } from '@/components/council/BrainCouncil';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -395,6 +399,22 @@ function DashboardPage() {
         <div className="rounded-xl border border-lattice-border bg-lattice-surface/50 p-4">
           <LockDashboard />
         </div>
+      </div>
+
+      {/* Living Substrate — Dreams, Metabolism, Memory, Council */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <LensErrorBoundary name="Substrate Dreams">
+          <SubstrateDreams />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="DTU Metabolism">
+          <MetabolismPanel />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Episodic Memory">
+          <EpisodicMemory />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Brain Council">
+          <BrainCouncil />
+        </LensErrorBoundary>
       </div>
 
       {/* Queue Stats */}

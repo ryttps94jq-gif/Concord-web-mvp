@@ -33954,6 +33954,796 @@ app.post("/api/entropy/fix", (_req, res) => {
 // END SPEC II WAVE 1
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 2: SUBSTRATE DREAMS, DTU METABOLISM, EPISODIC MEMORY, BRAIN COUNCIL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- SUBSTRATE DREAMS — 6-phase night cycle ----------
+// When the system enters "night mode" (low activity or manual trigger),
+// the substrate processes: Replay → Consolidate → Prune → Dream → Integrate → Wake
+
+const DREAM_PHASES = [
+  { id: "replay", name: "Memory Replay", duration: 0.15, description: "Replaying today's DTU interactions" },
+  { id: "consolidate", name: "Consolidation", duration: 0.25, description: "Strengthening important connections" },
+  { id: "prune", name: "Synaptic Pruning", duration: 0.15, description: "Removing weak or redundant links" },
+  { id: "dream", name: "Creative Dreaming", duration: 0.25, description: "Generating novel cross-domain insights" },
+  { id: "integrate", name: "Integration", duration: 0.15, description: "Weaving new insights into the lattice" },
+  { id: "wake", name: "Awakening", duration: 0.05, description: "Preparing the morning brief" },
+];
+
+if (!STATE.dreamState) {
+  STATE.dreamState = {
+    isActive: false,
+    currentPhase: null,
+    phaseIndex: -1,
+    progress: 0,
+    startedAt: null,
+    completedAt: null,
+    history: [],
+    insights: [],
+    stats: { totalDreams: 0, insightsGenerated: 0, dtusConsolidated: 0, connectionsPruned: 0 },
+  };
+}
+
+function getDreamState() {
+  return STATE.dreamState;
+}
+
+async function startDreamCycle() {
+  const ds = STATE.dreamState;
+  if (ds.isActive) return { ok: false, reason: "Dream cycle already active" };
+
+  ds.isActive = true;
+  ds.phaseIndex = 0;
+  ds.currentPhase = DREAM_PHASES[0];
+  ds.progress = 0;
+  ds.startedAt = new Date().toISOString();
+  ds.insights = [];
+
+  structuredLog("info", "dream_cycle_start", { at: ds.startedAt });
+
+  // Process each phase
+  for (let i = 0; i < DREAM_PHASES.length; i++) {
+    ds.phaseIndex = i;
+    ds.currentPhase = DREAM_PHASES[i];
+    ds.progress = i / DREAM_PHASES.length;
+
+    try {
+      switch (DREAM_PHASES[i].id) {
+        case "replay": await dreamPhaseReplay(); break;
+        case "consolidate": await dreamPhaseConsolidate(); break;
+        case "prune": await dreamPhasePrune(); break;
+        case "dream": await dreamPhaseDream(); break;
+        case "integrate": await dreamPhaseIntegrate(); break;
+        case "wake": await dreamPhaseWake(); break;
+      }
+    } catch (e) {
+      structuredLog("warn", "dream_phase_error", { phase: DREAM_PHASES[i].id, error: String(e?.message || e) });
+    }
+  }
+
+  ds.isActive = false;
+  ds.progress = 1;
+  ds.completedAt = new Date().toISOString();
+  ds.stats.totalDreams++;
+  ds.history.push({
+    startedAt: ds.startedAt,
+    completedAt: ds.completedAt,
+    insightsGenerated: ds.insights.length,
+  });
+  // Keep only last 30 dream cycles in history
+  if (ds.history.length > 30) ds.history = ds.history.slice(-30);
+
+  structuredLog("info", "dream_cycle_complete", {
+    duration: Date.now() - new Date(ds.startedAt).getTime(),
+    insights: ds.insights.length,
+  });
+
+  return { ok: true, insights: ds.insights, stats: ds.stats };
+}
+
+async function dreamPhaseReplay() {
+  // Replay: gather today's DTU interactions
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const recentDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const updated = new Date(dtu.updatedAt || dtu.createdAt || 0).getTime();
+    if (updated >= todayMs) recentDTUs.push(dtu);
+  }
+
+  STATE.dreamState._replayDTUs = recentDTUs;
+  structuredLog("info", "dream_replay", { dtusReplayed: recentDTUs.length });
+}
+
+async function dreamPhaseConsolidate() {
+  // Consolidate: strengthen connections between frequently co-accessed DTUs
+  const recentDTUs = STATE.dreamState._replayDTUs || [];
+  let consolidated = 0;
+
+  // Group by domain and find DTUs that share tags
+  const byDomain = {};
+  for (const dtu of recentDTUs) {
+    const domain = dtu.domain || "general";
+    if (!byDomain[domain]) byDomain[domain] = [];
+    byDomain[domain].push(dtu);
+  }
+
+  for (const [domain, dtus] of Object.entries(byDomain)) {
+    if (dtus.length < 2) continue;
+    // Strengthen: add cross-references in meta
+    for (let i = 0; i < dtus.length && i < 10; i++) {
+      for (let j = i + 1; j < dtus.length && j < 10; j++) {
+        const sharedTags = (dtus[i].tags || []).filter(t => (dtus[j].tags || []).includes(t));
+        if (sharedTags.length > 0) {
+          // Add consolidation link
+          if (!dtus[i].meta) dtus[i].meta = {};
+          if (!dtus[i].meta._consolidatedLinks) dtus[i].meta._consolidatedLinks = [];
+          if (!dtus[i].meta._consolidatedLinks.includes(dtus[j].id)) {
+            dtus[i].meta._consolidatedLinks.push(dtus[j].id);
+            consolidated++;
+          }
+        }
+      }
+    }
+  }
+
+  STATE.dreamState.stats.dtusConsolidated += consolidated;
+  structuredLog("info", "dream_consolidate", { consolidated });
+}
+
+async function dreamPhasePrune() {
+  // Prune: identify weak/orphan connections and remove stale metadata
+  let pruned = 0;
+
+  for (const dtu of STATE.dtus.values()) {
+    // Prune stale consolidated links that point to deleted DTUs
+    if (dtu.meta?._consolidatedLinks) {
+      const before = dtu.meta._consolidatedLinks.length;
+      dtu.meta._consolidatedLinks = dtu.meta._consolidatedLinks.filter(id => STATE.dtus.has(id));
+      pruned += before - dtu.meta._consolidatedLinks.length;
+    }
+
+    // Prune empty tags
+    if (dtu.tags && dtu.tags.length > 0) {
+      const before = dtu.tags.length;
+      dtu.tags = dtu.tags.filter(t => t && t.trim());
+      pruned += before - dtu.tags.length;
+    }
+  }
+
+  STATE.dreamState.stats.connectionsPruned += pruned;
+  structuredLog("info", "dream_prune", { pruned });
+}
+
+async function dreamPhaseDream() {
+  // Dream: generate creative cross-domain insights using subconscious brain
+  const recentDTUs = STATE.dreamState._replayDTUs || [];
+  if (recentDTUs.length < 2) return;
+
+  // Pick DTUs from different domains for cross-pollination
+  const byDomain = {};
+  for (const dtu of recentDTUs) {
+    const d = dtu.domain || "general";
+    if (!byDomain[d]) byDomain[d] = [];
+    byDomain[d].push(dtu);
+  }
+
+  const domains = Object.keys(byDomain);
+  if (domains.length < 2) {
+    // All same domain — look for internal connections instead
+    const titles = recentDTUs.slice(0, 5).map(d => d.title || "untitled").join(", ");
+    STATE.dreamState.insights.push({
+      type: "internal_pattern",
+      content: `Domain focus detected: ${domains[0]} with ${recentDTUs.length} recent DTUs. Topics: ${titles}`,
+      domains: domains,
+      createdAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // Cross-domain dream: attempt to connect concepts from 2 different domains
+  for (let i = 0; i < domains.length && i < 3; i++) {
+    for (let j = i + 1; j < domains.length && j < 4; j++) {
+      const d1 = byDomain[domains[i]][0];
+      const d2 = byDomain[domains[j]][0];
+
+      // Generate insight using subconscious brain if available
+      try {
+        const brainEnabled = BRAIN.subconscious?.enabled;
+        if (brainEnabled) {
+          const prompt = `You are the subconscious dreaming mind. Find a hidden connection between these two concepts from different domains:\n\nDomain "${domains[i]}": "${d1.title || ''}"\nDomain "${domains[j]}": "${d2.title || ''}"\n\nExpress the connection in one insightful sentence.`;
+          const result = await callBrain("subconscious", prompt, { temperature: 0.9, maxTokens: 100 });
+          if (result.ok && result.content) {
+            STATE.dreamState.insights.push({
+              type: "cross_domain",
+              content: result.content.trim(),
+              domains: [domains[i], domains[j]],
+              sourceDTUs: [d1.id, d2.id],
+              createdAt: new Date().toISOString(),
+            });
+            STATE.dreamState.stats.insightsGenerated++;
+          }
+        } else {
+          // Fallback: generate a structural insight without LLM
+          STATE.dreamState.insights.push({
+            type: "cross_domain",
+            content: `Potential connection between "${d1.title || domains[i]}" and "${d2.title || domains[j]}": shared conceptual territory worth exploring.`,
+            domains: [domains[i], domains[j]],
+            sourceDTUs: [d1.id, d2.id],
+            createdAt: new Date().toISOString(),
+          });
+          STATE.dreamState.stats.insightsGenerated++;
+        }
+      } catch (e) {
+        structuredLog("warn", "dream_insight_error", { error: String(e?.message || e) });
+      }
+    }
+  }
+}
+
+async function dreamPhaseIntegrate() {
+  // Integrate: create DTUs from the best dream insights
+  const insights = STATE.dreamState.insights || [];
+  for (const insight of insights.filter(i => i.type === "cross_domain")) {
+    try {
+      const dtu = {
+        id: `dream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: `Dream Insight: ${insight.domains.join(" × ")}`,
+        content: insight.content,
+        tags: ["dream-insight", ...(insight.domains || [])],
+        tier: "regular",
+        source: "substrate.dream",
+        domain: insight.domains[0] || "general",
+        meta: {
+          dreamGenerated: true,
+          sourceDTUs: insight.sourceDTUs,
+          dreamedAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      upsertDTU(dtu, { broadcast: false });
+    } catch (e) {
+      observe(e, "dream_integrate");
+    }
+  }
+}
+
+async function dreamPhaseWake() {
+  // Wake: prepare summary for morning brief
+  const ds = STATE.dreamState;
+  ds._wakeSummary = {
+    dreamsProcessed: ds.stats.totalDreams + 1,
+    insightsTonight: ds.insights.length,
+    consolidated: ds.stats.dtusConsolidated,
+    pruned: ds.stats.connectionsPruned,
+  };
+  structuredLog("info", "dream_wake", ds._wakeSummary);
+}
+
+// Dream API routes
+app.get("/api/dreams/state", (_req, res) => {
+  res.json({ ok: true, ...getDreamState() });
+});
+
+app.post("/api/dreams/start", async (_req, res) => {
+  try {
+    const result = await startDreamCycle();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/dreams/history", (_req, res) => {
+  const ds = STATE.dreamState;
+  res.json({
+    ok: true,
+    history: ds.history.slice(-10),
+    stats: ds.stats,
+    lastInsights: ds.insights.slice(-10),
+  });
+});
+
+// ---------- DTU METABOLISM — digestion + consolidation + excretion + growth ----------
+// DTUs are living entities that metabolize: they digest input, consolidate knowledge,
+// excrete waste, and grow in tier.
+
+const METABOLISM_CONFIG = {
+  digestionThreshold: 3,    // Min access count before a DTU is "digested"
+  consolidationAge: 7,      // Days before consolidation candidates are identified
+  excretionStaleDays: 90,   // Days of inactivity before excretion (archive)
+  growthThreshold: {
+    mega: { accessCount: 10, connectionCount: 5, ageDays: 3 },
+    hyper: { accessCount: 25, connectionCount: 12, ageDays: 7 },
+  },
+};
+
+if (!STATE.metabolismState) {
+  STATE.metabolismState = {
+    lastRun: null,
+    stats: { digested: 0, consolidated: 0, excreted: 0, grown: 0 },
+    excretedDTUs: [], // archived DTU ids
+  };
+}
+
+function metabolismDigest() {
+  // Digestion: mark DTUs as "digested" once they've been accessed enough times
+  let digested = 0;
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.meta?._digested) continue;
+    const accessCount = dtu.meta?._accessCount || 0;
+    if (accessCount >= METABOLISM_CONFIG.digestionThreshold) {
+      if (!dtu.meta) dtu.meta = {};
+      dtu.meta._digested = true;
+      dtu.meta._digestedAt = new Date().toISOString();
+      digested++;
+    }
+  }
+  return digested;
+}
+
+function metabolismConsolidate() {
+  // Consolidation: find clusters of related DTUs and suggest merges
+  const now = Date.now();
+  const candidates = [];
+  const seen = new Set();
+
+  for (const dtu of STATE.dtus.values()) {
+    if (!dtu.meta?._digested) continue;
+    const ageDays = (now - new Date(dtu.createdAt || 0).getTime()) / (1000 * 60 * 60 * 24);
+    if (ageDays < METABOLISM_CONFIG.consolidationAge) continue;
+
+    // Look for other DTUs with highly overlapping tags
+    for (const other of STATE.dtus.values()) {
+      if (other.id === dtu.id || seen.has(`${dtu.id}:${other.id}`)) continue;
+      if (!other.meta?._digested) continue;
+
+      const sharedTags = (dtu.tags || []).filter(t => (other.tags || []).includes(t));
+      const totalTags = new Set([...(dtu.tags || []), ...(other.tags || [])]).size;
+
+      if (totalTags > 0 && sharedTags.length / totalTags > 0.6) {
+        candidates.push({
+          pair: [dtu.id, other.id],
+          titles: [dtu.title, other.title],
+          overlap: sharedTags.length / totalTags,
+          sharedTags,
+        });
+        seen.add(`${dtu.id}:${other.id}`);
+        seen.add(`${other.id}:${dtu.id}`);
+      }
+    }
+  }
+
+  return candidates.slice(0, 20); // Return top 20 consolidation candidates
+}
+
+function metabolismExcrete() {
+  // Excretion: archive DTUs that haven't been touched in 90+ days
+  const now = Date.now();
+  const excreted = [];
+
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.tier === "hyper" || dtu.tier === "mega") continue; // Protected tiers
+    if (dtu.meta?._excreted) continue;
+
+    const lastTouched = Math.max(
+      new Date(dtu.updatedAt || 0).getTime(),
+      new Date(dtu.meta?._lastAccessAt || 0).getTime()
+    );
+    const staleDays = (now - lastTouched) / (1000 * 60 * 60 * 24);
+
+    if (staleDays >= METABOLISM_CONFIG.excretionStaleDays) {
+      if (!dtu.meta) dtu.meta = {};
+      dtu.meta._excreted = true;
+      dtu.meta._excretedAt = new Date().toISOString();
+      excreted.push({ id: dtu.id, title: dtu.title, staleDays: Math.round(staleDays) });
+    }
+  }
+
+  STATE.metabolismState.excreted = (STATE.metabolismState.excreted || []).concat(excreted.map(e => e.id));
+  // Keep only last 200 excreted IDs
+  if (STATE.metabolismState.excreted.length > 200) {
+    STATE.metabolismState.excreted = STATE.metabolismState.excreted.slice(-200);
+  }
+
+  return excreted;
+}
+
+function metabolismGrowth() {
+  // Growth: auto-promote DTUs that meet tier thresholds
+  const now = Date.now();
+  let grown = 0;
+
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.tier === "hyper") continue; // Already max tier
+
+    const accessCount = dtu.meta?._accessCount || 0;
+    const connectionCount = (dtu.meta?._consolidatedLinks || []).length +
+      ((dtu.lineage?.children || []).length) +
+      (dtu.lineage?.parentId ? 1 : 0);
+    const ageDays = (now - new Date(dtu.createdAt || 0).getTime()) / (1000 * 60 * 60 * 24);
+
+    if (dtu.tier !== "mega") {
+      // Check for mega promotion
+      const megaReqs = METABOLISM_CONFIG.growthThreshold.mega;
+      if (accessCount >= megaReqs.accessCount && connectionCount >= megaReqs.connectionCount && ageDays >= megaReqs.ageDays) {
+        dtu.tier = "mega";
+        if (!dtu.meta) dtu.meta = {};
+        dtu.meta._promotedAt = new Date().toISOString();
+        dtu.meta._promotedFrom = "regular";
+        grown++;
+        continue;
+      }
+    }
+
+    if (dtu.tier === "mega") {
+      // Check for hyper promotion
+      const hyperReqs = METABOLISM_CONFIG.growthThreshold.hyper;
+      if (accessCount >= hyperReqs.accessCount && connectionCount >= hyperReqs.connectionCount && ageDays >= hyperReqs.ageDays) {
+        dtu.tier = "hyper";
+        if (!dtu.meta) dtu.meta = {};
+        dtu.meta._promotedAt = new Date().toISOString();
+        dtu.meta._promotedFrom = "mega";
+        grown++;
+      }
+    }
+  }
+
+  return grown;
+}
+
+function runMetabolismCycle() {
+  const digested = metabolismDigest();
+  const consolidationCandidates = metabolismConsolidate();
+  const excreted = metabolismExcrete();
+  const grown = metabolismGrowth();
+
+  STATE.metabolismState.lastRun = new Date().toISOString();
+  STATE.metabolismState.stats.digested += digested;
+  STATE.metabolismState.stats.consolidated += consolidationCandidates.length;
+  STATE.metabolismState.stats.excreted += excreted.length;
+  STATE.metabolismState.stats.grown += grown;
+
+  return {
+    digested,
+    consolidationCandidates,
+    excreted,
+    grown,
+    stats: STATE.metabolismState.stats,
+  };
+}
+
+// Metabolism API routes
+app.get("/api/metabolism/state", (_req, res) => {
+  res.json({ ok: true, ...STATE.metabolismState, config: METABOLISM_CONFIG });
+});
+
+app.post("/api/metabolism/run", (_req, res) => {
+  try {
+    const result = runMetabolismCycle();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/metabolism/candidates", (_req, res) => {
+  try {
+    const candidates = metabolismConsolidate();
+    res.json({ ok: true, candidates });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/metabolism/resurrect/:id", (req, res) => {
+  // Un-excrete a DTU
+  const dtu = STATE.dtus.get(req.params.id);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if (dtu.meta) {
+    delete dtu.meta._excreted;
+    delete dtu.meta._excretedAt;
+  }
+  STATE.metabolismState.excreted = (STATE.metabolismState.excreted || []).filter(id => id !== req.params.id);
+  res.json({ ok: true, id: req.params.id, title: dtu.title });
+});
+
+// ---------- EPISODIC MEMORY — experience tracking ----------
+// Episodic memories are experiences, not just facts. They capture the context,
+// emotion, and sequence of events during a user session.
+
+if (!STATE.episodes) STATE.episodes = [];
+
+function createEpisode(data) {
+  const episode = {
+    id: `ep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: data.type || "session",             // session, insight, discovery, creation, collaboration
+    title: data.title || "Untitled Episode",
+    narrative: data.narrative || "",           // What happened in natural language
+    context: {
+      domain: data.domain || null,
+      lens: data.lens || null,
+      dtusInvolved: data.dtusInvolved || [],
+      brainsUsed: data.brainsUsed || [],
+    },
+    emotions: data.emotions || [],            // ["curiosity", "satisfaction", "surprise"]
+    intensity: data.intensity || 0.5,         // 0-1 how significant this episode was
+    timestamp: new Date().toISOString(),
+    duration: data.duration || null,           // ms
+    outcomes: data.outcomes || [],             // What resulted from this episode
+    tags: data.tags || [],
+  };
+
+  STATE.episodes.push(episode);
+
+  // Keep only last 500 episodes
+  if (STATE.episodes.length > 500) {
+    STATE.episodes = STATE.episodes.slice(-500);
+  }
+
+  // Award XP for creating a memorable experience
+  if (episode.intensity > 0.7 && typeof awardXP === "function") {
+    try { awardXP("default", "episode.significant", { episodeId: episode.id }); } catch {}
+  }
+
+  return episode;
+}
+
+function queryEpisodes(filters = {}) {
+  let results = [...STATE.episodes];
+
+  if (filters.type) results = results.filter(e => e.type === filters.type);
+  if (filters.domain) results = results.filter(e => e.context.domain === filters.domain);
+  if (filters.minIntensity) results = results.filter(e => e.intensity >= filters.minIntensity);
+  if (filters.emotion) results = results.filter(e => e.emotions.includes(filters.emotion));
+  if (filters.since) {
+    const sinceMs = new Date(filters.since).getTime();
+    results = results.filter(e => new Date(e.timestamp).getTime() >= sinceMs);
+  }
+
+  // Sort by recency
+  results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return results.slice(0, filters.limit || 50);
+}
+
+function getEpisodeSummary() {
+  const episodes = STATE.episodes;
+  const typeCount = {};
+  const domainCount = {};
+  const emotionCount = {};
+  let totalIntensity = 0;
+
+  for (const ep of episodes) {
+    typeCount[ep.type] = (typeCount[ep.type] || 0) + 1;
+    if (ep.context.domain) domainCount[ep.context.domain] = (domainCount[ep.context.domain] || 0) + 1;
+    for (const em of ep.emotions) emotionCount[em] = (emotionCount[em] || 0) + 1;
+    totalIntensity += ep.intensity;
+  }
+
+  return {
+    total: episodes.length,
+    averageIntensity: episodes.length > 0 ? totalIntensity / episodes.length : 0,
+    byType: typeCount,
+    byDomain: domainCount,
+    topEmotions: Object.entries(emotionCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([emotion, count]) => ({ emotion, count })),
+    recent: episodes.slice(-5),
+  };
+}
+
+// Episodic Memory API routes
+app.post("/api/episodes", (req, res) => {
+  try {
+    const episode = createEpisode(req.body);
+    res.json({ ok: true, episode });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/episodes", (req, res) => {
+  const filters = {
+    type: req.query.type,
+    domain: req.query.domain,
+    minIntensity: req.query.minIntensity ? parseFloat(req.query.minIntensity) : undefined,
+    emotion: req.query.emotion,
+    since: req.query.since,
+    limit: req.query.limit ? parseInt(req.query.limit) : 50,
+  };
+  res.json({ ok: true, episodes: queryEpisodes(filters) });
+});
+
+app.get("/api/episodes/summary", (_req, res) => {
+  res.json({ ok: true, ...getEpisodeSummary() });
+});
+
+// ---------- BRAIN COUNCIL DELIBERATION ----------
+// When a high-stakes decision is needed, all 4 brains deliberate and vote.
+// Each brain provides its perspective based on its role.
+
+const COUNCIL_ROLES = {
+  conscious: {
+    perspective: "rational analysis and deep reasoning",
+    votingWeight: 0.35,
+  },
+  subconscious: {
+    perspective: "intuitive patterns and creative connections",
+    votingWeight: 0.25,
+  },
+  utility: {
+    perspective: "practical feasibility and efficiency",
+    votingWeight: 0.25,
+  },
+  repair: {
+    perspective: "risk assessment and error prevention",
+    votingWeight: 0.15,
+  },
+};
+
+if (!STATE.councilSessions) STATE.councilSessions = [];
+
+async function conveneCouncil(question, options = {}) {
+  const session = {
+    id: `council-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question,
+    domain: options.domain || null,
+    context: options.context || "",
+    status: "deliberating",
+    startedAt: new Date().toISOString(),
+    opinions: {},
+    votes: {},
+    consensus: null,
+    confidence: 0,
+    completedAt: null,
+  };
+
+  STATE.councilSessions.push(session);
+  // Keep last 50 sessions
+  if (STATE.councilSessions.length > 50) STATE.councilSessions = STATE.councilSessions.slice(-50);
+
+  // Gather opinions from each brain
+  const brainNames = ["conscious", "subconscious", "utility", "repair"];
+  const contextSnippet = options.context ? `\nContext: ${options.context}` : "";
+
+  const opinions = await Promise.allSettled(
+    brainNames.map(async (brainName) => {
+      const brain = BRAIN[brainName];
+      if (!brain?.enabled) {
+        return {
+          brain: brainName,
+          opinion: `[${brainName} brain offline — using heuristic]`,
+          vote: "abstain",
+          confidence: 0.3,
+        };
+      }
+
+      const role = COUNCIL_ROLES[brainName];
+      const prompt = `You are the ${brainName} brain in a 4-brain cognitive council. Your perspective focuses on ${role.perspective}.\n\nQuestion: ${question}${contextSnippet}\n\nProvide:\n1. Your analysis (2-3 sentences)\n2. Your vote: APPROVE, REJECT, or MODIFY\n3. Your confidence (0-100%)\n\nRespond in format:\nANALYSIS: ...\nVOTE: ...\nCONFIDENCE: ...%`;
+
+      try {
+        const result = await callBrain(brainName, prompt, {
+          temperature: brainName === "subconscious" ? 0.8 : 0.3,
+          maxTokens: 200,
+        });
+
+        if (!result.ok) throw new Error(result.error || "Brain call failed");
+
+        const content = result.content || "";
+        const voteMatch = content.match(/VOTE:\s*(APPROVE|REJECT|MODIFY)/i);
+        const confMatch = content.match(/CONFIDENCE:\s*(\d+)/);
+        const analysisMatch = content.match(/ANALYSIS:\s*(.+?)(?=\nVOTE:|$)/s);
+
+        return {
+          brain: brainName,
+          opinion: analysisMatch?.[1]?.trim() || content.slice(0, 200),
+          vote: (voteMatch?.[1] || "abstain").toLowerCase(),
+          confidence: confMatch ? parseInt(confMatch[1]) / 100 : 0.5,
+        };
+      } catch (e) {
+        return {
+          brain: brainName,
+          opinion: `[Error: ${String(e?.message || e).slice(0, 100)}]`,
+          vote: "abstain",
+          confidence: 0.2,
+        };
+      }
+    })
+  );
+
+  // Process results
+  let totalWeightedVote = 0;
+  let totalWeight = 0;
+
+  for (const result of opinions) {
+    const op = result.status === "fulfilled" ? result.value : {
+      brain: "unknown", opinion: "Failed to deliberate", vote: "abstain", confidence: 0.1,
+    };
+
+    session.opinions[op.brain] = op;
+    session.votes[op.brain] = op.vote;
+
+    const weight = COUNCIL_ROLES[op.brain]?.votingWeight || 0.2;
+    const voteScore = op.vote === "approve" ? 1 : op.vote === "reject" ? -1 : 0;
+    totalWeightedVote += voteScore * weight * op.confidence;
+    totalWeight += weight;
+  }
+
+  // Determine consensus
+  const normalizedScore = totalWeight > 0 ? totalWeightedVote / totalWeight : 0;
+  session.consensus = normalizedScore > 0.3 ? "approve" : normalizedScore < -0.3 ? "reject" : "split";
+  session.confidence = Math.abs(normalizedScore);
+  session.status = "complete";
+  session.completedAt = new Date().toISOString();
+
+  // Record as episode
+  if (typeof createEpisode === "function") {
+    try {
+      createEpisode({
+        type: "collaboration",
+        title: `Council: ${question.slice(0, 60)}`,
+        narrative: `The brain council deliberated on "${question}" and reached a ${session.consensus} consensus with ${Math.round(session.confidence * 100)}% confidence.`,
+        brainsUsed: brainNames,
+        intensity: session.confidence,
+        outcomes: [session.consensus],
+        tags: ["council", "deliberation"],
+      });
+    } catch {}
+  }
+
+  // Award XP for council deliberation
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "council.deliberation", { sessionId: session.id }); } catch {}
+  }
+
+  structuredLog("info", "council_complete", {
+    id: session.id,
+    consensus: session.consensus,
+    confidence: session.confidence,
+    votes: session.votes,
+  });
+
+  return session;
+}
+
+// Brain Council API routes
+app.post("/api/council/deliberate", async (req, res) => {
+  const { question, domain, context } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question is required" });
+
+  try {
+    const session = await conveneCouncil(question, { domain, context });
+    res.json({ ok: true, session });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/council/sessions", (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  res.json({
+    ok: true,
+    sessions: STATE.councilSessions.slice(-limit).reverse(),
+    total: STATE.councilSessions.length,
+  });
+});
+
+app.get("/api/council/sessions/:id", (req, res) => {
+  const session = STATE.councilSessions.find(s => s.id === req.params.id);
+  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json({ ok: true, session });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 2
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
@@ -40327,6 +41117,30 @@ function kernelTick(event) {
           }
         }
       } catch {}
+    }
+
+    // DTU Metabolism: run every 300 ticks (~75 min at 15s intervals)
+    if (STATE.__bgTickCounter % 300 === 0 && typeof runMetabolismCycle === "function") {
+      try {
+        const metabResult = runMetabolismCycle();
+        if (metabResult.digested > 0 || metabResult.grown > 0 || metabResult.excreted.length > 0) {
+          structuredLog("info", "metabolism_tick", {
+            digested: metabResult.digested,
+            grown: metabResult.grown,
+            excreted: metabResult.excreted.length,
+          });
+        }
+      } catch (e) { observe(e, "metabolism_tick"); }
+    }
+
+    // Substrate Dreams: auto-trigger dream cycle during low-activity hours (2-5 AM)
+    if (STATE.__bgTickCounter % 600 === 0 && typeof startDreamCycle === "function") {
+      try {
+        const hour = new Date().getHours();
+        if (hour >= 2 && hour < 5 && !STATE.dreamState?.isActive) {
+          startDreamCycle().catch(e => observe(e, "dream_auto_trigger"));
+        }
+      } catch (e) { observe(e, "dream_schedule_check"); }
     }
   } catch {}
   // ===== END BACKGROUND PROCESSING =====
