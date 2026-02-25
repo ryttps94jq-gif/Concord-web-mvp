@@ -905,7 +905,7 @@ const __llmDefaultForcedRaw = (process.env.CONCORD_LLM_DEFAULT_FORCED ?? process
 const __llmForced = (__llmDefaultForcedRaw !== null) ? __envBool(__llmDefaultForcedRaw) : "";
 const DEFAULT_LLM_ON = (__llmDefaultForcedRaw !== null)
   ? (["1","true","yes","y","on"].includes(__llmForced))
-  : Boolean((process.env.OPENAI_API_KEY || "").trim());
+  : Boolean((process.env.OPENAI_API_KEY || "").trim()) || Boolean(process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST);
 
 
 // ---- Terminal / sandbox execution gate ----
@@ -5674,7 +5674,7 @@ const STATE_DISK = loadStateFromDisk();
 try {
   if (STATE && STATE.settings) {
     if (__llmDefaultForcedRaw !== null) STATE.settings.llmDefault = DEFAULT_LLM_ON;
-    else if ((process.env.OPENAI_API_KEY || "").trim()) STATE.settings.llmDefault = true;
+    else if ((process.env.OPENAI_API_KEY || "").trim() || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST) STATE.settings.llmDefault = true;
   }
 } catch (e) {
   structuredLog("warn", "boot_normalization_failed", { error: String(e?.message || e) });
@@ -8599,21 +8599,29 @@ function makeCtx(req=null) {
     },
     llm: {
       enabled: LLM_READY || (BRAIN.conscious && BRAIN.conscious.enabled),
-      async chat({ system, messages, temperature=0.3, maxTokens=800, model=null, timeoutMs=12000 }) {
-        // Route to conscious brain (Ollama) when OpenAI isn't configured
-        const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled;
-        if (!LLM_READY && !useConscious) return { ok: false, reason: "LLM not configured (no OPENAI_API_KEY and no conscious brain)." };
+      async chat({ system, messages, temperature=0.3, maxTokens=800, model=null, timeoutMs=12000, dtuRefs, macroRefs, grcMode }) {
+        // ===== OLLAMA-FIRST ROUTING =====
+        // Sovereignty principle: always try local conscious brain first.
+        // Only fall back to OpenAI if Ollama is offline or fails.
+        const consciousAvailable = BRAIN.conscious && BRAIN.conscious.enabled;
+        const openaiAvailable = Boolean(OPENAI_API_KEY) && LLM_READY;
 
-        if (useConscious) {
-          // Route to conscious brain via Ollama API
+        if (!consciousAvailable && !openaiAvailable) {
+          return { ok: false, reason: "LLM not configured (no conscious brain and no OPENAI_API_KEY)." };
+        }
+
+        // ── Try Ollama conscious brain FIRST (local, free, sovereign) ──
+        if (consciousAvailable) {
           const brainUrl = BRAIN.conscious.url;
           const brainModel = model || BRAIN.conscious.model;
           const ollamaMessages = [
             ...(system ? [{ role: "system", content: system }] : []),
             ...(messages || [])
           ];
+          // Local models need more time than cloud — 120s for first call, 90s steady state
+          const ollamaTimeout = Math.max(timeoutMs, 120000);
           const ac = new AbortController();
-          const t = setTimeout(() => ac.abort(), timeoutMs);
+          const t = setTimeout(() => ac.abort(), ollamaTimeout);
           const startMs = Date.now();
           try {
             const res = await fetch(`${brainUrl}/api/chat`, {
@@ -8627,19 +8635,29 @@ function makeCtx(req=null) {
             BRAIN.conscious.stats.requests++;
             BRAIN.conscious.stats.totalMs += elapsed;
             BRAIN.conscious.stats.lastCallAt = new Date().toISOString();
-            if (!res.ok || !json.message) {
-              BRAIN.conscious.stats.errors++;
-              return { ok: false, error: json?.error || "conscious_brain_error", status: res.status };
+            if (res.ok && json.message?.content) {
+              const content = json.message.content ?? "";
+              structuredLog("info", "llm_ollama_primary", { brain: "conscious", model: brainModel, elapsed, tokens: json.eval_count || 0 });
+              return { ok: true, content, raw: json, brain: "conscious", source: "ollama" };
             }
-            const content = json.message?.content ?? "";
-            return { ok: true, content, raw: json, brain: "conscious" };
+            // Ollama responded but with error — log and fall through to OpenAI
+            BRAIN.conscious.stats.errors++;
+            structuredLog("warn", "llm_ollama_primary_error", { status: res.status, error: json?.error, elapsed });
           } catch (err) {
             BRAIN.conscious.stats.errors++;
-            return { ok: false, reason: `Conscious brain error: ${err.message}` };
+            const elapsed = Date.now() - startMs;
+            structuredLog("warn", "llm_ollama_primary_exception", { error: String(err?.message || err), elapsed });
           }
+          // If we reach here, Ollama failed — fall through to OpenAI ONLY as emergency
         }
 
-        // ---- Budget & Circuit Breaker Check (Category 6: Cost Controls) ----
+        // ── OpenAI EMERGENCY FALLBACK (cloud, costs money) ──
+        if (!openaiAvailable) {
+          return { ok: false, reason: "Conscious brain failed and no OpenAI fallback available." };
+        }
+        structuredLog("warn", "llm_openai_emergency_fallback", { reason: "conscious_brain_failed" });
+
+        // Budget & circuit breaker check
         const userId = req?.user?.id || req?.actor?.id || null;
         const budgetCheck = _LLM_BUDGET.checkBudget(userId);
         if (!budgetCheck.allowed) {
@@ -9959,7 +9977,7 @@ if (String(process.env.EMBEDDINGS_ENABLED || "true").toLowerCase() === "true") {
 
 const LLM_PIPELINE = {
   modes: ["local_only", "balanced", "quality_first"],
-  defaultMode: "balanced",
+  defaultMode: "local_first",  // Sovereignty: prefer local Ollama, OpenAI only on failure
 
   // Provider status
   providers: {
@@ -9970,15 +9988,23 @@ const LLM_PIPELINE = {
 
 // Initialize LLM providers
 function initLLMPipeline() {
-  const ollamaUrl = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "http://ollama:11434";
+  // Use BRAIN_CONSCIOUS_URL as the primary Ollama URL (matches 4-brain architecture)
+  const ollamaUrl = process.env.OLLAMA_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama:11434";
   LLM_PIPELINE.providers.ollama.url = ollamaUrl;
-  LLM_PIPELINE.providers.ollama.model = process.env.OLLAMA_MODEL || "llama3.2";
+  // Use BRAIN_CONSCIOUS_MODEL if set; fall back to OLLAMA_MODEL; last resort llama3.2
+  LLM_PIPELINE.providers.ollama.model = process.env.OLLAMA_MODEL || process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b";
   LLM_PIPELINE.providers.ollama.enabled = Boolean(ollamaUrl);
 
   LLM_PIPELINE.providers.openai.enabled = Boolean(OPENAI_API_KEY);
   LLM_PIPELINE.providers.openai.model = OPENAI_MODEL_FAST;
 
-  structuredLog("info", "llm_pipeline_initialized", { ollama: LLM_PIPELINE.providers.ollama.enabled, openai: LLM_PIPELINE.providers.openai.enabled });
+  structuredLog("info", "llm_pipeline_initialized", {
+    ollama: LLM_PIPELINE.providers.ollama.enabled,
+    ollamaUrl: ollamaUrl ? "configured" : null,
+    ollamaModel: LLM_PIPELINE.providers.ollama.model,
+    openai: LLM_PIPELINE.providers.openai.enabled,
+    defaultMode: LLM_PIPELINE.defaultMode
+  });
 }
 
 // Call Ollama (local)
@@ -10001,7 +10027,7 @@ async function callOllama(prompt, options = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(options.timeout || 60000)
+      signal: AbortSignal.timeout(options.timeout || 120000)
     });
 
     if (!response.ok) {
@@ -10073,6 +10099,18 @@ async function llmPipeline(input, options = {}) {
       return { ok: false, error: "Local mode requires Ollama", mode };
     }
     return callOllama(input, options);
+  }
+
+  // Mode: local_first - Sovereignty: try Ollama, fall back to OpenAI on failure
+  if (mode === "local_first") {
+    if (ollama.enabled) {
+      const result = await callOllama(input, options);
+      if (result.ok) return result;
+      structuredLog("warn", "llm_local_first_fallback", { reason: result.error, fallback: "openai" });
+    }
+    if (openai.enabled) return callOpenAI(input, options);
+    if (ollama.enabled) return callOllama(input, options); // retry if no OpenAI
+    return { ok: false, error: "No LLM providers available", mode };
   }
 
   // Mode: quality_first - OpenAI only (fastest, best quality)
@@ -10351,7 +10389,7 @@ const BRAIN = {
 async function initThreeBrains() {
   for (const [name, brain] of Object.entries(BRAIN)) {
     try {
-      const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      const r = await fetch(`${brain.url}/api/tags`, { signal: AbortSignal.timeout(15000) });
       if (r.ok) {
         const tags = await r.json().catch(() => ({}));
         const modelNames = (tags.models || []).map(m => m.name || "");
@@ -10384,6 +10422,13 @@ async function initThreeBrains() {
   const online = Object.entries(BRAIN).filter(([, b]) => b.enabled).map(([n]) => n);
   // Update LLM_READY to reflect conscious brain availability
   _refreshLlmReady();
+
+  // Reset Ollama circuit breaker when brains come online (clear stale failures from previous runs)
+  if (online.includes("conscious")) {
+    try { if (BREAKERS?.ollama?.reset) BREAKERS.ollama.reset(); } catch {}
+    try { if (_breakers?.ollama?.reset) _breakers.ollama.reset(); } catch {}
+  }
+
   structuredLog("info", "three_brain_init", {
     online,
     mode: online.length >= 3 ? "three_brain" : online.length > 0 ? "partial" : "fallback",
@@ -10392,6 +10437,8 @@ async function initThreeBrains() {
 
 // Initialize brains after a short delay (let Ollama instances start)
 setTimeout(() => initThreeBrains(), 3000);
+// Retry brain init after 30s (Ollama containers may still be pulling models)
+setTimeout(() => initThreeBrains(), 30000);
 
 // ── Repair Cortex Runtime Loop ────────────────────────────────────────────
 // Expose MACROS, BRAIN, STATE globally so repair cortex executors can access them.
@@ -11170,7 +11217,7 @@ async function callBrain(brainName, prompt, options = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(options.timeout || 60000),
+      signal: AbortSignal.timeout(options.timeout || 120000),
     });
 
     brain.stats.requests++;
@@ -11689,6 +11736,16 @@ function getBrainStatus() {
     mode: onlineCount === 3 ? "three_brain" : onlineCount > 0 ? "partial" : "fallback",
     onlineCount,
     brains,
+    routing: {
+      chatPrimary: BRAIN.conscious?.enabled ? "ollama_conscious" : (OPENAI_API_KEY ? "openai" : "none"),
+      chatFallback: BRAIN.conscious?.enabled && OPENAI_API_KEY ? "openai_emergency" : "none",
+      pipelineMode: LLM_PIPELINE.defaultMode,
+      pipelineOllamaEnabled: LLM_PIPELINE.providers.ollama.enabled,
+      pipelineOllamaModel: LLM_PIPELINE.providers.ollama.model,
+      pipelineOpenaiEnabled: LLM_PIPELINE.providers.openai.enabled,
+      openaiConfigured: Boolean(OPENAI_API_KEY),
+      circuitBreakerOllama: (() => { try { return BREAKERS?.ollama?.getState?.()?.state || "unknown"; } catch { return "unknown"; } })(),
+    },
     embeddings: getEmbeddingStatus(STATE.dtus.size),
   };
 }
@@ -14917,7 +14974,7 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       // When ctx.llm.chat() fails, fall back to a direct Ollama call using BRAIN.conscious config
       try {
         const _fbAc = new AbortController();
-        const _fbTimeout = setTimeout(() => _fbAc.abort(), 60000);
+        const _fbTimeout = setTimeout(() => _fbAc.abort(), 120000);
         const _fbStart = Date.now();
         const _fbRes = await fetch(`${brainUrl}/api/chat`, {
           method: "POST",
@@ -14962,7 +15019,7 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
         { role: "user", content: `User prompt:\n${prompt}\n\nRelevant DTUs:\n${_directDtuContext}\n\nRespond naturally and propose next actions.` }
       ];
       const _directAc = new AbortController();
-      const _directTimeout = setTimeout(() => _directAc.abort(), 60000);
+      const _directTimeout = setTimeout(() => _directAc.abort(), 120000);
       const _directStart = Date.now();
       const _directRes = await fetch(`${brainUrl}/api/chat`, {
         method: "POST",
@@ -21233,9 +21290,10 @@ register("search", "reindex", (_ctx, _input) => {
 });
 
 // ---- Local LLM Support (Ollama) ----
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
-const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === "true" || process.env.OLLAMA_ENABLED === "1";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b";
+// Auto-enable if any Ollama URL or brain is configured
+const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === "true" || process.env.OLLAMA_ENABLED === "1" || Boolean(process.env.BRAIN_CONSCIOUS_URL) || Boolean(process.env.OLLAMA_HOST);
 
 async function ollamaChat(messages, { temperature = 0.7, max_tokens = 1000 } = {}) {
   if (!OLLAMA_ENABLED) return { ok: false, error: "Ollama not enabled" };
