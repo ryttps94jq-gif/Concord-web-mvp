@@ -5940,6 +5940,30 @@ try {
   structuredLog("error", "dtu_normalization_failed", { error: String(e?.message || e) });
 }
 
+// v3.3: Retroactive auto-tag all DTUs and sync to lens artifacts on startup
+try {
+  const _retroResult = retroTagAndSyncAllDTUs();
+  console.log(`[Startup] Retro-tag complete: ${JSON.stringify(_retroResult)}`);
+} catch (e) {
+  console.log(`[Startup] Retro-tag failed (non-fatal): ${e?.message || e}`);
+}
+
+// v3.3: Backfill content hashes for any DTUs missing them
+try {
+  let hashBackfilled = 0;
+  for (const [id, dtu] of STATE.dtus) {
+    if (!dtu.hash) {
+      try { dtu.hash = pipeContentFingerprint(dtu); hashBackfilled++; } catch { /* skip */ }
+    }
+  }
+  if (hashBackfilled > 0) {
+    saveStateDebounced();
+    console.log(`[Startup] Hash backfill: ${hashBackfilled} DTUs`);
+  }
+} catch (e) {
+  console.log(`[Startup] Hash backfill failed (non-fatal): ${e?.message || e}`);
+}
+
 // ---- logging ----
 function log(type, message, meta={}) {
   const entry = { id: uid("log"), ts: nowISO(), type, message, meta };
@@ -6130,9 +6154,9 @@ async function runMacro(domain, name, input, ctx) {
     lens: new Set(["list", "get", "export", "run"]),
     system: new Set(["status", "getStatus", "health", "analogize"]),
     settings: new Set(["get", "status"]),
-    scope: new Set(["metrics", "status", "dtus"]),
+    scope: new Set(["metrics", "status", "dtus", "promote", "checkCitations", "royaltyPreview"]),
     lattice: new Set(["resonance", "status", "stats"]),
-    guidance: new Set(["suggestions", "status"]),
+    guidance: new Set(["suggestions", "status", "first-win"]),
     graph: new Set(["visual", "visualData", "forceGraph", "edges", "stats", "neighbors"]),
     events: new Set(["list", "recent", "log", "paginated"]),
     worldmodel: new Set(["list_relations", "get", "status", "entities", "simulations"]),
@@ -6179,7 +6203,6 @@ async function runMacro(domain, name, input, ctx) {
     quest: new Set(["list", "get", "active", "progress", "metrics"]),
     teaching: new Set(["list", "get", "profile", "metrics"]),
     creative: new Set(["list", "get", "exhibition", "metrics", "profile", "masterworks", "registry", "domains"]),
-    scope: new Set(["promote", "checkCitations", "royaltyPreview"]),
     culture: new Set(["status", "traditions", "values", "stories", "metrics", "identity"]),
     trust: new Set(["get", "network", "metrics"]),
     federation: new Set(["status", "peers"]),
@@ -13498,8 +13521,10 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
 
   if (!PIPE.enabled) {
     // fallback to legacy write
+    try { applyAutoTagsToDTO(dtu); } catch { /* silent */ }
     if (isShadowDTU(dtu)) STATE.shadowDtus.set(dtu.id, dtu);
     else STATE.dtus.set(dtu.id, dtu);
+    try { syncSingleDTUToLensArtifacts(dtu); } catch { /* silent */ }
     saveStateDebounced();
     return { ok:true, dtu, bypassed:true };
   }
@@ -13586,8 +13611,16 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
       STATE.abstraction.ledger.added += estimateAbstractionDelta(dtu);
     } catch {}
 
+    // ===== AUTO-TAG & LENS SYNC (v3.3) =====
+    try { applyAutoTagsToDTO(dtu); } catch { /* silent */ }
+    // ===== END AUTO-TAG =====
+
     STATE.dtus.set(dtu.id, dtu);
     saveStateDebounced();
+
+    // ===== AUTO LENS ARTIFACT SYNC (v3.3) =====
+    try { syncSingleDTUToLensArtifacts(dtu); } catch { /* silent */ }
+    // ===== END LENS SYNC =====
 
     // ===== AUTO WORLD MODEL UPDATE =====
     // Every new DTU feeds into the world model: extract entities, detect relations,
@@ -13790,11 +13823,14 @@ register("dtu", "create", async (ctx, input) => {
     return { ok: false, error: "Council rejected DTU", reason: gate.reason, score: gate.score };
   }
 
+  // v3.3: Auto-tag with lens domains before hashing
+  try { applyAutoTagsToDTO(dtu); } catch { /* silent */ }
+
   dtu.cretiHuman = dtu.cretiHuman || renderHumanDTU(dtu);
   dtu.hash = crypto.createHash("sha256").update(title + "\n" + dtu.cretiHuman).digest("hex").slice(0, 16);
 
   await pipelineCommitDTU(ctx, dtu, { op: 'dtu.create', allowRewrite: true });
-  ctx.log("dtu.create", `Created DTU: ${title}`, { id: dtu.id, tier, tags, source, score: gate.score });
+  ctx.log("dtu.create", `Created DTU: ${title}`, { id: dtu.id, tier, tags: dtu.tags, source, score: gate.score });
 
   // Async embedding generation (NEVER blocks DTU creation — Rule #1)
   embedDTU(dtu).catch(() => {});
@@ -19288,6 +19324,7 @@ for (const [d, n] of [
 ]) allowMacro(d, n, _ACL_PUB);
 
 // Member-level domains (authenticated user operations)
+// v3.3: Added verify, export, graph, schema — used by frontend lenses for members
 for (const d of [
   "ask","chat","forge","swarm","sim","reasoning","hypothesis","inference",
   "metacognition","metalearning","search","semantic","reflection","attention","experience",
@@ -19296,14 +19333,16 @@ for (const d of [
   "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
   "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
   "lattice","backpressure",
+  "verify","export","graph","schema",
 ]) allowDomain(d, _ACL_MEMBER);
 
 // Admin-level domains (system management)
+// v3.3: Moved verify, export, graph, schema to member-level (frontend lenses need them)
 for (const d of [
-  "admin","automation","autotag","backup","cache","db","graph","schema",
+  "admin","automation","autotag","backup","cache","db",
   "integration","webhook","jobs","perf","log","llm","plugin","source","abstraction",
-  "evolution","audit","verify","experiment","synth","harness","crawl","ingest",
-  "export","import","redis","sync","system",
+  "evolution","audit","experiment","synth","harness","crawl","ingest",
+  "import","redis","sync","system",
 ]) allowDomain(d, _ACL_ADMIN);
 
 // Owner-only domains (sensitive infrastructure)
@@ -27233,6 +27272,128 @@ app.get("/api/events", (req, res) => {
   }
 });
 
+// ── v3.3: Missing frontend polling endpoints ─────────────────────────────────
+
+app.get("/api/events/paginated", (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+    const allEvents = STATE.logs.slice(-500).map(log => ({
+      id: log.id || uid("evt"),
+      type: log.domain || log.type || "system",
+      action: log.action || "event",
+      message: log.message || "",
+      timestamp: log.ts || log.timestamp || nowISO(),
+      meta: log.meta || {}
+    }));
+    allEvents.reverse();
+    const events = allEvents.slice(offset, offset + limit);
+    return res.json({ ok: true, events, total: allEvents.length, page, limit });
+  } catch (e) {
+    return res.json({ ok: true, events: [], total: 0, page: 1, limit: 20 });
+  }
+});
+
+app.get("/api/scope/metrics", (req, res) => {
+  try {
+    let local = 0, global = 0, marketplace = 0;
+    for (const [, dtu] of STATE.dtus) {
+      const s = dtu.scope || "local";
+      if (s === "local") local++;
+      else if (s === "global") global++;
+      else if (s === "marketplace") marketplace++;
+    }
+    return res.json({ ok: true, metrics: { local, global, marketplace, total: STATE.dtus.size } });
+  } catch (e) {
+    return res.json({ ok: true, metrics: { local: 0, global: 0, marketplace: 0, total: 0 } });
+  }
+});
+
+app.get("/api/cognitive/status", (req, res) => {
+  try {
+    const brains = STATE.brains || {};
+    return res.json({
+      ok: true,
+      status: "operational",
+      brains: Object.keys(brains).length,
+      dtus: STATE.dtus.size,
+      entities: STATE.entities ? STATE.entities.size : 0,
+    });
+  } catch {
+    return res.json({ ok: true, status: "operational", brains: 0, dtus: 0, entities: 0 });
+  }
+});
+
+app.get("/api/guidance/suggestions", (req, res) => {
+  try {
+    const recentDTUs = Array.from(STATE.dtus.values()).slice(-5);
+    const suggestions = recentDTUs.map(dtu => ({
+      id: dtu.id,
+      type: "explore",
+      title: dtu.title,
+      description: dtu.human?.summary || "",
+      domain: (dtu.tags || [])[0] || "general",
+    }));
+    return res.json({ ok: true, suggestions });
+  } catch {
+    return res.json({ ok: true, suggestions: [] });
+  }
+});
+
+app.get("/api/guidance/first-win", (req, res) => {
+  try {
+    const hasContent = STATE.dtus.size > 0;
+    return res.json({
+      ok: true,
+      completed: hasContent,
+      suggestion: hasContent
+        ? "Explore your DTUs through different lenses"
+        : "Create your first DTU to get started",
+    });
+  } catch {
+    return res.json({ ok: true, completed: false, suggestion: "Create your first DTU" });
+  }
+});
+
+app.get("/api/status", (req, res) => {
+  try {
+    return res.json({
+      ok: true,
+      status: "operational",
+      uptime: process.uptime(),
+      dtus: STATE.dtus.size,
+      lensArtifacts: STATE.lensArtifacts.size,
+      entities: STATE.entities ? STATE.entities.size : 0,
+      timestamp: nowISO(),
+    });
+  } catch {
+    return res.json({ ok: true, status: "operational", uptime: process.uptime() });
+  }
+});
+
+app.get("/api/system/health", (req, res) => {
+  try {
+    const mem = process.memoryUsage();
+    return res.json({
+      ok: true,
+      status: "healthy",
+      memory: {
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+        rss: Math.round(mem.rss / 1024 / 1024),
+      },
+      uptime: process.uptime(),
+      dtus: STATE.dtus.size,
+      lensArtifacts: STATE.lensArtifacts.size,
+    });
+  } catch {
+    return res.json({ ok: true, status: "healthy" });
+  }
+});
+
+// ── End v3.3 missing endpoints ───────────────────────────────────────────────
+
 app.post("/api/autocrawl", asyncHandler(async (req, res) => {
   try {
     const { url, makeGlobal, declaredSourceType, tags } = req.body || {};
@@ -34340,6 +34501,222 @@ function classifyDomain(dtu) {
   }
 
   return bestDomain;
+}
+
+// ============================================================================
+// LENS DOMAIN AUTO-CLASSIFICATION & DTU→LENS SYNC (v3.3 Additive)
+// ============================================================================
+// Maps DTUs to frontend lens domains via keyword analysis. Each DTU can match
+// multiple lens domains. Creates lens artifacts so lenses render real data.
+
+const LENS_DOMAIN_KEYWORDS = {
+  math: ["equation", "theorem", "proof", "algebra", "geometry", "calculus", "formula", "polynomial", "matrix", "linear"],
+  theory: ["constraint", "dynamics", "primal", "recursion", "structural", "foundational", "ontolog", "axiom", "formal"],
+  physics: ["energy", "entropy", "quantum", "field", "wave", "particle", "force", "thermodynamic", "relativity", "mass"],
+  cognitive: ["cognition", "neural", "brain", "consciousness", "awareness", "perception", "qualia", "thought"],
+  ai: ["artificial intelligence", "model", "training", "inference", "llm", "machine learning", "transformer", "embedding"],
+  engineering: ["repair", "materials", "structural", "build", "construct", "infrastructure", "mechanical"],
+  code: ["code", "programming", "algorithm", "function", "api", "software", "debug", "script", "compile", "runtime"],
+  health: ["health", "medical", "disease", "biology", "longevity", "clinical", "diagnosis", "therapy"],
+  healthcare: ["healthcare", "patient", "hospital", "treatment", "symptom", "pharmaceutical", "nursing"],
+  eco: ["ecology", "ecosystem", "environment", "sustainability", "organism", "climate", "biodiversity"],
+  governance: ["governance", "council", "vote", "policy", "ethics", "alignment", "democracy", "regulation"],
+  social: ["social", "community", "collaboration", "communication", "network", "relationship", "people"],
+  research: ["research", "hypothesis", "experiment", "study", "analysis", "investigation", "methodology"],
+  meta: ["meta", "abstraction", "self-reference", "recursive", "reflection", "introspection"],
+  studio: ["creative", "art", "music", "design", "composition", "aesthetic", "visual art"],
+  creative: ["imagination", "inspiration", "artistic", "creative writing", "storytelling", "novel"],
+  temporal: ["time", "temporal", "history", "timeline", "evolution", "progression", "chronolog"],
+  entity: ["entity", "agent", "emergent", "persona", "identity", "being", "autonomous"],
+  graph: ["graph", "network", "connection", "relation", "node", "edge", "topology", "knowledge graph"],
+  schema: ["schema", "structure", "definition", "type", "format", "specification", "ontology"],
+  board: ["task", "project", "milestone", "deadline", "plan", "roadmap", "goal", "kanban"],
+  finance: ["token", "economy", "market", "price", "transaction", "value", "currency", "investment", "revenue"],
+  crypto: ["blockchain", "crypto", "decentralized", "smart contract", "wallet", "defi", "nft"],
+  education: ["learning", "teaching", "curriculum", "student", "course", "tutorial", "pedagogy"],
+  science: ["science", "scientific", "empirical", "observation", "natural", "laboratory"],
+  bio: ["biology", "genetic", "cell", "dna", "protein", "organism", "evolution", "molecular"],
+  chem: ["chemistry", "chemical", "molecule", "reaction", "compound", "element", "catalyst"],
+  quantum: ["quantum", "superposition", "entanglement", "qubit", "decoherence", "quantum computing"],
+  neuro: ["neuroscience", "neuron", "synapse", "cortex", "hippocampus", "dopamine", "neural pathway"],
+  ethics: ["ethics", "moral", "fairness", "justice", "right", "wrong", "ethical dilemma", "consent"],
+  law: ["law", "legal", "statute", "regulation", "compliance", "court", "legislation", "contract"],
+  legal: ["legal", "attorney", "litigation", "jurisdiction", "precedent", "tort"],
+  agriculture: ["agriculture", "farming", "crop", "soil", "harvest", "irrigation", "livestock"],
+  food: ["food", "nutrition", "diet", "recipe", "cooking", "meal", "ingredient"],
+  fitness: ["fitness", "exercise", "workout", "training", "cardio", "strength", "muscle"],
+  music: ["music", "melody", "harmony", "rhythm", "chord", "composition", "instrument", "tempo"],
+  art: ["painting", "sculpture", "gallery", "canvas", "brush", "illustration", "drawing"],
+  game: ["game", "gameplay", "player", "score", "level", "quest", "rpg", "strategy game"],
+  sim: ["simulation", "simulate", "model", "emulate", "virtual", "sandbox"],
+  reasoning: ["reasoning", "logic", "deduction", "induction", "inference", "syllogism", "argument"],
+  hypothesis: ["hypothesis", "conjecture", "prediction", "falsifiable", "null hypothesis"],
+  inference: ["inference", "bayesian", "probabilistic", "likelihood", "posterior", "prior"],
+  metacognition: ["metacognition", "thinking about thinking", "self-awareness", "cognitive strategy"],
+  metalearning: ["metalearning", "learning to learn", "transfer learning", "few-shot"],
+  reflection: ["reflection", "introspect", "review", "retrospective", "self-assess"],
+  attention: ["attention", "focus", "priority", "salience", "concentration", "awareness"],
+  experience: ["experience", "experiential", "lived experience", "phenomenology"],
+  voice: ["voice", "speech", "audio", "spoken", "vocal", "pronunciation", "dialogue"],
+  forum: ["forum", "discussion", "thread", "post", "reply", "debate", "comment"],
+  chat: ["chat", "conversation", "message", "messaging", "dialogue", "response"],
+  news: ["news", "headline", "breaking", "report", "journalism", "press", "media"],
+  feed: ["feed", "stream", "timeline", "update", "notification", "activity"],
+  daily: ["daily", "journal", "diary", "today", "morning", "routine", "habit"],
+  docs: ["documentation", "docs", "readme", "manual", "reference", "guide", "wiki"],
+  market: ["market", "marketplace", "listing", "sell", "buy", "trade", "commerce"],
+  marketplace: ["marketplace", "storefront", "vendor", "catalog", "purchase"],
+  trades: ["trade", "exchange", "barter", "swap", "transaction"],
+  whiteboard: ["whiteboard", "sketch", "diagram", "draw", "brainstorm", "freeform"],
+  calendar: ["calendar", "schedule", "event", "appointment", "date", "meeting"],
+  collab: ["collaboration", "collab", "teamwork", "shared", "co-author", "pair"],
+  database: ["database", "sql", "query", "table", "record", "index", "storage"],
+  security: ["security", "vulnerability", "exploit", "firewall", "encryption", "authentication"],
+  logistics: ["logistics", "supply chain", "shipping", "warehouse", "distribution", "inventory"],
+  manufacturing: ["manufacturing", "factory", "production", "assembly", "industrial"],
+  realestate: ["real estate", "property", "housing", "mortgage", "tenant", "lease"],
+  insurance: ["insurance", "policy", "claim", "premium", "underwriting", "risk"],
+  retail: ["retail", "store", "shopping", "customer", "merchandise", "pos"],
+  nonprofit: ["nonprofit", "charity", "donation", "volunteer", "ngo", "social impact"],
+  aviation: ["aviation", "flight", "aircraft", "pilot", "aerospace", "altitude"],
+  ml: ["machine learning", "ml", "classifier", "regression", "clustering", "neural network"],
+  platform: ["platform", "infrastructure", "deployment", "devops", "container", "orchestration"],
+  invariant: ["invariant", "constant", "immutable", "fixed point", "conservation"],
+  fractal: ["fractal", "self-similar", "mandelbrot", "recursion", "scale-free"],
+  resonance: ["resonance", "harmonic", "frequency", "vibration", "wave", "oscillation"],
+  grounding: ["grounding", "ground truth", "anchor", "reality", "verification"],
+  environment: ["environment", "pollution", "conservation", "green", "renewable"],
+  accounting: ["accounting", "ledger", "balance", "audit", "debit", "credit", "bookkeeping"],
+  billing: ["billing", "invoice", "payment", "subscription", "charge", "receipt"],
+  alliance: ["alliance", "coalition", "partnership", "treaty", "federation"],
+  transfer: ["transfer", "domain transfer", "cross-domain", "adaptation", "generalization"],
+  paper: ["paper", "publication", "journal", "peer review", "abstract", "citation"],
+  lab: ["laboratory", "lab", "experiment", "bench", "sample", "assay"],
+  tick: ["tick", "heartbeat", "cycle", "pulse", "periodic", "interval"],
+  timeline: ["timeline", "chronology", "epoch", "era", "sequence", "milestone"],
+  goals: ["goal", "objective", "target", "ambition", "aspiration", "kpi"],
+  vote: ["vote", "ballot", "election", "poll", "referendum", "consensus"],
+  suffering: ["suffering", "pain", "distress", "harm", "anguish", "compassion"],
+};
+
+function autoClassifyDTUDomains(dtu) {
+  try {
+    if (!dtu) return [];
+    const text = [
+      dtu.title || "",
+      dtu.human?.summary || "",
+      ...(dtu.tags || []),
+      ...(dtu.core?.claims || []),
+      (dtu.machine?.notes || "").slice(0, 500),
+      dtu.domain || "",
+    ].join(" ").toLowerCase();
+
+    if (!text || text.trim().length < 3) return [];
+
+    const matched = [];
+    for (const [domain, keywords] of Object.entries(LENS_DOMAIN_KEYWORDS)) {
+      const hits = keywords.filter(kw => text.includes(kw)).length;
+      if (hits > 0) matched.push({ domain, hits });
+    }
+
+    // Sort by hit count, return top 5 domains max
+    matched.sort((a, b) => b.hits - a.hits);
+    const result = matched.slice(0, 5).map(m => m.domain);
+
+    // If DTU has an explicit domain/lens field, ensure it's included
+    if (dtu.domain && typeof dtu.domain === "string" && !result.includes(dtu.domain)) {
+      result.unshift(dtu.domain);
+    }
+    if (dtu.meta?.lens && typeof dtu.meta.lens === "string" && !result.includes(dtu.meta.lens)) {
+      result.unshift(dtu.meta.lens);
+    }
+
+    // Fallback: if tier is mega/hyper, add meta + research
+    if (result.length === 0 && (dtu.tier === "mega" || dtu.tier === "hyper")) {
+      result.push("meta", "research");
+    }
+
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+function applyAutoTagsToDTO(dtu) {
+  try {
+    if (!dtu || dtu._skipAutoTag) return;
+    const domains = autoClassifyDTUDomains(dtu);
+    if (domains.length === 0) return;
+    const existing = new Set(dtu.tags || []);
+    for (const d of domains) existing.add(d);
+    dtu.tags = Array.from(existing);
+  } catch { /* silent */ }
+}
+
+function syncSingleDTUToLensArtifacts(dtu) {
+  try {
+    if (!dtu || !dtu.id) return 0;
+    const domains = autoClassifyDTUDomains(dtu);
+    if (domains.length === 0) return 0;
+    let created = 0;
+    for (const domain of domains) {
+      const key = `autosync_${domain}_${dtu.id}`;
+      if (STATE.lensArtifacts.has(key)) continue;
+      const artifact = {
+        id: key,
+        domain,
+        type: dtu.tier || "regular",
+        ownerId: dtu.ownerId || dtu.meta?.userId || null,
+        title: dtu.title || "Untitled",
+        data: {
+          dtuId: dtu.id,
+          summary: dtu.human?.summary || "",
+          claims: (dtu.core?.claims || []).slice(0, 5),
+          tier: dtu.tier,
+        },
+        meta: {
+          tags: dtu.tags || [],
+          status: "active",
+          visibility: "public",
+          createdFrom: "dtu-auto-sync",
+        },
+        createdAt: dtu.createdAt || nowISO(),
+        updatedAt: dtu.updatedAt || nowISO(),
+        version: 1,
+      };
+      STATE.lensArtifacts.set(key, artifact);
+      _lensDomainIndexAdd(domain, key);
+      created++;
+    }
+    return created;
+  } catch { return 0; }
+}
+
+function retroTagAndSyncAllDTUs() {
+  try {
+    let tagged = 0, synced = 0;
+    for (const [id, dtu] of STATE.dtus) {
+      // Auto-tag
+      const domains = autoClassifyDTUDomains(dtu);
+      if (domains.length > 0) {
+        const existing = new Set(dtu.tags || []);
+        const sizeBefore = existing.size;
+        for (const d of domains) existing.add(d);
+        if (existing.size > sizeBefore) {
+          dtu.tags = Array.from(existing);
+          tagged++;
+        }
+      }
+      // Sync to lens artifacts
+      synced += syncSingleDTUToLensArtifacts(dtu);
+    }
+    if (tagged > 0 || synced > 0) saveStateDebounced();
+    console.log(`[AutoTag] Retroactive: tagged ${tagged}/${STATE.dtus.size} DTUs, created ${synced} lens artifacts`);
+    return { tagged, synced, total: STATE.dtus.size };
+  } catch (e) {
+    console.log(`[AutoTag] Retroactive tagging error: ${e?.message || e}`);
+    return { tagged: 0, synced: 0, error: String(e?.message || e) };
+  }
 }
 
 // Extract structural pattern from a set of related DTUs
