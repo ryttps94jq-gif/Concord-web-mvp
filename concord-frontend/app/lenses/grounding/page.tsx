@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Globe,
   Activity,
@@ -16,6 +18,9 @@ import { ErrorState } from '@/components/common/EmptyState';
 
 export default function GroundingLensPage() {
   useLensNav('grounding');
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('grounding', 'reading');
 
   const queryClient = useQueryClient();
   const [sensorId, setSensorId] = useState('');
@@ -67,6 +72,13 @@ export default function GroundingLensPage() {
   const statusInfo = status?.status || status || {};
   const contextInfo = context?.context || context || {};
 
+  // Bridge grounding readings into lens artifacts
+  useEffect(() => {
+    bridge.syncList(Array.isArray(readingList) ? readingList : [], (r) => {
+      const reading = r as Record<string, unknown>;
+      return { title: `Reading: ${reading.sensorId || reading.id || 'sensor'}`, data: reading };
+    });
+  }, [readingList, bridge]);
 
   if (isLoading) {
     return (
@@ -97,6 +109,9 @@ export default function GroundingLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="grounding" artifactId={bridge.selectedId} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

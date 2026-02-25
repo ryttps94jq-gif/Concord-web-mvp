@@ -2,6 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState, useCallback, useMemo } from 'react';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Calculator, Play, CheckCircle, XCircle, Sigma, Pi, Loader2,
   History, TrendingUp, Hash, Plus, Trash2, BarChart3
@@ -328,6 +329,9 @@ export default function MathLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="math" artifactId={items[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

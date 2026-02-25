@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   CalendarDays, MapPin, Plus, Search, Filter, X, Edit2, Trash2,
   Ticket, Star, DollarSign, Users, Clock, CheckCircle2, AlertTriangle,
@@ -1322,6 +1323,9 @@ export default function EventsLensPage() {
         )}
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="events" artifactId={events[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

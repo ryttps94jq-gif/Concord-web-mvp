@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import { motion } from 'framer-motion';
 import {
   Heart,
@@ -197,6 +199,9 @@ export default function AffectLensPage() {
   const [eventDimFilter, setEventDimFilter] = useState<string>('all');
   const [expandedEvent, setExpandedEvent] = useState<number | null>(null);
 
+  // --- Lens Bridge (mirrors affect state into universal artifact system) ---
+  const bridge = useLensBridge('affect', 'snapshot');
+
   // --- Queries ---
 
   const {
@@ -288,6 +293,13 @@ export default function AffectLensPage() {
   const healthData = useMemo(() => {
     return health && typeof health === 'object' ? (health as Record<string, unknown>) : {};
   }, [health]);
+
+  // Bridge affect state into lens artifacts for universal AI actions
+  useEffect(() => {
+    if (Object.keys(affectState).length > 0) {
+      bridge.sync(affectState as Record<string, unknown>, 'Affect State Snapshot');
+    }
+  }, [affectState, bridge]);
 
   const eventList = useMemo(() => {
     const raw = events?.events || events;
@@ -490,7 +502,8 @@ export default function AffectLensPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <UniversalActions domain="affect" artifactId={bridge.selectedId} compact />
           <input
             type="text"
             value={sessionId}

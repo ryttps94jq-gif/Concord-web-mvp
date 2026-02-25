@@ -5,6 +5,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Wheat,
   Tractor,
@@ -698,6 +699,9 @@ export default function AgricultureLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="agriculture" artifactId={items[0]?.id} compact />
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => (
           <button

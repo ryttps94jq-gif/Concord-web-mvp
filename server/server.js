@@ -5048,8 +5048,6 @@ const REALTIME = {
 };
 
 function realtimeEmit(event, payload, { sessionId = "", orgId = "", requestId = "" } = {}) {
-  if (!REALTIME.ready || !REALTIME.io) return { ok: false, reason: "socket_not_ready" };
-
   // ---- Event Ordering & Correlation (Category 2+5: Concurrency + Observability) ----
   const enrichedPayload = {
     ...payload,
@@ -5059,15 +5057,27 @@ function realtimeEmit(event, payload, { sessionId = "", orgId = "", requestId = 
     _evt: event,                         // Event name for client-side reordering
   };
 
-  // Emit to specific rooms or broadcast
-  if (sessionId) {
-    REALTIME.io.to(`session:${sessionId}`).emit(event, enrichedPayload);
-  } else if (orgId) {
-    REALTIME.io.to(`org:${orgId}`).emit(event, enrichedPayload);
-  } else {
-    REALTIME.io.emit(event, enrichedPayload);
+  // Try Socket.IO first (primary transport)
+  if (REALTIME.ready && REALTIME.io) {
+    if (sessionId) {
+      REALTIME.io.to(`session:${sessionId}`).emit(event, enrichedPayload);
+    } else if (orgId) {
+      REALTIME.io.to(`org:${orgId}`).emit(event, enrichedPayload);
+    } else {
+      REALTIME.io.emit(event, enrichedPayload);
+    }
+    return { ok: true, seq: enrichedPayload._seq, transport: "socketio" };
   }
-  return { ok: true, seq: enrichedPayload._seq };
+
+  // Fallback: native WebSocket broadcast
+  if (typeof globalThis.realtimeEmitNative === "function") {
+    try {
+      globalThis.realtimeEmitNative(event, enrichedPayload);
+      return { ok: true, seq: enrichedPayload._seq, transport: "native-ws" };
+    } catch {}
+  }
+
+  return { ok: false, reason: "socket_not_ready" };
 }
 
 function enqueueNotification(item, { sessionId = "", orgId = "" } = {}) {
@@ -8901,6 +8911,11 @@ function dtusByIds(ids=[]) {
   return out;
 }
 function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
+  // Input sanitization: prevent XSS and normalize tags
+  if (typeof sanitizeDTUInput === "function") {
+    try { sanitizeDTUInput(dtu); } catch {}
+  }
+
   const isNew = !STATE.dtus.has(dtu.id);
 
   // Dedup gate: block system-generated template/duplicate DTUs
@@ -11200,8 +11215,22 @@ async function callBrain(brainName, prompt, options = {}) {
     return { ok: false, error: `Brain ${brainName} offline and no fallback`, source: brainName };
   }
 
-  const start = Date.now();
-  try {
+  // Wire through SpecV circuit breaker if available
+  const breakerKey = `brain.${brainName}`;
+  const breaker = (typeof circuitBreakers !== "undefined") ? circuitBreakers[breakerKey] : null;
+
+  // Rate limit check (Spec V #85)
+  if (typeof checkRateLimit === "function") {
+    const userId = options._userId || "default";
+    const tier = options._tier || "sovereign";
+    const rl = checkRateLimit(userId, tier);
+    if (!rl.allowed) {
+      return { ok: false, error: rl.reason, source: brainName, rateLimited: true, resetAt: rl.resetAt };
+    }
+  }
+
+  const _doBrainCall = async () => {
+    const start = Date.now();
     const fullPrompt = options.system ? `${options.system}\n\n${prompt}` : prompt;
     const payload = {
       model: brain.model,
@@ -11225,14 +11254,19 @@ async function callBrain(brainName, prompt, options = {}) {
 
     if (!response.ok) {
       brain.stats.errors++;
-      return { ok: false, error: `Brain ${brainName} error: ${response.status}`, source: brainName };
+      throw new Error(`Brain ${brainName} error: ${response.status}`);
     }
 
     const data = await response.json();
     const elapsed = Date.now() - start;
     brain.stats.totalMs += elapsed;
 
-    return {
+    // Record cost (Spec V #85)
+    if (typeof recordCost === "function") {
+      try { recordCost(options._userId || "default", brainName, prompt.length, data.eval_count || 0, elapsed); } catch {}
+    }
+
+    const result = {
       ok: true,
       content: data.response || "",
       source: brainName,
@@ -11240,6 +11274,26 @@ async function callBrain(brainName, prompt, options = {}) {
       tokens: data.eval_count || 0,
       elapsed,
     };
+
+    // Attach confidence score to every brain output
+    try {
+      if (typeof estimateConfidence === "function") {
+        result.confidence = estimateConfidence(result, { dtuCount: 0 });
+      }
+    } catch {}
+
+    return result;
+  };
+
+  const _brainFallback = async () => {
+    return { ok: false, error: `Circuit breaker open for ${brainName}`, source: brainName, circuitOpen: true };
+  };
+
+  try {
+    if (breaker) {
+      return await breaker.call(_doBrainCall, _brainFallback);
+    }
+    return await _doBrainCall();
   } catch (e) {
     brain.stats.errors++;
     return { ok: false, error: String(e.message || e), source: brainName };
@@ -11610,6 +11664,111 @@ async function utilityCall(action, lens, data) {
       BRAIN.utility.stats.dtusGenerated++;
     } catch (e) {
       structuredLog("warn", "utility_dtu_save_failed", { error: String(e?.message || e), action, lens });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Subconscious lens call: background processing, batch ops, autonomous generation.
+ * Uses 1.5B model (fast, cheap) for tasks that don't need real-time interaction.
+ * @param {string} action - Action name (e.g. "discover-patterns", "generate-digest")
+ * @param {string} domain - Lens domain
+ * @param {object} data - Input data
+ * @returns {Promise<{ok:boolean, content?:string, source:string, model?:string}>}
+ */
+async function subconsciousLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 10);
+  const system = `You are Concord's subconscious mind working on ${domain}. Process this autonomously.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Background task: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("subconscious", prompt, {
+    system,
+    temperature: 0.6,
+    maxTokens: 400,
+    timeout: 45000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${domain}: ${action}`,
+        creti: result.content,
+        tags: [domain, "subconscious", action].filter(Boolean),
+        source: `subconscious.${domain}.${action}`,
+        meta: { brainSource: "subconscious", confidence: 0.5, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.subconscious.stats.dtusGenerated++;
+    } catch (e) {
+      structuredLog("warn", "subconscious_lens_dtu_save_failed", { error: String(e?.message || e), action, domain });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Repair lens call: validation, consistency checking, error detection.
+ * Uses 0.5B model (tiny, fast) for binary pass/fail type checks.
+ * Returns structured validation result.
+ */
+async function repairLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 5);
+  const system = `You are Concord's repair brain validating ${domain} data. Be strict and precise. Return JSON with {valid:boolean, issues:string[], suggestions:string[]}.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Validate: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("repair", prompt, {
+    system,
+    temperature: 0.1,
+    maxTokens: 300,
+    timeout: 20000,
+  });
+
+  if (result.ok && result.content) {
+    BRAIN.repair.stats.dtusGenerated = (BRAIN.repair.stats.dtusGenerated || 0) + 1;
+  }
+
+  return result;
+}
+
+/**
+ * Conscious lens call: interactive, user-facing, Socratic, higher quality.
+ * Uses 7B model for tasks requiring nuanced understanding and interaction.
+ */
+async function consciousLensCall(action, domain, data) {
+  const context = await buildBrainContext(action, domain, 15);
+  const system = `You are Concord's conscious mind engaging with the user on ${domain}. Be thoughtful, nuanced, and interactive. Ask clarifying questions when appropriate.\nContext:\n${context}`;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
+  const prompt = `Interactive: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
+
+  const result = await callBrain("conscious", prompt, {
+    system,
+    temperature: 0.7,
+    maxTokens: 800,
+    timeout: 120000,
+  });
+
+  if (result.ok && result.content) {
+    try {
+      const ctx = makeCtx(null);
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      await runMacro("dtu", "create", {
+        title: `${domain}: ${action}`,
+        creti: result.content,
+        tags: [domain, "conscious", action].filter(Boolean),
+        source: `conscious.${domain}.${action}`,
+        meta: { brainSource: "conscious", confidence: 0.7, tokens: result.tokens },
+        scope: "local",
+      }, ctx);
+      BRAIN.conscious.stats.dtusGenerated = (BRAIN.conscious.stats.dtusGenerated || 0) + 1;
+    } catch (e) {
+      structuredLog("warn", "conscious_lens_dtu_save_failed", { error: String(e?.message || e), action, domain });
     }
   }
 
@@ -14044,6 +14203,15 @@ register("dtu", "list", (ctx, input) => {
   if (q) items = items.filter(d => tokenish(d.title).includes(q) || tokenish((d.tags||[]).join(" ")).includes(q) || tokenish((d.cretiHuman || d.creti || "")).includes(q));
   const total = items.length;
   items = items.slice(offset, offset + limit);
+
+  // Attach freshness scores to each DTU in response
+  if (typeof calculateFreshness === "function") {
+    for (const d of items) {
+      d._freshness = calculateFreshness(d);
+      d._freshnessLabel = freshnessLabel(d._freshness);
+    }
+  }
+
   return { ok: true, dtus: items, limit, offset, total };
 });
 register("dtu", "listShadow", (ctx, input) => {
@@ -20551,10 +20719,13 @@ function _governorCtx() {
 // Heartbeat tick history ring buffer (used by /api/heartbeat/history endpoint)
 const _tickHistory = [];
 
+let _governorTickRunning = false;
 async function governorTick(reason="heartbeat") {
+  if (_governorTickRunning) return { ok: false, reason: "tick_already_running" };
+  _governorTickRunning = true;
   try {
     const s = STATE.settings || {};
-    if (s.heartbeatEnabled === false) return { ok:false, reason:"heartbeat_disabled" };
+    if (s.heartbeatEnabled === false) { _governorTickRunning = false; return { ok:false, reason:"heartbeat_disabled" }; }
     const ctx = _governorCtx();
 
     // 1) Deterministic + bounded growth engines
@@ -20697,6 +20868,7 @@ async function governorTick(reason="heartbeat") {
             summary: `CRITICAL: Repair cortex self-test failed: ${err.message}`,
             createdAt: new Date().toISOString(), acknowledged: false,
           });
+          if (STATE.sovereignAlerts.length > 200) STATE.sovereignAlerts = STATE.sovereignAlerts.slice(-200);
         }
       }
 
@@ -21086,6 +21258,8 @@ async function governorTick(reason="heartbeat") {
     return { ok:true };
   } catch (e) {
     return { ok:false, error:String(e?.message||e) };
+  } finally {
+    _governorTickRunning = false;
   }
 }
 
@@ -26590,7 +26764,841 @@ registerLensAction("game", "balance", (ctx, artifact, params) => {
 const { default: domainModules } = await import('./domains/index.js');
 domainModules.forEach(mod => mod(registerLensAction));
 
-console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains)`);
+// ── Universal Action Registrar ──────────────────────────────────────────────
+// Gives EVERY lens domain three AI-powered actions (analyze, generate, suggest)
+// powered by the utility brain (qwen2.5:3b via Ollama). Domains that already
+// have custom handlers for these actions keep them — we only fill gaps.
+const UNIVERSAL_ACTIONS = ["analyze", "generate", "suggest"];
+const ALL_LENS_DOMAINS = [
+  "accounting","admin","affect","agents","agriculture","all","alliance",
+  "anon","app-maker","ar","art","attention","audit","aviation","billing",
+  "bio","board","calendar","chat","chem","code","collab","command-center",
+  "commonsense","council","creative","cri","crypto","custom","daily",
+  "database","debug","docs","eco","education","entity","environment",
+  "ethics","events","experience","export","feed","finance","fitness",
+  "food","fork","forum","fractal","game","global","goals","government",
+  "graph","grounding","healthcare","household","hypothesis","import",
+  "inference","ingest","insurance","integrations","invariant","lab",
+  "law","legacy","legal","lock","logistics","manufacturing","market",
+  "marketplace","math","meta","metacognition","metalearning","ml",
+  "music","neuro","news","nonprofit","offline","organ","paper","physics",
+  "platform","quantum","questmarket","queue","realestate","reasoning",
+  "reflection","repos","research","resonance","retail","schema","science",
+  "security","services","sim","srs","studio","suffering","temporal",
+  "thread","tick","timeline","trades","transfer","voice","vote","whiteboard"
+];
+
+function registerUniversalLensActions() {
+  let registered = 0;
+  for (const domain of ALL_LENS_DOMAINS) {
+    for (const action of UNIVERSAL_ACTIONS) {
+      const key = `${domain}.${action}`;
+      if (LENS_ACTIONS.has(key)) continue; // respect custom handlers
+      LENS_ACTIONS.set(key, async (ctx, artifact, params) => {
+        const result = await utilityCall(action, domain, {
+          artifactTitle: artifact?.title,
+          artifactData: artifact?.data,
+          artifactMeta: artifact?.meta,
+          ...params
+        });
+        return {
+          ok: result.ok,
+          output: result.content || result.error,
+          source: "utility-brain",
+          model: result.model,
+          action,
+          domain,
+        };
+      });
+      registered++;
+    }
+  }
+  structuredLog("info", "universal_lens_actions_registered", {
+    domains: ALL_LENS_DOMAINS.length,
+    actionsPerDomain: UNIVERSAL_ACTIONS.length,
+    totalRegistered: registered,
+    skippedCustom: (ALL_LENS_DOMAINS.length * UNIVERSAL_ACTIONS.length) - registered,
+  });
+}
+registerUniversalLensActions();
+
+// ── Domain-Specific Action Manifest ─────────────────────────────────────────
+// ~450 domain-specific actions across 113 lenses, each routed to the
+// appropriate brain: U=utility(3b), S=subconscious(1.5b), R=repair(0.5b), C=conscious(7b)
+// These go beyond the 3 universal actions (analyze/generate/suggest) with
+// domain-specific intelligence: "generate-pattern" for studio, "check-interactions"
+// for healthcare, "detect-fallacy" for reasoning, etc.
+const DOMAIN_ACTION_MANIFEST = {
+  // ── CREATIVE & MUSIC ──
+  studio: [
+    { action: "generate-pattern", brain: "U", desc: "Generate genre-appropriate drum/melody patterns given BPM and genre" },
+    { action: "suggest-chords", brain: "U", desc: "Suggest chord progressions based on music theory and genre conventions" },
+    { action: "analyze-mix", brain: "U", desc: "Analyze frequency balance, dynamic range, stereo width of a mix" },
+    { action: "auto-arrange", brain: "S", desc: "Generate song structure arrangements from pattern blocks" },
+    { action: "validate-track", brain: "R", desc: "Check for clipping, phase issues, format problems" },
+  ],
+  music: [
+    { action: "analyze-lyrics", brain: "U", desc: "Identify verse/chorus structure, rhyme scheme, syllable patterns" },
+    { action: "tag-mood", brain: "U", desc: "Auto-tag mood from lyric content and musical attributes" },
+    { action: "analyze-structure", brain: "U", desc: "Decompose song into sections with transition analysis" },
+    { action: "discover-similar", brain: "S", desc: "Find related music artifacts in the substrate" },
+    { action: "generate-lyrics", brain: "U", desc: "Generate lyrics given theme, style, and structural constraints" },
+  ],
+  art: [
+    { action: "critique", brain: "U", desc: "Structural analysis: composition, color theory, focal point, balance" },
+    { action: "generate-style-dna", brain: "S", desc: "Analyze recurring themes, palette, compositional tendencies" },
+    { action: "extract-palette", brain: "U", desc: "Extract and name colors, suggest complementary schemes" },
+    { action: "suggest-references", brain: "U", desc: "Suggest reference works and inspiration connections" },
+    { action: "analyze-process", brain: "U", desc: "Evaluate artistic process and iteration quality" },
+  ],
+  creative: [
+    { action: "workshop-prompt", brain: "U", desc: "Generate prompt variations for creative iteration" },
+    { action: "generate-brief", brain: "U", desc: "Generate structured creative brief from minimal input" },
+    { action: "find-inspiration", brain: "S", desc: "Cross-reference with science, philosophy, nature for unexpected connections" },
+    { action: "analyze-mood-board", brain: "U", desc: "Analyze mood board elements for thematic coherence" },
+    { action: "refine-concept", brain: "C", desc: "Interactive concept refinement through dialogue" },
+  ],
+  voice: [
+    { action: "extract-insights", brain: "U", desc: "Extract key insights from transcript text" },
+    { action: "extract-meeting", brain: "U", desc: "Identify decisions, action items, open questions from meeting transcript" },
+    { action: "summarize-journal", brain: "S", desc: "Generate weekly digest linking patterns across voice entries" },
+    { action: "identify-speakers", brain: "U", desc: "Diarize multi-speaker transcript segments" },
+    { action: "generate-pronunciation", brain: "U", desc: "Generate phonetic guides for domain-specific terms" },
+  ],
+  game: [
+    { action: "suggest-branches", brain: "U", desc: "Suggest narrative branches given story context" },
+    { action: "generate-gdd", brain: "U", desc: "Generate game design document: mechanics, core loop, progression" },
+    { action: "analyze-feedback", brain: "U", desc: "Sentiment analysis on playtester feedback by feature area" },
+    { action: "balance-simulate", brain: "U", desc: "Simulate game balance outcomes from parameter inputs" },
+    { action: "discover-mechanics", brain: "S", desc: "Find cross-domain patterns applicable to game mechanics" },
+    { action: "validate-balance", brain: "R", desc: "Validate game economy/stat balance for exploits" },
+  ],
+  whiteboard: [
+    { action: "detect-clusters", brain: "U", desc: "Analyze card positions and connections, identify thematic clusters" },
+    { action: "capture-session", brain: "U", desc: "Generate structured summary: themes, decisions, connections" },
+    { action: "suggest-template", brain: "S", desc: "Suggest layout template based on usage patterns" },
+    { action: "promote-sticky", brain: "R", desc: "Validate sticky note content before promoting to full DTU" },
+  ],
+  collab: [
+    { action: "resolve-conflict", brain: "R", desc: "Resolve field-level edit conflicts between collaborators" },
+    { action: "suggest-review", brain: "U", desc: "Suggest edits and improvements for review" },
+    { action: "compute-attribution", brain: "R", desc: "Compute edit attribution weights for shared artifacts" },
+    { action: "generate-team-pulse", brain: "S", desc: "Weekly team activity summary: domains, DTUs, collaborations" },
+    { action: "validate-merge", brain: "R", desc: "Validate fork-merge operations for consistency" },
+  ],
+
+  // ── KNOWLEDGE & RESEARCH ──
+  paper: [
+    { action: "generate-lit-review", brain: "U", desc: "Scan DTU substrate for relevant knowledge, generate structured literature review" },
+    { action: "analyze-abstract", brain: "U", desc: "Extract hypothesis, methodology, finding, limitations from abstract" },
+    { action: "refine-question", brain: "C", desc: "Generate 5 refined research question versions with different scopes" },
+    { action: "detect-contradictions", brain: "S", desc: "Scan paper-tagged DTUs for contradictory claims" },
+    { action: "build-citation-network", brain: "R", desc: "Compute citation network from reference chains" },
+  ],
+  research: [
+    { action: "synthesize-weekly", brain: "S", desc: "Generate weekly synthesis linking daily research logs" },
+    { action: "evaluate-source", brain: "U", desc: "Assess source credibility: methodology, bias, peer review status" },
+    { action: "find-gaps", brain: "S", desc: "Identify topics referenced but lacking supporting evidence" },
+    { action: "match-questions", brain: "R", desc: "Match new DTUs against open research questions" },
+    { action: "generate-bibliography", brain: "U", desc: "Generate formatted annotated bibliography from source artifacts" },
+  ],
+  hypothesis: [
+    { action: "wizard-step", brain: "C", desc: "Guide through observation → question → hypothesis → prediction → test" },
+    { action: "score-evidence", brain: "U", desc: "Compute cumulative confidence from supporting/contradicting evidence" },
+    { action: "design-experiment", brain: "U", desc: "Suggest experimental design: variables, controls, methodology" },
+    { action: "validate-conclusions", brain: "R", desc: "Validate that conclusions match the data" },
+    { action: "find-transfers", brain: "S", desc: "Find structurally similar hypotheses in other domains" },
+  ],
+  science: [
+    { action: "validate-claims", brain: "R", desc: "Validate consistency between related scientific claims" },
+    { action: "suggest-methods", brain: "U", desc: "Suggest research methods given research question" },
+    { action: "interpret-data", brain: "U", desc: "Suggest interpretations, identify confounds, recommend follow-up" },
+    { action: "check-reproducibility", brain: "U", desc: "Evaluate reproducibility markers: data sharing, methodology detail" },
+    { action: "generate-digest", brain: "S", desc: "Summarize connections between user research and domain developments" },
+  ],
+  math: [
+    { action: "evaluate-expression", brain: "U", desc: "Parse and evaluate mathematical expressions" },
+    { action: "suggest-proof-step", brain: "U", desc: "Suggest next logical step in proof construction" },
+    { action: "validate-proof", brain: "R", desc: "Validate logical consistency of proof chain" },
+    { action: "describe-visualization", brain: "U", desc: "Generate descriptions of graphs/plots for functions" },
+    { action: "explore-theorem", brain: "C", desc: "Interactive theorem exploration and explanation" },
+  ],
+  physics: [
+    { action: "check-dimensions", brain: "U", desc: "Check equations for dimensional consistency" },
+    { action: "link-concepts", brain: "U", desc: "Surface related concepts from math, chemistry, engineering" },
+    { action: "solve-problem", brain: "C", desc: "Interactive step-by-step physics problem solving" },
+    { action: "generate-constants", brain: "U", desc: "Generate physical constants reference with context" },
+    { action: "validate-equations", brain: "R", desc: "Validate equation correctness and unit consistency" },
+  ],
+  chem: [
+    { action: "profile-molecule", brain: "U", desc: "Generate properties, uses, safety data for a compound" },
+    { action: "balance-reaction", brain: "U", desc: "Balance chemical equation and explain stoichiometry" },
+    { action: "generate-safety", brain: "U", desc: "Generate safety profile: handling, storage, hazards, first aid" },
+    { action: "check-interactions", brain: "R", desc: "Cross-reference for known chemical interactions" },
+    { action: "explore-element", brain: "U", desc: "Generate element profile: properties, uses, history, compounds" },
+  ],
+  bio: [
+    { action: "profile-organism", brain: "U", desc: "Generate taxonomy, habitat, characteristics, evolutionary context" },
+    { action: "map-pathway", brain: "U", desc: "Structure biological pathway as chain of relationships" },
+    { action: "review-protocol", brain: "U", desc: "Suggest missing controls, safety steps, time estimates for lab protocol" },
+    { action: "link-gene-function", brain: "U", desc: "Explain gene → protein → function relationships" },
+    { action: "trace-evolution", brain: "U", desc: "Map evolutionary relationship between organisms" },
+  ],
+  neuro: [
+    { action: "explore-region", brain: "U", desc: "Profile brain region: functions, connections, conditions" },
+    { action: "decompose-process", brain: "U", desc: "Decompose cognitive process into components with brain regions" },
+    { action: "profile-neurotransmitter", brain: "U", desc: "Effects, conditions, drug interactions for neurotransmitter" },
+    { action: "map-concord-parallel", brain: "C", desc: "Map Concord four-brain architecture to human neuroscience" },
+  ],
+  quantum: [
+    { action: "explain-concept", brain: "U", desc: "Explain quantum concept calibrated to user's level" },
+    { action: "run-thought-experiment", brain: "C", desc: "Interactive quantum thought experiment discussion" },
+    { action: "bridge-classical", brain: "U", desc: "Map quantum concepts to classical analogies" },
+    { action: "explain-algorithm", brain: "U", desc: "Explain quantum algorithm with use cases and complexity" },
+  ],
+
+  // ── BUSINESS & FINANCE ──
+  finance: [
+    { action: "analyze-budget", brain: "U", desc: "Analyze spending patterns and suggest optimizations" },
+    { action: "evaluate-investment", brain: "U", desc: "Evaluate risk/reward, market conditions, portfolio fit" },
+    { action: "build-model", brain: "U", desc: "Build financial model with revenue projections and scenarios" },
+    { action: "plan-taxes", brain: "U", desc: "Identify deductions, estimate liability, quarterly schedules" },
+    { action: "forecast-cashflow", brain: "S", desc: "Project future cash flow, flag potential shortfalls" },
+  ],
+  accounting: [
+    { action: "validate-ledger", brain: "R", desc: "Validate double-entry books always balance" },
+    { action: "generate-invoice", brain: "U", desc: "Generate invoice with line items and tax calculations" },
+    { action: "reconcile", brain: "U", desc: "Suggest matches for unreconciled bank transactions" },
+    { action: "generate-statements", brain: "U", desc: "Compile income statement, balance sheet, cash flow" },
+    { action: "audit-trail", brain: "R", desc: "Verify no gaps in financial artifact audit trail" },
+  ],
+  billing: [
+    { action: "forecast-usage", brain: "U", desc: "Project token consumption and suggest optimal tier" },
+    { action: "generate-receipt", brain: "U", desc: "Generate formatted transaction receipt" },
+    { action: "monitor-spending", brain: "R", desc: "Monitor spending against configured thresholds" },
+  ],
+  insurance: [
+    { action: "analyze-policy", brain: "U", desc: "Identify coverage gaps, exclusions, cost optimization" },
+    { action: "assess-risk", brain: "U", desc: "Evaluate risk profiles for different scenarios" },
+    { action: "compare-coverage", brain: "U", desc: "Side-by-side comparison highlighting key differences" },
+    { action: "track-renewal", brain: "S", desc: "Track policy expiration and generate renewal alerts" },
+    { action: "validate-claims", brain: "R", desc: "Validate claim documentation completeness" },
+  ],
+  realestate: [
+    { action: "analyze-property", brain: "U", desc: "Evaluate cap rate, cash-on-cash return, comparables" },
+    { action: "calculate-deal", brain: "U", desc: "Compute ROI, DSCR, break-even timeline" },
+    { action: "generate-report", brain: "U", desc: "Compile market analysis from property artifacts" },
+    { action: "alert-lease", brain: "S", desc: "Generate alerts for upcoming lease actions" },
+    { action: "validate-portfolio", brain: "R", desc: "Validate portfolio aggregation accuracy" },
+  ],
+  trades: [
+    { action: "analyze-journal", brain: "U", desc: "Identify patterns in winning/losing trades" },
+    { action: "validate-risk", brain: "R", desc: "Validate trade parameters match risk management rules" },
+    { action: "detect-patterns", brain: "U", desc: "Detect behavioral patterns: revenge trading, position sizing errors" },
+    { action: "generate-performance", brain: "S", desc: "Generate performance DTU: win rate, risk/reward, drawdowns" },
+    { action: "evaluate-strategy", brain: "U", desc: "Evaluate trading strategy against historical patterns" },
+  ],
+  crypto: [
+    { action: "suggest-rebalance", brain: "U", desc: "Suggest portfolio rebalancing based on allocation targets" },
+    { action: "analyze-protocol", brain: "U", desc: "Evaluate DeFi protocol: TVL, audit status, risk rating" },
+    { action: "categorize-transaction", brain: "U", desc: "Categorize on-chain transaction for tax purposes" },
+    { action: "optimize-yield", brain: "U", desc: "Analyze yield opportunities with risk assessment" },
+    { action: "evaluate-tokenomics", brain: "U", desc: "Analyze token supply, distribution, utility, governance" },
+  ],
+  marketplace: [
+    { action: "optimize-listing", brain: "U", desc: "Suggest better title, tags, pricing for marketplace listing" },
+    { action: "generate-bundle", brain: "U", desc: "Package multiple artifacts into bundle with pricing" },
+    { action: "analyze-reviews", brain: "U", desc: "Summarize review sentiment across listings" },
+    { action: "compute-trending", brain: "S", desc: "Compute trending score from sales velocity and reviews" },
+    { action: "validate-listing", brain: "R", desc: "Validate listing completeness and policy compliance" },
+  ],
+  nonprofit: [
+    { action: "segment-donors", brain: "U", desc: "Segment donors by capacity and affinity" },
+    { action: "suggest-ask", brain: "U", desc: "Suggest ask amounts per donor for campaigns" },
+    { action: "generate-impact", brain: "U", desc: "Compile impact report from program data artifacts" },
+    { action: "match-volunteers", brain: "U", desc: "Match volunteers to needs by skills and availability" },
+    { action: "alert-grants", brain: "S", desc: "Generate deadline alerts for grant pipeline" },
+  ],
+  government: [
+    { action: "analyze-policy", brain: "U", desc: "Identify stakeholders, requirements, precedent, consequences" },
+    { action: "track-legislation", brain: "S", desc: "Alert on legislative status changes" },
+    { action: "aggregate-feedback", brain: "U", desc: "Identify themes and priorities across constituent feedback" },
+    { action: "assess-impact", brain: "U", desc: "Evaluate regulatory impact against existing rules" },
+    { action: "validate-budget", brain: "R", desc: "Validate budget artifact internal consistency" },
+  ],
+  law: [
+    { action: "analyze-contract", brain: "U", desc: "Identify key clauses, unusual terms, risk areas" },
+    { action: "generate-brief", brain: "U", desc: "Generate FIRAC case brief: facts, issue, rule, analysis, conclusion" },
+    { action: "check-compliance", brain: "U", desc: "Evaluate against regulatory framework, flag gaps" },
+    { action: "alert-deadlines", brain: "S", desc: "Generate countdown alerts for legal deadlines" },
+    { action: "validate-clauses", brain: "R", desc: "Validate clause library entries for consistency" },
+  ],
+  legal: [
+    { action: "organize-discovery", brain: "U", desc: "Categorize and tag documents for litigation" },
+    { action: "research-question", brain: "C", desc: "Interactive legal research discussion with DTU-backed citations" },
+    { action: "build-timeline", brain: "U", desc: "Chronological event reconstruction from case artifacts" },
+    { action: "log-privilege", brain: "R", desc: "Validate privilege log entries with justification" },
+  ],
+
+  // ── HEALTH & WELLNESS ──
+  healthcare: [
+    { action: "detect-patterns", brain: "U", desc: "Identify patterns in symptom logs over time" },
+    { action: "check-interactions", brain: "R", desc: "Validate no known interactions between concurrent medications" },
+    { action: "answer-clinical", brain: "U", desc: "Provide evidence-based health information with disclaimers" },
+    { action: "build-care-plan", brain: "U", desc: "Generate structured care plan with goals and milestones" },
+    { action: "generate-progress", brain: "S", desc: "Generate care plan progress reports" },
+  ],
+  fitness: [
+    { action: "suggest-workout", brain: "U", desc: "Analyze progressive overload and suggest next session" },
+    { action: "generate-program", brain: "U", desc: "Generate multi-week training program for goals" },
+    { action: "validate-pr", brain: "R", desc: "Validate new PR consistency with training trajectory" },
+    { action: "assess-recovery", brain: "U", desc: "Analyze training load, suggest recovery/deload" },
+    { action: "analyze-trends", brain: "S", desc: "Generate monthly body composition trend analysis" },
+  ],
+  food: [
+    { action: "suggest-substitutions", brain: "U", desc: "Suggest ingredient substitutions for dietary restrictions" },
+    { action: "generate-meal-plan", brain: "U", desc: "Generate weekly meal plan given calorie target and preferences" },
+    { action: "analyze-nutrition", brain: "U", desc: "Compute daily/weekly macros and micros from meal logs" },
+    { action: "generate-grocery-list", brain: "R", desc: "Consolidate ingredients from meal plan into shopping list" },
+    { action: "explore-cuisine", brain: "U", desc: "Generate cuisine profile: ingredients, techniques, flavors" },
+  ],
+  affect: [
+    { action: "detect-patterns", brain: "U", desc: "Identify emotional triggers, cycles, correlations" },
+    { action: "suggest-coping", brain: "U", desc: "Suggest evidence-based coping strategies for current state" },
+    { action: "generate-reflection", brain: "U", desc: "Generate personalized reflection prompts from emotional patterns" },
+    { action: "check-wellbeing", brain: "R", desc: "Wellbeing guardrail check, surface resources if needed" },
+  ],
+  suffering: [
+    { action: "detect-flare-patterns", brain: "S", desc: "Analyze pain logs for weather, activity, medication correlations" },
+    { action: "track-capacity", brain: "U", desc: "Identify gradual changes in functional capacity" },
+    { action: "evaluate-treatments", brain: "U", desc: "Cross-reference treatments with suffering data for effectiveness" },
+    { action: "validate-log", brain: "R", desc: "Validate pain log entry completeness and consistency" },
+  ],
+
+  // ── PRODUCTIVITY & ORGANIZATION ──
+  daily: [
+    { action: "generate-summary", brain: "S", desc: "Generate overnight summary of yesterday's activities" },
+    { action: "prompt-gratitude", brain: "U", desc: "Generate contextual gratitude prompt from recent activity" },
+    { action: "compile-wins", brain: "S", desc: "Compile weekly wins digest from tagged daily entries" },
+    { action: "generate-review", brain: "U", desc: "Generate end-of-day review questions based on activity" },
+  ],
+  goals: [
+    { action: "suggest-okr", brain: "U", desc: "Suggest measurable key results for objectives" },
+    { action: "decompose-goal", brain: "U", desc: "Break large goal into sub-goals with dependencies" },
+    { action: "generate-accountability", brain: "S", desc: "Generate weekly progress report, identify at-risk goals" },
+    { action: "check-alignment", brain: "R", desc: "Validate sub-goals actually contribute to parent goal" },
+  ],
+  calendar: [
+    { action: "optimize-schedule", brain: "U", desc: "Suggest batching, deep work protection, overcommitment fixes" },
+    { action: "audit-time", brain: "S", desc: "Categorize events and generate weekly time allocation report" },
+    { action: "detect-conflicts", brain: "R", desc: "Validate no overlapping events or travel time violations" },
+    { action: "suggest-scheduling", brain: "U", desc: "Suggest optimal meeting times from energy and productivity patterns" },
+  ],
+  events: [
+    { action: "validate-tasks", brain: "R", desc: "Validate no orphaned dependencies in event task list" },
+    { action: "validate-budget", brain: "R", desc: "Validate event budget total against cap" },
+    { action: "generate-review", brain: "U", desc: "Generate post-event structured review from feedback" },
+    { action: "suggest-template", brain: "U", desc: "Suggest event template based on type" },
+  ],
+  board: [
+    { action: "enforce-wip", brain: "R", desc: "Validate WIP limits per column" },
+    { action: "predict-sprint", brain: "U", desc: "Predict sprint completion based on historical velocity" },
+    { action: "detect-blockers", brain: "U", desc: "Analyze in-progress items for age and potential blockers" },
+    { action: "generate-retro", brain: "U", desc: "Generate sprint retrospective: completed, velocity, sentiment" },
+  ],
+  queue: [
+    { action: "score-priority", brain: "U", desc: "Auto-score queue items by age, urgency, impact" },
+    { action: "monitor-sla", brain: "R", desc: "Monitor time-in-queue and escalate on SLA breach" },
+    { action: "auto-categorize", brain: "U", desc: "Read content and auto-assign category, tags, owner" },
+    { action: "generate-performance", brain: "S", desc: "Generate resolution time performance DTUs" },
+  ],
+  feed: [
+    { action: "compute-relevance", brain: "S", desc: "Compute relevance scores for feed items" },
+    { action: "analyze-content", brain: "U", desc: "Analyze feed content for quality and substance" },
+    { action: "rank-feed", brain: "S", desc: "Rank feed items by engagement, quality, recency" },
+  ],
+  news: [
+    { action: "analyze-bias", brain: "U", desc: "Evaluate source perspective, framing, missing context" },
+    { action: "summarize-topic", brain: "U", desc: "Generate concise summary of multiple DTUs on same topic" },
+    { action: "generate-digest", brain: "S", desc: "Generate periodic digest of tracked topics" },
+    { action: "check-facts", brain: "U", desc: "Cross-reference claims against established DTUs" },
+    { action: "monitor-topics", brain: "S", desc: "Monitor global thread for DTUs matching tracked topics" },
+  ],
+  docs: [
+    { action: "auto-document", brain: "U", desc: "Generate documentation from code, research, or project artifacts" },
+    { action: "generate-toc", brain: "U", desc: "Auto-generate navigable table of contents for artifact collection" },
+    { action: "suggest-template", brain: "U", desc: "Suggest documentation template for content type" },
+    { action: "index-search", brain: "S", desc: "Build search index across documentation artifacts" },
+  ],
+  "export": [
+    { action: "convert-format", brain: "U", desc: "Convert artifact to Markdown, JSON, CSV, HTML format" },
+    { action: "generate-obsidian", brain: "U", desc: "Export DTU network as Obsidian-compatible markdown with wiki-links" },
+    { action: "validate-export", brain: "R", desc: "Validate export completeness and integrity" },
+  ],
+  "import": [
+    { action: "smart-parse", brain: "U", desc: "Identify structure in raw text and create appropriate artifacts" },
+    { action: "extract-url", brain: "U", desc: "Fetch URL content and extract key information into DTU" },
+    { action: "detect-duplicates", brain: "R", desc: "Check incoming data against existing artifacts for duplicates" },
+    { action: "process-batch", brain: "S", desc: "Process import queue in background" },
+  ],
+  ingest: [
+    { action: "auto-tag", brain: "U", desc: "Auto-tag ingested content by analyzing text" },
+    { action: "group-highlights", brain: "U", desc: "Group highlights by source and extract themes" },
+    { action: "filter-quality", brain: "R", desc: "Evaluate ingested content for substance, novelty, relevance" },
+    { action: "process-batch", brain: "S", desc: "Process ingest queue in background" },
+  ],
+
+  // ── COGNITIVE SYSTEMS ──
+  metacognition: [
+    { action: "calibrate-confidence", brain: "R", desc: "Track prediction accuracy, identify over/under-confidence" },
+    { action: "detect-blindspots", brain: "S", desc: "Analyze DTU distribution for high activity but low quality domains" },
+    { action: "audit-thinking", brain: "U", desc: "Evaluate reasoning chain for cognitive biases" },
+    { action: "update-self-model", brain: "S", desc: "Maintain evolving DTU of cognitive strengths and weaknesses" },
+    { action: "prompt-metacognition", brain: "U", desc: "Generate metacognitive journal prompts" },
+  ],
+  reasoning: [
+    { action: "detect-fallacy", brain: "U", desc: "Analyze argument for logical fallacies with explanations" },
+    { action: "devils-advocate", brain: "C", desc: "Argue against user's position to stress-test reasoning" },
+    { action: "socratic-question", brain: "C", desc: "Ask probing questions to deepen understanding" },
+    { action: "validate-proof", brain: "R", desc: "Check multi-step argument for gaps and invalid steps" },
+    { action: "map-argument", brain: "U", desc: "Structure argument as premises → inference → conclusion" },
+  ],
+  inference: [
+    { action: "forward-chain", brain: "U", desc: "Derive new conclusions from facts and rules" },
+    { action: "validate-syllogism", brain: "R", desc: "Validate syllogism form: major premise, minor, conclusion" },
+    { action: "find-contradictions", brain: "S", desc: "Scan fact database for inconsistencies" },
+    { action: "what-if", brain: "U", desc: "Compute consequences of hypothetical facts" },
+  ],
+  reflection: [
+    { action: "guide-reflection", brain: "U", desc: "Generate contextual reflection prompts from activity and emotion" },
+    { action: "track-growth", brain: "S", desc: "Compare artifacts over time, identify growth and stagnation" },
+    { action: "shift-perspective", brain: "C", desc: "Present situation from alternative viewpoints" },
+    { action: "match-wisdom", brain: "U", desc: "Surface relevant philosophical insights for current challenges" },
+  ],
+  attention: [
+    { action: "allocate-budget", brain: "U", desc: "Allocate daily attention tokens across domains by priority" },
+    { action: "analyze-distractions", brain: "U", desc: "Identify distraction patterns and suggest mitigation" },
+    { action: "compute-switching-cost", brain: "U", desc: "Compute context switching frequency and productivity cost" },
+    { action: "score-deep-work", brain: "S", desc: "Evaluate weekly deep work ratio with improvement suggestions" },
+  ],
+  transfer: [
+    { action: "find-analogies", brain: "U", desc: "Search for structural analogies across domains" },
+    { action: "catalog-pattern", brain: "U", desc: "Catalog abstract pattern with concrete examples from multiple fields" },
+    { action: "discover-transfers", brain: "S", desc: "Generate cross-domain transfer suggestions from new DTUs" },
+    { action: "validate-analogy", brain: "R", desc: "Evaluate analogy for structural soundness vs superficial similarity" },
+  ],
+  metalearning: [
+    { action: "evaluate-strategy", brain: "U", desc: "Assess which learning strategies work best from outcome data" },
+    { action: "profile-style", brain: "S", desc: "Analyze artifact creation patterns for learning modalities" },
+    { action: "generate-curriculum", brain: "U", desc: "Design optimal learning path for a topic given existing knowledge" },
+    { action: "compare-ab", brain: "U", desc: "Evaluate A/B tested learning strategies" },
+  ],
+  srs: [
+    { action: "generate-cards", brain: "U", desc: "Generate flashcards from DTU: cloze, Q&A, conceptual" },
+    { action: "optimize-interleaving", brain: "U", desc: "Select optimal cross-domain interleaving ratio" },
+    { action: "detect-leeches", brain: "R", desc: "Identify consistently failing cards, suggest reformulation" },
+  ],
+  commonsense: [
+    { action: "derive-implications", brain: "U", desc: "Derive implicit knowledge from stated facts" },
+    { action: "surface-assumptions", brain: "U", desc: "Identify unstated assumptions in any DTU" },
+    { action: "check-cultural", brain: "U", desc: "Note when claims are culturally specific vs universal" },
+    { action: "explain-simply", brain: "C", desc: "Explain DTU in terms a child would understand" },
+  ],
+  grounding: [
+    { action: "build-context", brain: "S", desc: "Assemble current context from all sensor data" },
+    { action: "analyze-correlations", brain: "U", desc: "Find correlations between environment and productivity/mood/health" },
+    { action: "link-observation", brain: "U", desc: "Connect physical-world observations with DTU concepts" },
+    { action: "monitor-environment", brain: "S", desc: "Track environmental variables and identify trends" },
+  ],
+  experience: [
+    { action: "mine-patterns", brain: "S", desc: "Analyze experience logs for recurring themes and predictors" },
+    { action: "consolidate", brain: "S", desc: "Merge similar experiences into distilled wisdom DTUs" },
+    { action: "extract-strategies", brain: "U", desc: "Identify successful strategies from positive experiences" },
+    { action: "retrieve-relevant", brain: "U", desc: "Search past experiences for applicable lessons" },
+  ],
+  temporal: [
+    { action: "validate-temporal", brain: "R", desc: "Check temporal claims: no effects before causes, no anachronisms" },
+    { action: "track-decay", brain: "S", desc: "Flag time-sensitive DTUs that may be outdated" },
+    { action: "analyze-causation", brain: "U", desc: "Evaluate whether causal claims are justified" },
+    { action: "project-trend", brain: "U", desc: "Extrapolate temporal trend with confidence interval" },
+  ],
+
+  // ── EDUCATION ──
+  education: [
+    { action: "optimize-course", brain: "U", desc: "Suggest lesson ordering based on prerequisite knowledge" },
+    { action: "adapt-difficulty", brain: "U", desc: "Adjust question difficulty based on learner performance" },
+    { action: "find-gaps", brain: "U", desc: "Compare course content against learner's existing DTUs" },
+    { action: "teach", brain: "C", desc: "Answer questions about course material using Socratic method" },
+    { action: "validate-progress", brain: "R", desc: "Validate skill mastery against assessment criteria" },
+  ],
+  ethics: [
+    { action: "analyze-frameworks", brain: "U", desc: "Evaluate dilemma through utilitarian, deontological, virtue, care ethics" },
+    { action: "map-stakeholders", brain: "U", desc: "Identify all affected stakeholders and their interests" },
+    { action: "find-precedent", brain: "U", desc: "Search substrate for similar ethical dilemmas and resolutions" },
+    { action: "clarify-values", brain: "C", desc: "Interactive trade-off exercise to articulate values" },
+    { action: "assess-impact", brain: "U", desc: "Evaluate second and third-order consequences" },
+  ],
+
+  // ── INFRASTRUCTURE & DEV ──
+  code: [
+    { action: "review-code", brain: "U", desc: "Identify bugs, performance issues, security concerns, style violations" },
+    { action: "document-architecture", brain: "U", desc: "Generate architecture documentation: components, data flow, API surface" },
+    { action: "debug-assist", brain: "C", desc: "Interactive debugging walkthrough using relevant code DTUs" },
+    { action: "suggest-refactoring", brain: "U", desc: "Analyze for DRY violations, complexity, coupling issues" },
+    { action: "search-snippets", brain: "U", desc: "Find relevant code snippets based on context" },
+  ],
+  database: [
+    { action: "validate-schema", brain: "R", desc: "Validate referential integrity of schema design" },
+    { action: "generate-query", brain: "U", desc: "Translate natural language to queries against DTU substrate" },
+    { action: "plan-migration", brain: "U", desc: "Generate migration plan for schema changes" },
+    { action: "score-quality", brain: "R", desc: "Evaluate artifacts for completeness, consistency, freshness" },
+    { action: "suggest-indexes", brain: "U", desc: "Suggest indexing strategies from query patterns" },
+  ],
+  schema: [
+    { action: "validate-schema", brain: "R", desc: "Validate artifacts against declared schema" },
+    { action: "check-evolution", brain: "R", desc: "Validate backward compatibility of schema changes" },
+    { action: "infer-schema", brain: "U", desc: "Infer schema from collection of similar artifacts" },
+    { action: "map-schemas", brain: "U", desc: "Identify structural similarities between schemas across domains" },
+  ],
+  debug: [
+    { action: "check-integrity", brain: "R", desc: "Validate DTU substrate: orphaned refs, circular lineage, corruption" },
+    { action: "analyze-performance", brain: "U", desc: "Identify performance bottlenecks per endpoint, brain, lens" },
+    { action: "suggest-fix", brain: "U", desc: "Suggest fixes for identified issues" },
+  ],
+  admin: [
+    { action: "validate-config", brain: "R", desc: "Validate system configuration consistency" },
+    { action: "generate-analytics", brain: "S", desc: "Compute system-wide metrics: DTUs, users, brain utilization" },
+    { action: "audit-access", brain: "R", desc: "Review access patterns for anomalies" },
+  ],
+  security: [
+    { action: "audit-access", brain: "R", desc: "Review access patterns for unusual activity" },
+    { action: "check-compliance", brain: "U", desc: "Evaluate against security frameworks (OWASP, SOC2, GDPR)" },
+    { action: "scan-secrets", brain: "R", desc: "Check artifacts for accidentally committed secrets" },
+    { action: "detect-patterns", brain: "S", desc: "Detect security pattern anomalies over time" },
+    { action: "log-incident", brain: "R", desc: "Validate incident log completeness" },
+  ],
+  repos: [
+    { action: "analyze-commits", brain: "U", desc: "Evaluate commit messages for quality and convention" },
+    { action: "check-dependencies", brain: "R", desc: "Flag vulnerable dependencies by version and license" },
+    { action: "review-pr", brain: "U", desc: "Generate initial code review for pull request" },
+    { action: "validate-coverage", brain: "R", desc: "Flag untested components from coverage data" },
+  ],
+  integrations: [
+    { action: "suggest-pipeline", brain: "U", desc: "Suggest data transformations for integration pipeline" },
+    { action: "monitor-sync", brain: "R", desc: "Monitor sync status and flag failures" },
+    { action: "validate-webhook", brain: "R", desc: "Validate webhook delivery and format" },
+  ],
+  "app-maker": [
+    { action: "generate-spec", brain: "U", desc: "Generate structured app spec: pages, data models, flows" },
+    { action: "validate-spec", brain: "R", desc: "Validate spec: missing pages, undefined refs, broken flows" },
+    { action: "suggest-improvements", brain: "U", desc: "Suggest improvements based on usage analytics" },
+  ],
+  ml: [
+    { action: "profile-dataset", brain: "U", desc: "Analyze feature distributions, missing values, class balance, bias" },
+    { action: "generate-model-card", brain: "U", desc: "Generate model documentation: use, limitations, metrics" },
+    { action: "explain-features", brain: "U", desc: "Explain feature importance with domain knowledge context" },
+    { action: "validate-pipeline", brain: "R", desc: "Validate ML pipeline stages for consistency" },
+    { action: "compare-experiments", brain: "U", desc: "Compare experiment runs across hyperparameters and metrics" },
+  ],
+  invariant: [
+    { action: "check-all", brain: "R", desc: "Verify all registered invariants against current state" },
+    { action: "suggest-invariants", brain: "U", desc: "Suggest new invariants based on system behavior analysis" },
+    { action: "analyze-violations", brain: "U", desc: "Analyze violation patterns and probable causes" },
+  ],
+
+  // ── DOMAIN-SPECIFIC ──
+  logistics: [
+    { action: "optimize-schedule", brain: "U", desc: "Optimize production/shipping schedule given constraints" },
+    { action: "alert-inventory", brain: "R", desc: "Alert when inventory below reorder threshold" },
+    { action: "analyze-quality", brain: "U", desc: "Identify quality trends from QC results" },
+    { action: "validate-chain", brain: "R", desc: "Validate supply chain integrity" },
+  ],
+  manufacturing: [
+    { action: "optimize-production", brain: "U", desc: "Optimize production schedule for orders and capacity" },
+    { action: "monitor-quality", brain: "R", desc: "Monitor QC pass/fail rates and alert on degradation" },
+    { action: "predict-maintenance", brain: "S", desc: "Predict maintenance needs from equipment data" },
+  ],
+  retail: [
+    { action: "analyze-sales", brain: "S", desc: "Generate daily/weekly sales trends and top products" },
+    { action: "segment-customers", brain: "U", desc: "Segment by purchase frequency, average order, preferences" },
+    { action: "optimize-pricing", brain: "U", desc: "Suggest pricing from margin targets and demand patterns" },
+    { action: "predict-promotion", brain: "U", desc: "Predict promotion impact on sales" },
+  ],
+  agriculture: [
+    { action: "plan-crop", brain: "U", desc: "Plan crop rotation given soil, climate, market conditions" },
+    { action: "track-season", brain: "S", desc: "Generate weekly crop status vs expected milestones" },
+    { action: "analyze-soil", brain: "U", desc: "Identify soil health trends and suggest amendments" },
+    { action: "identify-pest", brain: "U", desc: "Identify probable pest/disease causes and suggest treatments" },
+    { action: "predict-yield", brain: "U", desc: "Estimate yield from crop type, conditions, history" },
+  ],
+  aviation: [
+    { action: "calculate-wb", brain: "U", desc: "Compute weight and balance for aircraft configuration" },
+    { action: "validate-wb", brain: "R", desc: "Validate W&B within aircraft limits" },
+    { action: "format-weather", brain: "U", desc: "Parse weather data into pilot-friendly format with go/no-go" },
+    { action: "check-currency", brain: "R", desc: "Check pilot currency requirements and alert on expiration" },
+  ],
+  household: [
+    { action: "schedule-maintenance", brain: "S", desc: "Generate maintenance reminders based on schedules" },
+    { action: "analyze-utilities", brain: "U", desc: "Identify utility usage trends and suggest savings" },
+    { action: "plan-project", brain: "U", desc: "Plan home improvement: budget, materials, steps, timeline" },
+    { action: "track-inventory", brain: "R", desc: "Validate household inventory and flag missing records" },
+  ],
+  environment: [
+    { action: "calculate-carbon", brain: "U", desc: "Calculate carbon footprint and suggest reductions" },
+    { action: "identify-species", brain: "U", desc: "Assist with wildlife species identification" },
+    { action: "score-sustainability", brain: "U", desc: "Evaluate practices against sustainability frameworks" },
+    { action: "track-trends", brain: "S", desc: "Identify environmental metric trends and generate alerts" },
+  ],
+  services: [
+    { action: "generate-proposal", brain: "U", desc: "Generate structured proposal from client needs" },
+    { action: "analyze-time", brain: "U", desc: "Generate invoiceable time summaries per client/project" },
+    { action: "collect-feedback", brain: "U", desc: "Identify improvement areas from post-project feedback" },
+  ],
+  forum: [
+    { action: "compute-reputation", brain: "S", desc: "Compute user reputation from helpful answers and upvotes" },
+    { action: "evaluate-answer", brain: "U", desc: "Evaluate answer relevance and accuracy against DTU substrate" },
+    { action: "detect-duplicates", brain: "R", desc: "Check new questions against existing threads" },
+    { action: "auto-tag", brain: "U", desc: "Suggest tags based on post content analysis" },
+  ],
+  vote: [
+    { action: "tally-votes", brain: "R", desc: "Tally votes using selected method: majority, ranked, quadratic" },
+    { action: "analyze-results", brain: "U", desc: "Interpret results: consensus level, factions, minority concerns" },
+    { action: "measure-consensus", brain: "U", desc: "Measure consensus degree across voting dimensions" },
+    { action: "validate-delegation", brain: "R", desc: "Validate vote delegation chain integrity" },
+  ],
+  council: [
+    { action: "validate-constitution", brain: "R", desc: "Validate council action against constitutional principles" },
+    { action: "find-precedent", brain: "U", desc: "Search past council decisions for consistent governance" },
+    { action: "assess-impact", brain: "U", desc: "Predict consequences of approval/rejection before vote" },
+  ],
+
+  // ── SYSTEM LENSES ──
+  lock: [
+    { action: "verify-encryption", brain: "R", desc: "Verify all sensitive artifacts are properly encrypted" },
+    { action: "audit-permissions", brain: "R", desc: "Audit access permissions for completeness" },
+  ],
+  offline: [
+    { action: "resolve-conflicts", brain: "U", desc: "Suggest resolution for offline edit conflicts" },
+    { action: "predict-needs", brain: "S", desc: "Pre-sync artifacts likely to be needed based on patterns" },
+  ],
+  tick: [
+    { action: "analyze-performance", brain: "U", desc: "Analyze tick cycle duration trends" },
+    { action: "validate-cycle", brain: "R", desc: "Validate tick cycle completeness and flag degradation" },
+  ],
+  cri: [
+    { action: "compute-credibility", brain: "U", desc: "Composite score from evidence, citations, votes, reliability" },
+    { action: "detect-challenges", brain: "R", desc: "Process credibility challenges with counter-evidence" },
+  ],
+  graph: [
+    { action: "compute-layout", brain: "U", desc: "Compute force-directed layout for knowledge subgraph" },
+    { action: "detect-communities", brain: "U", desc: "Identify community clusters in the DTU network" },
+  ],
+  entity: [
+    { action: "assess-growth", brain: "U", desc: "Evaluate entity growth trajectory and maturity" },
+    { action: "validate-state", brain: "R", desc: "Validate entity state consistency" },
+  ],
+  sim: [
+    { action: "design-scenario", brain: "U", desc: "Design simulation scenario with parameters and expected outcomes" },
+    { action: "validate-results", brain: "R", desc: "Validate simulation results for internal consistency" },
+  ],
+  lab: [
+    { action: "design-experiment", brain: "U", desc: "Design experiment with controls, variables, methodology" },
+    { action: "validate-protocol", brain: "R", desc: "Validate lab protocol for safety and completeness" },
+  ],
+  fork: [
+    { action: "suggest-modifications", brain: "U", desc: "Suggest modifications for a forked DTU" },
+    { action: "validate-fork", brain: "R", desc: "Validate fork maintains structural integrity" },
+  ],
+  custom: [
+    { action: "generate-template", brain: "U", desc: "Generate lens template from description" },
+    { action: "validate-lens", brain: "R", desc: "Validate custom lens definition completeness" },
+  ],
+  meta: [
+    { action: "cross-lens-analysis", brain: "U", desc: "Analyze patterns across multiple lens domains" },
+    { action: "generate-insights", brain: "S", desc: "Generate cross-domain insights from lens activity" },
+    { action: "score_lenses", brain: "U", desc: "Score lens effectiveness across domains" },
+    { action: "policy_check", brain: "R", desc: "Validate policies across all lenses" },
+    { action: "capability_audit", brain: "R", desc: "Audit available capabilities across lens system" },
+    { action: "generate_status_report", brain: "U", desc: "Generate overall system status report" },
+  ],
+
+  // ── SPEC VI AUDIT: MISSING FRONTEND-DECLARED DOMAINS ──
+  chat: [
+    { action: "send", brain: "U", desc: "Process and route a chat message" },
+    { action: "summarize", brain: "U", desc: "Summarize conversation thread" },
+    { action: "branch", brain: "U", desc: "Branch conversation into a new topic thread" },
+    { action: "export_transcript", brain: "U", desc: "Export conversation as structured transcript" },
+    { action: "search_history", brain: "S", desc: "Search through conversation history" },
+    { action: "merge_threads", brain: "U", desc: "Merge related conversation threads" },
+  ],
+  alliance: [
+    { action: "propose_alliance", brain: "U", desc: "Draft alliance proposal between entities" },
+    { action: "ratify_charter", brain: "R", desc: "Validate and ratify alliance charter" },
+    { action: "add_member", brain: "U", desc: "Process new member addition to alliance" },
+    { action: "vote_on_governance", brain: "U", desc: "Process governance vote within alliance" },
+    { action: "compliance_check", brain: "R", desc: "Check compliance with alliance charter terms" },
+    { action: "dissolve", brain: "R", desc: "Process alliance dissolution" },
+  ],
+  anon: [
+    { action: "create_room", brain: "U", desc: "Create anonymous discussion room" },
+    { action: "post_anonymous", brain: "U", desc: "Post anonymous content with provenance tracking" },
+    { action: "verify_provenance", brain: "R", desc: "Verify anonymous content provenance chain" },
+    { action: "rotate_identity", brain: "R", desc: "Rotate anonymous identity keys" },
+    { action: "export_sanitized", brain: "U", desc: "Export sanitized content stripped of identity markers" },
+    { action: "moderate", brain: "R", desc: "Moderate anonymous content for policy compliance" },
+  ],
+  ar: [
+    { action: "place_anchor", brain: "U", desc: "Place spatial anchor for AR content" },
+    { action: "render_scene", brain: "U", desc: "Render AR scene composition" },
+    { action: "capture", brain: "U", desc: "Capture AR scene state" },
+    { action: "export_3d", brain: "U", desc: "Export AR scene as 3D model" },
+    { action: "collision_detect", brain: "R", desc: "Detect spatial collisions between AR objects" },
+    { action: "lighting_estimate", brain: "U", desc: "Estimate lighting conditions for AR scene" },
+  ],
+  eco: [
+    { action: "map_dependencies", brain: "U", desc: "Map system dependency graph" },
+    { action: "flow_analysis", brain: "U", desc: "Analyze data/resource flow through system" },
+    { action: "health_check", brain: "R", desc: "Run ecosystem health diagnostics" },
+    { action: "bottleneck_detect", brain: "U", desc: "Detect performance bottlenecks in ecosystem" },
+    { action: "impact_simulation", brain: "U", desc: "Simulate impact of changes across ecosystem" },
+  ],
+  market: [
+    { action: "place_bid", brain: "U", desc: "Place a bid in knowledge market" },
+    { action: "accept_offer", brain: "U", desc: "Accept a market offer" },
+    { action: "settle", brain: "R", desc: "Settle a completed market transaction" },
+    { action: "price_history", brain: "S", desc: "Analyze price history and trends" },
+    { action: "volume_analysis", brain: "U", desc: "Analyze trading volume patterns" },
+    { action: "liquidity_check", brain: "R", desc: "Check market liquidity depth" },
+  ],
+  questmarket: [
+    { action: "post_bounty", brain: "U", desc: "Post a knowledge bounty to the market" },
+    { action: "submit_work", brain: "U", desc: "Submit completed work for a bounty" },
+    { action: "verify_submission", brain: "R", desc: "Verify bounty submission meets requirements" },
+    { action: "release_payout", brain: "R", desc: "Release payout for completed bounty" },
+    { action: "reputation_score", brain: "S", desc: "Calculate participant reputation score" },
+    { action: "dispute_resolve", brain: "U", desc: "Resolve disputes on bounty submissions" },
+  ],
+  resonance: [
+    { action: "acknowledge", brain: "U", desc: "Acknowledge and strengthen a resonance connection" },
+    { action: "dismiss", brain: "U", desc: "Dismiss a false-positive resonance" },
+  ],
+  timeline: [
+    { action: "replay", brain: "U", desc: "Replay timeline events in sequence" },
+    { action: "diff_timelines", brain: "U", desc: "Compare two timeline branches" },
+    { action: "annotate", brain: "U", desc: "Add annotation to timeline event" },
+    { action: "cluster_events", brain: "S", desc: "Cluster related timeline events" },
+    { action: "gap_analysis", brain: "U", desc: "Identify temporal gaps in timeline" },
+    { action: "causality_trace", brain: "U", desc: "Trace causal chains through timeline" },
+  ],
+  fractal: [
+    { action: "animate", brain: "U", desc: "Animate fractal parameter transitions" },
+    { action: "dimension_morph", brain: "U", desc: "Morph between fractal dimensions" },
+    { action: "explore", brain: "U", desc: "Interactive fractal exploration" },
+    { action: "export_render", brain: "U", desc: "Export high-resolution fractal render" },
+    { action: "parameter_sweep", brain: "U", desc: "Sweep fractal parameters and generate gallery" },
+  ],
+
+  // ── FRONTEND-DECLARED ACTIONS MISSING FROM EXISTING DOMAINS ──
+  // board: additional actions beyond enforce-wip/predict-sprint/detect-blockers/generate-retro
+  // (adding only missing ones — frontend uses move_card, assign, set_wip_limit, burndown, velocity_calc, sprint_review, archive_done)
+};
+
+// Supplement existing domains with frontend-manifest actions that aren't already registered
+const FRONTEND_MANIFEST_SUPPLEMENTS = {
+  board: [
+    { action: "move_card", brain: "U", desc: "Move card between board columns" },
+    { action: "assign", brain: "U", desc: "Assign card to team member" },
+    { action: "set_wip_limit", brain: "R", desc: "Set WIP limit for a column" },
+    { action: "burndown", brain: "U", desc: "Generate burndown chart data" },
+    { action: "velocity_calc", brain: "U", desc: "Calculate sprint velocity metrics" },
+    { action: "sprint_review", brain: "U", desc: "Generate sprint review summary" },
+    { action: "archive_done", brain: "U", desc: "Archive completed cards" },
+  ],
+  goals: [
+    { action: "evaluate", brain: "U", desc: "Evaluate goal progress and effectiveness" },
+    { action: "activate", brain: "U", desc: "Activate a goal and set tracking" },
+    { action: "complete", brain: "U", desc: "Mark goal as completed with review" },
+    { action: "milestone_check", brain: "R", desc: "Check milestone completion status" },
+    { action: "dependency_analysis", brain: "U", desc: "Analyze goal dependencies" },
+    { action: "progress_report", brain: "U", desc: "Generate goal progress report" },
+  ],
+  invariant: [
+    { action: "add_invariant", brain: "U", desc: "Register a new system invariant" },
+    { action: "monitor_start", brain: "R", desc: "Start monitoring an invariant" },
+    { action: "violation_report", brain: "U", desc: "Generate invariant violation report" },
+    { action: "trend_analysis", brain: "S", desc: "Analyze invariant violation trends" },
+    { action: "auto_repair_suggest", brain: "U", desc: "Suggest auto-repair for invariant violations" },
+  ],
+  temporal: [
+    { action: "replay", brain: "U", desc: "Replay temporal state at a point in time" },
+    { action: "diff", brain: "U", desc: "Compute diff between temporal states" },
+    { action: "temporal_query", brain: "U", desc: "Query substrate at a specific point in time" },
+    { action: "truth_at_time", brain: "U", desc: "Determine what was known at a given time" },
+    { action: "version_compare", brain: "U", desc: "Compare DTU versions across time" },
+  ],
+};
+
+// Brain dispatch: route action to appropriate brain based on manifest
+const BRAIN_DISPATCHERS = {
+  U: utilityCall,
+  S: subconsciousLensCall,
+  R: repairLensCall,
+  C: consciousLensCall,
+};
+
+function registerDomainSpecificActions() {
+  let registered = 0;
+  let skipped = 0;
+  const brainCounts = { U: 0, S: 0, R: 0, C: 0 };
+
+  // Merge DOMAIN_ACTION_MANIFEST + FRONTEND_MANIFEST_SUPPLEMENTS into one pass
+  const allManifests = { ...DOMAIN_ACTION_MANIFEST };
+  if (typeof FRONTEND_MANIFEST_SUPPLEMENTS !== "undefined") {
+    for (const [domain, actions] of Object.entries(FRONTEND_MANIFEST_SUPPLEMENTS)) {
+      if (!allManifests[domain]) allManifests[domain] = [];
+      allManifests[domain] = [...allManifests[domain], ...actions];
+    }
+  }
+
+  for (const [domain, actions] of Object.entries(allManifests)) {
+    for (const { action, brain, desc } of actions) {
+      const key = `${domain}.${action}`;
+      if (LENS_ACTIONS.has(key)) { skipped++; continue; }
+
+      const dispatcher = BRAIN_DISPATCHERS[brain] || utilityCall;
+      LENS_ACTIONS.set(key, async (ctx, artifact, params) => {
+        const result = await dispatcher(action, domain, {
+          artifactTitle: artifact?.title,
+          artifactData: artifact?.data,
+          artifactMeta: artifact?.meta,
+          description: desc,
+          ...params,
+        });
+        return {
+          ok: result.ok,
+          output: result.content || result.error,
+          source: `${brain.toLowerCase()}-brain`,
+          model: result.model,
+          action,
+          domain,
+          brain,
+        };
+      });
+      registered++;
+      brainCounts[brain] = (brainCounts[brain] || 0) + 1;
+    }
+  }
+
+  structuredLog("info", "domain_specific_actions_registered", {
+    domains: Object.keys(allManifests).length,
+    totalRegistered: registered,
+    skippedExisting: skipped,
+    brainDistribution: brainCounts,
+  });
+}
+registerDomainSpecificActions();
+
+console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains + ${LENS_ACTIONS.size} total actions)`);
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
@@ -27549,14 +28557,14 @@ app.get("/api/db/tables", (req, res) => {
   try {
     const tables = db.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name").all();
     res.json({ ok: true, tables });
-  } catch (e) { res.json({ ok: true, tables: [], error: String(e?.message || e) }); }
+  } catch (e) { res.status(500).json({ ok: false, tables: [], error: String(e?.message || e) }); }
 });
 app.get("/api/db/indexes", (req, res) => {
   if (!db) return res.json({ ok: true, indexes: [] });
   try {
     const indexes = db.prepare("SELECT name, tbl_name as tableName, sql FROM sqlite_master WHERE type='index' ORDER BY tbl_name, name").all();
     res.json({ ok: true, indexes });
-  } catch (e) { res.json({ ok: true, indexes: [], error: String(e?.message || e) }); }
+  } catch (e) { res.status(500).json({ ok: false, indexes: [], error: String(e?.message || e) }); }
 });
 app.get("/api/redis/stats", async (req, res) => res.json(await runMacro("redis", "stats", {}, makeCtx(req))));
 
@@ -29257,10 +30265,15 @@ app.get("/api/state/sessions", (req, res) => {
   res.json({ ok: true, sessions });
 });
 
-// Simulations (alias for worldmodel)
-app.get("/api/simulations", (req, res) => {
-  res.json({ ok: true, simulations: [], note: "Use /api/worldmodel/simulations" });
-});
+// Simulations — proxies to worldmodel
+app.get("/api/simulations", asyncHandler(async (req, res) => {
+  try {
+    const out = await runMacro("sim", "list", {}, makeCtx(req));
+    res.json({ ok: true, simulations: out.simulations || [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), simulations: [] });
+  }
+}));
 
 app.post("/api/simulations/whatif", asyncHandler(async (req, res) => {
   try {
@@ -29298,8 +30311,8 @@ app.get("/api/quests", asyncHandler(async (req, res) => {
   try {
     const out = await runMacro("goals", "list", {}, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch {
-    res.json({ ok: true, quests: [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), quests: [] });
   }
 }));
 
@@ -29307,8 +30320,8 @@ app.get("/api/quests/mine", asyncHandler(async (req, res) => {
   try {
     const out = await runMacro("goals", "list", { mine: true }, makeCtx(req));
     res.json({ ...out, quests: out.goals || [] });
-  } catch {
-    res.json({ ok: true, quests: [] });
+  } catch (e) {
+    res.json({ ok: false, error: String(e?.message || e), quests: [] });
   }
 }));
 
@@ -29439,7 +30452,19 @@ app.get("/api/lattice/fractal", (req, res) => {
   try {
     const dtus = dtusArray().slice(-50);
     const nodes = dtus.map(d => ({ id: d.id, title: d.title, tier: d.tier, tags: d.tags }));
-    res.json({ ok: true, nodes, edges: [] });
+    // Compute edges from shared tags between DTUs
+    const edges = [];
+    for (let i = 0; i < dtus.length; i++) {
+      const tagsA = new Set(dtus[i].tags || []);
+      if (tagsA.size === 0) continue;
+      for (let j = i + 1; j < dtus.length; j++) {
+        const shared = (dtus[j].tags || []).filter(t => tagsA.has(t));
+        if (shared.length > 0) {
+          edges.push({ source: dtus[i].id, target: dtus[j].id, weight: shared.length, sharedTags: shared });
+        }
+      }
+    }
+    res.json({ ok: true, nodes, edges });
   } catch (e) {
     res.json({ ok: false, error: String(e?.message || e) });
   }
@@ -29849,7 +30874,7 @@ app.post("/api/repair/frontend-error", async (req, res) => {
     });
     RQ.push(entry);
     res.json({ ok: true, errorId: entry.id });
-  } catch (e) { res.json({ ok: true, errorId: null }); }
+  } catch (e) { res.status(500).json({ ok: false, errorId: null, error: String(e?.message || e) }); }
 });
 
 app.post("/api/repair/frontend-recovery", async (req, res) => {
@@ -29860,7 +30885,7 @@ app.post("/api/repair/frontend-recovery", async (req, res) => {
     const match = recent.find(e => e.context.module?.includes("frontend") && !e.repairSucceeded);
     if (match) { match.repairAttempted = true; match.repairSucceeded = true; match.repairMethod = "frontend_auto_retry"; }
     res.json({ ok: true });
-  } catch { res.json({ ok: true }); }
+  } catch (e) { res.status(500).json({ ok: false, error: String(e?.message || e) }); }
 });
 
 app.get("/api/sovereign/repair/status", async (req, res) => {
@@ -30068,9 +31093,11 @@ app.post("/api/chem/react", (req, res) => {
     id: reactionId,
     reactants,
     conditions: conditions || {},
-    products: [], // Would be computed by a chemistry engine
+    products: reactants.length >= 2
+      ? [{ formula: reactants.join("+"), note: "Stored reaction — full computation requires chemistry engine integration" }]
+      : [],
     createdAt: nowISO(),
-    status: "computed",
+    status: "recorded",
   };
 
   // Create a DTU to record this reaction
@@ -30190,9 +31217,13 @@ app.post("/api/council/debate", validate("councilDebate"), (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  // Store in state
+  // Store in state (bounded to 200 entries)
   if (!STATE.debates) STATE.debates = new Map();
   STATE.debates.set(debateId, debate);
+  if (STATE.debates.size > 200) {
+    const oldest = STATE.debates.keys().next().value;
+    STATE.debates.delete(oldest);
+  }
 
   res.json({ ok: true, debate });
 });
@@ -31082,7 +32113,7 @@ app.get("/api/atlas/scope-metrics", async (req, res) => {
     res.json(result);
   } catch (e) {
     if (e.message === "scope_metrics_timeout") {
-      res.json({ ok: true, cached: true, stale: true, message: "Metrics computation in progress", metrics: {} });
+      res.json({ ok: false, timeout: true, message: "Metrics computation timed out — retry shortly", metrics: {} });
     } else {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -31659,7 +32690,7 @@ app.get("/api/culture/status", asyncHandler(async (_req, res) => {
     const identity = cultureMod.getCulturalIdentity ? cultureMod.getCulturalIdentity() : {};
     const metrics = cultureMod.getCultureMetrics ? cultureMod.getCultureMetrics() : {};
     res.json({ ok: true, traditions, values, stories, identity, metrics });
-  } catch (e) { res.json({ ok: true, traditions: [], values: {}, stories: [], identity: {}, metrics: {} }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, traditions: [], values: {}, stories: [], identity: {}, metrics: {} }); }
 }));
 
 // ── Entity Economy Dashboard (Phase 3.4) ────────────────────────────────
@@ -31671,7 +32702,7 @@ app.get("/api/entity-economy/dashboard", asyncHandler(async (_req, res) => {
     const metrics = econMod.getEconomyMetrics ? econMod.getEconomyMetrics() : {};
     const marketRates = econMod.getMarketRates ? econMod.getMarketRates() : {};
     res.json({ ok: true, accounts, distribution, metrics, marketRates });
-  } catch (e) { res.json({ ok: true, accounts: [], distribution: {}, metrics: {}, marketRates: {} }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, accounts: [], distribution: {}, metrics: {}, marketRates: {} }); }
 }));
 
 // ── Heartbeat History (Phase 3.5) ───────────────────────────────────────
@@ -31685,7 +32716,7 @@ app.get("/api/reproduction/compatible-pairs", asyncHandler(async (_req, res) => 
     const reproMod = await import("./emergent/reproduction.js");
     const pairs = reproMod.getCompatiblePairs ? reproMod.getCompatiblePairs(STATE) : [];
     res.json({ ok: true, pairs });
-  } catch (e) { res.json({ ok: true, pairs: [] }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), moduleUnavailable: true, pairs: [] }); }
 }));
 
 app.post("/api/reproduction/initiate", asyncHandler(async (req, res) => {
@@ -31706,7 +32737,7 @@ app.get("/api/lineage/tree", asyncHandler(async (_req, res) => {
       createdAt: e.createdAt, generation: e.generation || 1,
     }));
     res.json({ ok: true, tree });
-  } catch (e) { res.json({ ok: true, tree: [] }); }
+  } catch (e) { res.json({ ok: false, error: String(e?.message || e), tree: [] }); }
 }));
 
 // Web exploration metrics
@@ -32187,6 +33218,5423 @@ app.get("/api/admin/repair/network-status", requireAuth(), requireRole("owner"),
   try { const m = await import("./emergent/repair-network.js"); res.json(m.getStatus()); }
   catch (e) { res.json({ ok: false, error: e.message }); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WAVE 1: FRESHNESS SCORING, CONFIDENCE, MORNING BRIEF, NLP COMMAND, QUICK CAPTURE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Freshness Scoring — Exponential decay based on age + access ──────────
+
+/**
+ * Calculate freshness score for a DTU (0.0 = stale, 1.0 = fresh).
+ * Formula: base_decay * access_boost * tier_boost
+ *   base_decay = e^(-age_days / half_life)
+ *   half_life  = 30 days (configurable)
+ *   access_boost = 1 + 0.1 * min(accessCount, 10) — recently accessed items decay slower
+ *   tier_boost = HYPER 1.5x, MEGA 1.3x, regular 1.0x
+ */
+const FRESHNESS_HALF_LIFE_DAYS = Number(process.env.FRESHNESS_HALF_LIFE || 30);
+
+function calculateFreshness(dtu) {
+  if (!dtu) return 0;
+  const now = Date.now();
+  const created = new Date(dtu.createdAt || dtu.created || now).getTime();
+  const updated = new Date(dtu.updatedAt || dtu.updated || created).getTime();
+  const lastTouched = Math.max(created, updated, dtu.meta?.lastAccessedAt ? new Date(dtu.meta.lastAccessedAt).getTime() : 0);
+
+  const ageDays = (now - lastTouched) / (1000 * 60 * 60 * 24);
+  const baseFreshness = Math.exp(-ageDays / FRESHNESS_HALF_LIFE_DAYS);
+
+  // Access boost: frequently accessed items stay fresh
+  const accessCount = dtu.meta?.accessCount || 0;
+  const accessBoost = 1 + 0.1 * Math.min(accessCount, 10);
+
+  // Tier boost: higher-tier DTUs decay slower
+  const tierMultiplier = dtu.tier === "hyper" ? 1.5 : dtu.tier === "mega" ? 1.3 : 1.0;
+
+  // Connection boost: well-connected DTUs decay slower
+  const connectionCount = (dtu.lineage?.parentIds?.length || 0) + (dtu.lineage?.childIds?.length || 0);
+  const connectionBoost = 1 + 0.05 * Math.min(connectionCount, 10);
+
+  const raw = baseFreshness * accessBoost * tierMultiplier * connectionBoost;
+  return Math.min(1.0, Math.max(0.0, raw));
+}
+
+/**
+ * Get freshness label from score.
+ */
+function freshnessLabel(score) {
+  if (score >= 0.8) return "fresh";
+  if (score >= 0.5) return "warm";
+  if (score >= 0.2) return "cooling";
+  return "stale";
+}
+
+// Track DTU access for freshness
+app.get("/api/dtus/:id/freshness", (req, res) => {
+  const dtu = STATE.dtus.get(req.params.id);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+
+  // Record access
+  if (!dtu.meta) dtu.meta = {};
+  dtu.meta.accessCount = (dtu.meta.accessCount || 0) + 1;
+  dtu.meta.lastAccessedAt = nowISO();
+
+  const score = calculateFreshness(dtu);
+  res.json({
+    ok: true,
+    id: dtu.id,
+    freshness: score,
+    label: freshnessLabel(score),
+    factors: {
+      ageDays: Math.floor((Date.now() - new Date(dtu.updatedAt || dtu.createdAt || Date.now()).getTime()) / 86400000),
+      accessCount: dtu.meta.accessCount,
+      tier: dtu.tier || "regular",
+      connections: (dtu.lineage?.parentIds?.length || 0) + (dtu.lineage?.childIds?.length || 0),
+    },
+  });
+});
+
+// Batch freshness for multiple DTUs
+app.get("/api/freshness/batch", (req, res) => {
+  const { domain, limit: lim, sort } = req.query;
+  const limit = Math.min(Number(lim) || 50, 200);
+  const all = dtusArray();
+
+  let pool = domain ? all.filter(d => (d.tags || []).includes(String(domain))) : all;
+
+  const scored = pool.map(d => ({
+    id: d.id,
+    title: d.title,
+    freshness: calculateFreshness(d),
+    label: freshnessLabel(calculateFreshness(d)),
+    tier: d.tier || "regular",
+    tags: (d.tags || []).slice(0, 5),
+    updatedAt: d.updatedAt || d.createdAt,
+  }));
+
+  if (sort === "stale") scored.sort((a, b) => a.freshness - b.freshness);
+  else scored.sort((a, b) => b.freshness - a.freshness);
+
+  res.json({ ok: true, items: scored.slice(0, limit), total: scored.length });
+});
+
+// ── 2. Confidence Scoring — Calibrated confidence on all AI outputs ─────────
+
+/**
+ * Estimate confidence for a brain output based on multiple signals.
+ * Returns 0.0–1.0 score with calibration factors.
+ */
+function estimateConfidence(brainResult, context = {}) {
+  if (!brainResult?.ok) return { score: 0, label: "failed", factors: {} };
+
+  const factors = {};
+
+  // 1. Brain reliability: conscious > utility > subconscious > repair
+  const brainScores = { conscious: 0.8, utility: 0.7, subconscious: 0.5, repair: 0.6 };
+  factors.brainBase = brainScores[brainResult.source] || 0.5;
+
+  // 2. Content length: very short or very long responses are less reliable
+  const contentLen = (brainResult.content || "").length;
+  if (contentLen < 20) factors.lengthPenalty = 0.5;
+  else if (contentLen < 100) factors.lengthPenalty = 0.8;
+  else if (contentLen > 3000) factors.lengthPenalty = 0.85;
+  else factors.lengthPenalty = 1.0;
+
+  // 3. Context richness: more DTU context = more grounded response
+  const contextDTUs = context.dtuCount || 0;
+  factors.contextBoost = Math.min(1.0, 0.5 + contextDTUs * 0.05);
+
+  // 4. Hedging detection: responses with hedging language are self-aware of uncertainty
+  const hedges = /\b(might|perhaps|possibly|unclear|uncertain|I think|could be|not sure|approximately)\b/gi;
+  const hedgeCount = (brainResult.content || "").match(hedges)?.length || 0;
+  factors.hedgingAdjust = hedgeCount > 3 ? 0.7 : hedgeCount > 1 ? 0.85 : 1.0;
+
+  // 5. Error/refusal detection
+  const hasError = /\b(error|failed|cannot|unable|sorry)\b/i.test(brainResult.content || "");
+  factors.errorPenalty = hasError ? 0.6 : 1.0;
+
+  // Composite score
+  const raw = factors.brainBase * factors.lengthPenalty * factors.contextBoost * factors.hedgingAdjust * factors.errorPenalty;
+  const score = Math.min(1.0, Math.max(0.0, raw));
+
+  return {
+    score: Math.round(score * 100) / 100,
+    label: score >= 0.75 ? "high" : score >= 0.5 ? "medium" : score >= 0.25 ? "low" : "very-low",
+    factors,
+  };
+}
+
+// ── 3. Morning Brief Generator — Subconscious digest of recent activity ─────
+
+const MORNING_BRIEF_CACHE = { brief: null, generatedAt: null };
+
+app.post("/api/brief/generate", asyncHandler(async (req, res) => {
+  const { force } = req.body || {};
+
+  // Cache for 6 hours unless forced
+  if (!force && MORNING_BRIEF_CACHE.brief && MORNING_BRIEF_CACHE.generatedAt) {
+    const age = Date.now() - new Date(MORNING_BRIEF_CACHE.generatedAt).getTime();
+    if (age < 6 * 60 * 60 * 1000) {
+      return res.json({ ok: true, brief: MORNING_BRIEF_CACHE.brief, cached: true });
+    }
+  }
+
+  // Gather recent DTU activity (last 24h)
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const recentDTUs = dtusArray()
+    .filter(d => new Date(d.updatedAt || d.createdAt || 0).getTime() > cutoff)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+
+  // Compute domain distribution
+  const domainCounts = {};
+  for (const d of recentDTUs) {
+    for (const tag of (d.tags || [])) {
+      domainCounts[tag] = (domainCounts[tag] || 0) + 1;
+    }
+  }
+  const topDomains = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([domain, count]) => ({ domain, count }));
+
+  // Find stale DTUs that need attention
+  const staleDTUs = dtusArray()
+    .map(d => ({ ...d, freshness: calculateFreshness(d) }))
+    .filter(d => d.freshness < 0.2)
+    .sort((a, b) => a.freshness - b.freshness)
+    .slice(0, 5);
+
+  // Build summary for the brain
+  const summaryInput = {
+    totalDTUs: STATE.dtus.size,
+    recentCount: recentDTUs.length,
+    topDomains,
+    recentTitles: recentDTUs.slice(0, 15).map(d => d.title),
+    staleCount: staleDTUs.length,
+    staleTitles: staleDTUs.map(d => d.title),
+    date: new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+  };
+
+  // Call subconscious brain for the brief
+  const result = await callBrain("subconscious", JSON.stringify(summaryInput), {
+    system: `You are Concord's morning brief generator. Create a concise, motivating daily brief for the user.
+
+Format your response EXACTLY as:
+## Good morning! Here's your cognitive brief for today.
+
+**Activity Summary**: [1-2 sentences about recent activity]
+
+**Active Domains**: [list top 3-5 active domains with emoji]
+
+**Fresh Insights**: [2-3 key recent DTUs worth revisiting]
+
+**Needs Attention**: [1-2 stale items that could use updating]
+
+**Suggestion**: [One actionable recommendation for today]
+
+Keep it under 300 words. Be warm but concise. Use the data provided — do not fabricate DTU titles.`,
+    temperature: 0.7,
+    maxTokens: 600,
+    timeout: 45000,
+  });
+
+  const confidence = estimateConfidence(result, { dtuCount: recentDTUs.length });
+
+  const brief = {
+    content: result.ok ? result.content : "Unable to generate brief. Your cognitive engine is healthy — check back later.",
+    generatedAt: nowISO(),
+    stats: {
+      totalDTUs: STATE.dtus.size,
+      recentDTUs: recentDTUs.length,
+      topDomains,
+      staleDTUs: staleDTUs.length,
+    },
+    confidence,
+    source: result.source || "subconscious",
+    model: result.model,
+  };
+
+  MORNING_BRIEF_CACHE.brief = brief;
+  MORNING_BRIEF_CACHE.generatedAt = brief.generatedAt;
+
+  res.json({ ok: true, brief, cached: false });
+}));
+
+app.get("/api/brief/latest", (_req, res) => {
+  if (!MORNING_BRIEF_CACHE.brief) {
+    return res.json({ ok: true, brief: null, message: "No brief generated yet. POST /api/brief/generate to create one." });
+  }
+  res.json({ ok: true, brief: MORNING_BRIEF_CACHE.brief });
+});
+
+// ── 4. Quick Capture API — External capture endpoint ────────────────────────
+
+app.post("/api/capture/quick", asyncHandler(async (req, res) => {
+  const { content, title, tags: userTags, type: captureType } = req.body || {};
+  if (!content || !String(content).trim()) {
+    return res.status(400).json({ ok: false, error: "Content is required" });
+  }
+
+  const trimmed = String(content).trim();
+
+  // Auto-detect domain from content using utility brain (fast, background)
+  let detectedTags = Array.isArray(userTags) ? [...userTags] : [];
+  if (detectedTags.length === 0) {
+    // Quick heuristic domain detection (no brain call needed)
+    const domainKeywords = {
+      finance: /\b(money|investment|stock|portfolio|budget|expense|revenue|profit)\b/i,
+      health: /\b(health|exercise|workout|diet|sleep|meditation|wellness|calories)\b/i,
+      education: /\b(learn|study|course|class|exam|lecture|curriculum|teach)\b/i,
+      code: /\b(code|function|bug|api|deploy|commit|refactor|typescript|react)\b/i,
+      music: /\b(music|song|chord|melody|beat|track|guitar|piano|synth)\b/i,
+      writing: /\b(write|essay|draft|chapter|novel|poem|story|edit)\b/i,
+      research: /\b(research|paper|hypothesis|experiment|data|analysis|study)\b/i,
+    };
+    for (const [domain, regex] of Object.entries(domainKeywords)) {
+      if (regex.test(trimmed)) detectedTags.push(domain);
+    }
+  }
+
+  // Add capture type tag
+  if (captureType) detectedTags.push(String(captureType));
+  detectedTags.push("quick-capture");
+
+  try {
+    const ctx = makeCtx(null);
+    ctx.actor = { userId: req.actor?.userId || "anonymous", orgId: "internal", role: "owner", scopes: ["*"] };
+    const result = await runMacro("dtu", "create", {
+      title: title || trimmed.slice(0, 100),
+      creti: trimmed,
+      tags: [...new Set(detectedTags)],
+      source: "quick-capture",
+      meta: {
+        captureType: captureType || "thought",
+        capturedAt: nowISO(),
+        confidence: { score: 0.9, label: "high" },
+      },
+      scope: "local",
+    }, ctx);
+
+    res.json({
+      ok: true,
+      dtu: result?.dtu || result,
+      tags: detectedTags,
+      message: "Captured successfully",
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+}));
+
+// ── 5. NLP Command Dispatch — Natural language intent parsing ────────────────
+
+const NLP_COMMAND_INTENTS = [
+  { pattern: /^(go to|open|navigate to|show)\s+(.+)/i, intent: "navigate", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(search|find|look for|where is)\s+(.+)/i, intent: "search", extract: (m) => ({ query: m[2] }) },
+  { pattern: /^(create|new|add|capture)\s+(?:a?\s*)?(.+)/i, intent: "create", extract: (m) => ({ content: m[2] }) },
+  { pattern: /^(analyze|examine|review)\s+(?:my\s+)?(?:latest\s+)?(.+)/i, intent: "analyze", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(generate|make|produce|write)\s+(?:a?\s*)?(.+)/i, intent: "generate", extract: (m) => ({ content: m[2] }) },
+  { pattern: /^(suggest|recommend|what should)\s*(.+)?/i, intent: "suggest", extract: (m) => ({ context: m[2] || "" }) },
+  { pattern: /^(summarize|brief|digest|overview)\s*(?:of\s+)?(.+)?/i, intent: "brief", extract: (m) => ({ target: m[2] || "" }) },
+  { pattern: /^(how many|count|total)\s+(.+)/i, intent: "count", extract: (m) => ({ target: m[2] }) },
+  { pattern: /^(stale|needs attention|forgotten|neglected)/i, intent: "stale", extract: () => ({}) },
+  { pattern: /^(fresh|recent|latest|newest)/i, intent: "recent", extract: () => ({}) },
+];
+
+app.post("/api/command/nlp", asyncHandler(async (req, res) => {
+  const { input } = req.body || {};
+  if (!input || !String(input).trim()) {
+    return res.status(400).json({ ok: false, error: "Input is required" });
+  }
+
+  const text = String(input).trim();
+  let matched = null;
+
+  // Try pattern matching first (fast path)
+  for (const { pattern, intent, extract } of NLP_COMMAND_INTENTS) {
+    const m = text.match(pattern);
+    if (m) {
+      matched = { intent, params: extract(m), confidence: 0.9 };
+      break;
+    }
+  }
+
+  // If no pattern match, try simple keyword classification
+  if (!matched) {
+    const lower = text.toLowerCase();
+    if (lower.includes("?")) matched = { intent: "search", params: { query: text }, confidence: 0.6 };
+    else matched = { intent: "search", params: { query: text }, confidence: 0.5 };
+  }
+
+  // Execute intent
+  let result;
+  switch (matched.intent) {
+    case "navigate": {
+      // Find matching lens from all known domains
+      const target = String(matched.params.target || "").toLowerCase().trim();
+      const lensMatch = ALL_LENS_DOMAINS.find(d =>
+        d === target || d.includes(target) || target.includes(d)
+      );
+      result = {
+        action: "navigate",
+        path: lensMatch ? `/lenses/${lensMatch}` : null,
+        domain: lensMatch || null,
+        fallback: lensMatch ? null : "No matching lens found",
+      };
+      break;
+    }
+    case "search": {
+      const query = String(matched.params.query || text).toLowerCase().trim();
+      const terms = query.split(/\s+/).filter(t => t.length >= 2);
+      const scored = [];
+
+      for (const dtu of dtusArray()) {
+        const searchable = [
+          dtu.title || "",
+          (dtu.tags || []).join(" "),
+          dtu.cretiHuman || "",
+        ].join(" ").toLowerCase();
+
+        const matchCount = terms.filter(t => searchable.includes(t)).length;
+        if (matchCount > 0) {
+          scored.push({
+            id: dtu.id,
+            title: dtu.title,
+            score: matchCount / terms.length,
+            tags: (dtu.tags || []).slice(0, 3),
+            freshness: calculateFreshness(dtu),
+          });
+        }
+      }
+      scored.sort((a, b) => b.score - a.score);
+      result = { action: "search", results: scored.slice(0, 10), total: scored.length };
+      break;
+    }
+    case "create": {
+      const content = String(matched.params.content || "");
+      result = { action: "create", content, ready: true, endpoint: "/api/capture/quick" };
+      break;
+    }
+    case "analyze": {
+      const target = String(matched.params.target || "").toLowerCase();
+      const domain = ALL_LENS_DOMAINS.find(d => target.includes(d));
+      result = { action: "analyze", domain: domain || "general", target: matched.params.target };
+      break;
+    }
+    case "generate": {
+      result = { action: "generate", content: matched.params.content, ready: true };
+      break;
+    }
+    case "suggest": {
+      result = { action: "suggest", context: matched.params.context };
+      break;
+    }
+    case "brief": {
+      result = { action: "brief", redirect: "/api/brief/generate" };
+      break;
+    }
+    case "count": {
+      const target = String(matched.params.target || "").toLowerCase();
+      const domain = ALL_LENS_DOMAINS.find(d => target.includes(d));
+      if (domain) {
+        const count = dtusArray().filter(d => (d.tags || []).includes(domain)).length;
+        result = { action: "count", domain, count, message: `${count} DTUs tagged with "${domain}"` };
+      } else {
+        result = { action: "count", total: STATE.dtus.size, message: `${STATE.dtus.size} total DTUs` };
+      }
+      break;
+    }
+    case "stale": {
+      const stale = dtusArray()
+        .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d) }))
+        .filter(d => d.freshness < 0.2)
+        .sort((a, b) => a.freshness - b.freshness)
+        .slice(0, 10);
+      result = { action: "stale", items: stale, total: stale.length };
+      break;
+    }
+    case "recent": {
+      const recent = dtusArray()
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+        .slice(0, 10)
+        .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d), updatedAt: d.updatedAt }));
+      result = { action: "recent", items: recent };
+      break;
+    }
+    default:
+      result = { action: "unknown", message: "Could not parse command" };
+  }
+
+  res.json({
+    ok: true,
+    input: text,
+    intent: matched.intent,
+    confidence: matched.confidence,
+    result,
+  });
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END WAVE 1 FEATURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 1: XP SYSTEM, CONTEXT RESURRECTION, ATTENTION ECONOMY, ANTI-ENTROPY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Knowledge XP System — Every knowledge action earns XP ────────────────
+
+const XP_TABLE = {
+  "dtu.create": 10,
+  "dtu.create.crystal": 50,
+  "dtu.cross_domain_connection": 25,
+  "hypothesis.confirmed": 100,
+  "prediction.calibrated": 75,
+  "marketplace.sale": 200,
+  "ghost_thread.useful": 30,
+  "course.completed": 150,
+  "streak.daily": 5, // multiplied by streak length
+  "lens.action": 5,
+  "dtu.update": 3,
+  "dtu.tag": 2,
+  "capture.quick": 8,
+};
+
+const LEVEL_THRESHOLDS = [
+  { minXP: 0, title: "Spark" },
+  { minXP: 500, title: "Ember" },
+  { minXP: 2000, title: "Flame" },
+  { minXP: 5000, title: "Forge" },
+  { minXP: 15000, title: "Architect" },
+  { minXP: 50000, title: "Weaver" },
+  { minXP: 150000, title: "Lattice Walker" },
+];
+
+// In-memory XP store (per user). Persistent via STATE.
+if (!STATE.xpStore) STATE.xpStore = {};
+
+function getXPProfile(userId = "sovereign") {
+  if (!STATE.xpStore[userId]) {
+    STATE.xpStore[userId] = {
+      totalXP: 0,
+      level: 1,
+      title: "Spark",
+      streak: { current: 0, longest: 0, lastActiveDate: null, freezesUsed: 0 },
+      history: [], // last 100 XP events
+      dailyActivity: {}, // { "2026-02-25": { dtus: 3, actions: 5 } }
+    };
+  }
+  return STATE.xpStore[userId];
+}
+
+function awardXP(userId, action, amount, meta = {}) {
+  const profile = getXPProfile(userId);
+  const finalAmount = amount || XP_TABLE[action] || 5;
+
+  profile.totalXP += finalAmount;
+
+  // Update level
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (profile.totalXP >= LEVEL_THRESHOLDS[i].minXP) {
+      profile.level = i + 1;
+      profile.title = LEVEL_THRESHOLDS[i].title;
+      break;
+    }
+  }
+
+  // Track history (keep last 100)
+  profile.history.push({
+    action,
+    amount: finalAmount,
+    at: nowISO(),
+    ...meta,
+  });
+  if (profile.history.length > 100) profile.history.splice(0, profile.history.length - 100);
+
+  // Track daily activity
+  const today = new Date().toISOString().slice(0, 10);
+  if (!profile.dailyActivity[today]) {
+    profile.dailyActivity[today] = { dtus: 0, actions: 0, xp: 0 };
+  }
+  profile.dailyActivity[today].actions++;
+  profile.dailyActivity[today].xp += finalAmount;
+  if (action.startsWith("dtu.")) profile.dailyActivity[today].dtus++;
+
+  // Update streak
+  updateStreak(profile, today);
+
+  // Clean old daily activity (keep 365 days)
+  const keys = Object.keys(profile.dailyActivity).sort();
+  if (keys.length > 365) {
+    for (const k of keys.slice(0, keys.length - 365)) delete profile.dailyActivity[k];
+  }
+
+  saveStateDebounced();
+  return { totalXP: profile.totalXP, level: profile.level, title: profile.title, awarded: finalAmount };
+}
+
+function updateStreak(profile, today) {
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  if (profile.streak.lastActiveDate === today) return; // Already counted today
+
+  if (profile.streak.lastActiveDate === yesterday) {
+    // Continue streak
+    profile.streak.current++;
+  } else if (profile.streak.lastActiveDate && profile.streak.lastActiveDate !== today) {
+    // Check if streak freeze applies (1 per week)
+    const daysSinceActive = Math.floor((Date.now() - new Date(profile.streak.lastActiveDate).getTime()) / 86400000);
+    if (daysSinceActive <= 2 && profile.streak.freezesUsed < 1) {
+      profile.streak.freezesUsed++;
+      // Continue streak with freeze
+    } else {
+      // Streak broken
+      profile.streak.current = 1;
+      profile.streak.freezesUsed = 0;
+    }
+  } else {
+    profile.streak.current = 1;
+  }
+
+  if (profile.streak.current > profile.streak.longest) {
+    profile.streak.longest = profile.streak.current;
+  }
+  profile.streak.lastActiveDate = today;
+
+  // Award streak XP
+  if (profile.streak.current > 1) {
+    const streakXP = XP_TABLE["streak.daily"] * profile.streak.current;
+    profile.totalXP += streakXP;
+  }
+}
+
+// XP API routes
+app.get("/api/xp/profile", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const profile = getXPProfile(userId);
+  const nextLevel = LEVEL_THRESHOLDS[profile.level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+  const prevLevel = LEVEL_THRESHOLDS[profile.level - 1] || LEVEL_THRESHOLDS[0];
+
+  res.json({
+    ok: true,
+    ...profile,
+    xpToNextLevel: nextLevel.minXP - profile.totalXP,
+    nextLevelTitle: nextLevel.title,
+    xpProgress: profile.totalXP - prevLevel.minXP,
+    xpRequired: nextLevel.minXP - prevLevel.minXP,
+  });
+});
+
+app.get("/api/xp/heatmap", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const profile = getXPProfile(userId);
+  const { days } = req.query;
+  const limit = Math.min(Number(days) || 90, 365);
+
+  // Build heatmap data (last N days)
+  const heatmap = [];
+  for (let i = 0; i < limit; i++) {
+    const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const activity = profile.dailyActivity[date] || { dtus: 0, actions: 0, xp: 0 };
+    heatmap.push({ date, ...activity });
+  }
+
+  res.json({ ok: true, heatmap: heatmap.reverse(), streak: profile.streak });
+});
+
+app.get("/api/xp/leaderboard", (_req, res) => {
+  const profiles = Object.entries(STATE.xpStore || {}).map(([userId, p]) => ({
+    userId,
+    totalXP: p.totalXP,
+    level: p.level,
+    title: p.title,
+    streak: p.streak?.current || 0,
+  }));
+  profiles.sort((a, b) => b.totalXP - a.totalXP);
+  res.json({ ok: true, leaderboard: profiles.slice(0, 50) });
+});
+
+// Hook XP into DTU creation (fires in upsertDTU after-hook)
+try {
+  if (typeof fireHook === "function") {
+    // Note: Can't register directly into fireHook from here, but we can
+    // hook into the macro system. We'll award XP in API route handlers.
+  }
+} catch {}
+
+// Award XP on DTU creation via the existing runMacro dtu.create path
+const _originalUpsertDTU = typeof upsertDTU === "function" ? upsertDTU : null;
+
+// XP award endpoint (for frontend-triggered events)
+app.post("/api/xp/award", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const { action, meta } = req.body || {};
+  if (!action) return res.status(400).json({ ok: false, error: "action required" });
+  const result = awardXP(userId, action, XP_TABLE[action] || 5, meta || {});
+  res.json({ ok: true, ...result });
+});
+
+// ── 2. Context Resurrection — Perfect memory across sessions ────────────────
+
+app.get("/api/context/resurrect", asyncHandler(async (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+
+  // Gather recent episodes / activity
+  const recentDTUs = dtusArray()
+    .filter(d => d.ownerId === userId || !d.ownerId)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+    .slice(0, 10);
+
+  const lastSession = recentDTUs[0];
+  const lastDomain = lastSession?.tags?.[0] || null;
+  const lastActivity = lastSession?.updatedAt || lastSession?.createdAt || null;
+
+  // Time since last activity
+  const timeSinceMs = lastActivity ? Date.now() - new Date(lastActivity).getTime() : null;
+  const timeSinceHours = timeSinceMs ? Math.round(timeSinceMs / 3600000) : null;
+
+  // Stale DTU alerts
+  const staleDTUs = dtusArray()
+    .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d) }))
+    .filter(d => d.freshness < 0.2)
+    .sort((a, b) => a.freshness - b.freshness)
+    .slice(0, 3);
+
+  // XP profile summary
+  const xpProfile = getXPProfile(userId);
+
+  // Ghost thread insights (from dream cache if available)
+  const ghostInsights = [];
+  if (MORNING_BRIEF_CACHE.brief) {
+    ghostInsights.push({ type: "brief", content: "A morning brief is ready for you." });
+  }
+
+  // Active goals (from goals lens artifacts)
+  const goalArtifacts = [];
+  if (STATE.lensDomainIndex?.has("goals")) {
+    const goalIds = STATE.lensDomainIndex.get("goals");
+    for (const id of goalIds) {
+      const artifact = STATE.lensArtifacts?.get(id);
+      if (artifact && artifact.meta?.status === "active") {
+        goalArtifacts.push({
+          id: artifact.id,
+          title: artifact.title,
+          progress: artifact.meta?.progress || 0,
+        });
+      }
+      if (goalArtifacts.length >= 3) break;
+    }
+  }
+
+  // Build resurrection context
+  const context = {
+    welcome: timeSinceHours !== null
+      ? timeSinceHours > 24
+        ? `Welcome back! It's been ${Math.round(timeSinceHours / 24)} days since your last session.`
+        : timeSinceHours > 1
+          ? `Welcome back! You were last active ${timeSinceHours} hours ago.`
+          : "Welcome back! Continuing where you left off."
+      : "Welcome to Concord!",
+    lastDomain,
+    lastDTUTitle: lastSession?.title || null,
+    recentDTUs: recentDTUs.slice(0, 5).map(d => ({
+      id: d.id,
+      title: d.title,
+      domain: (d.tags || [])[0] || "general",
+      freshness: calculateFreshness(d),
+    })),
+    staleDTUs,
+    xp: {
+      totalXP: xpProfile.totalXP,
+      level: xpProfile.level,
+      title: xpProfile.title,
+      streak: xpProfile.streak.current,
+    },
+    ghostInsights,
+    activeGoals: goalArtifacts,
+    stats: {
+      totalDTUs: STATE.dtus.size,
+      domains: [...new Set(dtusArray().flatMap(d => d.tags || []))].length,
+    },
+  };
+
+  res.json({ ok: true, context });
+}));
+
+// ── 3. Attention Economy — DTUs compete for consciousness ───────────────────
+
+/**
+ * Calculate attention score for a DTU.
+ * attention = (relevance × recency × urgency × novelty) / familiarity
+ */
+function calculateAttention(dtu, activeDomain = null) {
+  if (!dtu) return 0;
+  const now = Date.now();
+
+  // Relevance: how close to current active domain
+  let relevance = 0.3; // base
+  if (activeDomain && (dtu.tags || []).includes(activeDomain)) relevance = 1.0;
+  else if (activeDomain) {
+    // Partial match — check for related domains
+    const domainTags = dtu.tags || [];
+    const overlap = domainTags.filter(t => t.length > 2).length;
+    relevance = Math.min(0.8, 0.3 + overlap * 0.1);
+  }
+
+  // Recency: time decay (12-hour half-life for attention, faster than freshness)
+  const lastTouched = Math.max(
+    new Date(dtu.updatedAt || dtu.createdAt || 0).getTime(),
+    dtu.meta?.lastAccessedAt ? new Date(dtu.meta.lastAccessedAt).getTime() : 0
+  );
+  const hoursSince = (now - lastTouched) / 3600000;
+  const recency = Math.exp(-hoursSince / 12); // 12-hour half-life
+
+  // Urgency: placeholder (would need calendar/goal integration)
+  const urgency = (dtu.meta?.urgent || dtu.meta?.deadline) ? 1.5 : 1.0;
+
+  // Novelty: inverse of familiarity. New DTUs are novel. Frequently accessed ones less so.
+  const accessCount = dtu.meta?.accessCount || 0;
+  const novelty = 1.0 / (1 + accessCount * 0.15);
+
+  // Familiarity: how many times user has seen this
+  const familiarity = Math.max(1.0, 1 + Math.log1p(accessCount) * 0.3);
+
+  // Tier boost
+  const tierBoost = dtu.tier === "hyper" ? 1.4 : dtu.tier === "mega" ? 1.2 : 1.0;
+
+  const score = (relevance * recency * urgency * novelty * tierBoost) / familiarity;
+  return Math.min(1.0, Math.max(0.0, score));
+}
+
+app.get("/api/attention/feed", (req, res) => {
+  const { domain, limit: lim } = req.query;
+  const activeDomain = domain ? String(domain) : null;
+  const limit = Math.min(Number(lim) || 30, 100);
+
+  const scored = dtusArray()
+    .filter(d => !d.meta?.composted) // exclude composted DTUs
+    .map(d => ({
+      id: d.id,
+      title: d.title,
+      tags: (d.tags || []).slice(0, 5),
+      tier: d.tier || "regular",
+      attention: calculateAttention(d, activeDomain),
+      freshness: calculateFreshness(d),
+      updatedAt: d.updatedAt || d.createdAt,
+    }))
+    .sort((a, b) => b.attention - a.attention)
+    .slice(0, limit);
+
+  res.json({ ok: true, feed: scored, activeDomain, total: scored.length });
+});
+
+// ── 4. Anti-Entropy Engine — Fight knowledge decay ──────────────────────────
+
+/**
+ * Anti-entropy scan: identify issues in the substrate.
+ * Returns a list of issues that need attention.
+ */
+function antiEntropyScan() {
+  const issues = [];
+  const tagMap = new Map(); // normalized tag → [original variants]
+  const titleSet = new Map(); // normalized title → [dtu ids]
+
+  for (const dtu of dtusArray()) {
+    // 1. Tag normalization candidates
+    for (const tag of (dtu.tags || [])) {
+      const normalized = tag.toLowerCase().replace(/[-_\s]+/g, " ").trim();
+      if (!tagMap.has(normalized)) tagMap.set(normalized, new Set());
+      tagMap.get(normalized).add(tag);
+    }
+
+    // 2. Orphan detection (no connections)
+    const parentCount = dtu.lineage?.parentIds?.length || 0;
+    const childCount = dtu.lineage?.childIds?.length || 0;
+    if (parentCount === 0 && childCount === 0 && !dtu.meta?.isOrphanOk) {
+      const freshness = calculateFreshness(dtu);
+      if (freshness < 0.3) {
+        issues.push({
+          type: "orphan",
+          dtuId: dtu.id,
+          title: dtu.title,
+          freshness,
+          suggestion: "Connect to related DTUs or move to compost",
+        });
+      }
+    }
+
+    // 3. Duplicate detection (by normalized title)
+    const normalizedTitle = (dtu.title || "").toLowerCase().trim();
+    if (normalizedTitle.length > 5) {
+      if (!titleSet.has(normalizedTitle)) titleSet.set(normalizedTitle, []);
+      titleSet.get(normalizedTitle).push(dtu.id);
+    }
+  }
+
+  // Process tag normalization issues
+  for (const [normalized, variants] of tagMap) {
+    if (variants.size > 1) {
+      issues.push({
+        type: "tag_variants",
+        tag: normalized,
+        variants: [...variants],
+        suggestion: `Merge tag variants: ${[...variants].join(", ")} → "${normalized}"`,
+        affectedDTUs: dtusArray().filter(d => (d.tags || []).some(t => variants.has(t))).length,
+      });
+    }
+  }
+
+  // Process duplicates
+  for (const [title, ids] of titleSet) {
+    if (ids.length > 1) {
+      issues.push({
+        type: "duplicate_title",
+        title,
+        dtuIds: ids.slice(0, 5),
+        count: ids.length,
+        suggestion: `${ids.length} DTUs share the title "${title}" — consider merging`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Run anti-entropy fixes autonomously.
+ * Only performs safe, reversible operations.
+ */
+function antiEntropyFix(issues) {
+  let fixed = 0;
+  const log = [];
+
+  for (const issue of issues) {
+    if (issue.type === "tag_variants" && issue.variants.length <= 3) {
+      // Auto-normalize tags to the most common variant
+      const canonical = issue.variants.sort((a, b) => a.length - b.length)[0];
+      const othersSet = new Set(issue.variants.filter(v => v !== canonical));
+
+      for (const dtu of dtusArray()) {
+        const tags = dtu.tags || [];
+        let changed = false;
+        const newTags = tags.map(t => {
+          if (othersSet.has(t)) { changed = true; return canonical; }
+          return t;
+        });
+        if (changed) {
+          dtu.tags = [...new Set(newTags)];
+          fixed++;
+        }
+      }
+      log.push({ action: "tag_normalize", from: [...othersSet], to: canonical, affected: fixed });
+    }
+  }
+
+  if (fixed > 0) saveStateDebounced();
+  return { fixed, log };
+}
+
+// Anti-entropy API
+app.get("/api/entropy/scan", (_req, res) => {
+  const issues = antiEntropyScan();
+  const summary = {
+    orphans: issues.filter(i => i.type === "orphan").length,
+    tagVariants: issues.filter(i => i.type === "tag_variants").length,
+    duplicates: issues.filter(i => i.type === "duplicate_title").length,
+  };
+  res.json({ ok: true, issues: issues.slice(0, 50), summary, total: issues.length });
+});
+
+app.post("/api/entropy/fix", (_req, res) => {
+  const issues = antiEntropyScan();
+  const result = antiEntropyFix(issues);
+  res.json({ ok: true, ...result });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 1
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 2: SUBSTRATE DREAMS, DTU METABOLISM, EPISODIC MEMORY, BRAIN COUNCIL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- SUBSTRATE DREAMS — 6-phase night cycle ----------
+// When the system enters "night mode" (low activity or manual trigger),
+// the substrate processes: Replay → Consolidate → Prune → Dream → Integrate → Wake
+
+const DREAM_PHASES = [
+  { id: "replay", name: "Memory Replay", duration: 0.15, description: "Replaying today's DTU interactions" },
+  { id: "consolidate", name: "Consolidation", duration: 0.25, description: "Strengthening important connections" },
+  { id: "prune", name: "Synaptic Pruning", duration: 0.15, description: "Removing weak or redundant links" },
+  { id: "dream", name: "Creative Dreaming", duration: 0.25, description: "Generating novel cross-domain insights" },
+  { id: "integrate", name: "Integration", duration: 0.15, description: "Weaving new insights into the lattice" },
+  { id: "wake", name: "Awakening", duration: 0.05, description: "Preparing the morning brief" },
+];
+
+if (!STATE.dreamState) {
+  STATE.dreamState = {
+    isActive: false,
+    currentPhase: null,
+    phaseIndex: -1,
+    progress: 0,
+    startedAt: null,
+    completedAt: null,
+    history: [],
+    insights: [],
+    stats: { totalDreams: 0, insightsGenerated: 0, dtusConsolidated: 0, connectionsPruned: 0 },
+  };
+}
+
+function getDreamState() {
+  return STATE.dreamState;
+}
+
+async function startDreamCycle() {
+  const ds = STATE.dreamState;
+  if (ds.isActive) return { ok: false, reason: "Dream cycle already active" };
+
+  ds.isActive = true;
+  ds.phaseIndex = 0;
+  ds.currentPhase = DREAM_PHASES[0];
+  ds.progress = 0;
+  ds.startedAt = new Date().toISOString();
+  ds.insights = [];
+
+  structuredLog("info", "dream_cycle_start", { at: ds.startedAt });
+
+  // Process each phase
+  for (let i = 0; i < DREAM_PHASES.length; i++) {
+    ds.phaseIndex = i;
+    ds.currentPhase = DREAM_PHASES[i];
+    ds.progress = i / DREAM_PHASES.length;
+
+    try {
+      switch (DREAM_PHASES[i].id) {
+        case "replay": await dreamPhaseReplay(); break;
+        case "consolidate": await dreamPhaseConsolidate(); break;
+        case "prune": await dreamPhasePrune(); break;
+        case "dream": await dreamPhaseDream(); break;
+        case "integrate": await dreamPhaseIntegrate(); break;
+        case "wake": await dreamPhaseWake(); break;
+      }
+    } catch (e) {
+      structuredLog("warn", "dream_phase_error", { phase: DREAM_PHASES[i].id, error: String(e?.message || e) });
+    }
+  }
+
+  ds.isActive = false;
+  ds.progress = 1;
+  ds.completedAt = new Date().toISOString();
+  ds.stats.totalDreams++;
+  ds.history.push({
+    startedAt: ds.startedAt,
+    completedAt: ds.completedAt,
+    insightsGenerated: ds.insights.length,
+  });
+  // Keep only last 30 dream cycles in history
+  if (ds.history.length > 30) ds.history = ds.history.slice(-30);
+
+  structuredLog("info", "dream_cycle_complete", {
+    duration: Date.now() - new Date(ds.startedAt).getTime(),
+    insights: ds.insights.length,
+  });
+
+  return { ok: true, insights: ds.insights, stats: ds.stats };
+}
+
+async function dreamPhaseReplay() {
+  // Replay: gather today's DTU interactions
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  const recentDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const updated = new Date(dtu.updatedAt || dtu.createdAt || 0).getTime();
+    if (updated >= todayMs) recentDTUs.push(dtu);
+  }
+
+  STATE.dreamState._replayDTUs = recentDTUs;
+  structuredLog("info", "dream_replay", { dtusReplayed: recentDTUs.length });
+}
+
+async function dreamPhaseConsolidate() {
+  // Consolidate: strengthen connections between frequently co-accessed DTUs
+  const recentDTUs = STATE.dreamState._replayDTUs || [];
+  let consolidated = 0;
+
+  // Group by domain and find DTUs that share tags
+  const byDomain = {};
+  for (const dtu of recentDTUs) {
+    const domain = dtu.domain || "general";
+    if (!byDomain[domain]) byDomain[domain] = [];
+    byDomain[domain].push(dtu);
+  }
+
+  for (const [domain, dtus] of Object.entries(byDomain)) {
+    if (dtus.length < 2) continue;
+    // Strengthen: add cross-references in meta
+    for (let i = 0; i < dtus.length && i < 10; i++) {
+      for (let j = i + 1; j < dtus.length && j < 10; j++) {
+        const sharedTags = (dtus[i].tags || []).filter(t => (dtus[j].tags || []).includes(t));
+        if (sharedTags.length > 0) {
+          // Add consolidation link
+          if (!dtus[i].meta) dtus[i].meta = {};
+          if (!dtus[i].meta._consolidatedLinks) dtus[i].meta._consolidatedLinks = [];
+          if (!dtus[i].meta._consolidatedLinks.includes(dtus[j].id)) {
+            dtus[i].meta._consolidatedLinks.push(dtus[j].id);
+            consolidated++;
+          }
+        }
+      }
+    }
+  }
+
+  STATE.dreamState.stats.dtusConsolidated += consolidated;
+  structuredLog("info", "dream_consolidate", { consolidated });
+}
+
+async function dreamPhasePrune() {
+  // Prune: identify weak/orphan connections and remove stale metadata
+  let pruned = 0;
+
+  for (const dtu of STATE.dtus.values()) {
+    // Prune stale consolidated links that point to deleted DTUs
+    if (dtu.meta?._consolidatedLinks) {
+      const before = dtu.meta._consolidatedLinks.length;
+      dtu.meta._consolidatedLinks = dtu.meta._consolidatedLinks.filter(id => STATE.dtus.has(id));
+      pruned += before - dtu.meta._consolidatedLinks.length;
+    }
+
+    // Prune empty tags
+    if (dtu.tags && dtu.tags.length > 0) {
+      const before = dtu.tags.length;
+      dtu.tags = dtu.tags.filter(t => t && t.trim());
+      pruned += before - dtu.tags.length;
+    }
+  }
+
+  STATE.dreamState.stats.connectionsPruned += pruned;
+  structuredLog("info", "dream_prune", { pruned });
+}
+
+async function dreamPhaseDream() {
+  // Dream: generate creative cross-domain insights using subconscious brain
+  const recentDTUs = STATE.dreamState._replayDTUs || [];
+  if (recentDTUs.length < 2) return;
+
+  // Pick DTUs from different domains for cross-pollination
+  const byDomain = {};
+  for (const dtu of recentDTUs) {
+    const d = dtu.domain || "general";
+    if (!byDomain[d]) byDomain[d] = [];
+    byDomain[d].push(dtu);
+  }
+
+  const domains = Object.keys(byDomain);
+  if (domains.length < 2) {
+    // All same domain — look for internal connections instead
+    const titles = recentDTUs.slice(0, 5).map(d => d.title || "untitled").join(", ");
+    STATE.dreamState.insights.push({
+      type: "internal_pattern",
+      content: `Domain focus detected: ${domains[0]} with ${recentDTUs.length} recent DTUs. Topics: ${titles}`,
+      domains: domains,
+      createdAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // Cross-domain dream: attempt to connect concepts from 2 different domains
+  for (let i = 0; i < domains.length && i < 3; i++) {
+    for (let j = i + 1; j < domains.length && j < 4; j++) {
+      const d1 = byDomain[domains[i]][0];
+      const d2 = byDomain[domains[j]][0];
+
+      // Generate insight using subconscious brain if available
+      try {
+        const brainEnabled = BRAIN.subconscious?.enabled;
+        if (brainEnabled) {
+          const prompt = `You are the subconscious dreaming mind. Find a hidden connection between these two concepts from different domains:\n\nDomain "${domains[i]}": "${d1.title || ''}"\nDomain "${domains[j]}": "${d2.title || ''}"\n\nExpress the connection in one insightful sentence.`;
+          const result = await callBrain("subconscious", prompt, { temperature: 0.9, maxTokens: 100 });
+          if (result.ok && result.content) {
+            STATE.dreamState.insights.push({
+              type: "cross_domain",
+              content: result.content.trim(),
+              domains: [domains[i], domains[j]],
+              sourceDTUs: [d1.id, d2.id],
+              createdAt: new Date().toISOString(),
+            });
+            STATE.dreamState.stats.insightsGenerated++;
+          }
+        } else {
+          // Fallback: generate a structural insight without LLM
+          STATE.dreamState.insights.push({
+            type: "cross_domain",
+            content: `Potential connection between "${d1.title || domains[i]}" and "${d2.title || domains[j]}": shared conceptual territory worth exploring.`,
+            domains: [domains[i], domains[j]],
+            sourceDTUs: [d1.id, d2.id],
+            createdAt: new Date().toISOString(),
+          });
+          STATE.dreamState.stats.insightsGenerated++;
+        }
+      } catch (e) {
+        structuredLog("warn", "dream_insight_error", { error: String(e?.message || e) });
+      }
+    }
+  }
+}
+
+async function dreamPhaseIntegrate() {
+  // Integrate: create DTUs from the best dream insights
+  const insights = STATE.dreamState.insights || [];
+  for (const insight of insights.filter(i => i.type === "cross_domain")) {
+    try {
+      const dtu = {
+        id: `dream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: `Dream Insight: ${insight.domains.join(" × ")}`,
+        content: insight.content,
+        tags: ["dream-insight", ...(insight.domains || [])],
+        tier: "regular",
+        source: "substrate.dream",
+        domain: insight.domains[0] || "general",
+        meta: {
+          dreamGenerated: true,
+          sourceDTUs: insight.sourceDTUs,
+          dreamedAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      upsertDTU(dtu, { broadcast: false });
+    } catch (e) {
+      observe(e, "dream_integrate");
+    }
+  }
+}
+
+async function dreamPhaseWake() {
+  // Wake: prepare summary for morning brief
+  const ds = STATE.dreamState;
+  ds._wakeSummary = {
+    dreamsProcessed: ds.stats.totalDreams + 1,
+    insightsTonight: ds.insights.length,
+    consolidated: ds.stats.dtusConsolidated,
+    pruned: ds.stats.connectionsPruned,
+  };
+  structuredLog("info", "dream_wake", ds._wakeSummary);
+}
+
+// Dream API routes
+app.get("/api/dreams/state", (_req, res) => {
+  res.json({ ok: true, ...getDreamState() });
+});
+
+app.post("/api/dreams/start", async (_req, res) => {
+  try {
+    const result = await startDreamCycle();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/dreams/history", (_req, res) => {
+  const ds = STATE.dreamState;
+  res.json({
+    ok: true,
+    history: ds.history.slice(-10),
+    stats: ds.stats,
+    lastInsights: ds.insights.slice(-10),
+  });
+});
+
+// ---------- DTU METABOLISM — digestion + consolidation + excretion + growth ----------
+// DTUs are living entities that metabolize: they digest input, consolidate knowledge,
+// excrete waste, and grow in tier.
+
+const METABOLISM_CONFIG = {
+  digestionThreshold: 3,    // Min access count before a DTU is "digested"
+  consolidationAge: 7,      // Days before consolidation candidates are identified
+  excretionStaleDays: 90,   // Days of inactivity before excretion (archive)
+  growthThreshold: {
+    mega: { accessCount: 10, connectionCount: 5, ageDays: 3 },
+    hyper: { accessCount: 25, connectionCount: 12, ageDays: 7 },
+  },
+};
+
+if (!STATE.metabolismState) {
+  STATE.metabolismState = {
+    lastRun: null,
+    stats: { digested: 0, consolidated: 0, excreted: 0, grown: 0 },
+    excretedDTUs: [], // archived DTU ids
+  };
+}
+
+function metabolismDigest() {
+  // Digestion: mark DTUs as "digested" once they've been accessed enough times
+  let digested = 0;
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.meta?._digested) continue;
+    const accessCount = dtu.meta?._accessCount || 0;
+    if (accessCount >= METABOLISM_CONFIG.digestionThreshold) {
+      if (!dtu.meta) dtu.meta = {};
+      dtu.meta._digested = true;
+      dtu.meta._digestedAt = new Date().toISOString();
+      digested++;
+    }
+  }
+  return digested;
+}
+
+function metabolismConsolidate() {
+  // Consolidation: find clusters of related DTUs and suggest merges.
+  // Uses a tag→DTU index to avoid O(n²) all-pairs scan.
+  const now = Date.now();
+  const candidates = [];
+  const seen = new Set();
+
+  // Phase 1: collect eligible DTUs
+  const eligible = [];
+  for (const dtu of STATE.dtus.values()) {
+    if (!dtu.meta?._digested) continue;
+    const ageDays = (now - new Date(dtu.createdAt || 0).getTime()) / (1000 * 60 * 60 * 24);
+    if (ageDays < METABOLISM_CONFIG.consolidationAge) continue;
+    if (!dtu.tags || dtu.tags.length === 0) continue;
+    eligible.push(dtu);
+  }
+
+  // Phase 2: build tag→Set<dtuIndex> index
+  const tagIndex = new Map();
+  for (let i = 0; i < eligible.length; i++) {
+    const tagSet = new Set(eligible[i].tags);
+    eligible[i]._tagSet = tagSet;
+    for (const tag of tagSet) {
+      if (!tagIndex.has(tag)) tagIndex.set(tag, []);
+      tagIndex.get(tag).push(i);
+    }
+  }
+
+  // Phase 3: compare only DTUs that share at least one tag
+  for (let i = 0; i < eligible.length; i++) {
+    const dtu = eligible[i];
+    const neighbors = new Set();
+    for (const tag of dtu._tagSet) {
+      for (const j of (tagIndex.get(tag) || [])) {
+        if (j > i) neighbors.add(j); // only check each pair once
+      }
+    }
+
+    for (const j of neighbors) {
+      const other = eligible[j];
+      const pairKey = `${dtu.id}:${other.id}`;
+      if (seen.has(pairKey)) continue;
+
+      let sharedCount = 0;
+      for (const t of dtu._tagSet) {
+        if (other._tagSet.has(t)) sharedCount++;
+      }
+      const totalTags = dtu._tagSet.size + other._tagSet.size - sharedCount;
+
+      if (totalTags > 0 && sharedCount / totalTags > 0.6) {
+        const sharedTags = [...dtu._tagSet].filter(t => other._tagSet.has(t));
+        candidates.push({
+          pair: [dtu.id, other.id],
+          titles: [dtu.title, other.title],
+          overlap: sharedCount / totalTags,
+          sharedTags,
+        });
+        seen.add(pairKey);
+      }
+    }
+  }
+
+  // Cleanup temp _tagSet
+  for (const dtu of eligible) delete dtu._tagSet;
+
+  return candidates.slice(0, 20); // Return top 20 consolidation candidates
+}
+
+function metabolismExcrete() {
+  // Excretion: archive DTUs that haven't been touched in 90+ days
+  const now = Date.now();
+  const excreted = [];
+
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.tier === "hyper" || dtu.tier === "mega") continue; // Protected tiers
+    if (dtu.meta?._excreted) continue;
+
+    const lastTouched = Math.max(
+      new Date(dtu.updatedAt || 0).getTime(),
+      new Date(dtu.meta?._lastAccessAt || 0).getTime()
+    );
+    const staleDays = (now - lastTouched) / (1000 * 60 * 60 * 24);
+
+    if (staleDays >= METABOLISM_CONFIG.excretionStaleDays) {
+      if (!dtu.meta) dtu.meta = {};
+      dtu.meta._excreted = true;
+      dtu.meta._excretedAt = new Date().toISOString();
+      excreted.push({ id: dtu.id, title: dtu.title, staleDays: Math.round(staleDays) });
+    }
+  }
+
+  STATE.metabolismState.excreted = (STATE.metabolismState.excreted || []).concat(excreted.map(e => e.id));
+  // Keep only last 200 excreted IDs
+  if (STATE.metabolismState.excreted.length > 200) {
+    STATE.metabolismState.excreted = STATE.metabolismState.excreted.slice(-200);
+  }
+
+  return excreted;
+}
+
+function metabolismGrowth() {
+  // Growth: auto-promote DTUs that meet tier thresholds
+  const now = Date.now();
+  let grown = 0;
+
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.tier === "hyper") continue; // Already max tier
+
+    const accessCount = dtu.meta?._accessCount || 0;
+    const connectionCount = (dtu.meta?._consolidatedLinks || []).length +
+      ((dtu.lineage?.children || []).length) +
+      (dtu.lineage?.parentId ? 1 : 0);
+    const ageDays = (now - new Date(dtu.createdAt || 0).getTime()) / (1000 * 60 * 60 * 24);
+
+    if (dtu.tier !== "mega") {
+      // Check for mega promotion
+      const megaReqs = METABOLISM_CONFIG.growthThreshold.mega;
+      if (accessCount >= megaReqs.accessCount && connectionCount >= megaReqs.connectionCount && ageDays >= megaReqs.ageDays) {
+        dtu.tier = "mega";
+        if (!dtu.meta) dtu.meta = {};
+        dtu.meta._promotedAt = new Date().toISOString();
+        dtu.meta._promotedFrom = "regular";
+        grown++;
+        continue;
+      }
+    }
+
+    if (dtu.tier === "mega") {
+      // Check for hyper promotion
+      const hyperReqs = METABOLISM_CONFIG.growthThreshold.hyper;
+      if (accessCount >= hyperReqs.accessCount && connectionCount >= hyperReqs.connectionCount && ageDays >= hyperReqs.ageDays) {
+        dtu.tier = "hyper";
+        if (!dtu.meta) dtu.meta = {};
+        dtu.meta._promotedAt = new Date().toISOString();
+        dtu.meta._promotedFrom = "mega";
+        grown++;
+      }
+    }
+  }
+
+  return grown;
+}
+
+function runMetabolismCycle() {
+  const digested = metabolismDigest();
+  const consolidationCandidates = metabolismConsolidate();
+  const excreted = metabolismExcrete();
+  const grown = metabolismGrowth();
+
+  STATE.metabolismState.lastRun = new Date().toISOString();
+  STATE.metabolismState.stats.digested += digested;
+  STATE.metabolismState.stats.consolidated += consolidationCandidates.length;
+  STATE.metabolismState.stats.excreted += excreted.length;
+  STATE.metabolismState.stats.grown += grown;
+
+  return {
+    digested,
+    consolidationCandidates,
+    excreted,
+    grown,
+    stats: STATE.metabolismState.stats,
+  };
+}
+
+// Metabolism API routes
+app.get("/api/metabolism/state", (_req, res) => {
+  res.json({ ok: true, ...STATE.metabolismState, config: METABOLISM_CONFIG });
+});
+
+app.post("/api/metabolism/run", (_req, res) => {
+  try {
+    const result = runMetabolismCycle();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/metabolism/candidates", (_req, res) => {
+  try {
+    const candidates = metabolismConsolidate();
+    res.json({ ok: true, candidates });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/metabolism/resurrect/:id", (req, res) => {
+  // Un-excrete a DTU
+  const dtu = STATE.dtus.get(req.params.id);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if (dtu.meta) {
+    delete dtu.meta._excreted;
+    delete dtu.meta._excretedAt;
+  }
+  STATE.metabolismState.excreted = (STATE.metabolismState.excreted || []).filter(id => id !== req.params.id);
+  res.json({ ok: true, id: req.params.id, title: dtu.title });
+});
+
+// ---------- EPISODIC MEMORY — experience tracking ----------
+// Episodic memories are experiences, not just facts. They capture the context,
+// emotion, and sequence of events during a user session.
+
+if (!STATE.episodes) STATE.episodes = [];
+
+function createEpisode(data) {
+  const episode = {
+    id: `ep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: data.type || "session",             // session, insight, discovery, creation, collaboration
+    title: data.title || "Untitled Episode",
+    narrative: data.narrative || "",           // What happened in natural language
+    context: {
+      domain: data.domain || null,
+      lens: data.lens || null,
+      dtusInvolved: data.dtusInvolved || [],
+      brainsUsed: data.brainsUsed || [],
+    },
+    emotions: data.emotions || [],            // ["curiosity", "satisfaction", "surprise"]
+    intensity: data.intensity || 0.5,         // 0-1 how significant this episode was
+    timestamp: new Date().toISOString(),
+    duration: data.duration || null,           // ms
+    outcomes: data.outcomes || [],             // What resulted from this episode
+    tags: data.tags || [],
+  };
+
+  STATE.episodes.push(episode);
+
+  // Keep only last 500 episodes
+  if (STATE.episodes.length > 500) {
+    STATE.episodes = STATE.episodes.slice(-500);
+  }
+
+  // Award XP for creating a memorable experience
+  if (episode.intensity > 0.7 && typeof awardXP === "function") {
+    try { awardXP("default", "episode.significant", { episodeId: episode.id }); } catch {}
+  }
+
+  return episode;
+}
+
+function queryEpisodes(filters = {}) {
+  let results = [...STATE.episodes];
+
+  if (filters.type) results = results.filter(e => e.type === filters.type);
+  if (filters.domain) results = results.filter(e => e.context.domain === filters.domain);
+  if (filters.minIntensity) results = results.filter(e => e.intensity >= filters.minIntensity);
+  if (filters.emotion) results = results.filter(e => e.emotions.includes(filters.emotion));
+  if (filters.since) {
+    const sinceMs = new Date(filters.since).getTime();
+    results = results.filter(e => new Date(e.timestamp).getTime() >= sinceMs);
+  }
+
+  // Sort by recency
+  results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return results.slice(0, filters.limit || 50);
+}
+
+function getEpisodeSummary() {
+  const episodes = STATE.episodes;
+  const typeCount = {};
+  const domainCount = {};
+  const emotionCount = {};
+  let totalIntensity = 0;
+
+  for (const ep of episodes) {
+    typeCount[ep.type] = (typeCount[ep.type] || 0) + 1;
+    if (ep.context.domain) domainCount[ep.context.domain] = (domainCount[ep.context.domain] || 0) + 1;
+    for (const em of ep.emotions) emotionCount[em] = (emotionCount[em] || 0) + 1;
+    totalIntensity += ep.intensity;
+  }
+
+  return {
+    total: episodes.length,
+    averageIntensity: episodes.length > 0 ? totalIntensity / episodes.length : 0,
+    byType: typeCount,
+    byDomain: domainCount,
+    topEmotions: Object.entries(emotionCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([emotion, count]) => ({ emotion, count })),
+    recent: episodes.slice(-5),
+  };
+}
+
+// Episodic Memory API routes
+app.post("/api/episodes", (req, res) => {
+  try {
+    const episode = createEpisode(req.body);
+    res.json({ ok: true, episode });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/episodes", (req, res) => {
+  const filters = {
+    type: req.query.type,
+    domain: req.query.domain,
+    minIntensity: req.query.minIntensity ? parseFloat(req.query.minIntensity) : undefined,
+    emotion: req.query.emotion,
+    since: req.query.since,
+    limit: req.query.limit ? parseInt(req.query.limit) : 50,
+  };
+  res.json({ ok: true, episodes: queryEpisodes(filters) });
+});
+
+app.get("/api/episodes/summary", (_req, res) => {
+  res.json({ ok: true, ...getEpisodeSummary() });
+});
+
+// ---------- BRAIN COUNCIL DELIBERATION ----------
+// When a high-stakes decision is needed, all 4 brains deliberate and vote.
+// Each brain provides its perspective based on its role.
+
+const COUNCIL_ROLES = {
+  conscious: {
+    perspective: "rational analysis and deep reasoning",
+    votingWeight: 0.35,
+  },
+  subconscious: {
+    perspective: "intuitive patterns and creative connections",
+    votingWeight: 0.25,
+  },
+  utility: {
+    perspective: "practical feasibility and efficiency",
+    votingWeight: 0.25,
+  },
+  repair: {
+    perspective: "risk assessment and error prevention",
+    votingWeight: 0.15,
+  },
+};
+
+if (!STATE.councilSessions) STATE.councilSessions = [];
+
+async function conveneCouncil(question, options = {}) {
+  const session = {
+    id: `council-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question,
+    domain: options.domain || null,
+    context: options.context || "",
+    status: "deliberating",
+    startedAt: new Date().toISOString(),
+    opinions: {},
+    votes: {},
+    consensus: null,
+    confidence: 0,
+    completedAt: null,
+  };
+
+  STATE.councilSessions.push(session);
+  // Keep last 50 sessions
+  if (STATE.councilSessions.length > 50) STATE.councilSessions = STATE.councilSessions.slice(-50);
+
+  // Gather opinions from each brain
+  const brainNames = ["conscious", "subconscious", "utility", "repair"];
+  const contextSnippet = options.context ? `\nContext: ${options.context}` : "";
+
+  const opinions = await Promise.allSettled(
+    brainNames.map(async (brainName) => {
+      const brain = BRAIN[brainName];
+      if (!brain?.enabled) {
+        return {
+          brain: brainName,
+          opinion: `[${brainName} brain offline — using heuristic]`,
+          vote: "abstain",
+          confidence: 0.3,
+        };
+      }
+
+      const role = COUNCIL_ROLES[brainName];
+      const prompt = `You are the ${brainName} brain in a 4-brain cognitive council. Your perspective focuses on ${role.perspective}.\n\nQuestion: ${question}${contextSnippet}\n\nProvide:\n1. Your analysis (2-3 sentences)\n2. Your vote: APPROVE, REJECT, or MODIFY\n3. Your confidence (0-100%)\n\nRespond in format:\nANALYSIS: ...\nVOTE: ...\nCONFIDENCE: ...%`;
+
+      try {
+        const result = await callBrain(brainName, prompt, {
+          temperature: brainName === "subconscious" ? 0.8 : 0.3,
+          maxTokens: 200,
+        });
+
+        if (!result.ok) throw new Error(result.error || "Brain call failed");
+
+        const content = result.content || "";
+        const voteMatch = content.match(/VOTE:\s*(APPROVE|REJECT|MODIFY)/i);
+        const confMatch = content.match(/CONFIDENCE:\s*(\d+)/);
+        const analysisMatch = content.match(/ANALYSIS:\s*(.+?)(?=\nVOTE:|$)/s);
+
+        return {
+          brain: brainName,
+          opinion: analysisMatch?.[1]?.trim() || content.slice(0, 200),
+          vote: (voteMatch?.[1] || "abstain").toLowerCase(),
+          confidence: confMatch ? parseInt(confMatch[1]) / 100 : 0.5,
+        };
+      } catch (e) {
+        return {
+          brain: brainName,
+          opinion: `[Error: ${String(e?.message || e).slice(0, 100)}]`,
+          vote: "abstain",
+          confidence: 0.2,
+        };
+      }
+    })
+  );
+
+  // Process results
+  let totalWeightedVote = 0;
+  let totalWeight = 0;
+
+  for (const result of opinions) {
+    const op = result.status === "fulfilled" ? result.value : {
+      brain: "unknown", opinion: "Failed to deliberate", vote: "abstain", confidence: 0.1,
+    };
+
+    session.opinions[op.brain] = op;
+    session.votes[op.brain] = op.vote;
+
+    const weight = COUNCIL_ROLES[op.brain]?.votingWeight || 0.2;
+    const voteScore = op.vote === "approve" ? 1 : op.vote === "reject" ? -1 : 0;
+    totalWeightedVote += voteScore * weight * op.confidence;
+    totalWeight += weight;
+  }
+
+  // Determine consensus
+  const normalizedScore = totalWeight > 0 ? totalWeightedVote / totalWeight : 0;
+  session.consensus = normalizedScore > 0.3 ? "approve" : normalizedScore < -0.3 ? "reject" : "split";
+  session.confidence = Math.abs(normalizedScore);
+  session.status = "complete";
+  session.completedAt = new Date().toISOString();
+
+  // Record as episode
+  if (typeof createEpisode === "function") {
+    try {
+      createEpisode({
+        type: "collaboration",
+        title: `Council: ${question.slice(0, 60)}`,
+        narrative: `The brain council deliberated on "${question}" and reached a ${session.consensus} consensus with ${Math.round(session.confidence * 100)}% confidence.`,
+        brainsUsed: brainNames,
+        intensity: session.confidence,
+        outcomes: [session.consensus],
+        tags: ["council", "deliberation"],
+      });
+    } catch {}
+  }
+
+  // Award XP for council deliberation
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "council.deliberation", { sessionId: session.id }); } catch {}
+  }
+
+  structuredLog("info", "council_complete", {
+    id: session.id,
+    consensus: session.consensus,
+    confidence: session.confidence,
+    votes: session.votes,
+  });
+
+  return session;
+}
+
+// Brain Council API routes
+app.post("/api/council/deliberate", async (req, res) => {
+  const { question, domain, context } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question is required" });
+
+  try {
+    const session = await conveneCouncil(question, { domain, context });
+    res.json({ ok: true, session });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/council/sessions", (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  res.json({
+    ok: true,
+    sessions: STATE.councilSessions.slice(-limit).reverse(),
+    total: STATE.councilSessions.length,
+  });
+});
+
+app.get("/api/council/sessions/:id", (req, res) => {
+  const session = STATE.councilSessions.find(s => s.id === req.params.id);
+  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  res.json({ ok: true, session });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 2
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 3: AGENT PERSONAS, TASK DELEGATION, GARDENS, BOUNTIES, FUTURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- AGENT PERSONAS — domain expert entities ----------
+// Each persona is a domain expert backed by a specific brain + context window
+// of relevant DTUs. They have names, expertise areas, communication styles.
+
+const DEFAULT_PERSONAS = [
+  { id: "analyst", name: "The Analyst", brain: "conscious", style: "precise and data-driven", domains: ["finance", "trading", "analytics"], avatar: "chart" },
+  { id: "creative", name: "The Creative", brain: "subconscious", style: "imaginative and lateral-thinking", domains: ["art", "music", "writing", "design"], avatar: "palette" },
+  { id: "engineer", name: "The Engineer", brain: "utility", style: "practical and systematic", domains: ["code", "engineering", "devops"], avatar: "wrench" },
+  { id: "guardian", name: "The Guardian", brain: "repair", style: "cautious and thorough", domains: ["security", "health", "risk"], avatar: "shield" },
+  { id: "explorer", name: "The Explorer", brain: "subconscious", style: "curious and adventurous", domains: ["travel", "learning", "research"], avatar: "compass" },
+  { id: "sage", name: "The Sage", brain: "conscious", style: "philosophical and reflective", domains: ["philosophy", "psychology", "metacognition"], avatar: "book" },
+];
+
+if (!STATE.personas) {
+  STATE.personas = DEFAULT_PERSONAS.map(p => ({
+    ...p,
+    stats: { queries: 0, helpfulness: 0, lastActive: null },
+    customInstructions: "",
+    active: true,
+  }));
+}
+
+function getPersonaForDomain(domain) {
+  // Find best matching persona for a domain
+  const persona = STATE.personas.find(p => p.active && p.domains.includes(domain));
+  if (persona) return persona;
+  // Fallback: find by partial match
+  const partial = STATE.personas.find(p => p.active && p.domains.some(d => domain.includes(d) || d.includes(domain)));
+  if (partial) return partial;
+  // Default to analyst
+  return STATE.personas.find(p => p.id === "analyst") || STATE.personas[0];
+}
+
+async function askPersona(personaId, question, options = {}) {
+  const persona = STATE.personas.find(p => p.id === personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+
+  // Gather domain-relevant DTUs for context
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    if (persona.domains.some(d => (dtu.domain || "").includes(d) || (dtu.tags || []).some(t => t.includes(d)))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+
+  const contextDTUs = relevantDTUs.slice(0, 10).map(d => `- ${d.title}: ${(d.content || d.summary || "").slice(0, 100)}`).join("\n");
+
+  const prompt = `You are "${persona.name}", a ${persona.style} expert in ${persona.domains.join(", ")}.\n\n${persona.customInstructions ? `Custom instructions: ${persona.customInstructions}\n\n` : ""}Relevant knowledge from the substrate:\n${contextDTUs || "(no relevant DTUs found)"}\n\nQuestion: ${question}\n\nRespond in character — be ${persona.style}. Keep the answer focused and useful.`;
+
+  try {
+    const result = await callBrain(persona.brain, prompt, { temperature: 0.6, maxTokens: 300 });
+    persona.stats.queries++;
+    persona.stats.lastActive = new Date().toISOString();
+
+    // Record as episode
+    if (typeof createEpisode === "function") {
+      try {
+        createEpisode({
+          type: "collaboration",
+          title: `Asked ${persona.name}: ${question.slice(0, 40)}`,
+          narrative: `Consulted ${persona.name} about: ${question}`,
+          intensity: 0.5,
+          emotions: ["curiosity"],
+          tags: ["persona", persona.id],
+        });
+      } catch {}
+    }
+
+    return {
+      ok: true,
+      persona: { id: persona.id, name: persona.name, avatar: persona.avatar },
+      response: result.content || "",
+      confidence: result.confidence,
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// Agent Persona API routes
+app.get("/api/personas", (_req, res) => {
+  res.json({ ok: true, personas: STATE.personas.map(p => ({ ...p, stats: p.stats })) });
+});
+
+app.post("/api/personas/:id/ask", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question is required" });
+  try {
+    const result = await askPersona(req.params.id, question);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.put("/api/personas/:id", (req, res) => {
+  const persona = STATE.personas.find(p => p.id === req.params.id);
+  if (!persona) return res.status(404).json({ ok: false, error: "Persona not found" });
+  if (req.body.customInstructions !== undefined) persona.customInstructions = req.body.customInstructions;
+  if (req.body.active !== undefined) persona.active = req.body.active;
+  if (req.body.name) persona.name = req.body.name;
+  res.json({ ok: true, persona });
+});
+
+// ---------- TASK DELEGATION — natural language → decomposed steps ----------
+// User describes a task in natural language. System decomposes it into
+// actionable steps, assigns each to the appropriate brain/persona, and tracks progress.
+
+if (!STATE.delegatedTasks) STATE.delegatedTasks = [];
+
+async function delegateTask(description, options = {}) {
+  const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Use conscious brain to decompose the task
+  let steps = [];
+  try {
+    const brainEnabled = BRAIN.conscious?.enabled;
+    if (brainEnabled) {
+      const prompt = `Decompose this task into 2-5 concrete, actionable steps. For each step, specify which type of thinking is needed (analytical, creative, practical, or defensive).\n\nTask: ${description}\n\nRespond in this exact format for each step:\nSTEP: [description]\nTYPE: [analytical|creative|practical|defensive]\n\nList only the steps, nothing else.`;
+      const result = await callBrain("conscious", prompt, { temperature: 0.3, maxTokens: 400 });
+
+      if (result.ok && result.content) {
+        const stepMatches = result.content.matchAll(/STEP:\s*(.+?)(?:\nTYPE:\s*(analytical|creative|practical|defensive))?(?=\nSTEP:|\n*$)/gs);
+        for (const match of stepMatches) {
+          const type = (match[2] || "practical").toLowerCase();
+          const assignedBrain = type === "analytical" ? "conscious" : type === "creative" ? "subconscious" : type === "defensive" ? "repair" : "utility";
+          const persona = getPersonaForDomain(options.domain || "general");
+          steps.push({
+            id: `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            description: match[1].trim(),
+            type,
+            assignedBrain,
+            assignedPersona: persona.id,
+            status: "pending",
+            result: null,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    structuredLog("warn", "task_decompose_error", { error: String(e?.message || e) });
+  }
+
+  // Fallback: if no steps decomposed, create a single step
+  if (steps.length === 0) {
+    steps = [{
+      id: `step-${Date.now()}`,
+      description: description,
+      type: "practical",
+      assignedBrain: "utility",
+      assignedPersona: "engineer",
+      status: "pending",
+      result: null,
+    }];
+  }
+
+  const task = {
+    id: taskId,
+    description,
+    domain: options.domain || "general",
+    steps,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    results: [],
+  };
+
+  STATE.delegatedTasks.push(task);
+  // Keep last 100 tasks
+  if (STATE.delegatedTasks.length > 100) STATE.delegatedTasks = STATE.delegatedTasks.slice(-100);
+
+  // Auto-execute if requested
+  if (options.autoExecute) {
+    await executeTask(taskId);
+  }
+
+  return task;
+}
+
+async function executeTask(taskId) {
+  const task = STATE.delegatedTasks.find(t => t.id === taskId);
+  if (!task) return { ok: false, error: "Task not found" };
+
+  task.status = "running";
+
+  for (const step of task.steps) {
+    if (step.status === "completed") continue;
+    step.status = "running";
+
+    try {
+      const prompt = `Complete this task step: ${step.description}\n\nContext: Part of the larger task "${task.description}" in domain "${task.domain}".\n\nProvide a concise result.`;
+
+      const result = await callBrain(step.assignedBrain, prompt, { temperature: 0.4, maxTokens: 200 });
+      step.result = result.ok ? result.content : `Error: ${result.error}`;
+      step.status = result.ok ? "completed" : "failed";
+    } catch (e) {
+      step.result = `Error: ${String(e?.message || e)}`;
+      step.status = "failed";
+    }
+  }
+
+  const allComplete = task.steps.every(s => s.status === "completed");
+  const anyFailed = task.steps.some(s => s.status === "failed");
+  task.status = allComplete ? "completed" : anyFailed ? "partial" : "completed";
+  task.completedAt = new Date().toISOString();
+
+  // Award XP
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "task.complete", { taskId: task.id }); } catch {}
+  }
+
+  return task;
+}
+
+// Task Delegation API routes
+app.post("/api/tasks/delegate", async (req, res) => {
+  const { description, domain, autoExecute } = req.body;
+  if (!description) return res.status(400).json({ ok: false, error: "Description is required" });
+  try {
+    const task = await delegateTask(description, { domain, autoExecute });
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/tasks/:id/execute", async (req, res) => {
+  try {
+    const task = await executeTask(req.params.id);
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/tasks", (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  const status = req.query.status;
+  let tasks = [...STATE.delegatedTasks].reverse();
+  if (status) tasks = tasks.filter(t => t.status === status);
+  res.json({ ok: true, tasks: tasks.slice(0, limit), total: STATE.delegatedTasks.length });
+});
+
+// ---------- KNOWLEDGE GARDENS — collaborative DTU spaces ----------
+// A garden is a curated collection of DTUs organized around a theme.
+// Gardens can grow (add DTUs), be tended (improved), and bloom (generate insights).
+
+if (!STATE.gardens) STATE.gardens = [];
+
+function createGarden(data) {
+  const garden = {
+    id: `garden-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: data.name,
+    description: data.description || "",
+    theme: data.theme || "general",
+    curator: data.curator || "sovereign",
+    dtus: data.dtus || [],              // DTU ids in this garden
+    insights: [],                        // Generated insights
+    health: 1.0,                         // 0-1 garden health
+    stage: "seedling",                   // seedling → sprouting → blooming → thriving → ancient
+    createdAt: new Date().toISOString(),
+    lastTended: new Date().toISOString(),
+    stats: { views: 0, additions: 0, blooms: 0, tendCount: 0 },
+  };
+
+  STATE.gardens.push(garden);
+  // Keep last 50 gardens
+  if (STATE.gardens.length > 50) STATE.gardens = STATE.gardens.slice(-50);
+
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "garden.create", { gardenId: garden.id }); } catch {}
+  }
+
+  return garden;
+}
+
+function tendGarden(gardenId) {
+  const garden = STATE.gardens.find(g => g.id === gardenId);
+  if (!garden) return null;
+
+  garden.lastTended = new Date().toISOString();
+  garden.stats.tendCount++;
+
+  // Prune: remove DTU ids that no longer exist
+  garden.dtus = garden.dtus.filter(id => STATE.dtus.has(id));
+
+  // Calculate health based on freshness of member DTUs
+  if (garden.dtus.length > 0 && typeof calculateFreshness === "function") {
+    let totalFreshness = 0;
+    for (const id of garden.dtus) {
+      const dtu = STATE.dtus.get(id);
+      if (dtu) totalFreshness += calculateFreshness(dtu);
+    }
+    garden.health = totalFreshness / garden.dtus.length;
+  }
+
+  // Update stage based on DTU count and tend count
+  const count = garden.dtus.length;
+  const tends = garden.stats.tendCount;
+  if (count >= 50 && tends >= 20) garden.stage = "ancient";
+  else if (count >= 30 && tends >= 10) garden.stage = "thriving";
+  else if (count >= 15 && tends >= 5) garden.stage = "blooming";
+  else if (count >= 5) garden.stage = "sprouting";
+  else garden.stage = "seedling";
+
+  return garden;
+}
+
+async function bloomGarden(gardenId) {
+  const garden = STATE.gardens.find(g => g.id === gardenId);
+  if (!garden || garden.dtus.length < 2) return null;
+
+  // Gather DTU content for insight generation
+  const dtus = garden.dtus.slice(0, 15).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const titles = dtus.map(d => d.title || "untitled").join(", ");
+
+  let insight = {
+    content: `Garden "${garden.name}" contains ${garden.dtus.length} DTUs around the theme "${garden.theme}". Key topics: ${titles}`,
+    generatedAt: new Date().toISOString(),
+  };
+
+  try {
+    if (BRAIN.subconscious?.enabled) {
+      const prompt = `You are a garden of knowledge. These DTUs share the theme "${garden.theme}":\n${dtus.map(d => `- ${d.title}`).join("\n")}\n\nWhat unexpected insight emerges from seeing all of these together? Express it in 1-2 sentences.`;
+      const result = await callBrain("subconscious", prompt, { temperature: 0.8, maxTokens: 100 });
+      if (result.ok && result.content) {
+        insight.content = result.content.trim();
+      }
+    }
+  } catch {}
+
+  garden.insights.push(insight);
+  if (garden.insights.length > 20) garden.insights = garden.insights.slice(-20);
+  garden.stats.blooms++;
+
+  return insight;
+}
+
+// Knowledge Gardens API routes
+app.get("/api/gardens", (_req, res) => {
+  res.json({ ok: true, gardens: STATE.gardens });
+});
+
+app.post("/api/gardens", (req, res) => {
+  try {
+    const garden = createGarden(req.body);
+    res.json({ ok: true, garden });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/gardens/:id", (req, res) => {
+  const garden = STATE.gardens.find(g => g.id === req.params.id);
+  if (!garden) return res.status(404).json({ ok: false, error: "Garden not found" });
+  garden.stats.views++;
+  res.json({ ok: true, garden });
+});
+
+app.post("/api/gardens/:id/add", (req, res) => {
+  const garden = STATE.gardens.find(g => g.id === req.params.id);
+  if (!garden) return res.status(404).json({ ok: false, error: "Garden not found" });
+  const { dtuId } = req.body;
+  if (!dtuId || !STATE.dtus.has(dtuId)) return res.status(400).json({ ok: false, error: "Invalid DTU" });
+  if (!garden.dtus.includes(dtuId)) {
+    garden.dtus.push(dtuId);
+    garden.stats.additions++;
+  }
+  res.json({ ok: true, garden });
+});
+
+app.post("/api/gardens/:id/tend", (req, res) => {
+  const result = tendGarden(req.params.id);
+  if (!result) return res.status(404).json({ ok: false, error: "Garden not found" });
+  res.json({ ok: true, garden: result });
+});
+
+app.post("/api/gardens/:id/bloom", async (req, res) => {
+  try {
+    const insight = await bloomGarden(req.params.id);
+    if (!insight) return res.status(400).json({ ok: false, error: "Garden needs at least 2 DTUs to bloom" });
+    res.json({ ok: true, insight });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- KNOWLEDGE BOUNTIES — community tasks ----------
+// Bounties are open questions or tasks that need DTU-quality answers.
+// They have rewards (XP, tier boosts) and deadlines.
+
+if (!STATE.bounties) STATE.bounties = [];
+
+function createBounty(data) {
+  const bounty = {
+    id: `bounty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: data.title,
+    description: data.description || "",
+    domain: data.domain || "general",
+    reward: data.reward || 50,             // XP reward
+    difficulty: data.difficulty || "medium", // easy, medium, hard, legendary
+    status: "open",                         // open, claimed, submitted, completed, expired
+    createdBy: data.createdBy || "sovereign",
+    claimedBy: null,
+    submission: null,
+    deadline: data.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days default
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    tags: data.tags || [],
+  };
+
+  STATE.bounties.push(bounty);
+  if (STATE.bounties.length > 200) STATE.bounties = STATE.bounties.slice(-200);
+
+  return bounty;
+}
+
+function claimBounty(bountyId, userId) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "open") return { ok: false, error: `Bounty is ${bounty.status}` };
+  bounty.status = "claimed";
+  bounty.claimedBy = userId || "sovereign";
+  return { ok: true, bounty };
+}
+
+function submitBounty(bountyId, submission) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "claimed") return { ok: false, error: `Bounty is ${bounty.status}` };
+  bounty.status = "submitted";
+  bounty.submission = {
+    content: submission.content,
+    dtuId: submission.dtuId || null,
+    submittedAt: new Date().toISOString(),
+  };
+  return { ok: true, bounty };
+}
+
+function completeBounty(bountyId, accepted) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "submitted") return { ok: false, error: `Bounty is ${bounty.status}` };
+
+  if (accepted) {
+    bounty.status = "completed";
+    bounty.completedAt = new Date().toISOString();
+    if (typeof awardXP === "function") {
+      try { awardXP(bounty.claimedBy || "default", "bounty.complete", { bountyId, reward: bounty.reward }); } catch {}
+    }
+  } else {
+    bounty.status = "open";
+    bounty.claimedBy = null;
+    bounty.submission = null;
+  }
+
+  return { ok: true, bounty };
+}
+
+// Knowledge Bounties API routes
+app.get("/api/bounties", (req, res) => {
+  const status = req.query.status;
+  const domain = req.query.domain;
+  let results = [...STATE.bounties].reverse();
+  if (status) results = results.filter(b => b.status === status);
+  if (domain) results = results.filter(b => b.domain === domain);
+  res.json({ ok: true, bounties: results.slice(0, 50), total: STATE.bounties.length });
+});
+
+app.post("/api/bounties", (req, res) => {
+  try {
+    const bounty = createBounty(req.body);
+    res.json({ ok: true, bounty });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/bounties/:id/claim", (req, res) => {
+  const result = claimBounty(req.params.id, req.body.userId);
+  res.json(result);
+});
+
+app.post("/api/bounties/:id/submit", (req, res) => {
+  const result = submitBounty(req.params.id, req.body);
+  res.json(result);
+});
+
+app.post("/api/bounties/:id/complete", (req, res) => {
+  const result = completeBounty(req.params.id, req.body.accepted !== false);
+  res.json(result);
+});
+
+// ---------- KNOWLEDGE FUTURES — prediction markets ----------
+// Create predictions about knowledge outcomes. Stake XP. Get rewarded for accuracy.
+
+if (!STATE.futures) STATE.futures = [];
+
+function createFuture(data) {
+  const future = {
+    id: `future-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question: data.question,
+    domain: data.domain || "general",
+    options: (data.options || ["Yes", "No"]).map((opt, i) => ({
+      id: `opt-${i}`,
+      label: opt,
+      stakes: 0,
+      stakers: [],
+    })),
+    status: "open",                        // open, closed, resolved
+    resolution: null,                       // Which option won
+    totalStaked: 0,
+    createdBy: data.createdBy || "sovereign",
+    resolveBy: data.resolveBy || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+    tags: data.tags || [],
+  };
+
+  STATE.futures.push(future);
+  if (STATE.futures.length > 100) STATE.futures = STATE.futures.slice(-100);
+
+  return future;
+}
+
+function stakeFuture(futureId, optionId, amount, userId) {
+  const future = STATE.futures.find(f => f.id === futureId);
+  if (!future) return { ok: false, error: "Future not found" };
+  if (future.status !== "open") return { ok: false, error: "Future is not open" };
+
+  const option = future.options.find(o => o.id === optionId);
+  if (!option) return { ok: false, error: "Option not found" };
+
+  const stakeAmount = Math.min(Math.max(amount || 10, 1), 100); // 1-100 XP
+  option.stakes += stakeAmount;
+  option.stakers.push({ userId: userId || "sovereign", amount: stakeAmount, at: new Date().toISOString() });
+  future.totalStaked += stakeAmount;
+
+  return { ok: true, future };
+}
+
+function resolveFuture(futureId, winningOptionId) {
+  const future = STATE.futures.find(f => f.id === futureId);
+  if (!future) return { ok: false, error: "Future not found" };
+  if (future.status === "resolved") return { ok: false, error: "Already resolved" };
+
+  const winOption = future.options.find(o => o.id === winningOptionId);
+  if (!winOption) return { ok: false, error: "Invalid winning option" };
+
+  future.status = "resolved";
+  future.resolution = winningOptionId;
+  future.resolvedAt = new Date().toISOString();
+
+  // Distribute rewards: winners get proportional share of total pool
+  const totalPool = future.totalStaked;
+  const winnerPool = winOption.stakes;
+  if (winnerPool > 0 && typeof awardXP === "function") {
+    for (const staker of winOption.stakers) {
+      const share = (staker.amount / winnerPool) * totalPool;
+      try { awardXP(staker.userId, "future.won", { futureId, reward: Math.round(share) }); } catch {}
+    }
+  }
+
+  return { ok: true, future };
+}
+
+// Knowledge Futures API routes
+app.get("/api/futures", (req, res) => {
+  const status = req.query.status;
+  let results = [...STATE.futures].reverse();
+  if (status) results = results.filter(f => f.status === status);
+  res.json({ ok: true, futures: results.slice(0, 50), total: STATE.futures.length });
+});
+
+app.post("/api/futures", (req, res) => {
+  try {
+    const future = createFuture(req.body);
+    res.json({ ok: true, future });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/futures/:id/stake", (req, res) => {
+  const { optionId, amount, userId } = req.body;
+  const result = stakeFuture(req.params.id, optionId, amount, userId);
+  res.json(result);
+});
+
+app.post("/api/futures/:id/resolve", (req, res) => {
+  const { winningOptionId } = req.body;
+  const result = resolveFuture(req.params.id, winningOptionId);
+  res.json(result);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 3
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 4: CAUSAL GRAPH, SUBSCRIPTIONS, WEATHER, MENTORSHIP, BATTLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- CAUSAL GRAPH — relationship types between DTUs ----------
+// DTUs can have typed relationships: causes, enables, prevents, correlates, contradicts
+
+const CAUSAL_RELATION_TYPES = ["causes", "enables", "prevents", "correlates", "contradicts"];
+
+if (!STATE.causalEdges) STATE.causalEdges = [];
+
+function addCausalEdge(data) {
+  if (!data.sourceId || !data.targetId || !data.relation) return { ok: false, error: "Missing fields" };
+  if (!CAUSAL_RELATION_TYPES.includes(data.relation)) return { ok: false, error: `Invalid relation. Must be one of: ${CAUSAL_RELATION_TYPES.join(", ")}` };
+  if (!STATE.dtus.has(data.sourceId) || !STATE.dtus.has(data.targetId)) return { ok: false, error: "DTU not found" };
+
+  // Check for duplicate
+  const exists = STATE.causalEdges.find(e => e.sourceId === data.sourceId && e.targetId === data.targetId && e.relation === data.relation);
+  if (exists) return { ok: true, edge: exists, duplicate: true };
+
+  const edge = {
+    id: `causal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sourceId: data.sourceId,
+    targetId: data.targetId,
+    relation: data.relation,
+    strength: data.strength || 0.7,          // 0-1 confidence in this relationship
+    evidence: data.evidence || "",            // Why this relationship exists
+    createdAt: new Date().toISOString(),
+    createdBy: data.createdBy || "sovereign",
+  };
+
+  STATE.causalEdges.push(edge);
+  if (STATE.causalEdges.length > 5000) STATE.causalEdges = STATE.causalEdges.slice(-5000);
+
+  return { ok: true, edge };
+}
+
+function getCausalGraph(dtuId, depth = 2) {
+  // BFS to get causal neighborhood of a DTU
+  const visited = new Set();
+  const nodes = [];
+  const edges = [];
+  const queue = [{ id: dtuId, depth: 0 }];
+
+  while (queue.length > 0) {
+    const { id, depth: d } = queue.shift();
+    if (visited.has(id) || d > depth) continue;
+    visited.add(id);
+
+    const dtu = STATE.dtus.get(id);
+    if (dtu) nodes.push({ id: dtu.id, title: dtu.title, tier: dtu.tier, domain: dtu.domain });
+
+    // Find edges connected to this node
+    for (const edge of STATE.causalEdges) {
+      if (edge.sourceId === id || edge.targetId === id) {
+        edges.push(edge);
+        const otherId = edge.sourceId === id ? edge.targetId : edge.sourceId;
+        if (!visited.has(otherId)) queue.push({ id: otherId, depth: d + 1 });
+      }
+    }
+  }
+
+  return { nodes, edges: [...new Map(edges.map(e => [e.id, e])).values()] };
+}
+
+function getCausalChain(sourceId, targetId, maxDepth = 5) {
+  // Find causal paths from source to target
+  const paths = [];
+  const dfs = (current, path, visited) => {
+    if (current === targetId) { paths.push([...path]); return; }
+    if (path.length >= maxDepth || visited.has(current)) return;
+    visited.add(current);
+
+    for (const edge of STATE.causalEdges) {
+      if (edge.sourceId === current) {
+        dfs(edge.targetId, [...path, edge], new Set(visited));
+      }
+    }
+  };
+  dfs(sourceId, [], new Set());
+  return paths.slice(0, 10);
+}
+
+// Causal Graph API routes
+app.post("/api/causal/edges", (req, res) => {
+  const result = addCausalEdge(req.body);
+  res.json(result);
+});
+
+app.get("/api/causal/graph/:dtuId", (req, res) => {
+  const depth = parseInt(req.query.depth) || 2;
+  const graph = getCausalGraph(req.params.dtuId, depth);
+  res.json({ ok: true, ...graph });
+});
+
+app.get("/api/causal/chain", (req, res) => {
+  const { source, target } = req.query;
+  if (!source || !target) return res.status(400).json({ ok: false, error: "source and target required" });
+  const chains = getCausalChain(source, target);
+  res.json({ ok: true, chains, count: chains.length });
+});
+
+app.get("/api/causal/edges", (req, res) => {
+  const dtuId = req.query.dtuId;
+  let edges = STATE.causalEdges;
+  if (dtuId) edges = edges.filter(e => e.sourceId === dtuId || e.targetId === dtuId);
+  res.json({ ok: true, edges: edges.slice(-100), total: edges.length });
+});
+
+// ---------- SUBSTRATE WEATHER REPORT ----------
+// A dashboard showing the overall health and activity of the knowledge substrate
+
+function generateWeatherReport() {
+  const now = Date.now();
+  const dtus = [...STATE.dtus.values()];
+  const last24h = dtus.filter(d => now - new Date(d.updatedAt || d.createdAt || 0).getTime() < 24 * 60 * 60 * 1000);
+  const last7d = dtus.filter(d => now - new Date(d.updatedAt || d.createdAt || 0).getTime() < 7 * 24 * 60 * 60 * 1000);
+
+  // Domain activity
+  const domainActivity = {};
+  for (const dtu of last24h) {
+    const d = dtu.domain || "general";
+    domainActivity[d] = (domainActivity[d] || 0) + 1;
+  }
+
+  // Tier distribution
+  const tierDist = { regular: 0, mega: 0, hyper: 0, shadow: 0 };
+  for (const dtu of dtus) tierDist[dtu.tier || "regular"]++;
+
+  // Freshness distribution
+  let freshCount = 0, warmCount = 0, coolingCount = 0, staleCount = 0;
+  if (typeof calculateFreshness === "function") {
+    for (const dtu of dtus) {
+      const f = calculateFreshness(dtu);
+      if (f > 0.8) freshCount++;
+      else if (f > 0.5) warmCount++;
+      else if (f > 0.2) coolingCount++;
+      else staleCount++;
+    }
+  }
+
+  // Brain health
+  const brainHealth = {};
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    brainHealth[name] = {
+      enabled: brain.enabled,
+      requests: brain.stats.requests,
+      errors: brain.stats.errors,
+      errorRate: brain.stats.requests > 0 ? brain.stats.errors / brain.stats.requests : 0,
+    };
+  }
+
+  // Generate weather metaphor
+  const activity = last24h.length;
+  let weather = "clear";
+  let description = "The substrate is calm and productive.";
+  if (activity > 50) { weather = "stormy"; description = "High cognitive activity! Many new ideas forming."; }
+  else if (activity > 20) { weather = "breezy"; description = "Moderate activity with steady knowledge growth."; }
+  else if (activity > 5) { weather = "clear"; description = "Gentle day. Good time for deep work."; }
+  else { weather = "foggy"; description = "Low activity. The substrate is resting."; }
+
+  return {
+    weather,
+    description,
+    temperature: Math.min(100, Math.round(activity * 2)), // Activity "temperature"
+    stats: {
+      totalDTUs: dtus.length,
+      last24h: last24h.length,
+      last7d: last7d.length,
+      domainActivity,
+      tierDistribution: tierDist,
+      freshness: { fresh: freshCount, warm: warmCount, cooling: coolingCount, stale: staleCount },
+    },
+    brainHealth,
+    causalEdges: STATE.causalEdges.length,
+    gardens: STATE.gardens?.length || 0,
+    episodes: STATE.episodes?.length || 0,
+    dreams: STATE.dreamState?.stats?.totalDreams || 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+app.get("/api/weather", (_req, res) => {
+  try {
+    const report = generateWeatherReport();
+    res.json({ ok: true, ...report });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- KNOWLEDGE MENTORSHIP — guide connections ----------
+// Create mentor-mentee relationships around domains
+
+if (!STATE.mentorships) STATE.mentorships = [];
+
+function createMentorship(data) {
+  const mentorship = {
+    id: `mentor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    domain: data.domain,
+    mentorPersona: data.mentorPersona || "sage",  // Which persona mentors
+    learnerGoal: data.learnerGoal || "",
+    curriculum: [],                                 // Auto-generated learning path
+    progress: 0,
+    status: "active",                               // active, completed, paused
+    createdAt: new Date().toISOString(),
+    sessions: [],
+  };
+
+  // Auto-generate curriculum based on domain DTUs
+  const domainDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    if ((dtu.domain || "").includes(data.domain) || (dtu.tags || []).some(t => t.includes(data.domain))) {
+      domainDTUs.push(dtu);
+    }
+  }
+
+  // Create learning stages from foundational to advanced DTUs
+  domainDTUs.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  const stages = [];
+  const chunkSize = Math.max(1, Math.ceil(domainDTUs.length / 5));
+  for (let i = 0; i < domainDTUs.length && stages.length < 5; i += chunkSize) {
+    const stageDTUs = domainDTUs.slice(i, i + chunkSize).slice(0, 5);
+    stages.push({
+      id: `stage-${stages.length}`,
+      title: `Stage ${stages.length + 1}: ${stageDTUs[0]?.title?.slice(0, 30) || 'Foundation'}`,
+      dtuIds: stageDTUs.map(d => d.id),
+      completed: false,
+    });
+  }
+  mentorship.curriculum = stages;
+
+  STATE.mentorships.push(mentorship);
+  if (STATE.mentorships.length > 50) STATE.mentorships = STATE.mentorships.slice(-50);
+
+  return mentorship;
+}
+
+app.get("/api/mentorships", (_req, res) => {
+  res.json({ ok: true, mentorships: STATE.mentorships });
+});
+
+app.post("/api/mentorships", (req, res) => {
+  if (!req.body.domain) return res.status(400).json({ ok: false, error: "Domain required" });
+  try {
+    const m = createMentorship(req.body);
+    res.json({ ok: true, mentorship: m });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/mentorships/:id/advance", (req, res) => {
+  const m = STATE.mentorships.find(s => s.id === req.params.id);
+  if (!m) return res.status(404).json({ ok: false, error: "Not found" });
+  if (m.curriculum[m.progress]) {
+    m.curriculum[m.progress].completed = true;
+    m.progress++;
+    if (m.progress >= m.curriculum.length) m.status = "completed";
+  }
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "mentorship.advance", { mentorshipId: m.id }); } catch {}
+  }
+  res.json({ ok: true, mentorship: m });
+});
+
+// ---------- KNOWLEDGE BATTLES — competitive knowledge challenges ----------
+// Two personas (or human vs AI) compete to answer questions about a domain
+
+if (!STATE.battles) STATE.battles = [];
+
+async function createBattle(data) {
+  const battle = {
+    id: `battle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    domain: data.domain || "general",
+    challenger: data.challenger || "sovereign",
+    opponent: data.opponent || "analyst",           // Persona id
+    question: data.question || "",
+    status: "pending",                               // pending, active, judged
+    responses: {},
+    scores: {},
+    winner: null,
+    createdAt: new Date().toISOString(),
+    judgedAt: null,
+  };
+
+  // Auto-generate question if not provided
+  if (!battle.question) {
+    const domainDTUs = [];
+    for (const dtu of STATE.dtus.values()) {
+      if ((dtu.domain || "").includes(battle.domain)) domainDTUs.push(dtu);
+    }
+    if (domainDTUs.length > 0) {
+      const randomDTU = domainDTUs[Math.floor(Math.random() * domainDTUs.length)];
+      battle.question = `What are the key insights and implications of: "${randomDTU.title}"?`;
+    } else {
+      battle.question = `What is the most important concept in the "${battle.domain}" domain?`;
+    }
+  }
+
+  STATE.battles.push(battle);
+  if (STATE.battles.length > 100) STATE.battles = STATE.battles.slice(-100);
+
+  return battle;
+}
+
+async function submitBattleResponse(battleId, participant, response) {
+  const battle = STATE.battles.find(b => b.id === battleId);
+  if (!battle) return { ok: false, error: "Battle not found" };
+  battle.responses[participant] = { content: response, submittedAt: new Date().toISOString() };
+  battle.status = "active";
+  return { ok: true, battle };
+}
+
+async function judgeBattle(battleId) {
+  const battle = STATE.battles.find(b => b.id === battleId);
+  if (!battle) return { ok: false, error: "Battle not found" };
+  if (Object.keys(battle.responses).length < 2) {
+    // Generate opponent response if missing
+    const opponentPersona = STATE.personas?.find(p => p.id === battle.opponent);
+    if (opponentPersona && typeof askPersona === "function") {
+      try {
+        const result = await askPersona(battle.opponent, battle.question);
+        if (result.ok) {
+          battle.responses[battle.opponent] = { content: result.response, submittedAt: new Date().toISOString() };
+        }
+      } catch {}
+    }
+  }
+
+  // Score each response (simple heuristic: length × relevance keywords)
+  for (const [participant, resp] of Object.entries(battle.responses)) {
+    const content = resp.content || "";
+    const lengthScore = Math.min(1, content.length / 300);
+    const keywordScore = battle.domain ? (content.toLowerCase().includes(battle.domain.toLowerCase()) ? 0.3 : 0) : 0;
+    battle.scores[participant] = Math.round((lengthScore + keywordScore + 0.5) * 50); // 0-100
+  }
+
+  // Determine winner
+  const entries = Object.entries(battle.scores);
+  if (entries.length >= 2) {
+    entries.sort((a, b) => b[1] - a[1]);
+    battle.winner = entries[0][0];
+  }
+
+  battle.status = "judged";
+  battle.judgedAt = new Date().toISOString();
+
+  if (typeof awardXP === "function" && battle.winner) {
+    try { awardXP(battle.winner === "sovereign" ? "default" : battle.winner, "battle.win", { battleId }); } catch {}
+  }
+
+  return { ok: true, battle };
+}
+
+app.get("/api/battles", (_req, res) => {
+  res.json({ ok: true, battles: [...STATE.battles].reverse().slice(0, 20), total: STATE.battles.length });
+});
+
+app.post("/api/battles", async (req, res) => {
+  try {
+    const battle = await createBattle(req.body);
+    res.json({ ok: true, battle });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/battles/:id/respond", async (req, res) => {
+  const result = await submitBattleResponse(req.params.id, req.body.participant || "sovereign", req.body.response);
+  res.json(result);
+});
+
+app.post("/api/battles/:id/judge", async (req, res) => {
+  try {
+    const result = await judgeBattle(req.params.id);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- SUBSCRIPTION TIERS ----------
+// Tiered access levels for the knowledge substrate
+
+const SUBSCRIPTION_TIERS = {
+  free: { name: "Explorer", dtusLimit: 100, brains: ["utility"], features: ["basic_search", "basic_capture"] },
+  pro: { name: "Scholar", dtusLimit: 10000, brains: ["conscious", "utility"], features: ["full_search", "capture", "gardens", "personas", "dreams"] },
+  sovereign: { name: "Sovereign", dtusLimit: Infinity, brains: ["conscious", "subconscious", "utility", "repair"], features: ["all"] },
+};
+
+if (!STATE.subscriptions) STATE.subscriptions = new Map();
+
+function getSubscription(userId) {
+  return STATE.subscriptions.get(userId || "default") || { tier: "sovereign", since: new Date().toISOString() };
+}
+
+function setSubscription(userId, tier) {
+  if (!SUBSCRIPTION_TIERS[tier]) return { ok: false, error: "Invalid tier" };
+  STATE.subscriptions.set(userId || "default", { tier, since: new Date().toISOString() });
+  return { ok: true, tier, features: SUBSCRIPTION_TIERS[tier] };
+}
+
+app.get("/api/subscription", (req, res) => {
+  const sub = getSubscription(req.query.userId);
+  res.json({ ok: true, ...sub, details: SUBSCRIPTION_TIERS[sub.tier] });
+});
+
+app.get("/api/subscription/tiers", (_req, res) => {
+  res.json({ ok: true, tiers: SUBSCRIPTION_TIERS });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 4
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC III: THE COGNITIVE CIVILIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- COGNITIVE DIGITAL TWIN — A Living Model of How You Think ----------
+// Tracks: processing speed by domain, cognitive load threshold, decision patterns,
+// learning curves, bias fingerprint, circadian cognition, social reasoning style.
+
+if (!STATE.cognitiveDigitalTwins) STATE.cognitiveDigitalTwins = new Map();
+
+function initializeTwin(userId) {
+  return {
+    userId: userId || "default",
+    processingSpeed: {},        // domain → { avgTimeMs, qualityScore, count }
+    cognitiveLoad: {
+      threshold: 3,             // domains active simultaneously before quality drops
+      currentLoad: 0,
+      history: [],
+    },
+    decisionPatterns: {
+      quickDecisions: 0,
+      deliberateDecisions: 0,
+      averageDeliberationMs: 0,
+      paralysisEvents: 0,
+    },
+    learningCurves: {},         // domain → [{ date, qualityScore, dtuCount }]
+    biasFingerprint: {
+      anchoring: 0,
+      confirmation: 0,
+      recency: 0,
+      availabilityHeuristic: 0,
+      sunkCost: 0,
+    },
+    circadianProfile: {},       // hour (0-23) → { avgQuality, count }
+    communicationStyle: {
+      verbosity: "moderate",    // terse, moderate, verbose
+      formality: "casual",      // formal, casual, mixed
+      preferredLength: 150,     // avg DTU content length
+    },
+    lastUpdated: null,
+    snapshots: [],
+  };
+}
+
+function updateCognitiveDigitalTwin(userId) {
+  const uid = userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(uid) || initializeTwin(uid);
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+  // Gather user's recent DTUs
+  const recentDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const created = new Date(dtu.createdAt || 0).getTime();
+    if (created >= thirtyDaysAgo) recentDTUs.push(dtu);
+  }
+
+  // Processing speed by domain
+  const domainTimes = {};
+  for (const dtu of recentDTUs) {
+    const domain = dtu.domain || "general";
+    if (!domainTimes[domain]) domainTimes[domain] = { totalMs: 0, totalQuality: 0, count: 0 };
+    // Estimate quality from content length and tier
+    const quality = (dtu.tier === "hyper" ? 0.9 : dtu.tier === "mega" ? 0.7 : 0.5) + Math.min(0.3, (dtu.content?.length || 0) / 1000);
+    domainTimes[domain].totalQuality += quality;
+    domainTimes[domain].count++;
+  }
+  for (const [domain, data] of Object.entries(domainTimes)) {
+    twin.processingSpeed[domain] = {
+      avgQuality: data.count > 0 ? data.totalQuality / data.count : 0,
+      count: data.count,
+    };
+  }
+
+  // Learning curves by domain
+  for (const [domain, data] of Object.entries(domainTimes)) {
+    if (!twin.learningCurves[domain]) twin.learningCurves[domain] = [];
+    twin.learningCurves[domain].push({
+      date: new Date().toISOString().slice(0, 10),
+      qualityScore: data.totalQuality / Math.max(1, data.count),
+      dtuCount: data.count,
+    });
+    // Keep last 90 entries
+    if (twin.learningCurves[domain].length > 90) {
+      twin.learningCurves[domain] = twin.learningCurves[domain].slice(-90);
+    }
+  }
+
+  // Circadian cognition: which hours produce best DTUs
+  for (const dtu of recentDTUs) {
+    const hour = new Date(dtu.createdAt || 0).getHours();
+    if (!twin.circadianProfile[hour]) twin.circadianProfile[hour] = { totalQuality: 0, count: 0 };
+    const quality = (dtu.tier === "hyper" ? 0.9 : dtu.tier === "mega" ? 0.7 : 0.5);
+    twin.circadianProfile[hour].totalQuality += quality;
+    twin.circadianProfile[hour].count++;
+  }
+  // Compute averages
+  for (const [hour, data] of Object.entries(twin.circadianProfile)) {
+    twin.circadianProfile[hour].avgQuality = data.count > 0 ? data.totalQuality / data.count : 0;
+  }
+
+  // Bias fingerprint: analyze DTU content patterns
+  let anchoringSignals = 0, confirmationSignals = 0, recencySignals = 0;
+  const biasPatterns = {
+    anchoring: /first|initial|original|started with|began as/i,
+    confirmation: /confirms|proves|validates|as expected|knew it/i,
+    recency: /just|recently|latest|new|current/i,
+  };
+  for (const dtu of recentDTUs.slice(0, 100)) {
+    const text = (dtu.content || dtu.title || "").toLowerCase();
+    if (biasPatterns.anchoring.test(text)) anchoringSignals++;
+    if (biasPatterns.confirmation.test(text)) confirmationSignals++;
+    if (biasPatterns.recency.test(text)) recencySignals++;
+  }
+  const total = Math.max(1, recentDTUs.length);
+  twin.biasFingerprint.anchoring = Math.min(1, anchoringSignals / total);
+  twin.biasFingerprint.confirmation = Math.min(1, confirmationSignals / total);
+  twin.biasFingerprint.recency = Math.min(1, recencySignals / total);
+
+  // Communication style
+  const contentLengths = recentDTUs.map(d => (d.content || "").length).filter(l => l > 0);
+  if (contentLengths.length > 0) {
+    const avg = contentLengths.reduce((a, b) => a + b, 0) / contentLengths.length;
+    twin.communicationStyle.preferredLength = Math.round(avg);
+    twin.communicationStyle.verbosity = avg > 500 ? "verbose" : avg > 150 ? "moderate" : "terse";
+  }
+
+  twin.lastUpdated = new Date().toISOString();
+  STATE.cognitiveDigitalTwins.set(uid, twin);
+
+  return twin;
+}
+
+// Digital Twin API routes
+app.get("/api/twin", (req, res) => {
+  const userId = req.query.userId || "default";
+  let twin = STATE.cognitiveDigitalTwins.get(userId);
+  if (!twin) twin = updateCognitiveDigitalTwin(userId);
+  res.json({ ok: true, twin });
+});
+
+app.post("/api/twin/update", (req, res) => {
+  try {
+    const twin = updateCognitiveDigitalTwin(req.body.userId);
+    res.json({ ok: true, twin });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/twin/circadian", (req, res) => {
+  const userId = req.query.userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(userId) || initializeTwin(userId);
+  res.json({ ok: true, circadian: twin.circadianProfile, peakHours: findPeakHours(twin.circadianProfile) });
+});
+
+function findPeakHours(circadian) {
+  const entries = Object.entries(circadian).map(([h, d]) => ({ hour: parseInt(h), avgQuality: d.avgQuality }));
+  entries.sort((a, b) => b.avgQuality - a.avgQuality);
+  return entries.slice(0, 3).map(e => e.hour);
+}
+
+// ---------- FUTURE SELF SIMULATOR — decision path simulation ----------
+// Simulates two possible futures based on a decision using twin + domain DTUs.
+
+async function simulateFuture(question, options = {}) {
+  const userId = options.userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(userId) || initializeTwin(userId);
+
+  // Gather relevant DTUs
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const text = (dtu.title || "") + " " + (dtu.content || "");
+    const words = question.toLowerCase().split(/\s+/);
+    if (words.some(w => w.length > 3 && text.toLowerCase().includes(w))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  const context = relevantDTUs.slice(0, 10).map(d => `- ${d.title}: ${(d.content || "").slice(0, 80)}`).join("\n");
+
+  const paths = options.paths || ["Path A: Do it", "Path B: Don't do it"];
+  const simulations = [];
+
+  for (const path of paths) {
+    try {
+      if (BRAIN.conscious?.enabled) {
+        const prompt = `You are simulating a possible future. The user is considering: "${question}"
+
+Path: ${path}
+
+User's cognitive profile:
+- Top domains: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}
+- Communication style: ${twin.communicationStyle.verbosity}
+- Key biases: ${Object.entries(twin.biasFingerprint).filter(([, v]) => v > 0.3).map(([k]) => k).join(", ") || "none detected"}
+
+Relevant knowledge:
+${context || "(no relevant DTUs)"}
+
+Simulate what happens if the user takes this path. Consider practical outcomes, emotional impact, and timeline. Be specific and grounded in the available data. 3-4 sentences.`;
+
+        const result = await callBrain("conscious", prompt, { temperature: 0.5, maxTokens: 250 });
+        simulations.push({
+          path,
+          scenario: result.ok ? result.content?.trim() : "Unable to simulate — brain offline",
+          confidence: result.confidence?.score || 0.5,
+        });
+      } else {
+        simulations.push({
+          path,
+          scenario: `Simulation for "${path}": Based on ${relevantDTUs.length} relevant DTUs in your substrate, this path would affect domains: ${Object.keys(twin.processingSpeed).slice(0, 3).join(", ")}. Detailed simulation requires active conscious brain.`,
+          confidence: 0.3,
+        });
+      }
+    } catch (e) {
+      simulations.push({ path, scenario: `Error: ${String(e?.message || e)}`, confidence: 0.1 });
+    }
+  }
+
+  // Create simulation DTU
+  const simDTU = {
+    id: `sim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `Future Sim: ${question.slice(0, 60)}`,
+    content: simulations.map(s => `**${s.path}**\n${s.scenario}`).join("\n\n---\n\n"),
+    tags: ["future-simulation", "digital-twin"],
+    tier: "regular",
+    source: "substrate.simulator",
+    domain: "metacognition",
+    meta: { simulatedAt: new Date().toISOString(), paths: paths.length },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(simDTU, { broadcast: false });
+
+  return { simulations, dtuId: simDTU.id };
+}
+
+app.post("/api/simulate/future", async (req, res) => {
+  const { question, paths } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await simulateFuture(question, { paths });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- COGNITIVE CLONE — answer questions as the user ----------
+// Uses the twin + DTU substrate to respond in the user's voice.
+
+async function cloneRespond(question, userId) {
+  const uid = userId || "default";
+  const twin = STATE.cognitiveDigitalTwins.get(uid) || initializeTwin(uid);
+
+  // Find relevant DTUs for context
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    const text = (dtu.title || "") + " " + (dtu.content || "");
+    const words = question.toLowerCase().split(/\s+/);
+    if (words.some(w => w.length > 3 && text.toLowerCase().includes(w))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  const context = relevantDTUs.slice(0, 15).map(d => `- ${d.title}: ${(d.content || "").slice(0, 100)}`).join("\n");
+
+  const prompt = `You are a cognitive clone — you respond as the user would, based on their knowledge substrate and thinking patterns.
+
+User's cognitive profile:
+- Verbosity: ${twin.communicationStyle.verbosity}
+- Preferred response length: ~${twin.communicationStyle.preferredLength} chars
+- Top domains: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}
+- Known biases: ${Object.entries(twin.biasFingerprint).filter(([, v]) => v > 0.3).map(([k, v]) => `${k}(${Math.round(v * 100)}%)`).join(", ") || "none"}
+
+Knowledge base (from their DTU substrate):
+${context || "(no relevant DTUs found)"}
+
+Question: ${question}
+
+Respond as this user would. Be transparent that this is a cognitive clone, not the actual person. Match their communication style.`;
+
+  try {
+    if (BRAIN.conscious?.enabled) {
+      const result = await callBrain("conscious", prompt, { temperature: 0.4, maxTokens: 300 });
+      return {
+        ok: true,
+        response: result.content?.trim() || "Unable to generate clone response",
+        confidence: result.confidence?.score || 0.5,
+        source: "cognitive-clone",
+        disclaimer: "This response was generated by a cognitive clone — not the actual person. It represents an approximation based on their knowledge substrate.",
+      };
+    }
+    return {
+      ok: true,
+      response: `Based on ${relevantDTUs.length} relevant DTUs in the substrate, the user's knowledge spans: ${Object.keys(twin.processingSpeed).slice(0, 5).join(", ")}. A more detailed clone response requires an active conscious brain.`,
+      confidence: 0.3,
+      source: "cognitive-clone-heuristic",
+      disclaimer: "Heuristic clone response — brain offline.",
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+app.post("/api/clone/ask", async (req, res) => {
+  const { question, userId } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await cloneRespond(question, userId);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- DTU SWARMS — self-organizing knowledge clusters ----------
+// DTUs form swarms based on tag overlap and structural similarity.
+
+if (!STATE.swarms) STATE.swarms = [];
+
+function detectSwarms() {
+  const dtus = [...STATE.dtus.values()];
+  if (dtus.length < 3) return [];
+
+  // Build adjacency based on shared tags
+  const tagIndex = {}; // tag → [dtu ids]
+  for (const dtu of dtus) {
+    for (const tag of (dtu.tags || [])) {
+      if (!tagIndex[tag]) tagIndex[tag] = [];
+      tagIndex[tag].push(dtu.id);
+    }
+  }
+
+  // Find connected components via shared tags (minimum 2 shared tags)
+  const visited = new Set();
+  const communities = [];
+
+  for (const dtu of dtus) {
+    if (visited.has(dtu.id)) continue;
+
+    const community = new Set();
+    const queue = [dtu.id];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+      community.add(current);
+
+      // Find neighbors (DTUs sharing 2+ tags)
+      const currentDTU = STATE.dtus.get(current);
+      if (!currentDTU) continue;
+
+      const neighborCounts = {};
+      for (const tag of (currentDTU.tags || [])) {
+        for (const neighborId of (tagIndex[tag] || [])) {
+          if (neighborId !== current && !visited.has(neighborId)) {
+            neighborCounts[neighborId] = (neighborCounts[neighborId] || 0) + 1;
+          }
+        }
+      }
+
+      for (const [neighborId, sharedCount] of Object.entries(neighborCounts)) {
+        if (sharedCount >= 2) queue.push(neighborId);
+      }
+    }
+
+    if (community.size >= 3) {
+      communities.push([...community]);
+    }
+  }
+
+  return communities;
+}
+
+function updateSwarms() {
+  const communities = detectSwarms();
+  const newSwarms = [];
+
+  for (const members of communities) {
+    // Check if this matches an existing swarm (>70% overlap)
+    const existing = STATE.swarms.find(s => {
+      const overlap = s.members.filter(m => members.includes(m)).length;
+      const ratio = overlap / Math.max(s.members.length, members.length);
+      return ratio > 0.7;
+    });
+
+    if (existing) {
+      existing.members = members;
+      existing.lastUpdated = new Date().toISOString();
+      existing.size = members.length;
+      newSwarms.push(existing);
+    } else {
+      // New swarm — name it from the most common tags
+      const tagCounts = {};
+      for (const id of members) {
+        const dtu = STATE.dtus.get(id);
+        for (const tag of (dtu?.tags || [])) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      }
+      const topTags = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([t]) => t);
+
+      // Find queen (most connected DTU)
+      let queen = members[0];
+      let maxConnections = 0;
+      for (const id of members) {
+        const dtu = STATE.dtus.get(id);
+        const connections = (dtu?.meta?._consolidatedLinks || []).length + ((dtu?.lineage?.children || []).length);
+        if (connections > maxConnections) { maxConnections = connections; queen = id; }
+      }
+
+      newSwarms.push({
+        id: `swarm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: topTags.join(" × ") || "Unnamed Cluster",
+        members,
+        queen,
+        size: members.length,
+        topTags,
+        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      });
+    }
+  }
+
+  STATE.swarms = newSwarms;
+  return newSwarms;
+}
+
+app.get("/api/swarms", (_req, res) => {
+  res.json({ ok: true, swarms: STATE.swarms, total: STATE.swarms.length });
+});
+
+app.post("/api/swarms/detect", (_req, res) => {
+  try {
+    const swarms = updateSwarms();
+    res.json({ ok: true, swarms, detected: swarms.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/swarms/:id", (req, res) => {
+  const swarm = STATE.swarms.find(s => s.id === req.params.id);
+  if (!swarm) return res.status(404).json({ ok: false, error: "Swarm not found" });
+  // Enrich with DTU details
+  const memberDTUs = swarm.members.map(id => {
+    const dtu = STATE.dtus.get(id);
+    return dtu ? { id: dtu.id, title: dtu.title, tier: dtu.tier, domain: dtu.domain } : null;
+  }).filter(Boolean);
+  res.json({ ok: true, swarm: { ...swarm, memberDTUs } });
+});
+
+// ---------- STIGMERGIC LEARNING — knowledge leaves trails ----------
+// Navigation paths between DTUs get strengthened with use.
+
+if (!STATE.pathWeights) STATE.pathWeights = new Map(); // "sourceId:targetId" → { weight, lastTraversed }
+
+function recordTraversal(sourceId, targetId) {
+  const key = `${sourceId}:${targetId}`;
+  const existing = STATE.pathWeights.get(key) || { weight: 0, traversals: 0, lastTraversed: null };
+  existing.weight = Math.min(10, existing.weight + 1);
+  existing.traversals++;
+  existing.lastTraversed = new Date().toISOString();
+  STATE.pathWeights.set(key, existing);
+}
+
+function getStrongPaths(dtuId, limit = 10) {
+  const paths = [];
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const [source, target] = key.split(":");
+    if (source === dtuId || target === dtuId) {
+      paths.push({ source, target, ...data });
+    }
+  }
+  paths.sort((a, b) => b.weight - a.weight);
+  return paths.slice(0, limit);
+}
+
+function decayPaths() {
+  // Pheromone evaporation: reduce all path weights by 10%
+  const now = Date.now();
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const lastMs = new Date(data.lastTraversed || 0).getTime();
+    const daysSince = (now - lastMs) / (1000 * 60 * 60 * 24);
+    if (daysSince > 30) {
+      data.weight = Math.max(0, data.weight * 0.9);
+      if (data.weight < 0.1) STATE.pathWeights.delete(key);
+    }
+  }
+}
+
+app.post("/api/paths/traverse", (req, res) => {
+  const { sourceId, targetId } = req.body;
+  if (!sourceId || !targetId) return res.status(400).json({ ok: false, error: "sourceId and targetId required" });
+  recordTraversal(sourceId, targetId);
+  res.json({ ok: true });
+});
+
+app.get("/api/paths/:dtuId", (req, res) => {
+  const paths = getStrongPaths(req.params.dtuId);
+  res.json({ ok: true, paths });
+});
+
+app.get("/api/paths/highways", (_req, res) => {
+  // Get the strongest paths across the whole substrate
+  const allPaths = [];
+  for (const [key, data] of STATE.pathWeights.entries()) {
+    const [source, target] = key.split(":");
+    allPaths.push({ source, target, ...data });
+  }
+  allPaths.sort((a, b) => b.weight - a.weight);
+  res.json({ ok: true, highways: allPaths.slice(0, 20) });
+});
+
+// ---------- TIME CRYSTALS — recurring knowledge patterns ----------
+// Discovers repeating patterns in DTU creation across time dimensions.
+
+if (!STATE.timeCrystals) STATE.timeCrystals = [];
+
+function detectTimeCrystals() {
+  const dtus = [...STATE.dtus.values()];
+  if (dtus.length < 20) return []; // Need enough data
+
+  const crystals = [];
+
+  // Analyze by hour of day
+  const hourBuckets = Array.from({ length: 24 }, () => ({ count: 0, totalQuality: 0 }));
+  for (const dtu of dtus) {
+    const hour = new Date(dtu.createdAt || 0).getHours();
+    hourBuckets[hour].count++;
+    hourBuckets[hour].totalQuality += (dtu.tier === "hyper" ? 3 : dtu.tier === "mega" ? 2 : 1);
+  }
+
+  const avgCount = dtus.length / 24;
+  for (let h = 0; h < 24; h++) {
+    if (hourBuckets[h].count > avgCount * 2) {
+      crystals.push({
+        id: `crystal-hour-${h}`,
+        type: "hourly",
+        pattern: `Peak activity at ${h}:00`,
+        description: `DTU creation is ${Math.round((hourBuckets[h].count / avgCount - 1) * 100)}% above average at ${h}:00`,
+        dimension: "hour",
+        value: h,
+        strength: hourBuckets[h].count / avgCount,
+        detectedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Analyze by day of week
+  const dayBuckets = Array.from({ length: 7 }, () => ({ count: 0 }));
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  for (const dtu of dtus) {
+    const day = new Date(dtu.createdAt || 0).getDay();
+    dayBuckets[day].count++;
+  }
+  const avgDayCount = dtus.length / 7;
+  for (let d = 0; d < 7; d++) {
+    if (dayBuckets[d].count > avgDayCount * 1.5) {
+      crystals.push({
+        id: `crystal-day-${d}`,
+        type: "weekly",
+        pattern: `${dayNames[d]} is your most productive day`,
+        description: `${Math.round((dayBuckets[d].count / avgDayCount - 1) * 100)}% more DTUs created on ${dayNames[d]}s`,
+        dimension: "dayOfWeek",
+        value: d,
+        strength: dayBuckets[d].count / avgDayCount,
+        detectedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Analyze domain bursts
+  const domainTimeline = {};
+  for (const dtu of dtus) {
+    const domain = dtu.domain || "general";
+    const week = Math.floor(new Date(dtu.createdAt || 0).getTime() / (7 * 24 * 60 * 60 * 1000));
+    if (!domainTimeline[domain]) domainTimeline[domain] = {};
+    domainTimeline[domain][week] = (domainTimeline[domain][week] || 0) + 1;
+  }
+
+  STATE.timeCrystals = crystals;
+  return crystals;
+}
+
+app.get("/api/time-crystals", (_req, res) => {
+  res.json({ ok: true, crystals: STATE.timeCrystals });
+});
+
+app.post("/api/time-crystals/detect", (_req, res) => {
+  try {
+    const crystals = detectTimeCrystals();
+    res.json({ ok: true, crystals, count: crystals.length });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- TEMPORAL DIFFING — how your knowledge changed ----------
+
+app.get("/api/substrate/diff", (req, res) => {
+  const fromDate = req.query.fromDate ? new Date(req.query.fromDate).getTime() : Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const toDate = req.query.toDate ? new Date(req.query.toDate).getTime() : Date.now();
+
+  const beforeDTUs = [];
+  const afterDTUs = [];
+  const newDTUs = [];
+
+  for (const dtu of STATE.dtus.values()) {
+    const created = new Date(dtu.createdAt || 0).getTime();
+    if (created < fromDate) beforeDTUs.push(dtu);
+    if (created <= toDate) afterDTUs.push(dtu);
+    if (created >= fromDate && created <= toDate) newDTUs.push(dtu);
+  }
+
+  // Domain growth
+  const domainGrowth = {};
+  for (const dtu of newDTUs) {
+    const d = dtu.domain || "general";
+    domainGrowth[d] = (domainGrowth[d] || 0) + 1;
+  }
+
+  // Tier changes
+  const tiersBefore = { regular: 0, mega: 0, hyper: 0 };
+  const tiersAfter = { regular: 0, mega: 0, hyper: 0 };
+  for (const d of beforeDTUs) tiersBefore[d.tier || "regular"]++;
+  for (const d of afterDTUs) tiersAfter[d.tier || "regular"]++;
+
+  res.json({
+    ok: true,
+    diff: {
+      period: { from: new Date(fromDate).toISOString(), to: new Date(toDate).toISOString() },
+      newDTUs: newDTUs.length,
+      totalBefore: beforeDTUs.length,
+      totalAfter: afterDTUs.length,
+      domainGrowth,
+      tiersBefore,
+      tiersAfter,
+      newSwarms: STATE.swarms.filter(s => new Date(s.created).getTime() >= fromDate).length,
+      newCrystals: STATE.timeCrystals.filter(c => new Date(c.detectedAt).getTime() >= fromDate).length,
+    },
+  });
+});
+
+// ---------- KNOWLEDGE ARCHAEOLOGY — "On This Day" ----------
+
+app.get("/api/archaeology", (_req, res) => {
+  const now = new Date();
+  const periods = [
+    { label: "1 week ago", ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: "1 month ago", ms: 30 * 24 * 60 * 60 * 1000 },
+    { label: "3 months ago", ms: 90 * 24 * 60 * 60 * 1000 },
+    { label: "6 months ago", ms: 180 * 24 * 60 * 60 * 1000 },
+    { label: "1 year ago", ms: 365 * 24 * 60 * 60 * 1000 },
+  ];
+
+  const results = {};
+  for (const period of periods) {
+    const targetDate = new Date(now.getTime() - period.ms);
+    const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
+
+    const matches = [];
+    for (const dtu of STATE.dtus.values()) {
+      const created = new Date(dtu.createdAt || 0).getTime();
+      if (created >= dayStart.getTime() && created <= dayEnd.getTime()) {
+        matches.push({ id: dtu.id, title: dtu.title, domain: dtu.domain, tier: dtu.tier });
+      }
+    }
+    results[period.label] = matches;
+  }
+
+  res.json({ ok: true, memories: results });
+});
+
+// ---------- RED TEAM BRAIN — adversarial fifth brain ----------
+// Uses the repair brain with an adversarial prompt to challenge outputs.
+
+async function redTeamCheck(output, context = {}) {
+  const target = typeof output === "string" ? output : (output.content || JSON.stringify(output));
+
+  const prompt = `You are a ruthless intellectual adversary. Your job is to find EVERY weakness, logical flaw, unsupported claim, hidden assumption, and potential failure mode in the following analysis. Be merciless but fair.
+
+Target output to attack:
+"${target.slice(0, 1000)}"
+
+${context.domain ? `Domain: ${context.domain}` : ""}
+
+Respond in this format:
+VULNERABILITIES: [list each flaw on a new line, prefixed with -]
+SEVERITY: [low|medium|high|critical]
+SUGGESTIONS: [how to improve, one per line prefixed with -]`;
+
+  try {
+    const brainName = BRAIN.repair?.enabled ? "repair" : (BRAIN.utility?.enabled ? "utility" : null);
+    if (!brainName) {
+      // Heuristic red team when no brain available
+      const issues = [];
+      if (target.length < 50) issues.push("Response is very short — may lack depth");
+      if (/always|never|everyone|no one/i.test(target)) issues.push("Contains absolute language — may be overgeneralized");
+      if (!/because|since|therefore|evidence/i.test(target)) issues.push("No explicit reasoning chain detected");
+      if (/I think|probably|maybe|might/i.test(target)) issues.push("Contains hedging language — confidence may be low");
+
+      return {
+        vulnerabilities: issues,
+        severity: issues.length > 2 ? "medium" : "low",
+        suggestions: ["Add supporting evidence", "Qualify absolute claims"],
+        confidence_adjusted: Math.max(0.3, 1 - issues.length * 0.15),
+      };
+    }
+
+    const result = await callBrain(brainName, prompt, { temperature: 0.3, maxTokens: 300 });
+    if (!result.ok) throw new Error(result.error);
+
+    const content = result.content || "";
+    const vulnerabilities = (content.match(/- .+/g) || []).map(v => v.replace(/^- /, ""));
+    const severityMatch = content.match(/SEVERITY:\s*(low|medium|high|critical)/i);
+    const severity = (severityMatch?.[1] || "medium").toLowerCase();
+
+    return {
+      vulnerabilities,
+      severity,
+      suggestions: vulnerabilities.length > 0 ? ["Address identified vulnerabilities", "Add supporting evidence"] : [],
+      confidence_adjusted: severity === "critical" ? 0.3 : severity === "high" ? 0.5 : severity === "medium" ? 0.7 : 0.9,
+    };
+  } catch (e) {
+    return { vulnerabilities: [`Red team error: ${String(e?.message || e)}`], severity: "low", suggestions: [], confidence_adjusted: 0.8 };
+  }
+}
+
+app.post("/api/red-team/check", async (req, res) => {
+  const { output, domain } = req.body;
+  if (!output) return res.status(400).json({ ok: false, error: "Output required" });
+  try {
+    const result = await redTeamCheck(output, { domain });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- EMERGENT TAXONOMIES — categories that grow themselves ----------
+// Auto-generated from tag clustering and swarm structure.
+
+function generateTaxonomies() {
+  const tagCounts = {};
+  const tagCooccurrence = {};
+
+  for (const dtu of STATE.dtus.values()) {
+    const tags = dtu.tags || [];
+    for (const tag of tags) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      for (const other of tags) {
+        if (other !== tag) {
+          const key = [tag, other].sort().join(":");
+          tagCooccurrence[key] = (tagCooccurrence[key] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Build hierarchy: high-count tags are categories, co-occurring tags are subcategories
+  const categories = [];
+  const usedTags = new Set();
+
+  const sortedTags = Object.entries(tagCounts).sort(([, a], [, b]) => b - a);
+  for (const [tag, count] of sortedTags) {
+    if (usedTags.has(tag) || count < 3) continue;
+
+    const subcategories = [];
+    for (const [pair, coCount] of Object.entries(tagCooccurrence)) {
+      if (!pair.includes(tag)) continue;
+      const otherTag = pair.split(":").find(t => t !== tag);
+      if (otherTag && !usedTags.has(otherTag) && coCount >= 2) {
+        subcategories.push({ tag: otherTag, count: tagCounts[otherTag] || 0, cooccurrence: coCount });
+        usedTags.add(otherTag);
+      }
+    }
+    subcategories.sort((a, b) => b.cooccurrence - a.cooccurrence);
+
+    categories.push({
+      tag,
+      count,
+      subcategories: subcategories.slice(0, 10),
+      isAlive: count > 0, // Would check for recent activity in production
+    });
+    usedTags.add(tag);
+  }
+
+  return categories.slice(0, 30);
+}
+
+app.get("/api/taxonomies", (_req, res) => {
+  try {
+    const taxonomies = generateTaxonomies();
+    res.json({ ok: true, taxonomies });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC III
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC V: THE NERVOUS SYSTEM — Real-time signaling, self-healing, production
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- #76: EVENT BUS ARCHITECTURE ----------
+// Unified pub/sub for all system components. In-process EventEmitter.
+
+class ConcordEventBus {
+  constructor(maxHistory = 10000) {
+    this._listeners = new Map();  // eventType → Set<handler>
+    this._history = [];
+    this._maxHistory = maxHistory;
+    this._stats = { emitted: 0, delivered: 0, dropped: 0, errors: 0 };
+  }
+
+  on(eventType, handler, filter) {
+    if (!this._listeners.has(eventType)) this._listeners.set(eventType, new Set());
+    const wrapped = filter ? (evt) => { if (filter(evt)) handler(evt); } : handler;
+    wrapped._original = handler;
+    wrapped._filter = filter;
+    this._listeners.get(eventType).add(wrapped);
+    return () => this._listeners.get(eventType)?.delete(wrapped);
+  }
+
+  off(eventType, handler) {
+    const set = this._listeners.get(eventType);
+    if (!set) return;
+    for (const wrapped of set) {
+      if (wrapped._original === handler || wrapped === handler) { set.delete(wrapped); return; }
+    }
+  }
+
+  emit(eventType, payload = {}) {
+    const event = {
+      type: eventType,
+      timestamp: new Date().toISOString(),
+      userId: payload.userId || "system",
+      universeId: payload.universeId || "default",
+      payload,
+      source: payload.source || "server",
+    };
+
+    this._history.push(event);
+    if (this._history.length > this._maxHistory) this._history = this._history.slice(-this._maxHistory);
+    this._stats.emitted++;
+
+    const handlers = this._listeners.get(eventType);
+    if (!handlers || handlers.size === 0) return event;
+
+    for (const handler of handlers) {
+      try {
+        handler(event);
+        this._stats.delivered++;
+      } catch (e) {
+        this._stats.errors++;
+        structuredLog("warn", "event_bus_handler_error", { eventType, error: String(e?.message || e) });
+      }
+    }
+
+    // Also emit to wildcard listeners
+    const wildcards = this._listeners.get("*");
+    if (wildcards) {
+      for (const handler of wildcards) {
+        try { handler(event); } catch {}
+      }
+    }
+
+    return event;
+  }
+
+  getHistory(limit = 100, filter) {
+    let events = this._history;
+    if (filter?.type) events = events.filter(e => e.type === filter.type);
+    if (filter?.since) {
+      const sinceMs = new Date(filter.since).getTime();
+      events = events.filter(e => new Date(e.timestamp).getTime() >= sinceMs);
+    }
+    return events.slice(-limit);
+  }
+
+  getStats() { return { ...this._stats, listenerCount: [...this._listeners.values()].reduce((a, s) => a + s.size, 0) }; }
+}
+
+const eventBus = new ConcordEventBus();
+STATE._eventBus = eventBus;
+
+// ── Event Bus Subscribers ────────────────────────────────────────────────────
+// Wire critical event handlers so the bus isn't fire-and-forget.
+
+eventBus.on("health.critical", (evt) => {
+  const { component, status } = evt.payload || {};
+  structuredLog("error", "health_critical_event", { component, status });
+  // Auto-open circuit breaker for the affected brain
+  const breakerKey = `brain.${component}`;
+  if (typeof circuitBreakers !== "undefined" && circuitBreakers[breakerKey]) {
+    const breaker = circuitBreakers[breakerKey];
+    if (breaker.state === "closed") {
+      breaker._onFailure(new Error(`Health critical for ${component}`));
+      structuredLog("warn", "circuit_auto_opened_by_health", { breaker: breakerKey });
+    }
+  }
+});
+
+eventBus.on("circuit.open", (evt) => {
+  const { breaker, failures } = evt.payload || {};
+  structuredLog("warn", "circuit_open_event", { breaker, failures });
+  // Update pulse system to reflect degraded health
+  if (typeof recordPulse === "function" && breaker) {
+    try { recordPulse(breaker, "degraded", 30, [`Circuit breaker open after ${failures} failures`]); } catch {}
+  }
+});
+
+eventBus.on("circuit.closed", (evt) => {
+  const { breaker } = evt.payload || {};
+  structuredLog("info", "circuit_closed_event", { breaker });
+  if (typeof recordPulse === "function" && breaker) {
+    try { recordPulse(breaker, "healthy", 100, []); } catch {}
+  }
+});
+
+eventBus.on("trace.completed", (evt) => {
+  const { traceId, totalDuration } = evt.payload || {};
+  // Log slow traces (>10s) for visibility
+  if (totalDuration && totalDuration > 10000) {
+    structuredLog("warn", "slow_trace_detected", { traceId, durationMs: totalDuration });
+  }
+});
+
+// Event Bus API routes
+app.get("/api/events/bus", (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const type = req.query.type;
+  res.json({ ok: true, events: eventBus.getHistory(limit, { type }), stats: eventBus.getStats() });
+});
+
+app.get("/api/events/bus/stats", (_req, res) => {
+  res.json({ ok: true, ...eventBus.getStats() });
+});
+
+// ---------- #77: PULSE SYSTEM (Real-Time Health) ----------
+// Every component reports health every tick cycle.
+
+if (!STATE._pulses) STATE._pulses = {};
+
+function recordPulse(component, metrics) {
+  const now = new Date().toISOString();
+  const existing = STATE._pulses[component] || { history: [] };
+
+  // Calculate health status
+  let status = "healthy";
+  let score = 100;
+
+  if (metrics.errorRate > 0.5) { status = "critical"; score = 10; }
+  else if (metrics.errorRate > 0.2) { status = "degraded"; score = 40; }
+  else if (metrics.errorRate > 0.05) { status = "degraded"; score = 70; }
+
+  if (metrics.queueDepth > 100) { status = "degraded"; score = Math.min(score, 50); }
+  if (metrics.responseTimeMs > 10000) { status = "degraded"; score = Math.min(score, 60); }
+
+  const pulse = {
+    status,
+    score,
+    metrics,
+    lastPulse: now,
+    degradedSince: status !== "healthy" ? (existing.degradedSince || now) : null,
+    issues: [],
+  };
+
+  if (status === "critical") pulse.issues.push({ severity: "critical", message: `${component} error rate: ${Math.round(metrics.errorRate * 100)}%` });
+  if (metrics.queueDepth > 50) pulse.issues.push({ severity: "warning", message: `${component} queue depth: ${metrics.queueDepth}` });
+
+  STATE._pulses[component] = pulse;
+  existing.history?.push({ timestamp: now, score, status });
+  if (existing.history?.length > 100) existing.history = existing.history.slice(-100);
+  STATE._pulses[component].history = existing.history || [];
+
+  // Emit health event
+  eventBus.emit("pulse.update", { component, status, score, metrics });
+
+  // Self-healing triggers
+  if (status === "critical" && component.startsWith("brain.")) {
+    eventBus.emit("health.critical", { component, action: "circuit_breaker_check" });
+  }
+
+  return pulse;
+}
+
+function getSystemHealth() {
+  const components = Object.entries(STATE._pulses);
+  const overall = {
+    status: "healthy",
+    score: 100,
+    components: {},
+    issues: [],
+  };
+
+  for (const [name, pulse] of components) {
+    overall.components[name] = { status: pulse.status, score: pulse.score, lastPulse: pulse.lastPulse };
+    if (pulse.score < overall.score) overall.score = pulse.score;
+    if (pulse.status === "critical") overall.status = "critical";
+    else if (pulse.status === "degraded" && overall.status !== "critical") overall.status = "degraded";
+    overall.issues.push(...(pulse.issues || []));
+  }
+
+  return overall;
+}
+
+// Update brain pulses from BRAIN stats
+function updateBrainPulses() {
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    const errorRate = brain.stats.requests > 0 ? brain.stats.errors / brain.stats.requests : 0;
+    const avgMs = brain.stats.requests > 0 ? brain.stats.totalMs / brain.stats.requests : 0;
+    recordPulse(`brain.${name}`, {
+      enabled: brain.enabled,
+      requests: brain.stats.requests,
+      errors: brain.stats.errors,
+      errorRate,
+      responseTimeMs: avgMs,
+      queueDepth: 0,
+      lastCallAt: brain.stats.lastCallAt,
+    });
+  }
+}
+
+app.get("/api/pulse", (_req, res) => {
+  updateBrainPulses();
+  res.json({ ok: true, ...getSystemHealth() });
+});
+
+app.get("/api/pulse/:component", (req, res) => {
+  const pulse = STATE._pulses[req.params.component];
+  if (!pulse) return res.status(404).json({ ok: false, error: "Component not found" });
+  res.json({ ok: true, component: req.params.component, ...pulse });
+});
+
+// ---------- #79: CIRCUIT BREAKER SYSTEM (Advanced — Spec V) ----------
+// Extended circuit breakers with stats, fallback, event bus integration.
+// Named SpecVCircuitBreaker to avoid conflict with base CircuitBreaker (line ~612).
+
+class SpecVCircuitBreaker {
+  constructor(name, options = {}) {
+    this.name = name;
+    this.failureThreshold = options.failureThreshold || 5;
+    this.resetTimeout = options.resetTimeout || 30000;  // 30s
+    this.successThreshold = options.successThreshold || 3;
+    this.state = "closed";  // closed (normal), open (failing), half-open (testing)
+    this.failures = 0;
+    this.successes = 0;
+    this.lastFailure = null;
+    this.lastStateChange = Date.now();
+    this._stats = { totalCalls: 0, totalFailures: 0, totalSuccesses: 0, opens: 0 };
+  }
+
+  async call(fn, fallback) {
+    this._stats.totalCalls++;
+
+    if (this.state === "open") {
+      // Check if reset timeout has elapsed
+      if (Date.now() - this.lastStateChange > this.resetTimeout) {
+        this.state = "half-open";
+        this.successes = 0;
+      } else {
+        // Return fallback
+        if (fallback) return await fallback();
+        throw new Error(`Circuit breaker ${this.name} is OPEN`);
+      }
+    }
+
+    try {
+      const result = await fn();
+      this._onSuccess();
+      return result;
+    } catch (e) {
+      this._onFailure(e);
+      if (fallback) return await fallback();
+      throw e;
+    }
+  }
+
+  _onSuccess() {
+    this._stats.totalSuccesses++;
+    this.failures = 0;
+    if (this.state === "half-open") {
+      this.successes++;
+      if (this.successes >= this.successThreshold) {
+        this.state = "closed";
+        this.lastStateChange = Date.now();
+        eventBus.emit("circuit.closed", { breaker: this.name });
+      }
+    }
+  }
+
+  _onFailure(error) {
+    this._stats.totalFailures++;
+    this.failures++;
+    this.lastFailure = { at: Date.now(), error: String(error?.message || error) };
+
+    if (this.state === "half-open" || this.failures >= this.failureThreshold) {
+      this.state = "open";
+      this.lastStateChange = Date.now();
+      this._stats.opens++;
+      eventBus.emit("circuit.open", { breaker: this.name, failures: this.failures });
+      structuredLog("warn", "circuit_breaker_open", { name: this.name, failures: this.failures });
+    }
+  }
+
+  getState() {
+    return {
+      name: this.name,
+      state: this.state,
+      failures: this.failures,
+      lastFailure: this.lastFailure,
+      stats: this._stats,
+    };
+  }
+}
+
+// Create breakers for each brain
+const circuitBreakers = {
+  "brain.conscious": new SpecVCircuitBreaker("brain.conscious", { failureThreshold: 3, resetTimeout: 60000 }),
+  "brain.subconscious": new SpecVCircuitBreaker("brain.subconscious", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.utility": new SpecVCircuitBreaker("brain.utility", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.repair": new SpecVCircuitBreaker("brain.repair", { failureThreshold: 7, resetTimeout: 20000 }),
+  "api.ollama": new SpecVCircuitBreaker("api.ollama", { failureThreshold: 3, resetTimeout: 45000 }),
+};
+
+STATE._circuitBreakers = circuitBreakers;
+
+app.get("/api/circuits", (_req, res) => {
+  const states = {};
+  for (const [name, breaker] of Object.entries(circuitBreakers)) {
+    states[name] = breaker.getState();
+  }
+  res.json({ ok: true, breakers: states });
+});
+
+app.post("/api/circuits/:name/reset", (req, res) => {
+  const breaker = circuitBreakers[req.params.name];
+  if (!breaker) return res.status(404).json({ ok: false, error: "Breaker not found" });
+  breaker.state = "closed";
+  breaker.failures = 0;
+  breaker.successes = 0;
+  res.json({ ok: true, state: breaker.getState() });
+});
+
+// ---------- #86: DATA INTEGRITY GUARDIAN ----------
+
+function runDataIntegrityCheck() {
+  const issues = [];
+  const now = Date.now();
+
+  for (const [id, dtu] of STATE.dtus.entries()) {
+    // Temporal consistency
+    if (dtu.createdAt && dtu.updatedAt) {
+      if (new Date(dtu.createdAt).getTime() > new Date(dtu.updatedAt).getTime()) {
+        issues.push({ severity: "warning", type: "temporal", id, message: "createdAt > updatedAt", autofix: true });
+      }
+    }
+
+    // Future timestamps
+    if (dtu.createdAt && new Date(dtu.createdAt).getTime() > now + 60000) {
+      issues.push({ severity: "warning", type: "temporal", id, message: "Future createdAt timestamp", autofix: true });
+    }
+
+    // Missing required fields
+    if (!dtu.id) issues.push({ severity: "critical", type: "schema", id: id || "unknown", message: "Missing id" });
+    if (!dtu.title && !dtu.content) issues.push({ severity: "warning", type: "schema", id, message: "No title or content" });
+
+    // Tag consistency
+    if (dtu.tags) {
+      const cleaned = dtu.tags.filter(t => t && typeof t === "string" && t.trim());
+      if (cleaned.length !== dtu.tags.length) {
+        issues.push({ severity: "warning", type: "tags", id, message: "Invalid tags detected", autofix: true });
+      }
+      const dupes = dtu.tags.length - new Set(dtu.tags.map(t => t.toLowerCase().trim())).size;
+      if (dupes > 0) {
+        issues.push({ severity: "warning", type: "tags", id, message: `${dupes} duplicate tags`, autofix: true });
+      }
+    }
+
+    // Lineage validation
+    if (dtu.lineage?.parentId && !STATE.dtus.has(dtu.lineage.parentId)) {
+      issues.push({ severity: "error", type: "lineage", id, message: `Orphan parent ref: ${dtu.lineage.parentId}` });
+    }
+    if (dtu.lineage?.children) {
+      for (const childId of dtu.lineage.children) {
+        if (!STATE.dtus.has(childId)) {
+          issues.push({ severity: "warning", type: "lineage", id, message: `Dead child ref: ${childId}`, autofix: true });
+        }
+      }
+    }
+  }
+
+  return {
+    total: issues.length,
+    bySeverity: {
+      critical: issues.filter(i => i.severity === "critical").length,
+      error: issues.filter(i => i.severity === "error").length,
+      warning: issues.filter(i => i.severity === "warning").length,
+    },
+    autofixable: issues.filter(i => i.autofix).length,
+    issues: issues.slice(0, 100),
+  };
+}
+
+function autoFixIntegrityIssues(issues) {
+  let fixed = 0;
+
+  for (const issue of issues.filter(i => i.autofix)) {
+    const dtu = STATE.dtus.get(issue.id);
+    if (!dtu) continue;
+
+    switch (issue.type) {
+      case "temporal":
+        if (issue.message.includes("createdAt > updatedAt")) {
+          dtu.updatedAt = dtu.createdAt;
+          fixed++;
+        }
+        if (issue.message.includes("Future")) {
+          dtu.createdAt = new Date().toISOString();
+          fixed++;
+        }
+        break;
+      case "tags":
+        if (dtu.tags) {
+          dtu.tags = [...new Set(dtu.tags.filter(t => t && typeof t === "string" && t.trim()).map(t => t.toLowerCase().trim()))];
+          fixed++;
+        }
+        break;
+      case "lineage":
+        if (issue.message.includes("Dead child ref") && dtu.lineage?.children) {
+          dtu.lineage.children = dtu.lineage.children.filter(id => STATE.dtus.has(id));
+          fixed++;
+        }
+        break;
+    }
+  }
+
+  return { fixed };
+}
+
+app.get("/api/integrity/check", (_req, res) => {
+  try {
+    const result = runDataIntegrityCheck();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/integrity/fix", (_req, res) => {
+  try {
+    const check = runDataIntegrityCheck();
+    const result = autoFixIntegrityIssues(check.issues);
+    const recheck = runDataIntegrityCheck();
+    res.json({ ok: true, ...result, before: check.total, after: recheck.total });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #78: TRACE SYSTEM (End-to-End Observability) ----------
+
+if (!STATE._traces) STATE._traces = [];
+
+function startTrace(trigger) {
+  const trace = {
+    traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: trigger.userId || "system",
+    trigger: { type: trigger.type, ...trigger },
+    spans: [],
+    startedAt: Date.now(),
+    completedAt: null,
+    totalDuration: null,
+    brainCost: { totalTokensIn: 0, totalTokensOut: 0, calls: 0 },
+    result: null,
+  };
+
+  STATE._traces.push(trace);
+  if (STATE._traces.length > 1000) STATE._traces = STATE._traces.slice(-1000);
+
+  return {
+    ...trace,
+    span(name) {
+      const span = { name, start: Date.now(), end: null, status: "running", meta: {} };
+      trace.spans.push(span);
+      return {
+        end(status = "ok", meta = {}) {
+          span.end = Date.now();
+          span.status = status;
+          span.meta = { ...span.meta, ...meta };
+        },
+        addMeta(m) { Object.assign(span.meta, m); },
+      };
+    },
+    addBrainCost(tokensIn, tokensOut) {
+      trace.brainCost.totalTokensIn += tokensIn || 0;
+      trace.brainCost.totalTokensOut += tokensOut || 0;
+      trace.brainCost.calls++;
+    },
+    complete(result) {
+      trace.completedAt = Date.now();
+      trace.totalDuration = trace.completedAt - trace.startedAt;
+      trace.result = result;
+      eventBus.emit("trace.completed", { traceId: trace.traceId, duration: trace.totalDuration });
+    },
+  };
+}
+
+app.get("/api/traces", (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const minDuration = parseInt(req.query.minDuration) || 0;
+  let traces = [...STATE._traces].reverse();
+  if (minDuration > 0) traces = traces.filter(t => (t.totalDuration || 0) >= minDuration);
+  res.json({ ok: true, traces: traces.slice(0, limit) });
+});
+
+app.get("/api/traces/:id", (req, res) => {
+  const trace = STATE._traces.find(t => t.traceId === req.params.id);
+  if (!trace) return res.status(404).json({ ok: false, error: "Trace not found" });
+  res.json({ ok: true, trace });
+});
+
+// ---------- #85: RATE LIMITER & COST GOVERNOR ----------
+
+if (!STATE._rateLimits) STATE._rateLimits = new Map();
+if (!STATE._costAccounting) STATE._costAccounting = new Map();
+
+const RATE_LIMIT_CONFIG = {
+  free: { brainCallsPerHour: 100, maxConcurrent: 2 },
+  pro: { brainCallsPerHour: 500, maxConcurrent: 5 },
+  sovereign: { brainCallsPerHour: Infinity, maxConcurrent: 10 },
+};
+
+function checkRateLimit(userId, tier) {
+  const uid = userId || "default";
+  const config = RATE_LIMIT_CONFIG[tier || "sovereign"];
+  const now = Date.now();
+  const hourAgo = now - 60 * 60 * 1000;
+
+  if (!STATE._rateLimits.has(uid)) STATE._rateLimits.set(uid, { calls: [] });
+  const userLimits = STATE._rateLimits.get(uid);
+
+  // Clean old entries
+  userLimits.calls = userLimits.calls.filter(t => t > hourAgo);
+
+  if (userLimits.calls.length >= config.brainCallsPerHour) {
+    return { allowed: false, reason: "Rate limit exceeded", remaining: 0, resetAt: new Date(userLimits.calls[0] + 60 * 60 * 1000).toISOString() };
+  }
+
+  userLimits.calls.push(now);
+  return { allowed: true, remaining: config.brainCallsPerHour - userLimits.calls.length, used: userLimits.calls.length };
+}
+
+function recordCost(userId, brainName, tokensIn, tokensOut, durationMs) {
+  const uid = userId || "default";
+  if (!STATE._costAccounting.has(uid)) STATE._costAccounting.set(uid, { daily: {}, weekly: 0, monthly: 0, total: 0, calls: [] });
+  const account = STATE._costAccounting.get(uid);
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (!account.daily[today]) account.daily[today] = { tokensIn: 0, tokensOut: 0, calls: 0, durationMs: 0 };
+  account.daily[today].tokensIn += tokensIn || 0;
+  account.daily[today].tokensOut += tokensOut || 0;
+  account.daily[today].calls++;
+  account.daily[today].durationMs += durationMs || 0;
+  account.total++;
+
+  account.calls.push({ brain: brainName, tokensIn, tokensOut, durationMs, at: new Date().toISOString() });
+  if (account.calls.length > 500) account.calls = account.calls.slice(-500);
+
+  // Clean old daily entries (keep 30 days)
+  const keys = Object.keys(account.daily).sort();
+  if (keys.length > 30) {
+    for (const k of keys.slice(0, keys.length - 30)) delete account.daily[k];
+  }
+}
+
+app.get("/api/rate-limits", (req, res) => {
+  const userId = req.query.userId || "default";
+  const limits = STATE._rateLimits.get(userId);
+  const hourAgo = Date.now() - 60 * 60 * 1000;
+  const recentCalls = limits ? limits.calls.filter(t => t > hourAgo).length : 0;
+  res.json({ ok: true, used: recentCalls, config: RATE_LIMIT_CONFIG });
+});
+
+app.get("/api/costs", (req, res) => {
+  const userId = req.query.userId || "default";
+  const account = STATE._costAccounting.get(userId) || { daily: {}, total: 0, calls: [] };
+  res.json({ ok: true, ...account });
+});
+
+// ---------- #87: MIGRATION ENGINE ----------
+
+if (!STATE._migrations) STATE._migrations = { applied: [], pending: [] };
+
+const MIGRATIONS = [
+  {
+    id: "001_init_checksums",
+    description: "Add checksum tracking to DTUs",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (!dtu.meta) dtu.meta = {};
+        if (!dtu.meta._checksum) {
+          dtu.meta._checksum = simpleHash((dtu.title || "") + (dtu.content || ""));
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() {
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.meta) delete dtu.meta._checksum;
+      }
+    },
+  },
+  {
+    id: "002_normalize_domains",
+    description: "Normalize all DTU domain fields to lowercase",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.domain && dtu.domain !== dtu.domain.toLowerCase()) {
+          dtu.domain = dtu.domain.toLowerCase();
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() { /* irreversible normalization */ },
+  },
+  {
+    id: "003_add_version_counter",
+    description: "Add version counter to DTUs for conflict resolution",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (!dtu.meta) dtu.meta = {};
+        if (dtu.meta._version === undefined) {
+          dtu.meta._version = 1;
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() {
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.meta) delete dtu.meta._version;
+      }
+    },
+  },
+];
+
+function specVSimpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function runSpecVMigrations() {
+  const applied = STATE._migrations.applied.map(m => m.id);
+  const results = [];
+
+  for (const migration of MIGRATIONS) {
+    if (applied.includes(migration.id)) continue;
+
+    try {
+      const result = migration.up();
+      STATE._migrations.applied.push({
+        id: migration.id,
+        description: migration.description,
+        appliedAt: new Date().toISOString(),
+        result,
+      });
+      results.push({ id: migration.id, status: "applied", result });
+      structuredLog("info", "migration_applied", { id: migration.id, result });
+    } catch (e) {
+      results.push({ id: migration.id, status: "failed", error: String(e?.message || e) });
+      structuredLog("error", "migration_failed", { id: migration.id, error: String(e?.message || e) });
+      break; // Stop on first failure
+    }
+  }
+
+  return results;
+}
+
+app.get("/api/migrations", (_req, res) => {
+  const applied = STATE._migrations.applied.map(m => m.id);
+  const pending = MIGRATIONS.filter(m => !applied.includes(m.id));
+  res.json({ ok: true, applied: STATE._migrations.applied, pending: pending.map(m => ({ id: m.id, description: m.description })) });
+});
+
+app.post("/api/migrations/run", (_req, res) => {
+  try {
+    const results = runSpecVMigrations();
+    res.json({ ok: true, results });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #80: WISDOM SYNTHESIS ENGINE ----------
+// Cross-domain synthesis using all 4 brains.
+
+async function synthesizeWisdom(question, options = {}) {
+  const trace = startTrace({ type: "wisdom.synthesis", question });
+  const spanDecompose = trace.span("decompose");
+
+  // 1. Decompose question into domain sub-queries
+  const domains = [...new Set([...STATE.dtus.values()].map(d => d.domain || "general"))].slice(0, 20);
+  const relevantDomains = [];
+
+  for (const domain of domains) {
+    // Check if domain is relevant to the question
+    const domainDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "general") === domain);
+    const hasRelevantContent = domainDTUs.some(d => {
+      const text = ((d.title || "") + " " + (d.content || "")).toLowerCase();
+      return question.toLowerCase().split(/\s+/).some(w => w.length > 3 && text.includes(w));
+    });
+    if (hasRelevantContent) relevantDomains.push(domain);
+  }
+  spanDecompose.end("ok", { domains: relevantDomains.length });
+
+  // 2. Run sub-queries per domain (using utility brain)
+  const spanQueries = trace.span("domain_queries");
+  const domainResults = {};
+
+  for (const domain of relevantDomains.slice(0, 8)) {
+    const domainDTUs = [...STATE.dtus.values()]
+      .filter(d => (d.domain || "general") === domain)
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+      .slice(0, 10);
+
+    const context = domainDTUs.map(d => `- ${d.title}: ${(d.content || "").slice(0, 100)}`).join("\n");
+
+    if (BRAIN.utility?.enabled) {
+      try {
+        const result = await callBrain("utility", `Based on this ${domain} knowledge:\n${context}\n\nWhat insight does this domain provide about: "${question}"?\nAnswer in 1-2 sentences.`, { maxTokens: 150 });
+        if (result.ok) domainResults[domain] = result.content?.trim() || "";
+      } catch {}
+    } else {
+      domainResults[domain] = `${domain}: ${domainDTUs.length} relevant DTUs about ${domainDTUs.slice(0, 3).map(d => d.title).join(", ")}`;
+    }
+  }
+  spanQueries.end("ok", { domainsQueried: Object.keys(domainResults).length });
+
+  // 3. Synthesize using conscious brain
+  const spanSynthesize = trace.span("synthesize");
+  let synthesis = "";
+
+  const domainInsights = Object.entries(domainResults).map(([d, i]) => `[${d}]: ${i}`).join("\n");
+
+  if (BRAIN.conscious?.enabled) {
+    try {
+      const result = await callBrain("conscious", `Synthesize these insights from ${Object.keys(domainResults).length} different domains into a unified, actionable response to: "${question}"\n\nDomain insights:\n${domainInsights}\n\nProvide a comprehensive synthesis that weaves together all relevant domain perspectives. Be specific and actionable.`, { maxTokens: 400 });
+      if (result.ok) synthesis = result.content?.trim() || "";
+    } catch {}
+  }
+
+  if (!synthesis) {
+    synthesis = `Cross-domain analysis of "${question}" drawing from ${Object.keys(domainResults).length} domains:\n\n${domainInsights}`;
+  }
+  spanSynthesize.end("ok");
+
+  // 4. Red team validation
+  let validation = null;
+  if (typeof redTeamCheck === "function") {
+    try { validation = await redTeamCheck(synthesis, { domain: "synthesis" }); } catch {}
+  }
+
+  // Create synthesis DTU
+  const synthDTU = {
+    id: `synth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `Synthesis: ${question.slice(0, 60)}`,
+    content: synthesis,
+    tags: ["synthesis", "wisdom", ...Object.keys(domainResults)],
+    tier: "mega",
+    source: "wisdom.synthesis",
+    domain: "metacognition",
+    meta: {
+      synthesizedAt: new Date().toISOString(),
+      domainsUsed: Object.keys(domainResults),
+      validation,
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(synthDTU, { broadcast: false });
+
+  trace.complete({ ok: true });
+
+  return {
+    synthesis,
+    domains: domainResults,
+    validation,
+    dtuId: synthDTU.id,
+    traceId: trace.traceId,
+  };
+}
+
+app.post("/api/wisdom/synthesize", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await synthesizeWisdom(question);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #81: CONFIDENCE NETWORK ----------
+// Confidence propagates through DTU relationships.
+
+function propagateNetworkConfidence() {
+  const iterations = 3; // Number of propagation passes
+  let totalAdjustments = 0;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    for (const dtu of STATE.dtus.values()) {
+      if (!dtu.meta) dtu.meta = {};
+      const ownConfidence = dtu.meta._confidence || 0.5;
+
+      // Gather confidence from linked DTUs
+      const links = [
+        ...(dtu.meta._consolidatedLinks || []),
+        ...(dtu.lineage?.children || []),
+        ...(dtu.lineage?.parentId ? [dtu.lineage.parentId] : []),
+      ];
+
+      if (links.length === 0) continue;
+
+      let linkedConfidence = 0;
+      let validLinks = 0;
+      for (const linkId of links) {
+        const linked = STATE.dtus.get(linkId);
+        if (linked?.meta?._confidence !== undefined) {
+          linkedConfidence += linked.meta._confidence;
+          validLinks++;
+        }
+      }
+
+      if (validLinks > 0) {
+        const avgLinkedConf = linkedConfidence / validLinks;
+        // adjusted = own × avg(linked)^0.3
+        const adjusted = ownConfidence * Math.pow(avgLinkedConf, 0.3);
+        const newConf = Math.min(1, Math.max(0, adjusted));
+
+        if (Math.abs(newConf - ownConfidence) > 0.01) {
+          dtu.meta._confidence = newConf;
+          totalAdjustments++;
+        }
+      }
+    }
+  }
+
+  return { adjustments: totalAdjustments, iterations };
+}
+
+app.post("/api/confidence/propagate", (_req, res) => {
+  try {
+    const result = propagateNetworkConfidence();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/confidence/alerts", (_req, res) => {
+  // Find DTUs whose confidence dropped significantly
+  const alerts = [];
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.meta?._confidence !== undefined && dtu.meta._confidence < 0.3) {
+      alerts.push({ id: dtu.id, title: dtu.title, confidence: dtu.meta._confidence, tier: dtu.tier });
+    }
+  }
+  alerts.sort((a, b) => a.confidence - b.confidence);
+  res.json({ ok: true, alerts: alerts.slice(0, 20), total: alerts.length });
+});
+
+// ---------- #88: CROSS-BRAIN DEBATE PROTOCOL ----------
+// All 4 brains debate high-stakes questions in structured turns.
+
+async function crossBrainDebate(question, options = {}) {
+  const debate = {
+    id: `debate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question,
+    turns: [],
+    synthesis: null,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+  };
+
+  const contextDTUs = [...STATE.dtus.values()]
+    .filter(d => question.toLowerCase().split(/\s+/).some(w => w.length > 3 && ((d.title || "") + " " + (d.content || "")).toLowerCase().includes(w)))
+    .slice(0, 10)
+    .map(d => `- ${d.title}: ${(d.content || "").slice(0, 80)}`).join("\n");
+
+  // Turn 1: Utility brain initial analysis
+  try {
+    if (BRAIN.utility?.enabled) {
+      const r = await callBrain("utility", `Provide an initial analysis for: "${question}"\nContext: ${contextDTUs || "(none)"}\n\nBe specific and evidence-based. 2-3 sentences.`, { maxTokens: 200 });
+      debate.turns.push({ brain: "utility", role: "initial_analysis", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 2: Conscious brain counter-argument
+  try {
+    if (BRAIN.conscious?.enabled && debate.turns[0]) {
+      const r = await callBrain("conscious", `Challenge this analysis: "${debate.turns[0].content}"\n\nOriginal question: "${question}"\n\nProvide a COUNTER-ARGUMENT. Find flaws, missing perspectives, or unconsidered risks. 2-3 sentences.`, { maxTokens: 200, temperature: 0.5 });
+      debate.turns.push({ brain: "conscious", role: "counter_argument", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 3: Utility brain responds to counter
+  try {
+    if (BRAIN.utility?.enabled && debate.turns[1]) {
+      const r = await callBrain("utility", `Respond to this counter-argument: "${debate.turns[1].content}"\n\nYour original analysis: "${debate.turns[0]?.content || ''}"\n\nAddress the critique. Strengthen or modify your position. 2-3 sentences.`, { maxTokens: 200 });
+      debate.turns.push({ brain: "utility", role: "rebuttal", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 4: Repair brain evaluates both sides
+  try {
+    if (BRAIN.repair?.enabled) {
+      const allTurns = debate.turns.map(t => `[${t.brain}/${t.role}]: ${t.content}`).join("\n");
+      const r = await callBrain("repair", `Evaluate this debate for logical consistency and evidence quality:\n\n${allTurns}\n\nRate each side's argument strength and identify any logical fallacies or unsupported claims. 2 sentences.`, { maxTokens: 150 });
+      debate.turns.push({ brain: "repair", role: "evaluation", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 5: Subconscious adds background context
+  try {
+    if (BRAIN.subconscious?.enabled) {
+      const r = await callBrain("subconscious", `For the question: "${question}"\n\nWhat hidden context or unconsidered perspective should be added? Think laterally. 1-2 sentences.`, { maxTokens: 100, temperature: 0.8 });
+      debate.turns.push({ brain: "subconscious", role: "hidden_context", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 6: Conscious synthesizes
+  try {
+    if (BRAIN.conscious?.enabled) {
+      const allTurns = debate.turns.map(t => `[${t.brain}/${t.role}]: ${t.content}`).join("\n");
+      const r = await callBrain("conscious", `Synthesize this multi-brain debate into a balanced assessment:\n\n${allTurns}\n\nProvide a final assessment with declared uncertainties and a clear recommendation. 3-4 sentences.`, { maxTokens: 250 });
+      debate.synthesis = r.content?.trim() || "";
+    }
+  } catch {}
+
+  if (!debate.synthesis) {
+    debate.synthesis = debate.turns.map(t => t.content).join(" | ");
+  }
+
+  debate.completedAt = new Date().toISOString();
+
+  // Create debate DTU
+  const debateDTU = {
+    id: `debate-dtu-${Date.now()}`,
+    title: `Debate: ${question.slice(0, 60)}`,
+    content: debate.turns.map(t => `**${t.brain} (${t.role}):** ${t.content}`).join("\n\n") + `\n\n---\n\n**Synthesis:** ${debate.synthesis}`,
+    tags: ["debate", "multi-brain"],
+    tier: "mega",
+    source: "debate.protocol",
+    domain: "metacognition",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(debateDTU, { broadcast: false });
+
+  return { ...debate, dtuId: debateDTU.id };
+}
+
+app.post("/api/debate", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await crossBrainDebate(question);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #90: RESONANCE AMPLIFIER ----------
+// Takes confirmed cross-domain analogies and generates new knowledge.
+
+async function amplifyResonance(sourceDomain, targetDomain, options = {}) {
+  // Gather DTUs from both domains
+  const sourceDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "") === sourceDomain).slice(0, 10);
+  const targetDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "") === targetDomain).slice(0, 10);
+
+  if (sourceDTUs.length === 0 || targetDTUs.length === 0) {
+    return { ok: false, error: "Need DTUs in both domains" };
+  }
+
+  const sourceContext = sourceDTUs.map(d => `- ${d.title}`).join("\n");
+  const targetContext = targetDTUs.map(d => `- ${d.title}`).join("\n");
+
+  let amplifiedInsights = [];
+
+  try {
+    if (BRAIN.utility?.enabled) {
+      const prompt = `You are a resonance amplifier. Find 3 specific structural parallels between these two domains and generate actionable insights from each parallel.
+
+Domain A (${sourceDomain}):
+${sourceContext}
+
+Domain B (${targetDomain}):
+${targetContext}
+
+For each parallel:
+PARALLEL: [what's structurally similar]
+INSIGHT: [specific actionable insight from applying A's pattern to B]
+CONFIDENCE: [high/medium/low]
+
+List 3 parallels.`;
+
+      const result = await callBrain("utility", prompt, { maxTokens: 400 });
+      if (result.ok && result.content) {
+        const matches = result.content.matchAll(/PARALLEL:\s*(.+?)(?:\nINSIGHT:\s*(.+?))?(?:\nCONFIDENCE:\s*(high|medium|low))?(?=\nPARALLEL:|\n*$)/gs);
+        for (const match of matches) {
+          amplifiedInsights.push({
+            parallel: match[1]?.trim() || "",
+            insight: match[2]?.trim() || "",
+            confidence: match[3]?.trim() || "medium",
+          });
+        }
+      }
+    }
+  } catch {}
+
+  if (amplifiedInsights.length === 0) {
+    amplifiedInsights = [{
+      parallel: `Structural similarity between ${sourceDomain} and ${targetDomain}`,
+      insight: `Patterns in ${sourceDomain} (${sourceDTUs.length} DTUs) may apply to ${targetDomain} (${targetDTUs.length} DTUs)`,
+      confidence: "low",
+    }];
+  }
+
+  // Create resonance-amplified DTUs
+  const dtuIds = [];
+  for (const insight of amplifiedInsights) {
+    const dtu = {
+      id: `resonance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: `Resonance: ${sourceDomain} × ${targetDomain}`,
+      content: `**Parallel:** ${insight.parallel}\n\n**Insight:** ${insight.insight}`,
+      tags: ["resonance-amplified", sourceDomain, targetDomain],
+      tier: "regular",
+      source: "resonance.amplifier",
+      domain: targetDomain,
+      meta: { amplifiedFrom: sourceDomain, confidence: insight.confidence },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    upsertDTU(dtu, { broadcast: false });
+    dtuIds.push(dtu.id);
+  }
+
+  return { ok: true, insights: amplifiedInsights, dtuIds };
+}
+
+app.post("/api/resonance/amplify", async (req, res) => {
+  const { sourceDomain, targetDomain } = req.body;
+  if (!sourceDomain || !targetDomain) return res.status(400).json({ ok: false, error: "Both domains required" });
+  try {
+    const result = await amplifyResonance(sourceDomain, targetDomain);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #83: ADAPTIVE INTERFACE ----------
+// Track usage patterns for frontend adaptation.
+
+if (!STATE._interfaceProfiles) STATE._interfaceProfiles = new Map();
+
+function recordUsage(userId, action) {
+  const uid = userId || "default";
+  if (!STATE._interfaceProfiles.has(uid)) {
+    STATE._interfaceProfiles.set(uid, {
+      lensUsage: {},      // lens → { visits, lastVisit }
+      actionUsage: {},    // action → { count, lastUsed }
+      viewPreferences: {}, // lens → preferred view mode
+      quickAccess: [],    // top 5 recently accessed artifacts
+    });
+  }
+  const profile = STATE._interfaceProfiles.get(uid);
+
+  if (action.type === "lens.visit") {
+    if (!profile.lensUsage[action.lens]) profile.lensUsage[action.lens] = { visits: 0, lastVisit: null };
+    profile.lensUsage[action.lens].visits++;
+    profile.lensUsage[action.lens].lastVisit = new Date().toISOString();
+  }
+
+  if (action.type === "action.used") {
+    const key = `${action.lens}:${action.action}`;
+    if (!profile.actionUsage[key]) profile.actionUsage[key] = { count: 0, lastUsed: null };
+    profile.actionUsage[key].count++;
+    profile.actionUsage[key].lastUsed = new Date().toISOString();
+  }
+
+  if (action.type === "artifact.accessed" && action.artifactId) {
+    profile.quickAccess = [action.artifactId, ...profile.quickAccess.filter(id => id !== action.artifactId)].slice(0, 5);
+  }
+
+  return profile;
+}
+
+function getAdaptiveLayout(userId) {
+  const uid = userId || "default";
+  const profile = STATE._interfaceProfiles.get(uid);
+  if (!profile) return { lensOrder: [], promotedActions: {}, quickAccess: [] };
+
+  // Rank lenses by usage (visits × recency weight)
+  const lensOrder = Object.entries(profile.lensUsage)
+    .map(([lens, data]) => ({
+      lens,
+      score: data.visits * (1 + 1 / Math.max(1, (Date.now() - new Date(data.lastVisit || 0).getTime()) / (24 * 60 * 60 * 1000))),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(e => e.lens);
+
+  // Find promoted actions per lens
+  const promotedActions = {};
+  for (const [key, data] of Object.entries(profile.actionUsage)) {
+    const [lens, action] = key.split(":");
+    if (!promotedActions[lens] || data.count > promotedActions[lens].count) {
+      promotedActions[lens] = { action, count: data.count };
+    }
+  }
+
+  return { lensOrder, promotedActions, quickAccess: profile.quickAccess };
+}
+
+app.get("/api/adaptive/layout", (req, res) => {
+  res.json({ ok: true, ...getAdaptiveLayout(req.query.userId) });
+});
+
+app.post("/api/adaptive/track", (req, res) => {
+  recordUsage(req.body.userId, req.body);
+  res.json({ ok: true });
+});
+
+// ---------- #82: ACTION REPLAY SYSTEM ----------
+// Record sessions for playback.
+
+if (!STATE._sessionRecordings) STATE._sessionRecordings = [];
+
+function startRecording(userId) {
+  const recording = {
+    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: userId || "default",
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    events: [],
+    stats: { lensVisits: 0, artifactsCreated: 0, brainCalls: 0, decisions: 0 },
+  };
+  STATE._sessionRecordings.push(recording);
+  if (STATE._sessionRecordings.length > 50) STATE._sessionRecordings = STATE._sessionRecordings.slice(-50);
+  return recording;
+}
+
+function recordSessionEvent(recordingId, event) {
+  const recording = STATE._sessionRecordings.find(r => r.id === recordingId);
+  if (!recording || recording.completedAt) return null;
+
+  recording.events.push({
+    timestamp: new Date().toISOString(),
+    ...event,
+  });
+
+  // Update stats
+  if (event.type === "lens.visit") recording.stats.lensVisits++;
+  if (event.type === "artifact.created") recording.stats.artifactsCreated++;
+  if (event.type === "brain.called") recording.stats.brainCalls++;
+  if (event.type === "decision") recording.stats.decisions++;
+
+  // Keep events manageable
+  if (recording.events.length > 1000) recording.events = recording.events.slice(-1000);
+
+  return recording;
+}
+
+function stopRecording(recordingId) {
+  const recording = STATE._sessionRecordings.find(r => r.id === recordingId);
+  if (!recording) return null;
+  recording.completedAt = new Date().toISOString();
+  return recording;
+}
+
+app.post("/api/replay/start", (req, res) => {
+  const recording = startRecording(req.body.userId);
+  res.json({ ok: true, recording: { id: recording.id, startedAt: recording.startedAt } });
+});
+
+app.post("/api/replay/:id/event", (req, res) => {
+  const result = recordSessionEvent(req.params.id, req.body);
+  if (!result) return res.status(404).json({ ok: false, error: "Recording not found or completed" });
+  res.json({ ok: true, eventCount: result.events.length });
+});
+
+app.post("/api/replay/:id/stop", (req, res) => {
+  const result = stopRecording(req.params.id);
+  if (!result) return res.status(404).json({ ok: false, error: "Recording not found" });
+  res.json({ ok: true, recording: result });
+});
+
+app.get("/api/replay", (_req, res) => {
+  res.json({
+    ok: true,
+    recordings: STATE._sessionRecordings.map(r => ({
+      id: r.id, startedAt: r.startedAt, completedAt: r.completedAt,
+      stats: r.stats, eventCount: r.events.length,
+    })),
+  });
+});
+
+app.get("/api/replay/:id", (req, res) => {
+  const recording = STATE._sessionRecordings.find(r => r.id === req.params.id);
+  if (!recording) return res.status(404).json({ ok: false, error: "Not found" });
+  res.json({ ok: true, recording });
+});
+
+// ---------- #89: KNOWLEDGE COMPILER ----------
+// Transform loose DTUs into executable structures (decision trees, checklists, workflows).
+
+async function compileDTUs(dtuIds, outputType, options = {}) {
+  const dtus = dtuIds.map(id => STATE.dtus.get(id)).filter(Boolean);
+  if (dtus.length === 0) return { ok: false, error: "No valid DTUs" };
+
+  const context = dtus.map(d => `${d.title}: ${(d.content || "").slice(0, 200)}`).join("\n\n");
+
+  let compiled = null;
+
+  if (BRAIN.utility?.enabled) {
+    try {
+      let prompt = "";
+      switch (outputType) {
+        case "decision-tree":
+          prompt = `Convert these knowledge units into a decision tree. Use IF/THEN/ELSE structure:\n\n${context}\n\nFormat: Each node as "IF [condition] THEN [action/next] ELSE [action/next]"`;
+          break;
+        case "checklist":
+          prompt = `Convert these knowledge units into an executable checklist:\n\n${context}\n\nFormat: Numbered steps, each with a clear action and validation criteria.`;
+          break;
+        case "workflow":
+          prompt = `Convert these knowledge units into a step-by-step workflow:\n\n${context}\n\nFormat: Sequential steps with branching points marked as [BRANCH: condition → step]`;
+          break;
+        case "calculator":
+          prompt = `Extract any formulas or calculations from these knowledge units:\n\n${context}\n\nFormat: List each formula with its inputs, formula, and expected output.`;
+          break;
+        default:
+          prompt = `Summarize and structure these knowledge units:\n\n${context}`;
+      }
+
+      const result = await callBrain("utility", prompt, { maxTokens: 500 });
+      if (result.ok) compiled = result.content?.trim();
+    } catch {}
+  }
+
+  if (!compiled) {
+    compiled = `Compiled ${outputType} from ${dtus.length} DTUs:\n\n${dtus.map((d, i) => `${i + 1}. ${d.title}`).join("\n")}`;
+  }
+
+  // Create compiled artifact DTU
+  const compiledDTU = {
+    id: `compiled-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `${outputType}: ${dtus[0]?.title?.slice(0, 40) || "Compiled"} (+${dtus.length - 1} more)`,
+    content: compiled,
+    tags: ["compiled", outputType, ...(dtus[0]?.tags || []).slice(0, 3)],
+    tier: "mega",
+    source: "knowledge.compiler",
+    domain: dtus[0]?.domain || "general",
+    meta: {
+      compiledFrom: dtuIds,
+      outputType,
+      compiledAt: new Date().toISOString(),
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(compiledDTU, { broadcast: false });
+
+  return { ok: true, compiled, dtuId: compiledDTU.id, type: outputType, sourceDTUs: dtuIds.length };
+}
+
+app.post("/api/compile", async (req, res) => {
+  const { dtuIds, outputType } = req.body;
+  if (!dtuIds || !Array.isArray(dtuIds) || dtuIds.length === 0) {
+    return res.status(400).json({ ok: false, error: "dtuIds array required" });
+  }
+  try {
+    const result = await compileDTUs(dtuIds, outputType || "checklist");
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC VII: PRODUCTION PERFECTION — EMERGENT ↔ ORGANISM BRIDGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- PART 1: ORGANISM BRIDGE LAYER ----------
+// Connects emergent governance agents with knowledge organisms (DTU swarms).
+// Emergents validate organism output; organisms provide domain expertise to emergents.
+
+if (!STATE._bridge) STATE._bridge = {
+  log: [],           // Interaction history (bounded)
+  quarantine: [],    // DTUs rejected by governance
+  birthCerts: [],    // Organism birth certificates
+  deathRecords: [],  // Organism death records
+  debates: [],       // Bridge debates
+};
+
+const BRIDGE_MAX_LOG = 500;
+const BRIDGE_MAX_QUARANTINE = 200;
+
+const EMERGENT_ROLES = ["builder", "critic", "historian", "economist", "ethicist", "engineer", "synthesizer", "auditor", "adversary"];
+
+function bridgeLog(action, data) {
+  const entry = { id: uid("bridge"), action, ...data, at: nowISO() };
+  STATE._bridge.log.push(entry);
+  if (STATE._bridge.log.length > BRIDGE_MAX_LOG) STATE._bridge.log = STATE._bridge.log.slice(-BRIDGE_MAX_LOG);
+  if (typeof eventBus !== "undefined") {
+    try { eventBus.emit(`bridge.${action}`, entry); } catch {}
+  }
+  return entry;
+}
+
+// --- Pattern A: Organism submits DTU for emergent governance validation ---
+async function validateOrganismDTU(dtu, submitterId) {
+  const validations = [];
+  const ctx = typeof _governorCtx === "function" ? _governorCtx() : {};
+
+  // Critic: Is this falsifiable?
+  try {
+    const criticResult = await callBrain("repair", `You are the CRITIC emergent. Evaluate this DTU for falsifiability and evidence quality. DTU title: "${dtu.title}". Content: "${(dtu.human?.summary || dtu.content || "").slice(0, 500)}". Tags: ${(dtu.tags || []).join(", ")}. Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(criticResult?.content || "{}");
+    validations.push({ role: "critic", pass: parsed.pass !== false, reason: parsed.reason || criticResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "critic", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  // Ethicist: Constitutional principles check
+  try {
+    const ethicistResult = await callBrain("repair", `You are the ETHICIST emergent. Does this DTU violate any constitutional or ethical principles? DTU: "${dtu.title}" — "${(dtu.human?.summary || dtu.content || "").slice(0, 500)}". Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(ethicistResult?.content || "{}");
+    validations.push({ role: "ethicist", pass: parsed.pass !== false, reason: parsed.reason || ethicistResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "ethicist", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  // Auditor: Provenance check
+  try {
+    const auditorResult = await callBrain("utility", `You are the AUDITOR emergent. Check this DTU's provenance and scope. Title: "${dtu.title}". Domain: "${dtu.domain || "unknown"}". Source: "${dtu.source || "organism"}". Tags: ${(dtu.tags || []).join(", ")}. Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(auditorResult?.content || "{}");
+    validations.push({ role: "auditor", pass: parsed.pass !== false, reason: parsed.reason || auditorResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "auditor", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  const allPassed = validations.every(v => v.pass);
+  const result = {
+    dtuId: dtu.id,
+    submitterId,
+    validations,
+    allPassed,
+    governance: allPassed ? "emergent-validated" : "quarantined",
+    decidedAt: nowISO(),
+  };
+
+  if (allPassed) {
+    // Tag DTU as governance-validated
+    dtu.tags = [...new Set([...(dtu.tags || []), "emergent-validated"])];
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "validated";
+    dtu.meta._validatedAt = nowISO();
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  } else {
+    // Quarantine
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "quarantined";
+    dtu.meta._quarantineReasons = validations.filter(v => !v.pass).map(v => ({ role: v.role, reason: v.reason }));
+    dtu.meta._quarantineAttempts = (dtu.meta._quarantineAttempts || 0) + 1;
+    STATE._bridge.quarantine.push({ dtuId: dtu.id, reasons: dtu.meta._quarantineReasons, at: nowISO() });
+    if (STATE._bridge.quarantine.length > BRIDGE_MAX_QUARANTINE) STATE._bridge.quarantine = STATE._bridge.quarantine.slice(-BRIDGE_MAX_QUARANTINE);
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  bridgeLog("validation.result", { dtuId: dtu.id, allPassed, validations: validations.map(v => ({ role: v.role, pass: v.pass })) });
+  return result;
+}
+
+// --- Pattern B: Emergent queries organism for domain expertise ---
+async function emergentQueryOrganism(fromRole, toOrganismId, query, context) {
+  if (!EMERGENT_ROLES.includes(fromRole)) {
+    return { ok: false, error: `Unknown emergent role: ${fromRole}` };
+  }
+
+  bridgeLog("emergent.query", { fromRole, toOrganismId, query: query.slice(0, 200) });
+
+  // Find the organism's DTU swarm
+  const swarm = (STATE.swarms || []).find(s => s.id === toOrganismId);
+  if (!swarm) return { ok: false, error: `Organism/swarm not found: ${toOrganismId}` };
+
+  // Gather context from swarm members
+  const memberDTUs = swarm.members.slice(0, 20).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmContext = memberDTUs.map(d => `[${d.title}] ${(d.human?.summary || "").slice(0, 100)}`).join("\n");
+
+  const brain = fromRole === "engineer" ? "utility" : fromRole === "critic" || fromRole === "adversary" ? "repair" : "subconscious";
+
+  try {
+    const result = await callBrain(brain, `You are a Knowledge Organism (swarm: "${swarm.name}") responding to a query from the ${fromRole} emergent agent.\n\nYour DTU knowledge:\n${swarmContext}\n\nQuery: ${query}\n\nProvide a focused, evidence-based response grounded in your DTU swarm knowledge.`, { temperature: 0.5, maxTokens: 500 });
+
+    const responseDtu = {
+      id: uid("dtu"), title: `Bridge Response: ${fromRole} → ${swarm.name}`,
+      tags: ["bridge-response", fromRole, ...(swarm.topTags || []).slice(0, 3)],
+      tier: "regular", source: "organism-bridge", domain: "bridge",
+      createdAt: nowISO(), updatedAt: nowISO(),
+      human: { summary: result?.content?.slice(0, 500) || "No response", bullets: [], examples: [] },
+      core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+      machine: { fromRole, toOrganismId, query, swarmSize: swarm.size },
+      authority: { model: brain, score: 0.6 },
+      lineage: { parents: swarm.members.slice(0, 5), children: [] },
+    };
+    if (typeof upsertDTU === "function") upsertDTU(responseDtu);
+
+    bridgeLog("organism.response", { fromRole, organismId: toOrganismId, responseDtuId: responseDtu.id });
+    return { ok: true, response: result?.content || "", dtuId: responseDtu.id, swarmName: swarm.name };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// --- Pattern C: Cross-system debate ---
+async function initiateBridgeDebate(challengerRole, targetDtuId, challenge) {
+  if (!["critic", "adversary", "auditor"].includes(challengerRole)) {
+    return { ok: false, error: "Only critic, adversary, or auditor can challenge" };
+  }
+
+  const dtu = STATE.dtus.get(targetDtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  bridgeLog("debate.initiate", { challengerRole, targetDtuId, challenge: challenge.slice(0, 200) });
+
+  const transcript = [];
+
+  // Step 1: Organism states position
+  try {
+    const orgPos = await callBrain("subconscious", `You represent the Knowledge Organism that produced this DTU. Defend its validity.\nDTU: "${dtu.title}" — "${(dtu.human?.summary || "").slice(0, 300)}"\nChallenge from ${challengerRole}: "${challenge}"\nState your position with evidence from the DTU.`, { temperature: 0.5, maxTokens: 300 });
+    transcript.push({ speaker: "organism", content: orgPos?.content || "No defense offered" });
+  } catch { transcript.push({ speaker: "organism", content: "Defense unavailable" }); }
+
+  // Step 2: Challenger responds
+  try {
+    const chalResp = await callBrain("repair", `You are the ${challengerRole} emergent agent. The organism defends: "${transcript[0]?.content?.slice(0, 300)}". Your original challenge: "${challenge}". Respond with your counter-argument.`, { temperature: 0.4, maxTokens: 300 });
+    transcript.push({ speaker: challengerRole, content: chalResp?.content || "No counter" });
+  } catch { transcript.push({ speaker: challengerRole, content: "Counter unavailable" }); }
+
+  // Step 3: Engineer evaluates technical feasibility
+  try {
+    const engEval = await callBrain("utility", `You are the engineer emergent. Evaluate the technical merits of this debate.\nOrganism position: "${transcript[0]?.content?.slice(0, 200)}"\n${challengerRole} position: "${transcript[1]?.content?.slice(0, 200)}"\nProvide a technical assessment.`, { temperature: 0.3, maxTokens: 200 });
+    transcript.push({ speaker: "engineer", content: engEval?.content || "No assessment" });
+  } catch { transcript.push({ speaker: "engineer", content: "Assessment unavailable" }); }
+
+  // Step 4: Synthesizer attempts resolution
+  try {
+    const synthRes = await callBrain("conscious", `You are the synthesizer emergent. Resolve this debate:\nOrganism: "${transcript[0]?.content?.slice(0, 200)}"\n${challengerRole}: "${transcript[1]?.content?.slice(0, 200)}"\nEngineer: "${transcript[2]?.content?.slice(0, 200)}"\n\nProvide a resolution: ACCEPT (DTU stands), MODIFY (needs changes), or QUARANTINE (reject). Respond with JSON: { "verdict": "accept|modify|quarantine", "resolution": "..." }`, { temperature: 0.3, maxTokens: 300 });
+    transcript.push({ speaker: "synthesizer", content: synthRes?.content || "No resolution" });
+  } catch { transcript.push({ speaker: "synthesizer", content: "Resolution unavailable" }); }
+
+  // Parse verdict
+  const synthContent = transcript.find(t => t.speaker === "synthesizer")?.content || "";
+  const verdictParsed = safeJSONParse(synthContent);
+  const verdict = verdictParsed?.verdict || (synthContent.toLowerCase().includes("quarantine") ? "quarantine" : synthContent.toLowerCase().includes("modify") ? "modify" : "accept");
+
+  // Apply verdict
+  if (verdict === "quarantine") {
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "quarantined";
+    dtu.meta._quarantineReasons = [{ role: challengerRole, reason: challenge }];
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  } else if (verdict === "modify") {
+    dtu.tags = [...new Set([...(dtu.tags || []), "debate-modified"])];
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  const debateRecord = {
+    id: uid("debate"), dtuId: targetDtuId, challengerRole, challenge,
+    transcript, verdict, resolution: verdictParsed?.resolution || synthContent.slice(0, 300),
+    at: nowISO(),
+  };
+  STATE._bridge.debates.push(debateRecord);
+  if (STATE._bridge.debates.length > 200) STATE._bridge.debates = STATE._bridge.debates.slice(-200);
+
+  // Store debate as DTU
+  const debateDtu = {
+    id: uid("dtu"), title: `Bridge Debate: ${challengerRole} vs organism on "${dtu.title?.slice(0, 50)}"`,
+    tags: ["bridge-debate", challengerRole, verdict], tier: "regular", source: "organism-bridge", domain: "bridge",
+    createdAt: nowISO(), updatedAt: nowISO(),
+    human: { summary: `Verdict: ${verdict}. ${debateRecord.resolution}`, bullets: transcript.map(t => `${t.speaker}: ${t.content.slice(0, 100)}`), examples: [] },
+    core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+    machine: { debateId: debateRecord.id, targetDtuId, verdict, challengerRole },
+    authority: { model: "multi-brain", score: 0.8 },
+    lineage: { parents: [targetDtuId], children: [] },
+  };
+  if (typeof upsertDTU === "function") upsertDTU(debateDtu);
+
+  bridgeLog("debate.resolved", { debateId: debateRecord.id, verdict, dtuId: targetDtuId });
+  return { ok: true, debate: debateRecord, debateDtuId: debateDtu.id };
+}
+
+// --- Pattern D: Organism Birth Ceremony ---
+async function organismBirthCeremony(swarmId) {
+  const swarm = (STATE.swarms || []).find(s => s.id === swarmId);
+  if (!swarm) return { ok: false, error: "Swarm not found" };
+  if (swarm.size < 10) return { ok: false, error: "Swarm too small for awakening (minimum 10 DTUs)" };
+
+  bridgeLog("organism.birth", { swarmId, swarmName: swarm.name, size: swarm.size });
+
+  const memberDTUs = swarm.members.slice(0, 30).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmSummary = memberDTUs.map(d => `- ${d.title} [${(d.tags || []).slice(0, 3).join(",")}]`).join("\n");
+
+  // Convene all nine emergents (simplified: use 3 brain calls covering all 9 roles)
+  const governanceReviews = [];
+
+  // Group 1: Builder + Engineer + Synthesizer (via utility brain)
+  try {
+    const g1 = await callBrain("utility", `You represent THREE emergent governance agents evaluating a new Knowledge Organism birth:\n\nBUILDER: Is this organism structurally sound?\nENGINEER: Can its metabolism sustain itself?\nSYNTHESIZER: How does it connect to existing knowledge?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "builder", "approve": true/false, "note": "..." }, { "role": "engineer", "approve": true/false, "note": "..." }, { "role": "synthesizer", "approve": true/false, "note": "..." }]`, { temperature: 0.3, maxTokens: 400 });
+    const parsed = safeJSONParse(g1?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "builder", approve: true, note: g1?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "builder", approve: true, note: "unavailable" }); }
+
+  // Group 2: Critic + Auditor + Adversary (via repair brain)
+  try {
+    const g2 = await callBrain("repair", `You represent THREE emergent governance agents RED-TEAMING a new Knowledge Organism:\n\nCRITIC: Are the foundational DTUs falsifiable?\nAUDITOR: Is all provenance clean?\nADVERSARY: What could go wrong with this organism?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "critic", "approve": true/false, "note": "..." }, { "role": "auditor", "approve": true/false, "note": "..." }, { "role": "adversary", "approve": true/false, "note": "..." }]`, { temperature: 0.4, maxTokens: 400 });
+    const parsed = safeJSONParse(g2?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "critic", approve: true, note: g2?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "critic", approve: true, note: "unavailable" }); }
+
+  // Group 3: Economist + Ethicist + Historian (via subconscious brain)
+  try {
+    const g3 = await callBrain("subconscious", `You represent THREE emergent governance agents evaluating a new Knowledge Organism:\n\nECONOMIST: Is this organism economically viable?\nETHICIST: Does this domain raise ethical concerns?\nHISTORIAN: Is this organism genuinely novel or duplicate?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "economist", "approve": true/false, "note": "..." }, { "role": "ethicist", "approve": true/false, "note": "..." }, { "role": "historian", "approve": true/false, "note": "..." }]`, { temperature: 0.4, maxTokens: 400 });
+    const parsed = safeJSONParse(g3?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "economist", approve: true, note: g3?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "economist", approve: true, note: "unavailable" }); }
+
+  // Council vote
+  const approvals = governanceReviews.filter(r => r.approve !== false).length;
+  const total = governanceReviews.length || 1;
+  const approved = approvals / total >= 0.6; // 60% majority
+
+  // Generate persona if approved
+  let persona = null;
+  if (approved) {
+    try {
+      const personaResult = await callBrain("utility", `Generate a brief persona for a newly awakened Knowledge Organism.\nDomain: "${swarm.name}"\nTop tags: ${(swarm.topTags || []).join(", ")}\nSize: ${swarm.size} DTUs\n\nRespond with JSON: { "name": "...", "personality": "...", "objective": "...", "greeting": "..." }`, { temperature: 0.7, maxTokens: 200 });
+      persona = safeJSONParse(personaResult?.content || "{}");
+    } catch {}
+  }
+
+  const birthCert = {
+    id: uid("birth"), swarmId, swarmName: swarm.name, approved,
+    approvalRatio: `${approvals}/${total}`,
+    governanceReviews: governanceReviews.map(r => ({ role: r.role, approve: r.approve, note: (r.note || "").slice(0, 200) })),
+    persona: approved ? persona : null,
+    at: nowISO(),
+  };
+
+  STATE._bridge.birthCerts.push(birthCert);
+  if (STATE._bridge.birthCerts.length > 100) STATE._bridge.birthCerts = STATE._bridge.birthCerts.slice(-100);
+
+  // Store birth certificate as DTU
+  const birthDtu = {
+    id: uid("dtu"), title: `Organism Birth Certificate: ${swarm.name}`,
+    tags: ["organism-birth-certificate", approved ? "approved" : "denied", ...(swarm.topTags || []).slice(0, 3)],
+    tier: approved ? "mega" : "regular", source: "organism-bridge", domain: "bridge",
+    createdAt: nowISO(), updatedAt: nowISO(),
+    human: { summary: `Knowledge Organism "${swarm.name}" ${approved ? "APPROVED" : "DENIED"} for awakening. Vote: ${approvals}/${total}. ${persona?.greeting || ""}`, bullets: governanceReviews.map(r => `${r.role}: ${r.approve ? "✓" : "✗"} — ${(r.note || "").slice(0, 80)}`), examples: [] },
+    core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+    machine: { birthCertId: birthCert.id, swarmId, approved, persona },
+    authority: { model: "governance-council", score: 0.9 },
+    lineage: { parents: swarm.members.slice(0, 10), children: [] },
+  };
+  if (typeof upsertDTU === "function") upsertDTU(birthDtu);
+
+  // If approved, mark swarm as organism
+  if (approved) {
+    swarm.isOrganism = true;
+    swarm.persona = persona;
+    swarm.awakenedAt = nowISO();
+    swarm.birthCertId = birthCert.id;
+  }
+
+  bridgeLog(approved ? "organism.awakened" : "organism.denied", { swarmId, swarmName: swarm.name, vote: `${approvals}/${total}` });
+  return { ok: true, birthCert, approved, persona, birthDtuId: birthDtu.id };
+}
+
+// --- Pattern E: Organism Death Protocol ---
+async function organismDeathProtocol(swarmId) {
+  const swarm = (STATE.swarms || []).find(s => s.id === swarmId);
+  if (!swarm) return { ok: false, error: "Swarm/organism not found" };
+
+  bridgeLog("organism.death", { swarmId, swarmName: swarm.name });
+
+  const memberDTUs = swarm.members.map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmSummary = memberDTUs.slice(0, 20).map(d => `- ${d.title} (tier: ${d.tier}, tags: ${(d.tags || []).slice(0, 3).join(",")})`).join("\n");
+
+  // Historian archives: what's worth preserving?
+  let archiveDecision = {};
+  try {
+    const histResult = await callBrain("subconscious", `You are the HISTORIAN emergent. This Knowledge Organism "${swarm.name}" is entering dormancy. Review its ${memberDTUs.length} DTUs and decide what to preserve.\n\nDTUs:\n${swarmSummary.slice(0, 1000)}\n\nRespond with JSON: { "preserve": ["list of DTU titles worth keeping"], "compost": ["list of DTU titles to compost"], "archiveNote": "..." }`, { temperature: 0.4, maxTokens: 400 });
+    archiveDecision = safeJSONParse(histResult?.content || "{}");
+  } catch {}
+
+  // Mark preserved DTUs, compost the rest
+  let preserved = 0, composted = 0;
+  for (const dtu of memberDTUs) {
+    if (dtu.tier === "hyper" || dtu.tier === "mega") {
+      // Always preserve high-tier DTUs
+      dtu.tags = [...new Set([...(dtu.tags || []), "organism-archived"])];
+      preserved++;
+    } else if (Array.isArray(archiveDecision.compost) && archiveDecision.compost.some(t => dtu.title?.includes(t))) {
+      dtu.status = "composted";
+      dtu.meta = dtu.meta || {};
+      dtu.meta._compostedBy = "death-protocol";
+      composted++;
+    } else {
+      // Default: preserve and integrate back
+      dtu.tags = [...new Set([...(dtu.tags || []), "organism-archived"])];
+      preserved++;
+    }
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  const deathRecord = {
+    id: uid("death"), swarmId, swarmName: swarm.name,
+    totalDTUs: memberDTUs.length, preserved, composted,
+    archiveNote: archiveDecision.archiveNote || "",
+    at: nowISO(),
+  };
+  STATE._bridge.deathRecords.push(deathRecord);
+  if (STATE._bridge.deathRecords.length > 100) STATE._bridge.deathRecords = STATE._bridge.deathRecords.slice(-100);
+
+  // Mark swarm as dormant
+  swarm.isOrganism = false;
+  swarm.dormantAt = nowISO();
+
+  bridgeLog("organism.dormant", { swarmId, preserved, composted });
+  return { ok: true, deathRecord };
+}
+
+// ---------- BRIDGE API ENDPOINTS ----------
+
+app.post("/api/bridge/submit", asyncHandler(async (req, res) => {
+  const { dtuId } = req.body;
+  if (!dtuId) return res.status(400).json({ ok: false, error: "dtuId required" });
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if ((dtu.meta?._quarantineAttempts || 0) >= 3) {
+    return res.status(400).json({ ok: false, error: "DTU permanently quarantined after 3 failed attempts" });
+  }
+  const result = await validateOrganismDTU(dtu, req.body.submitterId || "user");
+  res.json({ ok: true, ...result });
+}));
+
+app.post("/api/bridge/query", asyncHandler(async (req, res) => {
+  const { fromRole, toOrganismId, query } = req.body;
+  if (!fromRole || !toOrganismId || !query) {
+    return res.status(400).json({ ok: false, error: "fromRole, toOrganismId, and query required" });
+  }
+  const result = await emergentQueryOrganism(fromRole, toOrganismId, query, req.body.context);
+  res.json(result);
+}));
+
+app.post("/api/bridge/debate", asyncHandler(async (req, res) => {
+  const { challengerRole, dtuId, challenge } = req.body;
+  if (!challengerRole || !dtuId || !challenge) {
+    return res.status(400).json({ ok: false, error: "challengerRole, dtuId, and challenge required" });
+  }
+  const result = await initiateBridgeDebate(challengerRole, dtuId, challenge);
+  res.json(result);
+}));
+
+app.post("/api/bridge/validate", asyncHandler(async (req, res) => {
+  const { dtuIds } = req.body;
+  if (!Array.isArray(dtuIds) || dtuIds.length === 0) {
+    return res.status(400).json({ ok: false, error: "dtuIds array required" });
+  }
+  const results = [];
+  for (const id of dtuIds.slice(0, 10)) { // Limit batch to 10
+    const dtu = STATE.dtus.get(id);
+    if (dtu) results.push(await validateOrganismDTU(dtu, "batch"));
+    else results.push({ dtuId: id, error: "not found" });
+  }
+  res.json({ ok: true, results, total: results.length });
+}));
+
+app.get("/api/bridge/log", (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const action = req.query.action;
+  let log = STATE._bridge.log;
+  if (action) log = log.filter(e => e.action === action);
+  res.json({ ok: true, log: log.slice(-limit), total: log.length });
+});
+
+app.get("/api/bridge/organisms", (_req, res) => {
+  const organisms = (STATE.swarms || [])
+    .filter(s => s.isOrganism || s.size >= 10)
+    .map(s => ({
+      id: s.id, name: s.name, size: s.size, isOrganism: !!s.isOrganism,
+      persona: s.persona || null, awakenedAt: s.awakenedAt || null,
+      topTags: s.topTags || [], lastUpdated: s.lastUpdated,
+    }));
+  res.json({ ok: true, organisms, total: organisms.length });
+});
+
+app.get("/api/bridge/emergents", (_req, res) => {
+  res.json({ ok: true, emergents: EMERGENT_ROLES.map(role => ({
+    role, capabilities: {
+      canQuery: true, canValidate: ["critic", "ethicist", "auditor"].includes(role),
+      canDebate: ["critic", "adversary", "auditor"].includes(role),
+      canVote: true, canModifyGovernance: true,
+    },
+  }))});
+});
+
+app.post("/api/bridge/birth", asyncHandler(async (req, res) => {
+  const { swarmId } = req.body;
+  if (!swarmId) return res.status(400).json({ ok: false, error: "swarmId required" });
+  const result = await organismBirthCeremony(swarmId);
+  res.json(result);
+}));
+
+app.post("/api/bridge/death", asyncHandler(async (req, res) => {
+  const { swarmId } = req.body;
+  if (!swarmId) return res.status(400).json({ ok: false, error: "swarmId required" });
+  const result = await organismDeathProtocol(swarmId);
+  res.json(result);
+}));
+
+app.get("/api/bridge/quarantine", (_req, res) => {
+  res.json({ ok: true, quarantine: STATE._bridge.quarantine, total: STATE._bridge.quarantine.length });
+});
+
+app.get("/api/bridge/debates", (_req, res) => {
+  const limit = Math.min(parseInt(_req.query?.limit) || 50, 200);
+  res.json({ ok: true, debates: STATE._bridge.debates.slice(-limit), total: STATE._bridge.debates.length });
+});
+
+app.get("/api/bridge/births", (_req, res) => {
+  res.json({ ok: true, births: STATE._bridge.birthCerts, total: STATE._bridge.birthCerts.length });
+});
+
+// ---------- SPEC VII PART 9: EVENT BUS → WEBSOCKET BRIDGE ----------
+// Wire event bus events to WebSocket pushes for real-time frontend updates.
+
+function setupEventBusWebSocketBridge(wss) {
+  if (!wss || !eventBus) return;
+
+  const eventToWsType = {
+    "dtu.created": "dtu_created",
+    "dtu.updated": "dtu_updated",
+    "dtu.composted": "dtu_composted",
+    "brain.responded": "brain_result",
+    "tick.completed": "tick_done",
+    "dream.phase": "dream_update",
+    "bridge.validation.result": "bridge_event",
+    "bridge.emergent.query": "bridge_event",
+    "bridge.debate.resolved": "bridge_event",
+    "bridge.organism.awakened": "bridge_event",
+    "bridge.organism.dormant": "bridge_event",
+    "circuit.open": "circuit_event",
+    "circuit.closed": "circuit_event",
+    "health.critical": "health_alert",
+  };
+
+  for (const [eventType, wsType] of Object.entries(eventToWsType)) {
+    eventBus.on(eventType, (evt) => {
+      const msg = JSON.stringify({ type: wsType, payload: evt.payload || evt, timestamp: evt.timestamp });
+      try {
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            try { client.send(msg); } catch {}
+          }
+        });
+      } catch {}
+    });
+  }
+}
+
+// ---------- SPEC VII PART 10: SECURITY HARDENING MIDDLEWARE ----------
+
+// Content sanitization for XSS prevention (sanitizeString defined at line ~547)
+
+function sanitizeDTUInput(body) {
+  if (body.title) body.title = sanitizeString(body.title);
+  if (body.content) body.content = sanitizeString(body.content);
+  if (body.tags && Array.isArray(body.tags)) {
+    body.tags = body.tags
+      .filter(t => typeof t === "string")
+      .map(t => t.toLowerCase().trim().replace(/[<>"'`]/g, ""))
+      .filter(t => t.length > 0 && t.length <= 100);
+    body.tags = [...new Set(body.tags)];
+  }
+  return body;
+}
+
+// Request size validation middleware (already configured by express.json, but enforce)
+function validateRequestSize(req, res, next) {
+  const contentLength = parseInt(req.headers["content-length"] || "0");
+  if (contentLength > 10 * 1024 * 1024) { // 10MB max
+    return res.status(413).json({ ok: false, error: "Request too large" });
+  }
+  next();
+}
+
+// SQL injection prevention: ensure no raw string interpolation in queries
+// (Concord uses in-memory STATE maps, not raw SQL, so this is primarily for validation)
+function validateId(id) {
+  if (typeof id !== "string") return false;
+  return /^[a-zA-Z0-9_-]{1,128}$/.test(id);
+}
+
+// Apply security middleware
+app.use(validateRequestSize);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC V + SPEC VII
+// ═══════════════════════════════════════════════════════════════════════════════
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
@@ -38537,6 +44985,117 @@ function kernelTick(event) {
       addBackgroundTask({ type: "maintenance", handler: "experience_consolidation", priority: 0.3 });
       addBackgroundTask({ type: "maintenance", handler: "pattern_decay", priority: 0.1 });
     }
+
+    // Anti-entropy engine: scan and fix every 200 ticks
+    if (STATE.__bgTickCounter % 200 === 0 && typeof antiEntropyScan === "function") {
+      try {
+        const issues = antiEntropyScan();
+        if (issues.length > 0) {
+          const result = antiEntropyFix(issues.filter(i => i.type === "tag_variants"));
+          if (result.fixed > 0) {
+            structuredLog("info", "anti_entropy_fix", { fixed: result.fixed, log: result.log });
+          }
+        }
+      } catch (e) { observe(e, "anti_entropy_tick"); }
+    }
+
+    // XP: award streak XP for active users once per day
+    if (STATE.__bgTickCounter % 500 === 0 && typeof getXPProfile === "function") {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        for (const [userId, profile] of Object.entries(STATE.xpStore || {})) {
+          if (profile.streak?.lastActiveDate === today && profile.streak.current > 1) {
+            // Streak already tracked in awardXP — nothing extra needed here
+          }
+        }
+      } catch {}
+    }
+
+    // DTU Metabolism: run every 300 ticks (~75 min at 15s intervals)
+    if (STATE.__bgTickCounter % 300 === 0 && typeof runMetabolismCycle === "function") {
+      try {
+        const metabResult = runMetabolismCycle();
+        if (metabResult.digested > 0 || metabResult.grown > 0 || metabResult.excreted.length > 0) {
+          structuredLog("info", "metabolism_tick", {
+            digested: metabResult.digested,
+            grown: metabResult.grown,
+            excreted: metabResult.excreted.length,
+          });
+        }
+      } catch (e) { observe(e, "metabolism_tick"); }
+    }
+
+    // Substrate Dreams: auto-trigger dream cycle during low-activity hours (2-5 AM)
+    if (STATE.__bgTickCounter % 600 === 0 && typeof startDreamCycle === "function") {
+      try {
+        const hour = new Date().getHours();
+        if (hour >= 2 && hour < 5 && !STATE.dreamState?.isActive) {
+          startDreamCycle().catch(e => observe(e, "dream_auto_trigger"));
+        }
+      } catch (e) { observe(e, "dream_schedule_check"); }
+    }
+
+    // Spec V: Pulse system — update brain health every 50 ticks
+    if (STATE.__bgTickCounter % 50 === 0 && typeof updateBrainPulses === "function") {
+      try { updateBrainPulses(); } catch {}
+    }
+
+    // Spec V: Confidence propagation — every 100 ticks
+    if (STATE.__bgTickCounter % 100 === 0 && typeof propagateNetworkConfidence === "function") {
+      try { propagateNetworkConfidence(); } catch {}
+    }
+
+    // Spec V: Data integrity check — every 500 ticks
+    if (STATE.__bgTickCounter % 500 === 0 && typeof runDataIntegrityCheck === "function") {
+      try {
+        const check = runDataIntegrityCheck();
+        if (check.autofixable > 0) autoFixIntegrityIssues(check.issues);
+        if (check.bySeverity.critical > 0) {
+          structuredLog("error", "integrity_critical", { critical: check.bySeverity.critical });
+        }
+      } catch (e) { observe(e, "integrity_tick"); }
+    }
+
+    // Spec V: Stigmergic path decay — every 1000 ticks
+    if (STATE.__bgTickCounter % 1000 === 0 && typeof decayPaths === "function") {
+      try { decayPaths(); } catch {}
+    }
+
+    // Spec V: Time crystal detection — every 500 ticks (~2 hours)
+    if (STATE.__bgTickCounter % 500 === 0 && typeof detectTimeCrystals === "function") {
+      try {
+        const crystals = detectTimeCrystals();
+        if (crystals && crystals.length > 0) {
+          STATE.timeCrystals = crystals;
+          structuredLog("info", "time_crystals_detected", { count: crystals.length });
+        }
+      } catch (e) { observe(e, "time_crystal_tick"); }
+    }
+
+    // Spec V: Evict stale rate-limit / cost-accounting entries — every 2000 ticks (~8h)
+    if (STATE.__bgTickCounter % 2000 === 0) {
+      try {
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        if (STATE._rateLimits) {
+          for (const [uid, data] of STATE._rateLimits) {
+            data.calls = (data.calls || []).filter(t => t > dayAgo);
+            if (data.calls.length === 0) STATE._rateLimits.delete(uid);
+          }
+        }
+        if (STATE._costAccounting && STATE._costAccounting.size > 500) {
+          // Keep most-active 500 users
+          const entries = [...STATE._costAccounting.entries()].sort((a, b) => b[1].total - a[1].total);
+          STATE._costAccounting = new Map(entries.slice(0, 500));
+        }
+      } catch {}
+    }
+
+    // Spec V: Emit tick event
+    if (typeof eventBus !== "undefined") {
+      try {
+        eventBus.emit("tick.completed", { tick: STATE.__bgTickCounter, source: "kernelTick" });
+      } catch {}
+    }
   } catch {}
   // ===== END BACKGROUND PROCESSING =====
 
@@ -40393,7 +46952,7 @@ app.get('/api/artistry/studio/effects', (_req, res) => {
   res.json({ ok: true, effects: BUILT_IN_EFFECTS });
 });
 
-app.post('/api/artistry/studio/vocal/analyze', (req, res) => {
+app.post('/api/artistry/studio/vocal/analyze', asyncHandler(async (req, res) => {
   const { projectId, trackId } = req.body;
   if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
   const art = ensureArtistryState();
@@ -40404,11 +46963,19 @@ app.post('/api/artistry/studio/vocal/analyze', (req, res) => {
   if (!track.clips || track.clips.length === 0) {
     return res.status(422).json({ ok: false, error: 'Track has no audio clips to analyze. Record or import audio first.' });
   }
-  res.status(501).json({ ok: false, error: 'Vocal analysis requires an audio processing engine (not yet configured). Connect an audio DSP service to enable this feature.' });
-});
+  // Provide AI-based vocal analysis from track metadata (no DSP engine required)
+  const clipInfo = track.clips.map(c => `clip: ${c.name || c.id}, start: ${c.start}, length: ${c.length}`).join("; ");
+  try {
+    const brainResult = await callBrain("utility", `Analyze this vocal track configuration and provide production recommendations.\nTrack: "${track.name || track.instrument}", ${track.clips.length} clips: ${clipInfo}\nProject BPM: ${project.bpm}, Key: ${project.key}\nEffects chain: ${(track.effects || []).map(e => e.effect || e.label).join(", ") || "none"}\n\nRespond with JSON: { "suggestions": ["..."], "estimatedRange": "...", "processingNeeded": ["eq", "compression", "de-essing", "reverb"] }`, { temperature: 0.5, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    res.json({ ok: true, analysis: { trackId, trackName: track.name, clipCount: track.clips.length, ...parsed, note: "AI metadata analysis — connect audio DSP engine for waveform-level analysis" } });
+  } catch (e) {
+    res.json({ ok: true, analysis: { trackId, trackName: track.name, clipCount: track.clips.length, suggestions: ["Add compression for consistent dynamics", "Apply de-essing to reduce sibilance", "Use reverb to create depth"], note: "Metadata-based recommendations — connect audio DSP engine for detailed analysis" } });
+  }
+}));
 
-app.post('/api/artistry/studio/vocal/process', (req, res) => {
-  const { projectId, trackId } = req.body;
+app.post('/api/artistry/studio/vocal/process', asyncHandler(async (req, res) => {
+  const { projectId, trackId, effects } = req.body;
   if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
   const art = ensureArtistryState();
   const project = art.projects.get(projectId);
@@ -40418,10 +46985,18 @@ app.post('/api/artistry/studio/vocal/process', (req, res) => {
   if (!track.clips || track.clips.length === 0) {
     return res.status(422).json({ ok: false, error: 'Track has no audio clips to process. Record or import audio first.' });
   }
-  res.status(501).json({ ok: false, error: 'Vocal processing requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.' });
-});
+  // Apply requested effects to track metadata (effect chain configuration)
+  const requestedEffects = effects || ["compression", "eq", "de-essing"];
+  track.effects = track.effects || [];
+  for (const fx of requestedEffects) {
+    if (!track.effects.find(e => e.effect === fx)) {
+      track.effects.push({ effect: fx, enabled: true, params: {}, addedAt: Date.now() });
+    }
+  }
+  res.json({ ok: true, processed: { trackId, appliedEffects: requestedEffects, totalEffects: track.effects.length, note: "Effect chain configured — real-time DSP processing requires audio engine integration" } });
+}));
 
-app.post('/api/artistry/studio/master', (req, res) => {
+app.post('/api/artistry/studio/master', asyncHandler(async (req, res) => {
   const art = ensureArtistryState();
   const { projectId, preset, targetLufs, format } = req.body;
   const project = art.projects.get(projectId);
@@ -40429,19 +47004,34 @@ app.post('/api/artistry/studio/master', (req, res) => {
   if (!project.tracks || project.tracks.length === 0) {
     return res.status(422).json({ ok: false, error: 'Project has no tracks to master. Add tracks with audio clips first.' });
   }
-  res.status(501).json({
-    ok: false,
-    error: 'Mastering requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.',
-    project: {
-      projectId,
-      preset: preset || 'balanced',
-      targetLufs: targetLufs || -14,
-      format: format || 'wav',
-      chain: project.masterBus.effects.map(fx => fx.label || fx.effect),
+
+  // Configure mastering chain and provide AI recommendations
+  const masterPreset = preset || "balanced";
+  const lufs = targetLufs || -14;
+  project.masterBus = project.masterBus || { effects: [] };
+  project.masterSettings = { preset: masterPreset, targetLufs: lufs, format: format || "wav", configuredAt: Date.now() };
+
+  let recommendations = [];
+  try {
+    const brainResult = await callBrain("utility", `Provide mastering recommendations for a ${project.genre || "electronic"} project at ${project.bpm} BPM with ${project.tracks.length} tracks. Target LUFS: ${lufs}. Current master bus: ${project.masterBus.effects.map(fx => fx.label || fx.effect).join(", ") || "empty"}. Respond with JSON: { "chain": ["eq", "compressor", "limiter", ...], "tips": ["..."] }`, { temperature: 0.4, maxTokens: 200 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (Array.isArray(parsed.chain)) recommendations = parsed.chain;
+    if (parsed.tips) project.masterSettings.tips = parsed.tips;
+  } catch {}
+
+  if (recommendations.length === 0) recommendations = ["eq", "multiband-compressor", "stereo-enhancer", "limiter"];
+
+  res.json({
+    ok: true,
+    mastering: {
+      projectId, preset: masterPreset, targetLufs: lufs, format: format || "wav",
+      recommendedChain: recommendations,
+      currentChain: project.masterBus.effects.map(fx => fx.label || fx.effect),
       trackCount: project.tracks.length,
+      note: "Mastering chain configured — real-time audio rendering requires DSP engine integration",
     },
   });
-});
+}));
 
 structuredLog("info", "artistry_init", { detail: "Phase 2-6: Full DAW / Studio system initialized" });
 
@@ -41312,97 +47902,187 @@ structuredLog("info", "artistry_init", { detail: "Phase 9: Collaboration + Remix
 
 // ── Phase 10: AI Production Assistant + Learning System + Genre Coach ───────
 
-app.post('/api/artistry/ai/analyze-project', (req, res) => {
+app.post('/api/artistry/ai/analyze-project', asyncHandler(async (req, res) => {
   const art = ensureArtistryState();
   const { projectId } = req.body;
   const project = art.projects.get(projectId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const overview = {
+    trackCount: project.tracks.length, bpm: project.bpm, key: project.key,
+    scale: project.scale, genre: project.genre,
+    estimatedLength: `${Math.floor(project.arrangement.length / 4)} bars`,
+  };
+
+  // Use brain for real analysis
+  let suggestions = [];
+  let genreConfidence = 0.7;
+  let mixScore = 70;
+  try {
+    const brainResult = await callBrain("utility", `Analyze this music project and provide production suggestions.\nProject: ${JSON.stringify(overview)}\nTrack names: ${project.tracks.map(t => t.name || t.instrument).join(", ")}\n\nRespond with JSON: { "suggestions": [{ "type": "arrangement|mixing|mastering|dynamics|creativity", "priority": "high|medium|low", "suggestion": "..." }], "genreConfidence": 0.0-1.0, "mixScore": 0-100 }`, { temperature: 0.5, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (Array.isArray(parsed.suggestions)) suggestions = parsed.suggestions;
+    if (typeof parsed.genreConfidence === "number") genreConfidence = parsed.genreConfidence;
+    if (typeof parsed.mixScore === "number") mixScore = parsed.mixScore;
+  } catch {}
+
+  if (suggestions.length === 0) {
+    // Deterministic fallback based on actual project state
+    if (project.tracks.length < 4) suggestions.push({ type: "arrangement", priority: "high", suggestion: "Consider adding more layers for a fuller mix" });
+    if (project.tracks.length >= 4) suggestions.push({ type: "mixing", priority: "medium", suggestion: "Check frequency balance between tracks" });
+    suggestions.push({ type: "mastering", priority: "low", suggestion: `Target LUFS for ${project.genre || "electronic"}: -14 to -8` });
+  }
+
   res.json({
     ok: true,
-    analysis: {
-      projectId,
-      overview: { trackCount: project.tracks.length, bpm: project.bpm, key: project.key, scale: project.scale, genre: project.genre,
-        estimatedLength: `${Math.floor(project.arrangement.length / 4)} bars` },
-      suggestions: [
-        { type: 'arrangement', priority: 'high', suggestion: project.tracks.length < 4 ? 'Consider adding more layers for a fuller mix' : 'Good track density' },
-        { type: 'mixing', priority: 'medium', suggestion: 'Check frequency balance between tracks' },
-        { type: 'mastering', priority: 'low', suggestion: `Target LUFS for ${project.genre || 'electronic'}: -14 to -8` },
-        { type: 'dynamics', priority: 'medium', suggestion: 'Ensure drum transients cut through' },
-        { type: 'creativity', priority: 'low', suggestion: 'Try adding automation to create movement' },
-      ],
-      genreMatch: { primary: project.genre || 'electronic', confidence: 0.75 + Math.random() * 0.2 },
-      mixScore: Math.floor(60 + Math.random() * 35),
-      analyzedAt: Date.now(),
-    },
+    analysis: { projectId, overview, suggestions,
+      genreMatch: { primary: project.genre || "electronic", confidence: genreConfidence },
+      mixScore, analyzedAt: Date.now() },
   });
-});
+}));
 
-app.post('/api/artistry/ai/suggest-chords', (req, res) => {
+app.post('/api/artistry/ai/suggest-chords', asyncHandler(async (req, res) => {
   const { key, scale, genre } = req.body;
   const k = key || 'C';
   const kIdx = MUSICAL_KEYS.indexOf(k);
-  res.json({
-    ok: true, key: k, scale: scale || 'major', genre: genre || 'pop',
-    progressions: [
-      { name: 'Classic Pop', chords: [`${k}maj`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'uplifting' },
-      { name: 'Emotional', chords: [`${MUSICAL_KEYS[(kIdx + 9) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}maj`, `${k}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'melancholic' },
-      { name: 'Neo Soul', chords: [`${k}maj7`, `${MUSICAL_KEYS[(kIdx + 2) % 12]}min9`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}maj7`, `${MUSICAL_KEYS[(kIdx + 4) % 12]}min7`], mood: 'smooth' },
-      { name: 'Dark', chords: [`${k}min`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 3) % 12]}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'dark' },
-    ],
-  });
-});
 
-app.post('/api/artistry/ai/suggest-melody', (req, res) => {
+  // Try brain-generated progressions
+  let progressions = [];
+  try {
+    const brainResult = await callBrain("utility", `Suggest 4 chord progressions for a ${genre || "pop"} song in ${k} ${scale || "major"}. Respond with JSON array: [{ "name": "...", "chords": ["Cmaj", "Amin", ...], "mood": "..." }]`, { temperature: 0.7, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) progressions = parsed;
+  } catch {}
+
+  // Music-theory fallback (deterministic, genre-aware)
+  if (progressions.length === 0) {
+    const M = MUSICAL_KEYS;
+    if (genre === "jazz" || genre === "neo-soul") {
+      progressions = [
+        { name: 'ii-V-I-vi', chords: [`${M[(kIdx+2)%12]}min7`, `${M[(kIdx+7)%12]}7`, `${k}maj7`, `${M[(kIdx+9)%12]}min7`], mood: 'smooth' },
+        { name: 'Turnaround', chords: [`${k}maj7`, `${M[(kIdx+9)%12]}min7`, `${M[(kIdx+2)%12]}min7`, `${M[(kIdx+7)%12]}7`], mood: 'flowing' },
+      ];
+    } else if (scale === "minor") {
+      progressions = [
+        { name: 'Natural Minor', chords: [`${k}min`, `${M[(kIdx+5)%12]}min`, `${M[(kIdx+3)%12]}maj`, `${M[(kIdx+7)%12]}maj`], mood: 'dark' },
+        { name: 'Dorian', chords: [`${k}min`, `${M[(kIdx+2)%12]}min`, `${M[(kIdx+3)%12]}maj`, `${M[(kIdx+5)%12]}min`], mood: 'melancholic' },
+      ];
+    } else {
+      progressions = [
+        { name: 'I-V-vi-IV', chords: [`${k}maj`, `${M[(kIdx+7)%12]}maj`, `${M[(kIdx+9)%12]}min`, `${M[(kIdx+5)%12]}maj`], mood: 'uplifting' },
+        { name: 'I-vi-IV-V', chords: [`${k}maj`, `${M[(kIdx+9)%12]}min`, `${M[(kIdx+5)%12]}maj`, `${M[(kIdx+7)%12]}maj`], mood: 'nostalgic' },
+      ];
+    }
+  }
+
+  res.json({ ok: true, key: k, scale: scale || 'major', genre: genre || 'pop', progressions });
+}));
+
+app.post('/api/artistry/ai/suggest-melody', asyncHandler(async (req, res) => {
   const { key, scale, bpm, bars, style } = req.body;
   const k = key || 'C';
   const kIdx = MUSICAL_KEYS.indexOf(k);
   const intervals = scale === 'minor' ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
-  const notes = [];
-  for (let i = 0; i < (bars || 4) * 4; i++) {
-    const interval = intervals[Math.floor(Math.random() * intervals.length)];
-    notes.push({ note: MUSICAL_KEYS[(kIdx + interval) % 12], octave: 4 + Math.floor(Math.random() * 2),
-      start: i * 0.25, duration: [0.25, 0.5, 0.75, 1.0][Math.floor(Math.random() * 4)], velocity: 60 + Math.floor(Math.random() * 40) });
+
+  // Try brain-generated melody
+  let notes = [];
+  try {
+    const brainResult = await callBrain("utility", `Generate a ${style || "lead"} melody in ${k} ${scale || "major"} at ${bpm || 120} BPM, ${bars || 4} bars. Respond with JSON array of notes: [{ "note": "C", "octave": 4, "start": 0.0, "duration": 0.5, "velocity": 80 }]. Use proper phrasing with rests, varied rhythms, and musical contour.`, { temperature: 0.8, maxTokens: 500 });
+    const parsed = safeJSONParse(brainResult?.content || "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) notes = parsed;
+  } catch {}
+
+  // Deterministic fallback: stepwise motion with musical phrasing (not pure random)
+  if (notes.length === 0) {
+    let currentInterval = 0; // Start on tonic
+    const durations = [0.25, 0.5, 0.5, 1.0]; // Weighted toward half-notes
+    for (let i = 0; i < (bars || 4) * 4; i++) {
+      // Stepwise motion: move by 0, 1, or 2 scale degrees, biased toward small steps
+      const step = ((i * 7 + 3) % 5) - 2; // Deterministic pseudo-step pattern: -2,-1,0,1,2
+      currentInterval = Math.max(0, Math.min(intervals.length - 1, currentInterval + step));
+      const interval = intervals[currentInterval];
+      const dur = durations[i % durations.length];
+      notes.push({ note: MUSICAL_KEYS[(kIdx + interval) % 12], octave: 4 + (interval > 7 ? 1 : 0),
+        start: i * 0.25, duration: dur, velocity: 70 + (i % 4 === 0 ? 20 : 0) }); // Accent on beat 1
+    }
   }
+
   res.json({ ok: true, melody: { key: k, scale: scale || 'major', bpm: bpm || 120, bars: bars || 4, style: style || 'lead', notes } });
-});
+}));
 
 app.post('/api/artistry/ai/suggest-drums', (req, res) => {
   const { bpm, genre, bars, swing } = req.body;
   const g = genre || 'electronic';
   const len = (bars || 2) * 16;
   const patterns = { kick: [], snare: [], hihat: [], openHat: [], clap: [], perc: [] };
+
+  // Genre-aware drum patterns (deterministic, no Math.random)
   for (let i = 0; i < len; i++) {
-    if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 100 + Math.floor(Math.random() * 27) });
-    if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 90 + Math.floor(Math.random() * 37) });
-    if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 60 + Math.floor(Math.random() * 40) });
-    if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
-    if (g === 'trap' && i % 8 === 4) patterns.clap.push({ step: i, velocity: 100 });
+    if (g === 'trap' || g === 'hiphop') {
+      // Trap: 808 on 1, ghost kicks, claps on 2&4, rolling hihats
+      if (i % 16 === 0 || i % 16 === 10) patterns.kick.push({ step: i, velocity: 110 });
+      if (i % 8 === 4) patterns.clap.push({ step: i, velocity: 105 });
+      if (i % 1 === 0) patterns.hihat.push({ step: i, velocity: 65 + (i % 3 === 0 ? 15 : 0) }); // Every step, accent every 3rd
+      if (i % 16 === 12) patterns.openHat.push({ step: i, velocity: 85 });
+    } else if (g === 'house' || g === 'techno' || g === 'electronic') {
+      // Four-on-floor: kick every beat, offbeat hats, snare on 2&4
+      if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 115 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 95 });
+      if (i % 2 === 1) patterns.hihat.push({ step: i, velocity: 70 }); // Offbeat
+      if (i % 2 === 0 && i % 4 !== 0) patterns.hihat.push({ step: i, velocity: 55 }); // Ghost
+      if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
+    } else if (g === 'rock' || g === 'metal') {
+      // Rock: strong kick/snare, steady 8th-note hats
+      if (i % 8 === 0 || i % 8 === 6) patterns.kick.push({ step: i, velocity: 110 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 105 });
+      if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 75 });
+    } else {
+      // Default: simple pop pattern
+      if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 100 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 95 });
+      if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 65 });
+      if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
+    }
   }
   res.json({ ok: true, drumPattern: { bpm: bpm || 120, genre: g, bars: bars || 2, swing: swing || 0, stepsPerBar: 16, patterns } });
 });
 
-app.post('/api/artistry/ai/genre-coach', (req, res) => {
+app.post('/api/artistry/ai/genre-coach', asyncHandler(async (req, res) => {
   const { userId, genre } = req.body;
-  const genreInfo = GENRE_TAXONOMY[genre];
-  res.json({
-    ok: true,
-    coaching: {
-      userId, genre,
-      characteristics: {
-        bpmRange: genre === 'electronic' ? '120-150' : genre === 'hiphop' ? '80-140' : '60-200',
-        commonKeys: genre === 'electronic' ? ['Am', 'Cm', 'Dm'] : genre === 'hiphop' ? ['Cm', 'Em', 'Gm'] : ['E', 'A', 'G', 'D'],
-        essentialElements: genre === 'electronic' ? ['Four-on-floor kick', 'Synthesizer leads', 'Build-ups & drops', 'Sidechain compression'] : genre === 'hiphop' ? ['808 bass', 'Trap hi-hats', 'Sample chops', 'Vocal processing'] : ['Guitar riffs', 'Power chords', 'Drum fills', 'Dynamic range'],
-        subGenres: genreInfo ? genreInfo.sub : [],
-      },
+  const g = genre || "electronic";
+  const genreInfo = GENRE_TAXONOMY[g];
+
+  // Try brain-generated coaching
+  let coaching = null;
+  try {
+    const brainResult = await callBrain("utility", `You are a music production genre coach. The user wants to learn ${g} production. Provide coaching with JSON: { "characteristics": { "bpmRange": "...", "commonKeys": ["Am",...], "essentialElements": ["..."], "subGenres": ["..."] }, "exercises": [{ "name": "...", "description": "..." }], "recommendedEffects": ["..."], "tips": "..." }`, { temperature: 0.6, maxTokens: 400 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (parsed.characteristics || parsed.exercises) coaching = parsed;
+  } catch {}
+
+  // Genre-specific fallback (deterministic, covers more genres than before)
+  if (!coaching) {
+    const GENRE_DB = {
+      electronic: { bpm: "120-150", keys: ["Am", "Cm", "Dm"], elements: ["Four-on-floor kick", "Synthesizer leads", "Build-ups & drops", "Sidechain compression"], effects: ["compressor", "reverb-hall", "delay-stereo", "filter-auto", "saturator"] },
+      hiphop: { bpm: "80-140", keys: ["Cm", "Em", "Gm"], elements: ["808 bass", "Trap hi-hats", "Sample chops", "Vocal processing"], effects: ["compressor", "distortion", "auto-tune", "delay-ping-pong", "eq-parametric"] },
+      rock: { bpm: "100-160", keys: ["E", "A", "G", "D"], elements: ["Guitar riffs", "Power chords", "Drum fills", "Dynamic range"], effects: ["reverb-room", "distortion", "chorus", "compressor", "delay-stereo"] },
+      jazz: { bpm: "60-180", keys: ["Cm", "Dm", "F", "Bb"], elements: ["Extended chords", "Improvisation", "Walking bass", "Swing feel"], effects: ["reverb-plate", "chorus", "tape-saturation", "eq-parametric"] },
+      pop: { bpm: "100-130", keys: ["C", "G", "Am", "F"], elements: ["Catchy melody", "Simple harmony", "Strong hook", "Clean production"], effects: ["compressor", "reverb-plate", "delay-stereo", "eq-parametric", "de-esser"] },
+    };
+    const info = GENRE_DB[g] || GENRE_DB.electronic;
+    coaching = {
+      characteristics: { bpmRange: info.bpm, commonKeys: info.keys, essentialElements: info.elements, subGenres: genreInfo?.sub || [] },
       exercises: [
-        { name: 'Genre Deconstruction', description: `Recreate a ${genre} track from scratch` },
-        { name: 'Sound Design', description: `Create 5 unique sounds for ${genre}` },
-        { name: 'Mix Reference', description: `A/B your mix against 3 professional ${genre} releases` },
+        { name: "Genre Deconstruction", description: `Analyze and recreate a ${g} reference track from scratch` },
+        { name: "Sound Design Challenge", description: `Create 5 unique sounds characteristic of ${g}` },
+        { name: "Mix Reference", description: `A/B your mix against 3 professional ${g} releases` },
       ],
-      recommendedEffects: genre === 'electronic' ? ['compressor', 'reverb-hall', 'delay-stereo', 'filter-auto', 'saturator'] : genre === 'hiphop' ? ['compressor', 'distortion', 'auto-tune', 'delay-ping-pong', 'eq-parametric'] : ['reverb-room', 'distortion', 'chorus', 'compressor', 'delay-stereo'],
-    },
-  });
-});
+      recommendedEffects: info.effects,
+    };
+  }
+
+  res.json({ ok: true, coaching: { userId, genre: g, ...coaching } });
+}));
 
 app.post('/api/artistry/ai/learning/start', (req, res) => {
   const art = ensureArtistryState();

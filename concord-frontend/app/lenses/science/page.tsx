@@ -6,6 +6,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   FlaskConical,
   TestTubes,
@@ -883,6 +884,9 @@ export default function ScienceLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="science" artifactId={items[0]?.id} compact />
       {/* Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

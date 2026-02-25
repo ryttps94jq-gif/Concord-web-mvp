@@ -7,6 +7,7 @@ import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   ClipboardList, Layers, ShieldCheck, Cog, HardHat, Box,
   Plus, Search, Filter, X, Edit2, Trash2, AlertTriangle,
@@ -1426,6 +1427,9 @@ export default function ManufacturingLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="manufacturing" artifactId={items[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

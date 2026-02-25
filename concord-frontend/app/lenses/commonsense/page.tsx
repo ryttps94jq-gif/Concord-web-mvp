@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Lightbulb, Plus, Search, Database, ArrowRight, Brain
 } from 'lucide-react';
@@ -18,6 +20,9 @@ export default function CommonsenseLensPage() {
   const [object, setObject] = useState('');
   const [queryText, setQueryText] = useState('');
   const [results, setResults] = useState<unknown>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('commonsense', 'fact');
 
   const { data: factsData, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['commonsense-facts'],
@@ -47,6 +52,14 @@ export default function CommonsenseLensPage() {
 
   const facts = factsData?.facts || factsData || [];
   const statusInfo = status?.status || status || {};
+
+  // Bridge commonsense facts into lens artifacts
+  useEffect(() => {
+    bridge.syncList(Array.isArray(facts) ? facts : [], (f) => {
+      const fact = f as Record<string, unknown>;
+      return { title: `${fact.subject} ${fact.relation} ${fact.object}`, data: fact };
+    });
+  }, [facts, bridge]);
 
   const relations = ['is_a', 'has_property', 'part_of', 'used_for', 'causes', 'capable_of', 'located_at'];
 
@@ -80,6 +93,9 @@ export default function CommonsenseLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="commonsense" artifactId={bridge.selectedId} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="lens-card">

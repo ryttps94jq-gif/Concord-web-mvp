@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { ds } from '@/lib/design-system';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Building2, Home, Eye, ArrowLeftRight, KeyRound, TrendingUp,
   Plus, Search, X, Trash2, MapPin, DollarSign, Calendar, User,
@@ -548,6 +549,9 @@ export default function RealEstateLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="realestate" artifactId={items[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (

@@ -44,6 +44,21 @@ import {
   MessageSquare, Layout, Share2, Code, Music,
 } from 'lucide-react';
 import { use70Lock } from '@/hooks/use70Lock';
+import { MorningBrief } from '@/components/brief/MorningBrief';
+import { ContextResurrection } from '@/components/common/ContextResurrection';
+import { SubstrateDreams } from '@/components/dreams/SubstrateDreams';
+import { MetabolismPanel } from '@/components/metabolism/MetabolismPanel';
+import { EpisodicMemory } from '@/components/memory/EpisodicMemory';
+import { BrainCouncil } from '@/components/council/BrainCouncil';
+import { AgentPersonas } from '@/components/agents/AgentPersonas';
+import { TaskDelegation } from '@/components/tasks/TaskDelegation';
+import { KnowledgeGardens } from '@/components/gardens/KnowledgeGardens';
+import { BountiesAndFutures } from '@/components/economy/BountiesAndFutures';
+import { SubstrateWeather } from '@/components/weather/SubstrateWeather';
+import { CognitiveDigitalTwin } from '@/components/twin/CognitiveDigitalTwin';
+import { SwarmIntelligence } from '@/components/swarm/SwarmIntelligence';
+import { TimeCrystals } from '@/components/temporal/TimeCrystals';
+import { NervousSystem } from '@/components/nervous/NervousSystem';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -288,6 +303,16 @@ function DashboardPage() {
         </div>
       </header>
 
+      {/* Context Resurrection — welcome-back cognitive context banner */}
+      <LensErrorBoundary name="Context Resurrection">
+        <ContextResurrection />
+      </LensErrorBoundary>
+
+      {/* Substrate Weather Report */}
+      <LensErrorBoundary name="Substrate Weather">
+        <SubstrateWeather />
+      </LensErrorBoundary>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard
@@ -322,6 +347,11 @@ function DashboardPage() {
           locked={lockPercentage >= 70}
         />
       </div>
+
+      {/* Morning Brief */}
+      <LensErrorBoundary name="Morning Brief">
+        <MorningBrief />
+      </LensErrorBoundary>
 
       {/* Live Feed + Emergent Council + Governance — each wrapped independently */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -384,6 +414,56 @@ function DashboardPage() {
           <LockDashboard />
         </div>
       </div>
+
+      {/* Living Substrate — Dreams, Metabolism, Memory, Council */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <LensErrorBoundary name="Substrate Dreams">
+          <SubstrateDreams />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="DTU Metabolism">
+          <MetabolismPanel />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Episodic Memory">
+          <EpisodicMemory />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Brain Council">
+          <BrainCouncil />
+        </LensErrorBoundary>
+      </div>
+
+      {/* Multi-Agent & Economy — Personas, Tasks, Gardens, Bounties/Futures */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <LensErrorBoundary name="Agent Personas">
+          <AgentPersonas />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Task Delegation">
+          <TaskDelegation />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Knowledge Gardens">
+          <KnowledgeGardens />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Bounties & Futures">
+          <BountiesAndFutures />
+        </LensErrorBoundary>
+      </div>
+
+      {/* Cognitive Civilization — Digital Twin, Swarms, Temporal Intelligence */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <LensErrorBoundary name="Cognitive Digital Twin">
+          <CognitiveDigitalTwin />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="DTU Swarms">
+          <SwarmIntelligence />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Temporal Intelligence">
+          <TimeCrystals />
+        </LensErrorBoundary>
+      </div>
+
+      {/* Nervous System — Production Health Dashboard */}
+      <LensErrorBoundary name="Nervous System">
+        <NervousSystem />
+      </LensErrorBoundary>
 
       {/* Queue Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -5,6 +5,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Heart,
   Users,
@@ -947,6 +948,9 @@ export default function HealthcareLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="healthcare" artifactId={items[0]?.id} compact />
       {/* ============================================================ */}
       {/* Mode Tabs                                                    */}
       {/* ============================================================ */}

@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   GitMerge, Plus, ArrowRight, Database, Search, Zap,
   Clock, Gauge, Activity, ListOrdered, ChevronDown, ChevronUp,
@@ -43,6 +45,9 @@ export default function InferenceLensPage() {
   const [inferenceHistory, setInferenceHistory] = useState<InferenceHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(true);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('inference', 'snapshot');
 
   const { data: status, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['inference-status'],
@@ -120,6 +125,13 @@ export default function InferenceLensPage() {
 
   const statusInfo = status?.status || status || {};
 
+  // Bridge inference status into lens artifacts
+  useEffect(() => {
+    if (Object.keys(statusInfo).length > 0) {
+      bridge.sync(statusInfo as Record<string, unknown>, 'Inference Engine Status');
+    }
+  }, [statusInfo, bridge]);
+
   const avgLatency = useMemo(() => {
     if (inferenceHistory.length === 0) return 0;
     return inferenceHistory.reduce((s, h) => s + (h.latencyMs || 0), 0) / inferenceHistory.length;
@@ -164,13 +176,16 @@ export default function InferenceLensPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="p-2 rounded-lg bg-lattice-surface hover:bg-lattice-border transition-colors text-gray-400 hover:text-white"
-          title="Refresh status"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <UniversalActions domain="inference" artifactId={bridge.selectedId} compact />
+          <button
+            onClick={() => refetch()}
+            className="p-2 rounded-lg bg-lattice-surface hover:bg-lattice-border transition-colors text-gray-400 hover:text-white"
+            title="Refresh status"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       {/* Stats Row */}

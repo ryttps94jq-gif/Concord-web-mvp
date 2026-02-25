@@ -6,6 +6,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Dumbbell, Users, ListChecks, CalendarDays, Shield, Medal,
   Plus, Search, X, Trash2, Target, Timer, Zap, User, Calendar,
@@ -698,6 +699,9 @@ export default function FitnessLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="fitness" artifactId={items[0]?.id} compact />
       {/* ========== Mode Tabs ========== */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (

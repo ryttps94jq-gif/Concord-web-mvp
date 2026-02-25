@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react';
 import { GitFork, GitBranch, GitMerge, Layers, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface ForkData {
   parentId: string | null;
@@ -157,6 +158,9 @@ export default function ForkLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="fork" artifactId={items[0]?.id} compact />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

@@ -6,6 +6,7 @@ import { Loading } from '@/components/common/Loading';
 import { useState } from 'react';
 import { Users, Plus, MessageSquare, Target, Shield, Zap } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface AllianceData {
   name: string;
@@ -166,6 +167,9 @@ export default function AllianceLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="alliance" artifactId={items[0]?.id} compact />
       {/* Create Alliance Form */}
       {showCreate && (
         <div className="panel p-4 space-y-3">

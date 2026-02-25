@@ -3,6 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
+import { useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   TrendingUp, AlertTriangle, CheckCircle2,
   Brain, Eye, Shield, BarChart3
@@ -24,6 +27,9 @@ interface Reflection {
 export default function ReflectionLensPage() {
   useLensNav('reflection');
 
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('reflection', 'reflection');
+
   const { data: status, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['reflection-status'],
     queryFn: () => apiHelpers.reflection.status().then((r) => r.data),
@@ -43,6 +49,14 @@ export default function ReflectionLensPage() {
   const reflections: Reflection[] = recent?.reflections || [];
   const model = selfModel?.selfModel || status?.selfModel || {};
   const stats = status?.stats || {};
+
+  // Bridge reflections into lens artifacts
+  useEffect(() => {
+    bridge.syncList(reflections, (r) => {
+      const ref = r as Reflection;
+      return { title: `Reflection ${ref.id}`, data: r as Record<string, unknown>, meta: { quality: String(ref.quality) } };
+    });
+  }, [reflections, bridge]);
 
   const avgQuality = reflections.length > 0
     ? reflections.reduce((s, r) => s + r.quality, 0) / reflections.length
@@ -86,6 +100,9 @@ export default function ReflectionLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="reflection" artifactId={bridge.selectedId} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

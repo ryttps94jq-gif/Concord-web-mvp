@@ -4,6 +4,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Leaf, Sun, Droplet, Wind, TreeDeciduous, TrendingUp, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 // Seed data — auto-created in backend if empty
 const SEED_METRICS: { title: string; data: { id: string; value: number; unit: string; icon: string; color: string } }[] = [];
@@ -77,6 +78,9 @@ export default function EcoLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="eco" artifactId={metricItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {ecosystemMetrics.map((metric) => {
           const Icon = metric.icon;

@@ -7,6 +7,7 @@ import { apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Wifi, WifiOff, Database, RefreshCw, Upload, Download, Trash2, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface SyncItem {
   id: string;
@@ -186,6 +187,9 @@ export default function OfflineLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="offline" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Database className="w-5 h-5 text-neon-blue mb-2" />

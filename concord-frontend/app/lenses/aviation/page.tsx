@@ -5,6 +5,7 @@ import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
 import { useState, useMemo, useCallback } from 'react';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Plane, Plus, Search, Clock, Users, Calendar, X, Navigation,
   Shield, Wrench, FileText, DollarSign, Weight, AlertTriangle, CheckCircle,
@@ -1642,6 +1643,9 @@ export default function AviationLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="aviation" artifactId={items[0]?.id} compact />
       {/* Mode Tabs */}
       <div className="flex gap-1 border-b border-lattice-border pb-0 overflow-x-auto">
         {MODE_TABS.map(tab => {

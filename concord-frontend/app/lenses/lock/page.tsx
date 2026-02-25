@@ -7,6 +7,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface LockEventData {
   event: string;
@@ -84,6 +85,9 @@ export default function LockLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="lock" artifactId={items[0]?.id} compact />
       {/* Lock Gauge */}
       <div className="panel p-6">
         <div className="relative w-full h-12 bg-lattice-deep rounded-full overflow-hidden">

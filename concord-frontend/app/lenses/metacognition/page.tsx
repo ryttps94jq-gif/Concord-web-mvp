@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Eye,
   Brain,
@@ -91,6 +93,9 @@ export default function MetacognitionLensPage() {
   const [predictionDomain, setPredictionDomain] = useState('');
   const [introspectFocus, setIntrospectFocus] = useState('');
   const [expandedPrediction, setExpandedPrediction] = useState<string | null>(null);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('metacognition', 'snapshot');
 
   // --- Queries ---
 
@@ -211,6 +216,13 @@ export default function MetacognitionLensPage() {
     const raw = introspectionStatus?.introspection || introspectionStatus;
     return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   }, [introspectionStatus]);
+
+  // Bridge metacognition status into lens artifacts
+  useEffect(() => {
+    if (Object.keys(statusInfo).length > 0) {
+      bridge.sync(statusInfo as Record<string, unknown>, 'Metacognition Status');
+    }
+  }, [statusInfo, bridge]);
 
   const predictions = useMemo(() => {
     const raw =
@@ -337,6 +349,9 @@ export default function MetacognitionLensPage() {
           </p>
         </div>
       </header>
+
+      {/* AI Actions */}
+      <UniversalActions domain="metacognition" artifactId={bridge.selectedId} compact />
 
       {/* Summary Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

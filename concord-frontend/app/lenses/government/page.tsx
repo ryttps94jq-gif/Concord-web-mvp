@@ -5,6 +5,7 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData, LensItem } from '@/lib/hooks/use-lens-data';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ds } from '@/lib/design-system';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Landmark,
   FileCheck,
@@ -1326,6 +1327,9 @@ export default function GovernmentLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="government" artifactId={items[0]?.id} compact />
       {/* Navigation tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

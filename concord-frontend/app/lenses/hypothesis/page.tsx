@@ -3,7 +3,9 @@
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   FlaskConical, Plus, CheckCircle2, XCircle, Beaker,
   FileText, TrendingUp, ArrowRight
@@ -29,6 +31,9 @@ export default function HypothesisLensPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newEvidence, setNewEvidence] = useState('');
   const [evidenceSupports, setEvidenceSupports] = useState(true);
+
+  // --- Lens Bridge ---
+  const bridge = useLensBridge('hypothesis', 'hypothesis');
 
   const { data: hypothesesData, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['hypotheses'],
@@ -85,6 +90,13 @@ export default function HypothesisLensPage() {
   const hypotheses: Hypothesis[] = hypothesesData?.hypotheses || hypothesesData || [];
   const status = statusData?.status || statusData || {};
 
+  // Bridge hypotheses into lens artifacts
+  useEffect(() => {
+    bridge.syncList(hypotheses, (h) => {
+      const hyp = h as Hypothesis;
+      return { title: hyp.statement, data: h as Record<string, unknown>, meta: { status: hyp.status } };
+    });
+  }, [hypotheses, bridge]);
 
   if (isLoading) {
     return (
@@ -114,6 +126,7 @@ export default function HypothesisLensPage() {
             Scientific method — hypothesize, collect evidence, evaluate, experiment
           </p>
         </div>
+        <UniversalActions domain="hypothesis" artifactId={bridge.selectedId} compact />
       </header>
 
       {/* Stats */}

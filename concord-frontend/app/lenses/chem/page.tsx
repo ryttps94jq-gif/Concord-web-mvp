@@ -6,6 +6,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Atom, Beaker, FlaskConical, Sparkles, Zap } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface Compound {
   id: string;
@@ -84,6 +85,9 @@ export default function ChemLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="chem" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Reaction Chamber */}
         <div className="lg:col-span-2 panel p-4 space-y-4">

@@ -7,6 +7,7 @@ import { Loading } from '@/components/common/Loading';
 import { useState } from 'react';
 import { Heart, Scale, Brain, MessageSquare, Shield } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 interface FrameworkData {
   name: string;
@@ -104,6 +105,9 @@ export default function EthicsLensPage() {
         </div>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="ethics" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Scale className="w-5 h-5 text-neon-purple mb-2" />

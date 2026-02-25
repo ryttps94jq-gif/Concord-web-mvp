@@ -7,6 +7,7 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { FileCode, Plus, Check, X } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { UniversalActions } from '@/components/lens/UniversalActions';
 
 export default function SchemaLensPage() {
   useLensNav('schema');
@@ -84,6 +85,9 @@ export default function SchemaLensPage() {
         </button>
       </header>
 
+
+      {/* AI Actions */}
+      <UniversalActions domain="schema" artifactId={items[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Schema List */}
         <div className="space-y-4">
