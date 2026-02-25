@@ -54,6 +54,7 @@ import { AgentPersonas } from '@/components/agents/AgentPersonas';
 import { TaskDelegation } from '@/components/tasks/TaskDelegation';
 import { KnowledgeGardens } from '@/components/gardens/KnowledgeGardens';
 import { BountiesAndFutures } from '@/components/economy/BountiesAndFutures';
+import { SubstrateWeather } from '@/components/weather/SubstrateWeather';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -301,6 +302,11 @@ function DashboardPage() {
       {/* Context Resurrection — welcome-back cognitive context banner */}
       <LensErrorBoundary name="Context Resurrection">
         <ContextResurrection />
+      </LensErrorBoundary>
+
+      {/* Substrate Weather Report */}
+      <LensErrorBoundary name="Substrate Weather">
+        <SubstrateWeather />
       </LensErrorBoundary>
 
       {/* Metrics Row */}

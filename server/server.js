@@ -35348,6 +35348,422 @@ app.post("/api/futures/:id/resolve", (req, res) => {
 // END SPEC II WAVE 3
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 4: CAUSAL GRAPH, SUBSCRIPTIONS, WEATHER, MENTORSHIP, BATTLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- CAUSAL GRAPH — relationship types between DTUs ----------
+// DTUs can have typed relationships: causes, enables, prevents, correlates, contradicts
+
+const CAUSAL_RELATION_TYPES = ["causes", "enables", "prevents", "correlates", "contradicts"];
+
+if (!STATE.causalEdges) STATE.causalEdges = [];
+
+function addCausalEdge(data) {
+  if (!data.sourceId || !data.targetId || !data.relation) return { ok: false, error: "Missing fields" };
+  if (!CAUSAL_RELATION_TYPES.includes(data.relation)) return { ok: false, error: `Invalid relation. Must be one of: ${CAUSAL_RELATION_TYPES.join(", ")}` };
+  if (!STATE.dtus.has(data.sourceId) || !STATE.dtus.has(data.targetId)) return { ok: false, error: "DTU not found" };
+
+  // Check for duplicate
+  const exists = STATE.causalEdges.find(e => e.sourceId === data.sourceId && e.targetId === data.targetId && e.relation === data.relation);
+  if (exists) return { ok: true, edge: exists, duplicate: true };
+
+  const edge = {
+    id: `causal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sourceId: data.sourceId,
+    targetId: data.targetId,
+    relation: data.relation,
+    strength: data.strength || 0.7,          // 0-1 confidence in this relationship
+    evidence: data.evidence || "",            // Why this relationship exists
+    createdAt: new Date().toISOString(),
+    createdBy: data.createdBy || "sovereign",
+  };
+
+  STATE.causalEdges.push(edge);
+  if (STATE.causalEdges.length > 5000) STATE.causalEdges = STATE.causalEdges.slice(-5000);
+
+  return { ok: true, edge };
+}
+
+function getCausalGraph(dtuId, depth = 2) {
+  // BFS to get causal neighborhood of a DTU
+  const visited = new Set();
+  const nodes = [];
+  const edges = [];
+  const queue = [{ id: dtuId, depth: 0 }];
+
+  while (queue.length > 0) {
+    const { id, depth: d } = queue.shift();
+    if (visited.has(id) || d > depth) continue;
+    visited.add(id);
+
+    const dtu = STATE.dtus.get(id);
+    if (dtu) nodes.push({ id: dtu.id, title: dtu.title, tier: dtu.tier, domain: dtu.domain });
+
+    // Find edges connected to this node
+    for (const edge of STATE.causalEdges) {
+      if (edge.sourceId === id || edge.targetId === id) {
+        edges.push(edge);
+        const otherId = edge.sourceId === id ? edge.targetId : edge.sourceId;
+        if (!visited.has(otherId)) queue.push({ id: otherId, depth: d + 1 });
+      }
+    }
+  }
+
+  return { nodes, edges: [...new Map(edges.map(e => [e.id, e])).values()] };
+}
+
+function getCausalChain(sourceId, targetId, maxDepth = 5) {
+  // Find causal paths from source to target
+  const paths = [];
+  const dfs = (current, path, visited) => {
+    if (current === targetId) { paths.push([...path]); return; }
+    if (path.length >= maxDepth || visited.has(current)) return;
+    visited.add(current);
+
+    for (const edge of STATE.causalEdges) {
+      if (edge.sourceId === current) {
+        dfs(edge.targetId, [...path, edge], new Set(visited));
+      }
+    }
+  };
+  dfs(sourceId, [], new Set());
+  return paths.slice(0, 10);
+}
+
+// Causal Graph API routes
+app.post("/api/causal/edges", (req, res) => {
+  const result = addCausalEdge(req.body);
+  res.json(result);
+});
+
+app.get("/api/causal/graph/:dtuId", (req, res) => {
+  const depth = parseInt(req.query.depth) || 2;
+  const graph = getCausalGraph(req.params.dtuId, depth);
+  res.json({ ok: true, ...graph });
+});
+
+app.get("/api/causal/chain", (req, res) => {
+  const { source, target } = req.query;
+  if (!source || !target) return res.status(400).json({ ok: false, error: "source and target required" });
+  const chains = getCausalChain(source, target);
+  res.json({ ok: true, chains, count: chains.length });
+});
+
+app.get("/api/causal/edges", (req, res) => {
+  const dtuId = req.query.dtuId;
+  let edges = STATE.causalEdges;
+  if (dtuId) edges = edges.filter(e => e.sourceId === dtuId || e.targetId === dtuId);
+  res.json({ ok: true, edges: edges.slice(-100), total: edges.length });
+});
+
+// ---------- SUBSTRATE WEATHER REPORT ----------
+// A dashboard showing the overall health and activity of the knowledge substrate
+
+function generateWeatherReport() {
+  const now = Date.now();
+  const dtus = [...STATE.dtus.values()];
+  const last24h = dtus.filter(d => now - new Date(d.updatedAt || d.createdAt || 0).getTime() < 24 * 60 * 60 * 1000);
+  const last7d = dtus.filter(d => now - new Date(d.updatedAt || d.createdAt || 0).getTime() < 7 * 24 * 60 * 60 * 1000);
+
+  // Domain activity
+  const domainActivity = {};
+  for (const dtu of last24h) {
+    const d = dtu.domain || "general";
+    domainActivity[d] = (domainActivity[d] || 0) + 1;
+  }
+
+  // Tier distribution
+  const tierDist = { regular: 0, mega: 0, hyper: 0, shadow: 0 };
+  for (const dtu of dtus) tierDist[dtu.tier || "regular"]++;
+
+  // Freshness distribution
+  let freshCount = 0, warmCount = 0, coolingCount = 0, staleCount = 0;
+  if (typeof calculateFreshness === "function") {
+    for (const dtu of dtus) {
+      const f = calculateFreshness(dtu);
+      if (f > 0.8) freshCount++;
+      else if (f > 0.5) warmCount++;
+      else if (f > 0.2) coolingCount++;
+      else staleCount++;
+    }
+  }
+
+  // Brain health
+  const brainHealth = {};
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    brainHealth[name] = {
+      enabled: brain.enabled,
+      requests: brain.stats.requests,
+      errors: brain.stats.errors,
+      errorRate: brain.stats.requests > 0 ? brain.stats.errors / brain.stats.requests : 0,
+    };
+  }
+
+  // Generate weather metaphor
+  const activity = last24h.length;
+  let weather = "clear";
+  let description = "The substrate is calm and productive.";
+  if (activity > 50) { weather = "stormy"; description = "High cognitive activity! Many new ideas forming."; }
+  else if (activity > 20) { weather = "breezy"; description = "Moderate activity with steady knowledge growth."; }
+  else if (activity > 5) { weather = "clear"; description = "Gentle day. Good time for deep work."; }
+  else { weather = "foggy"; description = "Low activity. The substrate is resting."; }
+
+  return {
+    weather,
+    description,
+    temperature: Math.min(100, Math.round(activity * 2)), // Activity "temperature"
+    stats: {
+      totalDTUs: dtus.length,
+      last24h: last24h.length,
+      last7d: last7d.length,
+      domainActivity,
+      tierDistribution: tierDist,
+      freshness: { fresh: freshCount, warm: warmCount, cooling: coolingCount, stale: staleCount },
+    },
+    brainHealth,
+    causalEdges: STATE.causalEdges.length,
+    gardens: STATE.gardens?.length || 0,
+    episodes: STATE.episodes?.length || 0,
+    dreams: STATE.dreamState?.stats?.totalDreams || 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+app.get("/api/weather", (_req, res) => {
+  try {
+    const report = generateWeatherReport();
+    res.json({ ok: true, ...report });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- KNOWLEDGE MENTORSHIP — guide connections ----------
+// Create mentor-mentee relationships around domains
+
+if (!STATE.mentorships) STATE.mentorships = [];
+
+function createMentorship(data) {
+  const mentorship = {
+    id: `mentor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    domain: data.domain,
+    mentorPersona: data.mentorPersona || "sage",  // Which persona mentors
+    learnerGoal: data.learnerGoal || "",
+    curriculum: [],                                 // Auto-generated learning path
+    progress: 0,
+    status: "active",                               // active, completed, paused
+    createdAt: new Date().toISOString(),
+    sessions: [],
+  };
+
+  // Auto-generate curriculum based on domain DTUs
+  const domainDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    if ((dtu.domain || "").includes(data.domain) || (dtu.tags || []).some(t => t.includes(data.domain))) {
+      domainDTUs.push(dtu);
+    }
+  }
+
+  // Create learning stages from foundational to advanced DTUs
+  domainDTUs.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  const stages = [];
+  const chunkSize = Math.max(1, Math.ceil(domainDTUs.length / 5));
+  for (let i = 0; i < domainDTUs.length && stages.length < 5; i += chunkSize) {
+    const stageDTUs = domainDTUs.slice(i, i + chunkSize).slice(0, 5);
+    stages.push({
+      id: `stage-${stages.length}`,
+      title: `Stage ${stages.length + 1}: ${stageDTUs[0]?.title?.slice(0, 30) || 'Foundation'}`,
+      dtuIds: stageDTUs.map(d => d.id),
+      completed: false,
+    });
+  }
+  mentorship.curriculum = stages;
+
+  STATE.mentorships.push(mentorship);
+  if (STATE.mentorships.length > 50) STATE.mentorships = STATE.mentorships.slice(-50);
+
+  return mentorship;
+}
+
+app.get("/api/mentorships", (_req, res) => {
+  res.json({ ok: true, mentorships: STATE.mentorships });
+});
+
+app.post("/api/mentorships", (req, res) => {
+  if (!req.body.domain) return res.status(400).json({ ok: false, error: "Domain required" });
+  try {
+    const m = createMentorship(req.body);
+    res.json({ ok: true, mentorship: m });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/mentorships/:id/advance", (req, res) => {
+  const m = STATE.mentorships.find(s => s.id === req.params.id);
+  if (!m) return res.status(404).json({ ok: false, error: "Not found" });
+  if (m.curriculum[m.progress]) {
+    m.curriculum[m.progress].completed = true;
+    m.progress++;
+    if (m.progress >= m.curriculum.length) m.status = "completed";
+  }
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "mentorship.advance", { mentorshipId: m.id }); } catch {}
+  }
+  res.json({ ok: true, mentorship: m });
+});
+
+// ---------- KNOWLEDGE BATTLES — competitive knowledge challenges ----------
+// Two personas (or human vs AI) compete to answer questions about a domain
+
+if (!STATE.battles) STATE.battles = [];
+
+async function createBattle(data) {
+  const battle = {
+    id: `battle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    domain: data.domain || "general",
+    challenger: data.challenger || "sovereign",
+    opponent: data.opponent || "analyst",           // Persona id
+    question: data.question || "",
+    status: "pending",                               // pending, active, judged
+    responses: {},
+    scores: {},
+    winner: null,
+    createdAt: new Date().toISOString(),
+    judgedAt: null,
+  };
+
+  // Auto-generate question if not provided
+  if (!battle.question) {
+    const domainDTUs = [];
+    for (const dtu of STATE.dtus.values()) {
+      if ((dtu.domain || "").includes(battle.domain)) domainDTUs.push(dtu);
+    }
+    if (domainDTUs.length > 0) {
+      const randomDTU = domainDTUs[Math.floor(Math.random() * domainDTUs.length)];
+      battle.question = `What are the key insights and implications of: "${randomDTU.title}"?`;
+    } else {
+      battle.question = `What is the most important concept in the "${battle.domain}" domain?`;
+    }
+  }
+
+  STATE.battles.push(battle);
+  if (STATE.battles.length > 100) STATE.battles = STATE.battles.slice(-100);
+
+  return battle;
+}
+
+async function submitBattleResponse(battleId, participant, response) {
+  const battle = STATE.battles.find(b => b.id === battleId);
+  if (!battle) return { ok: false, error: "Battle not found" };
+  battle.responses[participant] = { content: response, submittedAt: new Date().toISOString() };
+  battle.status = "active";
+  return { ok: true, battle };
+}
+
+async function judgeBattle(battleId) {
+  const battle = STATE.battles.find(b => b.id === battleId);
+  if (!battle) return { ok: false, error: "Battle not found" };
+  if (Object.keys(battle.responses).length < 2) {
+    // Generate opponent response if missing
+    const opponentPersona = STATE.personas?.find(p => p.id === battle.opponent);
+    if (opponentPersona && typeof askPersona === "function") {
+      try {
+        const result = await askPersona(battle.opponent, battle.question);
+        if (result.ok) {
+          battle.responses[battle.opponent] = { content: result.response, submittedAt: new Date().toISOString() };
+        }
+      } catch {}
+    }
+  }
+
+  // Score each response (simple heuristic: length × relevance keywords)
+  for (const [participant, resp] of Object.entries(battle.responses)) {
+    const content = resp.content || "";
+    const lengthScore = Math.min(1, content.length / 300);
+    const keywordScore = battle.domain ? (content.toLowerCase().includes(battle.domain.toLowerCase()) ? 0.3 : 0) : 0;
+    battle.scores[participant] = Math.round((lengthScore + keywordScore + 0.5) * 50); // 0-100
+  }
+
+  // Determine winner
+  const entries = Object.entries(battle.scores);
+  if (entries.length >= 2) {
+    entries.sort((a, b) => b[1] - a[1]);
+    battle.winner = entries[0][0];
+  }
+
+  battle.status = "judged";
+  battle.judgedAt = new Date().toISOString();
+
+  if (typeof awardXP === "function" && battle.winner) {
+    try { awardXP(battle.winner === "sovereign" ? "default" : battle.winner, "battle.win", { battleId }); } catch {}
+  }
+
+  return { ok: true, battle };
+}
+
+app.get("/api/battles", (_req, res) => {
+  res.json({ ok: true, battles: [...STATE.battles].reverse().slice(0, 20), total: STATE.battles.length });
+});
+
+app.post("/api/battles", async (req, res) => {
+  try {
+    const battle = await createBattle(req.body);
+    res.json({ ok: true, battle });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/battles/:id/respond", async (req, res) => {
+  const result = await submitBattleResponse(req.params.id, req.body.participant || "sovereign", req.body.response);
+  res.json(result);
+});
+
+app.post("/api/battles/:id/judge", async (req, res) => {
+  try {
+    const result = await judgeBattle(req.params.id);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- SUBSCRIPTION TIERS ----------
+// Tiered access levels for the knowledge substrate
+
+const SUBSCRIPTION_TIERS = {
+  free: { name: "Explorer", dtusLimit: 100, brains: ["utility"], features: ["basic_search", "basic_capture"] },
+  pro: { name: "Scholar", dtusLimit: 10000, brains: ["conscious", "utility"], features: ["full_search", "capture", "gardens", "personas", "dreams"] },
+  sovereign: { name: "Sovereign", dtusLimit: Infinity, brains: ["conscious", "subconscious", "utility", "repair"], features: ["all"] },
+};
+
+if (!STATE.subscriptions) STATE.subscriptions = new Map();
+
+function getSubscription(userId) {
+  return STATE.subscriptions.get(userId || "default") || { tier: "sovereign", since: new Date().toISOString() };
+}
+
+function setSubscription(userId, tier) {
+  if (!SUBSCRIPTION_TIERS[tier]) return { ok: false, error: "Invalid tier" };
+  STATE.subscriptions.set(userId || "default", { tier, since: new Date().toISOString() });
+  return { ok: true, tier, features: SUBSCRIPTION_TIERS[tier] };
+}
+
+app.get("/api/subscription", (req, res) => {
+  const sub = getSubscription(req.query.userId);
+  res.json({ ok: true, ...sub, details: SUBSCRIPTION_TIERS[sub.tier] });
+});
+
+app.get("/api/subscription/tiers", (_req, res) => {
+  res.json({ ok: true, tiers: SUBSCRIPTION_TIERS });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 4
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
