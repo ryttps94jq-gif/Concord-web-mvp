@@ -58,6 +58,7 @@ import { SubstrateWeather } from '@/components/weather/SubstrateWeather';
 import { CognitiveDigitalTwin } from '@/components/twin/CognitiveDigitalTwin';
 import { SwarmIntelligence } from '@/components/swarm/SwarmIntelligence';
 import { TimeCrystals } from '@/components/temporal/TimeCrystals';
+import { NervousSystem } from '@/components/nervous/NervousSystem';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -458,6 +459,11 @@ function DashboardPage() {
           <TimeCrystals />
         </LensErrorBoundary>
       </div>
+
+      {/* Nervous System — Production Health Dashboard */}
+      <LensErrorBoundary name="Nervous System">
+        <NervousSystem />
+      </LensErrorBoundary>
 
       {/* Queue Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

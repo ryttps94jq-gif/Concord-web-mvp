@@ -36569,6 +36569,1268 @@ app.get("/api/taxonomies", (_req, res) => {
 // END SPEC III
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC V: THE NERVOUS SYSTEM — Real-time signaling, self-healing, production
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- #76: EVENT BUS ARCHITECTURE ----------
+// Unified pub/sub for all system components. In-process EventEmitter.
+
+class ConcordEventBus {
+  constructor(maxHistory = 10000) {
+    this._listeners = new Map();  // eventType → Set<handler>
+    this._history = [];
+    this._maxHistory = maxHistory;
+    this._stats = { emitted: 0, delivered: 0, dropped: 0, errors: 0 };
+  }
+
+  on(eventType, handler, filter) {
+    if (!this._listeners.has(eventType)) this._listeners.set(eventType, new Set());
+    const wrapped = filter ? (evt) => { if (filter(evt)) handler(evt); } : handler;
+    wrapped._original = handler;
+    wrapped._filter = filter;
+    this._listeners.get(eventType).add(wrapped);
+    return () => this._listeners.get(eventType)?.delete(wrapped);
+  }
+
+  off(eventType, handler) {
+    const set = this._listeners.get(eventType);
+    if (!set) return;
+    for (const wrapped of set) {
+      if (wrapped._original === handler || wrapped === handler) { set.delete(wrapped); return; }
+    }
+  }
+
+  emit(eventType, payload = {}) {
+    const event = {
+      type: eventType,
+      timestamp: new Date().toISOString(),
+      userId: payload.userId || "system",
+      universeId: payload.universeId || "default",
+      payload,
+      source: payload.source || "server",
+    };
+
+    this._history.push(event);
+    if (this._history.length > this._maxHistory) this._history = this._history.slice(-this._maxHistory);
+    this._stats.emitted++;
+
+    const handlers = this._listeners.get(eventType);
+    if (!handlers || handlers.size === 0) return event;
+
+    for (const handler of handlers) {
+      try {
+        handler(event);
+        this._stats.delivered++;
+      } catch (e) {
+        this._stats.errors++;
+        structuredLog("warn", "event_bus_handler_error", { eventType, error: String(e?.message || e) });
+      }
+    }
+
+    // Also emit to wildcard listeners
+    const wildcards = this._listeners.get("*");
+    if (wildcards) {
+      for (const handler of wildcards) {
+        try { handler(event); } catch {}
+      }
+    }
+
+    return event;
+  }
+
+  getHistory(limit = 100, filter) {
+    let events = this._history;
+    if (filter?.type) events = events.filter(e => e.type === filter.type);
+    if (filter?.since) {
+      const sinceMs = new Date(filter.since).getTime();
+      events = events.filter(e => new Date(e.timestamp).getTime() >= sinceMs);
+    }
+    return events.slice(-limit);
+  }
+
+  getStats() { return { ...this._stats, listenerCount: [...this._listeners.values()].reduce((a, s) => a + s.size, 0) }; }
+}
+
+const eventBus = new ConcordEventBus();
+STATE._eventBus = eventBus;
+
+// Event Bus API routes
+app.get("/api/events/bus", (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const type = req.query.type;
+  res.json({ ok: true, events: eventBus.getHistory(limit, { type }), stats: eventBus.getStats() });
+});
+
+app.get("/api/events/bus/stats", (_req, res) => {
+  res.json({ ok: true, ...eventBus.getStats() });
+});
+
+// ---------- #77: PULSE SYSTEM (Real-Time Health) ----------
+// Every component reports health every tick cycle.
+
+if (!STATE._pulses) STATE._pulses = {};
+
+function recordPulse(component, metrics) {
+  const now = new Date().toISOString();
+  const existing = STATE._pulses[component] || { history: [] };
+
+  // Calculate health status
+  let status = "healthy";
+  let score = 100;
+
+  if (metrics.errorRate > 0.5) { status = "critical"; score = 10; }
+  else if (metrics.errorRate > 0.2) { status = "degraded"; score = 40; }
+  else if (metrics.errorRate > 0.05) { status = "degraded"; score = 70; }
+
+  if (metrics.queueDepth > 100) { status = "degraded"; score = Math.min(score, 50); }
+  if (metrics.responseTimeMs > 10000) { status = "degraded"; score = Math.min(score, 60); }
+
+  const pulse = {
+    status,
+    score,
+    metrics,
+    lastPulse: now,
+    degradedSince: status !== "healthy" ? (existing.degradedSince || now) : null,
+    issues: [],
+  };
+
+  if (status === "critical") pulse.issues.push({ severity: "critical", message: `${component} error rate: ${Math.round(metrics.errorRate * 100)}%` });
+  if (metrics.queueDepth > 50) pulse.issues.push({ severity: "warning", message: `${component} queue depth: ${metrics.queueDepth}` });
+
+  STATE._pulses[component] = pulse;
+  existing.history?.push({ timestamp: now, score, status });
+  if (existing.history?.length > 100) existing.history = existing.history.slice(-100);
+  STATE._pulses[component].history = existing.history || [];
+
+  // Emit health event
+  eventBus.emit("pulse.update", { component, status, score, metrics });
+
+  // Self-healing triggers
+  if (status === "critical" && component.startsWith("brain.")) {
+    eventBus.emit("health.critical", { component, action: "circuit_breaker_check" });
+  }
+
+  return pulse;
+}
+
+function getSystemHealth() {
+  const components = Object.entries(STATE._pulses);
+  const overall = {
+    status: "healthy",
+    score: 100,
+    components: {},
+    issues: [],
+  };
+
+  for (const [name, pulse] of components) {
+    overall.components[name] = { status: pulse.status, score: pulse.score, lastPulse: pulse.lastPulse };
+    if (pulse.score < overall.score) overall.score = pulse.score;
+    if (pulse.status === "critical") overall.status = "critical";
+    else if (pulse.status === "degraded" && overall.status !== "critical") overall.status = "degraded";
+    overall.issues.push(...(pulse.issues || []));
+  }
+
+  return overall;
+}
+
+// Update brain pulses from BRAIN stats
+function updateBrainPulses() {
+  for (const [name, brain] of Object.entries(BRAIN)) {
+    const errorRate = brain.stats.requests > 0 ? brain.stats.errors / brain.stats.requests : 0;
+    const avgMs = brain.stats.requests > 0 ? brain.stats.totalMs / brain.stats.requests : 0;
+    recordPulse(`brain.${name}`, {
+      enabled: brain.enabled,
+      requests: brain.stats.requests,
+      errors: brain.stats.errors,
+      errorRate,
+      responseTimeMs: avgMs,
+      queueDepth: 0,
+      lastCallAt: brain.stats.lastCallAt,
+    });
+  }
+}
+
+app.get("/api/pulse", (_req, res) => {
+  updateBrainPulses();
+  res.json({ ok: true, ...getSystemHealth() });
+});
+
+app.get("/api/pulse/:component", (req, res) => {
+  const pulse = STATE._pulses[req.params.component];
+  if (!pulse) return res.status(404).json({ ok: false, error: "Component not found" });
+  res.json({ ok: true, component: req.params.component, ...pulse });
+});
+
+// ---------- #79: CIRCUIT BREAKER SYSTEM ----------
+
+class CircuitBreaker {
+  constructor(name, options = {}) {
+    this.name = name;
+    this.failureThreshold = options.failureThreshold || 5;
+    this.resetTimeout = options.resetTimeout || 30000;  // 30s
+    this.successThreshold = options.successThreshold || 3;
+    this.state = "closed";  // closed (normal), open (failing), half-open (testing)
+    this.failures = 0;
+    this.successes = 0;
+    this.lastFailure = null;
+    this.lastStateChange = Date.now();
+    this._stats = { totalCalls: 0, totalFailures: 0, totalSuccesses: 0, opens: 0 };
+  }
+
+  async call(fn, fallback) {
+    this._stats.totalCalls++;
+
+    if (this.state === "open") {
+      // Check if reset timeout has elapsed
+      if (Date.now() - this.lastStateChange > this.resetTimeout) {
+        this.state = "half-open";
+        this.successes = 0;
+      } else {
+        // Return fallback
+        if (fallback) return await fallback();
+        throw new Error(`Circuit breaker ${this.name} is OPEN`);
+      }
+    }
+
+    try {
+      const result = await fn();
+      this._onSuccess();
+      return result;
+    } catch (e) {
+      this._onFailure(e);
+      if (fallback) return await fallback();
+      throw e;
+    }
+  }
+
+  _onSuccess() {
+    this._stats.totalSuccesses++;
+    this.failures = 0;
+    if (this.state === "half-open") {
+      this.successes++;
+      if (this.successes >= this.successThreshold) {
+        this.state = "closed";
+        this.lastStateChange = Date.now();
+        eventBus.emit("circuit.closed", { breaker: this.name });
+      }
+    }
+  }
+
+  _onFailure(error) {
+    this._stats.totalFailures++;
+    this.failures++;
+    this.lastFailure = { at: Date.now(), error: String(error?.message || error) };
+
+    if (this.state === "half-open" || this.failures >= this.failureThreshold) {
+      this.state = "open";
+      this.lastStateChange = Date.now();
+      this._stats.opens++;
+      eventBus.emit("circuit.open", { breaker: this.name, failures: this.failures });
+      structuredLog("warn", "circuit_breaker_open", { name: this.name, failures: this.failures });
+    }
+  }
+
+  getState() {
+    return {
+      name: this.name,
+      state: this.state,
+      failures: this.failures,
+      lastFailure: this.lastFailure,
+      stats: this._stats,
+    };
+  }
+}
+
+// Create breakers for each brain
+const circuitBreakers = {
+  "brain.conscious": new CircuitBreaker("brain.conscious", { failureThreshold: 3, resetTimeout: 60000 }),
+  "brain.subconscious": new CircuitBreaker("brain.subconscious", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.utility": new CircuitBreaker("brain.utility", { failureThreshold: 5, resetTimeout: 30000 }),
+  "brain.repair": new CircuitBreaker("brain.repair", { failureThreshold: 7, resetTimeout: 20000 }),
+  "api.ollama": new CircuitBreaker("api.ollama", { failureThreshold: 3, resetTimeout: 45000 }),
+};
+
+STATE._circuitBreakers = circuitBreakers;
+
+app.get("/api/circuits", (_req, res) => {
+  const states = {};
+  for (const [name, breaker] of Object.entries(circuitBreakers)) {
+    states[name] = breaker.getState();
+  }
+  res.json({ ok: true, breakers: states });
+});
+
+app.post("/api/circuits/:name/reset", (req, res) => {
+  const breaker = circuitBreakers[req.params.name];
+  if (!breaker) return res.status(404).json({ ok: false, error: "Breaker not found" });
+  breaker.state = "closed";
+  breaker.failures = 0;
+  breaker.successes = 0;
+  res.json({ ok: true, state: breaker.getState() });
+});
+
+// ---------- #86: DATA INTEGRITY GUARDIAN ----------
+
+function runDataIntegrityCheck() {
+  const issues = [];
+  const now = Date.now();
+
+  for (const [id, dtu] of STATE.dtus.entries()) {
+    // Temporal consistency
+    if (dtu.createdAt && dtu.updatedAt) {
+      if (new Date(dtu.createdAt).getTime() > new Date(dtu.updatedAt).getTime()) {
+        issues.push({ severity: "warning", type: "temporal", id, message: "createdAt > updatedAt", autofix: true });
+      }
+    }
+
+    // Future timestamps
+    if (dtu.createdAt && new Date(dtu.createdAt).getTime() > now + 60000) {
+      issues.push({ severity: "warning", type: "temporal", id, message: "Future createdAt timestamp", autofix: true });
+    }
+
+    // Missing required fields
+    if (!dtu.id) issues.push({ severity: "critical", type: "schema", id: id || "unknown", message: "Missing id" });
+    if (!dtu.title && !dtu.content) issues.push({ severity: "warning", type: "schema", id, message: "No title or content" });
+
+    // Tag consistency
+    if (dtu.tags) {
+      const cleaned = dtu.tags.filter(t => t && typeof t === "string" && t.trim());
+      if (cleaned.length !== dtu.tags.length) {
+        issues.push({ severity: "warning", type: "tags", id, message: "Invalid tags detected", autofix: true });
+      }
+      const dupes = dtu.tags.length - new Set(dtu.tags.map(t => t.toLowerCase().trim())).size;
+      if (dupes > 0) {
+        issues.push({ severity: "warning", type: "tags", id, message: `${dupes} duplicate tags`, autofix: true });
+      }
+    }
+
+    // Lineage validation
+    if (dtu.lineage?.parentId && !STATE.dtus.has(dtu.lineage.parentId)) {
+      issues.push({ severity: "error", type: "lineage", id, message: `Orphan parent ref: ${dtu.lineage.parentId}` });
+    }
+    if (dtu.lineage?.children) {
+      for (const childId of dtu.lineage.children) {
+        if (!STATE.dtus.has(childId)) {
+          issues.push({ severity: "warning", type: "lineage", id, message: `Dead child ref: ${childId}`, autofix: true });
+        }
+      }
+    }
+  }
+
+  return {
+    total: issues.length,
+    bySeverity: {
+      critical: issues.filter(i => i.severity === "critical").length,
+      error: issues.filter(i => i.severity === "error").length,
+      warning: issues.filter(i => i.severity === "warning").length,
+    },
+    autofixable: issues.filter(i => i.autofix).length,
+    issues: issues.slice(0, 100),
+  };
+}
+
+function autoFixIntegrityIssues(issues) {
+  let fixed = 0;
+
+  for (const issue of issues.filter(i => i.autofix)) {
+    const dtu = STATE.dtus.get(issue.id);
+    if (!dtu) continue;
+
+    switch (issue.type) {
+      case "temporal":
+        if (issue.message.includes("createdAt > updatedAt")) {
+          dtu.updatedAt = dtu.createdAt;
+          fixed++;
+        }
+        if (issue.message.includes("Future")) {
+          dtu.createdAt = new Date().toISOString();
+          fixed++;
+        }
+        break;
+      case "tags":
+        if (dtu.tags) {
+          dtu.tags = [...new Set(dtu.tags.filter(t => t && typeof t === "string" && t.trim()).map(t => t.toLowerCase().trim()))];
+          fixed++;
+        }
+        break;
+      case "lineage":
+        if (issue.message.includes("Dead child ref") && dtu.lineage?.children) {
+          dtu.lineage.children = dtu.lineage.children.filter(id => STATE.dtus.has(id));
+          fixed++;
+        }
+        break;
+    }
+  }
+
+  return { fixed };
+}
+
+app.get("/api/integrity/check", (_req, res) => {
+  try {
+    const result = runDataIntegrityCheck();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/integrity/fix", (_req, res) => {
+  try {
+    const check = runDataIntegrityCheck();
+    const result = autoFixIntegrityIssues(check.issues);
+    const recheck = runDataIntegrityCheck();
+    res.json({ ok: true, ...result, before: check.total, after: recheck.total });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #78: TRACE SYSTEM (End-to-End Observability) ----------
+
+if (!STATE._traces) STATE._traces = [];
+
+function startTrace(trigger) {
+  const trace = {
+    traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: trigger.userId || "system",
+    trigger: { type: trigger.type, ...trigger },
+    spans: [],
+    startedAt: Date.now(),
+    completedAt: null,
+    totalDuration: null,
+    brainCost: { totalTokensIn: 0, totalTokensOut: 0, calls: 0 },
+    result: null,
+  };
+
+  STATE._traces.push(trace);
+  if (STATE._traces.length > 1000) STATE._traces = STATE._traces.slice(-1000);
+
+  return {
+    ...trace,
+    span(name) {
+      const span = { name, start: Date.now(), end: null, status: "running", meta: {} };
+      trace.spans.push(span);
+      return {
+        end(status = "ok", meta = {}) {
+          span.end = Date.now();
+          span.status = status;
+          span.meta = { ...span.meta, ...meta };
+        },
+        addMeta(m) { Object.assign(span.meta, m); },
+      };
+    },
+    addBrainCost(tokensIn, tokensOut) {
+      trace.brainCost.totalTokensIn += tokensIn || 0;
+      trace.brainCost.totalTokensOut += tokensOut || 0;
+      trace.brainCost.calls++;
+    },
+    complete(result) {
+      trace.completedAt = Date.now();
+      trace.totalDuration = trace.completedAt - trace.startedAt;
+      trace.result = result;
+      eventBus.emit("trace.completed", { traceId: trace.traceId, duration: trace.totalDuration });
+    },
+  };
+}
+
+app.get("/api/traces", (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const minDuration = parseInt(req.query.minDuration) || 0;
+  let traces = [...STATE._traces].reverse();
+  if (minDuration > 0) traces = traces.filter(t => (t.totalDuration || 0) >= minDuration);
+  res.json({ ok: true, traces: traces.slice(0, limit) });
+});
+
+app.get("/api/traces/:id", (req, res) => {
+  const trace = STATE._traces.find(t => t.traceId === req.params.id);
+  if (!trace) return res.status(404).json({ ok: false, error: "Trace not found" });
+  res.json({ ok: true, trace });
+});
+
+// ---------- #85: RATE LIMITER & COST GOVERNOR ----------
+
+if (!STATE._rateLimits) STATE._rateLimits = new Map();
+if (!STATE._costAccounting) STATE._costAccounting = new Map();
+
+const RATE_LIMIT_CONFIG = {
+  free: { brainCallsPerHour: 100, maxConcurrent: 2 },
+  pro: { brainCallsPerHour: 500, maxConcurrent: 5 },
+  sovereign: { brainCallsPerHour: Infinity, maxConcurrent: 10 },
+};
+
+function checkRateLimit(userId, tier) {
+  const uid = userId || "default";
+  const config = RATE_LIMIT_CONFIG[tier || "sovereign"];
+  const now = Date.now();
+  const hourAgo = now - 60 * 60 * 1000;
+
+  if (!STATE._rateLimits.has(uid)) STATE._rateLimits.set(uid, { calls: [] });
+  const userLimits = STATE._rateLimits.get(uid);
+
+  // Clean old entries
+  userLimits.calls = userLimits.calls.filter(t => t > hourAgo);
+
+  if (userLimits.calls.length >= config.brainCallsPerHour) {
+    return { allowed: false, reason: "Rate limit exceeded", remaining: 0, resetAt: new Date(userLimits.calls[0] + 60 * 60 * 1000).toISOString() };
+  }
+
+  userLimits.calls.push(now);
+  return { allowed: true, remaining: config.brainCallsPerHour - userLimits.calls.length, used: userLimits.calls.length };
+}
+
+function recordCost(userId, brainName, tokensIn, tokensOut, durationMs) {
+  const uid = userId || "default";
+  if (!STATE._costAccounting.has(uid)) STATE._costAccounting.set(uid, { daily: {}, weekly: 0, monthly: 0, total: 0, calls: [] });
+  const account = STATE._costAccounting.get(uid);
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (!account.daily[today]) account.daily[today] = { tokensIn: 0, tokensOut: 0, calls: 0, durationMs: 0 };
+  account.daily[today].tokensIn += tokensIn || 0;
+  account.daily[today].tokensOut += tokensOut || 0;
+  account.daily[today].calls++;
+  account.daily[today].durationMs += durationMs || 0;
+  account.total++;
+
+  account.calls.push({ brain: brainName, tokensIn, tokensOut, durationMs, at: new Date().toISOString() });
+  if (account.calls.length > 500) account.calls = account.calls.slice(-500);
+
+  // Clean old daily entries (keep 30 days)
+  const keys = Object.keys(account.daily).sort();
+  if (keys.length > 30) {
+    for (const k of keys.slice(0, keys.length - 30)) delete account.daily[k];
+  }
+}
+
+app.get("/api/rate-limits", (req, res) => {
+  const userId = req.query.userId || "default";
+  const limits = STATE._rateLimits.get(userId);
+  const hourAgo = Date.now() - 60 * 60 * 1000;
+  const recentCalls = limits ? limits.calls.filter(t => t > hourAgo).length : 0;
+  res.json({ ok: true, used: recentCalls, config: RATE_LIMIT_CONFIG });
+});
+
+app.get("/api/costs", (req, res) => {
+  const userId = req.query.userId || "default";
+  const account = STATE._costAccounting.get(userId) || { daily: {}, total: 0, calls: [] };
+  res.json({ ok: true, ...account });
+});
+
+// ---------- #87: MIGRATION ENGINE ----------
+
+if (!STATE._migrations) STATE._migrations = { applied: [], pending: [] };
+
+const MIGRATIONS = [
+  {
+    id: "001_init_checksums",
+    description: "Add checksum tracking to DTUs",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (!dtu.meta) dtu.meta = {};
+        if (!dtu.meta._checksum) {
+          dtu.meta._checksum = simpleHash((dtu.title || "") + (dtu.content || ""));
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() {
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.meta) delete dtu.meta._checksum;
+      }
+    },
+  },
+  {
+    id: "002_normalize_domains",
+    description: "Normalize all DTU domain fields to lowercase",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.domain && dtu.domain !== dtu.domain.toLowerCase()) {
+          dtu.domain = dtu.domain.toLowerCase();
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() { /* irreversible normalization */ },
+  },
+  {
+    id: "003_add_version_counter",
+    description: "Add version counter to DTUs for conflict resolution",
+    up() {
+      let updated = 0;
+      for (const dtu of STATE.dtus.values()) {
+        if (!dtu.meta) dtu.meta = {};
+        if (dtu.meta._version === undefined) {
+          dtu.meta._version = 1;
+          updated++;
+        }
+      }
+      return { updated };
+    },
+    down() {
+      for (const dtu of STATE.dtus.values()) {
+        if (dtu.meta) delete dtu.meta._version;
+      }
+    },
+  },
+];
+
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function runMigrations() {
+  const applied = STATE._migrations.applied.map(m => m.id);
+  const results = [];
+
+  for (const migration of MIGRATIONS) {
+    if (applied.includes(migration.id)) continue;
+
+    try {
+      const result = migration.up();
+      STATE._migrations.applied.push({
+        id: migration.id,
+        description: migration.description,
+        appliedAt: new Date().toISOString(),
+        result,
+      });
+      results.push({ id: migration.id, status: "applied", result });
+      structuredLog("info", "migration_applied", { id: migration.id, result });
+    } catch (e) {
+      results.push({ id: migration.id, status: "failed", error: String(e?.message || e) });
+      structuredLog("error", "migration_failed", { id: migration.id, error: String(e?.message || e) });
+      break; // Stop on first failure
+    }
+  }
+
+  return results;
+}
+
+app.get("/api/migrations", (_req, res) => {
+  const applied = STATE._migrations.applied.map(m => m.id);
+  const pending = MIGRATIONS.filter(m => !applied.includes(m.id));
+  res.json({ ok: true, applied: STATE._migrations.applied, pending: pending.map(m => ({ id: m.id, description: m.description })) });
+});
+
+app.post("/api/migrations/run", (_req, res) => {
+  try {
+    const results = runMigrations();
+    res.json({ ok: true, results });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #80: WISDOM SYNTHESIS ENGINE ----------
+// Cross-domain synthesis using all 4 brains.
+
+async function synthesizeWisdom(question, options = {}) {
+  const trace = startTrace({ type: "wisdom.synthesis", question });
+  const spanDecompose = trace.span("decompose");
+
+  // 1. Decompose question into domain sub-queries
+  const domains = [...new Set([...STATE.dtus.values()].map(d => d.domain || "general"))].slice(0, 20);
+  const relevantDomains = [];
+
+  for (const domain of domains) {
+    // Check if domain is relevant to the question
+    const domainDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "general") === domain);
+    const hasRelevantContent = domainDTUs.some(d => {
+      const text = ((d.title || "") + " " + (d.content || "")).toLowerCase();
+      return question.toLowerCase().split(/\s+/).some(w => w.length > 3 && text.includes(w));
+    });
+    if (hasRelevantContent) relevantDomains.push(domain);
+  }
+  spanDecompose.end("ok", { domains: relevantDomains.length });
+
+  // 2. Run sub-queries per domain (using utility brain)
+  const spanQueries = trace.span("domain_queries");
+  const domainResults = {};
+
+  for (const domain of relevantDomains.slice(0, 8)) {
+    const domainDTUs = [...STATE.dtus.values()]
+      .filter(d => (d.domain || "general") === domain)
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+      .slice(0, 10);
+
+    const context = domainDTUs.map(d => `- ${d.title}: ${(d.content || "").slice(0, 100)}`).join("\n");
+
+    if (BRAIN.utility?.enabled) {
+      try {
+        const result = await callBrain("utility", `Based on this ${domain} knowledge:\n${context}\n\nWhat insight does this domain provide about: "${question}"?\nAnswer in 1-2 sentences.`, { maxTokens: 150 });
+        if (result.ok) domainResults[domain] = result.content?.trim() || "";
+      } catch {}
+    } else {
+      domainResults[domain] = `${domain}: ${domainDTUs.length} relevant DTUs about ${domainDTUs.slice(0, 3).map(d => d.title).join(", ")}`;
+    }
+  }
+  spanQueries.end("ok", { domainsQueried: Object.keys(domainResults).length });
+
+  // 3. Synthesize using conscious brain
+  const spanSynthesize = trace.span("synthesize");
+  let synthesis = "";
+
+  const domainInsights = Object.entries(domainResults).map(([d, i]) => `[${d}]: ${i}`).join("\n");
+
+  if (BRAIN.conscious?.enabled) {
+    try {
+      const result = await callBrain("conscious", `Synthesize these insights from ${Object.keys(domainResults).length} different domains into a unified, actionable response to: "${question}"\n\nDomain insights:\n${domainInsights}\n\nProvide a comprehensive synthesis that weaves together all relevant domain perspectives. Be specific and actionable.`, { maxTokens: 400 });
+      if (result.ok) synthesis = result.content?.trim() || "";
+    } catch {}
+  }
+
+  if (!synthesis) {
+    synthesis = `Cross-domain analysis of "${question}" drawing from ${Object.keys(domainResults).length} domains:\n\n${domainInsights}`;
+  }
+  spanSynthesize.end("ok");
+
+  // 4. Red team validation
+  let validation = null;
+  if (typeof redTeamCheck === "function") {
+    try { validation = await redTeamCheck(synthesis, { domain: "synthesis" }); } catch {}
+  }
+
+  // Create synthesis DTU
+  const synthDTU = {
+    id: `synth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `Synthesis: ${question.slice(0, 60)}`,
+    content: synthesis,
+    tags: ["synthesis", "wisdom", ...Object.keys(domainResults)],
+    tier: "mega",
+    source: "wisdom.synthesis",
+    domain: "metacognition",
+    meta: {
+      synthesizedAt: new Date().toISOString(),
+      domainsUsed: Object.keys(domainResults),
+      validation,
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(synthDTU, { broadcast: false });
+
+  trace.complete({ ok: true });
+
+  return {
+    synthesis,
+    domains: domainResults,
+    validation,
+    dtuId: synthDTU.id,
+    traceId: trace.traceId,
+  };
+}
+
+app.post("/api/wisdom/synthesize", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await synthesizeWisdom(question);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #81: CONFIDENCE NETWORK ----------
+// Confidence propagates through DTU relationships.
+
+function propagateConfidence() {
+  const iterations = 3; // Number of propagation passes
+  let totalAdjustments = 0;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    for (const dtu of STATE.dtus.values()) {
+      if (!dtu.meta) dtu.meta = {};
+      const ownConfidence = dtu.meta._confidence || 0.5;
+
+      // Gather confidence from linked DTUs
+      const links = [
+        ...(dtu.meta._consolidatedLinks || []),
+        ...(dtu.lineage?.children || []),
+        ...(dtu.lineage?.parentId ? [dtu.lineage.parentId] : []),
+      ];
+
+      if (links.length === 0) continue;
+
+      let linkedConfidence = 0;
+      let validLinks = 0;
+      for (const linkId of links) {
+        const linked = STATE.dtus.get(linkId);
+        if (linked?.meta?._confidence !== undefined) {
+          linkedConfidence += linked.meta._confidence;
+          validLinks++;
+        }
+      }
+
+      if (validLinks > 0) {
+        const avgLinkedConf = linkedConfidence / validLinks;
+        // adjusted = own × avg(linked)^0.3
+        const adjusted = ownConfidence * Math.pow(avgLinkedConf, 0.3);
+        const newConf = Math.min(1, Math.max(0, adjusted));
+
+        if (Math.abs(newConf - ownConfidence) > 0.01) {
+          dtu.meta._confidence = newConf;
+          totalAdjustments++;
+        }
+      }
+    }
+  }
+
+  return { adjustments: totalAdjustments, iterations };
+}
+
+app.post("/api/confidence/propagate", (_req, res) => {
+  try {
+    const result = propagateConfidence();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/confidence/alerts", (_req, res) => {
+  // Find DTUs whose confidence dropped significantly
+  const alerts = [];
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.meta?._confidence !== undefined && dtu.meta._confidence < 0.3) {
+      alerts.push({ id: dtu.id, title: dtu.title, confidence: dtu.meta._confidence, tier: dtu.tier });
+    }
+  }
+  alerts.sort((a, b) => a.confidence - b.confidence);
+  res.json({ ok: true, alerts: alerts.slice(0, 20), total: alerts.length });
+});
+
+// ---------- #88: CROSS-BRAIN DEBATE PROTOCOL ----------
+// All 4 brains debate high-stakes questions in structured turns.
+
+async function crossBrainDebate(question, options = {}) {
+  const debate = {
+    id: `debate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question,
+    turns: [],
+    synthesis: null,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+  };
+
+  const contextDTUs = [...STATE.dtus.values()]
+    .filter(d => question.toLowerCase().split(/\s+/).some(w => w.length > 3 && ((d.title || "") + " " + (d.content || "")).toLowerCase().includes(w)))
+    .slice(0, 10)
+    .map(d => `- ${d.title}: ${(d.content || "").slice(0, 80)}`).join("\n");
+
+  // Turn 1: Utility brain initial analysis
+  try {
+    if (BRAIN.utility?.enabled) {
+      const r = await callBrain("utility", `Provide an initial analysis for: "${question}"\nContext: ${contextDTUs || "(none)"}\n\nBe specific and evidence-based. 2-3 sentences.`, { maxTokens: 200 });
+      debate.turns.push({ brain: "utility", role: "initial_analysis", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 2: Conscious brain counter-argument
+  try {
+    if (BRAIN.conscious?.enabled && debate.turns[0]) {
+      const r = await callBrain("conscious", `Challenge this analysis: "${debate.turns[0].content}"\n\nOriginal question: "${question}"\n\nProvide a COUNTER-ARGUMENT. Find flaws, missing perspectives, or unconsidered risks. 2-3 sentences.`, { maxTokens: 200, temperature: 0.5 });
+      debate.turns.push({ brain: "conscious", role: "counter_argument", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 3: Utility brain responds to counter
+  try {
+    if (BRAIN.utility?.enabled && debate.turns[1]) {
+      const r = await callBrain("utility", `Respond to this counter-argument: "${debate.turns[1].content}"\n\nYour original analysis: "${debate.turns[0]?.content || ''}"\n\nAddress the critique. Strengthen or modify your position. 2-3 sentences.`, { maxTokens: 200 });
+      debate.turns.push({ brain: "utility", role: "rebuttal", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 4: Repair brain evaluates both sides
+  try {
+    if (BRAIN.repair?.enabled) {
+      const allTurns = debate.turns.map(t => `[${t.brain}/${t.role}]: ${t.content}`).join("\n");
+      const r = await callBrain("repair", `Evaluate this debate for logical consistency and evidence quality:\n\n${allTurns}\n\nRate each side's argument strength and identify any logical fallacies or unsupported claims. 2 sentences.`, { maxTokens: 150 });
+      debate.turns.push({ brain: "repair", role: "evaluation", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 5: Subconscious adds background context
+  try {
+    if (BRAIN.subconscious?.enabled) {
+      const r = await callBrain("subconscious", `For the question: "${question}"\n\nWhat hidden context or unconsidered perspective should be added? Think laterally. 1-2 sentences.`, { maxTokens: 100, temperature: 0.8 });
+      debate.turns.push({ brain: "subconscious", role: "hidden_context", content: r.content?.trim() || "[no response]" });
+    }
+  } catch {}
+
+  // Turn 6: Conscious synthesizes
+  try {
+    if (BRAIN.conscious?.enabled) {
+      const allTurns = debate.turns.map(t => `[${t.brain}/${t.role}]: ${t.content}`).join("\n");
+      const r = await callBrain("conscious", `Synthesize this multi-brain debate into a balanced assessment:\n\n${allTurns}\n\nProvide a final assessment with declared uncertainties and a clear recommendation. 3-4 sentences.`, { maxTokens: 250 });
+      debate.synthesis = r.content?.trim() || "";
+    }
+  } catch {}
+
+  if (!debate.synthesis) {
+    debate.synthesis = debate.turns.map(t => t.content).join(" | ");
+  }
+
+  debate.completedAt = new Date().toISOString();
+
+  // Create debate DTU
+  const debateDTU = {
+    id: `debate-dtu-${Date.now()}`,
+    title: `Debate: ${question.slice(0, 60)}`,
+    content: debate.turns.map(t => `**${t.brain} (${t.role}):** ${t.content}`).join("\n\n") + `\n\n---\n\n**Synthesis:** ${debate.synthesis}`,
+    tags: ["debate", "multi-brain"],
+    tier: "mega",
+    source: "debate.protocol",
+    domain: "metacognition",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(debateDTU, { broadcast: false });
+
+  return { ...debate, dtuId: debateDTU.id };
+}
+
+app.post("/api/debate", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question required" });
+  try {
+    const result = await crossBrainDebate(question);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #90: RESONANCE AMPLIFIER ----------
+// Takes confirmed cross-domain analogies and generates new knowledge.
+
+async function amplifyResonance(sourceDomain, targetDomain, options = {}) {
+  // Gather DTUs from both domains
+  const sourceDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "") === sourceDomain).slice(0, 10);
+  const targetDTUs = [...STATE.dtus.values()].filter(d => (d.domain || "") === targetDomain).slice(0, 10);
+
+  if (sourceDTUs.length === 0 || targetDTUs.length === 0) {
+    return { ok: false, error: "Need DTUs in both domains" };
+  }
+
+  const sourceContext = sourceDTUs.map(d => `- ${d.title}`).join("\n");
+  const targetContext = targetDTUs.map(d => `- ${d.title}`).join("\n");
+
+  let amplifiedInsights = [];
+
+  try {
+    if (BRAIN.utility?.enabled) {
+      const prompt = `You are a resonance amplifier. Find 3 specific structural parallels between these two domains and generate actionable insights from each parallel.
+
+Domain A (${sourceDomain}):
+${sourceContext}
+
+Domain B (${targetDomain}):
+${targetContext}
+
+For each parallel:
+PARALLEL: [what's structurally similar]
+INSIGHT: [specific actionable insight from applying A's pattern to B]
+CONFIDENCE: [high/medium/low]
+
+List 3 parallels.`;
+
+      const result = await callBrain("utility", prompt, { maxTokens: 400 });
+      if (result.ok && result.content) {
+        const matches = result.content.matchAll(/PARALLEL:\s*(.+?)(?:\nINSIGHT:\s*(.+?))?(?:\nCONFIDENCE:\s*(high|medium|low))?(?=\nPARALLEL:|\n*$)/gs);
+        for (const match of matches) {
+          amplifiedInsights.push({
+            parallel: match[1]?.trim() || "",
+            insight: match[2]?.trim() || "",
+            confidence: match[3]?.trim() || "medium",
+          });
+        }
+      }
+    }
+  } catch {}
+
+  if (amplifiedInsights.length === 0) {
+    amplifiedInsights = [{
+      parallel: `Structural similarity between ${sourceDomain} and ${targetDomain}`,
+      insight: `Patterns in ${sourceDomain} (${sourceDTUs.length} DTUs) may apply to ${targetDomain} (${targetDTUs.length} DTUs)`,
+      confidence: "low",
+    }];
+  }
+
+  // Create resonance-amplified DTUs
+  const dtuIds = [];
+  for (const insight of amplifiedInsights) {
+    const dtu = {
+      id: `resonance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: `Resonance: ${sourceDomain} × ${targetDomain}`,
+      content: `**Parallel:** ${insight.parallel}\n\n**Insight:** ${insight.insight}`,
+      tags: ["resonance-amplified", sourceDomain, targetDomain],
+      tier: "regular",
+      source: "resonance.amplifier",
+      domain: targetDomain,
+      meta: { amplifiedFrom: sourceDomain, confidence: insight.confidence },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    upsertDTU(dtu, { broadcast: false });
+    dtuIds.push(dtu.id);
+  }
+
+  return { ok: true, insights: amplifiedInsights, dtuIds };
+}
+
+app.post("/api/resonance/amplify", async (req, res) => {
+  const { sourceDomain, targetDomain } = req.body;
+  if (!sourceDomain || !targetDomain) return res.status(400).json({ ok: false, error: "Both domains required" });
+  try {
+    const result = await amplifyResonance(sourceDomain, targetDomain);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- #83: ADAPTIVE INTERFACE ----------
+// Track usage patterns for frontend adaptation.
+
+if (!STATE._interfaceProfiles) STATE._interfaceProfiles = new Map();
+
+function recordUsage(userId, action) {
+  const uid = userId || "default";
+  if (!STATE._interfaceProfiles.has(uid)) {
+    STATE._interfaceProfiles.set(uid, {
+      lensUsage: {},      // lens → { visits, lastVisit }
+      actionUsage: {},    // action → { count, lastUsed }
+      viewPreferences: {}, // lens → preferred view mode
+      quickAccess: [],    // top 5 recently accessed artifacts
+    });
+  }
+  const profile = STATE._interfaceProfiles.get(uid);
+
+  if (action.type === "lens.visit") {
+    if (!profile.lensUsage[action.lens]) profile.lensUsage[action.lens] = { visits: 0, lastVisit: null };
+    profile.lensUsage[action.lens].visits++;
+    profile.lensUsage[action.lens].lastVisit = new Date().toISOString();
+  }
+
+  if (action.type === "action.used") {
+    const key = `${action.lens}:${action.action}`;
+    if (!profile.actionUsage[key]) profile.actionUsage[key] = { count: 0, lastUsed: null };
+    profile.actionUsage[key].count++;
+    profile.actionUsage[key].lastUsed = new Date().toISOString();
+  }
+
+  if (action.type === "artifact.accessed" && action.artifactId) {
+    profile.quickAccess = [action.artifactId, ...profile.quickAccess.filter(id => id !== action.artifactId)].slice(0, 5);
+  }
+
+  return profile;
+}
+
+function getAdaptiveLayout(userId) {
+  const uid = userId || "default";
+  const profile = STATE._interfaceProfiles.get(uid);
+  if (!profile) return { lensOrder: [], promotedActions: {}, quickAccess: [] };
+
+  // Rank lenses by usage (visits × recency weight)
+  const lensOrder = Object.entries(profile.lensUsage)
+    .map(([lens, data]) => ({
+      lens,
+      score: data.visits * (1 + 1 / Math.max(1, (Date.now() - new Date(data.lastVisit || 0).getTime()) / (24 * 60 * 60 * 1000))),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(e => e.lens);
+
+  // Find promoted actions per lens
+  const promotedActions = {};
+  for (const [key, data] of Object.entries(profile.actionUsage)) {
+    const [lens, action] = key.split(":");
+    if (!promotedActions[lens] || data.count > promotedActions[lens].count) {
+      promotedActions[lens] = { action, count: data.count };
+    }
+  }
+
+  return { lensOrder, promotedActions, quickAccess: profile.quickAccess };
+}
+
+app.get("/api/adaptive/layout", (req, res) => {
+  res.json({ ok: true, ...getAdaptiveLayout(req.query.userId) });
+});
+
+app.post("/api/adaptive/track", (req, res) => {
+  recordUsage(req.body.userId, req.body);
+  res.json({ ok: true });
+});
+
+// ---------- #82: ACTION REPLAY SYSTEM ----------
+// Record sessions for playback.
+
+if (!STATE._sessionRecordings) STATE._sessionRecordings = [];
+
+function startRecording(userId) {
+  const recording = {
+    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: userId || "default",
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    events: [],
+    stats: { lensVisits: 0, artifactsCreated: 0, brainCalls: 0, decisions: 0 },
+  };
+  STATE._sessionRecordings.push(recording);
+  if (STATE._sessionRecordings.length > 50) STATE._sessionRecordings = STATE._sessionRecordings.slice(-50);
+  return recording;
+}
+
+function recordSessionEvent(recordingId, event) {
+  const recording = STATE._sessionRecordings.find(r => r.id === recordingId);
+  if (!recording || recording.completedAt) return null;
+
+  recording.events.push({
+    timestamp: new Date().toISOString(),
+    ...event,
+  });
+
+  // Update stats
+  if (event.type === "lens.visit") recording.stats.lensVisits++;
+  if (event.type === "artifact.created") recording.stats.artifactsCreated++;
+  if (event.type === "brain.called") recording.stats.brainCalls++;
+  if (event.type === "decision") recording.stats.decisions++;
+
+  // Keep events manageable
+  if (recording.events.length > 1000) recording.events = recording.events.slice(-1000);
+
+  return recording;
+}
+
+function stopRecording(recordingId) {
+  const recording = STATE._sessionRecordings.find(r => r.id === recordingId);
+  if (!recording) return null;
+  recording.completedAt = new Date().toISOString();
+  return recording;
+}
+
+app.post("/api/replay/start", (req, res) => {
+  const recording = startRecording(req.body.userId);
+  res.json({ ok: true, recording: { id: recording.id, startedAt: recording.startedAt } });
+});
+
+app.post("/api/replay/:id/event", (req, res) => {
+  const result = recordSessionEvent(req.params.id, req.body);
+  if (!result) return res.status(404).json({ ok: false, error: "Recording not found or completed" });
+  res.json({ ok: true, eventCount: result.events.length });
+});
+
+app.post("/api/replay/:id/stop", (req, res) => {
+  const result = stopRecording(req.params.id);
+  if (!result) return res.status(404).json({ ok: false, error: "Recording not found" });
+  res.json({ ok: true, recording: result });
+});
+
+app.get("/api/replay", (_req, res) => {
+  res.json({
+    ok: true,
+    recordings: STATE._sessionRecordings.map(r => ({
+      id: r.id, startedAt: r.startedAt, completedAt: r.completedAt,
+      stats: r.stats, eventCount: r.events.length,
+    })),
+  });
+});
+
+app.get("/api/replay/:id", (req, res) => {
+  const recording = STATE._sessionRecordings.find(r => r.id === req.params.id);
+  if (!recording) return res.status(404).json({ ok: false, error: "Not found" });
+  res.json({ ok: true, recording });
+});
+
+// ---------- #89: KNOWLEDGE COMPILER ----------
+// Transform loose DTUs into executable structures (decision trees, checklists, workflows).
+
+async function compileDTUs(dtuIds, outputType, options = {}) {
+  const dtus = dtuIds.map(id => STATE.dtus.get(id)).filter(Boolean);
+  if (dtus.length === 0) return { ok: false, error: "No valid DTUs" };
+
+  const context = dtus.map(d => `${d.title}: ${(d.content || "").slice(0, 200)}`).join("\n\n");
+
+  let compiled = null;
+
+  if (BRAIN.utility?.enabled) {
+    try {
+      let prompt = "";
+      switch (outputType) {
+        case "decision-tree":
+          prompt = `Convert these knowledge units into a decision tree. Use IF/THEN/ELSE structure:\n\n${context}\n\nFormat: Each node as "IF [condition] THEN [action/next] ELSE [action/next]"`;
+          break;
+        case "checklist":
+          prompt = `Convert these knowledge units into an executable checklist:\n\n${context}\n\nFormat: Numbered steps, each with a clear action and validation criteria.`;
+          break;
+        case "workflow":
+          prompt = `Convert these knowledge units into a step-by-step workflow:\n\n${context}\n\nFormat: Sequential steps with branching points marked as [BRANCH: condition → step]`;
+          break;
+        case "calculator":
+          prompt = `Extract any formulas or calculations from these knowledge units:\n\n${context}\n\nFormat: List each formula with its inputs, formula, and expected output.`;
+          break;
+        default:
+          prompt = `Summarize and structure these knowledge units:\n\n${context}`;
+      }
+
+      const result = await callBrain("utility", prompt, { maxTokens: 500 });
+      if (result.ok) compiled = result.content?.trim();
+    } catch {}
+  }
+
+  if (!compiled) {
+    compiled = `Compiled ${outputType} from ${dtus.length} DTUs:\n\n${dtus.map((d, i) => `${i + 1}. ${d.title}`).join("\n")}`;
+  }
+
+  // Create compiled artifact DTU
+  const compiledDTU = {
+    id: `compiled-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `${outputType}: ${dtus[0]?.title?.slice(0, 40) || "Compiled"} (+${dtus.length - 1} more)`,
+    content: compiled,
+    tags: ["compiled", outputType, ...(dtus[0]?.tags || []).slice(0, 3)],
+    tier: "mega",
+    source: "knowledge.compiler",
+    domain: dtus[0]?.domain || "general",
+    meta: {
+      compiledFrom: dtuIds,
+      outputType,
+      compiledAt: new Date().toISOString(),
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  upsertDTU(compiledDTU, { broadcast: false });
+
+  return { ok: true, compiled, dtuId: compiledDTU.id, type: outputType, sourceDTUs: dtuIds.length };
+}
+
+app.post("/api/compile", async (req, res) => {
+  const { dtuIds, outputType } = req.body;
+  if (!dtuIds || !Array.isArray(dtuIds) || dtuIds.length === 0) {
+    return res.status(400).json({ ok: false, error: "dtuIds array required" });
+  }
+  try {
+    const result = await compileDTUs(dtuIds, outputType || "checklist");
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC V
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
@@ -42966,6 +44228,39 @@ function kernelTick(event) {
           startDreamCycle().catch(e => observe(e, "dream_auto_trigger"));
         }
       } catch (e) { observe(e, "dream_schedule_check"); }
+    }
+
+    // Spec V: Pulse system — update brain health every 50 ticks
+    if (STATE.__bgTickCounter % 50 === 0 && typeof updateBrainPulses === "function") {
+      try { updateBrainPulses(); } catch {}
+    }
+
+    // Spec V: Confidence propagation — every 100 ticks
+    if (STATE.__bgTickCounter % 100 === 0 && typeof propagateConfidence === "function") {
+      try { propagateConfidence(); } catch {}
+    }
+
+    // Spec V: Data integrity check — every 500 ticks
+    if (STATE.__bgTickCounter % 500 === 0 && typeof runDataIntegrityCheck === "function") {
+      try {
+        const check = runDataIntegrityCheck();
+        if (check.autofixable > 0) autoFixIntegrityIssues(check.issues);
+        if (check.bySeverity.critical > 0) {
+          structuredLog("error", "integrity_critical", { critical: check.bySeverity.critical });
+        }
+      } catch (e) { observe(e, "integrity_tick"); }
+    }
+
+    // Spec V: Stigmergic path decay — every 1000 ticks
+    if (STATE.__bgTickCounter % 1000 === 0 && typeof decayPaths === "function") {
+      try { decayPaths(); } catch {}
+    }
+
+    // Spec V: Emit tick event
+    if (typeof eventBus !== "undefined") {
+      try {
+        eventBus.emit("tick.completed", { tick: STATE.__bgTickCounter, source: "governor" });
+      } catch {}
     }
   } catch {}
   // ===== END BACKGROUND PROCESSING =====
