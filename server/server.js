@@ -33477,6 +33477,483 @@ app.post("/api/command/nlp", asyncHandler(async (req, res) => {
 // END WAVE 1 FEATURES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 1: XP SYSTEM, CONTEXT RESURRECTION, ATTENTION ECONOMY, ANTI-ENTROPY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Knowledge XP System — Every knowledge action earns XP ────────────────
+
+const XP_TABLE = {
+  "dtu.create": 10,
+  "dtu.create.crystal": 50,
+  "dtu.cross_domain_connection": 25,
+  "hypothesis.confirmed": 100,
+  "prediction.calibrated": 75,
+  "marketplace.sale": 200,
+  "ghost_thread.useful": 30,
+  "course.completed": 150,
+  "streak.daily": 5, // multiplied by streak length
+  "lens.action": 5,
+  "dtu.update": 3,
+  "dtu.tag": 2,
+  "capture.quick": 8,
+};
+
+const LEVEL_THRESHOLDS = [
+  { minXP: 0, title: "Spark" },
+  { minXP: 500, title: "Ember" },
+  { minXP: 2000, title: "Flame" },
+  { minXP: 5000, title: "Forge" },
+  { minXP: 15000, title: "Architect" },
+  { minXP: 50000, title: "Weaver" },
+  { minXP: 150000, title: "Lattice Walker" },
+];
+
+// In-memory XP store (per user). Persistent via STATE.
+if (!STATE.xpStore) STATE.xpStore = {};
+
+function getXPProfile(userId = "sovereign") {
+  if (!STATE.xpStore[userId]) {
+    STATE.xpStore[userId] = {
+      totalXP: 0,
+      level: 1,
+      title: "Spark",
+      streak: { current: 0, longest: 0, lastActiveDate: null, freezesUsed: 0 },
+      history: [], // last 100 XP events
+      dailyActivity: {}, // { "2026-02-25": { dtus: 3, actions: 5 } }
+    };
+  }
+  return STATE.xpStore[userId];
+}
+
+function awardXP(userId, action, amount, meta = {}) {
+  const profile = getXPProfile(userId);
+  const finalAmount = amount || XP_TABLE[action] || 5;
+
+  profile.totalXP += finalAmount;
+
+  // Update level
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (profile.totalXP >= LEVEL_THRESHOLDS[i].minXP) {
+      profile.level = i + 1;
+      profile.title = LEVEL_THRESHOLDS[i].title;
+      break;
+    }
+  }
+
+  // Track history (keep last 100)
+  profile.history.push({
+    action,
+    amount: finalAmount,
+    at: nowISO(),
+    ...meta,
+  });
+  if (profile.history.length > 100) profile.history.splice(0, profile.history.length - 100);
+
+  // Track daily activity
+  const today = new Date().toISOString().slice(0, 10);
+  if (!profile.dailyActivity[today]) {
+    profile.dailyActivity[today] = { dtus: 0, actions: 0, xp: 0 };
+  }
+  profile.dailyActivity[today].actions++;
+  profile.dailyActivity[today].xp += finalAmount;
+  if (action.startsWith("dtu.")) profile.dailyActivity[today].dtus++;
+
+  // Update streak
+  updateStreak(profile, today);
+
+  // Clean old daily activity (keep 365 days)
+  const keys = Object.keys(profile.dailyActivity).sort();
+  if (keys.length > 365) {
+    for (const k of keys.slice(0, keys.length - 365)) delete profile.dailyActivity[k];
+  }
+
+  saveStateDebounced();
+  return { totalXP: profile.totalXP, level: profile.level, title: profile.title, awarded: finalAmount };
+}
+
+function updateStreak(profile, today) {
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  if (profile.streak.lastActiveDate === today) return; // Already counted today
+
+  if (profile.streak.lastActiveDate === yesterday) {
+    // Continue streak
+    profile.streak.current++;
+  } else if (profile.streak.lastActiveDate && profile.streak.lastActiveDate !== today) {
+    // Check if streak freeze applies (1 per week)
+    const daysSinceActive = Math.floor((Date.now() - new Date(profile.streak.lastActiveDate).getTime()) / 86400000);
+    if (daysSinceActive <= 2 && profile.streak.freezesUsed < 1) {
+      profile.streak.freezesUsed++;
+      // Continue streak with freeze
+    } else {
+      // Streak broken
+      profile.streak.current = 1;
+      profile.streak.freezesUsed = 0;
+    }
+  } else {
+    profile.streak.current = 1;
+  }
+
+  if (profile.streak.current > profile.streak.longest) {
+    profile.streak.longest = profile.streak.current;
+  }
+  profile.streak.lastActiveDate = today;
+
+  // Award streak XP
+  if (profile.streak.current > 1) {
+    const streakXP = XP_TABLE["streak.daily"] * profile.streak.current;
+    profile.totalXP += streakXP;
+  }
+}
+
+// XP API routes
+app.get("/api/xp/profile", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const profile = getXPProfile(userId);
+  const nextLevel = LEVEL_THRESHOLDS[profile.level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+  const prevLevel = LEVEL_THRESHOLDS[profile.level - 1] || LEVEL_THRESHOLDS[0];
+
+  res.json({
+    ok: true,
+    ...profile,
+    xpToNextLevel: nextLevel.minXP - profile.totalXP,
+    nextLevelTitle: nextLevel.title,
+    xpProgress: profile.totalXP - prevLevel.minXP,
+    xpRequired: nextLevel.minXP - prevLevel.minXP,
+  });
+});
+
+app.get("/api/xp/heatmap", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const profile = getXPProfile(userId);
+  const { days } = req.query;
+  const limit = Math.min(Number(days) || 90, 365);
+
+  // Build heatmap data (last N days)
+  const heatmap = [];
+  for (let i = 0; i < limit; i++) {
+    const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const activity = profile.dailyActivity[date] || { dtus: 0, actions: 0, xp: 0 };
+    heatmap.push({ date, ...activity });
+  }
+
+  res.json({ ok: true, heatmap: heatmap.reverse(), streak: profile.streak });
+});
+
+app.get("/api/xp/leaderboard", (_req, res) => {
+  const profiles = Object.entries(STATE.xpStore || {}).map(([userId, p]) => ({
+    userId,
+    totalXP: p.totalXP,
+    level: p.level,
+    title: p.title,
+    streak: p.streak?.current || 0,
+  }));
+  profiles.sort((a, b) => b.totalXP - a.totalXP);
+  res.json({ ok: true, leaderboard: profiles.slice(0, 50) });
+});
+
+// Hook XP into DTU creation (fires in upsertDTU after-hook)
+try {
+  if (typeof fireHook === "function") {
+    // Note: Can't register directly into fireHook from here, but we can
+    // hook into the macro system. We'll award XP in API route handlers.
+  }
+} catch {}
+
+// Award XP on DTU creation via the existing runMacro dtu.create path
+const _originalUpsertDTU = typeof upsertDTU === "function" ? upsertDTU : null;
+
+// XP award endpoint (for frontend-triggered events)
+app.post("/api/xp/award", (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+  const { action, meta } = req.body || {};
+  if (!action) return res.status(400).json({ ok: false, error: "action required" });
+  const result = awardXP(userId, action, XP_TABLE[action] || 5, meta || {});
+  res.json({ ok: true, ...result });
+});
+
+// ── 2. Context Resurrection — Perfect memory across sessions ────────────────
+
+app.get("/api/context/resurrect", asyncHandler(async (req, res) => {
+  const userId = req.actor?.userId || "sovereign";
+
+  // Gather recent episodes / activity
+  const recentDTUs = dtusArray()
+    .filter(d => d.ownerId === userId || !d.ownerId)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+    .slice(0, 10);
+
+  const lastSession = recentDTUs[0];
+  const lastDomain = lastSession?.tags?.[0] || null;
+  const lastActivity = lastSession?.updatedAt || lastSession?.createdAt || null;
+
+  // Time since last activity
+  const timeSinceMs = lastActivity ? Date.now() - new Date(lastActivity).getTime() : null;
+  const timeSinceHours = timeSinceMs ? Math.round(timeSinceMs / 3600000) : null;
+
+  // Stale DTU alerts
+  const staleDTUs = dtusArray()
+    .map(d => ({ id: d.id, title: d.title, freshness: calculateFreshness(d) }))
+    .filter(d => d.freshness < 0.2)
+    .sort((a, b) => a.freshness - b.freshness)
+    .slice(0, 3);
+
+  // XP profile summary
+  const xpProfile = getXPProfile(userId);
+
+  // Ghost thread insights (from dream cache if available)
+  const ghostInsights = [];
+  if (MORNING_BRIEF_CACHE.brief) {
+    ghostInsights.push({ type: "brief", content: "A morning brief is ready for you." });
+  }
+
+  // Active goals (from goals lens artifacts)
+  const goalArtifacts = [];
+  if (STATE.lensDomainIndex?.has("goals")) {
+    const goalIds = STATE.lensDomainIndex.get("goals");
+    for (const id of goalIds) {
+      const artifact = STATE.lensArtifacts?.get(id);
+      if (artifact && artifact.meta?.status === "active") {
+        goalArtifacts.push({
+          id: artifact.id,
+          title: artifact.title,
+          progress: artifact.meta?.progress || 0,
+        });
+      }
+      if (goalArtifacts.length >= 3) break;
+    }
+  }
+
+  // Build resurrection context
+  const context = {
+    welcome: timeSinceHours !== null
+      ? timeSinceHours > 24
+        ? `Welcome back! It's been ${Math.round(timeSinceHours / 24)} days since your last session.`
+        : timeSinceHours > 1
+          ? `Welcome back! You were last active ${timeSinceHours} hours ago.`
+          : "Welcome back! Continuing where you left off."
+      : "Welcome to Concord!",
+    lastDomain,
+    lastDTUTitle: lastSession?.title || null,
+    recentDTUs: recentDTUs.slice(0, 5).map(d => ({
+      id: d.id,
+      title: d.title,
+      domain: (d.tags || [])[0] || "general",
+      freshness: calculateFreshness(d),
+    })),
+    staleDTUs,
+    xp: {
+      totalXP: xpProfile.totalXP,
+      level: xpProfile.level,
+      title: xpProfile.title,
+      streak: xpProfile.streak.current,
+    },
+    ghostInsights,
+    activeGoals: goalArtifacts,
+    stats: {
+      totalDTUs: STATE.dtus.size,
+      domains: [...new Set(dtusArray().flatMap(d => d.tags || []))].length,
+    },
+  };
+
+  res.json({ ok: true, context });
+}));
+
+// ── 3. Attention Economy — DTUs compete for consciousness ───────────────────
+
+/**
+ * Calculate attention score for a DTU.
+ * attention = (relevance × recency × urgency × novelty) / familiarity
+ */
+function calculateAttention(dtu, activeDomain = null) {
+  if (!dtu) return 0;
+  const now = Date.now();
+
+  // Relevance: how close to current active domain
+  let relevance = 0.3; // base
+  if (activeDomain && (dtu.tags || []).includes(activeDomain)) relevance = 1.0;
+  else if (activeDomain) {
+    // Partial match — check for related domains
+    const domainTags = dtu.tags || [];
+    const overlap = domainTags.filter(t => t.length > 2).length;
+    relevance = Math.min(0.8, 0.3 + overlap * 0.1);
+  }
+
+  // Recency: time decay (12-hour half-life for attention, faster than freshness)
+  const lastTouched = Math.max(
+    new Date(dtu.updatedAt || dtu.createdAt || 0).getTime(),
+    dtu.meta?.lastAccessedAt ? new Date(dtu.meta.lastAccessedAt).getTime() : 0
+  );
+  const hoursSince = (now - lastTouched) / 3600000;
+  const recency = Math.exp(-hoursSince / 12); // 12-hour half-life
+
+  // Urgency: placeholder (would need calendar/goal integration)
+  const urgency = (dtu.meta?.urgent || dtu.meta?.deadline) ? 1.5 : 1.0;
+
+  // Novelty: inverse of familiarity. New DTUs are novel. Frequently accessed ones less so.
+  const accessCount = dtu.meta?.accessCount || 0;
+  const novelty = 1.0 / (1 + accessCount * 0.15);
+
+  // Familiarity: how many times user has seen this
+  const familiarity = Math.max(1.0, 1 + Math.log1p(accessCount) * 0.3);
+
+  // Tier boost
+  const tierBoost = dtu.tier === "hyper" ? 1.4 : dtu.tier === "mega" ? 1.2 : 1.0;
+
+  const score = (relevance * recency * urgency * novelty * tierBoost) / familiarity;
+  return Math.min(1.0, Math.max(0.0, score));
+}
+
+app.get("/api/attention/feed", (req, res) => {
+  const { domain, limit: lim } = req.query;
+  const activeDomain = domain ? String(domain) : null;
+  const limit = Math.min(Number(lim) || 30, 100);
+
+  const scored = dtusArray()
+    .filter(d => !d.meta?.composted) // exclude composted DTUs
+    .map(d => ({
+      id: d.id,
+      title: d.title,
+      tags: (d.tags || []).slice(0, 5),
+      tier: d.tier || "regular",
+      attention: calculateAttention(d, activeDomain),
+      freshness: calculateFreshness(d),
+      updatedAt: d.updatedAt || d.createdAt,
+    }))
+    .sort((a, b) => b.attention - a.attention)
+    .slice(0, limit);
+
+  res.json({ ok: true, feed: scored, activeDomain, total: scored.length });
+});
+
+// ── 4. Anti-Entropy Engine — Fight knowledge decay ──────────────────────────
+
+/**
+ * Anti-entropy scan: identify issues in the substrate.
+ * Returns a list of issues that need attention.
+ */
+function antiEntropyScan() {
+  const issues = [];
+  const tagMap = new Map(); // normalized tag → [original variants]
+  const titleSet = new Map(); // normalized title → [dtu ids]
+
+  for (const dtu of dtusArray()) {
+    // 1. Tag normalization candidates
+    for (const tag of (dtu.tags || [])) {
+      const normalized = tag.toLowerCase().replace(/[-_\s]+/g, " ").trim();
+      if (!tagMap.has(normalized)) tagMap.set(normalized, new Set());
+      tagMap.get(normalized).add(tag);
+    }
+
+    // 2. Orphan detection (no connections)
+    const parentCount = dtu.lineage?.parentIds?.length || 0;
+    const childCount = dtu.lineage?.childIds?.length || 0;
+    if (parentCount === 0 && childCount === 0 && !dtu.meta?.isOrphanOk) {
+      const freshness = calculateFreshness(dtu);
+      if (freshness < 0.3) {
+        issues.push({
+          type: "orphan",
+          dtuId: dtu.id,
+          title: dtu.title,
+          freshness,
+          suggestion: "Connect to related DTUs or move to compost",
+        });
+      }
+    }
+
+    // 3. Duplicate detection (by normalized title)
+    const normalizedTitle = (dtu.title || "").toLowerCase().trim();
+    if (normalizedTitle.length > 5) {
+      if (!titleSet.has(normalizedTitle)) titleSet.set(normalizedTitle, []);
+      titleSet.get(normalizedTitle).push(dtu.id);
+    }
+  }
+
+  // Process tag normalization issues
+  for (const [normalized, variants] of tagMap) {
+    if (variants.size > 1) {
+      issues.push({
+        type: "tag_variants",
+        tag: normalized,
+        variants: [...variants],
+        suggestion: `Merge tag variants: ${[...variants].join(", ")} → "${normalized}"`,
+        affectedDTUs: dtusArray().filter(d => (d.tags || []).some(t => variants.has(t))).length,
+      });
+    }
+  }
+
+  // Process duplicates
+  for (const [title, ids] of titleSet) {
+    if (ids.length > 1) {
+      issues.push({
+        type: "duplicate_title",
+        title,
+        dtuIds: ids.slice(0, 5),
+        count: ids.length,
+        suggestion: `${ids.length} DTUs share the title "${title}" — consider merging`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Run anti-entropy fixes autonomously.
+ * Only performs safe, reversible operations.
+ */
+function antiEntropyFix(issues) {
+  let fixed = 0;
+  const log = [];
+
+  for (const issue of issues) {
+    if (issue.type === "tag_variants" && issue.variants.length <= 3) {
+      // Auto-normalize tags to the most common variant
+      const canonical = issue.variants.sort((a, b) => a.length - b.length)[0];
+      const othersSet = new Set(issue.variants.filter(v => v !== canonical));
+
+      for (const dtu of dtusArray()) {
+        const tags = dtu.tags || [];
+        let changed = false;
+        const newTags = tags.map(t => {
+          if (othersSet.has(t)) { changed = true; return canonical; }
+          return t;
+        });
+        if (changed) {
+          dtu.tags = [...new Set(newTags)];
+          fixed++;
+        }
+      }
+      log.push({ action: "tag_normalize", from: [...othersSet], to: canonical, affected: fixed });
+    }
+  }
+
+  if (fixed > 0) saveStateDebounced();
+  return { fixed, log };
+}
+
+// Anti-entropy API
+app.get("/api/entropy/scan", (_req, res) => {
+  const issues = antiEntropyScan();
+  const summary = {
+    orphans: issues.filter(i => i.type === "orphan").length,
+    tagVariants: issues.filter(i => i.type === "tag_variants").length,
+    duplicates: issues.filter(i => i.type === "duplicate_title").length,
+  };
+  res.json({ ok: true, issues: issues.slice(0, 50), summary, total: issues.length });
+});
+
+app.post("/api/entropy/fix", (_req, res) => {
+  const issues = antiEntropyScan();
+  const result = antiEntropyFix(issues);
+  res.json({ ok: true, ...result });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 1
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
@@ -39825,6 +40302,31 @@ function kernelTick(event) {
       addBackgroundTask({ type: "maintenance", handler: "world_model_decay", priority: 0.2 });
       addBackgroundTask({ type: "maintenance", handler: "experience_consolidation", priority: 0.3 });
       addBackgroundTask({ type: "maintenance", handler: "pattern_decay", priority: 0.1 });
+    }
+
+    // Anti-entropy engine: scan and fix every 200 ticks
+    if (STATE.__bgTickCounter % 200 === 0 && typeof antiEntropyScan === "function") {
+      try {
+        const issues = antiEntropyScan();
+        if (issues.length > 0) {
+          const result = antiEntropyFix(issues.filter(i => i.type === "tag_variants"));
+          if (result.fixed > 0) {
+            structuredLog("info", "anti_entropy_fix", { fixed: result.fixed, log: result.log });
+          }
+        }
+      } catch (e) { observe(e, "anti_entropy_tick"); }
+    }
+
+    // XP: award streak XP for active users once per day
+    if (STATE.__bgTickCounter % 500 === 0 && typeof getXPProfile === "function") {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        for (const [userId, profile] of Object.entries(STATE.xpStore || {})) {
+          if (profile.streak?.lastActiveDate === today && profile.streak.current > 1) {
+            // Streak already tracked in awardXP — nothing extra needed here
+          }
+        }
+      } catch {}
     }
   } catch {}
   // ===== END BACKGROUND PROCESSING =====

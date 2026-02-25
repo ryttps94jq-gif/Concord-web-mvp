@@ -11,6 +11,7 @@ import { Search, Bell, User, Command, Menu, LogOut, Settings, Shield } from 'luc
 import { SyncStatusDot } from '@/components/common/OfflineIndicator';
 import { useOnlineStatus } from '@/components/common/OfflineIndicator';
 import { HeartbeatBar } from '@/components/live/HeartbeatBar';
+import { XPWidget } from '@/components/gamification/XPWidget';
 
 export function Topbar() {
   const { sidebarCollapsed, setCommandPaletteOpen, activeLens, setSidebarOpen } = useUIStore();
@@ -142,6 +143,11 @@ export function Topbar() {
         <div className="flex items-center gap-2 px-2 py-1.5" title={isOnline ? 'Online' : 'Offline — changes saved locally'}>
           <SyncStatusDot status={isOnline ? 'synced' : 'offline'} />
           <span className="hidden md:inline text-xs text-gray-400">{isOnline ? 'Online' : 'Offline'}</span>
+        </div>
+
+        {/* XP Widget — streak, level, progress */}
+        <div className="hidden md:block">
+          <XPWidget />
         </div>
 
         {/* Live Heartbeat Bar — DTU counter, emergent status, sovereignty badge */}

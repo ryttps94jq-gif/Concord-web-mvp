@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { use70Lock } from '@/hooks/use70Lock';
 import { MorningBrief } from '@/components/brief/MorningBrief';
+import { ContextResurrection } from '@/components/common/ContextResurrection';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -288,6 +289,11 @@ function DashboardPage() {
           </Link>
         </div>
       </header>
+
+      {/* Context Resurrection — welcome-back cognitive context banner */}
+      <LensErrorBoundary name="Context Resurrection">
+        <ContextResurrection />
+      </LensErrorBoundary>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
