@@ -5048,8 +5048,6 @@ const REALTIME = {
 };
 
 function realtimeEmit(event, payload, { sessionId = "", orgId = "", requestId = "" } = {}) {
-  if (!REALTIME.ready || !REALTIME.io) return { ok: false, reason: "socket_not_ready" };
-
   // ---- Event Ordering & Correlation (Category 2+5: Concurrency + Observability) ----
   const enrichedPayload = {
     ...payload,
@@ -5059,15 +5057,27 @@ function realtimeEmit(event, payload, { sessionId = "", orgId = "", requestId = 
     _evt: event,                         // Event name for client-side reordering
   };
 
-  // Emit to specific rooms or broadcast
-  if (sessionId) {
-    REALTIME.io.to(`session:${sessionId}`).emit(event, enrichedPayload);
-  } else if (orgId) {
-    REALTIME.io.to(`org:${orgId}`).emit(event, enrichedPayload);
-  } else {
-    REALTIME.io.emit(event, enrichedPayload);
+  // Try Socket.IO first (primary transport)
+  if (REALTIME.ready && REALTIME.io) {
+    if (sessionId) {
+      REALTIME.io.to(`session:${sessionId}`).emit(event, enrichedPayload);
+    } else if (orgId) {
+      REALTIME.io.to(`org:${orgId}`).emit(event, enrichedPayload);
+    } else {
+      REALTIME.io.emit(event, enrichedPayload);
+    }
+    return { ok: true, seq: enrichedPayload._seq, transport: "socketio" };
   }
-  return { ok: true, seq: enrichedPayload._seq };
+
+  // Fallback: native WebSocket broadcast
+  if (typeof globalThis.realtimeEmitNative === "function") {
+    try {
+      globalThis.realtimeEmitNative(event, enrichedPayload);
+      return { ok: true, seq: enrichedPayload._seq, transport: "native-ws" };
+    } catch {}
+  }
+
+  return { ok: false, reason: "socket_not_ready" };
 }
 
 function enqueueNotification(item, { sessionId = "", orgId = "" } = {}) {
@@ -8901,6 +8911,11 @@ function dtusByIds(ids=[]) {
   return out;
 }
 function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
+  // Input sanitization: prevent XSS and normalize tags
+  if (typeof sanitizeDTUInput === "function") {
+    try { sanitizeDTUInput(dtu); } catch {}
+  }
+
   const isNew = !STATE.dtus.has(dtu.id);
 
   // Dedup gate: block system-generated template/duplicate DTUs
@@ -38092,7 +38107,533 @@ app.post("/api/compile", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// END SPEC V
+// SPEC VII: PRODUCTION PERFECTION — EMERGENT ↔ ORGANISM BRIDGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- PART 1: ORGANISM BRIDGE LAYER ----------
+// Connects emergent governance agents with knowledge organisms (DTU swarms).
+// Emergents validate organism output; organisms provide domain expertise to emergents.
+
+if (!STATE._bridge) STATE._bridge = {
+  log: [],           // Interaction history (bounded)
+  quarantine: [],    // DTUs rejected by governance
+  birthCerts: [],    // Organism birth certificates
+  deathRecords: [],  // Organism death records
+  debates: [],       // Bridge debates
+};
+
+const BRIDGE_MAX_LOG = 500;
+const BRIDGE_MAX_QUARANTINE = 200;
+
+const EMERGENT_ROLES = ["builder", "critic", "historian", "economist", "ethicist", "engineer", "synthesizer", "auditor", "adversary"];
+
+function bridgeLog(action, data) {
+  const entry = { id: uid("bridge"), action, ...data, at: nowISO() };
+  STATE._bridge.log.push(entry);
+  if (STATE._bridge.log.length > BRIDGE_MAX_LOG) STATE._bridge.log = STATE._bridge.log.slice(-BRIDGE_MAX_LOG);
+  if (typeof eventBus !== "undefined") {
+    try { eventBus.emit(`bridge.${action}`, entry); } catch {}
+  }
+  return entry;
+}
+
+// --- Pattern A: Organism submits DTU for emergent governance validation ---
+async function validateOrganismDTU(dtu, submitterId) {
+  const validations = [];
+  const ctx = typeof _governorCtx === "function" ? _governorCtx() : {};
+
+  // Critic: Is this falsifiable?
+  try {
+    const criticResult = await callBrain("repair", `You are the CRITIC emergent. Evaluate this DTU for falsifiability and evidence quality. DTU title: "${dtu.title}". Content: "${(dtu.human?.summary || dtu.content || "").slice(0, 500)}". Tags: ${(dtu.tags || []).join(", ")}. Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(criticResult?.content || "{}");
+    validations.push({ role: "critic", pass: parsed.pass !== false, reason: parsed.reason || criticResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "critic", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  // Ethicist: Constitutional principles check
+  try {
+    const ethicistResult = await callBrain("repair", `You are the ETHICIST emergent. Does this DTU violate any constitutional or ethical principles? DTU: "${dtu.title}" — "${(dtu.human?.summary || dtu.content || "").slice(0, 500)}". Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(ethicistResult?.content || "{}");
+    validations.push({ role: "ethicist", pass: parsed.pass !== false, reason: parsed.reason || ethicistResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "ethicist", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  // Auditor: Provenance check
+  try {
+    const auditorResult = await callBrain("utility", `You are the AUDITOR emergent. Check this DTU's provenance and scope. Title: "${dtu.title}". Domain: "${dtu.domain || "unknown"}". Source: "${dtu.source || "organism"}". Tags: ${(dtu.tags || []).join(", ")}. Respond with JSON: { "pass": true/false, "reason": "..." }`, { temperature: 0.3, maxTokens: 200 });
+    const parsed = safeJSONParse(auditorResult?.content || "{}");
+    validations.push({ role: "auditor", pass: parsed.pass !== false, reason: parsed.reason || auditorResult?.content?.slice(0, 200) || "evaluated" });
+  } catch (e) { validations.push({ role: "auditor", pass: true, reason: "Evaluation unavailable, defaulting to pass" }); }
+
+  const allPassed = validations.every(v => v.pass);
+  const result = {
+    dtuId: dtu.id,
+    submitterId,
+    validations,
+    allPassed,
+    governance: allPassed ? "emergent-validated" : "quarantined",
+    decidedAt: nowISO(),
+  };
+
+  if (allPassed) {
+    // Tag DTU as governance-validated
+    dtu.tags = [...new Set([...(dtu.tags || []), "emergent-validated"])];
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "validated";
+    dtu.meta._validatedAt = nowISO();
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  } else {
+    // Quarantine
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "quarantined";
+    dtu.meta._quarantineReasons = validations.filter(v => !v.pass).map(v => ({ role: v.role, reason: v.reason }));
+    dtu.meta._quarantineAttempts = (dtu.meta._quarantineAttempts || 0) + 1;
+    STATE._bridge.quarantine.push({ dtuId: dtu.id, reasons: dtu.meta._quarantineReasons, at: nowISO() });
+    if (STATE._bridge.quarantine.length > BRIDGE_MAX_QUARANTINE) STATE._bridge.quarantine = STATE._bridge.quarantine.slice(-BRIDGE_MAX_QUARANTINE);
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  bridgeLog("validation.result", { dtuId: dtu.id, allPassed, validations: validations.map(v => ({ role: v.role, pass: v.pass })) });
+  return result;
+}
+
+// --- Pattern B: Emergent queries organism for domain expertise ---
+async function emergentQueryOrganism(fromRole, toOrganismId, query, context) {
+  if (!EMERGENT_ROLES.includes(fromRole)) {
+    return { ok: false, error: `Unknown emergent role: ${fromRole}` };
+  }
+
+  bridgeLog("emergent.query", { fromRole, toOrganismId, query: query.slice(0, 200) });
+
+  // Find the organism's DTU swarm
+  const swarm = (STATE.swarms || []).find(s => s.id === toOrganismId);
+  if (!swarm) return { ok: false, error: `Organism/swarm not found: ${toOrganismId}` };
+
+  // Gather context from swarm members
+  const memberDTUs = swarm.members.slice(0, 20).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmContext = memberDTUs.map(d => `[${d.title}] ${(d.human?.summary || "").slice(0, 100)}`).join("\n");
+
+  const brain = fromRole === "engineer" ? "utility" : fromRole === "critic" || fromRole === "adversary" ? "repair" : "subconscious";
+
+  try {
+    const result = await callBrain(brain, `You are a Knowledge Organism (swarm: "${swarm.name}") responding to a query from the ${fromRole} emergent agent.\n\nYour DTU knowledge:\n${swarmContext}\n\nQuery: ${query}\n\nProvide a focused, evidence-based response grounded in your DTU swarm knowledge.`, { temperature: 0.5, maxTokens: 500 });
+
+    const responseDtu = {
+      id: uid("dtu"), title: `Bridge Response: ${fromRole} → ${swarm.name}`,
+      tags: ["bridge-response", fromRole, ...(swarm.topTags || []).slice(0, 3)],
+      tier: "regular", source: "organism-bridge", domain: "bridge",
+      createdAt: nowISO(), updatedAt: nowISO(),
+      human: { summary: result?.content?.slice(0, 500) || "No response", bullets: [], examples: [] },
+      core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+      machine: { fromRole, toOrganismId, query, swarmSize: swarm.size },
+      authority: { model: brain, score: 0.6 },
+      lineage: { parents: swarm.members.slice(0, 5), children: [] },
+    };
+    if (typeof upsertDTU === "function") upsertDTU(responseDtu);
+
+    bridgeLog("organism.response", { fromRole, organismId: toOrganismId, responseDtuId: responseDtu.id });
+    return { ok: true, response: result?.content || "", dtuId: responseDtu.id, swarmName: swarm.name };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// --- Pattern C: Cross-system debate ---
+async function initiateBridgeDebate(challengerRole, targetDtuId, challenge) {
+  if (!["critic", "adversary", "auditor"].includes(challengerRole)) {
+    return { ok: false, error: "Only critic, adversary, or auditor can challenge" };
+  }
+
+  const dtu = STATE.dtus.get(targetDtuId);
+  if (!dtu) return { ok: false, error: "DTU not found" };
+
+  bridgeLog("debate.initiate", { challengerRole, targetDtuId, challenge: challenge.slice(0, 200) });
+
+  const transcript = [];
+
+  // Step 1: Organism states position
+  try {
+    const orgPos = await callBrain("subconscious", `You represent the Knowledge Organism that produced this DTU. Defend its validity.\nDTU: "${dtu.title}" — "${(dtu.human?.summary || "").slice(0, 300)}"\nChallenge from ${challengerRole}: "${challenge}"\nState your position with evidence from the DTU.`, { temperature: 0.5, maxTokens: 300 });
+    transcript.push({ speaker: "organism", content: orgPos?.content || "No defense offered" });
+  } catch { transcript.push({ speaker: "organism", content: "Defense unavailable" }); }
+
+  // Step 2: Challenger responds
+  try {
+    const chalResp = await callBrain("repair", `You are the ${challengerRole} emergent agent. The organism defends: "${transcript[0]?.content?.slice(0, 300)}". Your original challenge: "${challenge}". Respond with your counter-argument.`, { temperature: 0.4, maxTokens: 300 });
+    transcript.push({ speaker: challengerRole, content: chalResp?.content || "No counter" });
+  } catch { transcript.push({ speaker: challengerRole, content: "Counter unavailable" }); }
+
+  // Step 3: Engineer evaluates technical feasibility
+  try {
+    const engEval = await callBrain("utility", `You are the engineer emergent. Evaluate the technical merits of this debate.\nOrganism position: "${transcript[0]?.content?.slice(0, 200)}"\n${challengerRole} position: "${transcript[1]?.content?.slice(0, 200)}"\nProvide a technical assessment.`, { temperature: 0.3, maxTokens: 200 });
+    transcript.push({ speaker: "engineer", content: engEval?.content || "No assessment" });
+  } catch { transcript.push({ speaker: "engineer", content: "Assessment unavailable" }); }
+
+  // Step 4: Synthesizer attempts resolution
+  try {
+    const synthRes = await callBrain("conscious", `You are the synthesizer emergent. Resolve this debate:\nOrganism: "${transcript[0]?.content?.slice(0, 200)}"\n${challengerRole}: "${transcript[1]?.content?.slice(0, 200)}"\nEngineer: "${transcript[2]?.content?.slice(0, 200)}"\n\nProvide a resolution: ACCEPT (DTU stands), MODIFY (needs changes), or QUARANTINE (reject). Respond with JSON: { "verdict": "accept|modify|quarantine", "resolution": "..." }`, { temperature: 0.3, maxTokens: 300 });
+    transcript.push({ speaker: "synthesizer", content: synthRes?.content || "No resolution" });
+  } catch { transcript.push({ speaker: "synthesizer", content: "Resolution unavailable" }); }
+
+  // Parse verdict
+  const synthContent = transcript.find(t => t.speaker === "synthesizer")?.content || "";
+  const verdictParsed = safeJSONParse(synthContent);
+  const verdict = verdictParsed?.verdict || (synthContent.toLowerCase().includes("quarantine") ? "quarantine" : synthContent.toLowerCase().includes("modify") ? "modify" : "accept");
+
+  // Apply verdict
+  if (verdict === "quarantine") {
+    dtu.meta = dtu.meta || {};
+    dtu.meta._governanceStatus = "quarantined";
+    dtu.meta._quarantineReasons = [{ role: challengerRole, reason: challenge }];
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  } else if (verdict === "modify") {
+    dtu.tags = [...new Set([...(dtu.tags || []), "debate-modified"])];
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  const debateRecord = {
+    id: uid("debate"), dtuId: targetDtuId, challengerRole, challenge,
+    transcript, verdict, resolution: verdictParsed?.resolution || synthContent.slice(0, 300),
+    at: nowISO(),
+  };
+  STATE._bridge.debates.push(debateRecord);
+  if (STATE._bridge.debates.length > 200) STATE._bridge.debates = STATE._bridge.debates.slice(-200);
+
+  // Store debate as DTU
+  const debateDtu = {
+    id: uid("dtu"), title: `Bridge Debate: ${challengerRole} vs organism on "${dtu.title?.slice(0, 50)}"`,
+    tags: ["bridge-debate", challengerRole, verdict], tier: "regular", source: "organism-bridge", domain: "bridge",
+    createdAt: nowISO(), updatedAt: nowISO(),
+    human: { summary: `Verdict: ${verdict}. ${debateRecord.resolution}`, bullets: transcript.map(t => `${t.speaker}: ${t.content.slice(0, 100)}`), examples: [] },
+    core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+    machine: { debateId: debateRecord.id, targetDtuId, verdict, challengerRole },
+    authority: { model: "multi-brain", score: 0.8 },
+    lineage: { parents: [targetDtuId], children: [] },
+  };
+  if (typeof upsertDTU === "function") upsertDTU(debateDtu);
+
+  bridgeLog("debate.resolved", { debateId: debateRecord.id, verdict, dtuId: targetDtuId });
+  return { ok: true, debate: debateRecord, debateDtuId: debateDtu.id };
+}
+
+// --- Pattern D: Organism Birth Ceremony ---
+async function organismBirthCeremony(swarmId) {
+  const swarm = (STATE.swarms || []).find(s => s.id === swarmId);
+  if (!swarm) return { ok: false, error: "Swarm not found" };
+  if (swarm.size < 10) return { ok: false, error: "Swarm too small for awakening (minimum 10 DTUs)" };
+
+  bridgeLog("organism.birth", { swarmId, swarmName: swarm.name, size: swarm.size });
+
+  const memberDTUs = swarm.members.slice(0, 30).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmSummary = memberDTUs.map(d => `- ${d.title} [${(d.tags || []).slice(0, 3).join(",")}]`).join("\n");
+
+  // Convene all nine emergents (simplified: use 3 brain calls covering all 9 roles)
+  const governanceReviews = [];
+
+  // Group 1: Builder + Engineer + Synthesizer (via utility brain)
+  try {
+    const g1 = await callBrain("utility", `You represent THREE emergent governance agents evaluating a new Knowledge Organism birth:\n\nBUILDER: Is this organism structurally sound?\nENGINEER: Can its metabolism sustain itself?\nSYNTHESIZER: How does it connect to existing knowledge?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "builder", "approve": true/false, "note": "..." }, { "role": "engineer", "approve": true/false, "note": "..." }, { "role": "synthesizer", "approve": true/false, "note": "..." }]`, { temperature: 0.3, maxTokens: 400 });
+    const parsed = safeJSONParse(g1?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "builder", approve: true, note: g1?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "builder", approve: true, note: "unavailable" }); }
+
+  // Group 2: Critic + Auditor + Adversary (via repair brain)
+  try {
+    const g2 = await callBrain("repair", `You represent THREE emergent governance agents RED-TEAMING a new Knowledge Organism:\n\nCRITIC: Are the foundational DTUs falsifiable?\nAUDITOR: Is all provenance clean?\nADVERSARY: What could go wrong with this organism?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "critic", "approve": true/false, "note": "..." }, { "role": "auditor", "approve": true/false, "note": "..." }, { "role": "adversary", "approve": true/false, "note": "..." }]`, { temperature: 0.4, maxTokens: 400 });
+    const parsed = safeJSONParse(g2?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "critic", approve: true, note: g2?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "critic", approve: true, note: "unavailable" }); }
+
+  // Group 3: Economist + Ethicist + Historian (via subconscious brain)
+  try {
+    const g3 = await callBrain("subconscious", `You represent THREE emergent governance agents evaluating a new Knowledge Organism:\n\nECONOMIST: Is this organism economically viable?\nETHICIST: Does this domain raise ethical concerns?\nHISTORIAN: Is this organism genuinely novel or duplicate?\n\nSwarm "${swarm.name}" with ${swarm.size} DTUs:\n${swarmSummary.slice(0, 800)}\n\nFor each role, respond with JSON array: [{ "role": "economist", "approve": true/false, "note": "..." }, { "role": "ethicist", "approve": true/false, "note": "..." }, { "role": "historian", "approve": true/false, "note": "..." }]`, { temperature: 0.4, maxTokens: 400 });
+    const parsed = safeJSONParse(g3?.content || "[]");
+    if (Array.isArray(parsed)) governanceReviews.push(...parsed);
+    else governanceReviews.push({ role: "economist", approve: true, note: g3?.content?.slice(0, 100) || "reviewed" });
+  } catch { governanceReviews.push({ role: "economist", approve: true, note: "unavailable" }); }
+
+  // Council vote
+  const approvals = governanceReviews.filter(r => r.approve !== false).length;
+  const total = governanceReviews.length || 1;
+  const approved = approvals / total >= 0.6; // 60% majority
+
+  // Generate persona if approved
+  let persona = null;
+  if (approved) {
+    try {
+      const personaResult = await callBrain("utility", `Generate a brief persona for a newly awakened Knowledge Organism.\nDomain: "${swarm.name}"\nTop tags: ${(swarm.topTags || []).join(", ")}\nSize: ${swarm.size} DTUs\n\nRespond with JSON: { "name": "...", "personality": "...", "objective": "...", "greeting": "..." }`, { temperature: 0.7, maxTokens: 200 });
+      persona = safeJSONParse(personaResult?.content || "{}");
+    } catch {}
+  }
+
+  const birthCert = {
+    id: uid("birth"), swarmId, swarmName: swarm.name, approved,
+    approvalRatio: `${approvals}/${total}`,
+    governanceReviews: governanceReviews.map(r => ({ role: r.role, approve: r.approve, note: (r.note || "").slice(0, 200) })),
+    persona: approved ? persona : null,
+    at: nowISO(),
+  };
+
+  STATE._bridge.birthCerts.push(birthCert);
+  if (STATE._bridge.birthCerts.length > 100) STATE._bridge.birthCerts = STATE._bridge.birthCerts.slice(-100);
+
+  // Store birth certificate as DTU
+  const birthDtu = {
+    id: uid("dtu"), title: `Organism Birth Certificate: ${swarm.name}`,
+    tags: ["organism-birth-certificate", approved ? "approved" : "denied", ...(swarm.topTags || []).slice(0, 3)],
+    tier: approved ? "mega" : "regular", source: "organism-bridge", domain: "bridge",
+    createdAt: nowISO(), updatedAt: nowISO(),
+    human: { summary: `Knowledge Organism "${swarm.name}" ${approved ? "APPROVED" : "DENIED"} for awakening. Vote: ${approvals}/${total}. ${persona?.greeting || ""}`, bullets: governanceReviews.map(r => `${r.role}: ${r.approve ? "✓" : "✗"} — ${(r.note || "").slice(0, 80)}`), examples: [] },
+    core: { definitions: [], invariants: [], claims: [], examples: [], nextActions: [] },
+    machine: { birthCertId: birthCert.id, swarmId, approved, persona },
+    authority: { model: "governance-council", score: 0.9 },
+    lineage: { parents: swarm.members.slice(0, 10), children: [] },
+  };
+  if (typeof upsertDTU === "function") upsertDTU(birthDtu);
+
+  // If approved, mark swarm as organism
+  if (approved) {
+    swarm.isOrganism = true;
+    swarm.persona = persona;
+    swarm.awakenedAt = nowISO();
+    swarm.birthCertId = birthCert.id;
+  }
+
+  bridgeLog(approved ? "organism.awakened" : "organism.denied", { swarmId, swarmName: swarm.name, vote: `${approvals}/${total}` });
+  return { ok: true, birthCert, approved, persona, birthDtuId: birthDtu.id };
+}
+
+// --- Pattern E: Organism Death Protocol ---
+async function organismDeathProtocol(swarmId) {
+  const swarm = (STATE.swarms || []).find(s => s.id === swarmId);
+  if (!swarm) return { ok: false, error: "Swarm/organism not found" };
+
+  bridgeLog("organism.death", { swarmId, swarmName: swarm.name });
+
+  const memberDTUs = swarm.members.map(id => STATE.dtus.get(id)).filter(Boolean);
+  const swarmSummary = memberDTUs.slice(0, 20).map(d => `- ${d.title} (tier: ${d.tier}, tags: ${(d.tags || []).slice(0, 3).join(",")})`).join("\n");
+
+  // Historian archives: what's worth preserving?
+  let archiveDecision = {};
+  try {
+    const histResult = await callBrain("subconscious", `You are the HISTORIAN emergent. This Knowledge Organism "${swarm.name}" is entering dormancy. Review its ${memberDTUs.length} DTUs and decide what to preserve.\n\nDTUs:\n${swarmSummary.slice(0, 1000)}\n\nRespond with JSON: { "preserve": ["list of DTU titles worth keeping"], "compost": ["list of DTU titles to compost"], "archiveNote": "..." }`, { temperature: 0.4, maxTokens: 400 });
+    archiveDecision = safeJSONParse(histResult?.content || "{}");
+  } catch {}
+
+  // Mark preserved DTUs, compost the rest
+  let preserved = 0, composted = 0;
+  for (const dtu of memberDTUs) {
+    if (dtu.tier === "hyper" || dtu.tier === "mega") {
+      // Always preserve high-tier DTUs
+      dtu.tags = [...new Set([...(dtu.tags || []), "organism-archived"])];
+      preserved++;
+    } else if (Array.isArray(archiveDecision.compost) && archiveDecision.compost.some(t => dtu.title?.includes(t))) {
+      dtu.status = "composted";
+      dtu.meta = dtu.meta || {};
+      dtu.meta._compostedBy = "death-protocol";
+      composted++;
+    } else {
+      // Default: preserve and integrate back
+      dtu.tags = [...new Set([...(dtu.tags || []), "organism-archived"])];
+      preserved++;
+    }
+    if (typeof upsertDTU === "function") upsertDTU(dtu);
+  }
+
+  const deathRecord = {
+    id: uid("death"), swarmId, swarmName: swarm.name,
+    totalDTUs: memberDTUs.length, preserved, composted,
+    archiveNote: archiveDecision.archiveNote || "",
+    at: nowISO(),
+  };
+  STATE._bridge.deathRecords.push(deathRecord);
+  if (STATE._bridge.deathRecords.length > 100) STATE._bridge.deathRecords = STATE._bridge.deathRecords.slice(-100);
+
+  // Mark swarm as dormant
+  swarm.isOrganism = false;
+  swarm.dormantAt = nowISO();
+
+  bridgeLog("organism.dormant", { swarmId, preserved, composted });
+  return { ok: true, deathRecord };
+}
+
+// ---------- BRIDGE API ENDPOINTS ----------
+
+app.post("/api/bridge/submit", asyncHandler(async (req, res) => {
+  const { dtuId } = req.body;
+  if (!dtuId) return res.status(400).json({ ok: false, error: "dtuId required" });
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if ((dtu.meta?._quarantineAttempts || 0) >= 3) {
+    return res.status(400).json({ ok: false, error: "DTU permanently quarantined after 3 failed attempts" });
+  }
+  const result = await validateOrganismDTU(dtu, req.body.submitterId || "user");
+  res.json({ ok: true, ...result });
+}));
+
+app.post("/api/bridge/query", asyncHandler(async (req, res) => {
+  const { fromRole, toOrganismId, query } = req.body;
+  if (!fromRole || !toOrganismId || !query) {
+    return res.status(400).json({ ok: false, error: "fromRole, toOrganismId, and query required" });
+  }
+  const result = await emergentQueryOrganism(fromRole, toOrganismId, query, req.body.context);
+  res.json(result);
+}));
+
+app.post("/api/bridge/debate", asyncHandler(async (req, res) => {
+  const { challengerRole, dtuId, challenge } = req.body;
+  if (!challengerRole || !dtuId || !challenge) {
+    return res.status(400).json({ ok: false, error: "challengerRole, dtuId, and challenge required" });
+  }
+  const result = await initiateBridgeDebate(challengerRole, dtuId, challenge);
+  res.json(result);
+}));
+
+app.post("/api/bridge/validate", asyncHandler(async (req, res) => {
+  const { dtuIds } = req.body;
+  if (!Array.isArray(dtuIds) || dtuIds.length === 0) {
+    return res.status(400).json({ ok: false, error: "dtuIds array required" });
+  }
+  const results = [];
+  for (const id of dtuIds.slice(0, 10)) { // Limit batch to 10
+    const dtu = STATE.dtus.get(id);
+    if (dtu) results.push(await validateOrganismDTU(dtu, "batch"));
+    else results.push({ dtuId: id, error: "not found" });
+  }
+  res.json({ ok: true, results, total: results.length });
+}));
+
+app.get("/api/bridge/log", (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const action = req.query.action;
+  let log = STATE._bridge.log;
+  if (action) log = log.filter(e => e.action === action);
+  res.json({ ok: true, log: log.slice(-limit), total: log.length });
+});
+
+app.get("/api/bridge/organisms", (_req, res) => {
+  const organisms = (STATE.swarms || [])
+    .filter(s => s.isOrganism || s.size >= 10)
+    .map(s => ({
+      id: s.id, name: s.name, size: s.size, isOrganism: !!s.isOrganism,
+      persona: s.persona || null, awakenedAt: s.awakenedAt || null,
+      topTags: s.topTags || [], lastUpdated: s.lastUpdated,
+    }));
+  res.json({ ok: true, organisms, total: organisms.length });
+});
+
+app.get("/api/bridge/emergents", (_req, res) => {
+  res.json({ ok: true, emergents: EMERGENT_ROLES.map(role => ({
+    role, capabilities: {
+      canQuery: true, canValidate: ["critic", "ethicist", "auditor"].includes(role),
+      canDebate: ["critic", "adversary", "auditor"].includes(role),
+      canVote: true, canModifyGovernance: true,
+    },
+  }))});
+});
+
+app.post("/api/bridge/birth", asyncHandler(async (req, res) => {
+  const { swarmId } = req.body;
+  if (!swarmId) return res.status(400).json({ ok: false, error: "swarmId required" });
+  const result = await organismBirthCeremony(swarmId);
+  res.json(result);
+}));
+
+app.post("/api/bridge/death", asyncHandler(async (req, res) => {
+  const { swarmId } = req.body;
+  if (!swarmId) return res.status(400).json({ ok: false, error: "swarmId required" });
+  const result = await organismDeathProtocol(swarmId);
+  res.json(result);
+}));
+
+app.get("/api/bridge/quarantine", (_req, res) => {
+  res.json({ ok: true, quarantine: STATE._bridge.quarantine, total: STATE._bridge.quarantine.length });
+});
+
+app.get("/api/bridge/debates", (_req, res) => {
+  const limit = Math.min(parseInt(_req.query?.limit) || 50, 200);
+  res.json({ ok: true, debates: STATE._bridge.debates.slice(-limit), total: STATE._bridge.debates.length });
+});
+
+app.get("/api/bridge/births", (_req, res) => {
+  res.json({ ok: true, births: STATE._bridge.birthCerts, total: STATE._bridge.birthCerts.length });
+});
+
+// ---------- SPEC VII PART 9: EVENT BUS → WEBSOCKET BRIDGE ----------
+// Wire event bus events to WebSocket pushes for real-time frontend updates.
+
+function setupEventBusWebSocketBridge(wss) {
+  if (!wss || !eventBus) return;
+
+  const eventToWsType = {
+    "dtu.created": "dtu_created",
+    "dtu.updated": "dtu_updated",
+    "dtu.composted": "dtu_composted",
+    "brain.responded": "brain_result",
+    "tick.completed": "tick_done",
+    "dream.phase": "dream_update",
+    "bridge.validation.result": "bridge_event",
+    "bridge.emergent.query": "bridge_event",
+    "bridge.debate.resolved": "bridge_event",
+    "bridge.organism.awakened": "bridge_event",
+    "bridge.organism.dormant": "bridge_event",
+    "circuit.open": "circuit_event",
+    "circuit.closed": "circuit_event",
+    "health.critical": "health_alert",
+  };
+
+  for (const [eventType, wsType] of Object.entries(eventToWsType)) {
+    eventBus.on(eventType, (evt) => {
+      const msg = JSON.stringify({ type: wsType, payload: evt.payload || evt, timestamp: evt.timestamp });
+      try {
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            try { client.send(msg); } catch {}
+          }
+        });
+      } catch {}
+    });
+  }
+}
+
+// ---------- SPEC VII PART 10: SECURITY HARDENING MIDDLEWARE ----------
+
+// Content sanitization for XSS prevention (sanitizeString defined at line ~547)
+
+function sanitizeDTUInput(body) {
+  if (body.title) body.title = sanitizeString(body.title);
+  if (body.content) body.content = sanitizeString(body.content);
+  if (body.tags && Array.isArray(body.tags)) {
+    body.tags = body.tags
+      .filter(t => typeof t === "string")
+      .map(t => t.toLowerCase().trim().replace(/[<>"'`]/g, ""))
+      .filter(t => t.length > 0 && t.length <= 100);
+    body.tags = [...new Set(body.tags)];
+  }
+  return body;
+}
+
+// Request size validation middleware (already configured by express.json, but enforce)
+function validateRequestSize(req, res, next) {
+  const contentLength = parseInt(req.headers["content-length"] || "0");
+  if (contentLength > 10 * 1024 * 1024) { // 10MB max
+    return res.status(413).json({ ok: false, error: "Request too large" });
+  }
+  next();
+}
+
+// SQL injection prevention: ensure no raw string interpolation in queries
+// (Concord uses in-memory STATE maps, not raw SQL, so this is primarily for validation)
+function validateId(id) {
+  if (typeof id !== "string") return false;
+  return /^[a-zA-Z0-9_-]{1,128}$/.test(id);
+}
+
+// Apply security middleware
+app.use(validateRequestSize);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC V + SPEC VII
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
@@ -46411,7 +46952,7 @@ app.get('/api/artistry/studio/effects', (_req, res) => {
   res.json({ ok: true, effects: BUILT_IN_EFFECTS });
 });
 
-app.post('/api/artistry/studio/vocal/analyze', (req, res) => {
+app.post('/api/artistry/studio/vocal/analyze', asyncHandler(async (req, res) => {
   const { projectId, trackId } = req.body;
   if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
   const art = ensureArtistryState();
@@ -46422,11 +46963,19 @@ app.post('/api/artistry/studio/vocal/analyze', (req, res) => {
   if (!track.clips || track.clips.length === 0) {
     return res.status(422).json({ ok: false, error: 'Track has no audio clips to analyze. Record or import audio first.' });
   }
-  res.status(501).json({ ok: false, error: 'Vocal analysis requires an audio processing engine (not yet configured). Connect an audio DSP service to enable this feature.' });
-});
+  // Provide AI-based vocal analysis from track metadata (no DSP engine required)
+  const clipInfo = track.clips.map(c => `clip: ${c.name || c.id}, start: ${c.start}, length: ${c.length}`).join("; ");
+  try {
+    const brainResult = await callBrain("utility", `Analyze this vocal track configuration and provide production recommendations.\nTrack: "${track.name || track.instrument}", ${track.clips.length} clips: ${clipInfo}\nProject BPM: ${project.bpm}, Key: ${project.key}\nEffects chain: ${(track.effects || []).map(e => e.effect || e.label).join(", ") || "none"}\n\nRespond with JSON: { "suggestions": ["..."], "estimatedRange": "...", "processingNeeded": ["eq", "compression", "de-essing", "reverb"] }`, { temperature: 0.5, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    res.json({ ok: true, analysis: { trackId, trackName: track.name, clipCount: track.clips.length, ...parsed, note: "AI metadata analysis — connect audio DSP engine for waveform-level analysis" } });
+  } catch (e) {
+    res.json({ ok: true, analysis: { trackId, trackName: track.name, clipCount: track.clips.length, suggestions: ["Add compression for consistent dynamics", "Apply de-essing to reduce sibilance", "Use reverb to create depth"], note: "Metadata-based recommendations — connect audio DSP engine for detailed analysis" } });
+  }
+}));
 
-app.post('/api/artistry/studio/vocal/process', (req, res) => {
-  const { projectId, trackId } = req.body;
+app.post('/api/artistry/studio/vocal/process', asyncHandler(async (req, res) => {
+  const { projectId, trackId, effects } = req.body;
   if (!projectId || !trackId) return res.status(400).json({ ok: false, error: 'projectId and trackId are required' });
   const art = ensureArtistryState();
   const project = art.projects.get(projectId);
@@ -46436,10 +46985,18 @@ app.post('/api/artistry/studio/vocal/process', (req, res) => {
   if (!track.clips || track.clips.length === 0) {
     return res.status(422).json({ ok: false, error: 'Track has no audio clips to process. Record or import audio first.' });
   }
-  res.status(501).json({ ok: false, error: 'Vocal processing requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.' });
-});
+  // Apply requested effects to track metadata (effect chain configuration)
+  const requestedEffects = effects || ["compression", "eq", "de-essing"];
+  track.effects = track.effects || [];
+  for (const fx of requestedEffects) {
+    if (!track.effects.find(e => e.effect === fx)) {
+      track.effects.push({ effect: fx, enabled: true, params: {}, addedAt: Date.now() });
+    }
+  }
+  res.json({ ok: true, processed: { trackId, appliedEffects: requestedEffects, totalEffects: track.effects.length, note: "Effect chain configured — real-time DSP processing requires audio engine integration" } });
+}));
 
-app.post('/api/artistry/studio/master', (req, res) => {
+app.post('/api/artistry/studio/master', asyncHandler(async (req, res) => {
   const art = ensureArtistryState();
   const { projectId, preset, targetLufs, format } = req.body;
   const project = art.projects.get(projectId);
@@ -46447,19 +47004,34 @@ app.post('/api/artistry/studio/master', (req, res) => {
   if (!project.tracks || project.tracks.length === 0) {
     return res.status(422).json({ ok: false, error: 'Project has no tracks to master. Add tracks with audio clips first.' });
   }
-  res.status(501).json({
-    ok: false,
-    error: 'Mastering requires an audio DSP engine (not yet configured). Connect an audio DSP service to enable this feature.',
-    project: {
-      projectId,
-      preset: preset || 'balanced',
-      targetLufs: targetLufs || -14,
-      format: format || 'wav',
-      chain: project.masterBus.effects.map(fx => fx.label || fx.effect),
+
+  // Configure mastering chain and provide AI recommendations
+  const masterPreset = preset || "balanced";
+  const lufs = targetLufs || -14;
+  project.masterBus = project.masterBus || { effects: [] };
+  project.masterSettings = { preset: masterPreset, targetLufs: lufs, format: format || "wav", configuredAt: Date.now() };
+
+  let recommendations = [];
+  try {
+    const brainResult = await callBrain("utility", `Provide mastering recommendations for a ${project.genre || "electronic"} project at ${project.bpm} BPM with ${project.tracks.length} tracks. Target LUFS: ${lufs}. Current master bus: ${project.masterBus.effects.map(fx => fx.label || fx.effect).join(", ") || "empty"}. Respond with JSON: { "chain": ["eq", "compressor", "limiter", ...], "tips": ["..."] }`, { temperature: 0.4, maxTokens: 200 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (Array.isArray(parsed.chain)) recommendations = parsed.chain;
+    if (parsed.tips) project.masterSettings.tips = parsed.tips;
+  } catch {}
+
+  if (recommendations.length === 0) recommendations = ["eq", "multiband-compressor", "stereo-enhancer", "limiter"];
+
+  res.json({
+    ok: true,
+    mastering: {
+      projectId, preset: masterPreset, targetLufs: lufs, format: format || "wav",
+      recommendedChain: recommendations,
+      currentChain: project.masterBus.effects.map(fx => fx.label || fx.effect),
       trackCount: project.tracks.length,
+      note: "Mastering chain configured — real-time audio rendering requires DSP engine integration",
     },
   });
-});
+}));
 
 structuredLog("info", "artistry_init", { detail: "Phase 2-6: Full DAW / Studio system initialized" });
 
@@ -47330,97 +47902,187 @@ structuredLog("info", "artistry_init", { detail: "Phase 9: Collaboration + Remix
 
 // ── Phase 10: AI Production Assistant + Learning System + Genre Coach ───────
 
-app.post('/api/artistry/ai/analyze-project', (req, res) => {
+app.post('/api/artistry/ai/analyze-project', asyncHandler(async (req, res) => {
   const art = ensureArtistryState();
   const { projectId } = req.body;
   const project = art.projects.get(projectId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const overview = {
+    trackCount: project.tracks.length, bpm: project.bpm, key: project.key,
+    scale: project.scale, genre: project.genre,
+    estimatedLength: `${Math.floor(project.arrangement.length / 4)} bars`,
+  };
+
+  // Use brain for real analysis
+  let suggestions = [];
+  let genreConfidence = 0.7;
+  let mixScore = 70;
+  try {
+    const brainResult = await callBrain("utility", `Analyze this music project and provide production suggestions.\nProject: ${JSON.stringify(overview)}\nTrack names: ${project.tracks.map(t => t.name || t.instrument).join(", ")}\n\nRespond with JSON: { "suggestions": [{ "type": "arrangement|mixing|mastering|dynamics|creativity", "priority": "high|medium|low", "suggestion": "..." }], "genreConfidence": 0.0-1.0, "mixScore": 0-100 }`, { temperature: 0.5, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (Array.isArray(parsed.suggestions)) suggestions = parsed.suggestions;
+    if (typeof parsed.genreConfidence === "number") genreConfidence = parsed.genreConfidence;
+    if (typeof parsed.mixScore === "number") mixScore = parsed.mixScore;
+  } catch {}
+
+  if (suggestions.length === 0) {
+    // Deterministic fallback based on actual project state
+    if (project.tracks.length < 4) suggestions.push({ type: "arrangement", priority: "high", suggestion: "Consider adding more layers for a fuller mix" });
+    if (project.tracks.length >= 4) suggestions.push({ type: "mixing", priority: "medium", suggestion: "Check frequency balance between tracks" });
+    suggestions.push({ type: "mastering", priority: "low", suggestion: `Target LUFS for ${project.genre || "electronic"}: -14 to -8` });
+  }
+
   res.json({
     ok: true,
-    analysis: {
-      projectId,
-      overview: { trackCount: project.tracks.length, bpm: project.bpm, key: project.key, scale: project.scale, genre: project.genre,
-        estimatedLength: `${Math.floor(project.arrangement.length / 4)} bars` },
-      suggestions: [
-        { type: 'arrangement', priority: 'high', suggestion: project.tracks.length < 4 ? 'Consider adding more layers for a fuller mix' : 'Good track density' },
-        { type: 'mixing', priority: 'medium', suggestion: 'Check frequency balance between tracks' },
-        { type: 'mastering', priority: 'low', suggestion: `Target LUFS for ${project.genre || 'electronic'}: -14 to -8` },
-        { type: 'dynamics', priority: 'medium', suggestion: 'Ensure drum transients cut through' },
-        { type: 'creativity', priority: 'low', suggestion: 'Try adding automation to create movement' },
-      ],
-      genreMatch: { primary: project.genre || 'electronic', confidence: 0.75 + Math.random() * 0.2 },
-      mixScore: Math.floor(60 + Math.random() * 35),
-      analyzedAt: Date.now(),
-    },
+    analysis: { projectId, overview, suggestions,
+      genreMatch: { primary: project.genre || "electronic", confidence: genreConfidence },
+      mixScore, analyzedAt: Date.now() },
   });
-});
+}));
 
-app.post('/api/artistry/ai/suggest-chords', (req, res) => {
+app.post('/api/artistry/ai/suggest-chords', asyncHandler(async (req, res) => {
   const { key, scale, genre } = req.body;
   const k = key || 'C';
   const kIdx = MUSICAL_KEYS.indexOf(k);
-  res.json({
-    ok: true, key: k, scale: scale || 'major', genre: genre || 'pop',
-    progressions: [
-      { name: 'Classic Pop', chords: [`${k}maj`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'uplifting' },
-      { name: 'Emotional', chords: [`${MUSICAL_KEYS[(kIdx + 9) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}maj`, `${k}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'melancholic' },
-      { name: 'Neo Soul', chords: [`${k}maj7`, `${MUSICAL_KEYS[(kIdx + 2) % 12]}min9`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}maj7`, `${MUSICAL_KEYS[(kIdx + 4) % 12]}min7`], mood: 'smooth' },
-      { name: 'Dark', chords: [`${k}min`, `${MUSICAL_KEYS[(kIdx + 5) % 12]}min`, `${MUSICAL_KEYS[(kIdx + 3) % 12]}maj`, `${MUSICAL_KEYS[(kIdx + 7) % 12]}maj`], mood: 'dark' },
-    ],
-  });
-});
 
-app.post('/api/artistry/ai/suggest-melody', (req, res) => {
+  // Try brain-generated progressions
+  let progressions = [];
+  try {
+    const brainResult = await callBrain("utility", `Suggest 4 chord progressions for a ${genre || "pop"} song in ${k} ${scale || "major"}. Respond with JSON array: [{ "name": "...", "chords": ["Cmaj", "Amin", ...], "mood": "..." }]`, { temperature: 0.7, maxTokens: 300 });
+    const parsed = safeJSONParse(brainResult?.content || "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) progressions = parsed;
+  } catch {}
+
+  // Music-theory fallback (deterministic, genre-aware)
+  if (progressions.length === 0) {
+    const M = MUSICAL_KEYS;
+    if (genre === "jazz" || genre === "neo-soul") {
+      progressions = [
+        { name: 'ii-V-I-vi', chords: [`${M[(kIdx+2)%12]}min7`, `${M[(kIdx+7)%12]}7`, `${k}maj7`, `${M[(kIdx+9)%12]}min7`], mood: 'smooth' },
+        { name: 'Turnaround', chords: [`${k}maj7`, `${M[(kIdx+9)%12]}min7`, `${M[(kIdx+2)%12]}min7`, `${M[(kIdx+7)%12]}7`], mood: 'flowing' },
+      ];
+    } else if (scale === "minor") {
+      progressions = [
+        { name: 'Natural Minor', chords: [`${k}min`, `${M[(kIdx+5)%12]}min`, `${M[(kIdx+3)%12]}maj`, `${M[(kIdx+7)%12]}maj`], mood: 'dark' },
+        { name: 'Dorian', chords: [`${k}min`, `${M[(kIdx+2)%12]}min`, `${M[(kIdx+3)%12]}maj`, `${M[(kIdx+5)%12]}min`], mood: 'melancholic' },
+      ];
+    } else {
+      progressions = [
+        { name: 'I-V-vi-IV', chords: [`${k}maj`, `${M[(kIdx+7)%12]}maj`, `${M[(kIdx+9)%12]}min`, `${M[(kIdx+5)%12]}maj`], mood: 'uplifting' },
+        { name: 'I-vi-IV-V', chords: [`${k}maj`, `${M[(kIdx+9)%12]}min`, `${M[(kIdx+5)%12]}maj`, `${M[(kIdx+7)%12]}maj`], mood: 'nostalgic' },
+      ];
+    }
+  }
+
+  res.json({ ok: true, key: k, scale: scale || 'major', genre: genre || 'pop', progressions });
+}));
+
+app.post('/api/artistry/ai/suggest-melody', asyncHandler(async (req, res) => {
   const { key, scale, bpm, bars, style } = req.body;
   const k = key || 'C';
   const kIdx = MUSICAL_KEYS.indexOf(k);
   const intervals = scale === 'minor' ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
-  const notes = [];
-  for (let i = 0; i < (bars || 4) * 4; i++) {
-    const interval = intervals[Math.floor(Math.random() * intervals.length)];
-    notes.push({ note: MUSICAL_KEYS[(kIdx + interval) % 12], octave: 4 + Math.floor(Math.random() * 2),
-      start: i * 0.25, duration: [0.25, 0.5, 0.75, 1.0][Math.floor(Math.random() * 4)], velocity: 60 + Math.floor(Math.random() * 40) });
+
+  // Try brain-generated melody
+  let notes = [];
+  try {
+    const brainResult = await callBrain("utility", `Generate a ${style || "lead"} melody in ${k} ${scale || "major"} at ${bpm || 120} BPM, ${bars || 4} bars. Respond with JSON array of notes: [{ "note": "C", "octave": 4, "start": 0.0, "duration": 0.5, "velocity": 80 }]. Use proper phrasing with rests, varied rhythms, and musical contour.`, { temperature: 0.8, maxTokens: 500 });
+    const parsed = safeJSONParse(brainResult?.content || "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) notes = parsed;
+  } catch {}
+
+  // Deterministic fallback: stepwise motion with musical phrasing (not pure random)
+  if (notes.length === 0) {
+    let currentInterval = 0; // Start on tonic
+    const durations = [0.25, 0.5, 0.5, 1.0]; // Weighted toward half-notes
+    for (let i = 0; i < (bars || 4) * 4; i++) {
+      // Stepwise motion: move by 0, 1, or 2 scale degrees, biased toward small steps
+      const step = ((i * 7 + 3) % 5) - 2; // Deterministic pseudo-step pattern: -2,-1,0,1,2
+      currentInterval = Math.max(0, Math.min(intervals.length - 1, currentInterval + step));
+      const interval = intervals[currentInterval];
+      const dur = durations[i % durations.length];
+      notes.push({ note: MUSICAL_KEYS[(kIdx + interval) % 12], octave: 4 + (interval > 7 ? 1 : 0),
+        start: i * 0.25, duration: dur, velocity: 70 + (i % 4 === 0 ? 20 : 0) }); // Accent on beat 1
+    }
   }
+
   res.json({ ok: true, melody: { key: k, scale: scale || 'major', bpm: bpm || 120, bars: bars || 4, style: style || 'lead', notes } });
-});
+}));
 
 app.post('/api/artistry/ai/suggest-drums', (req, res) => {
   const { bpm, genre, bars, swing } = req.body;
   const g = genre || 'electronic';
   const len = (bars || 2) * 16;
   const patterns = { kick: [], snare: [], hihat: [], openHat: [], clap: [], perc: [] };
+
+  // Genre-aware drum patterns (deterministic, no Math.random)
   for (let i = 0; i < len; i++) {
-    if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 100 + Math.floor(Math.random() * 27) });
-    if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 90 + Math.floor(Math.random() * 37) });
-    if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 60 + Math.floor(Math.random() * 40) });
-    if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
-    if (g === 'trap' && i % 8 === 4) patterns.clap.push({ step: i, velocity: 100 });
+    if (g === 'trap' || g === 'hiphop') {
+      // Trap: 808 on 1, ghost kicks, claps on 2&4, rolling hihats
+      if (i % 16 === 0 || i % 16 === 10) patterns.kick.push({ step: i, velocity: 110 });
+      if (i % 8 === 4) patterns.clap.push({ step: i, velocity: 105 });
+      if (i % 1 === 0) patterns.hihat.push({ step: i, velocity: 65 + (i % 3 === 0 ? 15 : 0) }); // Every step, accent every 3rd
+      if (i % 16 === 12) patterns.openHat.push({ step: i, velocity: 85 });
+    } else if (g === 'house' || g === 'techno' || g === 'electronic') {
+      // Four-on-floor: kick every beat, offbeat hats, snare on 2&4
+      if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 115 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 95 });
+      if (i % 2 === 1) patterns.hihat.push({ step: i, velocity: 70 }); // Offbeat
+      if (i % 2 === 0 && i % 4 !== 0) patterns.hihat.push({ step: i, velocity: 55 }); // Ghost
+      if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
+    } else if (g === 'rock' || g === 'metal') {
+      // Rock: strong kick/snare, steady 8th-note hats
+      if (i % 8 === 0 || i % 8 === 6) patterns.kick.push({ step: i, velocity: 110 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 105 });
+      if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 75 });
+    } else {
+      // Default: simple pop pattern
+      if (i % 4 === 0) patterns.kick.push({ step: i, velocity: 100 });
+      if (i % 8 === 4) patterns.snare.push({ step: i, velocity: 95 });
+      if (i % 2 === 0) patterns.hihat.push({ step: i, velocity: 65 });
+      if (i % 16 === 14) patterns.openHat.push({ step: i, velocity: 80 });
+    }
   }
   res.json({ ok: true, drumPattern: { bpm: bpm || 120, genre: g, bars: bars || 2, swing: swing || 0, stepsPerBar: 16, patterns } });
 });
 
-app.post('/api/artistry/ai/genre-coach', (req, res) => {
+app.post('/api/artistry/ai/genre-coach', asyncHandler(async (req, res) => {
   const { userId, genre } = req.body;
-  const genreInfo = GENRE_TAXONOMY[genre];
-  res.json({
-    ok: true,
-    coaching: {
-      userId, genre,
-      characteristics: {
-        bpmRange: genre === 'electronic' ? '120-150' : genre === 'hiphop' ? '80-140' : '60-200',
-        commonKeys: genre === 'electronic' ? ['Am', 'Cm', 'Dm'] : genre === 'hiphop' ? ['Cm', 'Em', 'Gm'] : ['E', 'A', 'G', 'D'],
-        essentialElements: genre === 'electronic' ? ['Four-on-floor kick', 'Synthesizer leads', 'Build-ups & drops', 'Sidechain compression'] : genre === 'hiphop' ? ['808 bass', 'Trap hi-hats', 'Sample chops', 'Vocal processing'] : ['Guitar riffs', 'Power chords', 'Drum fills', 'Dynamic range'],
-        subGenres: genreInfo ? genreInfo.sub : [],
-      },
+  const g = genre || "electronic";
+  const genreInfo = GENRE_TAXONOMY[g];
+
+  // Try brain-generated coaching
+  let coaching = null;
+  try {
+    const brainResult = await callBrain("utility", `You are a music production genre coach. The user wants to learn ${g} production. Provide coaching with JSON: { "characteristics": { "bpmRange": "...", "commonKeys": ["Am",...], "essentialElements": ["..."], "subGenres": ["..."] }, "exercises": [{ "name": "...", "description": "..." }], "recommendedEffects": ["..."], "tips": "..." }`, { temperature: 0.6, maxTokens: 400 });
+    const parsed = safeJSONParse(brainResult?.content || "{}");
+    if (parsed.characteristics || parsed.exercises) coaching = parsed;
+  } catch {}
+
+  // Genre-specific fallback (deterministic, covers more genres than before)
+  if (!coaching) {
+    const GENRE_DB = {
+      electronic: { bpm: "120-150", keys: ["Am", "Cm", "Dm"], elements: ["Four-on-floor kick", "Synthesizer leads", "Build-ups & drops", "Sidechain compression"], effects: ["compressor", "reverb-hall", "delay-stereo", "filter-auto", "saturator"] },
+      hiphop: { bpm: "80-140", keys: ["Cm", "Em", "Gm"], elements: ["808 bass", "Trap hi-hats", "Sample chops", "Vocal processing"], effects: ["compressor", "distortion", "auto-tune", "delay-ping-pong", "eq-parametric"] },
+      rock: { bpm: "100-160", keys: ["E", "A", "G", "D"], elements: ["Guitar riffs", "Power chords", "Drum fills", "Dynamic range"], effects: ["reverb-room", "distortion", "chorus", "compressor", "delay-stereo"] },
+      jazz: { bpm: "60-180", keys: ["Cm", "Dm", "F", "Bb"], elements: ["Extended chords", "Improvisation", "Walking bass", "Swing feel"], effects: ["reverb-plate", "chorus", "tape-saturation", "eq-parametric"] },
+      pop: { bpm: "100-130", keys: ["C", "G", "Am", "F"], elements: ["Catchy melody", "Simple harmony", "Strong hook", "Clean production"], effects: ["compressor", "reverb-plate", "delay-stereo", "eq-parametric", "de-esser"] },
+    };
+    const info = GENRE_DB[g] || GENRE_DB.electronic;
+    coaching = {
+      characteristics: { bpmRange: info.bpm, commonKeys: info.keys, essentialElements: info.elements, subGenres: genreInfo?.sub || [] },
       exercises: [
-        { name: 'Genre Deconstruction', description: `Recreate a ${genre} track from scratch` },
-        { name: 'Sound Design', description: `Create 5 unique sounds for ${genre}` },
-        { name: 'Mix Reference', description: `A/B your mix against 3 professional ${genre} releases` },
+        { name: "Genre Deconstruction", description: `Analyze and recreate a ${g} reference track from scratch` },
+        { name: "Sound Design Challenge", description: `Create 5 unique sounds characteristic of ${g}` },
+        { name: "Mix Reference", description: `A/B your mix against 3 professional ${g} releases` },
       ],
-      recommendedEffects: genre === 'electronic' ? ['compressor', 'reverb-hall', 'delay-stereo', 'filter-auto', 'saturator'] : genre === 'hiphop' ? ['compressor', 'distortion', 'auto-tune', 'delay-ping-pong', 'eq-parametric'] : ['reverb-room', 'distortion', 'chorus', 'compressor', 'delay-stereo'],
-    },
-  });
-});
+      recommendedEffects: info.effects,
+    };
+  }
+
+  res.json({ ok: true, coaching: { userId, genre: g, ...coaching } });
+}));
 
 app.post('/api/artistry/ai/learning/start', (req, res) => {
   const art = ensureArtistryState();

@@ -12,7 +12,8 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getSocket } from '@/lib/realtime/socket';
 import { emitEvent } from '@/lib/realtime/event-bus';
 import { useLatticeStore } from '@/store/lattice';
 import { useSystemStore } from '@/store/system';
@@ -88,48 +89,45 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
   const listenersRef = useRef<Set<string>>(new Set());
 
-  // Initialize socket
+  // Initialize socket — use singleton from lib/realtime/socket.ts to avoid duplicate connections
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
-      autoConnect,
-      reconnection,
-      reconnectionAttempts,
-      reconnectionDelay,
-      transports: ['websocket', 'polling'],
-      withCredentials: true,
-    });
+    const socket = getSocket();
 
-    socket.on('connect', () => {
-      setIsConnected(true);
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
-
-    socket.on('connect_error', (error) => {
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    const onConnectError = (error: Error) => {
       console.error('[Socket] Connection error:', error.message);
       setIsConnected(false);
-    });
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
 
     // ── Universal event forwarder ─────────────────────────────
+    const eventHandlers: Array<{ event: string; handler: (data: unknown) => void }> = [];
     for (const event of FORWARDED_EVENTS) {
-      socket.on(event, (data: unknown) => {
+      const handler = (data: unknown) => {
         // 1. Forward to event bus (for component-level subscriptions)
         emitEvent(event, data);
-
         // 2. Push into Zustand stores for relevant events
         routeToStores(event, data);
-      });
+      };
+      socket.on(event, handler);
+      eventHandlers.push({ event, handler });
     }
 
     socketRef.current = socket;
+    if (autoConnect && !socket.connected) socket.connect();
+    if (socket.connected) setIsConnected(true);
 
-    // FE-011: Clean up on unmount — disconnect and remove all listeners
+    // FE-011: Clean up on unmount — remove OUR listeners (don't disconnect shared socket)
     const listeners = listenersRef.current;
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
+      for (const { event, handler } of eventHandlers) socket.off(event, handler);
       socketRef.current = null;
       listeners.clear();
       setIsConnected(false);
