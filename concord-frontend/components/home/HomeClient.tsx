@@ -50,6 +50,10 @@ import { SubstrateDreams } from '@/components/dreams/SubstrateDreams';
 import { MetabolismPanel } from '@/components/metabolism/MetabolismPanel';
 import { EpisodicMemory } from '@/components/memory/EpisodicMemory';
 import { BrainCouncil } from '@/components/council/BrainCouncil';
+import { AgentPersonas } from '@/components/agents/AgentPersonas';
+import { TaskDelegation } from '@/components/tasks/TaskDelegation';
+import { KnowledgeGardens } from '@/components/gardens/KnowledgeGardens';
+import { BountiesAndFutures } from '@/components/economy/BountiesAndFutures';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -414,6 +418,22 @@ function DashboardPage() {
         </LensErrorBoundary>
         <LensErrorBoundary name="Brain Council">
           <BrainCouncil />
+        </LensErrorBoundary>
+      </div>
+
+      {/* Multi-Agent & Economy — Personas, Tasks, Gardens, Bounties/Futures */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <LensErrorBoundary name="Agent Personas">
+          <AgentPersonas />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Task Delegation">
+          <TaskDelegation />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Knowledge Gardens">
+          <KnowledgeGardens />
+        </LensErrorBoundary>
+        <LensErrorBoundary name="Bounties & Futures">
+          <BountiesAndFutures />
         </LensErrorBoundary>
       </div>
 

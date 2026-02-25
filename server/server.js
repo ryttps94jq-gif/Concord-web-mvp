@@ -34744,6 +34744,610 @@ app.get("/api/council/sessions/:id", (req, res) => {
 // END SPEC II WAVE 2
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPEC II WAVE 3: AGENT PERSONAS, TASK DELEGATION, GARDENS, BOUNTIES, FUTURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ---------- AGENT PERSONAS — domain expert entities ----------
+// Each persona is a domain expert backed by a specific brain + context window
+// of relevant DTUs. They have names, expertise areas, communication styles.
+
+const DEFAULT_PERSONAS = [
+  { id: "analyst", name: "The Analyst", brain: "conscious", style: "precise and data-driven", domains: ["finance", "trading", "analytics"], avatar: "chart" },
+  { id: "creative", name: "The Creative", brain: "subconscious", style: "imaginative and lateral-thinking", domains: ["art", "music", "writing", "design"], avatar: "palette" },
+  { id: "engineer", name: "The Engineer", brain: "utility", style: "practical and systematic", domains: ["code", "engineering", "devops"], avatar: "wrench" },
+  { id: "guardian", name: "The Guardian", brain: "repair", style: "cautious and thorough", domains: ["security", "health", "risk"], avatar: "shield" },
+  { id: "explorer", name: "The Explorer", brain: "subconscious", style: "curious and adventurous", domains: ["travel", "learning", "research"], avatar: "compass" },
+  { id: "sage", name: "The Sage", brain: "conscious", style: "philosophical and reflective", domains: ["philosophy", "psychology", "metacognition"], avatar: "book" },
+];
+
+if (!STATE.personas) {
+  STATE.personas = DEFAULT_PERSONAS.map(p => ({
+    ...p,
+    stats: { queries: 0, helpfulness: 0, lastActive: null },
+    customInstructions: "",
+    active: true,
+  }));
+}
+
+function getPersonaForDomain(domain) {
+  // Find best matching persona for a domain
+  const persona = STATE.personas.find(p => p.active && p.domains.includes(domain));
+  if (persona) return persona;
+  // Fallback: find by partial match
+  const partial = STATE.personas.find(p => p.active && p.domains.some(d => domain.includes(d) || d.includes(domain)));
+  if (partial) return partial;
+  // Default to analyst
+  return STATE.personas.find(p => p.id === "analyst") || STATE.personas[0];
+}
+
+async function askPersona(personaId, question, options = {}) {
+  const persona = STATE.personas.find(p => p.id === personaId);
+  if (!persona) return { ok: false, error: "Persona not found" };
+
+  // Gather domain-relevant DTUs for context
+  const relevantDTUs = [];
+  for (const dtu of STATE.dtus.values()) {
+    if (persona.domains.some(d => (dtu.domain || "").includes(d) || (dtu.tags || []).some(t => t.includes(d)))) {
+      relevantDTUs.push(dtu);
+    }
+  }
+  relevantDTUs.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+
+  const contextDTUs = relevantDTUs.slice(0, 10).map(d => `- ${d.title}: ${(d.content || d.summary || "").slice(0, 100)}`).join("\n");
+
+  const prompt = `You are "${persona.name}", a ${persona.style} expert in ${persona.domains.join(", ")}.\n\n${persona.customInstructions ? `Custom instructions: ${persona.customInstructions}\n\n` : ""}Relevant knowledge from the substrate:\n${contextDTUs || "(no relevant DTUs found)"}\n\nQuestion: ${question}\n\nRespond in character — be ${persona.style}. Keep the answer focused and useful.`;
+
+  try {
+    const result = await callBrain(persona.brain, prompt, { temperature: 0.6, maxTokens: 300 });
+    persona.stats.queries++;
+    persona.stats.lastActive = new Date().toISOString();
+
+    // Record as episode
+    if (typeof createEpisode === "function") {
+      try {
+        createEpisode({
+          type: "collaboration",
+          title: `Asked ${persona.name}: ${question.slice(0, 40)}`,
+          narrative: `Consulted ${persona.name} about: ${question}`,
+          intensity: 0.5,
+          emotions: ["curiosity"],
+          tags: ["persona", persona.id],
+        });
+      } catch {}
+    }
+
+    return {
+      ok: true,
+      persona: { id: persona.id, name: persona.name, avatar: persona.avatar },
+      response: result.content || "",
+      confidence: result.confidence,
+    };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// Agent Persona API routes
+app.get("/api/personas", (_req, res) => {
+  res.json({ ok: true, personas: STATE.personas.map(p => ({ ...p, stats: p.stats })) });
+});
+
+app.post("/api/personas/:id/ask", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ ok: false, error: "Question is required" });
+  try {
+    const result = await askPersona(req.params.id, question);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.put("/api/personas/:id", (req, res) => {
+  const persona = STATE.personas.find(p => p.id === req.params.id);
+  if (!persona) return res.status(404).json({ ok: false, error: "Persona not found" });
+  if (req.body.customInstructions !== undefined) persona.customInstructions = req.body.customInstructions;
+  if (req.body.active !== undefined) persona.active = req.body.active;
+  if (req.body.name) persona.name = req.body.name;
+  res.json({ ok: true, persona });
+});
+
+// ---------- TASK DELEGATION — natural language → decomposed steps ----------
+// User describes a task in natural language. System decomposes it into
+// actionable steps, assigns each to the appropriate brain/persona, and tracks progress.
+
+if (!STATE.delegatedTasks) STATE.delegatedTasks = [];
+
+async function delegateTask(description, options = {}) {
+  const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Use conscious brain to decompose the task
+  let steps = [];
+  try {
+    const brainEnabled = BRAIN.conscious?.enabled;
+    if (brainEnabled) {
+      const prompt = `Decompose this task into 2-5 concrete, actionable steps. For each step, specify which type of thinking is needed (analytical, creative, practical, or defensive).\n\nTask: ${description}\n\nRespond in this exact format for each step:\nSTEP: [description]\nTYPE: [analytical|creative|practical|defensive]\n\nList only the steps, nothing else.`;
+      const result = await callBrain("conscious", prompt, { temperature: 0.3, maxTokens: 400 });
+
+      if (result.ok && result.content) {
+        const stepMatches = result.content.matchAll(/STEP:\s*(.+?)(?:\nTYPE:\s*(analytical|creative|practical|defensive))?(?=\nSTEP:|\n*$)/gs);
+        for (const match of stepMatches) {
+          const type = (match[2] || "practical").toLowerCase();
+          const assignedBrain = type === "analytical" ? "conscious" : type === "creative" ? "subconscious" : type === "defensive" ? "repair" : "utility";
+          const persona = getPersonaForDomain(options.domain || "general");
+          steps.push({
+            id: `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            description: match[1].trim(),
+            type,
+            assignedBrain,
+            assignedPersona: persona.id,
+            status: "pending",
+            result: null,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    structuredLog("warn", "task_decompose_error", { error: String(e?.message || e) });
+  }
+
+  // Fallback: if no steps decomposed, create a single step
+  if (steps.length === 0) {
+    steps = [{
+      id: `step-${Date.now()}`,
+      description: description,
+      type: "practical",
+      assignedBrain: "utility",
+      assignedPersona: "engineer",
+      status: "pending",
+      result: null,
+    }];
+  }
+
+  const task = {
+    id: taskId,
+    description,
+    domain: options.domain || "general",
+    steps,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    results: [],
+  };
+
+  STATE.delegatedTasks.push(task);
+  // Keep last 100 tasks
+  if (STATE.delegatedTasks.length > 100) STATE.delegatedTasks = STATE.delegatedTasks.slice(-100);
+
+  // Auto-execute if requested
+  if (options.autoExecute) {
+    await executeTask(taskId);
+  }
+
+  return task;
+}
+
+async function executeTask(taskId) {
+  const task = STATE.delegatedTasks.find(t => t.id === taskId);
+  if (!task) return { ok: false, error: "Task not found" };
+
+  task.status = "running";
+
+  for (const step of task.steps) {
+    if (step.status === "completed") continue;
+    step.status = "running";
+
+    try {
+      const prompt = `Complete this task step: ${step.description}\n\nContext: Part of the larger task "${task.description}" in domain "${task.domain}".\n\nProvide a concise result.`;
+
+      const result = await callBrain(step.assignedBrain, prompt, { temperature: 0.4, maxTokens: 200 });
+      step.result = result.ok ? result.content : `Error: ${result.error}`;
+      step.status = result.ok ? "completed" : "failed";
+    } catch (e) {
+      step.result = `Error: ${String(e?.message || e)}`;
+      step.status = "failed";
+    }
+  }
+
+  const allComplete = task.steps.every(s => s.status === "completed");
+  const anyFailed = task.steps.some(s => s.status === "failed");
+  task.status = allComplete ? "completed" : anyFailed ? "partial" : "completed";
+  task.completedAt = new Date().toISOString();
+
+  // Award XP
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "task.complete", { taskId: task.id }); } catch {}
+  }
+
+  return task;
+}
+
+// Task Delegation API routes
+app.post("/api/tasks/delegate", async (req, res) => {
+  const { description, domain, autoExecute } = req.body;
+  if (!description) return res.status(400).json({ ok: false, error: "Description is required" });
+  try {
+    const task = await delegateTask(description, { domain, autoExecute });
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/tasks/:id/execute", async (req, res) => {
+  try {
+    const task = await executeTask(req.params.id);
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/tasks", (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  const status = req.query.status;
+  let tasks = [...STATE.delegatedTasks].reverse();
+  if (status) tasks = tasks.filter(t => t.status === status);
+  res.json({ ok: true, tasks: tasks.slice(0, limit), total: STATE.delegatedTasks.length });
+});
+
+// ---------- KNOWLEDGE GARDENS — collaborative DTU spaces ----------
+// A garden is a curated collection of DTUs organized around a theme.
+// Gardens can grow (add DTUs), be tended (improved), and bloom (generate insights).
+
+if (!STATE.gardens) STATE.gardens = [];
+
+function createGarden(data) {
+  const garden = {
+    id: `garden-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: data.name,
+    description: data.description || "",
+    theme: data.theme || "general",
+    curator: data.curator || "sovereign",
+    dtus: data.dtus || [],              // DTU ids in this garden
+    insights: [],                        // Generated insights
+    health: 1.0,                         // 0-1 garden health
+    stage: "seedling",                   // seedling → sprouting → blooming → thriving → ancient
+    createdAt: new Date().toISOString(),
+    lastTended: new Date().toISOString(),
+    stats: { views: 0, additions: 0, blooms: 0, tendCount: 0 },
+  };
+
+  STATE.gardens.push(garden);
+  // Keep last 50 gardens
+  if (STATE.gardens.length > 50) STATE.gardens = STATE.gardens.slice(-50);
+
+  if (typeof awardXP === "function") {
+    try { awardXP("default", "garden.create", { gardenId: garden.id }); } catch {}
+  }
+
+  return garden;
+}
+
+function tendGarden(gardenId) {
+  const garden = STATE.gardens.find(g => g.id === gardenId);
+  if (!garden) return null;
+
+  garden.lastTended = new Date().toISOString();
+  garden.stats.tendCount++;
+
+  // Prune: remove DTU ids that no longer exist
+  garden.dtus = garden.dtus.filter(id => STATE.dtus.has(id));
+
+  // Calculate health based on freshness of member DTUs
+  if (garden.dtus.length > 0 && typeof calculateFreshness === "function") {
+    let totalFreshness = 0;
+    for (const id of garden.dtus) {
+      const dtu = STATE.dtus.get(id);
+      if (dtu) totalFreshness += calculateFreshness(dtu);
+    }
+    garden.health = totalFreshness / garden.dtus.length;
+  }
+
+  // Update stage based on DTU count and tend count
+  const count = garden.dtus.length;
+  const tends = garden.stats.tendCount;
+  if (count >= 50 && tends >= 20) garden.stage = "ancient";
+  else if (count >= 30 && tends >= 10) garden.stage = "thriving";
+  else if (count >= 15 && tends >= 5) garden.stage = "blooming";
+  else if (count >= 5) garden.stage = "sprouting";
+  else garden.stage = "seedling";
+
+  return garden;
+}
+
+async function bloomGarden(gardenId) {
+  const garden = STATE.gardens.find(g => g.id === gardenId);
+  if (!garden || garden.dtus.length < 2) return null;
+
+  // Gather DTU content for insight generation
+  const dtus = garden.dtus.slice(0, 15).map(id => STATE.dtus.get(id)).filter(Boolean);
+  const titles = dtus.map(d => d.title || "untitled").join(", ");
+
+  let insight = {
+    content: `Garden "${garden.name}" contains ${garden.dtus.length} DTUs around the theme "${garden.theme}". Key topics: ${titles}`,
+    generatedAt: new Date().toISOString(),
+  };
+
+  try {
+    if (BRAIN.subconscious?.enabled) {
+      const prompt = `You are a garden of knowledge. These DTUs share the theme "${garden.theme}":\n${dtus.map(d => `- ${d.title}`).join("\n")}\n\nWhat unexpected insight emerges from seeing all of these together? Express it in 1-2 sentences.`;
+      const result = await callBrain("subconscious", prompt, { temperature: 0.8, maxTokens: 100 });
+      if (result.ok && result.content) {
+        insight.content = result.content.trim();
+      }
+    }
+  } catch {}
+
+  garden.insights.push(insight);
+  if (garden.insights.length > 20) garden.insights = garden.insights.slice(-20);
+  garden.stats.blooms++;
+
+  return insight;
+}
+
+// Knowledge Gardens API routes
+app.get("/api/gardens", (_req, res) => {
+  res.json({ ok: true, gardens: STATE.gardens });
+});
+
+app.post("/api/gardens", (req, res) => {
+  try {
+    const garden = createGarden(req.body);
+    res.json({ ok: true, garden });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.get("/api/gardens/:id", (req, res) => {
+  const garden = STATE.gardens.find(g => g.id === req.params.id);
+  if (!garden) return res.status(404).json({ ok: false, error: "Garden not found" });
+  garden.stats.views++;
+  res.json({ ok: true, garden });
+});
+
+app.post("/api/gardens/:id/add", (req, res) => {
+  const garden = STATE.gardens.find(g => g.id === req.params.id);
+  if (!garden) return res.status(404).json({ ok: false, error: "Garden not found" });
+  const { dtuId } = req.body;
+  if (!dtuId || !STATE.dtus.has(dtuId)) return res.status(400).json({ ok: false, error: "Invalid DTU" });
+  if (!garden.dtus.includes(dtuId)) {
+    garden.dtus.push(dtuId);
+    garden.stats.additions++;
+  }
+  res.json({ ok: true, garden });
+});
+
+app.post("/api/gardens/:id/tend", (req, res) => {
+  const result = tendGarden(req.params.id);
+  if (!result) return res.status(404).json({ ok: false, error: "Garden not found" });
+  res.json({ ok: true, garden: result });
+});
+
+app.post("/api/gardens/:id/bloom", async (req, res) => {
+  try {
+    const insight = await bloomGarden(req.params.id);
+    if (!insight) return res.status(400).json({ ok: false, error: "Garden needs at least 2 DTUs to bloom" });
+    res.json({ ok: true, insight });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// ---------- KNOWLEDGE BOUNTIES — community tasks ----------
+// Bounties are open questions or tasks that need DTU-quality answers.
+// They have rewards (XP, tier boosts) and deadlines.
+
+if (!STATE.bounties) STATE.bounties = [];
+
+function createBounty(data) {
+  const bounty = {
+    id: `bounty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: data.title,
+    description: data.description || "",
+    domain: data.domain || "general",
+    reward: data.reward || 50,             // XP reward
+    difficulty: data.difficulty || "medium", // easy, medium, hard, legendary
+    status: "open",                         // open, claimed, submitted, completed, expired
+    createdBy: data.createdBy || "sovereign",
+    claimedBy: null,
+    submission: null,
+    deadline: data.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days default
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    tags: data.tags || [],
+  };
+
+  STATE.bounties.push(bounty);
+  if (STATE.bounties.length > 200) STATE.bounties = STATE.bounties.slice(-200);
+
+  return bounty;
+}
+
+function claimBounty(bountyId, userId) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "open") return { ok: false, error: `Bounty is ${bounty.status}` };
+  bounty.status = "claimed";
+  bounty.claimedBy = userId || "sovereign";
+  return { ok: true, bounty };
+}
+
+function submitBounty(bountyId, submission) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "claimed") return { ok: false, error: `Bounty is ${bounty.status}` };
+  bounty.status = "submitted";
+  bounty.submission = {
+    content: submission.content,
+    dtuId: submission.dtuId || null,
+    submittedAt: new Date().toISOString(),
+  };
+  return { ok: true, bounty };
+}
+
+function completeBounty(bountyId, accepted) {
+  const bounty = STATE.bounties.find(b => b.id === bountyId);
+  if (!bounty) return { ok: false, error: "Bounty not found" };
+  if (bounty.status !== "submitted") return { ok: false, error: `Bounty is ${bounty.status}` };
+
+  if (accepted) {
+    bounty.status = "completed";
+    bounty.completedAt = new Date().toISOString();
+    if (typeof awardXP === "function") {
+      try { awardXP(bounty.claimedBy || "default", "bounty.complete", { bountyId, reward: bounty.reward }); } catch {}
+    }
+  } else {
+    bounty.status = "open";
+    bounty.claimedBy = null;
+    bounty.submission = null;
+  }
+
+  return { ok: true, bounty };
+}
+
+// Knowledge Bounties API routes
+app.get("/api/bounties", (req, res) => {
+  const status = req.query.status;
+  const domain = req.query.domain;
+  let results = [...STATE.bounties].reverse();
+  if (status) results = results.filter(b => b.status === status);
+  if (domain) results = results.filter(b => b.domain === domain);
+  res.json({ ok: true, bounties: results.slice(0, 50), total: STATE.bounties.length });
+});
+
+app.post("/api/bounties", (req, res) => {
+  try {
+    const bounty = createBounty(req.body);
+    res.json({ ok: true, bounty });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/bounties/:id/claim", (req, res) => {
+  const result = claimBounty(req.params.id, req.body.userId);
+  res.json(result);
+});
+
+app.post("/api/bounties/:id/submit", (req, res) => {
+  const result = submitBounty(req.params.id, req.body);
+  res.json(result);
+});
+
+app.post("/api/bounties/:id/complete", (req, res) => {
+  const result = completeBounty(req.params.id, req.body.accepted !== false);
+  res.json(result);
+});
+
+// ---------- KNOWLEDGE FUTURES — prediction markets ----------
+// Create predictions about knowledge outcomes. Stake XP. Get rewarded for accuracy.
+
+if (!STATE.futures) STATE.futures = [];
+
+function createFuture(data) {
+  const future = {
+    id: `future-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question: data.question,
+    domain: data.domain || "general",
+    options: (data.options || ["Yes", "No"]).map((opt, i) => ({
+      id: `opt-${i}`,
+      label: opt,
+      stakes: 0,
+      stakers: [],
+    })),
+    status: "open",                        // open, closed, resolved
+    resolution: null,                       // Which option won
+    totalStaked: 0,
+    createdBy: data.createdBy || "sovereign",
+    resolveBy: data.resolveBy || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+    tags: data.tags || [],
+  };
+
+  STATE.futures.push(future);
+  if (STATE.futures.length > 100) STATE.futures = STATE.futures.slice(-100);
+
+  return future;
+}
+
+function stakeFuture(futureId, optionId, amount, userId) {
+  const future = STATE.futures.find(f => f.id === futureId);
+  if (!future) return { ok: false, error: "Future not found" };
+  if (future.status !== "open") return { ok: false, error: "Future is not open" };
+
+  const option = future.options.find(o => o.id === optionId);
+  if (!option) return { ok: false, error: "Option not found" };
+
+  const stakeAmount = Math.min(Math.max(amount || 10, 1), 100); // 1-100 XP
+  option.stakes += stakeAmount;
+  option.stakers.push({ userId: userId || "sovereign", amount: stakeAmount, at: new Date().toISOString() });
+  future.totalStaked += stakeAmount;
+
+  return { ok: true, future };
+}
+
+function resolveFuture(futureId, winningOptionId) {
+  const future = STATE.futures.find(f => f.id === futureId);
+  if (!future) return { ok: false, error: "Future not found" };
+  if (future.status === "resolved") return { ok: false, error: "Already resolved" };
+
+  const winOption = future.options.find(o => o.id === winningOptionId);
+  if (!winOption) return { ok: false, error: "Invalid winning option" };
+
+  future.status = "resolved";
+  future.resolution = winningOptionId;
+  future.resolvedAt = new Date().toISOString();
+
+  // Distribute rewards: winners get proportional share of total pool
+  const totalPool = future.totalStaked;
+  const winnerPool = winOption.stakes;
+  if (winnerPool > 0 && typeof awardXP === "function") {
+    for (const staker of winOption.stakers) {
+      const share = (staker.amount / winnerPool) * totalPool;
+      try { awardXP(staker.userId, "future.won", { futureId, reward: Math.round(share) }); } catch {}
+    }
+  }
+
+  return { ok: true, future };
+}
+
+// Knowledge Futures API routes
+app.get("/api/futures", (req, res) => {
+  const status = req.query.status;
+  let results = [...STATE.futures].reverse();
+  if (status) results = results.filter(f => f.status === status);
+  res.json({ ok: true, futures: results.slice(0, 50), total: STATE.futures.length });
+});
+
+app.post("/api/futures", (req, res) => {
+  try {
+    const future = createFuture(req.body);
+    res.json({ ok: true, future });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/futures/:id/stake", (req, res) => {
+  const { optionId, amount, userId } = req.body;
+  const result = stakeFuture(req.params.id, optionId, amount, userId);
+  res.json(result);
+});
+
+app.post("/api/futures/:id/resolve", (req, res) => {
+  const { winningOptionId } = req.body;
+  const result = resolveFuture(req.params.id, winningOptionId);
+  res.json(result);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END SPEC II WAVE 3
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
