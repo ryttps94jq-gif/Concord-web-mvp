@@ -181,10 +181,10 @@ describe("Fees", () => {
     assert.equal(net, 98.54);
   });
 
-  it("calculates 5% fee on marketplace", () => {
+  it("calculates 5.46% combined fee on marketplace (1.46% universal + 4% marketplace)", () => {
     const { fee, net } = calculateFee("MARKETPLACE_PURCHASE", 200);
-    assert.equal(fee, 10);
-    assert.equal(net, 190);
+    assert.equal(fee, 10.92); // 5.46% of 200
+    assert.equal(net, 189.08);
   });
 
   it("returns zero fee for royalty payouts", () => {
@@ -266,7 +266,7 @@ describe("Atomic Transfers", () => {
     assert.equal(result.error, "insufficient_balance");
   });
 
-  it("marketplace purchase: buyer→seller with 5% fee", () => {
+  it("marketplace purchase: buyer→seller with 5.46% combined fee", () => {
     executePurchase(db, { userId: "buyer-mp", amount: 500 });
 
     const result = executeMarketplacePurchase(db, {
@@ -277,8 +277,8 @@ describe("Atomic Transfers", () => {
     });
 
     assert.ok(result.ok);
-    assert.equal(result.fee, 5); // 5% of 100
-    assert.equal(result.net, 95);
+    assert.equal(result.fee, 5.46); // 5.46% of 100 (1.46% universal + 4% marketplace)
+    assert.equal(result.net, 94.54);
   });
 });
 

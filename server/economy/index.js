@@ -1,6 +1,8 @@
 // economy/index.js
 // Entry point for the Concord Economy System.
 // Registers all economy + Stripe HTTP endpoints on the Express app.
+// Includes: Concord Coin, royalty cascades, emergent accounts,
+// marketplace, fee splitting, and treasury reconciliation.
 
 import { registerEconomyRoutes } from "./routes.js";
 
@@ -10,12 +12,12 @@ import { registerEconomyRoutes } from "./routes.js";
  */
 export function registerEconomyEndpoints(app, db) {
   registerEconomyRoutes(app, db);
-  console.log("[Concord Economy] All economy + Stripe endpoints registered");
+  console.log("[Concord Economy] All economy + Stripe + marketplace endpoints registered");
 }
 
 // Re-export core modules for direct use by other server modules
-export { getBalance, hasSufficientBalance } from "./balances.js";
-export { calculateFee, FEES, PLATFORM_ACCOUNT_ID } from "./fees.js";
+export { getBalance, hasSufficientBalance, getSystemBalanceSummary } from "./balances.js";
+export { calculateFee, FEES, PLATFORM_ACCOUNT_ID, FEE_SPLIT, UNIVERSAL_FEE_RATE } from "./fees.js";
 export { executeTransfer, executePurchase, executeMarketplacePurchase, executeReversal } from "./transfer.js";
 export { recordTransaction, recordTransactionBatch, getTransactions, generateTxId, checkRefIdProcessed } from "./ledger.js";
 export { requestWithdrawal, processWithdrawal } from "./withdrawals.js";
@@ -28,3 +30,22 @@ export {
   getPurchaseByRefId, getUserPurchases, findPurchasesByStatus, getPurchaseHistory, TRANSITIONS,
 } from "./purchases.js";
 export { runReconciliation, executeCorrection, getPurchaseReceipt, getReconciliationSummary } from "./reconciliation.js";
+
+// New economic system modules
+export { mintCoins, burnCoins, getTreasuryState, verifyTreasuryInvariant, getTreasuryEvents } from "./coin-service.js";
+export {
+  calculateGenerationalRate, registerCitation, getAncestorChain, distributeRoyalties,
+  getCreatorRoyalties, getContentRoyalties, getDescendants,
+  ROYALTY_FLOOR, DEFAULT_INITIAL_RATE, CONCORD_SYSTEM_ID,
+} from "./royalty-cascade.js";
+export {
+  createEmergentAccount, transferToReserve, creditOperatingWallet, debitReserveAccount,
+  getEmergentAccount, listEmergentAccounts, suspendEmergentAccount,
+  isEmergentAccount, canWithdrawToFiat,
+} from "./emergent-accounts.js";
+export {
+  createListing, purchaseListing, getListing, searchListings,
+  delistListing, updateListingPrice, hashContent, generatePreview, checkWashTrading,
+} from "./marketplace-service.js";
+export { distributeFee, getFeeSplitBalances, getFeeDistributions } from "./fee-split.js";
+export { runTreasuryReconciliation, getReconciliationHistory } from "./treasury-reconciliation.js";
