@@ -6,11 +6,11 @@
  * - GPU mode: all lenses keep their assigned model (GPU can handle it)
  *             immature lenses get MORE reasoning power, not less
  *
- * Maturity levels (GPU):
- *   < 0.3 → 14b (needs deep reasoning — use the biggest model)
- *   < 0.6 → 7b  (developing substrate)
- *   < 0.8 → 7b  (strong retrieval, maintain quality)
- *   >= 0.8 → 7b (mature — GPU can handle full quality, no downgrade)
+ * Maturity levels (GPU — 16GB VRAM, all models loaded simultaneously):
+ *   < 0.3 → 14b (needs deep reasoning — route to conscious brain)
+ *   < 0.6 → 7b  (developing substrate — route to subconscious brain)
+ *   < 0.8 → 3b  (strong retrieval — utility brain handles it)
+ *   >= 0.8 → 3b (mature — retrieval + utility brain, no downgrade below 3b)
  */
 
 import { getEmbedding } from "./embeddings.js";
@@ -133,7 +133,7 @@ export function recordQueryEvent(lens, { cacheHit = false, retrievalSufficient =
  * Get the recommended model for a lens (used by routing logic).
  *
  * @param {string|null} lens
- * @returns {string} Model size recommendation: "14b", "7b" (GPU mode — no downgrades)
+ * @returns {string} Model size recommendation: "14b", "7b", "3b" (GPU mode — floor is 3b)
  */
 export function getRecommendedModel(lens) {
   const stats = lensStats.get(lens || "_global");
@@ -192,15 +192,16 @@ function calculateMaturity(stats) {
 
 /**
  * Recommend a model size based on lens maturity.
- * GPU mode: no downgrades — immature lenses get MORE power.
+ * GPU mode: floor is 3b (utility brain), immature lenses get MORE power.
+ * Maps to brain routing: 14b → conscious, 7b → subconscious, 3b → utility.
  */
 function recommendModel(stats) {
   const maturity = calculateMaturity(stats);
 
-  if (maturity < 0.3) return { model: "14b", reason: "Low substrate — needs deep reasoning (GPU)" };
-  if (maturity < 0.6) return { model: "7b", reason: "Developing substrate — full quality (GPU)" };
-  if (maturity < 0.8) return { model: "7b", reason: "Strong retrieval — maintain quality (GPU)" };
-  return { model: "7b", reason: "Mature substrate — GPU handles full quality, no downgrade" };
+  if (maturity < 0.3) return { model: "14b", reason: "Low substrate — route to conscious for deep reasoning" };
+  if (maturity < 0.6) return { model: "7b", reason: "Developing substrate — route to subconscious" };
+  if (maturity < 0.8) return { model: "3b", reason: "Strong retrieval — utility brain handles it" };
+  return { model: "3b", reason: "Mature substrate — retrieval + utility brain, GPU floor" };
 }
 
 // ── Monitoring ─────────────────────────────────────────────────────────────

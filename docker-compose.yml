@@ -33,13 +33,13 @@ services:
       - CONCORD_WS_ENABLED=${CONCORD_WS_ENABLED:-true}
       # Four-Brain Cognitive Architecture
       - BRAIN_CONSCIOUS_URL=${BRAIN_CONSCIOUS_URL:-http://ollama-conscious:11434}
-      - BRAIN_CONSCIOUS_MODEL=${BRAIN_CONSCIOUS_MODEL:-qwen2.5:14b}
+      - BRAIN_CONSCIOUS_MODEL=${BRAIN_CONSCIOUS_MODEL:-qwen2.5:14b-q4_K_M}
       - BRAIN_SUBCONSCIOUS_URL=${BRAIN_SUBCONSCIOUS_URL:-http://ollama-subconscious:11434}
       - BRAIN_SUBCONSCIOUS_MODEL=${BRAIN_SUBCONSCIOUS_MODEL:-qwen2.5:7b}
       - BRAIN_UTILITY_URL=${BRAIN_UTILITY_URL:-http://ollama-utility:11434}
-      - BRAIN_UTILITY_MODEL=${BRAIN_UTILITY_MODEL:-qwen2.5:7b}
+      - BRAIN_UTILITY_MODEL=${BRAIN_UTILITY_MODEL:-qwen2.5:3b}
       - BRAIN_REPAIR_URL=${BRAIN_REPAIR_URL:-http://ollama-repair:11434}
-      - BRAIN_REPAIR_MODEL=${BRAIN_REPAIR_MODEL:-qwen2.5:3b}
+      - BRAIN_REPAIR_MODEL=${BRAIN_REPAIR_MODEL:-qwen2.5:1.5b}
       # Auth — MUST set these in .env file
       - JWT_SECRET=${JWT_SECRET}
       - SESSION_SECRET=${SESSION_SECRET:-}
@@ -264,8 +264,9 @@ services:
           memory: 512M
           cpus: '0.5'
 
-  # ── Four-Brain Cognitive Architecture (GPU: RTX 4000 Ada, 20GB VRAM shared) ──
-  # Brain 1: Conscious — chat and deep reasoning (14B on GPU, ~8GB VRAM)
+  # ── Four-Brain Cognitive Architecture (GPU: RTX 4000 Ada, 16GB VRAM shared) ──
+  # VRAM budget: 14B-q4(~5.5GB) + 7B(~4.5GB) + 3B(~2GB) + 1.5B(~1GB) + embed(~0.3GB) = ~13.3GB → 2.7GB headroom
+  # Brain 1: Conscious — chat and deep reasoning (14B-q4_K_M on GPU, ~5.5GB VRAM)
   ollama-conscious:
     image: ollama/ollama
     container_name: concord-ollama-conscious
@@ -288,10 +289,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12G
+          memory: 10G
           cpus: '4.0'
         reservations:
-          memory: 8G
+          memory: 6G
           cpus: '2.0'
           devices:
             - driver: nvidia
@@ -299,6 +300,7 @@ services:
               capabilities: [gpu]
 
   # Brain 2: Subconscious — autogen, dream, evolution, synthesis, birth (7B on GPU, ~4.5GB VRAM)
+  # THE big win: 1.5B → 7B means every DTU Concord creates is fundamentally smarter
   ollama-subconscious:
     image: ollama/ollama
     container_name: concord-ollama-subconscious
@@ -331,7 +333,8 @@ services:
               count: 1
               capabilities: [gpu]
 
-  # Brain 3: Utility — lens interactions, entity actions, quick domain tasks (7B on GPU, ~4.5GB VRAM)
+  # Brain 3: Utility — lens interactions, entity actions, quick domain tasks (3B on GPU, ~2GB VRAM)
+  # Speed matters more than depth here — 3B stays the same, fast turnaround
   ollama-utility:
     image: ollama/ollama
     container_name: concord-ollama-utility
@@ -354,17 +357,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 4G
           cpus: '4.0'
         reservations:
-          memory: 4G
+          memory: 2G
           cpus: '1.0'
           devices:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
 
-  # Brain 4: Repair — error detection, auto-fix (3B on GPU, ~2GB VRAM)
+  # Brain 4: Repair — error detection, auto-fix (1.5B on GPU, ~1GB VRAM)
+  # 3x upgrade from 0.5B — can actually parse error messages now
   ollama-repair:
     image: ollama/ollama
     container_name: concord-ollama-repair
@@ -387,10 +391,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 2G
           cpus: '2.0'
         reservations:
-          memory: 2G
+          memory: 1G
           cpus: '0.5'
           devices:
             - driver: nvidia
