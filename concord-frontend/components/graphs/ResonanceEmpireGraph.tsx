@@ -7,6 +7,8 @@ interface Node {
   label?: string;
   tier?: 'regular' | 'mega' | 'hyper' | 'shadow';
   resonance?: number;
+  scope?: string;
+  source?: string;
   x?: number;
   y?: number;
 }

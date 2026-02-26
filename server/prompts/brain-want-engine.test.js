@@ -128,13 +128,13 @@ describe("Conscious Brain Params", () => {
   it("should scale tokens up after 5+ exchanges", () => {
     const early = getConsciousParams({ exchange_count: 2 });
     const late = getConsciousParams({ exchange_count: 6 });
-    assert.equal(early.maxTokens, 700);
-    assert.equal(late.maxTokens, 1200);
+    assert.equal(early.maxTokens, 1500);
+    assert.equal(late.maxTokens, 4096);
   });
 
   it("should increase tokens for web results", () => {
     const params = getConsciousParams({ has_web_results: true });
-    assert.equal(params.maxTokens, 1000);
+    assert.equal(params.maxTokens, 2048);
   });
 });
 

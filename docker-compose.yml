@@ -1,5 +1,5 @@
 services:
-  # Backend API Server
+  # Backend API Server — 8 vCPU / 16GB target
   backend:
     build:
       context: ./server
@@ -17,8 +17,15 @@ services:
       - DATA_DIR=/data
       - DB_PATH=/data/db/concord.db
       - STATE_PATH=/data/concord_state.json
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - UV_THREADPOOL_SIZE=8
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama-conscious:11434}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://concord-os.org}
+      - FRONTEND_URL=${FRONTEND_URL:-https://concord-os.org}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - SHUTDOWN_TIMEOUT_MS=${SHUTDOWN_TIMEOUT_MS:-10000}
+      - CONCORD_WS_ENABLED=${CONCORD_WS_ENABLED:-true}
       # Four-Brain Cognitive Architecture
       - BRAIN_CONSCIOUS_URL=${BRAIN_CONSCIOUS_URL:-http://ollama-conscious:11434}
       - BRAIN_CONSCIOUS_MODEL=${BRAIN_CONSCIOUS_MODEL:-qwen2.5:7b}
@@ -28,27 +35,33 @@ services:
       - BRAIN_UTILITY_MODEL=${BRAIN_UTILITY_MODEL:-qwen2.5:3b}
       - BRAIN_REPAIR_URL=${BRAIN_REPAIR_URL:-http://ollama-repair:11434}
       - BRAIN_REPAIR_MODEL=${BRAIN_REPAIR_MODEL:-qwen2.5:0.5b}
-      # Auth - MUST set these in .env file
+      # Auth — MUST set these in .env file
       - JWT_SECRET=${JWT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - AUTH_MODE=${AUTH_MODE:-hybrid}
       - AUTH_ENABLED=${AUTH_ENABLED:-true}
       - SOVEREIGN_USERNAME=${SOVEREIGN_USERNAME:-Concord_Founder_Dutch}
-      # LLM - set OPENAI_API_KEY in .env for AI features
+      - FOUNDER_SECRET=${FOUNDER_SECRET:-}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - REFRESH_TOKEN_EXPIRES=${REFRESH_TOKEN_EXPIRES:-30d}
+      - BCRYPT_ROUNDS=${BCRYPT_ROUNDS:-12}
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+      # LLM — set OPENAI_API_KEY in .env for AI features
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL_FAST=${OPENAI_MODEL_FAST:-gpt-4o-mini}
-      - OPENAI_MODEL_SMART=${OPENAI_MODEL_SMART:-gpt-4o}
+      - OPENAI_MODEL_SMART=${OPENAI_MODEL_SMART:-gpt-4.1}
       # Stripe — set these in .env to enable payments
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRICE_PRO=${STRIPE_PRICE_PRO:-}
       - STRIPE_PRICE_TEAMS=${STRIPE_PRICE_TEAMS:-}
-      - FRONTEND_URL=${FRONTEND_URL:-https://concord-os.org}
       # Optional features
       - EMBEDDINGS_ENABLED=${EMBEDDINGS_ENABLED:-true}
       - FEDERATION_ENABLED=${FEDERATION_ENABLED:-false}
-      # Unsafe surfaces — disabled by default in production
+      # Safety — disabled by default in production
       - ENABLE_TERMINAL_EXEC=${ENABLE_TERMINAL_EXEC:-false}
+      - TELEMETRY_ENABLED=${TELEMETRY_ENABLED:-false}
     depends_on:
       ollama-conscious:
         condition: service_healthy
@@ -71,11 +84,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '0.75'
+          memory: 4608M
+          cpus: '3.0'
         reservations:
-          memory: 512M
-          cpus: '0.25'
+          memory: 1G
+          cpus: '1.0'
 
   # Frontend Next.js App
   frontend:
@@ -213,12 +226,42 @@ services:
           memory: 256M
           cpus: '0.15'
 
+  # Qdrant — vector search engine for embedding similarity
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: concord-qdrant
+    restart: unless-stopped
+    environment:
+      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=1
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - concord-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
   # ── Four-Brain Cognitive Architecture ──
   # Brain 1: Conscious — chat and deep reasoning (7B, 4 cores, ~5GB RAM)
   ollama-conscious:
     image: ollama/ollama
     container_name: concord-ollama-conscious
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=24h
     volumes:
       - ollama-conscious-data:/root/.ollama
     networks:
@@ -243,6 +286,10 @@ services:
     image: ollama/ollama
     container_name: concord-ollama-subconscious
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=24h
     volumes:
       - ollama-subconscious-data:/root/.ollama
     networks:
@@ -267,6 +314,10 @@ services:
     image: ollama/ollama
     container_name: concord-ollama-utility
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=24h
     volumes:
       - ollama-utility-data:/root/.ollama
     networks:
@@ -291,6 +342,10 @@ services:
     image: ollama/ollama
     container_name: concord-ollama-repair
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=24h
     volumes:
       - ollama-repair-data:/root/.ollama
     networks:
@@ -316,6 +371,8 @@ networks:
 
 volumes:
   concord-data:
+    driver: local
+  qdrant-data:
     driver: local
   ollama-conscious-data:
     driver: local

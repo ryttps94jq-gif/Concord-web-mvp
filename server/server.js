@@ -38,6 +38,8 @@ import { asyncHandler } from "./lib/async-handler.js";
 import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
 import configureMiddleware from "./middleware/index.js";
 import { createLLMQueue, PRIORITY } from "./lib/llm-queue.js";
+import { BRAIN_CONFIG as _BRAIN_CONFIG_SPEC, SYSTEM_TO_BRAIN, BRAIN_PRIORITY, getBrainForSystem } from "./lib/brain-config.js";
+import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-router.js";
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
@@ -6145,11 +6147,22 @@ function _c2founderOverrideAllowed(ctx){
   const scopes = ctx?.actor?.scopes || [];
   const isFounder = role==="owner" || scopes.includes("*") || scopes.includes("founder");
   if (!isFounder) return false;
-  // Production hardening: require FOUNDER_SECRET as second factor for override
+  // Production hardening: require FOUNDER_SECRET as second factor for override (timing-safe)
   if (NODE_ENV === "production" && process.env.FOUNDER_SECRET) {
     const provided = ctx?.reqMeta?.founderSecret || "";
-    if (!provided || provided !== process.env.FOUNDER_SECRET) {
-      _c2log("c2.founder", "Override denied: missing/invalid FOUNDER_SECRET in production", { role });
+    if (!provided) {
+      _c2log("c2.founder", "Override denied: missing FOUNDER_SECRET in production", { role });
+      return false;
+    }
+    try {
+      const a = Buffer.from(provided, "utf-8");
+      const b = Buffer.from(process.env.FOUNDER_SECRET, "utf-8");
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        _c2log("c2.founder", "Override denied: invalid FOUNDER_SECRET in production", { role });
+        return false;
+      }
+    } catch {
+      _c2log("c2.founder", "Override denied: FOUNDER_SECRET comparison failed", { role });
       return false;
     }
   }
@@ -6758,18 +6771,40 @@ if (workingDir) {
 // ============================================================================
 // GA: SANDBOX EXECUTOR
 // ============================================================================
+// Sandbox command allowlist — only these commands can be executed by entities
+const SANDBOX_ALLOWED_COMMANDS = new Set([
+  "ls", "cat", "head", "tail", "wc", "grep", "find", "echo", "date", "pwd",
+  "node", "npm", "npx", "python3", "python", "curl", "wget",
+]);
+
 function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
   // P0.1: Defense-in-depth — sandbox executor also checks the gate
   if (!TERMINAL_EXEC_ENABLED) {
     return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Terminal execution is disabled.", timedOut: false });
   }
+
+  // Security: reject command chaining operators to prevent injection
+  if (/[;&|`$(){}]/.test(command)) {
+    return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Sandbox: command chaining operators not allowed.", timedOut: false });
+  }
+
+  // Parse command into argv array — no shell interpretation
+  const parts = command.trim().split(/\s+/);
+  const executable = parts[0];
+  const args = parts.slice(1);
+
+  // Allowlist check
+  if (!SANDBOX_ALLOWED_COMMANDS.has(executable)) {
+    return Promise.resolve({ exitCode: 1, stdout: "", stderr: `Sandbox: command "${executable}" not in allowlist.`, timedOut: false });
+  }
+
   return new Promise((resolve) => {
-    const proc = spawnSync("bash", ["-c", command], {
+    const proc = spawnSync(executable, args, {
       cwd: workDir,
       timeout: timeoutMs,
       maxBuffer: maxOutputBytes,
+      shell: false,  // No shell — prevents injection
       env: {
-        ...process.env,
         ENTITY_ID: String(entityId || ""),
         HOME: String(workDir || ""),
         PATH: process.env.PATH,
@@ -10493,7 +10528,16 @@ async function initThreeBrains() {
 // Initialize brains after a short delay (let Ollama instances start)
 setTimeout(() => initThreeBrains(), 3000);
 // Retry brain init after 30s (Ollama containers may still be pulling models)
-setTimeout(() => initThreeBrains(), 30000);
+// Then preload/warm all models for instant first response
+setTimeout(async () => {
+  await initThreeBrains();
+  try {
+    const preloadResult = await preloadBrains(structuredLog);
+    structuredLog("info", "brain_preload_complete", preloadResult);
+  } catch (e) {
+    structuredLog("warn", "brain_preload_failed", { error: e.message });
+  }
+}, 30000);
 
 // ── Repair Cortex Runtime Loop ────────────────────────────────────────────
 // Expose MACROS, BRAIN, STATE globally so repair cortex executors can access them.

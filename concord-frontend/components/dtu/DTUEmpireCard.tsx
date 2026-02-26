@@ -12,6 +12,9 @@ interface DTU {
   parentId?: string;
   childCount?: number;
   tags?: string[];
+  scope?: string;
+  source?: string;
+  classification?: string;
 }
 
 interface DTUEmpireCardProps {
@@ -19,6 +22,19 @@ interface DTUEmpireCardProps {
   onClick?: (dtu: DTU) => void;
   compact?: boolean;
   showLineage?: boolean;
+}
+
+/**
+ * Determine display scope for a DTU (Local / Global / Creative).
+ * Uses tier, source, and classification fields.
+ */
+function getDtuScopeDisplay(dtu: DTU): { label: string; color: string; textColor: string } {
+  if (dtu.tier === 'shadow') return { label: 'Creative', color: 'bg-purple-500/20', textColor: 'text-purple-400' };
+  if (dtu.classification === 'scaffold') return { label: 'Creative', color: 'bg-purple-500/20', textColor: 'text-purple-400' };
+  if (dtu.tier === 'mega' || dtu.tier === 'hyper') return { label: 'Global', color: 'bg-amber-500/20', textColor: 'text-amber-400' };
+  if (dtu.source === 'seed' || dtu.source === 'sovereign' || dtu.source === 'bootstrap') return { label: 'Global', color: 'bg-amber-500/20', textColor: 'text-amber-400' };
+  if (dtu.source === 'autogen' || dtu.source === 'dream' || dtu.source === 'autogen.pipeline') return { label: 'Creative', color: 'bg-purple-500/20', textColor: 'text-purple-400' };
+  return { label: 'Local', color: 'bg-blue-500/20', textColor: 'text-blue-400' };
 }
 
 const tierConfig = {
@@ -60,6 +76,7 @@ export function DTUEmpireCard({
 }: DTUEmpireCardProps) {
   const config = tierConfig[dtu.tier];
   const TierIcon = config.icon;
+  const scopeDisplay = getDtuScopeDisplay(dtu);
 
   const formattedTime = useMemo(() => {
     const date = new Date(dtu.timestamp);
@@ -103,6 +120,9 @@ export function DTUEmpireCard({
             <TierIcon className={`w-4 h-4 ${config.color}`} />
           </div>
           <span className={`dtu-badge ${dtu.tier}`}>{config.label}</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded ${scopeDisplay.color} ${scopeDisplay.textColor}`}>
+            {scopeDisplay.label}
+          </span>
         </div>
         <button className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white">
           <ExternalLink className="w-4 h-4" />

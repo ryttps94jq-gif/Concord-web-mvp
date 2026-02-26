@@ -110,7 +110,8 @@ export function getConsciousParams(ctx = {}) {
 
   return {
     temperature: 0.75,
-    maxTokens: exchange_count >= 5 ? 1200 : (has_web_results ? 1000 : 700),
+    // Full context window — let the conscious brain think deeply
+    maxTokens: exchange_count >= 5 ? 4096 : (has_web_results ? 2048 : 1500),
   };
 }
 
