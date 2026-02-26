@@ -62,3 +62,56 @@ export function getBalances(db, userIds) {
 export function getPlatformBalance(db, platformAccountId) {
   return getBalance(db, platformAccountId);
 }
+
+/**
+ * Get a comprehensive balance summary including all account types.
+ * Covers user wallets, emergent accounts, and platform accounts.
+ * @param {object} db
+ * @returns {{ users: object, emergents: object, platform: object, total: object }}
+ */
+export function getSystemBalanceSummary(db) {
+  const allAccounts = db.prepare(`
+    SELECT DISTINCT to_user_id as account_id FROM economy_ledger WHERE to_user_id IS NOT NULL
+    UNION
+    SELECT DISTINCT from_user_id as account_id FROM economy_ledger WHERE from_user_id IS NOT NULL
+  `).all();
+
+  let totalUserBalance = 0;
+  let totalEmergentBalance = 0;
+  let totalPlatformBalance = 0;
+  let userCount = 0;
+  let emergentCount = 0;
+
+  for (const { account_id } of allAccounts) {
+    if (!account_id) continue;
+    const { balance } = getBalance(db, account_id);
+    if (balance <= 0) continue;
+
+    if (account_id.startsWith("emergent_op:") || account_id.startsWith("emergent_res:")) {
+      totalEmergentBalance += balance;
+      emergentCount++;
+    } else if (account_id.startsWith("__")) {
+      totalPlatformBalance += balance;
+    } else {
+      totalUserBalance += balance;
+      userCount++;
+    }
+  }
+
+  return {
+    users: {
+      count: userCount,
+      totalBalance: Math.round(totalUserBalance * 100) / 100,
+    },
+    emergents: {
+      count: emergentCount,
+      totalBalance: Math.round(totalEmergentBalance * 100) / 100,
+    },
+    platform: {
+      totalBalance: Math.round(totalPlatformBalance * 100) / 100,
+    },
+    total: {
+      circulatingBalance: Math.round((totalUserBalance + totalEmergentBalance + totalPlatformBalance) * 100) / 100,
+    },
+  };
+}

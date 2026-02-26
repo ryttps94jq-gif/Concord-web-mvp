@@ -25,6 +25,22 @@ import {
 import {
   runReconciliation, executeCorrection, getPurchaseReceipt, getReconciliationSummary,
 } from "./reconciliation.js";
+import { mintCoins, burnCoins, getTreasuryState, verifyTreasuryInvariant } from "./coin-service.js";
+import {
+  calculateGenerationalRate, registerCitation, getAncestorChain,
+  distributeRoyalties, getCreatorRoyalties, getContentRoyalties,
+} from "./royalty-cascade.js";
+import {
+  createEmergentAccount, transferToReserve, getEmergentAccount,
+  listEmergentAccounts, suspendEmergentAccount, isEmergentAccount, canWithdrawToFiat,
+} from "./emergent-accounts.js";
+import {
+  createListing, purchaseListing, getListing, searchListings,
+  delistListing, updateListingPrice, checkWashTrading,
+} from "./marketplace-service.js";
+import { distributeFee, getFeeSplitBalances, getFeeDistributions } from "./fee-split.js";
+import { runTreasuryReconciliation, getReconciliationHistory } from "./treasury-reconciliation.js";
+import { getSystemBalanceSummary } from "./balances.js";
 
 /**
  * Register all economy + Stripe routes on the Express app.
@@ -770,6 +786,354 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, status, count: purchases.length, purchases });
     } catch (err) {
       res.status(500).json({ ok: false, error: "purchases_query_failed", detail: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TREASURY / COIN SERVICE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.get("/api/economy/treasury", adminOnly, (_req, res) => {
+    try {
+      const state = getTreasuryState(db);
+      const invariant = verifyTreasuryInvariant(db);
+      res.json({ ok: true, treasury: state, invariant });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "treasury_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.post("/api/economy/admin/treasury/reconcile", adminOnly, (req, res) => {
+    try {
+      const stripeBalance = req.body.stripe_balance != null ? parseFloat(req.body.stripe_balance) : undefined;
+      const result = runTreasuryReconciliation(db, { stripeBalance });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "reconciliation_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/admin/treasury/history", adminOnly, (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const result = getReconciliationHistory(db, { limit, offset });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "history_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/admin/balances/summary", adminOnly, (_req, res) => {
+    try {
+      const summary = getSystemBalanceSummary(db);
+      res.json({ ok: true, ...summary });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "summary_failed", detail: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ROYALTY CASCADE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.post("/api/economy/royalties/register-citation", (req, res) => {
+    try {
+      const { child_id, parent_id, creator_id, parent_creator_id, generation } = req.body;
+      if (!child_id || !parent_id) return res.status(400).json({ ok: false, error: "missing_content_ids" });
+      if (!creator_id || !parent_creator_id) return res.status(400).json({ ok: false, error: "missing_creator_ids" });
+
+      const result = registerCitation(db, {
+        childId: child_id,
+        parentId: parent_id,
+        creatorId: creator_id,
+        parentCreatorId: parent_creator_id,
+        generation: generation || 1,
+      });
+
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "citation_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/royalties/chain/:contentId", (req, res) => {
+    try {
+      const ancestors = getAncestorChain(db, req.params.contentId);
+      res.json({ ok: true, contentId: req.params.contentId, ancestors, count: ancestors.length });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "chain_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/royalties/creator/:creatorId", (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const result = getCreatorRoyalties(db, req.params.creatorId, { limit, offset });
+      res.json({ ok: true, creatorId: req.params.creatorId, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "royalties_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/royalties/content/:contentId", (req, res) => {
+    try {
+      const payouts = getContentRoyalties(db, req.params.contentId);
+      res.json({ ok: true, contentId: req.params.contentId, payouts, count: payouts.length });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "content_royalties_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/royalties/rate", (req, res) => {
+    const generation = parseInt(req.query.generation, 10) || 0;
+    const initialRate = parseFloat(req.query.initial_rate) || undefined;
+    const rate = calculateGenerationalRate(generation, initialRate);
+    res.json({ ok: true, generation, rate, ratePercent: `${(rate * 100).toFixed(3)}%` });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMERGENT ACCOUNTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.post("/api/economy/emergent/create", adminOnly, (req, res) => {
+    try {
+      const { emergent_id, display_name, seed_amount } = req.body;
+      if (!emergent_id) return res.status(400).json({ ok: false, error: "missing_emergent_id" });
+
+      const result = createEmergentAccount(db, {
+        emergentId: emergent_id,
+        displayName: display_name,
+        seedAmount: seed_amount ? parseFloat(seed_amount) : 0,
+      });
+
+      if (!result.ok) return res.status(400).json(result);
+
+      const ctx = auditCtx(req);
+      economyAudit(db, {
+        action: "emergent_account_created",
+        userId: ctx.userId || "admin",
+        details: { emergentId: emergent_id, seedAmount: seed_amount },
+        ...ctx,
+      });
+
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "emergent_create_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/emergent/:emergentId", (req, res) => {
+    try {
+      const account = getEmergentAccount(db, req.params.emergentId);
+      if (!account) return res.status(404).json({ ok: false, error: "emergent_not_found" });
+      res.json({ ok: true, account });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "emergent_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/emergent", (req, res) => {
+    try {
+      const status = req.query.status || "active";
+      const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const result = listEmergentAccounts(db, { status, limit, offset });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "emergent_list_failed", detail: err.message });
+    }
+  });
+
+  app.post("/api/economy/emergent/:emergentId/transfer-to-reserve", (req, res) => {
+    try {
+      const amount = parseFloat(req.body.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ ok: false, error: "invalid_amount" });
+      }
+
+      const ctx = auditCtx(req);
+      const result = transferToReserve(db, {
+        emergentId: req.params.emergentId,
+        amount,
+        requestId: ctx.requestId,
+        ip: ctx.ip,
+      });
+
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "transfer_failed", detail: err.message });
+    }
+  });
+
+  app.post("/api/economy/emergent/:emergentId/suspend", adminOnly, (req, res) => {
+    try {
+      const result = suspendEmergentAccount(db, {
+        emergentId: req.params.emergentId,
+        reason: req.body.reason || "admin_action",
+      });
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "suspend_failed", detail: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MARKETPLACE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.post("/api/economy/marketplace/list", (req, res) => {
+    try {
+      const {
+        seller_id, content_id, content_type, title, description,
+        price, content_data, license_type, royalty_chain,
+      } = req.body;
+      const sellerId = seller_id || req.user?.id;
+
+      if (!sellerId) return res.status(400).json({ ok: false, error: "missing_seller_id" });
+
+      const result = createListing(db, {
+        sellerId,
+        contentId: content_id,
+        contentType: content_type,
+        title,
+        description,
+        price: parseFloat(price),
+        contentData: content_data,
+        licenseType: license_type,
+        royaltyChain: royalty_chain || [],
+      });
+
+      if (!result.ok) return res.status(400).json(result);
+
+      const ctx = auditCtx(req);
+      economyAudit(db, {
+        action: "marketplace_listing_created",
+        userId: sellerId,
+        amount: parseFloat(price),
+        details: { listingId: result.listing?.id, contentType: content_type, title },
+        ...ctx,
+      });
+
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "listing_failed", detail: err.message });
+    }
+  });
+
+  app.post("/api/economy/marketplace/purchase", (req, res) => {
+    try {
+      const buyerId = req.body.buyer_id || req.user?.id;
+      const listingId = req.body.listing_id;
+
+      if (!buyerId) return res.status(400).json({ ok: false, error: "missing_buyer_id" });
+      if (!listingId) return res.status(400).json({ ok: false, error: "missing_listing_id" });
+
+      // Block emergent fiat withdrawal attempt (defense in depth)
+      if (isEmergentAccount(buyerId) && !canWithdrawToFiat(buyerId)) {
+        // This is fine — emergents CAN buy on marketplace, just can't withdraw to fiat
+      }
+
+      const ctx = auditCtx(req);
+      const result = purchaseListing(db, {
+        buyerId,
+        listingId,
+        requestId: ctx.requestId,
+        ip: ctx.ip,
+      });
+
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "purchase_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/marketplace/listings", (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const result = searchListings(db, {
+        contentType: req.query.content_type,
+        sellerId: req.query.seller_id,
+        status: req.query.status || "active",
+        minPrice: req.query.min_price ? parseFloat(req.query.min_price) : undefined,
+        maxPrice: req.query.max_price ? parseFloat(req.query.max_price) : undefined,
+        limit,
+        offset,
+      });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "listings_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/marketplace/listings/:listingId", (req, res) => {
+    try {
+      const listing = getListing(db, req.params.listingId);
+      if (!listing) return res.status(404).json({ ok: false, error: "listing_not_found" });
+      res.json({ ok: true, listing });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "listing_fetch_failed", detail: err.message });
+    }
+  });
+
+  app.post("/api/economy/marketplace/listings/:listingId/delist", (req, res) => {
+    try {
+      const sellerId = req.body.seller_id || req.user?.id;
+      if (!sellerId) return res.status(400).json({ ok: false, error: "missing_seller_id" });
+
+      const result = delistListing(db, { listingId: req.params.listingId, sellerId });
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "delist_failed", detail: err.message });
+    }
+  });
+
+  app.patch("/api/economy/marketplace/listings/:listingId/price", (req, res) => {
+    try {
+      const sellerId = req.body.seller_id || req.user?.id;
+      const newPrice = parseFloat(req.body.price);
+      if (!sellerId) return res.status(400).json({ ok: false, error: "missing_seller_id" });
+
+      const result = updateListingPrice(db, {
+        listingId: req.params.listingId,
+        sellerId,
+        newPrice,
+      });
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "price_update_failed", detail: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FEE SPLIT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.get("/api/economy/admin/fee-split/balances", adminOnly, (_req, res) => {
+    try {
+      const balances = getFeeSplitBalances(db);
+      res.json({ ok: true, ...balances });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "fee_split_balances_failed", detail: err.message });
+    }
+  });
+
+  app.get("/api/economy/admin/fee-split/history", adminOnly, (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+      const offset = parseInt(req.query.offset, 10) || 0;
+      const result = getFeeDistributions(db, { limit, offset });
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "fee_split_history_failed", detail: err.message });
     }
   });
 }

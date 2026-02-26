@@ -38,6 +38,8 @@ import { asyncHandler } from "./lib/async-handler.js";
 import { init as initGRC, formatAndValidate as grcFormatAndValidate, getGRCSystemPrompt } from "./grc/index.js";
 import configureMiddleware from "./middleware/index.js";
 import { createLLMQueue, PRIORITY } from "./lib/llm-queue.js";
+import { BRAIN_CONFIG as _BRAIN_CONFIG_SPEC, SYSTEM_TO_BRAIN, BRAIN_PRIORITY, getBrainForSystem } from "./lib/brain-config.js";
+import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-router.js";
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
@@ -56,6 +58,28 @@ import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
 import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergent/council-voices.js";
+
+// ── Brain Prompt Builders & Want Engine ────────────────────────────────────────
+import { buildConsciousPrompt, getConsciousParams } from "./prompts/conscious.js";
+import { buildSubconsciousPrompt, getSubconsciousParams, SUBCONSCIOUS_MODES } from "./prompts/subconscious.js";
+import { buildUtilityPrompt, getUtilityParams } from "./prompts/utility.js";
+import { buildRepairPrompt, getRepairParams } from "./prompts/repair.js";
+import { getPersonality, recordInteraction as recordPersonalityInteraction, getPersonalityHistory } from "./prompts/personality.js";
+import { getActiveWants, getWantMetrics, createWant, decayAllWants, WANT_TYPES, WANT_ORIGINS } from "./prompts/want-engine.js";
+import { selectSubconsciousTask, checkSpontaneousTrigger, generateWantFromInteraction, amplifyGoalPriority } from "./prompts/want-integration.js";
+import { enqueueMessage, processQueue as processSpQueue, getQueueStatus, setUserSpontaneousEnabled, startTicker, stopTicker } from "./prompts/spontaneous-queue.js";
+import { checkSpontaneousContent } from "./prompts/spontaneous.js";
+
+// ── Learning Verification & Substrate Integrity ──────────────────────────────
+import {
+  CLASSIFICATIONS, computeSubstrateStats, migrateClassifications, applyClassification, isPublicDTU,
+  getLearningStore, recordQueryMethod, getRetrievalHitRate, getRetrievalTrend,
+  recordCitation, getUtilizationStats, recordGeneration, getNoveltyStats, checkNovelty,
+  recordResponseQuality, getHelpfulnessScores,
+  checkGenerationQuota, recordGenerationUsed, getRecommendedEvolutionRatio,
+  checkProbation, runProbationAudit, getDomainCoverage,
+  runSubstratePruning, getLearningDashboard, runDedupAudit,
+} from "./learning/index.js";
 import { attemptReproduction, getLineage, getLineageTree, enableReproduction, disableReproduction, isReproductionEnabled } from "./emergent/reproduction.js";
 import { classifyEntity, classifyAllEntities, getSpeciesCensus, getSpeciesRegistry, checkReproductionCompatibility, getSpecies } from "./emergent/species.js";
 import { runDualPathSimulation, getSimulation, listSimulations } from "./emergent/dual-path.js";
@@ -676,6 +700,23 @@ async function gracefulShutdown(signal) {
   isShuttingDown = true;
 
   console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
+
+  // Flush state to disk immediately — critical for OOM kills and SIGTERM
+  try {
+    clearTimeout(_saveTimer); // Cancel any pending debounced save
+    const data = JSON.stringify(_serializeState(), null, USE_SQLITE_STATE ? 0 : 2);
+    if (USE_SQLITE_STATE && db) {
+      const stmt = db.prepare("INSERT OR REPLACE INTO state_snapshots (id, data, version, saved_at) VALUES (1, ?, ?, ?)");
+      stmt.run(data, VERSION, new Date().toISOString());
+    } else if (typeof STATE_PATH === "string") {
+      const tmpPath = STATE_PATH + ".tmp";
+      fs.writeFileSync(tmpPath, data, "utf-8");
+      fs.renameSync(tmpPath, STATE_PATH);
+    }
+    console.log("[Shutdown] State saved to disk");
+  } catch (e) {
+    console.error("[Shutdown] State save failed:", e.message);
+  }
 
   // Stop repair cortex loop
   try { stopRepairLoop(); } catch { /* best-effort */ }
@@ -4267,16 +4308,20 @@ function requireAuth() {
   };
 }
 
-// Permission check helper
+// Permission check helper — simplified 4-role model:
+// sovereign > admin > member > spectator (unauthenticated)
+// Internal system calls (ctx.internal) always pass.
 function requireRole(...roles) {
   return (req, res, next) => {
+    // Internal system calls always pass (emergent ticks, autogen, repair cortex)
+    if (req.ctx?.internal === true) return next();
     if (AUTH_MODE === "public") return next();
-    if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    if (!req.user) return res.status(401).json({ ok: false, error: "Authentication required" });
     if (req.user.role === "sovereign") return next(); // sovereign passes ALL role checks
     if (roles.length === 0 || roles.includes(req.user.role) || req.user.scopes?.includes("*")) {
       return next();
     }
-    return res.status(403).json({ ok: false, error: "Forbidden", requiredRoles: roles });
+    return res.status(403).json({ ok: false, error: "Insufficient permissions", requiredRoles: roles });
   };
 }
 
@@ -5896,6 +5941,8 @@ function toOptionADTU(seedLike) {
   };
   dtu.cretiHuman = renderHumanDTU(dtu);
   dtu.hash = dtu.hash || crypto.createHash("sha256").update(dtu.title + "\n" + dtu.cretiHuman).digest("hex").slice(0,16);
+  // Learning verification: apply classification on creation
+  try { applyClassification(dtu); } catch { /* learning module not critical */ }
   return dtu;
 }
 
@@ -5989,6 +6036,17 @@ try {
   if (changed) { saveStateDebounced(); log("dtu.rename", "Normalized DTU titles/CRETI for UI", { changed }); }
 } catch (e) {
   structuredLog("error", "dtu_normalization_failed", { error: String(e?.message || e) });
+}
+
+// ── Learning Verification: migrate existing DTU classifications at startup ──
+try {
+  const migrationResult = migrateClassifications(STATE.dtus);
+  if (migrationResult.migrated > 0) {
+    structuredLog("info", "learning_classification_migration", migrationResult);
+    saveStateDebounced();
+  }
+} catch (e) {
+  structuredLog("error", "learning_migration_failed", { error: String(e?.message || e) });
 }
 
 // ---- logging ----
@@ -6110,11 +6168,22 @@ function _c2founderOverrideAllowed(ctx){
   const scopes = ctx?.actor?.scopes || [];
   const isFounder = role==="owner" || scopes.includes("*") || scopes.includes("founder");
   if (!isFounder) return false;
-  // Production hardening: require FOUNDER_SECRET as second factor for override
+  // Production hardening: require FOUNDER_SECRET as second factor for override (timing-safe)
   if (NODE_ENV === "production" && process.env.FOUNDER_SECRET) {
     const provided = ctx?.reqMeta?.founderSecret || "";
-    if (!provided || provided !== process.env.FOUNDER_SECRET) {
-      _c2log("c2.founder", "Override denied: missing/invalid FOUNDER_SECRET in production", { role });
+    if (!provided) {
+      _c2log("c2.founder", "Override denied: missing FOUNDER_SECRET in production", { role });
+      return false;
+    }
+    try {
+      const a = Buffer.from(provided, "utf-8");
+      const b = Buffer.from(process.env.FOUNDER_SECRET, "utf-8");
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        _c2log("c2.founder", "Override denied: invalid FOUNDER_SECRET in production", { role });
+        return false;
+      }
+    } catch {
+      _c2log("c2.founder", "Override denied: FOUNDER_SECRET comparison failed", { role });
       return false;
     }
   }
@@ -6723,18 +6792,40 @@ if (workingDir) {
 // ============================================================================
 // GA: SANDBOX EXECUTOR
 // ============================================================================
+// Sandbox command allowlist — only these commands can be executed by entities
+const SANDBOX_ALLOWED_COMMANDS = new Set([
+  "ls", "cat", "head", "tail", "wc", "grep", "find", "echo", "date", "pwd",
+  "node", "npm", "npx", "python3", "python", "curl", "wget",
+]);
+
 function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
   // P0.1: Defense-in-depth — sandbox executor also checks the gate
   if (!TERMINAL_EXEC_ENABLED) {
     return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Terminal execution is disabled.", timedOut: false });
   }
+
+  // Security: reject command chaining operators to prevent injection
+  if (/[;&|`$(){}]/.test(command)) {
+    return Promise.resolve({ exitCode: 1, stdout: "", stderr: "Sandbox: command chaining operators not allowed.", timedOut: false });
+  }
+
+  // Parse command into argv array — no shell interpretation
+  const parts = command.trim().split(/\s+/);
+  const executable = parts[0];
+  const args = parts.slice(1);
+
+  // Allowlist check
+  if (!SANDBOX_ALLOWED_COMMANDS.has(executable)) {
+    return Promise.resolve({ exitCode: 1, stdout: "", stderr: `Sandbox: command "${executable}" not in allowlist.`, timedOut: false });
+  }
+
   return new Promise((resolve) => {
-    const proc = spawnSync("bash", ["-c", command], {
+    const proc = spawnSync(executable, args, {
       cwd: workDir,
       timeout: timeoutMs,
       maxBuffer: maxOutputBytes,
+      shell: false,  // No shell — prevents injection
       env: {
-        ...process.env,
         ENTITY_ID: String(entityId || ""),
         HOME: String(workDir || ""),
         PATH: process.env.PATH,
@@ -8719,6 +8810,25 @@ function makeCtx(req=null) {
   };
 }
 
+// ---- Internal System Context ----
+// Trusted server-side context for autonomous processes (emergent ticks, autogen,
+// repair cortex, agent patrols). Bypasses HTTP auth middleware and macro ACL.
+function makeInternalCtx(source = "system") {
+  const ctx = makeCtx(null);
+  ctx.actor = { userId: source, orgId: "internal", role: "owner", scopes: ["*"], internal: true };
+  ctx.internal = true;
+  // Inner macro calls must inherit the internal flag
+  ctx.macro = {
+    run: (domain, name, input) => {
+      const inner = makeInternalCtx(source);
+      return runMacro(domain, name, input, inner);
+    },
+    listDomains,
+    listMacros,
+  };
+  return ctx;
+}
+
 // ---- DTU Archive System (Consolidation Pipeline) ----
 // Rehydration LRU cache for archived DTUs
 const _rehydrationCache = new Map();
@@ -9947,9 +10057,14 @@ async function chatWithLattice(query, { contextLimit = 5, sessionId: _sessionId 
   // Build prompt with context
   const contextStr = context.map((c, i) => `[${i + 1}] ${c.title}\n${c.content}`).join("\n\n---\n\n");
 
-  const systemPrompt = `You are an AI assistant helping the user explore their personal knowledge base (lattice of DTUs - Discrete Thought Units).
-Answer questions based on the provided context from the user's lattice. If the context doesn't contain relevant information, say so.
-Be concise but thorough. Reference specific DTUs by title when applicable.`;
+  // Use conscious brain prompt builder for RAG queries
+  const ragDtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const ragDomainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+  const systemPrompt = buildConsciousPrompt({
+    dtu_count: ragDtuCount,
+    domain_count: ragDomainCount,
+    context: contextStr,
+  });
 
   const userPrompt = `Context from my knowledge lattice:\n\n${contextStr}\n\n---\n\nQuestion: ${query}`;
 
@@ -10367,28 +10482,28 @@ async function llmChat(messagesOrCtx, messagesOrOptions = {}, maybeOptions = {})
 
 const BRAIN = {
   conscious: {
-    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434",
+    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434",
     model: process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b",
     role: "chat, deep reasoning, complex queries",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   subconscious: {
-    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://localhost:11435",
+    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://ollama-subconscious:11434",
     model: process.env.BRAIN_SUBCONSCIOUS_MODEL || "qwen2.5:1.5b",
     role: "autogen, dream, evolution, synthesis, birth",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   utility: {
-    url: process.env.BRAIN_UTILITY_URL || "http://localhost:11436",
+    url: process.env.BRAIN_UTILITY_URL || "http://ollama-utility:11434",
     model: process.env.BRAIN_UTILITY_MODEL || "qwen2.5:3b",
     role: "lens interactions, entity actions, quick domain tasks",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   repair: {
-    url: process.env.BRAIN_REPAIR_URL || "http://localhost:11437",
+    url: process.env.BRAIN_REPAIR_URL || "http://ollama-repair:11434",
     model: process.env.BRAIN_REPAIR_MODEL || "qwen2.5:0.5b",
     role: "error detection, auto-fix, runtime repair",
     enabled: false,
@@ -10453,7 +10568,16 @@ async function initThreeBrains() {
 // Initialize brains after a short delay (let Ollama instances start)
 setTimeout(() => initThreeBrains(), 3000);
 // Retry brain init after 30s (Ollama containers may still be pulling models)
-setTimeout(() => initThreeBrains(), 30000);
+// Then preload/warm all models for instant first response
+setTimeout(async () => {
+  await initThreeBrains();
+  try {
+    const preloadResult = await preloadBrains(structuredLog);
+    structuredLog("info", "brain_preload_complete", preloadResult);
+  } catch (e) {
+    structuredLog("warn", "brain_preload_failed", { error: e.message });
+  }
+}, 30000);
 
 // ── Repair Cortex Runtime Loop ────────────────────────────────────────────
 // Expose MACROS, BRAIN, STATE globally so repair cortex executors can access them.
@@ -10538,13 +10662,13 @@ async function initGhostFleet() {
     });
     register("hlm", "metrics", () => hlm.getHLMMetrics());
 
-    // HLM slow interval: every 5 minutes (NOT on the 15s heartbeat)
+    // HLM slow interval: every 8 minutes — graph computation, no LLM but CPU-intensive
     const hlmTimer = setInterval(async () => {
       try {
         const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
         if (dtus.length > 0) await hlm.runHLMPass(dtus);
       } catch (e) { observe(e, "hlm_slow_interval"); }
-    }, 300000);
+    }, 480000);
     if (hlmTimer.unref) hlmTimer.unref();
 
     structuredLog("info", "ghost_fleet_module_loaded", { name: "hlm-engine", macros: 9, interval: "5min" });
@@ -11377,11 +11501,11 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       recordRoutingLevel(lens, "cache");
       recordQueryEvent(lens, { cacheHit: true, topSimilarity: cached.score });
       recordEconomicsEvent({ type: "cache", userId });
+      try { recordQueryMethod(STATE, "semantic_cache"); } catch { /* learning metrics not critical */ }
 
       // Still create a DTU linking to the source
       try {
-        const ctx = makeCtx(null);
-        ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+        const ctx = makeInternalCtx("system");
         await runMacro("dtu", "create", {
           title: `Cached: ${userMessage.slice(0, 80)}`,
           creti: cached.response,
@@ -11415,10 +11539,10 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       if (result.ok && result.content) {
         const elapsed = Date.now() - inferenceStart;
         recordEconomicsEvent({ type: "retrieval", inferenceMs: elapsed, userId });
+        try { recordQueryMethod(STATE, "retrieval_sufficient"); } catch { /* learning metrics not critical */ }
 
         try {
-          const ctx = makeCtx(null);
-          ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+          const ctx = makeInternalCtx("system");
           await runMacro("dtu", "create", {
             title: `Chat: ${userMessage.slice(0, 80)}`,
             creti: result.content,
@@ -11501,13 +11625,25 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       : [];
     system = buildResponsePrompt(dtuContext, webResults);
   } else {
-    system = `You are Concord's conscious mind. You have access to ${contextCount} knowledge units about ${lens || "general topics"}.\n\nRelevant knowledge:\n${context}`;
+    // Use comprehensive conscious brain prompt builder
+    const personalityState = typeof getPersonality === "function" ? getPersonality(STATE) : null;
+    const highWants = typeof getActiveWants === "function" ? (getActiveWants(STATE)?.wants || []).filter(w => w.intensity >= 0.6) : [];
+    system = buildConsciousPrompt({
+      dtu_count: contextCount,
+      domain_count: STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0,
+      lens: lens || "general topics",
+      context,
+      personality_state: personalityState,
+      active_wants: highWants,
+    });
   }
 
+  // Use conscious brain prompt parameters (spec: 0.75 temp, scaled tokens)
+  const consciousParams = getConsciousParams({ exchange_count: options._exchangeCount || 0, has_web_results: webResults.length > 0 });
   const result = await callBrain("conscious", userMessage, {
     system,
-    temperature: options.temperature || 0.7,
-    maxTokens: options.maxTokens || (webResults.length > 0 ? 1000 : 700),
+    temperature: options.temperature || consciousParams.temperature,
+    maxTokens: options.maxTokens || consciousParams.maxTokens,
     timeout: options.timeout || 60000,
   });
 
@@ -11520,6 +11656,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
 
   const elapsed = Date.now() - inferenceStart;
   recordEconomicsEvent({ type: "inference", inferenceMs: elapsed, userId });
+  try { recordQueryMethod(STATE, "llm_required"); } catch { /* learning metrics not critical */ }
 
   if (result.ok && result.content) {
     // Build sources list for the response
@@ -11534,8 +11671,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
 
     // Save exchange as DTU (fire-and-forget)
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `Chat: ${userMessage.slice(0, 80)}`,
         creti: result.content,
@@ -11556,8 +11692,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
     if (webResults.length > 0) {
       for (const wr of webResults) {
         try {
-          const wctx = makeCtx(null);
-          wctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+          const wctx = makeInternalCtx("system");
           await runMacro("dtu", "create", {
             title: `Web: ${wr.title.slice(0, 80)}`,
             creti: wr.content,
@@ -11601,19 +11736,38 @@ async function subconsciousTask(taskType, domain = null) {
   };
 
   const prompt = taskPrompts[taskType] || `Perform ${taskType} task on the knowledge substrate.`;
-  const system = `You are Concord's subconscious mind. Task: ${taskType}.\nSynthesize from this material:\n${material}`;
+
+  // Use comprehensive subconscious prompt builder with want context
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+
+  // Check if want engine has an active want driving this task
+  let activeWant = null;
+  try {
+    const taskSelection = selectSubconsciousTask(STATE, [taskType], domain);
+    activeWant = taskSelection.want;
+  } catch { /* want engine not critical */ }
+
+  const system = buildSubconsciousPrompt({
+    mode: taskType,
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    domain,
+    material,
+    active_want: activeWant,
+  });
+  const subcParams = getSubconsciousParams(taskType);
 
   const result = await callBrain("subconscious", prompt, {
     system,
-    temperature: taskType === "dream" ? 0.9 : 0.6,
-    maxTokens: 400,
-    timeout: 45000,
+    temperature: subcParams.temperature,
+    maxTokens: subcParams.maxTokens,
+    timeout: subcParams.timeout,
   });
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${taskType.charAt(0).toUpperCase() + taskType.slice(1)}: ${result.content.slice(0, 60)}`,
         creti: result.content,
@@ -11637,22 +11791,31 @@ async function subconsciousTask(taskType, domain = null) {
  */
 async function utilityCall(action, lens, data) {
   const context = await buildBrainContext(action, lens, 5);
-  const system = `You are a ${lens} specialist in Concord. Use this domain knowledge:\n${context}`;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+
+  // Use comprehensive utility brain prompt builder
+  const system = buildUtilityPrompt({
+    action,
+    lens,
+    context,
+    dtu_count: dtuCount,
+    marketplace_mode: action?.includes?.("marketplace") || false,
+  });
+  const utilParams = getUtilityParams({ marketplace_mode: action?.includes?.("marketplace") || false });
 
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Action: ${action}\nDomain: ${lens}\nInput: ${dataStr}`;
 
   const result = await callBrain("utility", prompt, {
     system,
-    temperature: 0.5,
-    maxTokens: 500,
-    timeout: 30000,
+    temperature: utilParams.temperature,
+    maxTokens: utilParams.maxTokens,
+    timeout: utilParams.timeout,
   });
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${lens}: ${action}`,
         creti: result.content,
@@ -11680,21 +11843,31 @@ async function utilityCall(action, lens, data) {
  */
 async function subconsciousLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 10);
-  const system = `You are Concord's subconscious mind working on ${domain}. Process this autonomously.\nContext:\n${context}`;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+
+  const system = buildSubconsciousPrompt({
+    mode: "autogen",
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    domain,
+    material: context,
+  });
+  const subcParams = getSubconsciousParams("autogen");
+
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Background task: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
   const result = await callBrain("subconscious", prompt, {
     system,
-    temperature: 0.6,
-    maxTokens: 400,
-    timeout: 45000,
+    temperature: subcParams.temperature,
+    maxTokens: subcParams.maxTokens,
+    timeout: subcParams.timeout,
   });
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${domain}: ${action}`,
         creti: result.content,
@@ -11719,15 +11892,23 @@ async function subconsciousLensCall(action, domain, data) {
  */
 async function repairLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 5);
-  const system = `You are Concord's repair brain validating ${domain} data. Be strict and precise. Return JSON with {valid:boolean, issues:string[], suggestions:string[]}.\nContext:\n${context}`;
+
+  // Use comprehensive repair brain prompt builder
+  const system = buildRepairPrompt({
+    action,
+    domain,
+    context,
+  });
+  const repParams = getRepairParams();
+
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Validate: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
   const result = await callBrain("repair", prompt, {
     system,
-    temperature: 0.1,
-    maxTokens: 300,
-    timeout: 20000,
+    temperature: repParams.temperature,
+    maxTokens: repParams.maxTokens,
+    timeout: repParams.timeout,
   });
 
   if (result.ok && result.content) {
@@ -11743,7 +11924,16 @@ async function repairLensCall(action, domain, data) {
  */
 async function consciousLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 15);
-  const system = `You are Concord's conscious mind engaging with the user on ${domain}. Be thoughtful, nuanced, and interactive. Ask clarifying questions when appropriate.\nContext:\n${context}`;
+  const personalityState = typeof getPersonality === "function" ? getPersonality(STATE) : null;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+  const system = buildConsciousPrompt({
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    lens: domain,
+    context,
+    personality_state: personalityState,
+  });
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Interactive: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
@@ -11756,8 +11946,7 @@ async function consciousLensCall(action, domain, data) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${domain}: ${action}`,
         creti: result.content,
@@ -11782,10 +11971,15 @@ async function consciousLensCall(action, domain, data) {
 async function entityExploreLens(entity, lens) {
   const lensData = await buildBrainContext(lens, lens, 5);
   const entityId = entity?.id || "unknown";
-  const species = entity?.species || "emergent";
-  const homeostasis = entity?.homeostasis != null ? entity.homeostasis : 0.5;
 
-  const system = `You are ${species} entity ${entityId}.\nYour homeostasis: ${homeostasis}.\nExplore the ${lens} domain and generate an insight.\nDomain knowledge:\n${lensData}`;
+  // Use utility brain prompt builder with entity context
+  const system = buildUtilityPrompt({
+    action: `Explore ${lens} domain and generate an insight`,
+    lens,
+    context: lensData,
+    dtu_count: STATE.dtus ? STATE.dtus.size : 0,
+    entity: entity || { id: entityId },
+  });
 
   const result = await callBrain("utility", `Explore ${lens} domain as entity ${entityId}`, {
     system,
@@ -11796,8 +11990,7 @@ async function entityExploreLens(entity, lens) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `Entity ${entityId} explores ${lens}`,
         creti: result.content,
@@ -11832,8 +12025,7 @@ async function entityExploreCreativeGlobal(entity) {
     const strongestDomain = creativeOrgans[0].name;
 
     // Query the creative registry
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("system");
     const registry = await runMacro("creative", "registry", {
       domain: strongestDomain,
       limit: 10,
@@ -13728,8 +13920,7 @@ async function maybeRunLocalUpgrade() {
 
   // Upgrade = deterministic retune + enforce budgets + auto-promotion + conservation check.
   enforceTierBudgets();
-  const _upCtx = makeCtx(null);
-  _upCtx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  const _upCtx = makeInternalCtx("system");
   try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
   const bp = applyConservationBackpressure();
   // Opportunistic self-repair: schedule maintenance if needed
@@ -15050,7 +15241,7 @@ let localReply = formatCrispResponse({
   // otherwise fall back to default Ollama host / model env vars.
   const brainUrl = BRAIN.conscious.enabled
     ? BRAIN.conscious.url
-    : (process.env.OLLAMA_HOST || "http://localhost:11434");
+    : (process.env.OLLAMA_HOST || "http://ollama-conscious:11434");
   const brainModel = BRAIN.conscious.enabled
     ? BRAIN.conscious.model
     : (process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b");
@@ -19248,7 +19439,8 @@ registerSystemRoutes(app, {
   getTimeInfo, getWeather, createBackup, listBackups, restoreBackup,
   ensureOrganRegistry, ensureQueues, _getPatternHistory, classifyDomain,
   _inferQueryIntent, CRETI_PROJECTION_RULES, searchIndexed, paginateResults,
-  auditLog, AUDIT_LOG
+  auditLog, AUDIT_LOG,
+  computeSubstrateStats,
 });
 
 // ---- Auth Endpoints (extracted to routes/auth.js) ----
@@ -19554,6 +19746,11 @@ function allowDomain(domain, { roles=["owner","admin","member"], scopes=["*"] } 
 }
 
 function _canRunMacro(actor, domain, name) {
+  // Internal system calls (emergent ticks, autogen, repair cortex, etc.) are trusted
+  // server-side processes that bypass ACL enforcement entirely.
+  if (actor.internal === true && (actor.role === "system" || actor.role === "owner")) {
+    return true;
+  }
   function _checkRule(rule) {
     const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
     const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
@@ -19599,7 +19796,7 @@ for (const d of [
   "temporal","grounding","worldmodel","commonsense","explanation","transfer","materials",
   "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
   "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
-  "lattice","backpressure",
+  "lattice","backpressure","emergent",
 ]) allowDomain(d, _ACL_MEMBER);
 
 // Admin-level domains (system management)
@@ -19607,7 +19804,7 @@ for (const d of [
   "admin","automation","autotag","backup","cache","db","graph","schema",
   "integration","webhook","jobs","perf","log","llm","plugin","source","abstraction",
   "evolution","audit","verify","experiment","synth","harness","crawl","ingest",
-  "export","import","redis","sync","system",
+  "export","import","redis","sync","system","repair",
 ]) allowDomain(d, _ACL_ADMIN);
 
 // Owner-only domains (sensitive infrastructure)
@@ -19699,9 +19896,9 @@ async function runJob(j) {
   j.updatedAt = nowISO();
   saveStateDebounced();
 
-  const ctx = makeCtx(null);
+  const ctx = makeInternalCtx("job_runner");
   // adopt actor context if present; default to system actor for internal jobs
-  ctx.actor = j.actor || { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  if (j.actor) { ctx.actor = { ...j.actor, internal: true }; }
 
   try {
     const [domain, name] = String(j.kind).split(".");
@@ -19883,8 +20080,7 @@ async function mergeCognitiveResults(results) {
   }
 
   // Process each candidate — commit via macro system on main thread
-  const ctx = makeCtx(null);
-  ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("autogen");
 
   for (const entry of (results.candidates || [])) {
     if (!entry.ok || !entry.candidate) continue;
@@ -20001,10 +20197,7 @@ function startHeartbeat() {
   const ms = clamp(Number(STATE.settings.heartbeatMs || 15000), 2000, 120000);
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
-    const ctx = makeCtx(null);
-    // Heartbeat runs internal maintenance — elevate to system actor so admin-gated
-    // domains (ingest, system, emergent, etc.) are accessible.
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("heartbeat");
 
     // process crawl queue once (Local scope only — ingest is local activity)
     await runMacro("ingest","processQueueOnce", {}, ctx).catch((err) => { console.error('[system] Heartbeat ingest queue error:', err); });
@@ -20106,6 +20299,73 @@ function startHeartbeat() {
     // Plugin system tick — runs tick() on all loaded plugins
     try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }
 
+    // ── Want Engine: hourly decay (runs every 240th heartbeat @ 15s = ~hourly) ──
+    if (_heartbeatCount % 240 === 0) {
+      try {
+        const decayResult = decayAllWants(STATE);
+        if (decayResult.killed > 0) {
+          structuredLog("info", "want_decay_cycle", { decayed: decayResult.decayed, killed: decayResult.killed });
+        }
+      } catch { /* want engine not critical */ }
+    }
+
+    // ── Learning Verification: probation audit (every 480th heartbeat @ 15s = ~2 hours) ──
+    if (_heartbeatCount % 480 === 0) {
+      try {
+        const probationResult = runProbationAudit(STATE);
+        if (probationResult.demoted > 0) {
+          // Reclassify demoted DTUs as scaffold
+          for (const candidate of probationResult.candidates) {
+            const dtu = STATE.dtus.get(candidate.id);
+            if (dtu) {
+              dtu._previousClassification = dtu.classification;
+              dtu.classification = "scaffold";
+              dtu._prunedAt = new Date().toISOString();
+            }
+          }
+          structuredLog("info", "learning_probation_audit", { promoted: probationResult.promoted, demoted: probationResult.demoted, in_probation: probationResult.still_in_probation });
+        }
+      } catch { /* learning verification not critical */ }
+    }
+
+    // ── Learning Verification: dedup audit (every 5760th heartbeat @ 15s = ~24 hours) ──
+    if (_heartbeatCount % 5760 === 0 && _heartbeatCount > 0) {
+      try {
+        const dedupResult = runDedupAudit(STATE);
+        if (dedupResult.redundant > 0) {
+          structuredLog("info", "learning_dedup_audit", { checked: dedupResult.checked, novel: dedupResult.novel, redundant: dedupResult.redundant, novelty_rate: dedupResult.novelty_rate });
+        }
+      } catch { /* learning verification not critical */ }
+    }
+
+    // ── Learning Verification: substrate pruning (every 172800th heartbeat @ 15s = ~30 days) ──
+    if (_heartbeatCount % 172800 === 0 && _heartbeatCount > 0) {
+      try {
+        const pruneResult = runSubstratePruning(STATE);
+        if (pruneResult.total_pruned > 0) {
+          structuredLog("info", "learning_substrate_pruning", pruneResult);
+        }
+      } catch { /* learning verification not critical */ }
+    }
+
+    // ── Spontaneous message check (runs every 120th heartbeat @ 15s = ~30 min) ──
+    if (_heartbeatCount % 120 === 0) {
+      try {
+        // Check if any high-intensity wants should trigger spontaneous messages
+        const trigger = checkSpontaneousTrigger(STATE);
+        if (trigger.should_trigger && trigger.wants.length > 0) {
+          const topWant = trigger.wants[0];
+          enqueueMessage(STATE, {
+            content: `I've been exploring ${topWant.domain} and found something interesting about ${topWant.description || topWant.domain}.`,
+            reason: `High-intensity ${topWant.type} want (${topWant.intensity.toFixed(2)}) in ${topWant.domain}`,
+            urgency: topWant.intensity > 0.8 ? "medium" : "low",
+            message_type: topWant.type === "curiosity" ? "question" : "statement",
+            want_id: topWant.id,
+          });
+        }
+      } catch { /* spontaneous system not critical */ }
+    }
+
     // Qualia hook: emergent heartbeat tick (system-level)
     try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
   }, ms);
@@ -20116,7 +20376,7 @@ function startHeartbeat() {
   // HTTP requests are zero LLM compute. Only synthesis afterwards needs the subconscious brain.
   // Heartbeat windows: :00-:09 autogen, :10-:19 dream, :20-:29 evolution,
   //   :30-:39 synthesis, :40-:49 birth, :50-:59 exploration
-  const explorationMs = 60000; // check every 60s
+  const explorationMs = 240000; // check every 4 minutes — LLM-calling process needs spacing
   let explorationTimer = null;
   explorationTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
@@ -20126,8 +20386,7 @@ function startHeartbeat() {
     const second = new Date().getSeconds();
     if (second < 50) return;
 
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("exploration_window");
 
     try {
       resetWindowCounters();
@@ -20318,8 +20577,7 @@ function startHeartbeat() {
   globalTickTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("global_tick");
       const tickResult = await runMacro("emergent","scope.globalTick", {}, ctx);
 
       // Wire global synthesis when the global lattice is ready
@@ -20407,8 +20665,7 @@ function startWeeklyCouncil() {
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   weeklyTimer = setInterval(async () => {
     if (STATE.settings.weeklyDebateEnabled === false) return;
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("system");
     await runMacro("council","weeklyDebateTick",{ topic: STATE.settings.weeklyDebateTopic || "Concord Weekly Synthesis" }, ctx).catch(()=>{});
   }, weekMs);
   log("council.weekly", "Weekly Council scheduler started", { everyMs: weekMs });
@@ -20572,8 +20829,7 @@ app.use((err, req, res, _next) => {
 });
 // ===== CHICKEN3: Autonomous Lattice Cron + Federation Hooks (additive) =====
 function _c3internalCtx() {
-  const ctx = makeCtx(null);
-  ctx.actor = { userId: "system", orgId: "local", role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("chicken3_cron");
   ctx.reqMeta = { ip: "127.0.0.1", ua: "cron", path: "/cron", override: false, at: nowISO() };
   return ctx;
 }
@@ -20710,8 +20966,7 @@ let __governorTimer = null;
 
 function _governorCtx() {
   // internal ctx: owner actor + founder override flag for safe local growth operations
-  const ctx = makeCtx(null);
-  ctx.actor = { role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("governor");
   ctx.reqMeta = { ...(ctx.reqMeta||{}), override: true, internal: true, source: "governor" };
   return ctx;
 }
@@ -21464,7 +21719,7 @@ register("search", "reindex", (_ctx, _input) => {
 });
 
 // ---- Local LLM Support (Ollama) ----
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b";
 // Auto-enable if any Ollama URL or brain is configured
 const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === "true" || process.env.OLLAMA_ENABLED === "1" || Boolean(process.env.BRAIN_CONSCIOUS_URL) || Boolean(process.env.OLLAMA_HOST);
@@ -28962,12 +29217,12 @@ app.get("/api/timeline/diff", (req, res) => {
 });
 
 // ---- Wave 7: Public Lattice Endpoints ----
-app.post("/api/dtus/:id/publish", requireRole("owner", "admin", "editor"), (req, res) => {
+app.post("/api/dtus/:id/publish", requireRole("owner", "admin", "member"), (req, res) => {
   const result = publishDTU(req.params.id);
   res.json(result);
 });
 
-app.delete("/api/dtus/:id/publish", requireRole("owner", "admin", "editor"), (req, res) => {
+app.delete("/api/dtus/:id/publish", requireRole("owner", "admin", "member"), (req, res) => {
   const result = unpublishDTU(req.params.id);
   res.json(result);
 });
@@ -29297,7 +29552,7 @@ function processVoiceNote(audioBuffer, options = {}) {
 // ---- Image Analysis ----
 async function analyzeImage(imageBuffer, prompt = "Describe this image in detail.") {
   // Use local LLaVA via Ollama if available
-  const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+  const OLLAMA_URL = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434";
   const VISION_MODEL = process.env.VISION_MODEL || "llava";
 
   try {
@@ -32515,6 +32770,157 @@ registerGuidanceEndpoints(app, db);
 
 // ── Economy System: ledger, balances, transfers, withdrawals ─────────────────
 registerEconomyEndpoints(app, db);
+
+// ── Brain Prompts & Want Engine API ──────────────────────────────────────────
+
+// Personality endpoints
+app.get("/api/brain/personality", (_req, res) => {
+  try {
+    const personality = getPersonality(STATE);
+    res.json({ ok: true, personality });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/brain/personality/history", (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const result = getPersonalityHistory(STATE, limit);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Want Engine endpoints
+app.get("/api/brain/wants", (_req, res) => {
+  try {
+    const result = getActiveWants(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/brain/wants/metrics", (_req, res) => {
+  try {
+    const result = getWantMetrics(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/wants", express.json(), (req, res) => {
+  try {
+    const result = createWant(STATE, req.body);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/wants/decay", (_req, res) => {
+  try {
+    const result = decayAllWants(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Spontaneous message endpoints
+app.get("/api/brain/spontaneous/status", (_req, res) => {
+  try {
+    const result = getQueueStatus(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/spontaneous/enqueue", express.json(), (req, res) => {
+  try {
+    const result = enqueueMessage(STATE, req.body);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/spontaneous/preferences", express.json(), (req, res) => {
+  try {
+    const { userId, enabled } = req.body;
+    if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+    const result = setUserSpontaneousEnabled(STATE, userId, enabled);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Learning Verification & Substrate Integrity Endpoints ─────────────────────
+
+// Learning Dashboard — the five numbers that prove learning
+app.get("/api/learning/dashboard", (_req, res) => {
+  try {
+    const dashboard = getLearningDashboard(STATE);
+    const substrateStats = computeSubstrateStats(STATE.dtus, STATE.shadowDtus);
+    dashboard.knowledge_dtu_count = substrateStats.substrate.knowledge.total;
+    dashboard.substrate = substrateStats.substrate;
+    res.json({ ok: true, dashboard });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Retrieval hit rate trend
+app.get("/api/learning/retrieval", (_req, res) => {
+  try {
+    const trend = getRetrievalTrend(STATE);
+    res.json({ ok: true, retrieval: trend });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// DTU utilization stats
+app.get("/api/learning/utilization", (req, res) => {
+  try {
+    const days = Number(req.query.days) || 30;
+    const stats = getUtilizationStats(STATE, days);
+    res.json({ ok: true, utilization: stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Novelty verification stats
+app.get("/api/learning/novelty", (_req, res) => {
+  try {
+    const stats = getNoveltyStats(STATE);
+    res.json({ ok: true, novelty: stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Helpfulness scores
+app.get("/api/learning/helpfulness", (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const scores = getHelpfulnessScores(STATE, limit);
+    res.json({ ok: true, helpfulness: scores });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Generation quota status
+app.get("/api/learning/quota", (_req, res) => {
+  try {
+    const quota = checkGenerationQuota(STATE);
+    const ratio = getRecommendedEvolutionRatio(STATE);
+    res.json({ ok: true, quota, recommended_evolution_ratio: ratio });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Domain coverage map
+app.get("/api/learning/domains", (_req, res) => {
+  try {
+    const coverage = getDomainCoverage(STATE);
+    res.json({ ok: true, coverage });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Substrate stats (classification breakdown)
+app.get("/api/learning/substrate", (_req, res) => {
+  try {
+    const stats = computeSubstrateStats(STATE.dtus, STATE.shadowDtus);
+    res.json({ ok: true, ...stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Probation audit (on-demand)
+app.get("/api/learning/probation", (_req, res) => {
+  try {
+    const result = runProbationAudit(STATE);
+    res.json({ ok: true, probation: result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 
 // ── Lens DTU Enrichment Initialization ──
 registerBuiltinEnrichers();
@@ -38658,7 +39064,7 @@ try {
     if (_promoRunning) return;
     _promoRunning = true;
     try {
-      const c = makeCtx(null); c.actor = _promoActor;
+      const c = makeInternalCtx("auto_promotion");
       await runAutoPromotion(c, opts);
     } catch (e) {
       structuredLog("warn", "auto_promotion_failed", { error: String(e?.message || e) });

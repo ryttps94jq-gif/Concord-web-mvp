@@ -55,7 +55,8 @@ export default function registerSystemRoutes(app, {
   searchIndexed,
   paginateResults,
   _auditLog,
-  AUDIT_LOG
+  AUDIT_LOG,
+  computeSubstrateStats,
 }) {
 
   // ---- Root ----
@@ -397,10 +398,31 @@ export default function registerSystemRoutes(app, {
     res.json({ ok:true, capabilities: cap });
   });
 
-  // ---- Stats ----
+  // ---- Stats (restructured: public count = knowledge + seed + mega + hyper) ----
   app.get("/api/stats", (req, res) => {
+    // Use classification-based substrate stats if available
+    let substrateStats = null;
+    try {
+      if (typeof computeSubstrateStats === "function") {
+        substrateStats = computeSubstrateStats(STATE.dtus, STATE.shadowDtus);
+      }
+    } catch { /* fallback below */ }
+
     const stats = {
-      dtus: {
+      dtus: substrateStats ? {
+        // Public count: only genuine knowledge DTUs
+        total: substrateStats.substrate.knowledge.total,
+        byTier: {
+          regular: substrateStats.substrate.knowledge.regular,
+          seed: substrateStats.substrate.knowledge.seed,
+          mega: substrateStats.substrate.knowledge.mega,
+          hyper: substrateStats.substrate.knowledge.hyper,
+        },
+        // Internal infrastructure (separate section)
+        internal: substrateStats.substrate.internal,
+        grand_total: substrateStats.substrate.grand_total,
+      } : {
+        // Legacy fallback
         total: STATE.dtus.size,
         byTier: {
           regular: dtusArray().filter(d => d.tier === "regular").length,

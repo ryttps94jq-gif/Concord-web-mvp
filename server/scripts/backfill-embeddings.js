@@ -30,9 +30,9 @@ const dryRun = process.argv.includes("--dry-run");
 
 // Resolve Ollama URLs (try all three brain ports + default)
 const OLLAMA_URLS = [
-  process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434",
-  process.env.BRAIN_SUBCONSCIOUS_URL || "http://localhost:11435",
-  process.env.BRAIN_UTILITY_URL || "http://localhost:11436",
+  process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434",
+  process.env.BRAIN_SUBCONSCIOUS_URL || "http://ollama-subconscious:11434",
+  process.env.BRAIN_UTILITY_URL || "http://ollama-utility:11434",
 ].filter(Boolean);
 
 async function main() {

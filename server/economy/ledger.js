@@ -1,6 +1,16 @@
 // economy/ledger.js
 // Append-only ledger — the single source of truth for all economic activity.
 // Rows are NEVER updated or deleted. Reversals create new counter-entries.
+//
+// Transaction types:
+//   TOKEN_PURCHASE       — Fiat → Coin via Stripe checkout
+//   TRANSFER             — User-to-user coin transfer
+//   MARKETPLACE_PURCHASE — Buyer purchases listing from seller
+//   WITHDRAWAL           — Coin → Fiat via Stripe Connect (users only)
+//   FEE                  — Platform fee collection entry
+//   REVERSAL             — Counter-entry for disputed or failed transactions
+//   ROYALTY              — Cascade royalty payout to ancestor creators
+//   EMERGENT_TRANSFER    — Operating wallet → Reserve account
 
 import { randomUUID } from "crypto";
 
@@ -97,15 +107,16 @@ export function recordTransactionBatch(db, entries) {
   let useRefId = true;
   let stmt;
   try {
+    // Probe whether ref_id column exists by checking table info
+    const cols = db.prepare("PRAGMA table_info(economy_ledger)").all();
+    const hasRefId = cols.some(c => c.name === "ref_id");
+    if (!hasRefId) throw new Error("no ref_id column");
+
     stmt = db.prepare(`
       INSERT INTO economy_ledger
         (id, type, from_user_id, to_user_id, amount, fee, net, status, metadata_json, request_id, ip, created_at, ref_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    // Test the statement is valid
-    stmt.bind(
-      "test", "TRANSFER", null, null, 1, 0, 1, "complete", "{}", null, null, now, null
-    );
   } catch {
     useRefId = false;
     stmt = db.prepare(`

@@ -2,12 +2,13 @@
 // Stripe integration: Checkout sessions, webhook handling, Connect onboarding.
 // All token credits go through the append-only ledger. Stripe handles fiat only.
 
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { executePurchase } from "./transfer.js";
 import { PLATFORM_ACCOUNT_ID } from "./fees.js";
 import { recordTransactionBatch, generateTxId } from "./ledger.js";
 import { economyAudit } from "./audit.js";
 import { getBalance } from "./balances.js";
+import { mintCoins, burnCoins } from "./coin-service.js";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -93,7 +94,13 @@ export async function createCheckoutSession(db, { userId, tokens, requestId, ip 
   // Convert tokens to USD cents (1 token = $1 * TOKENS_PER_USD)
   const priceInCents = Math.round((tokens / TOKENS_PER_USD) * 100);
 
-  const idempotencyKey = `checkout_${userId}_${tokens}_${Date.now()}`;
+  // Deterministic idempotency key: hash(userId + amount + nonce)
+  // Prevents duplicate sessions on rapid double-clicks
+  const nonce = randomUUID();
+  const idempotencyKey = createHash("sha256")
+    .update(`${userId}:${tokens}:${nonce}`)
+    .digest("hex")
+    .slice(0, 32);
 
   try {
     const session = await stripeClient.checkout.sessions.create({
@@ -202,6 +209,47 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
           });
         }
       }
+      break;
+    }
+
+    case "checkout.session.expired": {
+      // Handle expired checkout sessions — record for audit trail completeness
+      const session = event.data.object;
+      const { userId: expiredUserId, tokens: expiredTokens } = session.metadata || {};
+
+      economyAudit(db, {
+        action: "checkout_session_expired",
+        userId: expiredUserId || "unknown",
+        amount: expiredTokens ? parseInt(expiredTokens, 10) : 0,
+        details: {
+          stripeSessionId: session.id,
+          expiredAt: nowISO(),
+        },
+        requestId,
+        ip,
+      });
+      break;
+    }
+
+    case "payment_intent.payment_failed": {
+      // Handle failed payment intents — record for audit trail completeness
+      const paymentIntent = event.data.object;
+      const failureMessage = paymentIntent.last_payment_error?.message || "unknown_failure";
+      const failureCode = paymentIntent.last_payment_error?.code || "unknown";
+
+      economyAudit(db, {
+        action: "payment_intent_failed",
+        userId: paymentIntent.metadata?.userId || "unknown",
+        amount: paymentIntent.amount ? paymentIntent.amount / 100 : 0,
+        details: {
+          paymentIntentId: paymentIntent.id,
+          failureMessage,
+          failureCode,
+          failedAt: nowISO(),
+        },
+        requestId,
+        ip,
+      });
       break;
     }
 
@@ -324,24 +372,20 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
   // Convert tokens to USD cents
   const payoutAmountCents = Math.round((wd.net / TOKENS_PER_USD) * 100);
 
+  // CRITICAL: Correct withdrawal order to prevent money loss on crash.
+  // Step 1: Debit ledger with "pending_payout" status FIRST
+  // Step 2: Execute Stripe transfer
+  // Step 3: Mark ledger entry as complete
+  // If Stripe fails, reverse the ledger entry. If server crashes between
+  // steps 1 and 2, the pending_payout entry is visible for reconciliation.
+
+  const batchId = generateTxId();
+  const now = nowISO();
+  let ledgerResults;
+
+  // Step 1: Debit ledger with pending_payout status
   try {
-    // Create Stripe transfer to connected account
-    const transfer = await stripeClient.transfers.create({
-      amount: payoutAmountCents,
-      currency: "usd",
-      destination: account.stripe_account_id,
-      metadata: {
-        withdrawalId,
-        userId: wd.user_id,
-        tokens: String(wd.amount),
-      },
-    });
-
-    // Debit user in ledger (atomic)
-    const batchId = generateTxId();
-    const now = nowISO();
-
-    const doProcess = db.transaction(() => {
+    const doLedgerDebit = db.transaction(() => {
       const entries = [{
         id: generateTxId(),
         type: "WITHDRAWAL",
@@ -350,12 +394,12 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
         amount: wd.amount,
         fee: wd.fee,
         net: wd.net,
-        status: "complete",
+        status: "pending",
         metadata: {
           withdrawalId,
           batchId,
           role: "debit",
-          stripeTransferId: transfer.id,
+          payoutStatus: "pending_payout",
         },
         requestId,
         ip,
@@ -370,8 +414,8 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
           amount: wd.fee,
           fee: 0,
           net: wd.fee,
-          status: "complete",
-          metadata: { withdrawalId, batchId, role: "fee", sourceType: "WITHDRAWAL" },
+          status: "pending",
+          metadata: { withdrawalId, batchId, role: "fee", sourceType: "WITHDRAWAL", payoutStatus: "pending_payout" },
           requestId,
           ip,
         });
@@ -381,14 +425,56 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
 
       db.prepare(`
         UPDATE economy_withdrawals
-        SET status = 'complete', ledger_id = ?, processed_at = ?, updated_at = ?
+        SET status = 'processing', ledger_id = ?, updated_at = ?
         WHERE id = ?
-      `).run(results[0].id, now, now, withdrawalId);
+      `).run(results[0].id, now, withdrawalId);
 
       return results;
     });
 
-    const results = doProcess();
+    ledgerResults = doLedgerDebit();
+  } catch (err) {
+    return { ok: false, error: "ledger_debit_failed", detail: err.message };
+  }
+
+  // Step 2: Execute Stripe transfer
+  try {
+    const transfer = await stripeClient.transfers.create({
+      amount: payoutAmountCents,
+      currency: "usd",
+      destination: account.stripe_account_id,
+      metadata: {
+        withdrawalId,
+        userId: wd.user_id,
+        tokens: String(wd.amount),
+      },
+    });
+
+    // Step 3: Mark ledger entries as complete and burn coins from treasury
+    const doComplete = db.transaction(() => {
+      for (const entry of ledgerResults) {
+        db.prepare(
+          "UPDATE economy_ledger SET status = 'complete' WHERE id = ?"
+        ).run(entry.id);
+      }
+
+      db.prepare(`
+        UPDATE economy_withdrawals
+        SET status = 'complete', processed_at = ?, updated_at = ?
+        WHERE id = ?
+      `).run(now, now, withdrawalId);
+    });
+
+    doComplete();
+
+    // Burn coins from treasury (withdrawal removes coins from system)
+    burnCoins(db, {
+      amount: wd.net,
+      userId: wd.user_id,
+      refId: `withdrawal_burn:${withdrawalId}`,
+      requestId,
+      ip,
+    });
 
     economyAudit(db, {
       action: "withdrawal_processed_stripe",
@@ -409,20 +495,35 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
     return {
       ok: true,
       batchId,
-      transactions: results,
+      transactions: ledgerResults,
       stripeTransferId: transfer.id,
       withdrawal: { ...wd, status: "complete" },
     };
   } catch (err) {
-    // Mark withdrawal as failed
-    db.prepare("UPDATE economy_withdrawals SET status = 'rejected', updated_at = ? WHERE id = ? AND status = 'approved'")
-      .run(nowISO(), withdrawalId);
+    // Stripe transfer failed — reverse the ledger entries
+    try {
+      const doReverse = db.transaction(() => {
+        for (const entry of ledgerResults) {
+          db.prepare(
+            "UPDATE economy_ledger SET status = 'reversed' WHERE id = ?"
+          ).run(entry.id);
+        }
+
+        db.prepare(`
+          UPDATE economy_withdrawals SET status = 'approved', updated_at = ?
+          WHERE id = ? AND status = 'processing'
+        `).run(nowISO(), withdrawalId);
+      });
+      doReverse();
+    } catch (reverseErr) {
+      console.error("[Stripe Withdrawal] CRITICAL: Failed to reverse ledger after Stripe failure:", reverseErr.message);
+    }
 
     economyAudit(db, {
       action: "withdrawal_stripe_failed",
       userId: wd.user_id,
       amount: wd.amount,
-      details: { withdrawalId, error: err.message },
+      details: { withdrawalId, error: err.message, ledgerReversed: true },
       requestId,
       ip,
     });

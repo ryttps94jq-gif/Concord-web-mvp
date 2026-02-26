@@ -46,7 +46,7 @@ export const AGENT_TYPES = Object.freeze({
 });
 
 const AGENT_INTERVALS = Object.freeze({
-  patrol:            5 * 60 * 1000,   // 5 min
+  patrol:            6 * 60 * 1000,   // 6 min — LLM-calling, needs spacing
   integrity:         10 * 60 * 1000,  // 10 min
   hypothesis_tester: 15 * 60 * 1000,  // 15 min
   debate_simulator:  30 * 60 * 1000,  // 30 min
