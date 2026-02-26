@@ -1,15 +1,17 @@
 /**
- * Progressive Model Shrinking / Model Optimizer for Concord Cognitive Engine
+ * Progressive Model Optimizer for Concord Cognitive Engine
  *
- * Tracks substrate maturity per lens. As retrieval quality improves,
- * automatically recommends model downgrades that maintain quality
- * while freeing compute.
+ * Tracks substrate maturity per lens. On CPU, recommends model downgrades
+ * as retrieval quality improves to free compute. On GPU (GPU_MODE=true),
+ * the optimizer is bypassed — always use the assigned brain model.
  *
- * Maturity levels:
+ * CPU maturity levels (active when GPU_MODE is not set):
  *   < 0.3 → 7B (full conscious reasoning)
  *   < 0.6 → 3B (utility brain sufficient)
  *   < 0.8 → 1.5B (subconscious-class model)
  *   >= 0.8 → 0.5B or retrieval-only (minimal inference)
+ *
+ * GPU mode: returns null (use default brain model, no downgrading)
  */
 
 import { getEmbedding } from "./embeddings.js";
@@ -132,9 +134,12 @@ export function recordQueryEvent(lens, { cacheHit = false, retrievalSufficient =
  * Get the recommended model for a lens (used by routing logic).
  *
  * @param {string|null} lens
- * @returns {string} Model size recommendation: "7b", "3b", "1.5b", "0.5b"
+ * @returns {string|null} Model size recommendation, or null on GPU (use default brain model)
  */
 export function getRecommendedModel(lens) {
+  // On GPU, always use the assigned brain model — no downgrading
+  if (process.env.GPU_MODE === "true") return null;
+
   const stats = lensStats.get(lens || "_global");
   if (!stats) return "7b";
   return recommendModel(stats).model;
@@ -190,7 +195,8 @@ function calculateMaturity(stats) {
 }
 
 /**
- * Recommend a model size based on lens maturity.
+ * Recommend a model size based on lens maturity (CPU mode only).
+ * On GPU, getRecommendedModel() short-circuits before reaching this.
  */
 function recommendModel(stats) {
   const maturity = calculateMaturity(stats);
