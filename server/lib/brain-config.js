@@ -11,9 +11,9 @@ export const BRAIN_CONFIG = Object.freeze({
     model: process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b",
     role: "chat, deep reasoning, council deliberation",
     temperature: 0.7,
-    timeout: 60000,
+    timeout: 45000,    // GPU inference is faster — tighten to fail fast on real errors
     priority: 1,       // CRITICAL — user-facing
-    maxConcurrent: 1,  // One conscious thought at a time
+    maxConcurrent: 3,  // GPU can handle parallel conscious thoughts
     contextWindow: 32768,
     maxTokens: 4096,   // Full output — let it think
   },
@@ -22,33 +22,33 @@ export const BRAIN_CONFIG = Object.freeze({
     model: process.env.BRAIN_SUBCONSCIOUS_MODEL || "qwen2.5:1.5b",
     role: "autogen, dream, evolution, synthesis, birth",
     temperature: 0.85,
-    timeout: 45000,
+    timeout: 30000,    // GPU: faster inference, tighter timeout
     priority: 2,       // NORMAL — autonomous background
-    maxConcurrent: 2,
+    maxConcurrent: 4,  // GPU: autogen + dreams + evolution + entity teaching
     contextWindow: 8192,
-    maxTokens: 600,
+    maxTokens: 1200,   // GPU: 7B brain can generate longer, more coherent DTUs
   },
   utility: {
     url: process.env.BRAIN_UTILITY_URL || "http://ollama-utility:11434",
     model: process.env.BRAIN_UTILITY_MODEL || "qwen2.5:3b",
     role: "lens interactions, entity actions, quick domain tasks",
     temperature: 0.3,
-    timeout: 30000,
+    timeout: 20000,    // GPU: fast 3B model, tight timeout
     priority: 3,       // LOW — support tasks
-    maxConcurrent: 3,
+    maxConcurrent: 6,  // GPU: entities spam lens/action calls, needs most parallelism
     contextWindow: 16384,
-    maxTokens: 500,
+    maxTokens: 800,    // GPU: more complete outputs for entity actions
   },
   repair: {
     url: process.env.BRAIN_REPAIR_URL || "http://ollama-repair:11434",
     model: process.env.BRAIN_REPAIR_MODEL || "qwen2.5:0.5b",
     role: "error detection, auto-fix, runtime repair",
     temperature: 0.1,
-    timeout: 15000,
+    timeout: 10000,    // GPU: 1.5B repair brain is fast
     priority: 0,       // HIGHEST — system health
-    maxConcurrent: 2,
+    maxConcurrent: 2,  // Stays same — repair is low-frequency
     contextWindow: 4096,
-    maxTokens: 300,
+    maxTokens: 500,    // GPU: 1.5B can actually articulate error analysis now
   },
 });
 

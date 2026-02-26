@@ -15,7 +15,7 @@
 import { embed, cosineSimilarity, isEmbeddingAvailable, getEmbedding } from "./embeddings.js";
 
 // ── Configuration ──────────────────────────────────────────────────────────
-const MAX_PRECOMPUTE_PER_CYCLE = 50;
+const MAX_PRECOMPUTE_PER_CYCLE = 100;
 const PRECOMPUTE_EXPIRY_DAYS = 7;
 const MIN_CLUSTER_CONFIDENCE = 0.30;
 const CLUSTER_SIMILARITY_THRESHOLD = 0.80;

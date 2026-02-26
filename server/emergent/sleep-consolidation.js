@@ -75,9 +75,9 @@ const REM_START_FRAC = 0.4;
 const REM_END_FRAC   = 0.7;
 
 // History limits
-const MAX_CONSOLIDATION_LOG = 50;
-const MAX_DREAM_LOG         = 30;
-const MAX_HISTORY           = 100;
+const MAX_CONSOLIDATION_LOG = 100;  // GPU: richer consolidation tracking
+const MAX_DREAM_LOG         = 60;   // GPU: deeper dream history
+const MAX_HISTORY           = 200;  // GPU: more memory for entity lifecycle
 
 // ── In-Memory State ─────────────────────────────────────────────────────────
 

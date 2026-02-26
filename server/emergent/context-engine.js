@@ -886,7 +886,7 @@ export function completeSessionContext(STATE, sessionId, opts = {}) {
 
 const MIN_LOCAL_SET = 3;
 const MIN_RELEVANCE_SCORE = 0.4;
-const MAX_GLOBAL_FALLBACK = 10;
+const MAX_GLOBAL_FALLBACK = 20;
 
 /**
  * Check whether the local working set is sufficient for a quality response.

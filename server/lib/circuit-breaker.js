@@ -161,8 +161,8 @@ export function createBreakerRegistry(opts = {}) {
 
   const breakers = {
     ollama: createCircuitBreaker("ollama", {
-      failureThreshold: 3,
-      cooldownMs: 30_000,
+      failureThreshold: 5,     // GPU: more reliable, higher tolerance
+      cooldownMs: 15_000,      // GPU: recover faster
       onStateChange: log,
     }),
 
@@ -173,8 +173,8 @@ export function createBreakerRegistry(opts = {}) {
     }),
 
     embeddings: createCircuitBreaker("embeddings", {
-      failureThreshold: 5,
-      cooldownMs: 20_000,
+      failureThreshold: 8,     // GPU: embeddings are fast and reliable
+      cooldownMs: 30_000,      // GPU: recover faster
       onStateChange: log,
     }),
 

@@ -8,12 +8,12 @@
 const rateLimits = new Map(); // key → { count, windowStart }
 
 const LIMITS = {
-  'conscious.chat': { max: 10, windowMs: 60000 },      // 10/min
-  'utility.call': { max: 20, windowMs: 60000 },         // 20/min
-  'marketplace.submit': { max: 5, windowMs: 3600000 },  // 5/hour
-  'global.pull': { max: 20, windowMs: 3600000 },        // 20/hour
-  'semantic.search': { max: 30, windowMs: 60000 },      // 30/min
-  'default': { max: 60, windowMs: 60000 },              // 60/min catch-all
+  'conscious.chat': { max: 30, windowMs: 60000 },       // 30/min — GPU: conversational speed
+  'utility.call': { max: 60, windowMs: 60000 },          // 60/min — GPU: entities need real-time interaction
+  'marketplace.submit': { max: 5, windowMs: 3600000 },   // 5/hour — governance, not hardware
+  'global.pull': { max: 20, windowMs: 3600000 },         // 20/hour — stays same
+  'semantic.search': { max: 100, windowMs: 60000 },      // 100/min — GPU: embedding search is near-instant
+  'default': { max: 120, windowMs: 60000 },              // 120/min — GPU: room for background + user
 };
 
 /**
