@@ -1,16 +1,17 @@
 /**
- * Model Optimizer for Concord Cognitive Engine (GPU Mode)
+ * Progressive Model Optimizer for Concord Cognitive Engine
  *
- * On GPU, the optimizer is INVERTED from CPU behavior:
- * - CPU mode: mature lenses DOWNGRADE to save compute
- * - GPU mode: all lenses keep their assigned model (GPU can handle it)
- *             immature lenses get MORE reasoning power, not less
+ * Tracks substrate maturity per lens. On CPU, recommends model downgrades
+ * as retrieval quality improves to free compute. On GPU (GPU_MODE=true),
+ * the optimizer is bypassed — always use the assigned brain model.
  *
- * Maturity levels (GPU — 16GB VRAM, all models loaded simultaneously):
- *   < 0.3 → 14b (needs deep reasoning — route to conscious brain)
- *   < 0.6 → 7b  (developing substrate — route to subconscious brain)
- *   < 0.8 → 3b  (strong retrieval — utility brain handles it)
- *   >= 0.8 → 3b (mature — retrieval + utility brain, no downgrade below 3b)
+ * CPU maturity levels (active when GPU_MODE is not set):
+ *   < 0.3 → 7B (full conscious reasoning)
+ *   < 0.6 → 3B (utility brain sufficient)
+ *   < 0.8 → 1.5B (subconscious-class model)
+ *   >= 0.8 → 0.5B or retrieval-only (minimal inference)
+ *
+ * GPU mode: returns null (use default brain model, no downgrading)
  */
 
 import { getEmbedding } from "./embeddings.js";
@@ -133,9 +134,12 @@ export function recordQueryEvent(lens, { cacheHit = false, retrievalSufficient =
  * Get the recommended model for a lens (used by routing logic).
  *
  * @param {string|null} lens
- * @returns {string} Model size recommendation: "14b", "7b", "3b" (GPU mode — floor is 3b)
+ * @returns {string|null} Model size recommendation, or null on GPU (use default brain model)
  */
 export function getRecommendedModel(lens) {
+  // On GPU, always use the assigned brain model — no downgrading
+  if (process.env.GPU_MODE === "true") return null;
+
   const stats = lensStats.get(lens || "_global");
   if (!stats) return "7b";
   return recommendModel(stats).model;
@@ -191,17 +195,16 @@ function calculateMaturity(stats) {
 }
 
 /**
- * Recommend a model size based on lens maturity.
- * GPU mode: floor is 3b (utility brain), immature lenses get MORE power.
- * Maps to brain routing: 14b → conscious, 7b → subconscious, 3b → utility.
+ * Recommend a model size based on lens maturity (CPU mode only).
+ * On GPU, getRecommendedModel() short-circuits before reaching this.
  */
 function recommendModel(stats) {
   const maturity = calculateMaturity(stats);
 
-  if (maturity < 0.3) return { model: "14b", reason: "Low substrate — route to conscious for deep reasoning" };
-  if (maturity < 0.6) return { model: "7b", reason: "Developing substrate — route to subconscious" };
-  if (maturity < 0.8) return { model: "3b", reason: "Strong retrieval — utility brain handles it" };
-  return { model: "3b", reason: "Mature substrate — retrieval + utility brain, GPU floor" };
+  if (maturity < 0.3) return { model: "7b", reason: "Low substrate coverage" };
+  if (maturity < 0.6) return { model: "3b", reason: "Adequate retrieval context" };
+  if (maturity < 0.8) return { model: "1.5b", reason: "Strong retrieval coverage" };
+  return { model: "0.5b", reason: "Substrate answers most queries via retrieval" };
 }
 
 // ── Monitoring ─────────────────────────────────────────────────────────────

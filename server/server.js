@@ -443,11 +443,11 @@ function detectContentInjection(text) {
 // ---- Rate Limiting for Expensive Macros (Phase 5.2) ----
 const _macroRateLimits = new Map();
 const EXPENSIVE_MACROS = new Map([
-  ["scope.metrics", { maxPerMinute: 60, windowMs: 60000 }],
-  ["system.autogen", { maxPerMinute: 30, windowMs: 60000 }],
-  ["system.dream", { maxPerMinute: 30, windowMs: 60000 }],
-  ["system.evolution", { maxPerMinute: 30, windowMs: 60000 }],
-  ["atlas.autogen", { maxPerMinute: 40, windowMs: 60000 }],
+  ["scope.metrics", { maxPerMinute: 30, windowMs: 60000 }],
+  ["system.autogen", { maxPerMinute: 10, windowMs: 60000 }],
+  ["system.dream", { maxPerMinute: 10, windowMs: 60000 }],
+  ["system.evolution", { maxPerMinute: 10, windowMs: 60000 }],
+  ["atlas.autogen", { maxPerMinute: 15, windowMs: 60000 }],
 ]);
 
 function checkMacroRateLimit(domain, name) {
@@ -965,20 +965,20 @@ if (NODE_ENV === "production" && TERMINAL_EXEC_ENABLED) {
 // ============================================================================
 
 const CONSOLIDATION = Object.freeze({
-  TICK_INTERVAL: 15,              // every 15th heartbeat tick — consolidate 2x faster on GPU
+  TICK_INTERVAL: 30,              // every 30th heartbeat tick — consolidation cadence stays deliberate
   MEGA_MIN_CLUSTER: 5,            // minimum DTUs to form a MEGA
   MEGA_MAX_CLUSTER: 20,           // maximum DTUs in a single MEGA
-  MEGA_MAX_PER_CYCLE: 10,         // was 5 — GPU can handle more per cycle
+  MEGA_MAX_PER_CYCLE: 8,          // was 5 — GPU handles more embedding comparisons
   MEGA_SIMILARITY_THRESHOLD: 0.7, // minimum similarity for cluster membership
   HYPER_MIN_MEGAS: 3,             // minimum MEGAs to form a HYPER
   HYPER_MAX_MEGAS: 10,            // maximum MEGAs in a single HYPER
   HYPER_MIN_POPULATION: 15,       // don't attempt HYPER until this many MEGAs exist
-  HYPER_MAX_PER_CYCLE: 4,         // was 2 — GPU can form more HYPERs per cycle
+  HYPER_MAX_PER_CYCLE: 4,         // was 2 — accelerate hierarchical compression
   COVERAGE_THRESHOLD: 0.8,        // MEGA must cover 80% of source claims
   AUTHORITY_PRESERVATION: 0.9,    // MEGA authority >= 90% of avg source authority
-  ARCHIVE_BATCH_SIZE: 100,        // was 50 — more RAM available for batch ops
+  ARCHIVE_BATCH_SIZE: 100,        // was 50 — larger batches ok with more RAM
   REHYDRATION_CACHE_TTL: 300000,  // 5 minutes cache for rehydrated DTUs
-  REHYDRATION_CACHE_MAX: 100,     // max rehydrated DTUs cached simultaneously
+  REHYDRATION_CACHE_MAX: 200,     // was 100 — more RAM available
   HEAP_TARGET_PERCENT: 0.75,      // was 0.65 — more RAM available
   HEAP_WARNING_PERCENT: 0.85,     // was 0.80
   HEAP_CRITICAL_PERCENT: 0.90,    // aggressive consolidation at 90%
@@ -987,9 +987,9 @@ const CONSOLIDATION = Object.freeze({
 });
 
 const FORGETTING_CONSTANTS = Object.freeze({
-  TICK_INTERVAL: 30,               // was 50 — forget faster (more capacity on GPU)
-  MAX_FORGET_PER_CYCLE: 40,        // was 20 — GPU handles larger batches
-  MIN_AGE_TICKS: 500,              // was 1000 — shorter protection window on GPU
+  TICK_INTERVAL: 50,               // deliberate forgetting cadence — don't rush pruning
+  MAX_FORGET_PER_CYCLE: 30,        // was 20 — prune more aggressively on GPU
+  MIN_AGE_TICKS: 800,              // was 1000 — slightly shorter protection window
   PROTECTED_TAGS: ["core", "root", "constitutional", "seed", "mega", "hyper"],
   SALIENCE_WEIGHTS: {
     citation_count: 0.30,
@@ -3085,7 +3085,7 @@ const STATE = {
     stats: { cronTicks: 0, metaProposals: 0, metaCommits: 0, federationRx: 0, federationTx: 0 }
   },
   settings: {
-    heartbeatMs: 5000,
+    heartbeatMs: 10000,
     heartbeatEnabled: true,
     autogenEnabled: true,
     dreamEnabled: true,
@@ -5019,20 +5019,8 @@ const _LLM_BUDGET = {
   },
 
   checkBudget(userId) {
-    // Bypass token budget for local-only Ollama deployments — every token is free.
-    // Circuit breaker still applies (protects against Ollama crashes).
-    if (!process.env.OPENAI_API_KEY) {
-      // Still check circuit breaker even for local
-      if (this.circuitOpen) {
-        if (Date.now() - this.circuitOpenedAt > this.CIRCUIT_RESET_MS) {
-          this.circuitOpen = false;
-          this.consecutiveFailures = 0;
-        } else {
-          return { allowed: false, reason: "circuit_open", resetIn: this.CIRCUIT_RESET_MS - (Date.now() - this.circuitOpenedAt) };
-        }
-      }
-      return { allowed: true };
-    }
+    // Local Ollama = free tokens, no budget needed
+    if (!process.env.OPENAI_API_KEY) return { allowed: true };
 
     // Reset global window if over 24h
     if (Date.now() - this.windowStart > 86400000) {
@@ -20208,8 +20196,8 @@ function startHeartbeat() {
     }
   }
 
-  // ── Local Scope Tick (GPU cadence, 5s default) ──
-  const ms = clamp(Number(STATE.settings.heartbeatMs || 5000), 1000, 120000);
+  // ── Local Scope Tick (GPU cadence, 10s default — organism speed, not machine speed) ──
+  const ms = clamp(Number(STATE.settings.heartbeatMs || 10000), 2000, 120000);
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     const ctx = makeInternalCtx("heartbeat");
@@ -20272,8 +20260,9 @@ function startHeartbeat() {
     // v5.6: repair agent tick — lattice health audit (stale DTUs, orphaned lineage, contradictions)
     try { await runMacro("emergent","repair.agent.tick", {}, ctx).catch((err) => { console.error('[system] Repair agent tick error:', err); }); } catch (err) { console.error('[system] Repair agent tick error:', err); }
 
-    // v5.7: analogize engine — runs immediately on GPU (no stagger needed)
+    // v5.7: analogize engine — minimal delay on GPU (let main pipelines settle)
     try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await runMacro("system","analogize", {}, ctx).catch((err) => { console.error('[system] Analogize error:', err); });
     } catch (err) { console.error('[system] Analogize error:', err); }
 
@@ -21536,7 +21525,7 @@ function _startGovernorHeartbeat() {
   try {
     if (__governorTimer) return { ok:true, already:true };
     const s = STATE.settings || {};
-    const ms = clamp(Number(s.heartbeatMs ?? 15000), 1000, 10*60*1000);
+    const ms = clamp(Number(s.heartbeatMs ?? 10000), 1000, 10*60*1000);
     if (s.heartbeatEnabled === false) return { ok:false, reason:"heartbeat_disabled" };
     __governorTimer = setInterval(() => { governorTick("interval").catch(()=>{}); }, ms);
     structuredLog("info", "governor_heartbeat_active", { intervalSec: (ms/1000).toFixed(2) });

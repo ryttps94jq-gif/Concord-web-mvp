@@ -306,7 +306,7 @@ services:
     container_name: concord-ollama-subconscious
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=8
+      - OLLAMA_NUM_PARALLEL=6
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_KEEP_ALIVE=24h
       - NVIDIA_VISIBLE_DEVICES=all
@@ -374,7 +374,7 @@ services:
     container_name: concord-ollama-repair
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_NUM_PARALLEL=2
       - OLLAMA_MAX_LOADED_MODELS=1
       - OLLAMA_KEEP_ALIVE=24h
       - NVIDIA_VISIBLE_DEVICES=all
