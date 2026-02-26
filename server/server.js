@@ -443,11 +443,11 @@ function detectContentInjection(text) {
 // ---- Rate Limiting for Expensive Macros (Phase 5.2) ----
 const _macroRateLimits = new Map();
 const EXPENSIVE_MACROS = new Map([
-  ["scope.metrics", { maxPerMinute: 10, windowMs: 60000 }],
-  ["system.autogen", { maxPerMinute: 4, windowMs: 60000 }],
-  ["system.dream", { maxPerMinute: 4, windowMs: 60000 }],
-  ["system.evolution", { maxPerMinute: 4, windowMs: 60000 }],
-  ["atlas.autogen", { maxPerMinute: 6, windowMs: 60000 }],
+  ["scope.metrics", { maxPerMinute: 60, windowMs: 60000 }],
+  ["system.autogen", { maxPerMinute: 30, windowMs: 60000 }],
+  ["system.dream", { maxPerMinute: 30, windowMs: 60000 }],
+  ["system.evolution", { maxPerMinute: 30, windowMs: 60000 }],
+  ["atlas.autogen", { maxPerMinute: 40, windowMs: 60000 }],
 ]);
 
 function checkMacroRateLimit(domain, name) {
@@ -960,37 +960,36 @@ if (NODE_ENV === "production" && TERMINAL_EXEC_ENABLED) {
 
 // ============================================================================
 // HARDWARE-DERIVED CONSTANTS
-// These are mathematically derived from the deployment hardware constraints:
-// 16GB RAM, 8 vCPUs, 320GB disk, 4 Ollama instances
+// GPU Pod: 62GB RAM, 16 vCPUs, RTX 4000 Ada 20GB VRAM, 4 Ollama instances
 // See ARCHITECTURE.md for the full derivation.
 // ============================================================================
 
 const CONSOLIDATION = Object.freeze({
-  TICK_INTERVAL: 30,              // every 30th heartbeat tick (~7.5 minutes)
+  TICK_INTERVAL: 15,              // every 15th heartbeat tick — consolidate 2x faster on GPU
   MEGA_MIN_CLUSTER: 5,            // minimum DTUs to form a MEGA
   MEGA_MAX_CLUSTER: 20,           // maximum DTUs in a single MEGA
-  MEGA_MAX_PER_CYCLE: 5,          // max MEGAs created per consolidation cycle
+  MEGA_MAX_PER_CYCLE: 10,         // was 5 — GPU can handle more per cycle
   MEGA_SIMILARITY_THRESHOLD: 0.7, // minimum similarity for cluster membership
   HYPER_MIN_MEGAS: 3,             // minimum MEGAs to form a HYPER
   HYPER_MAX_MEGAS: 10,            // maximum MEGAs in a single HYPER
   HYPER_MIN_POPULATION: 15,       // don't attempt HYPER until this many MEGAs exist
-  HYPER_MAX_PER_CYCLE: 2,         // max HYPERs created per consolidation cycle
+  HYPER_MAX_PER_CYCLE: 4,         // was 2 — GPU can form more HYPERs per cycle
   COVERAGE_THRESHOLD: 0.8,        // MEGA must cover 80% of source claims
   AUTHORITY_PRESERVATION: 0.9,    // MEGA authority >= 90% of avg source authority
-  ARCHIVE_BATCH_SIZE: 50,         // max DTUs archived per cycle
+  ARCHIVE_BATCH_SIZE: 100,        // was 50 — more RAM available for batch ops
   REHYDRATION_CACHE_TTL: 300000,  // 5 minutes cache for rehydrated DTUs
   REHYDRATION_CACHE_MAX: 100,     // max rehydrated DTUs cached simultaneously
-  HEAP_TARGET_PERCENT: 0.65,      // target 65% of available heap
-  HEAP_WARNING_PERCENT: 0.80,     // warning at 80%
+  HEAP_TARGET_PERCENT: 0.75,      // was 0.65 — more RAM available
+  HEAP_WARNING_PERCENT: 0.85,     // was 0.80
   HEAP_CRITICAL_PERCENT: 0.90,    // aggressive consolidation at 90%
-  MAX_HEAP_BYTES: 1_363_148_800,  // 1.3GB
-  TARGET_HEAP_BYTES: 885_846_720, // 65% of 1.3GB
+  MAX_HEAP_BYTES: 4_294_967_296,  // was 1.3GB → 4GB (Node heap with --max-old-space-size=8192)
+  TARGET_HEAP_BYTES: 3_221_225_472, // 75% of 4GB
 });
 
 const FORGETTING_CONSTANTS = Object.freeze({
-  TICK_INTERVAL: 50,               // every 50th tick (~12.5 minutes)
-  MAX_FORGET_PER_CYCLE: 20,        // max DTUs forgotten per cycle
-  MIN_AGE_TICKS: 1000,             // ~4 hours minimum age before eligible
+  TICK_INTERVAL: 30,               // was 50 — forget faster (more capacity on GPU)
+  MAX_FORGET_PER_CYCLE: 40,        // was 20 — GPU handles larger batches
+  MIN_AGE_TICKS: 500,              // was 1000 — shorter protection window on GPU
   PROTECTED_TAGS: ["core", "root", "constitutional", "seed", "mega", "hyper"],
   SALIENCE_WEIGHTS: {
     citation_count: 0.30,
@@ -3086,7 +3085,7 @@ const STATE = {
     stats: { cronTicks: 0, metaProposals: 0, metaCommits: 0, federationRx: 0, federationTx: 0 }
   },
   settings: {
-    heartbeatMs: 15000,
+    heartbeatMs: 5000,
     heartbeatEnabled: true,
     autogenEnabled: true,
     dreamEnabled: true,
@@ -4500,7 +4499,7 @@ function validate(schemaName, source = "body") {
 // Prevents hung requests from consuming connections indefinitely.
 // Configurable per-route via X-Timeout-Ms header or defaults below.
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 30000;
-const LLM_TIMEOUT_MS = parseInt(process.env.LLM_REQUEST_TIMEOUT_MS, 10) || 120000;
+const LLM_TIMEOUT_MS = parseInt(process.env.LLM_REQUEST_TIMEOUT_MS, 10) || 60000; // 60s is plenty on GPU
 
 // Routes that involve LLM calls get longer timeouts
 const _LLM_ROUTE_PREFIXES = ["/api/chat", "/api/forge", "/api/ask", "/api/swarm", "/api/sim", "/api/council/debate"];
@@ -4828,10 +4827,10 @@ if (rateLimit) {
 const _CONCURRENCY = {
   active: new Map(), // operationType -> count
   limits: {
-    llm_call: Number(process.env.LLM_CONCURRENCY_LIMIT || 5),
-    bulk_import: 2,
-    simulation: 3,
-    ml_infer: 3,
+    llm_call: Number(process.env.LLM_CONCURRENCY_LIMIT || 16),
+    bulk_import: 4,
+    simulation: 6,
+    ml_infer: 6,
   },
 
   acquire(opType) {
@@ -4987,17 +4986,18 @@ const _LLM_BUDGET = {
   windowStart: Date.now(),
   perUser: new Map(), // userId -> { tokens, requests, windowStart }
 
-  // Budget limits (configurable via env)
-  globalBudgetTokens: Number(process.env.LLM_BUDGET_TOKENS || 1000000),   // 1M tokens/day
-  perUserBudgetTokens: Number(process.env.LLM_USER_BUDGET_TOKENS || 50000), // 50K tokens/user/day
+  // Budget limits — effectively disabled for local Ollama (no API cost)
+  // checkBudget() short-circuits when no OPENAI_API_KEY is configured
+  globalBudgetTokens: Number(process.env.LLM_BUDGET_TOKENS || 999999999),
+  perUserBudgetTokens: Number(process.env.LLM_USER_BUDGET_TOKENS || 999999999),
   maxRetries: Number(process.env.LLM_MAX_RETRIES || 3),
 
   // Circuit breaker
   consecutiveFailures: 0,
   circuitOpen: false,
   circuitOpenedAt: 0,
-  CIRCUIT_THRESHOLD: 5,    // failures before opening
-  CIRCUIT_RESET_MS: 60000, // 1 min cooldown
+  CIRCUIT_THRESHOLD: 10,   // GPU is more reliable, higher tolerance
+  CIRCUIT_RESET_MS: 15000, // 15 sec cooldown — recover faster on GPU
 
   recordUsage(userId, tokensIn, tokensOut) {
     const tokens = (tokensIn || 0) + (tokensOut || 0);
@@ -5019,6 +5019,21 @@ const _LLM_BUDGET = {
   },
 
   checkBudget(userId) {
+    // Bypass token budget for local-only Ollama deployments — every token is free.
+    // Circuit breaker still applies (protects against Ollama crashes).
+    if (!process.env.OPENAI_API_KEY) {
+      // Still check circuit breaker even for local
+      if (this.circuitOpen) {
+        if (Date.now() - this.circuitOpenedAt > this.CIRCUIT_RESET_MS) {
+          this.circuitOpen = false;
+          this.consecutiveFailures = 0;
+        } else {
+          return { allowed: false, reason: "circuit_open", resetIn: this.CIRCUIT_RESET_MS - (Date.now() - this.circuitOpenedAt) };
+        }
+      }
+      return { allowed: true };
+    }
+
     // Reset global window if over 24h
     if (Date.now() - this.windowStart > 86400000) {
       this.totalTokensUsed = 0;
@@ -10347,7 +10362,7 @@ setTimeout(() => initLLMPipeline(), 100);
 
 // ── LLM Queue + Circuit Breakers ──────────────────────────────────────────
 const _llmQueue = createLLMQueue({
-  concurrency: parseInt(process.env.LLM_CONCURRENCY || "2", 10),
+  concurrency: parseInt(process.env.LLM_CONCURRENCY || "8", 10),
   maxQueueDepth: 200,
   onReject: (priority, reason) => {
     structuredLog("warn", "llm_queue_reject", { priority, reason });
@@ -20193,8 +20208,8 @@ function startHeartbeat() {
     }
   }
 
-  // ── Local Scope Tick (existing cadence, 15s default) ──
-  const ms = clamp(Number(STATE.settings.heartbeatMs || 15000), 2000, 120000);
+  // ── Local Scope Tick (GPU cadence, 5s default) ──
+  const ms = clamp(Number(STATE.settings.heartbeatMs || 5000), 1000, 120000);
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     const ctx = makeInternalCtx("heartbeat");
@@ -20257,9 +20272,8 @@ function startHeartbeat() {
     // v5.6: repair agent tick — lattice health audit (stale DTUs, orphaned lineage, contradictions)
     try { await runMacro("emergent","repair.agent.tick", {}, ctx).catch((err) => { console.error('[system] Repair agent tick error:', err); }); } catch (err) { console.error('[system] Repair agent tick error:', err); }
 
-    // v5.7: analogize engine — staggered 5s after main pipelines
+    // v5.7: analogize engine — runs immediately on GPU (no stagger needed)
     try {
-      await new Promise(resolve => setTimeout(resolve, 5000));
       await runMacro("system","analogize", {}, ctx).catch((err) => { console.error('[system] Analogize error:', err); });
     } catch (err) { console.error('[system] Analogize error:', err); }
 

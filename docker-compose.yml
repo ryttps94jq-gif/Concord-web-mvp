@@ -1,5 +1,5 @@
 services:
-  # Backend API Server — 8 vCPU / 16GB target
+  # Backend API Server — GPU Pod: 16 vCPU / 62GB RAM / RTX 4000 Ada 20GB VRAM
   backend:
     build:
       context: ./server
@@ -22,7 +22,7 @@ services:
       - DATA_DIR=/data
       - DB_PATH=/data/db/concord.db
       - STATE_PATH=/data/concord_state.json
-      - NODE_OPTIONS=--max-old-space-size=4096
+      - NODE_OPTIONS=--max-old-space-size=8192
       - UV_THREADPOOL_SIZE=8
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama-conscious:11434}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://concord-os.org}
@@ -33,13 +33,13 @@ services:
       - CONCORD_WS_ENABLED=${CONCORD_WS_ENABLED:-true}
       # Four-Brain Cognitive Architecture
       - BRAIN_CONSCIOUS_URL=${BRAIN_CONSCIOUS_URL:-http://ollama-conscious:11434}
-      - BRAIN_CONSCIOUS_MODEL=${BRAIN_CONSCIOUS_MODEL:-qwen2.5:7b}
+      - BRAIN_CONSCIOUS_MODEL=${BRAIN_CONSCIOUS_MODEL:-qwen2.5:14b}
       - BRAIN_SUBCONSCIOUS_URL=${BRAIN_SUBCONSCIOUS_URL:-http://ollama-subconscious:11434}
-      - BRAIN_SUBCONSCIOUS_MODEL=${BRAIN_SUBCONSCIOUS_MODEL:-qwen2.5:1.5b}
+      - BRAIN_SUBCONSCIOUS_MODEL=${BRAIN_SUBCONSCIOUS_MODEL:-qwen2.5:7b}
       - BRAIN_UTILITY_URL=${BRAIN_UTILITY_URL:-http://ollama-utility:11434}
-      - BRAIN_UTILITY_MODEL=${BRAIN_UTILITY_MODEL:-qwen2.5:3b}
+      - BRAIN_UTILITY_MODEL=${BRAIN_UTILITY_MODEL:-qwen2.5:7b}
       - BRAIN_REPAIR_URL=${BRAIN_REPAIR_URL:-http://ollama-repair:11434}
-      - BRAIN_REPAIR_MODEL=${BRAIN_REPAIR_MODEL:-qwen2.5:0.5b}
+      - BRAIN_REPAIR_MODEL=${BRAIN_REPAIR_MODEL:-qwen2.5:3b}
       # Auth — MUST set these in .env file
       - JWT_SECRET=${JWT_SECRET}
       - SESSION_SECRET=${SESSION_SECRET:-}
@@ -89,11 +89,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4608M
-          cpus: '3.0'
+          memory: 16G
+          cpus: '8.0'
         reservations:
-          memory: 1G
-          cpus: '1.0'
+          memory: 4G
+          cpus: '2.0'
 
   # Frontend Next.js App
   frontend:
@@ -244,7 +244,7 @@ services:
     container_name: concord-qdrant
     restart: unless-stopped
     environment:
-      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=1
+      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=2
     volumes:
       - qdrant-data:/qdrant/storage
     networks:
@@ -258,22 +258,23 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1200M
-          cpus: '1.0'
+          memory: 4G
+          cpus: '2.0'
         reservations:
-          memory: 256M
-          cpus: '0.25'
+          memory: 512M
+          cpus: '0.5'
 
-  # ── Four-Brain Cognitive Architecture ──
-  # Brain 1: Conscious — chat and deep reasoning (7B, 4 cores, ~5GB RAM)
+  # ── Four-Brain Cognitive Architecture (GPU: RTX 4000 Ada, 20GB VRAM shared) ──
+  # Brain 1: Conscious — chat and deep reasoning (14B on GPU, ~8GB VRAM)
   ollama-conscious:
     image: ollama/ollama
     container_name: concord-ollama-conscious
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_KEEP_ALIVE=24h
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ollama-conscious-data:/root/.ollama
     networks:
@@ -287,21 +288,26 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 12G
           cpus: '4.0'
         reservations:
-          memory: 4G
+          memory: 8G
           cpus: '2.0'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
-  # Brain 2: Subconscious — autogen, dream, evolution, synthesis, birth (1.5B, 2 cores, ~1GB RAM)
+  # Brain 2: Subconscious — autogen, dream, evolution, synthesis, birth (7B on GPU, ~4.5GB VRAM)
   ollama-subconscious:
     image: ollama/ollama
     container_name: concord-ollama-subconscious
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_NUM_PARALLEL=8
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_KEEP_ALIVE=24h
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ollama-subconscious-data:/root/.ollama
     networks:
@@ -315,21 +321,26 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '2.0'
+          memory: 8G
+          cpus: '4.0'
         reservations:
-          memory: 512M
+          memory: 4G
           cpus: '1.0'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
-  # Brain 3: Utility — lens interactions, entity actions, quick domain tasks (3B, 2 cores, ~2.5GB RAM)
+  # Brain 3: Utility — lens interactions, entity actions, quick domain tasks (7B on GPU, ~4.5GB VRAM)
   ollama-utility:
     image: ollama/ollama
     container_name: concord-ollama-utility
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_NUM_PARALLEL=8
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_KEEP_ALIVE=24h
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ollama-utility-data:/root/.ollama
     networks:
@@ -343,21 +354,26 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G
-          cpus: '2.0'
+          memory: 8G
+          cpus: '4.0'
         reservations:
-          memory: 1G
+          memory: 4G
           cpus: '1.0'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
-  # Brain 4: Repair — error detection, auto-fix (0.5B, shares cores with subconscious, ~512MB RAM)
+  # Brain 4: Repair — error detection, auto-fix (3B on GPU, ~2GB VRAM)
   ollama-repair:
     image: ollama/ollama
     container_name: concord-ollama-repair
     restart: unless-stopped
     environment:
-      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=1
       - OLLAMA_KEEP_ALIVE=24h
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ollama-repair-data:/root/.ollama
     networks:
@@ -371,11 +387,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 4G
           cpus: '2.0'
         reservations:
-          memory: 256M
+          memory: 2G
           cpus: '0.5'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 networks:
   concord-network:

@@ -15,7 +15,7 @@
  *   2. If embedding model unavailable, fall back to tag-based retrieval
  *   3. Always include HYPERs and MEGAs in candidate pool regardless of lens
  *   4. Embedding dimension must be consistent — don't mix models
- *   5. Memory stays under control — batched search if substrate > 50K DTUs
+ *   5. Memory stays under control — batched search if substrate > 200K DTUs
  */
 
 import crypto from "crypto";
@@ -24,9 +24,9 @@ import crypto from "crypto";
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "nomic-embed-text";
 const EMBEDDING_FALLBACK_MODEL = "all-minilm";
 const EMBEDDING_DIMENSION = 768; // nomic-embed-text default
-const MAX_IN_MEMORY = 50_000;    // beyond this, use batched search
-const BACKFILL_BATCH_SIZE = 50;
-const EMBED_TIMEOUT_MS = 15_000;
+const MAX_IN_MEMORY = 200_000;   // GPU can handle much larger in-memory sets
+const BACKFILL_BATCH_SIZE = 200; // 4x faster backfill on GPU
+const EMBED_TIMEOUT_MS = 5_000;  // GPU embeds are much faster
 
 // ── State ──────────────────────────────────────────────────────────────────
 

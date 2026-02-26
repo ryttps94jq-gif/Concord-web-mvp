@@ -1,15 +1,16 @@
 /**
- * Progressive Model Shrinking / Model Optimizer for Concord Cognitive Engine
+ * Model Optimizer for Concord Cognitive Engine (GPU Mode)
  *
- * Tracks substrate maturity per lens. As retrieval quality improves,
- * automatically recommends model downgrades that maintain quality
- * while freeing compute.
+ * On GPU, the optimizer is INVERTED from CPU behavior:
+ * - CPU mode: mature lenses DOWNGRADE to save compute
+ * - GPU mode: all lenses keep their assigned model (GPU can handle it)
+ *             immature lenses get MORE reasoning power, not less
  *
- * Maturity levels:
- *   < 0.3 → 7B (full conscious reasoning)
- *   < 0.6 → 3B (utility brain sufficient)
- *   < 0.8 → 1.5B (subconscious-class model)
- *   >= 0.8 → 0.5B or retrieval-only (minimal inference)
+ * Maturity levels (GPU):
+ *   < 0.3 → 14b (needs deep reasoning — use the biggest model)
+ *   < 0.6 → 7b  (developing substrate)
+ *   < 0.8 → 7b  (strong retrieval, maintain quality)
+ *   >= 0.8 → 7b (mature — GPU can handle full quality, no downgrade)
  */
 
 import { getEmbedding } from "./embeddings.js";
@@ -132,7 +133,7 @@ export function recordQueryEvent(lens, { cacheHit = false, retrievalSufficient =
  * Get the recommended model for a lens (used by routing logic).
  *
  * @param {string|null} lens
- * @returns {string} Model size recommendation: "7b", "3b", "1.5b", "0.5b"
+ * @returns {string} Model size recommendation: "14b", "7b" (GPU mode — no downgrades)
  */
 export function getRecommendedModel(lens) {
   const stats = lensStats.get(lens || "_global");
@@ -191,14 +192,15 @@ function calculateMaturity(stats) {
 
 /**
  * Recommend a model size based on lens maturity.
+ * GPU mode: no downgrades — immature lenses get MORE power.
  */
 function recommendModel(stats) {
   const maturity = calculateMaturity(stats);
 
-  if (maturity < 0.3) return { model: "7b", reason: "Low substrate coverage" };
-  if (maturity < 0.6) return { model: "3b", reason: "Adequate retrieval context" };
-  if (maturity < 0.8) return { model: "1.5b", reason: "Strong retrieval coverage" };
-  return { model: "0.5b", reason: "Substrate answers most queries via retrieval" };
+  if (maturity < 0.3) return { model: "14b", reason: "Low substrate — needs deep reasoning (GPU)" };
+  if (maturity < 0.6) return { model: "7b", reason: "Developing substrate — full quality (GPU)" };
+  if (maturity < 0.8) return { model: "7b", reason: "Strong retrieval — maintain quality (GPU)" };
+  return { model: "7b", reason: "Mature substrate — GPU handles full quality, no downgrade" };
 }
 
 // ── Monitoring ─────────────────────────────────────────────────────────────
