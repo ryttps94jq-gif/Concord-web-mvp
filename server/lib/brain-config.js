@@ -7,7 +7,7 @@
 
 export const BRAIN_CONFIG = Object.freeze({
   conscious: {
-    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434",
+    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434",
     model: process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b",
     role: "chat, deep reasoning, council deliberation",
     temperature: 0.7,
@@ -18,7 +18,7 @@ export const BRAIN_CONFIG = Object.freeze({
     maxTokens: 4096,   // Full output — let it think
   },
   subconscious: {
-    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://localhost:11435",
+    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://ollama-subconscious:11434",
     model: process.env.BRAIN_SUBCONSCIOUS_MODEL || "qwen2.5:1.5b",
     role: "autogen, dream, evolution, synthesis, birth",
     temperature: 0.85,
@@ -29,7 +29,7 @@ export const BRAIN_CONFIG = Object.freeze({
     maxTokens: 600,
   },
   utility: {
-    url: process.env.BRAIN_UTILITY_URL || "http://localhost:11436",
+    url: process.env.BRAIN_UTILITY_URL || "http://ollama-utility:11434",
     model: process.env.BRAIN_UTILITY_MODEL || "qwen2.5:3b",
     role: "lens interactions, entity actions, quick domain tasks",
     temperature: 0.3,
@@ -40,7 +40,7 @@ export const BRAIN_CONFIG = Object.freeze({
     maxTokens: 500,
   },
   repair: {
-    url: process.env.BRAIN_REPAIR_URL || "http://localhost:11437",
+    url: process.env.BRAIN_REPAIR_URL || "http://ollama-repair:11434",
     model: process.env.BRAIN_REPAIR_MODEL || "qwen2.5:0.5b",
     role: "error detection, auto-fix, runtime repair",
     temperature: 0.1,

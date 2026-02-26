@@ -371,7 +371,8 @@ export async function attemptReproduction(entity1, entity2, STATE, runMacro, mak
   try {
     if (runMacro && makeCtx) {
       const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", role: "owner", scopes: ["*"] };
+      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"], internal: true };
+      ctx.internal = true;
       birthResult = await runMacro("lattice", "birth_protocol", { proposal: birthProposal }, ctx);
     } else {
       birthResult = { ok: false, error: "runMacro not available" };

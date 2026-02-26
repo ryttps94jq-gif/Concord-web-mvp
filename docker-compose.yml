@@ -6,6 +6,11 @@ services:
       dockerfile: Dockerfile
     container_name: concord-backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     read_only: false  # Data dir needs writes; consider tmpfs for /tmp
@@ -76,11 +81,11 @@ services:
     networks:
       - concord-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5050/ready || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:5050/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 180s  # 3 min grace for embedding load + Ollama warm-up
     deploy:
       resources:
         limits:
@@ -98,6 +103,7 @@ services:
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://concord-os.org}
         - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-https://concord-os.org}
+        - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://concord-os.org}
     container_name: concord-frontend
     restart: unless-stopped
     environment:
@@ -144,6 +150,12 @@ services:
       - backend
     networks:
       - concord-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
   # Certbot for SSL certificates

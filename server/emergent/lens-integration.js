@@ -284,6 +284,9 @@ export function executeEmergentLensAction(STATE, opts = {}) {
     // Execute through the normal macro path
     try {
       const ctx = makeCtx ? makeCtx() : { actor: { userId: `emergent:${emergentId}`, role: "emergent" }, state: STATE };
+      // Elevate to internal system call — emergent actions are trusted server-side processes
+      ctx.actor = { ...ctx.actor, userId: `emergent:${emergentId}`, orgId: "internal", role: "owner", scopes: ["*"], internal: true };
+      ctx.internal = true;
       // Synchronous macro call via provided runner
       if (runMacro) {
         const result = runMacro("lens", "run", {

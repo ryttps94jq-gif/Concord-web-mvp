@@ -6,7 +6,10 @@ set -euo pipefail
 echo "[disk-cleanup] Starting cleanup at $(date)"
 
 # Docker cleanup: remove dangling images, stopped containers, unused networks
-docker system prune -f --volumes --filter "until=48h" 2>/dev/null || true
+# NEVER use --volumes here — it destroys unnamed volumes regardless of filter.
+# Named volumes (concord-data, ollama-*-data, etc.) are safe, but --volumes
+# with prune is too dangerous for production state.
+docker system prune -f --filter "until=48h" 2>/dev/null || true
 docker builder prune -f --filter "until=48h" 2>/dev/null || true
 
 # Journal vacuum

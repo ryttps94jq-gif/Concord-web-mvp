@@ -701,6 +701,23 @@ async function gracefulShutdown(signal) {
 
   console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
 
+  // Flush state to disk immediately — critical for OOM kills and SIGTERM
+  try {
+    clearTimeout(_saveTimer); // Cancel any pending debounced save
+    const data = JSON.stringify(_serializeState(), null, USE_SQLITE_STATE ? 0 : 2);
+    if (USE_SQLITE_STATE && db) {
+      const stmt = db.prepare("INSERT OR REPLACE INTO state_snapshots (id, data, version, saved_at) VALUES (1, ?, ?, ?)");
+      stmt.run(data, VERSION, new Date().toISOString());
+    } else if (typeof STATE_PATH === "string") {
+      const tmpPath = STATE_PATH + ".tmp";
+      fs.writeFileSync(tmpPath, data, "utf-8");
+      fs.renameSync(tmpPath, STATE_PATH);
+    }
+    console.log("[Shutdown] State saved to disk");
+  } catch (e) {
+    console.error("[Shutdown] State save failed:", e.message);
+  }
+
   // Stop repair cortex loop
   try { stopRepairLoop(); } catch { /* best-effort */ }
 
@@ -4291,16 +4308,20 @@ function requireAuth() {
   };
 }
 
-// Permission check helper
+// Permission check helper — simplified 4-role model:
+// sovereign > admin > member > spectator (unauthenticated)
+// Internal system calls (ctx.internal) always pass.
 function requireRole(...roles) {
   return (req, res, next) => {
+    // Internal system calls always pass (emergent ticks, autogen, repair cortex)
+    if (req.ctx?.internal === true) return next();
     if (AUTH_MODE === "public") return next();
-    if (!req.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    if (!req.user) return res.status(401).json({ ok: false, error: "Authentication required" });
     if (req.user.role === "sovereign") return next(); // sovereign passes ALL role checks
     if (roles.length === 0 || roles.includes(req.user.role) || req.user.scopes?.includes("*")) {
       return next();
     }
-    return res.status(403).json({ ok: false, error: "Forbidden", requiredRoles: roles });
+    return res.status(403).json({ ok: false, error: "Insufficient permissions", requiredRoles: roles });
   };
 }
 
@@ -8789,6 +8810,25 @@ function makeCtx(req=null) {
   };
 }
 
+// ---- Internal System Context ----
+// Trusted server-side context for autonomous processes (emergent ticks, autogen,
+// repair cortex, agent patrols). Bypasses HTTP auth middleware and macro ACL.
+function makeInternalCtx(source = "system") {
+  const ctx = makeCtx(null);
+  ctx.actor = { userId: source, orgId: "internal", role: "owner", scopes: ["*"], internal: true };
+  ctx.internal = true;
+  // Inner macro calls must inherit the internal flag
+  ctx.macro = {
+    run: (domain, name, input) => {
+      const inner = makeInternalCtx(source);
+      return runMacro(domain, name, input, inner);
+    },
+    listDomains,
+    listMacros,
+  };
+  return ctx;
+}
+
 // ---- DTU Archive System (Consolidation Pipeline) ----
 // Rehydration LRU cache for archived DTUs
 const _rehydrationCache = new Map();
@@ -10442,28 +10482,28 @@ async function llmChat(messagesOrCtx, messagesOrOptions = {}, maybeOptions = {})
 
 const BRAIN = {
   conscious: {
-    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434",
+    url: process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434",
     model: process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b",
     role: "chat, deep reasoning, complex queries",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   subconscious: {
-    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://localhost:11435",
+    url: process.env.BRAIN_SUBCONSCIOUS_URL || "http://ollama-subconscious:11434",
     model: process.env.BRAIN_SUBCONSCIOUS_MODEL || "qwen2.5:1.5b",
     role: "autogen, dream, evolution, synthesis, birth",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   utility: {
-    url: process.env.BRAIN_UTILITY_URL || "http://localhost:11436",
+    url: process.env.BRAIN_UTILITY_URL || "http://ollama-utility:11434",
     model: process.env.BRAIN_UTILITY_MODEL || "qwen2.5:3b",
     role: "lens interactions, entity actions, quick domain tasks",
     enabled: false,
     stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null },
   },
   repair: {
-    url: process.env.BRAIN_REPAIR_URL || "http://localhost:11437",
+    url: process.env.BRAIN_REPAIR_URL || "http://ollama-repair:11434",
     model: process.env.BRAIN_REPAIR_MODEL || "qwen2.5:0.5b",
     role: "error detection, auto-fix, runtime repair",
     enabled: false,
@@ -10622,13 +10662,13 @@ async function initGhostFleet() {
     });
     register("hlm", "metrics", () => hlm.getHLMMetrics());
 
-    // HLM slow interval: every 5 minutes (NOT on the 15s heartbeat)
+    // HLM slow interval: every 8 minutes — graph computation, no LLM but CPU-intensive
     const hlmTimer = setInterval(async () => {
       try {
         const dtus = STATE.dtus instanceof Map ? Array.from(STATE.dtus.values()) : [];
         if (dtus.length > 0) await hlm.runHLMPass(dtus);
       } catch (e) { observe(e, "hlm_slow_interval"); }
-    }, 300000);
+    }, 480000);
     if (hlmTimer.unref) hlmTimer.unref();
 
     structuredLog("info", "ghost_fleet_module_loaded", { name: "hlm-engine", macros: 9, interval: "5min" });
@@ -11465,8 +11505,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
 
       // Still create a DTU linking to the source
       try {
-        const ctx = makeCtx(null);
-        ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+        const ctx = makeInternalCtx("system");
         await runMacro("dtu", "create", {
           title: `Cached: ${userMessage.slice(0, 80)}`,
           creti: cached.response,
@@ -11503,8 +11542,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
         try { recordQueryMethod(STATE, "retrieval_sufficient"); } catch { /* learning metrics not critical */ }
 
         try {
-          const ctx = makeCtx(null);
-          ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+          const ctx = makeInternalCtx("system");
           await runMacro("dtu", "create", {
             title: `Chat: ${userMessage.slice(0, 80)}`,
             creti: result.content,
@@ -11633,8 +11671,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
 
     // Save exchange as DTU (fire-and-forget)
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `Chat: ${userMessage.slice(0, 80)}`,
         creti: result.content,
@@ -11655,8 +11692,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
     if (webResults.length > 0) {
       for (const wr of webResults) {
         try {
-          const wctx = makeCtx(null);
-          wctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+          const wctx = makeInternalCtx("system");
           await runMacro("dtu", "create", {
             title: `Web: ${wr.title.slice(0, 80)}`,
             creti: wr.content,
@@ -11731,8 +11767,7 @@ async function subconsciousTask(taskType, domain = null) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${taskType.charAt(0).toUpperCase() + taskType.slice(1)}: ${result.content.slice(0, 60)}`,
         creti: result.content,
@@ -11780,8 +11815,7 @@ async function utilityCall(action, lens, data) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${lens}: ${action}`,
         creti: result.content,
@@ -11833,8 +11867,7 @@ async function subconsciousLensCall(action, domain, data) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${domain}: ${action}`,
         creti: result.content,
@@ -11913,8 +11946,7 @@ async function consciousLensCall(action, domain, data) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `${domain}: ${action}`,
         creti: result.content,
@@ -11958,8 +11990,7 @@ async function entityExploreLens(entity, lens) {
 
   if (result.ok && result.content) {
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("system");
       await runMacro("dtu", "create", {
         title: `Entity ${entityId} explores ${lens}`,
         creti: result.content,
@@ -11994,8 +12025,7 @@ async function entityExploreCreativeGlobal(entity) {
     const strongestDomain = creativeOrgans[0].name;
 
     // Query the creative registry
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("system");
     const registry = await runMacro("creative", "registry", {
       domain: strongestDomain,
       limit: 10,
@@ -13890,8 +13920,7 @@ async function maybeRunLocalUpgrade() {
 
   // Upgrade = deterministic retune + enforce budgets + auto-promotion + conservation check.
   enforceTierBudgets();
-  const _upCtx = makeCtx(null);
-  _upCtx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  const _upCtx = makeInternalCtx("system");
   try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
   const bp = applyConservationBackpressure();
   // Opportunistic self-repair: schedule maintenance if needed
@@ -15212,7 +15241,7 @@ let localReply = formatCrispResponse({
   // otherwise fall back to default Ollama host / model env vars.
   const brainUrl = BRAIN.conscious.enabled
     ? BRAIN.conscious.url
-    : (process.env.OLLAMA_HOST || "http://localhost:11434");
+    : (process.env.OLLAMA_HOST || "http://ollama-conscious:11434");
   const brainModel = BRAIN.conscious.enabled
     ? BRAIN.conscious.model
     : (process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b");
@@ -19717,6 +19746,11 @@ function allowDomain(domain, { roles=["owner","admin","member"], scopes=["*"] } 
 }
 
 function _canRunMacro(actor, domain, name) {
+  // Internal system calls (emergent ticks, autogen, repair cortex, etc.) are trusted
+  // server-side processes that bypass ACL enforcement entirely.
+  if (actor.internal === true && (actor.role === "system" || actor.role === "owner")) {
+    return true;
+  }
   function _checkRule(rule) {
     const roleOk = !rule.roles?.length || rule.roles.includes(actor.role) || actor.role === "owner";
     const scopeOk = (actor.scopes||[]).includes("*") || !rule.scopes?.length || rule.scopes.some(s => (actor.scopes||[]).includes(s));
@@ -19762,7 +19796,7 @@ for (const d of [
   "temporal","grounding","worldmodel","commonsense","explanation","transfer","materials",
   "style","visual","market","marketplace","mobile","pwa","notion","obsidian","vscode",
   "paper","research","anon","dtu","goals","intent","interface","skill","dimensional",
-  "lattice","backpressure",
+  "lattice","backpressure","emergent",
 ]) allowDomain(d, _ACL_MEMBER);
 
 // Admin-level domains (system management)
@@ -19770,7 +19804,7 @@ for (const d of [
   "admin","automation","autotag","backup","cache","db","graph","schema",
   "integration","webhook","jobs","perf","log","llm","plugin","source","abstraction",
   "evolution","audit","verify","experiment","synth","harness","crawl","ingest",
-  "export","import","redis","sync","system",
+  "export","import","redis","sync","system","repair",
 ]) allowDomain(d, _ACL_ADMIN);
 
 // Owner-only domains (sensitive infrastructure)
@@ -19862,9 +19896,9 @@ async function runJob(j) {
   j.updatedAt = nowISO();
   saveStateDebounced();
 
-  const ctx = makeCtx(null);
+  const ctx = makeInternalCtx("job_runner");
   // adopt actor context if present; default to system actor for internal jobs
-  ctx.actor = j.actor || { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  if (j.actor) { ctx.actor = { ...j.actor, internal: true }; }
 
   try {
     const [domain, name] = String(j.kind).split(".");
@@ -20046,8 +20080,7 @@ async function mergeCognitiveResults(results) {
   }
 
   // Process each candidate — commit via macro system on main thread
-  const ctx = makeCtx(null);
-  ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("autogen");
 
   for (const entry of (results.candidates || [])) {
     if (!entry.ok || !entry.candidate) continue;
@@ -20164,10 +20197,7 @@ function startHeartbeat() {
   const ms = clamp(Number(STATE.settings.heartbeatMs || 15000), 2000, 120000);
   heartbeatTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
-    const ctx = makeCtx(null);
-    // Heartbeat runs internal maintenance — elevate to system actor so admin-gated
-    // domains (ingest, system, emergent, etc.) are accessible.
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("heartbeat");
 
     // process crawl queue once (Local scope only — ingest is local activity)
     await runMacro("ingest","processQueueOnce", {}, ctx).catch((err) => { console.error('[system] Heartbeat ingest queue error:', err); });
@@ -20346,7 +20376,7 @@ function startHeartbeat() {
   // HTTP requests are zero LLM compute. Only synthesis afterwards needs the subconscious brain.
   // Heartbeat windows: :00-:09 autogen, :10-:19 dream, :20-:29 evolution,
   //   :30-:39 synthesis, :40-:49 birth, :50-:59 exploration
-  const explorationMs = 60000; // check every 60s
+  const explorationMs = 240000; // check every 4 minutes — LLM-calling process needs spacing
   let explorationTimer = null;
   explorationTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
@@ -20356,8 +20386,7 @@ function startHeartbeat() {
     const second = new Date().getSeconds();
     if (second < 50) return;
 
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("exploration_window");
 
     try {
       resetWindowCounters();
@@ -20548,8 +20577,7 @@ function startHeartbeat() {
   globalTickTimer = setInterval(async () => {
     if (!STATE.settings.heartbeatEnabled) return;
     try {
-      const ctx = makeCtx(null);
-      ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+      const ctx = makeInternalCtx("global_tick");
       const tickResult = await runMacro("emergent","scope.globalTick", {}, ctx);
 
       // Wire global synthesis when the global lattice is ready
@@ -20637,8 +20665,7 @@ function startWeeklyCouncil() {
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   weeklyTimer = setInterval(async () => {
     if (STATE.settings.weeklyDebateEnabled === false) return;
-    const ctx = makeCtx(null);
-    ctx.actor = { userId: "system", orgId: "internal", role: "owner", scopes: ["*"] };
+    const ctx = makeInternalCtx("system");
     await runMacro("council","weeklyDebateTick",{ topic: STATE.settings.weeklyDebateTopic || "Concord Weekly Synthesis" }, ctx).catch(()=>{});
   }, weekMs);
   log("council.weekly", "Weekly Council scheduler started", { everyMs: weekMs });
@@ -20802,8 +20829,7 @@ app.use((err, req, res, _next) => {
 });
 // ===== CHICKEN3: Autonomous Lattice Cron + Federation Hooks (additive) =====
 function _c3internalCtx() {
-  const ctx = makeCtx(null);
-  ctx.actor = { userId: "system", orgId: "local", role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("chicken3_cron");
   ctx.reqMeta = { ip: "127.0.0.1", ua: "cron", path: "/cron", override: false, at: nowISO() };
   return ctx;
 }
@@ -20940,8 +20966,7 @@ let __governorTimer = null;
 
 function _governorCtx() {
   // internal ctx: owner actor + founder override flag for safe local growth operations
-  const ctx = makeCtx(null);
-  ctx.actor = { role: "owner", scopes: ["*"] };
+  const ctx = makeInternalCtx("governor");
   ctx.reqMeta = { ...(ctx.reqMeta||{}), override: true, internal: true, source: "governor" };
   return ctx;
 }
@@ -21694,7 +21719,7 @@ register("search", "reindex", (_ctx, _input) => {
 });
 
 // ---- Local LLM Support (Ollama) ----
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://localhost:11434";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.BRAIN_CONSCIOUS_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || process.env.BRAIN_CONSCIOUS_MODEL || "qwen2.5:7b";
 // Auto-enable if any Ollama URL or brain is configured
 const OLLAMA_ENABLED = process.env.OLLAMA_ENABLED === "true" || process.env.OLLAMA_ENABLED === "1" || Boolean(process.env.BRAIN_CONSCIOUS_URL) || Boolean(process.env.OLLAMA_HOST);
@@ -29192,12 +29217,12 @@ app.get("/api/timeline/diff", (req, res) => {
 });
 
 // ---- Wave 7: Public Lattice Endpoints ----
-app.post("/api/dtus/:id/publish", requireRole("owner", "admin", "editor"), (req, res) => {
+app.post("/api/dtus/:id/publish", requireRole("owner", "admin", "member"), (req, res) => {
   const result = publishDTU(req.params.id);
   res.json(result);
 });
 
-app.delete("/api/dtus/:id/publish", requireRole("owner", "admin", "editor"), (req, res) => {
+app.delete("/api/dtus/:id/publish", requireRole("owner", "admin", "member"), (req, res) => {
   const result = unpublishDTU(req.params.id);
   res.json(result);
 });
@@ -29527,7 +29552,7 @@ function processVoiceNote(audioBuffer, options = {}) {
 // ---- Image Analysis ----
 async function analyzeImage(imageBuffer, prompt = "Describe this image in detail.") {
   // Use local LLaVA via Ollama if available
-  const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+  const OLLAMA_URL = process.env.OLLAMA_URL || process.env.OLLAMA_HOST || "http://ollama-conscious:11434";
   const VISION_MODEL = process.env.VISION_MODEL || "llava";
 
   try {
@@ -39039,7 +39064,7 @@ try {
     if (_promoRunning) return;
     _promoRunning = true;
     try {
-      const c = makeCtx(null); c.actor = _promoActor;
+      const c = makeInternalCtx("auto_promotion");
       await runAutoPromotion(c, opts);
     } catch (e) {
       structuredLog("warn", "auto_promotion_failed", { error: String(e?.message || e) });
