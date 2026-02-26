@@ -67,6 +67,17 @@ import { getActiveWants, getWantMetrics, createWant, decayAllWants, WANT_TYPES, 
 import { selectSubconsciousTask, checkSpontaneousTrigger, generateWantFromInteraction, amplifyGoalPriority } from "./prompts/want-integration.js";
 import { enqueueMessage, processQueue as processSpQueue, getQueueStatus, setUserSpontaneousEnabled, startTicker, stopTicker } from "./prompts/spontaneous-queue.js";
 import { checkSpontaneousContent } from "./prompts/spontaneous.js";
+
+// ── Learning Verification & Substrate Integrity ──────────────────────────────
+import {
+  CLASSIFICATIONS, computeSubstrateStats, migrateClassifications, applyClassification, isPublicDTU,
+  getLearningStore, recordQueryMethod, getRetrievalHitRate, getRetrievalTrend,
+  recordCitation, getUtilizationStats, recordGeneration, getNoveltyStats, checkNovelty,
+  recordResponseQuality, getHelpfulnessScores,
+  checkGenerationQuota, recordGenerationUsed, getRecommendedEvolutionRatio,
+  checkProbation, runProbationAudit, getDomainCoverage,
+  runSubstratePruning, getLearningDashboard, runDedupAudit,
+} from "./learning/index.js";
 import { attemptReproduction, getLineage, getLineageTree, enableReproduction, disableReproduction, isReproductionEnabled } from "./emergent/reproduction.js";
 import { classifyEntity, classifyAllEntities, getSpeciesCensus, getSpeciesRegistry, checkReproductionCompatibility, getSpecies } from "./emergent/species.js";
 import { runDualPathSimulation, getSimulation, listSimulations } from "./emergent/dual-path.js";
@@ -5907,6 +5918,8 @@ function toOptionADTU(seedLike) {
   };
   dtu.cretiHuman = renderHumanDTU(dtu);
   dtu.hash = dtu.hash || crypto.createHash("sha256").update(dtu.title + "\n" + dtu.cretiHuman).digest("hex").slice(0,16);
+  // Learning verification: apply classification on creation
+  try { applyClassification(dtu); } catch { /* learning module not critical */ }
   return dtu;
 }
 
@@ -6000,6 +6013,17 @@ try {
   if (changed) { saveStateDebounced(); log("dtu.rename", "Normalized DTU titles/CRETI for UI", { changed }); }
 } catch (e) {
   structuredLog("error", "dtu_normalization_failed", { error: String(e?.message || e) });
+}
+
+// ── Learning Verification: migrate existing DTU classifications at startup ──
+try {
+  const migrationResult = migrateClassifications(STATE.dtus);
+  if (migrationResult.migrated > 0) {
+    structuredLog("info", "learning_classification_migration", migrationResult);
+    saveStateDebounced();
+  }
+} catch (e) {
+  structuredLog("error", "learning_migration_failed", { error: String(e?.message || e) });
 }
 
 // ---- logging ----
@@ -11393,6 +11417,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       recordRoutingLevel(lens, "cache");
       recordQueryEvent(lens, { cacheHit: true, topSimilarity: cached.score });
       recordEconomicsEvent({ type: "cache", userId });
+      try { recordQueryMethod(STATE, "semantic_cache"); } catch { /* learning metrics not critical */ }
 
       // Still create a DTU linking to the source
       try {
@@ -11431,6 +11456,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       if (result.ok && result.content) {
         const elapsed = Date.now() - inferenceStart;
         recordEconomicsEvent({ type: "retrieval", inferenceMs: elapsed, userId });
+        try { recordQueryMethod(STATE, "retrieval_sufficient"); } catch { /* learning metrics not critical */ }
 
         try {
           const ctx = makeCtx(null);
@@ -11548,6 +11574,7 @@ async function consciousChat(userMessage, lens = null, options = {}) {
 
   const elapsed = Date.now() - inferenceStart;
   recordEconomicsEvent({ type: "inference", inferenceMs: elapsed, userId });
+  try { recordQueryMethod(STATE, "llm_required"); } catch { /* learning metrics not critical */ }
 
   if (result.ok && result.content) {
     // Build sources list for the response
@@ -19339,7 +19366,8 @@ registerSystemRoutes(app, {
   getTimeInfo, getWeather, createBackup, listBackups, restoreBackup,
   ensureOrganRegistry, ensureQueues, _getPatternHistory, classifyDomain,
   _inferQueryIntent, CRETI_PROJECTION_RULES, searchIndexed, paginateResults,
-  auditLog, AUDIT_LOG
+  auditLog, AUDIT_LOG,
+  computeSubstrateStats,
 });
 
 // ---- Auth Endpoints (extracted to routes/auth.js) ----
@@ -20205,6 +20233,45 @@ function startHeartbeat() {
           structuredLog("info", "want_decay_cycle", { decayed: decayResult.decayed, killed: decayResult.killed });
         }
       } catch { /* want engine not critical */ }
+    }
+
+    // ── Learning Verification: probation audit (every 480th heartbeat @ 15s = ~2 hours) ──
+    if (_heartbeatCount % 480 === 0) {
+      try {
+        const probationResult = runProbationAudit(STATE);
+        if (probationResult.demoted > 0) {
+          // Reclassify demoted DTUs as scaffold
+          for (const candidate of probationResult.candidates) {
+            const dtu = STATE.dtus.get(candidate.id);
+            if (dtu) {
+              dtu._previousClassification = dtu.classification;
+              dtu.classification = "scaffold";
+              dtu._prunedAt = new Date().toISOString();
+            }
+          }
+          structuredLog("info", "learning_probation_audit", { promoted: probationResult.promoted, demoted: probationResult.demoted, in_probation: probationResult.still_in_probation });
+        }
+      } catch { /* learning verification not critical */ }
+    }
+
+    // ── Learning Verification: dedup audit (every 5760th heartbeat @ 15s = ~24 hours) ──
+    if (_heartbeatCount % 5760 === 0 && _heartbeatCount > 0) {
+      try {
+        const dedupResult = runDedupAudit(STATE);
+        if (dedupResult.redundant > 0) {
+          structuredLog("info", "learning_dedup_audit", { checked: dedupResult.checked, novel: dedupResult.novel, redundant: dedupResult.redundant, novelty_rate: dedupResult.novelty_rate });
+        }
+      } catch { /* learning verification not critical */ }
+    }
+
+    // ── Learning Verification: substrate pruning (every 172800th heartbeat @ 15s = ~30 days) ──
+    if (_heartbeatCount % 172800 === 0 && _heartbeatCount > 0) {
+      try {
+        const pruneResult = runSubstratePruning(STATE);
+        if (pruneResult.total_pruned > 0) {
+          structuredLog("info", "learning_substrate_pruning", pruneResult);
+        }
+      } catch { /* learning verification not critical */ }
     }
 
     // ── Spontaneous message check (runs every 120th heartbeat @ 15s = ~30 min) ──
@@ -32703,6 +32770,86 @@ app.post("/api/brain/spontaneous/preferences", express.json(), (req, res) => {
     if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
     const result = setUserSpontaneousEnabled(STATE, userId, enabled);
     res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Learning Verification & Substrate Integrity Endpoints ─────────────────────
+
+// Learning Dashboard — the five numbers that prove learning
+app.get("/api/learning/dashboard", (_req, res) => {
+  try {
+    const dashboard = getLearningDashboard(STATE);
+    const substrateStats = computeSubstrateStats(STATE.dtus, STATE.shadowDtus);
+    dashboard.knowledge_dtu_count = substrateStats.substrate.knowledge.total;
+    dashboard.substrate = substrateStats.substrate;
+    res.json({ ok: true, dashboard });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Retrieval hit rate trend
+app.get("/api/learning/retrieval", (_req, res) => {
+  try {
+    const trend = getRetrievalTrend(STATE);
+    res.json({ ok: true, retrieval: trend });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// DTU utilization stats
+app.get("/api/learning/utilization", (req, res) => {
+  try {
+    const days = Number(req.query.days) || 30;
+    const stats = getUtilizationStats(STATE, days);
+    res.json({ ok: true, utilization: stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Novelty verification stats
+app.get("/api/learning/novelty", (_req, res) => {
+  try {
+    const stats = getNoveltyStats(STATE);
+    res.json({ ok: true, novelty: stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Helpfulness scores
+app.get("/api/learning/helpfulness", (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const scores = getHelpfulnessScores(STATE, limit);
+    res.json({ ok: true, helpfulness: scores });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Generation quota status
+app.get("/api/learning/quota", (_req, res) => {
+  try {
+    const quota = checkGenerationQuota(STATE);
+    const ratio = getRecommendedEvolutionRatio(STATE);
+    res.json({ ok: true, quota, recommended_evolution_ratio: ratio });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Domain coverage map
+app.get("/api/learning/domains", (_req, res) => {
+  try {
+    const coverage = getDomainCoverage(STATE);
+    res.json({ ok: true, coverage });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Substrate stats (classification breakdown)
+app.get("/api/learning/substrate", (_req, res) => {
+  try {
+    const stats = computeSubstrateStats(STATE.dtus, STATE.shadowDtus);
+    res.json({ ok: true, ...stats });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Probation audit (on-demand)
+app.get("/api/learning/probation", (_req, res) => {
+  try {
+    const result = runProbationAudit(STATE);
+    res.json({ ok: true, probation: result });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 

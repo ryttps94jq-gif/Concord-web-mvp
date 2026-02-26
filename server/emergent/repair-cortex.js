@@ -339,6 +339,7 @@ function logRepairDTU(phase, action, details) {
       tier: "local",
       scope: "local",
       tags: ["repair_cortex", phase, action],
+      classification: "repair",
       createdAt: now,
       updatedAt: now,
     };
