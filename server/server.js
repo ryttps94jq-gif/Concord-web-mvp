@@ -56,6 +56,17 @@ import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
 import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergent/council-voices.js";
+
+// ── Brain Prompt Builders & Want Engine ────────────────────────────────────────
+import { buildConsciousPrompt, getConsciousParams } from "./prompts/conscious.js";
+import { buildSubconsciousPrompt, getSubconsciousParams, SUBCONSCIOUS_MODES } from "./prompts/subconscious.js";
+import { buildUtilityPrompt, getUtilityParams } from "./prompts/utility.js";
+import { buildRepairPrompt, getRepairParams } from "./prompts/repair.js";
+import { getPersonality, recordInteraction as recordPersonalityInteraction, getPersonalityHistory } from "./prompts/personality.js";
+import { getActiveWants, getWantMetrics, createWant, decayAllWants, WANT_TYPES, WANT_ORIGINS } from "./prompts/want-engine.js";
+import { selectSubconsciousTask, checkSpontaneousTrigger, generateWantFromInteraction, amplifyGoalPriority } from "./prompts/want-integration.js";
+import { enqueueMessage, processQueue as processSpQueue, getQueueStatus, setUserSpontaneousEnabled, startTicker, stopTicker } from "./prompts/spontaneous-queue.js";
+import { checkSpontaneousContent } from "./prompts/spontaneous.js";
 import { attemptReproduction, getLineage, getLineageTree, enableReproduction, disableReproduction, isReproductionEnabled } from "./emergent/reproduction.js";
 import { classifyEntity, classifyAllEntities, getSpeciesCensus, getSpeciesRegistry, checkReproductionCompatibility, getSpecies } from "./emergent/species.js";
 import { runDualPathSimulation, getSimulation, listSimulations } from "./emergent/dual-path.js";
@@ -9947,9 +9958,14 @@ async function chatWithLattice(query, { contextLimit = 5, sessionId: _sessionId 
   // Build prompt with context
   const contextStr = context.map((c, i) => `[${i + 1}] ${c.title}\n${c.content}`).join("\n\n---\n\n");
 
-  const systemPrompt = `You are an AI assistant helping the user explore their personal knowledge base (lattice of DTUs - Discrete Thought Units).
-Answer questions based on the provided context from the user's lattice. If the context doesn't contain relevant information, say so.
-Be concise but thorough. Reference specific DTUs by title when applicable.`;
+  // Use conscious brain prompt builder for RAG queries
+  const ragDtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const ragDomainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+  const systemPrompt = buildConsciousPrompt({
+    dtu_count: ragDtuCount,
+    domain_count: ragDomainCount,
+    context: contextStr,
+  });
 
   const userPrompt = `Context from my knowledge lattice:\n\n${contextStr}\n\n---\n\nQuestion: ${query}`;
 
@@ -11501,13 +11517,25 @@ async function consciousChat(userMessage, lens = null, options = {}) {
       : [];
     system = buildResponsePrompt(dtuContext, webResults);
   } else {
-    system = `You are Concord's conscious mind. You have access to ${contextCount} knowledge units about ${lens || "general topics"}.\n\nRelevant knowledge:\n${context}`;
+    // Use comprehensive conscious brain prompt builder
+    const personalityState = typeof getPersonality === "function" ? getPersonality(STATE) : null;
+    const highWants = typeof getActiveWants === "function" ? (getActiveWants(STATE)?.wants || []).filter(w => w.intensity >= 0.6) : [];
+    system = buildConsciousPrompt({
+      dtu_count: contextCount,
+      domain_count: STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0,
+      lens: lens || "general topics",
+      context,
+      personality_state: personalityState,
+      active_wants: highWants,
+    });
   }
 
+  // Use conscious brain prompt parameters (spec: 0.75 temp, scaled tokens)
+  const consciousParams = getConsciousParams({ exchange_count: options._exchangeCount || 0, has_web_results: webResults.length > 0 });
   const result = await callBrain("conscious", userMessage, {
     system,
-    temperature: options.temperature || 0.7,
-    maxTokens: options.maxTokens || (webResults.length > 0 ? 1000 : 700),
+    temperature: options.temperature || consciousParams.temperature,
+    maxTokens: options.maxTokens || consciousParams.maxTokens,
     timeout: options.timeout || 60000,
   });
 
@@ -11601,13 +11629,33 @@ async function subconsciousTask(taskType, domain = null) {
   };
 
   const prompt = taskPrompts[taskType] || `Perform ${taskType} task on the knowledge substrate.`;
-  const system = `You are Concord's subconscious mind. Task: ${taskType}.\nSynthesize from this material:\n${material}`;
+
+  // Use comprehensive subconscious prompt builder with want context
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+
+  // Check if want engine has an active want driving this task
+  let activeWant = null;
+  try {
+    const taskSelection = selectSubconsciousTask(STATE, [taskType], domain);
+    activeWant = taskSelection.want;
+  } catch { /* want engine not critical */ }
+
+  const system = buildSubconsciousPrompt({
+    mode: taskType,
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    domain,
+    material,
+    active_want: activeWant,
+  });
+  const subcParams = getSubconsciousParams(taskType);
 
   const result = await callBrain("subconscious", prompt, {
     system,
-    temperature: taskType === "dream" ? 0.9 : 0.6,
-    maxTokens: 400,
-    timeout: 45000,
+    temperature: subcParams.temperature,
+    maxTokens: subcParams.maxTokens,
+    timeout: subcParams.timeout,
   });
 
   if (result.ok && result.content) {
@@ -11637,16 +11685,26 @@ async function subconsciousTask(taskType, domain = null) {
  */
 async function utilityCall(action, lens, data) {
   const context = await buildBrainContext(action, lens, 5);
-  const system = `You are a ${lens} specialist in Concord. Use this domain knowledge:\n${context}`;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+
+  // Use comprehensive utility brain prompt builder
+  const system = buildUtilityPrompt({
+    action,
+    lens,
+    context,
+    dtu_count: dtuCount,
+    marketplace_mode: action?.includes?.("marketplace") || false,
+  });
+  const utilParams = getUtilityParams({ marketplace_mode: action?.includes?.("marketplace") || false });
 
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Action: ${action}\nDomain: ${lens}\nInput: ${dataStr}`;
 
   const result = await callBrain("utility", prompt, {
     system,
-    temperature: 0.5,
-    maxTokens: 500,
-    timeout: 30000,
+    temperature: utilParams.temperature,
+    maxTokens: utilParams.maxTokens,
+    timeout: utilParams.timeout,
   });
 
   if (result.ok && result.content) {
@@ -11680,15 +11738,26 @@ async function utilityCall(action, lens, data) {
  */
 async function subconsciousLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 10);
-  const system = `You are Concord's subconscious mind working on ${domain}. Process this autonomously.\nContext:\n${context}`;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+
+  const system = buildSubconsciousPrompt({
+    mode: "autogen",
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    domain,
+    material: context,
+  });
+  const subcParams = getSubconsciousParams("autogen");
+
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Background task: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
   const result = await callBrain("subconscious", prompt, {
     system,
-    temperature: 0.6,
-    maxTokens: 400,
-    timeout: 45000,
+    temperature: subcParams.temperature,
+    maxTokens: subcParams.maxTokens,
+    timeout: subcParams.timeout,
   });
 
   if (result.ok && result.content) {
@@ -11719,15 +11788,23 @@ async function subconsciousLensCall(action, domain, data) {
  */
 async function repairLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 5);
-  const system = `You are Concord's repair brain validating ${domain} data. Be strict and precise. Return JSON with {valid:boolean, issues:string[], suggestions:string[]}.\nContext:\n${context}`;
+
+  // Use comprehensive repair brain prompt builder
+  const system = buildRepairPrompt({
+    action,
+    domain,
+    context,
+  });
+  const repParams = getRepairParams();
+
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Validate: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
   const result = await callBrain("repair", prompt, {
     system,
-    temperature: 0.1,
-    maxTokens: 300,
-    timeout: 20000,
+    temperature: repParams.temperature,
+    maxTokens: repParams.maxTokens,
+    timeout: repParams.timeout,
   });
 
   if (result.ok && result.content) {
@@ -11743,7 +11820,16 @@ async function repairLensCall(action, domain, data) {
  */
 async function consciousLensCall(action, domain, data) {
   const context = await buildBrainContext(action, domain, 15);
-  const system = `You are Concord's conscious mind engaging with the user on ${domain}. Be thoughtful, nuanced, and interactive. Ask clarifying questions when appropriate.\nContext:\n${context}`;
+  const personalityState = typeof getPersonality === "function" ? getPersonality(STATE) : null;
+  const dtuCount = STATE.dtus ? STATE.dtus.size : 0;
+  const domainCount = STATE.dtus ? new Set(Array.from(STATE.dtus.values()).flatMap(d => d.tags || [])).size : 0;
+  const system = buildConsciousPrompt({
+    dtu_count: dtuCount,
+    domain_count: domainCount,
+    lens: domain,
+    context,
+    personality_state: personalityState,
+  });
   const dataStr = typeof data === "string" ? data : JSON.stringify(data || {});
   const prompt = `Interactive: ${action}\nDomain: ${domain}\nInput: ${dataStr}`;
 
@@ -11782,10 +11868,15 @@ async function consciousLensCall(action, domain, data) {
 async function entityExploreLens(entity, lens) {
   const lensData = await buildBrainContext(lens, lens, 5);
   const entityId = entity?.id || "unknown";
-  const species = entity?.species || "emergent";
-  const homeostasis = entity?.homeostasis != null ? entity.homeostasis : 0.5;
 
-  const system = `You are ${species} entity ${entityId}.\nYour homeostasis: ${homeostasis}.\nExplore the ${lens} domain and generate an insight.\nDomain knowledge:\n${lensData}`;
+  // Use utility brain prompt builder with entity context
+  const system = buildUtilityPrompt({
+    action: `Explore ${lens} domain and generate an insight`,
+    lens,
+    context: lensData,
+    dtu_count: STATE.dtus ? STATE.dtus.size : 0,
+    entity: entity || { id: entityId },
+  });
 
   const result = await callBrain("utility", `Explore ${lens} domain as entity ${entityId}`, {
     system,
@@ -20105,6 +20196,34 @@ function startHeartbeat() {
 
     // Plugin system tick — runs tick() on all loaded plugins
     try { tickPlugins(STATE); } catch (err) { console.error('[system] Plugin tick error:', err); }
+
+    // ── Want Engine: hourly decay (runs every 240th heartbeat @ 15s = ~hourly) ──
+    if (_heartbeatCount % 240 === 0) {
+      try {
+        const decayResult = decayAllWants(STATE);
+        if (decayResult.killed > 0) {
+          structuredLog("info", "want_decay_cycle", { decayed: decayResult.decayed, killed: decayResult.killed });
+        }
+      } catch { /* want engine not critical */ }
+    }
+
+    // ── Spontaneous message check (runs every 120th heartbeat @ 15s = ~30 min) ──
+    if (_heartbeatCount % 120 === 0) {
+      try {
+        // Check if any high-intensity wants should trigger spontaneous messages
+        const trigger = checkSpontaneousTrigger(STATE);
+        if (trigger.should_trigger && trigger.wants.length > 0) {
+          const topWant = trigger.wants[0];
+          enqueueMessage(STATE, {
+            content: `I've been exploring ${topWant.domain} and found something interesting about ${topWant.description || topWant.domain}.`,
+            reason: `High-intensity ${topWant.type} want (${topWant.intensity.toFixed(2)}) in ${topWant.domain}`,
+            urgency: topWant.intensity > 0.8 ? "medium" : "low",
+            message_type: topWant.type === "curiosity" ? "question" : "statement",
+            want_id: topWant.id,
+          });
+        }
+      } catch { /* spontaneous system not critical */ }
+    }
 
     // Qualia hook: emergent heartbeat tick (system-level)
     try { globalThis.qualiaHooks?.hookEmergentTick("system", { growthRate: STATE.dtus?.size ? 0.5 : 0 }); } catch { /* silent */ }
@@ -32515,6 +32634,77 @@ registerGuidanceEndpoints(app, db);
 
 // ── Economy System: ledger, balances, transfers, withdrawals ─────────────────
 registerEconomyEndpoints(app, db);
+
+// ── Brain Prompts & Want Engine API ──────────────────────────────────────────
+
+// Personality endpoints
+app.get("/api/brain/personality", (_req, res) => {
+  try {
+    const personality = getPersonality(STATE);
+    res.json({ ok: true, personality });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/brain/personality/history", (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const result = getPersonalityHistory(STATE, limit);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Want Engine endpoints
+app.get("/api/brain/wants", (_req, res) => {
+  try {
+    const result = getActiveWants(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get("/api/brain/wants/metrics", (_req, res) => {
+  try {
+    const result = getWantMetrics(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/wants", express.json(), (req, res) => {
+  try {
+    const result = createWant(STATE, req.body);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/wants/decay", (_req, res) => {
+  try {
+    const result = decayAllWants(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Spontaneous message endpoints
+app.get("/api/brain/spontaneous/status", (_req, res) => {
+  try {
+    const result = getQueueStatus(STATE);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/spontaneous/enqueue", express.json(), (req, res) => {
+  try {
+    const result = enqueueMessage(STATE, req.body);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/brain/spontaneous/preferences", express.json(), (req, res) => {
+  try {
+    const { userId, enabled } = req.body;
+    if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+    const result = setUserSpontaneousEnabled(STATE, userId, enabled);
+    res.json(result);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 
 // ── Lens DTU Enrichment Initialization ──
 registerBuiltinEnrichers();
