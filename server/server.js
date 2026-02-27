@@ -67,6 +67,7 @@ import createQualiaRouter from "./routes/qualia.js";
 import createSovereignRouter from "./routes/sovereign.js";
 import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
+import { rateLimitMiddleware as perEndpointRateLimit } from "./rateLimit.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
 import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergent/council-voices.js";
 
@@ -4397,6 +4398,11 @@ if (z) {
   schemas.apiKeyCreate = z.object({
     name: z.string().min(1).max(100),
     scopes: z.array(z.string()).optional().default(["read"])
+  });
+
+  schemas.changePassword = z.object({
+    currentPassword: z.string().min(1).max(200),
+    newPassword: z.string().min(12).max(200),
   });
 
   schemas.pagination = z.object({
@@ -9023,13 +9029,13 @@ function demoteToArchive(dtuId, consolidatedIntoId) {
   dtu.meta.consolidatedInto = consolidatedIntoId;
   dtu.meta.consolidatedAt = new Date().toISOString();
   // Write to disk archive
-  try { archiveDTUToDisk(dtu); } catch {}
+  try { archiveDTUToDisk(dtu); } catch (e) { log("consolidation.warn", `archiveDTU failed for ${dtuId}: ${e?.message}`); }
   // Remove from hot memory
   STATE.dtus.delete(dtuId);
   // Clean from shadow if present
   if (STATE.shadowDtus?.has(dtuId)) STATE.shadowDtus.delete(dtuId);
   // Remove embedding vector to free memory
-  try { removeEmbedding(dtuId); } catch {}
+  try { removeEmbedding(dtuId); } catch (e) { log("consolidation.warn", `removeEmbedding failed for ${dtuId}: ${e?.message}`); }
 }
 
 // Expose archive functions globally for module access
@@ -9127,11 +9133,11 @@ async function creditConsolidationIncome(sourceDtuId) {
   if (!creatorEntity) return;
   const entityEconMod = await import("./emergent/entity-economy.js").catch(() => null);
   if (entityEconMod?.earnResource) {
-    try { entityEconMod.earnResource(creatorEntity, "INSIGHT", ENTITY_ECONOMY.INCOME_CONSOLIDATION, "consolidation"); } catch {}
+    try { entityEconMod.earnResource(creatorEntity, "INSIGHT", ENTITY_ECONOMY.INCOME_CONSOLIDATION, "consolidation"); } catch (e) { log("entity.warn", `earnResource: ${e?.message}`); }
   }
   const growthMod = await import("./emergent/entity-growth.js").catch(() => null);
   if (growthMod?.processExperience) {
-    try { growthMod.processExperience({ id: creatorEntity }, { type: "consolidation", topic: "mega_hyper_builder", quality: 0.5 }); } catch {}
+    try { growthMod.processExperience({ id: creatorEntity }, { type: "consolidation", topic: "mega_hyper_builder", quality: 0.5 }); } catch (e) { log("entity.warn", `processExperience: ${e?.message}`); }
   }
 }
 
@@ -14377,7 +14383,7 @@ async function maybeRunLocalUpgrade() {
   // Upgrade = deterministic retune + enforce budgets + auto-promotion + conservation check.
   enforceTierBudgets();
   const _upCtx = makeInternalCtx("system");
-  try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
+  try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch (e) { log("upgrade.error", `autoPromotion: ${e?.message}`); }
   const bp = applyConservationBackpressure();
   // Opportunistic self-repair: schedule maintenance if needed
   if (STATE.queues.maintenance.length < 25) {
@@ -14796,7 +14802,7 @@ register("dtu", "delete", (ctx, input) => {
   }
 
   // Fire plugin before-delete hooks
-  try { fireHook(STATE, "dtu:beforeDelete", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, "dtu:beforeDelete", dtu); } catch (e) { log("hook.warn", `dtu:beforeDelete: ${e?.message}`); }
 
   // Delete the DTU
   STATE.dtus.delete(id);
@@ -14805,12 +14811,12 @@ register("dtu", "delete", (ctx, input) => {
   saveStateDebounced();
 
   // Fire plugin after-delete hooks
-  try { fireHook(STATE, "dtu:afterDelete", { id, title: dtu.title }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "dtu:afterDelete", { id, title: dtu.title }); } catch (e) { log("hook.warn", `dtu:afterDelete: ${e?.message}`); }
 
   // Broadcast deletion via WebSocket
   try {
     realtimeEmit("dtu:deleted", { id, title: dtu.title });
-  } catch { /* best-effort */ }
+  } catch (e) { log("ws.warn", `dtu:deleted broadcast: ${e?.message}`); }
 
   // Optionally notify federation
   if (_c3Federation.enabled) {
@@ -20471,7 +20477,7 @@ registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _wit
 registerChatRoutes(app, {
   STATE, makeCtx, runMacro, enforceRequestInvariants, enforceEthosInvariant,
   uid, kernelTick, uiJson, _withAck, _extractReply, clamp, nowISO,
-  saveStateDebounced, ETHOS_INVARIANTS, validate
+  saveStateDebounced, ETHOS_INVARIANTS, validate, perEndpointRateLimit,
 });
 
 // ---- Domain Routes (extracted to routes/domain.js) ----
@@ -21366,7 +21372,7 @@ async function latticeAutonomousTick() {
     // Keep organism alive (organs/growth/homeostasis). KernelTick already exists.
     // Cron is reserved for CHICKEN3 meta-support (emergents). DTU growth runs on the Governor heartbeat.
     // (Opt-in) If you ever want cron to also tick the kernel: set STATE.__chicken3.cronCallsKernelTick=true.
-    if (STATE.__chicken3?.cronCallsKernelTick) { try { kernelTick({ type: "AUTONOMOUS_TICK", meta: { source: "cron" } }); } catch {} }
+    if (STATE.__chicken3?.cronCallsKernelTick) { try { kernelTick({ type: "AUTONOMOUS_TICK", meta: { source: "cron" } }); } catch (e) { log("cron.error", `kernelTick: ${e?.message}`); } }
 
     if (!STATE.__chicken3?.metaEnabled) { saveStateDebounced(); return; }
 
@@ -35708,17 +35714,64 @@ app.get("/api/atlas/rights/metrics", (req, res) => {
 
 // ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery, Heartbeats) ----
 setInterval(() => {
-  try { takeAnalyticsSnapshot(STATE); } catch {}
-  try { takeEfficiencySnapshot(STATE); } catch {}
-  try { processPendingDeliveries(STATE); } catch {}
+  try { takeAnalyticsSnapshot(STATE); } catch (e) { log("heartbeat.error", `analyticsSnapshot: ${e?.message}`); }
+  try { takeEfficiencySnapshot(STATE); } catch (e) { log("heartbeat.error", `efficiencySnapshot: ${e?.message}`); }
+  try { processPendingDeliveries(STATE); } catch (e) { log("heartbeat.error", `pendingDeliveries: ${e?.message}`); }
 }, 300000); // Every 5 minutes
 
 // Global + Marketplace heartbeats on separate cadence (every 10 minutes)
 setInterval(() => {
-  try { tickGlobal(STATE); } catch {}
-  try { tickMarketplace(STATE); } catch {}
-  try { newCapabilitiesHeartbeat(); } catch {}
+  try { tickGlobal(STATE); } catch (e) { log("heartbeat.error", `tickGlobal: ${e?.message}`); }
+  try { tickMarketplace(STATE); } catch (e) { log("heartbeat.error", `tickMarketplace: ${e?.message}`); }
+  try { newCapabilitiesHeartbeat(); } catch (e) { log("heartbeat.error", `newCapabilities: ${e?.message}`); }
 }, 600000);
+
+// ---- Map Cleanup Sweep (runs hourly — evicts stale entries from unbounded Maps) ----
+setInterval(() => {
+  const now = Date.now();
+  const nowIso = new Date().toISOString();
+  const stale24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const stale7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let cleaned = 0;
+
+  // Weather cache: evict entries older than 1 hour
+  for (const [key, entry] of _WEATHER_CACHE) {
+    if (now - entry.ts > 3600000) { _WEATHER_CACHE.delete(key); cleaned++; }
+  }
+
+  // Council submit tracker: evict expired rate-limit windows
+  for (const [userId, tracker] of _councilSubmitTracker) {
+    if (now > tracker.resetAt + 3600000) { _councilSubmitTracker.delete(userId); cleaned++; }
+  }
+
+  // Prediction state: evict entries not analyzed in 7 days
+  if (typeof PREDICTION_STATE !== "undefined") {
+    for (const [userId, ps] of PREDICTION_STATE) {
+      if (ps.lastAnalyzed && ps.lastAnalyzed < stale7d) { PREDICTION_STATE.delete(userId); cleaned++; }
+    }
+  }
+
+  // Collab sessions: evict ended sessions older than 24h
+  if (typeof COLLAB_SESSIONS !== "undefined") {
+    for (const [id, sess] of COLLAB_SESSIONS) {
+      if (sess.status === "ended" || (sess.createdAt && sess.createdAt < stale7d)) { COLLAB_SESSIONS.delete(id); cleaned++; }
+    }
+  }
+
+  // Shared sessions: evict ended sessions older than 24h
+  if (typeof SHARED_SESSIONS !== "undefined") {
+    for (const [id, sess] of SHARED_SESSIONS) {
+      if (sess.status === "ended" && sess.endedAt && sess.endedAt < stale24h) { SHARED_SESSIONS.delete(id); cleaned++; }
+    }
+  }
+
+  // Macro rate limits: evict stale entries
+  for (const [key, entry] of _macroRateLimits) {
+    if (entry.resetAt && now > entry.resetAt + 3600000) { _macroRateLimits.delete(key); cleaned++; }
+  }
+
+  if (cleaned > 0) log("cleanup", `Map sweep: evicted ${cleaned} stale entries`);
+}, 3600000); // every hour
 
 structuredLog("info", "module_loaded", { detail: "Atlas Global + Platform v2: All endpoints registered" });
 structuredLog("info", "module_loaded", { detail: "New modules: Atlas Epistemic Engine, Autogen v2, Council Protocol, Social Layer, Collaboration, RBAC, Analytics, Webhook" });

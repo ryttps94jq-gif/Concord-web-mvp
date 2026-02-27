@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Auth middleware — enforces authentication at the routing layer.
- *
- * Checks for the presence of the session cookie (set by the backend on login).
- * If missing on a protected route, redirects to /login.
- * Public routes (login, register, landing, API, static assets) are allowed through.
+ * Auth + CSP middleware — enforces authentication and sets Content-Security-Policy
+ * with a per-request nonce for script integrity.
  */
 
 const PUBLIC_PATHS = new Set([
@@ -25,27 +22,58 @@ const PUBLIC_PREFIXES = [
   '/favicon.ico',
 ];
 
+function generateNonce(): string {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array));
+}
+
+function buildCspHeader(nonce: string): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050';
+  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'ws://localhost:5050';
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    `connect-src 'self' ${apiUrl} ${socketUrl} ws: wss:`,
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+}
+
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
+  response.headers.set('Content-Security-Policy', buildCspHeader(nonce));
+  response.headers.set('x-nonce', nonce);
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nonce = generateNonce();
 
   // Allow public paths through
   if (PUBLIC_PATHS.has(pathname)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next(), nonce);
   }
 
   // Allow public prefixes through
   if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next(), nonce);
   }
 
   // Check for session cookie (httpOnly cookie set by backend on login)
-  // The backend sets 'concord_auth' (httpOnly JWT) and optionally 'concord_refresh'
   const hasSession =
-    request.cookies.has('concord_auth') ||          // JWT auth cookie (primary — set by backend on login)
-    request.cookies.has('concord_refresh') ||        // Refresh token cookie
-    request.cookies.has('concord_session') ||        // Legacy fallback
-    request.cookies.has('token') ||                  // Legacy fallback
-    request.cookies.has('connect.sid');              // Express session fallback
+    request.cookies.has('concord_auth') ||
+    request.cookies.has('concord_refresh') ||
+    request.cookies.has('concord_session') ||
+    request.cookies.has('token') ||
+    request.cookies.has('connect.sid');
 
   if (!hasSession) {
     const loginUrl = new URL('/login', request.url);
@@ -53,7 +81,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return applySecurityHeaders(NextResponse.next(), nonce);
 }
 
 export const config = {

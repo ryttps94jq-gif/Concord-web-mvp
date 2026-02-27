@@ -104,11 +104,27 @@ export default function configureMiddleware(app, deps) {
   // ---- Compression ----
   if (compression) app.use(compression());
 
-  // ---- Body Parsing ----
-  app.use(express.json({ limit: "10mb", verify: (req, _res, buf) => {
-    // Preserve raw body for Stripe webhook signature verification
-    if (req.url === '/api/economic/webhook') req.rawBody = buf;
-  } }));
+  // ---- Body Parsing (per-endpoint size limits) ----
+  // Strict limits for chatty endpoints; generous for bulk operations
+  const BODY_LIMITS = {
+    '/api/chat': '256kb',
+    '/api/ask': '256kb',
+    '/api/chat/stream': '256kb',
+    '/api/chat/feedback': '16kb',
+    '/api/auth/register': '16kb',
+    '/api/auth/login': '16kb',
+    '/api/auth/change-password': '4kb',
+    '/api/shared-session': '64kb',
+  };
+
+  app.use((req, res, next) => {
+    // Find most specific matching route prefix
+    const matchedLimit = Object.entries(BODY_LIMITS).find(([prefix]) => req.url.startsWith(prefix));
+    const limit = matchedLimit ? matchedLimit[1] : '10mb';
+    express.json({ limit, verify: (innerReq, _res, buf) => {
+      if (innerReq.url === '/api/economic/webhook') innerReq.rawBody = buf;
+    } })(req, res, next);
+  });
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
   // ---- Idempotency ----

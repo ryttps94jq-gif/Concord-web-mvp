@@ -17,11 +17,15 @@ export default function registerChatRoutes(app, {
   nowISO,
   saveStateDebounced,
   ETHOS_INVARIANTS,
-  validate
+  validate,
+  perEndpointRateLimit,
 }) {
 
+  // Per-endpoint rate limit: 30 req/min per user for chat (conscious.chat category)
+  const chatRateLimit = perEndpointRateLimit ? perEndpointRateLimit("conscious.chat") : ((_req, _res, next) => next());
+
   // Chat + Ask
-  app.post("/api/chat", validate("chat"), async (req, res) => {
+  app.post("/api/chat", chatRateLimit, validate("chat"), async (req, res) => {
     const errorId = uid("err");
     try {
       req.body = enforceRequestInvariants(req, req.body || {});

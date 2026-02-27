@@ -469,10 +469,10 @@ export default function createAuthRouter({
   });
 
   // Password change endpoint
-  router.post("/change-password", (req, res) => {
+  router.post("/change-password", validate("changePassword"), (req, res) => {
     if (!req.user) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword } = req.validated || req.body;
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ ok: false, error: "Both current and new password required" });

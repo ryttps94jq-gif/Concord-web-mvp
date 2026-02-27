@@ -1,5 +1,9 @@
 # Backend Dockerfile (glibc-based for onnxruntime compatibility)
-# Pin to Node 20 LTS for reproducibility
+# Pin to Node 20.x LTS for reproducibility.
+# To fully pin with SHA256 digest (recommended for production):
+#   docker pull node:20-bookworm-slim
+#   docker inspect --format='{{index .RepoDigests 0}}' node:20-bookworm-slim
+# Then replace the FROM line with: FROM node:20-bookworm-slim@sha256:<digest> AS base
 FROM node:20-bookworm-slim AS base
 
 # Install build tools for native modules (better-sqlite3) and runtime deps
