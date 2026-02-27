@@ -3721,6 +3721,14 @@ async function runRepairCycle() {
       }
     }
 
+    // 2b. Quality spot-check: review Tier 2 artifacts pending approval
+    try {
+      const spotCheckResult = await repairBrainSpotCheck();
+      if (spotCheckResult.checked > 0) {
+        repairs.push({ key: "quality_spot_check", method: "proactive", executor: "spot_check", result: spotCheckResult });
+      }
+    } catch { /* spot-check is best-effort */ }
+
     // 3. Log cycle results
     if (repairs.length > 0) {
       logRepairDTU(REPAIR_PHASES.POST_BUILD, "repair_cycle_complete", {
@@ -3743,6 +3751,68 @@ async function runRepairCycle() {
   }
 
   return { repairs, cycleMs: Date.now() - cycleStart };
+}
+
+// ── Quality Spot-Check (Tier 2 artifacts) ───────────────────────────────────
+
+/**
+ * Runs on repair brain tick cycle. Pulls Tier 2 artifacts and does a
+ * quick quality assessment. Promotes to marketplace or demotes to draft.
+ *
+ * This is the ONLY LLM call in the quality pipeline.
+ * Only processes up to 3 per tick to stay within repair brain budget.
+ */
+let _spotCheckCallBrain = null;
+let _spotCheckState = null;
+
+export function initSpotCheck(callBrainFn, stateFn) {
+  _spotCheckCallBrain = callBrainFn;
+  _spotCheckState = stateFn;
+}
+
+async function repairBrainSpotCheck() {
+  if (!_spotCheckCallBrain || !_spotCheckState) return { checked: 0 };
+  const STATE = typeof _spotCheckState === "function" ? _spotCheckState() : _spotCheckState;
+  if (!STATE?.lensArtifacts) return { checked: 0 };
+
+  const pending = Array.from(STATE.lensArtifacts.values())
+    .filter((a) => a.meta?.status === "pending_spot_check")
+    .slice(0, 3);
+
+  let checked = 0;
+  let approved = 0;
+
+  for (const artifact of pending) {
+    try {
+      const result = await _spotCheckCallBrain("repair",
+        `Review this ${artifact.domain} ${artifact.type} artifact for quality.
+Does it contain real, domain-appropriate content (not filler or meta-content)?
+Are the values realistic and useful?
+Reply with ONLY: APPROVE or REJECT followed by one sentence explaining why.
+
+Artifact title: ${artifact.title}
+Artifact data (first 500 chars): ${JSON.stringify(artifact.data).slice(0, 500)}`,
+        { temperature: 0.1, maxTokens: 100, timeout: 10000 }
+      );
+
+      checked++;
+
+      if (result.ok && result.content) {
+        const response = result.content.trim().toUpperCase();
+        if (response.startsWith("APPROVE")) {
+          artifact.meta.status = "marketplace_ready";
+          artifact.meta.approvedAt = nowISO();
+          artifact.meta.approvedBy = "repair_brain";
+          approved++;
+        } else {
+          artifact.meta.status = "draft_needs_review";
+          artifact.meta.reviewNote = result.content;
+        }
+      }
+    } catch { /* spot-check failures are non-fatal */ }
+  }
+
+  return { checked, approved, pending: pending.length };
 }
 
 // ── Loop Management ─────────────────────────────────────────────────────────
