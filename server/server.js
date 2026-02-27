@@ -21255,6 +21255,8 @@ app.use("/api/creative-marketplace", createCreativeMarketplaceRouter({ db }));
 // ===== LENS & CULTURE SYSTEM =====
 import createLensCultureRouter from "./routes/lens-culture.js";
 app.use("/api/lens-culture", createLensCultureRouter({ db }));
+import createDTUFormatRouter from "./routes/dtu-format.js";
+app.use("/api/dtu-format", createDTUFormatRouter({ db }));
 
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));

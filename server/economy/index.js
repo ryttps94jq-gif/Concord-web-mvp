@@ -73,3 +73,16 @@ export {
   initGreatMerge, getGreatMergeStatus, advanceMergePhase,
   registerLens, getLens, listLenses, registerSystemLenses,
 } from "./lens-culture.js";
+
+// DTU File Format System (Universal Container v1.0)
+export {
+  determinePrimaryType, calculateLayersBitfield,
+  buildHeader, parseHeader,
+  encodeDTU, decodeDTU, verifyDTU,
+  registerDTUExport, lookupDTUByHash, getDTUExports,
+  reimportDTU, getReimports,
+  DTU_FILE_FORMAT, DTU_BINARY_LAYOUT, DTU_OS_ACTIONS,
+  DTU_VIEWER, DTU_CODEC, DTU_SMART_OPEN, DTU_SHARING,
+  DTU_PLATFORM_REGISTRATION, DTU_IANA_REGISTRATION,
+  DTU_FORMAT_CONSTANTS,
+} from "./dtu-format.js";
