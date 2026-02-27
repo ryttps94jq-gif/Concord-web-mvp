@@ -14,12 +14,12 @@ import { detectLineageCycle, findNearDuplicates, checkContentHashDedup } from ".
 // ── Autogen Configuration ────────────────────────────────────────────────
 
 const AUTOGEN_V2_CONFIG = {
-  // Depth and branch caps
-  MAX_GENERATION_DEPTH: 25,
-  MAX_CHILDREN_PER_PARENT: 5,
-  MAX_NEW_DTUS_PER_RUN: 10,
-  MAX_NEW_DTUS_PER_DAY: 100,
-  MAX_RUN_DURATION_MS: 60000,
+  // Depth and branch caps — GPU: deeper exploration, more branching
+  MAX_GENERATION_DEPTH: 50,
+  MAX_CHILDREN_PER_PARENT: 8,
+  MAX_NEW_DTUS_PER_RUN: 25,
+  MAX_NEW_DTUS_PER_DAY: 1000,
+  MAX_RUN_DURATION_MS: 120000,
 
   // Quality floors
   MIN_INPUT_CONFIDENCE: 0.3,

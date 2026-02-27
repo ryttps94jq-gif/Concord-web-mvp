@@ -43,6 +43,8 @@ import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-route
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
+import { renderAndAttach } from "./lib/render-engine.js";
+import { registerAllRenderers } from "./lib/render-registry.js";
 
 // ---- Route modules (ESM) ----
 import registerSystemRoutes from "./routes/system.js";
@@ -930,7 +932,7 @@ if (!JWT_SECRET) {
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
-const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 100);
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 300);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL_FAST = process.env.OPENAI_MODEL_FAST || process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -1372,11 +1374,11 @@ function applyStyleToSettings(baseSettings, styleVec) {
   // Two-tier DTU reasoning set (does not affect reply length)
   // Tier A (focus): 500 DTUs used to drive reasoning
   // Tier B (peripheral): 5000 DTUs used for broad adjacency/contradiction scans
-  s.focusSetMax = 500;
-  s.peripheralSetMax = 5000;
+  s.focusSetMax = 1000;
+  s.peripheralSetMax = 10000;
   // Back-compat: some code still reads workingSetMax/microSetMax
   s.workingSetMax = s.focusSetMax;
-  s.microSetMax = clamp(Number(s.microSetMax ?? 50), 10, s.focusSetMax);
+  s.microSetMax = clamp(Number(s.microSetMax ?? 80), 10, s.focusSetMax);
   // crispnessMin: skepticism 0..1 -> 0.72..0.9
   const cm = 0.72 + styleVec.skepticism * 0.18;
   s.crispnessMin = clamp(cm, 0.6, 0.95);
@@ -2255,7 +2257,7 @@ function _resolveContradiction(dtuA, dtuB, atomA, atomB) {
 // Allocate token budget per DTU based on resonance score.
 
 function patternResonanceWeightedPrompt(microSet, queryIntent, tokenBudget) {
-  const _budget = tokenBudget || 2000;
+  const _budget = tokenBudget || 4000;
   if (!microSet || !microSet.length) return [];
 
   // Calculate resonance for each DTU in context
@@ -3099,10 +3101,10 @@ const STATE = {
     // Abstraction Ladder (ape constraints + ant scale)
     abstractionDepthDefault: 1,   // 0=concrete,1=generalize,2=hypotheses-labeled,3=meta
     abstractionMaxDepth: 3,
-    workingSetMax: 500,           // (legacy) focus DTUs used for reasoning
-    focusSetMax: 500,             // Tier A: focus set used to drive reasoning
-    peripheralSetMax: 5000,       // Tier B: peripheral context set for adjacency/contradiction checks
-    microSetMax: 50,              // preferred DTUs used for local reasoning (subset of focus)
+    workingSetMax: 1000,          // (legacy) focus DTUs used for reasoning
+    focusSetMax: 1000,            // Tier A: focus set — GPU has more RAM for richer context
+    peripheralSetMax: 10000,      // Tier B: peripheral context — GPU can scan larger sets
+    microSetMax: 80,              // preferred DTUs for local reasoning (subset of focus)
     crispnessMin: 0.25,           // min crispness to drive reasoning (fallback allowed)
     canonicalOnly: true,          // prefer canonical DTUs; merged/archived are de-prioritized
     includeMegasInBase: true,     // allow megas to assist, but never replace micro evidence
@@ -8703,7 +8705,7 @@ function makeCtx(req=null) {
     },
     llm: {
       enabled: LLM_READY || (BRAIN.conscious && BRAIN.conscious.enabled),
-      async chat({ system, messages, temperature=0.3, maxTokens=800, model=null, timeoutMs=12000, dtuRefs, macroRefs, grcMode }) {
+      async chat({ system, messages, temperature=0.3, maxTokens=1500, model=null, timeoutMs=30000, dtuRefs, macroRefs, grcMode }) {
         // ===== OLLAMA-FIRST ROUTING =====
         // Sovereignty principle: always try local conscious brain first.
         // Only fall back to OpenAI if Ollama is offline or fails.
@@ -11943,8 +11945,8 @@ async function consciousLensCall(action, domain, data) {
   const result = await callBrain("conscious", prompt, {
     system,
     temperature: 0.7,
-    maxTokens: 800,
-    timeout: 120000,
+    maxTokens: 1500,
+    timeout: 60000,
   });
 
   if (result.ok && result.content) {
@@ -14107,7 +14109,7 @@ function dtuText(d){
   const b = (d.title || "") + " " + (Array.isArray(d.tags)?d.tags.join(" "):"");
   return (b + " " + a).slice(0, 4000);
 }
-function retrieveDTUs(query, { topK=6, minScore=0.08, randomK=2, oppositeK=2 } = {}) {
+function retrieveDTUs(query, { topK=10, minScore=0.08, randomK=3, oppositeK=3 } = {}) {
   // Filter out shadow DTUs - they are internal and should not appear in retrieval results
   const all = dtusArray().filter(d => !isShadowDTU(d));
   const raw = String(query || "");
@@ -14164,7 +14166,7 @@ function retrieveDTUs(query, { topK=6, minScore=0.08, randomK=2, oppositeK=2 } =
 }
 
 function pickDebateSet(query){
-  const r = retrieveDTUs(query, { topK: 4, randomK: 2, oppositeK: 2 });
+  const r = retrieveDTUs(query, { topK: 6, randomK: 3, oppositeK: 3 });
   const uniq = new Map();
   for (const d of [...r.top, ...r.random, ...r.opposite]) if (d && d.id) uniq.set(d.id, d);
   return Array.from(uniq.values());
@@ -23962,6 +23964,9 @@ function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
       recordEnrichmentMetric("linksCreated");
     }
 
+    // After enrichment, attempt render (fire-and-forget)
+    renderAndAttach(STATE, dtuId, domain, action, artifact, extra.actionResult);
+
     saveStateDebounced();
     return dtuId;
   } catch { return null; }
@@ -24063,7 +24068,7 @@ register("lens", "run", async (ctx, input={}) => {
   const handler = LENS_ACTIONS.get(`${artifact.domain}.${action}`);
   if (!handler) return { ok: false, error: `no handler for ${artifact.domain}.${action}` };
   const result = await handler(ctx, artifact, params);
-  _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result?.ok });
+  _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result });
   // Run cross-lens pipelines (fire-and-forget)
   const pipelineResults = _runLensPipelines(ctx, artifact.domain, action, artifact, result);
   return { ok: true, result, pipelines: pipelineResults.length > 0 ? pipelineResults : undefined };
@@ -28241,7 +28246,7 @@ register("governor", "configure", (ctx, input) => {
   const { userId, maxDtusPerHour, maxQueriesPerMinute, heartbeatInterval } = input;
   const governor = {
     userId: userId || "default",
-    limits: { maxDtusPerHour: Number(maxDtusPerHour) || 100, maxQueriesPerMinute: Number(maxQueriesPerMinute) || 60, heartbeatInterval: Number(heartbeatInterval) || 15000 },
+    limits: { maxDtusPerHour: Number(maxDtusPerHour) || 500, maxQueriesPerMinute: Number(maxQueriesPerMinute) || 200, heartbeatInterval: Number(heartbeatInterval) || 10000 },
     usage: { dtusThisHour: 0, queriesThisMinute: 0, lastHourReset: Date.now(), lastMinuteReset: Date.now() },
     configuredAt: nowISO()
   };
@@ -32629,7 +32634,7 @@ app.get("/api/dtus/search/semantic", asyncHandler(async (req, res) => {
   const { q, lens, limit } = req.query;
   if (!q) return res.status(400).json({ ok: false, error: "q (query) is required" });
 
-  const topK = Math.min(Number(limit) || 10, 50);
+  const topK = Math.min(Number(limit) || 10, 100);
   const all = dtusArray();
   const results = await semanticSearch(String(q), all, { lens: lens || null, topK });
 
@@ -32927,6 +32932,13 @@ app.get("/api/learning/probation", (_req, res) => {
 
 // ── Lens DTU Enrichment Initialization ──
 registerBuiltinEnrichers();
+
+// ── Render Layer Initialization ──
+registerAllRenderers({
+  exportPDFMarkup: _lensExportPDFMarkup,
+  exportMarkdown: _lensExportMarkdown,
+  exportCSV: _lensExportCSV,
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -37742,9 +37754,9 @@ if (!STATE._rateLimits) STATE._rateLimits = new Map();
 if (!STATE._costAccounting) STATE._costAccounting = new Map();
 
 const RATE_LIMIT_CONFIG = {
-  free: { brainCallsPerHour: 100, maxConcurrent: 2 },
-  pro: { brainCallsPerHour: 500, maxConcurrent: 5 },
-  sovereign: { brainCallsPerHour: Infinity, maxConcurrent: 10 },
+  free: { brainCallsPerHour: 300, maxConcurrent: 4 },
+  pro: { brainCallsPerHour: 1000, maxConcurrent: 8 },
+  sovereign: { brainCallsPerHour: Infinity, maxConcurrent: 16 },
 };
 
 function checkRateLimit(userId, tier) {
@@ -39419,8 +39431,8 @@ function ensureGoalSystem() {
         avgCompletionTime: 0
       },
       config: {
-        maxActiveGoals: 5,              // Prevent overload
-        maxProposalsQueue: 20,          // Queue cap
+        maxActiveGoals: 10,             // GPU: entities can pursue more goals simultaneously
+        maxProposalsQueue: 50,          // GPU: larger queue for autonomous proposals
         evaluationThreshold: 0.6,       // Min score to approve
         autoProposalEnabled: true,      // Allow autonomous goal generation
         founderApprovalRequired: true   // Major goals need human consent
@@ -44055,7 +44067,7 @@ function defineLearningStrategy(input = {}) {
     parameters: {
       learningRate: clamp(Number(input.learningRate || 0.1), 0.01, 1),
       explorationRate: clamp(Number(input.explorationRate || 0.2), 0, 1),
-      batchSize: clamp(Number(input.batchSize || 5), 1, 50),
+      batchSize: clamp(Number(input.batchSize || 10), 1, 50),
       abstractionLevel: clamp(Number(input.abstractionLevel || 1), 0, 3),
       consolidationThreshold: clamp(Number(input.consolidationThreshold || 0.7), 0.1, 1)
     },
@@ -44782,10 +44794,10 @@ function ensureAttentionManager() {
         avgFocusDurationMs: 0
       },
       config: {
-        maxConcurrentThreads: 5,
-        maxQueueSize: 50,
-        maxBackgroundTasks: 20,
-        focusTimeoutMs: 30000,
+        maxConcurrentThreads: 10,
+        maxQueueSize: 100,
+        maxBackgroundTasks: 40,
+        focusTimeoutMs: 20000,
         interruptThreshold: 0.8         // Priority threshold to interrupt current focus
       }
     };

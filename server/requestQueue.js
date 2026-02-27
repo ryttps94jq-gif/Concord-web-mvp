@@ -111,9 +111,9 @@ class BrainQueue {
 }
 
 const queues = {
-  conscious: new BrainQueue('conscious', 1),
-  subconscious: new BrainQueue('subconscious', 1),
-  utility: new BrainQueue('utility', 1),
+  conscious: new BrainQueue('conscious', 2),
+  subconscious: new BrainQueue('subconscious', 3),
+  utility: new BrainQueue('utility', 4),
 };
 
 /**

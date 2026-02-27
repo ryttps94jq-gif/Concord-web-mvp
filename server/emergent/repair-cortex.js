@@ -94,22 +94,22 @@ const MAX_BUILD_RETRIES = 3;
 const GENESIS_OVERLAP_THRESHOLD = 0.95;
 
 const GUARDIAN_INTERVALS = Object.freeze({
-  process_health:        30000,   // 30 seconds
-  database_integrity:    300000,  // 5 minutes
-  state_consistency:     60000,   // 1 minute
-  disk_space:            600000,  // 10 minutes
-  endpoint_health:       60000,   // 1 minute
-  ollama_connectivity:   120000,  // 2 minutes
-  autogen_health:        300000,  // 5 minutes
-  emergent_vitals:       60000,   // 1 minute
-  frontend_health:       60000,   // 1 minute
-  container_health:      120000,  // 2 minutes
-  nginx_health:          60000,   // 1 minute
-  websocket_health:      60000,   // 1 minute
-  event_loop_lag:        15000,   // 15 seconds
-  ssl_certificate:       3600000, // 1 hour
-  database_connection:   120000,  // 2 minutes
-  lockfile_integrity:    600000,  // 10 minutes
+  process_health:        15000,   // GPU: 15 seconds — catch problems earlier
+  database_integrity:    300000,  // 5 minutes — stays same
+  state_consistency:     30000,   // GPU: 30 seconds — faster state checks
+  disk_space:            600000,  // 10 minutes — stays same
+  endpoint_health:       30000,   // GPU: 30 seconds — faster endpoint checks
+  ollama_connectivity:   60000,   // GPU: 1 minute — catch GPU brain issues faster
+  autogen_health:        120000,  // GPU: 2 minutes — monitor autogen throughput
+  emergent_vitals:       30000,   // GPU: 30 seconds — entities are active now
+  frontend_health:       60000,   // 1 minute — stays same
+  container_health:      120000,  // 2 minutes — stays same
+  nginx_health:          60000,   // 1 minute — stays same
+  websocket_health:      60000,   // 1 minute — stays same
+  event_loop_lag:        10000,   // GPU: 10 seconds — tighter lag detection
+  ssl_certificate:       3600000, // 1 hour — stays same
+  database_connection:   120000,  // 2 minutes — stays same
+  lockfile_integrity:    600000,  // 10 minutes — stays same
 });
 
 // ── Repair Memory ───────────────────────────────────────────────────────────
@@ -3263,7 +3263,7 @@ export async function runGuardianCheck(name) {
 // Every fix attempt is tracked. Success rate determines
 // whether a pattern gets reused or deprecated.
 
-const RUNTIME_REPAIR_INTERVAL = 30000; // 30 seconds
+const RUNTIME_REPAIR_INTERVAL = 15000; // GPU: 15 seconds — 1.5B repair brain runs diagnostics faster
 let _repairLoopTimer = null;
 let _repairLoopRunning = false;
 
@@ -4472,7 +4472,7 @@ async function _escalateToSovereign(errorEntry) {
 
 export async function processRepairQueue() {
   if (REPAIR_QUEUE.length === 0) return { processed: 0 };
-  const batch = REPAIR_QUEUE.splice(0, 10);
+  const batch = REPAIR_QUEUE.splice(0, 20);
   let fixed = 0, escalated = 0;
 
   for (const errorEntry of batch) {
