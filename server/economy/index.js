@@ -61,3 +61,15 @@ export {
   getArtifactCascadeEarnings, getCreatorCascadeEarnings,
   pauseArtifact, resumeArtifact, delistArtifact, updateArtifactPrice,
 } from "./creative-marketplace.js";
+
+// Lens & Culture System (Federation v1.3)
+export {
+  postCultureDTU, getCultureDTU, browseCulture,
+  resonateCulture, reflectOnCulture, getReflections,
+  setLensProtection, getLensProtection, checkProtectionAllows,
+  oneTapPurchase, exportArtifact, getExportHistory,
+  recordBiomonitorReading, getLatestBiomonitorReading, getBiomonitorHistory,
+  initGriefProtocol, activateGriefProtocol, getGriefProtocolStatus, transitionGriefPhase,
+  initGreatMerge, getGreatMergeStatus, advanceMergePhase,
+  registerLens, getLens, listLenses, registerSystemLenses,
+} from "./lens-culture.js";

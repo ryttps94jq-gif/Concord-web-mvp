@@ -21252,6 +21252,10 @@ app.use("/api/federation", createFederationRouter({ db }));
 import createCreativeMarketplaceRouter from "./routes/creative-marketplace.js";
 app.use("/api/creative-marketplace", createCreativeMarketplaceRouter({ db }));
 
+// ===== LENS & CULTURE SYSTEM =====
+import createLensCultureRouter from "./routes/lens-culture.js";
+app.use("/api/lens-culture", createLensCultureRouter({ db }));
+
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));
 app.get("/api/species/census", (_req, res) => res.json({ ok: true, ...getSpeciesCensus(STATE) }));
