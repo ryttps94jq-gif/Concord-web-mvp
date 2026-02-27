@@ -1744,6 +1744,41 @@ export const apiHelpers = {
     migrateCompression: () => api.post('/api/admin/migrate-compression'),
     compressionStats: () => api.get('/api/admin/compression-stats'),
   },
+
+  /** Sovereignty: scope isolation + consent management */
+  sovereignty: {
+    setup: (mode: string, selectedDomains?: string[]) =>
+      api.post('/api/sovereignty/setup', { mode, selectedDomains }),
+    status: () => api.get('/api/sovereignty/status'),
+    preferences: (globalAssistConsent: string) =>
+      api.put('/api/sovereignty/preferences', { globalAssistConsent }),
+    unsync: (domain?: string) =>
+      api.post('/api/sovereignty/unsync', { domain: domain || null }),
+    resolve: (data: {
+      sessionId: string;
+      choice: string;
+      globalDTUIds: string[];
+      originalPrompt: string;
+      lens?: string;
+      remember?: boolean;
+    }) => api.post('/api/chat/sovereignty-resolve', data),
+  },
+
+  /** Council: proposal + voting for global promotion */
+  council: {
+    proposePromotion: (dtuId: string, reason?: string) =>
+      api.post('/api/council/propose-promotion', { dtuId, reason }),
+    vote: (proposalId: string, vote: 'approve' | 'reject') =>
+      api.post('/api/council/vote', { proposalId, vote }),
+    proposals: (status?: string) =>
+      api.get('/api/council/proposals', { params: status ? { status } : {} }),
+  },
+
+  /** Marketplace: scoped submit */
+  marketplaceSubmit: {
+    submit: (dtuId: string, price?: number) =>
+      api.post('/api/marketplace/submit', { dtuId, price }),
+  },
 };
 
 /**

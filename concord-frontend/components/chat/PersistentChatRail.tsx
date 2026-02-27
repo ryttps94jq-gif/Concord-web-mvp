@@ -13,6 +13,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { useSessionId, resetSessionId } from '@/hooks/useSessionId';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { SovereigntyPrompt } from '@/components/sovereignty/SovereigntyPrompt';
 import {
   MessageSquare,
   Send,
@@ -82,6 +83,17 @@ export function PersistentChatRail({
   const [streamingText, setStreamingText] = useState('');
   const [webResults, setWebResults] = useState<WebResult[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
+  // Sovereignty prompt state
+  const [sovereigntyPrompt, setSovereigntyPrompt] = useState<{
+    message: string;
+    localCount: number;
+    globalCount: number;
+    globalDomains: string[];
+    globalDTUIds: string[];
+    globalPreview?: { id: string; title: string; domain: string; score: number }[];
+    originalPrompt: string;
+  } | null>(null);
+  const [isResolvingSovereignty, setIsResolvingSovereignty] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -178,10 +190,26 @@ export function PersistentChatRail({
           lens: currentLens,
         });
         const data = response.data;
+
+        // Handle sovereignty prompt — local substrate insufficient
+        if (data?.type === 'sovereignty_prompt') {
+          setSovereigntyPrompt({
+            message: data.message || 'Your substrate needs global knowledge for this.',
+            localCount: data.localCount || 0,
+            globalCount: data.globalCount || 0,
+            globalDomains: data.globalDomains || [],
+            globalDTUIds: data.globalDTUIds || [],
+            globalPreview: data.globalPreview || [],
+            originalPrompt: content.trim(),
+          });
+          setChatStatus('idle');
+          return;
+        }
+
         const assistantMsg: ChatMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           role: 'assistant',
-          content: data?.response || data?.message || data?.output || JSON.stringify(data),
+          content: data?.response || data?.reply || data?.message || data?.output || JSON.stringify(data),
           lens: currentLens,
           timestamp: new Date().toISOString(),
           lensRecommendation: data?.lensRecommendation || null,
@@ -201,6 +229,50 @@ export function PersistentChatRail({
       }
     }
   }, [sessionId, currentLens, isConnected, emit]);
+
+  // ── Handle sovereignty resolution ──────────────────────────
+
+  const handleSovereigntyResolve = useCallback(async (
+    choice: 'sync_temp' | 'sync_permanent' | 'skip',
+    remember: boolean,
+  ) => {
+    if (!sovereigntyPrompt) return;
+    setIsResolvingSovereignty(true);
+    setChatStatus('thinking');
+
+    try {
+      const response = await api.post('/api/chat/sovereignty-resolve', {
+        sessionId,
+        choice,
+        globalDTUIds: sovereigntyPrompt.globalDTUIds,
+        originalPrompt: sovereigntyPrompt.originalPrompt,
+        lens: currentLens,
+        remember,
+      });
+      const data = response.data;
+      const assistantMsg: ChatMessage = {
+        id: `msg-${Date.now()}-sov`,
+        role: 'assistant',
+        content: data?.content || data?.reply || data?.response || 'Response received.',
+        lens: currentLens,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err) {
+      const errorMsg: ChatMessage = {
+        id: `msg-${Date.now()}-sov-err`,
+        role: 'assistant',
+        content: `Error resolving sovereignty: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        lens: currentLens,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setSovereigntyPrompt(null);
+      setIsResolvingSovereignty(false);
+      setChatStatus('idle');
+    }
+  }, [sovereigntyPrompt, sessionId, currentLens]);
 
   // ── Handle submit ──────────────────────────────────────────
 
@@ -419,6 +491,15 @@ export function PersistentChatRail({
             <div className="whitespace-pre-wrap break-words">{streamingText}</div>
             <span className="inline-block w-1.5 h-4 bg-neon-cyan animate-pulse ml-0.5" />
           </div>
+        )}
+
+        {/* Sovereignty Prompt */}
+        {sovereigntyPrompt && (
+          <SovereigntyPrompt
+            message={sovereigntyPrompt}
+            onResolve={handleSovereigntyResolve}
+            isResolving={isResolvingSovereignty}
+          />
         )}
 
         <div ref={messagesEndRef} />

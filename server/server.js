@@ -11452,7 +11452,39 @@ async function callBrain(brainName, prompt, options = {}) {
  * @param {number} maxDTUs - Maximum DTUs to include
  * @returns {string} Formatted context string
  */
-async function buildBrainContext(query, lens = null, maxDTUs = 10, sessionId = null) {
+async function buildBrainContext(query, lens = null, maxDTUs = 10, sessionId = null, userId = null) {
+  // Sovereignty: if userId provided, route through scoped context
+  if (userId && userId !== "anon") {
+    try {
+      const sovereignResult = await buildSovereignContext(query, lens, maxDTUs, sessionId, userId);
+      // If sovereignty needs consent, return the partial context + metadata
+      if (sovereignResult.globalAssistType === "needs_consent") {
+        return sovereignResult; // caller must handle sovereignty_prompt
+      }
+      let existingContext = sovereignResult.context || "";
+      // Append cross-domain context from persistent conversation rail
+      if (sessionId) {
+        const sess = STATE.sessions.get(sessionId);
+        if (sess?.crossDomainContext) {
+          const domains = Object.entries(sess.crossDomainContext);
+          if (domains.length > 0) {
+            existingContext += "\n\nCROSS-DOMAIN CONTEXT (from this conversation):\n" +
+              domains.map(([domain, ctx]) => {
+                let line = `• ${domain}:`;
+                if (ctx.lastAction) line += ` ran "${ctx.lastAction}"`;
+                if (ctx.summary) line += ` — ${ctx.summary}`;
+                if (ctx.artifactId) line += ` [artifact: ${ctx.artifactId}]`;
+                return line;
+              }).join("\n");
+          }
+        }
+      }
+      return existingContext;
+    } catch {
+      // Fall through to unscoped context on error
+    }
+  }
+
   const all = dtusArray();
   let existingContext = "";
 
@@ -11604,8 +11636,13 @@ async function consciousChat(userMessage, lens = null, options = {}) {
   recordRoutingLevel(lens, "inference");
   recordQueryEvent(lens, { topSimilarity: 0 });
 
-  const context = await buildBrainContext(userMessage, lens);
-  const contextCount = context ? context.split("\n").length : 0;
+  const context = options.overrideContext || await buildBrainContext(userMessage, lens, 10, null, options.userId);
+  const contextCount = context && typeof context === "string" ? context.split("\n").length : 0;
+
+  // If buildBrainContext returned a sovereignty prompt object, pass it through
+  if (context && typeof context === "object" && context.globalAssistType === "needs_consent") {
+    return { ok: true, type: "sovereignty_prompt", ...context };
+  }
 
   // ── Web Search Evaluation ──
   let webResults = [];
@@ -28436,6 +28473,601 @@ app.get("/api/admin/compression-stats", async (_req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ============================================================================
+// SOVEREIGNTY SPEC: User Scope Isolation & Global Consent
+// ============================================================================
+// Every user gets their own Concord. Data is scope-isolated at every level.
+// Three scopes: personal | synced_global | global
+// Global knowledge is public commons but NEVER enters personal without consent.
+// ============================================================================
+
+// ── Scoped Query Functions ──────────────────────────────────────────────────
+
+/**
+ * Query DTUs visible to a specific user. Respects scope isolation.
+ * Personal + synced_global always visible. Global only if includeGlobal=true.
+ */
+function queryUserDTUs(userId, opts = {}) {
+  const { domain, limit, includeGlobal = false } = opts;
+  const results = [];
+
+  for (const [_id, dtu] of STATE.dtus) {
+    // Personal DTUs: always visible to owner
+    if (dtu.ownerId === userId && (dtu.scope === "personal" || dtu.scope === "synced_global")) {
+      if (domain && dtu.domain !== domain) continue;
+      results.push(dtu);
+      continue;
+    }
+    // Global DTUs: only if explicitly requested (for fallback system)
+    if (includeGlobal && dtu.scope === "global") {
+      if (domain && dtu.domain !== domain) continue;
+      results.push(dtu);
+      continue;
+    }
+    // Other users' personal DTUs: NEVER visible. Skip.
+  }
+
+  if (limit) return results.slice(0, limit);
+  return results;
+}
+
+/**
+ * Scoped embedding search — searches personal substrate, optionally global.
+ */
+async function scopedEmbeddingSearch(query, userId, opts = {}) {
+  const { limit = 10, minScore = 0.4, includeGlobal = false } = opts;
+
+  if (!EMBEDDINGS.enabled) {
+    // Fallback to keyword search scoped to user
+    const userDTUs = queryUserDTUs(userId, { includeGlobal });
+    const qTokens = tokensNoStop(String(query || ""));
+    const scored = userDTUs.map(d => {
+      const text = [d.title || "", d.cretiHuman || d.human?.summary || ""].join(" ");
+      const dTokens = tokensNoStop(text);
+      const score = jaccard(qTokens, dTokens);
+      const tierW = d.tier === "hyper" ? 3 : d.tier === "mega" ? 2 : 1;
+      return { ...d, _semanticScore: score * tierW };
+    }).filter(x => x._semanticScore >= minScore)
+      .sort((a, b) => b._semanticScore - a._semanticScore)
+      .slice(0, limit);
+    return includeGlobal
+      ? { personal: scored.filter(d => d.ownerId === userId), global: scored.filter(d => d.scope === "global") }
+      : scored;
+  }
+
+  // Semantic search with scope filter
+  const queryResult = await generateEmbedding(query);
+  if (!queryResult.ok) return includeGlobal ? { personal: [], global: [] } : [];
+
+  const queryVec = new Float32Array(queryResult.embedding);
+  const personalScores = [];
+  const globalScores = [];
+
+  for (const [dtuId, vec] of EMBEDDINGS.store) {
+    const dtu = STATE.dtus.get(dtuId);
+    if (!dtu) continue;
+    const score = cosineSimilarity(queryVec, vec);
+    if (score < minScore) continue;
+
+    const isShadow = isShadowDTU(dtu);
+    const effectiveScore = isShadow ? score * 0.6 : score;
+    const result = { ...dtu, _semanticScore: effectiveScore };
+
+    if (dtu.ownerId === userId && (dtu.scope === "personal" || dtu.scope === "synced_global")) {
+      personalScores.push(result);
+    } else if (includeGlobal && dtu.scope === "global") {
+      globalScores.push(result);
+    }
+  }
+
+  personalScores.sort((a, b) => b._semanticScore - a._semanticScore);
+  globalScores.sort((a, b) => b._semanticScore - a._semanticScore);
+
+  if (includeGlobal) {
+    return {
+      personal: personalScores.slice(0, limit),
+      global: globalScores.slice(0, limit),
+    };
+  }
+  return personalScores.slice(0, limit);
+}
+
+/**
+ * Reindex all DTUs for a specific user after sync/unsync operations.
+ */
+async function reindexUserDTUs(userId) {
+  if (!EMBEDDINGS.enabled) return;
+  const userDTUs = queryUserDTUs(userId, { includeGlobal: false });
+  let indexed = 0;
+  for (const dtu of userDTUs) {
+    if (!EMBEDDINGS.store.has(dtu.id)) {
+      try {
+        const result = await indexDTUEmbedding(dtu);
+        if (result?.ok && !result.skipped) indexed++;
+      } catch {}
+    }
+  }
+  return { indexed };
+}
+
+/**
+ * Format context from DTU results into a string for brain prompts.
+ */
+function formatSovereignContext(results) {
+  if (!results || !Array.isArray(results)) return "";
+  return results.map(d =>
+    `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
+  ).join("\n");
+}
+
+/**
+ * Get user's sovereignty preferences. Returns defaults if not set.
+ */
+function getUserSovereignty(userId) {
+  const user = AUTH.users.get(userId);
+  if (user?.sovereignty) return user.sovereignty;
+  // Default: ask mode, not yet set up
+  return {
+    mode: null,
+    selectedDomains: [],
+    globalAssistConsent: "ask",
+    setupCompleted: false,
+  };
+}
+
+// ── Sovereignty Setup Endpoint ──────────────────────────────────────────────
+
+app.post("/api/sovereignty/setup", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const { mode, selectedDomains } = req.body;
+  const user = AUTH.users.get(userId);
+  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
+  if (!["empty", "domain_focused", "full_sync"].includes(mode)) {
+    return res.status(400).json({ ok: false, error: "Invalid mode. Must be: empty, domain_focused, full_sync" });
+  }
+
+  user.sovereignty = {
+    mode,
+    selectedDomains: mode === "domain_focused" ? (selectedDomains || []) : [],
+    globalAssistConsent: "ask",
+    setupCompleted: true,
+  };
+
+  let syncedCount = 0;
+
+  if (mode === "full_sync") {
+    for (const [id, dtu] of STATE.dtus) {
+      if (dtu.scope === "global") {
+        const copy = {
+          ...JSON.parse(JSON.stringify(dtu)),
+          id: uid("dtu"),
+          ownerId: userId,
+          scope: "synced_global",
+          syncedFrom: id,
+          syncedAt: nowISO(),
+        };
+        STATE.dtus.set(copy.id, copy);
+        syncedCount++;
+      }
+    }
+  } else if (mode === "domain_focused") {
+    for (const [id, dtu] of STATE.dtus) {
+      if (dtu.scope === "global" && selectedDomains.includes(dtu.domain)) {
+        const copy = {
+          ...JSON.parse(JSON.stringify(dtu)),
+          id: uid("dtu"),
+          ownerId: userId,
+          scope: "synced_global",
+          syncedFrom: id,
+          syncedAt: nowISO(),
+        };
+        STATE.dtus.set(copy.id, copy);
+        syncedCount++;
+      }
+    }
+  }
+  // mode === "empty" — sync nothing
+
+  if (syncedCount > 0) {
+    await reindexUserDTUs(userId);
+  }
+
+  saveStateDebounced();
+  res.json({ ok: true, mode, syncedCount });
+});
+
+// ── Sovereign Context Resolution ────────────────────────────────────────────
+
+/**
+ * Build brain context with sovereignty awareness.
+ * Searches personal substrate first, falls back to global with user consent.
+ */
+async function buildSovereignContext(query, lens, maxDTUs, sessionId, userId) {
+  const sovereignty = getUserSovereignty(userId);
+  const SUFFICIENCY_THRESHOLD = 3;
+  const RELEVANCE_FLOOR = 0.5;
+
+  // Step 1: Search personal substrate (personal + synced_global)
+  const localResults = await scopedEmbeddingSearch(query, userId, {
+    limit: maxDTUs,
+    minScore: 0.4,
+    includeGlobal: false,
+  });
+  const relevantLocal = (Array.isArray(localResults) ? localResults : [])
+    .filter(r => (r._semanticScore || 0) >= RELEVANCE_FLOOR);
+
+  // Step 2: Check sufficiency
+  if (relevantLocal.length >= SUFFICIENCY_THRESHOLD) {
+    return {
+      context: formatSovereignContext(relevantLocal),
+      source: "local",
+      globalAssist: false,
+      localCount: relevantLocal.length,
+    };
+  }
+
+  // Step 3: Local insufficient — check global
+  if (sovereignty.globalAssistConsent === "never") {
+    return {
+      context: formatSovereignContext(relevantLocal),
+      source: "local_only",
+      globalAssist: false,
+      localCount: relevantLocal.length,
+      insufficient: true,
+    };
+  }
+
+  // Search global for what's missing
+  const globalSearch = await scopedEmbeddingSearch(query, userId, {
+    limit: maxDTUs,
+    minScore: 0.4,
+    includeGlobal: true,
+  });
+  const globalResults = (globalSearch.global || [])
+    .filter(r => (r._semanticScore || 0) >= RELEVANCE_FLOOR);
+
+  if (globalResults.length === 0) {
+    return {
+      context: formatSovereignContext(relevantLocal),
+      source: "local_only",
+      globalAssist: false,
+      localCount: relevantLocal.length,
+      insufficient: true,
+    };
+  }
+
+  // Step 4: Handle based on sovereignty preference
+  if (sovereignty.globalAssistConsent === "always_temp") {
+    return {
+      context: formatSovereignContext(relevantLocal) + "\n\nGLOBAL COMMONS CONTEXT:\n" + formatSovereignContext(globalResults),
+      source: "local_plus_global_temp",
+      globalAssist: true,
+      globalAssistType: "auto_temp",
+      localCount: relevantLocal.length,
+      globalCount: globalResults.length,
+    };
+  }
+
+  if (sovereignty.globalAssistConsent === "always_permanent") {
+    const syncedIds = [];
+    for (const result of globalResults) {
+      const globalDTU = STATE.dtus.get(result.id);
+      if (globalDTU) {
+        const copy = {
+          ...JSON.parse(JSON.stringify(globalDTU)),
+          id: uid("dtu"),
+          ownerId: userId,
+          scope: "synced_global",
+          syncedFrom: result.id,
+          syncedAt: nowISO(),
+        };
+        STATE.dtus.set(copy.id, copy);
+        syncedIds.push(copy.id);
+      }
+    }
+    if (syncedIds.length > 0) await reindexUserDTUs(userId);
+
+    return {
+      context: formatSovereignContext(relevantLocal) + "\n\nSYNCED GLOBAL CONTEXT:\n" + formatSovereignContext(globalResults),
+      source: "local_plus_global_permanent",
+      globalAssist: true,
+      globalAssistType: "auto_permanent",
+      localCount: relevantLocal.length,
+      globalCount: globalResults.length,
+      syncedIds,
+    };
+  }
+
+  // Default: "ask" — return the sovereignty prompt (needs_consent)
+  return {
+    context: formatSovereignContext(relevantLocal),
+    source: "local_insufficient",
+    globalAssist: true,
+    globalAssistType: "needs_consent",
+    localCount: relevantLocal.length,
+    globalCount: globalResults.length,
+    globalDomains: [...new Set(globalResults.map(r => r.domain))],
+    globalDTUIds: globalResults.map(r => r.id),
+    globalPreview: globalResults.slice(0, 3).map(r => ({
+      id: r.id,
+      title: r.title,
+      domain: r.domain,
+      score: r._semanticScore,
+    })),
+  };
+}
+
+// ── Sovereignty Resolution Endpoint (chat consent flow) ─────────────────────
+
+app.post("/api/chat/sovereignty-resolve", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const { sessionId, choice, globalDTUIds, originalPrompt, lens, remember } = req.body;
+
+  if (!["sync_temp", "sync_permanent", "skip"].includes(choice)) {
+    return res.status(400).json({ ok: false, error: "Invalid choice" });
+  }
+
+  // If user wants to remember this preference
+  if (remember) {
+    const user = AUTH.users.get(userId);
+    if (user) {
+      if (!user.sovereignty) user.sovereignty = { mode: null, selectedDomains: [], globalAssistConsent: "ask", setupCompleted: false };
+      if (choice === "sync_temp") user.sovereignty.globalAssistConsent = "always_temp";
+      else if (choice === "sync_permanent") user.sovereignty.globalAssistConsent = "always_permanent";
+      else if (choice === "skip") user.sovereignty.globalAssistConsent = "never";
+    }
+  }
+
+  let context = "";
+
+  if (choice === "sync_temp") {
+    const globalDTUs = (globalDTUIds || []).map(id => STATE.dtus.get(id)).filter(Boolean);
+    const localResults = await scopedEmbeddingSearch(originalPrompt, userId, { limit: 10, minScore: 0.4 });
+    context = formatSovereignContext(Array.isArray(localResults) ? localResults : []) +
+      "\n\nGLOBAL COMMONS CONTEXT (temporary):\n" +
+      formatSovereignContext(globalDTUs);
+  } else if (choice === "sync_permanent") {
+    const syncedIds = [];
+    for (const gId of (globalDTUIds || [])) {
+      const globalDTU = STATE.dtus.get(gId);
+      if (globalDTU && globalDTU.scope === "global") {
+        const copy = {
+          ...JSON.parse(JSON.stringify(globalDTU)),
+          id: uid("dtu"),
+          ownerId: userId,
+          scope: "synced_global",
+          syncedFrom: gId,
+          syncedAt: nowISO(),
+        };
+        STATE.dtus.set(copy.id, copy);
+        syncedIds.push(copy.id);
+      }
+    }
+    if (syncedIds.length > 0) await reindexUserDTUs(userId);
+    const localResults = await scopedEmbeddingSearch(originalPrompt, userId, { limit: 10, minScore: 0.4 });
+    context = formatSovereignContext(Array.isArray(localResults) ? localResults : []);
+  } else {
+    const localResults = await scopedEmbeddingSearch(originalPrompt, userId, { limit: 10, minScore: 0.4 });
+    context = formatSovereignContext(Array.isArray(localResults) ? localResults : []);
+  }
+
+  // Call the brain with the resolved context
+  try {
+    const result = await consciousChat(originalPrompt, lens, { overrideContext: context });
+    saveStateDebounced();
+    res.json({ ok: true, ...result, sovereignty: { choice, synced: choice === "sync_permanent" } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Entity Scope Isolation ──────────────────────────────────────────────────
+
+/**
+ * Get entities scoped to a specific user.
+ */
+function getUserEntities(userId) {
+  return Array.from(STATE.entities?.values() || [])
+    .filter(e => e.ownerId === userId);
+}
+
+// ── Council Promotion (only path to global scope) ───────────────────────────
+
+if (!STATE.councilProposals) STATE.councilProposals = new Map();
+
+app.post("/api/council/propose-promotion", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const { dtuId, reason } = req.body;
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if (dtu.ownerId !== userId) return res.status(403).json({ ok: false, error: "Not your DTU" });
+  if (dtu.scope !== "personal") return res.status(400).json({ ok: false, error: "Only personal DTUs can be promoted" });
+
+  if (dtu.meta?.qualityScore && dtu.meta.qualityScore < 0.7) {
+    return res.status(400).json({ ok: false, error: "DTU must pass quality gate (score >= 0.7)" });
+  }
+
+  const proposal = {
+    id: uid("proposal"),
+    type: "promotion_to_global",
+    dtuId,
+    proposedBy: userId,
+    reason: reason || "",
+    status: "pending",
+    votes: {},
+    createdAt: nowISO(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+
+  STATE.councilProposals.set(proposal.id, proposal);
+  if (REALTIME?.io) REALTIME.io.emit("council:proposal", { proposal });
+  saveStateDebounced();
+  res.json({ ok: true, proposal });
+});
+
+app.post("/api/council/vote", requireAuth(), (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  const { proposalId, vote } = req.body;
+  if (!["approve", "reject"].includes(vote)) return res.status(400).json({ ok: false, error: "Vote must be approve or reject" });
+
+  const proposal = STATE.councilProposals?.get(proposalId);
+  if (!proposal || proposal.status !== "pending") return res.status(404).json({ ok: false, error: "Proposal not found or closed" });
+  if (proposal.proposedBy === userId) return res.status(400).json({ ok: false, error: "Cannot vote on own proposal" });
+
+  proposal.votes[userId] = vote;
+
+  // Check thresholds
+  const votes = Object.values(proposal.votes);
+  const approvals = votes.filter(v => v === "approve").length;
+  const rejections = votes.filter(v => v === "reject").length;
+
+  if (approvals >= 3 && rejections <= 1) {
+    const dtu = STATE.dtus.get(proposal.dtuId);
+    if (dtu) {
+      const globalCopy = {
+        ...JSON.parse(JSON.stringify(dtu)),
+        id: uid("dtu"),
+        scope: "global",
+        promotedFrom: dtu.id,
+        promotedBy: proposal.proposedBy,
+        promotedAt: nowISO(),
+      };
+      STATE.dtus.set(globalCopy.id, globalCopy);
+      proposal.status = "approved";
+      proposal.globalDtuId = globalCopy.id;
+      if (REALTIME?.io) REALTIME.io.emit("council:vote", { proposal, result: "approved" });
+    }
+  } else if (rejections > 2) {
+    proposal.status = "rejected";
+    if (REALTIME?.io) REALTIME.io.emit("council:vote", { proposal, result: "rejected" });
+  }
+
+  saveStateDebounced();
+  res.json({ ok: true, proposal });
+});
+
+app.get("/api/council/proposals", (req, res) => {
+  const status = req.query.status || null;
+  let proposals = Array.from(STATE.councilProposals?.values() || []);
+  if (status) proposals = proposals.filter(p => p.status === status);
+  proposals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json({ ok: true, proposals: proposals.slice(0, 50) });
+});
+
+// ── Unsync & Sovereignty Management ─────────────────────────────────────────
+
+app.post("/api/sovereignty/unsync", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const { domain } = req.body; // null = unsync ALL
+
+  let removed = 0;
+  for (const [id, dtu] of STATE.dtus) {
+    if (dtu.ownerId === userId && dtu.scope === "synced_global") {
+      if (!domain || dtu.domain === domain) {
+        STATE.dtus.delete(id);
+        removed++;
+      }
+    }
+  }
+
+  if (removed > 0) await reindexUserDTUs(userId);
+  saveStateDebounced();
+  res.json({ ok: true, removed, domain: domain || "all" });
+});
+
+app.put("/api/sovereignty/preferences", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const user = AUTH.users.get(userId);
+  if (!user) return res.status(404).json({ ok: false });
+
+  const { globalAssistConsent } = req.body;
+  if (["ask", "always_temp", "always_permanent", "never"].includes(globalAssistConsent)) {
+    if (!user.sovereignty) user.sovereignty = { mode: null, selectedDomains: [], globalAssistConsent: "ask", setupCompleted: false };
+    user.sovereignty.globalAssistConsent = globalAssistConsent;
+  }
+
+  saveStateDebounced();
+  res.json({ ok: true, sovereignty: user.sovereignty });
+});
+
+app.get("/api/sovereignty/status", requireAuth(), async (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const user = AUTH.users.get(userId);
+  const personalCount = Array.from(STATE.dtus.values())
+    .filter(d => d.ownerId === userId && d.scope === "personal").length;
+  const syncedCount = Array.from(STATE.dtus.values())
+    .filter(d => d.ownerId === userId && d.scope === "synced_global").length;
+  const syncedDomains = [...new Set(
+    Array.from(STATE.dtus.values())
+      .filter(d => d.ownerId === userId && d.scope === "synced_global")
+      .map(d => d.domain)
+  )];
+  const entityCount = Array.from(STATE.entities?.values() || [])
+    .filter(e => e.ownerId === userId).length;
+
+  res.json({
+    ok: true,
+    mode: user?.sovereignty?.mode || "unknown",
+    globalAssistConsent: user?.sovereignty?.globalAssistConsent || "ask",
+    personalDTUs: personalCount,
+    syncedGlobalDTUs: syncedCount,
+    syncedDomains,
+    totalDTUs: personalCount + syncedCount,
+    entities: entityCount,
+    sovereigntyPct: (personalCount + syncedCount) > 0
+      ? Math.round(personalCount / (personalCount + syncedCount) * 100) : 100,
+  });
+});
+
+// ── Marketplace Scope Rules ─────────────────────────────────────────────────
+
+app.post("/api/marketplace/submit", requireAuth(), (req, res) => {
+  const userId = req.user?.id || req.actor?.userId;
+  if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
+
+  const { dtuId, price } = req.body;
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return res.status(404).json({ ok: false, error: "DTU not found" });
+  if (dtu.ownerId !== userId) return res.status(403).json({ ok: false, error: "Not your DTU" });
+  if (dtu.scope !== "personal") return res.status(400).json({ ok: false, error: "Can only list personal DTUs" });
+
+  const listing = {
+    id: uid("listing"),
+    sourceDtuId: dtuId,
+    sellerId: userId,
+    scope: "marketplace",
+    title: dtu.title,
+    domain: dtu.domain,
+    description: dtu.human?.summary || "",
+    artifact: dtu.artifact ? { ...dtu.artifact } : null,
+    qualityTier: dtu.meta?.qualityTier,
+    qualityScore: dtu.meta?.qualityScore,
+    price: Number(price || 0),
+    currency: "concord_coin",
+    listedAt: nowISO(),
+    downloads: 0,
+    ratings: [],
+    status: "active",
+  };
+
+  if (!STATE.marketplaceListings) STATE.marketplaceListings = new Map();
+  STATE.marketplaceListings.set(listing.id, listing);
+  saveStateDebounced();
+  res.json({ ok: true, listing });
 });
 
 // ============================================================================
