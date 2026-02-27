@@ -14,6 +14,7 @@ import { useSessionId, resetSessionId } from '@/hooks/useSessionId';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { SovereigntyPrompt } from '@/components/sovereignty/SovereigntyPrompt';
+import { PipelineProgress } from '@/components/pipeline/PipelineProgress';
 import {
   MessageSquare,
   Send,
@@ -29,6 +30,7 @@ import {
   Plus,
   Minimize2,
   Maximize2,
+  Layers,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -94,6 +96,20 @@ export function PersistentChatRail({
     originalPrompt: string;
   } | null>(null);
   const [isResolvingSovereignty, setIsResolvingSovereignty] = useState(false);
+  // Pipeline prompt state
+  const [pipelinePrompt, setPipelinePrompt] = useState<{
+    pipelineId: string;
+    description: string;
+    variables: Record<string, unknown>;
+    steps: { lens: string; action: string; order: number }[];
+    message: string;
+  } | null>(null);
+  const [activePipeline, setActivePipeline] = useState<{
+    pipelineId: string;
+    executionId: string;
+    description: string;
+    steps: { lens: string; action: string; order: number }[];
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -201,6 +217,19 @@ export function PersistentChatRail({
             globalDTUIds: data.globalDTUIds || [],
             globalPreview: data.globalPreview || [],
             originalPrompt: content.trim(),
+          });
+          setChatStatus('idle');
+          return;
+        }
+
+        // Handle pipeline prompt — life event detected
+        if (data?.type === 'pipeline_prompt') {
+          setPipelinePrompt({
+            pipelineId: data.pipelineId,
+            description: data.description,
+            variables: data.variables || {},
+            steps: data.steps || [],
+            message: data.message,
           });
           setChatStatus('idle');
           return;
@@ -499,6 +528,79 @@ export function PersistentChatRail({
             message={sovereigntyPrompt}
             onResolve={handleSovereigntyResolve}
             isResolving={isResolvingSovereignty}
+          />
+        )}
+
+        {/* Pipeline Prompt — life event detected */}
+        {pipelinePrompt && (
+          <div className="mx-4 my-3 p-4 rounded-lg border border-blue-500/30 bg-blue-900/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Layers className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-blue-300">Pipeline Available</span>
+            </div>
+            <p className="text-sm text-zinc-300 mb-3">{pipelinePrompt.message}</p>
+            <div className="mb-3 space-y-1">
+              <p className="text-xs text-zinc-500">Steps:</p>
+              {pipelinePrompt.steps.map((s, i) => (
+                <div key={i} className="text-xs text-zinc-400 flex items-center gap-2">
+                  <span className="text-zinc-600">{s.order}.</span>
+                  <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{s.lens}</span>
+                  {s.action.replace(/-/g, ' ')}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const pp = pipelinePrompt;
+                  setPipelinePrompt(null);
+                  try {
+                    const res = await api.post('/api/pipeline/execute', {
+                      pipelineId: pp.pipelineId,
+                      variables: pp.variables,
+                      sessionId,
+                    });
+                    if (res.data?.execution) {
+                      setActivePipeline({
+                        pipelineId: pp.pipelineId,
+                        executionId: res.data.execution.id,
+                        description: pp.description,
+                        steps: pp.steps,
+                      });
+                    }
+                  } catch { /* silent */ }
+                }}
+                className="px-3 py-2 rounded-lg text-sm bg-blue-500/20 border border-blue-500/30 text-blue-300 hover:bg-blue-500/30 transition-colors"
+              >
+                Run pipeline
+              </button>
+              <button
+                onClick={() => setPipelinePrompt(null)}
+                className="px-3 py-2 rounded-lg text-sm bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600 transition-colors"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Active Pipeline Progress */}
+        {activePipeline && (
+          <PipelineProgress
+            pipelineId={activePipeline.pipelineId}
+            executionId={activePipeline.executionId}
+            description={activePipeline.description}
+            steps={activePipeline.steps}
+            onComplete={() => {
+              setMessages(prev => [...prev, {
+                id: `msg-${Date.now()}-pipeline`,
+                role: 'assistant' as const,
+                content: `Pipeline complete! ${activePipeline.description} — all documents generated.`,
+                lens: currentLens,
+                timestamp: new Date().toISOString(),
+              }]);
+              setActivePipeline(null);
+            }}
           />
         )}
 

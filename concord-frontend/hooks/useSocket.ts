@@ -63,6 +63,12 @@ const FORWARDED_EVENTS: SocketEvent[] = [
   'artifact:rendered', 'quality:approved', 'quality:rejected',
   // MEGA SPEC: Entity & pipeline events
   'entity:production_mode', 'pipeline:triggered',
+  // 12 NEW CAPABILITIES events
+  'pipeline:started', 'pipeline:step_started', 'pipeline:step_completed', 'pipeline:completed',
+  'prediction:ready', 'agent:insights',
+  'collab:invite', 'collab:accepted',
+  'teaching:promotion_suggestion',
+  'research:started', 'research:completed',
 ];
 
 interface UseSocketOptions {

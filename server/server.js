@@ -15234,6 +15234,24 @@ if (intentInfo.intent === INTENT.GREETING) {
   }
 }
 
+// --- Pipeline detection (life event → cross-domain artifact chain) ---
+try {
+  const { detectPipeline: _detectPipeline } = await import("./lib/pipeline-registry.js");
+  const pipelineMatch = _detectPipeline(prompt);
+  if (pipelineMatch && pipelineMatch.pipeline.consentRequired) {
+    const pl = pipelineMatch.pipeline;
+    return {
+      ok: true,
+      type: "pipeline_prompt",
+      pipelineId: pl.id,
+      description: pl.description,
+      variables: pipelineMatch.variables,
+      steps: pl.steps.map(s => ({ lens: s.lens, action: s.action, order: s.order })),
+      message: `I can create a complete ${pl.description} for you. This will generate ${pl.steps.length} documents across ${[...new Set(pl.steps.map(s => s.lens))].join(", ")}. Want me to run it?`,
+    };
+  }
+} catch { /* pipeline detection not critical */ }
+
 
   
   // ---------- Session Anchors (decay + confidence weighting + topic switching) ----------
@@ -29071,6 +29089,1167 @@ app.post("/api/marketplace/submit", requireAuth(), (req, res) => {
 });
 
 // ============================================================================
+// 12 NEW CAPABILITIES: Pipeline Registry, Predictive Substrate, Teaching,
+// Collaboration, API Platform, Personal Agent, Knowledge Inheritance,
+// Organizations, Adaptive Quality, Offline Deployment, Flywheel, Research
+// ============================================================================
+
+// --- Capability 1: PREDICTIVE SUBSTRATE ---
+
+const PREDICTION_STATE = new Map(); // userId → { patterns, lastAnalyzed }
+
+function detectUserPatterns(userId) {
+  const sessions = Array.from(STATE.sessions.entries())
+    .filter(([key]) => key.startsWith(userId))
+    .map(([, sess]) => sess);
+
+  const lensVisits = [];
+  const actionRuns = [];
+
+  for (const sess of sessions) {
+    for (const msg of sess.messages || []) {
+      if (msg.lens) {
+        lensVisits.push({
+          lens: msg.lens,
+          hour: new Date(msg.ts).getHours(),
+          dayOfWeek: new Date(msg.ts).getDay(),
+          timestamp: msg.ts,
+        });
+      }
+      if (msg.action) {
+        actionRuns.push({
+          lens: msg.lens,
+          action: msg.action,
+          hour: new Date(msg.ts).getHours(),
+          dayOfWeek: new Date(msg.ts).getDay(),
+          timestamp: msg.ts,
+        });
+      }
+    }
+  }
+
+  const patterns = [];
+
+  // Group by day-of-week + lens
+  const weeklyLens = {};
+  for (const visit of lensVisits) {
+    const key = `${visit.dayOfWeek}-${visit.lens}`;
+    weeklyLens[key] = weeklyLens[key] || { count: 0, hours: [] };
+    weeklyLens[key].count++;
+    weeklyLens[key].hours.push(visit.hour);
+  }
+
+  for (const [key, data] of Object.entries(weeklyLens)) {
+    if (data.count >= 3) {
+      const [day, lens] = key.split("-");
+      const avgHour = Math.round(data.hours.reduce((a, b) => a + b, 0) / data.hours.length);
+      patterns.push({
+        type: "weekly_lens_visit",
+        dayOfWeek: parseInt(day),
+        lens,
+        typicalHour: avgHour,
+        confidence: Math.min(data.count / 10, 1),
+      });
+    }
+  }
+
+  // Group by day-of-week + action
+  const weeklyAction = {};
+  for (const run of actionRuns) {
+    const key = `${run.dayOfWeek}-${run.lens}-${run.action}`;
+    weeklyAction[key] = weeklyAction[key] || { count: 0, hours: [] };
+    weeklyAction[key].count++;
+    weeklyAction[key].hours.push(run.hour);
+  }
+
+  for (const [key, data] of Object.entries(weeklyAction)) {
+    if (data.count >= 3) {
+      const parts = key.split("-");
+      const day = parts[0];
+      const lens = parts[1];
+      const action = parts.slice(2).join("-");
+      const avgHour = Math.round(data.hours.reduce((a, b) => a + b, 0) / data.hours.length);
+      patterns.push({
+        type: "weekly_action",
+        dayOfWeek: parseInt(day),
+        lens,
+        action,
+        typicalHour: avgHour,
+        confidence: Math.min(data.count / 10, 1),
+      });
+    }
+  }
+
+  PREDICTION_STATE.set(userId, { patterns, lastAnalyzed: nowISO() });
+  return patterns;
+}
+
+async function predictivePreGeneration() {
+  const now = new Date();
+  const currentDay = now.getDay();
+  const currentHour = now.getHours();
+
+  for (const [userId, predState] of PREDICTION_STATE) {
+    for (const pattern of predState.patterns) {
+      if (pattern.type !== "weekly_action") continue;
+      if (pattern.confidence < 0.5) continue;
+
+      const isDueToday = currentDay === pattern.dayOfWeek;
+      const isUpcoming = isDueToday && currentHour >= pattern.typicalHour - 2 && currentHour < pattern.typicalHour;
+      if (!isUpcoming) continue;
+
+      const preGenKey = `pregen-${userId}-${pattern.lens}-${pattern.action}-${currentDay}`;
+      if (STATE._pregenCache?.has(preGenKey)) continue;
+
+      try {
+        const result = await runMacro(pattern.lens, pattern.action, {
+          userId,
+          preGenerated: true,
+          predictedFor: pattern.typicalHour,
+        }, { userId });
+
+        if (result && result.dtuId) {
+          const dtu = STATE.dtus.get(result.dtuId);
+          if (dtu) {
+            dtu.meta = dtu.meta || {};
+            dtu.meta.preGenerated = true;
+            dtu.meta.predictedFor = `${pattern.dayOfWeek}-${pattern.typicalHour}`;
+            dtu.meta.predictedAction = pattern.action;
+          }
+
+          STATE._pregenCache = STATE._pregenCache || new Set();
+          STATE._pregenCache.add(preGenKey);
+
+          realtimeEmit("prediction:ready", {
+            userId,
+            lens: pattern.lens,
+            action: pattern.action,
+            dtuId: result.dtuId,
+          });
+        }
+      } catch { /* silent */ }
+    }
+  }
+}
+
+// Morning brief with predictions
+app.get("/api/brief/morning", requireAuth(), async (req, res) => {
+  const userId = req.user.id;
+
+  const predictions = Array.from(STATE.dtus.values())
+    .filter(d => d.ownerId === userId && d.meta?.preGenerated && !d.meta?.preGenConsumed)
+    .map(d => ({
+      dtuId: d.id,
+      lens: d.domain,
+      action: d.meta.predictedAction,
+      title: d.title,
+    }));
+
+  const predState = PREDICTION_STATE.get(userId);
+  const today = new Date().getDay();
+  const todayPatterns = (predState?.patterns || [])
+    .filter(p => p.dayOfWeek === today && p.confidence >= 0.5);
+
+  res.json({
+    ok: true,
+    predictions,
+    todayPatterns,
+    greeting: predictions.length > 0
+      ? `I anticipated ${predictions.length} thing${predictions.length > 1 ? "s" : ""} you might need today.`
+      : "Good morning. What are we working on?",
+  });
+});
+
+// Prediction dismiss
+app.post("/api/brief/dismiss", requireAuth(), (req, res) => {
+  const { dtuId } = req.body;
+  const dtu = STATE.dtus.get(dtuId);
+  if (dtu && dtu.ownerId === req.user.id) {
+    dtu.meta = dtu.meta || {};
+    dtu.meta.preGenConsumed = true;
+    saveStateDebounced();
+  }
+  res.json({ ok: true });
+});
+
+// --- Capability 2: AUTONOMOUS END-TO-END PIPELINES ---
+// Pipeline detection + execution are in lib/pipeline-registry.js and lib/pipeline-executor.js.
+// The chat.respond integration is injected separately.
+// API endpoints for pipeline management:
+
+app.post("/api/pipeline/execute", requireAuth(), async (req, res) => {
+  const { pipelineId, variables } = req.body;
+  const userId = req.user.id;
+  try {
+    const { executePipeline } = await import("./lib/pipeline-executor.js");
+    const execution = await executePipeline(pipelineId, variables || {}, userId, req.body.sessionId || "default", {
+      runMacro, realtimeEmit, STATE,
+      generateId: generateRequestId,
+      nowISO,
+    });
+    res.json({ ok: true, execution });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/pipeline/executions", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const executions = Array.from(STATE._pipelineExecutions?.values() || [])
+    .filter(e => e.userId === userId)
+    .sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""));
+  res.json({ ok: true, executions: executions.slice(0, 50) });
+});
+
+// --- Capability 3: TEACHING MODE ---
+
+function detectDomainExperts(domain) {
+  const experts = [];
+  for (const [userId] of (STATE.users || new Map())) {
+    const userArtifacts = Array.from(STATE.dtus.values())
+      .filter(d =>
+        d.ownerId === userId &&
+        d.scope === "personal" &&
+        d.domain === domain &&
+        d.meta?.qualityTier === 1
+      );
+
+    if (userArtifacts.length >= 10) {
+      const avgScore = userArtifacts.reduce((s, d) => s + (d.meta?.qualityScore || 0), 0) / userArtifacts.length;
+      experts.push({
+        userId,
+        domain,
+        tier1Count: userArtifacts.length,
+        avgQualityScore: avgScore,
+        expertiseLevel: Math.min(userArtifacts.length / 50, 1),
+      });
+    }
+  }
+  return experts.sort((a, b) => b.avgQualityScore - a.avgQualityScore);
+}
+
+async function suggestExpertPromotions() {
+  for (const domain of Object.keys(DOMAIN_ACTION_MANIFEST)) {
+    const experts = detectDomainExperts(domain);
+    for (const expert of experts.slice(0, 3)) {
+      const candidates = Array.from(STATE.dtus.values())
+        .filter(d =>
+          d.ownerId === expert.userId &&
+          d.scope === "personal" &&
+          d.domain === domain &&
+          d.meta?.qualityTier === 1 &&
+          d.meta?.qualityScore >= 0.9 &&
+          !d.meta?.promotionSuggested
+        )
+        .sort((a, b) => (b.meta?.qualityScore || 0) - (a.meta?.qualityScore || 0))
+        .slice(0, 3);
+
+      for (const candidate of candidates) {
+        candidate.meta.promotionSuggested = true;
+        realtimeEmit("teaching:promotion_suggestion", {
+          userId: expert.userId,
+          dtuId: candidate.id,
+          domain,
+          qualityScore: candidate.meta.qualityScore,
+          message: `Your ${domain} artifact "${candidate.title}" scored ${(candidate.meta.qualityScore * 100).toFixed(0)}% quality. Want to share it with the global commons?`,
+        });
+      }
+    }
+  }
+}
+
+app.get("/api/teaching/expertise", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const expertise = [];
+  for (const domain of Object.keys(DOMAIN_ACTION_MANIFEST)) {
+    const userArtifacts = Array.from(STATE.dtus.values())
+      .filter(d => d.ownerId === userId && d.domain === domain && d.meta?.qualityTier === 1);
+    if (userArtifacts.length >= 5) {
+      const avgScore = userArtifacts.reduce((s, d) => s + (d.meta?.qualityScore || 0), 0) / userArtifacts.length;
+      const promotedCount = Array.from(STATE.dtus.values())
+        .filter(d => d.domain === domain && d.scope === "global" && d.meta?.promotedBy === userId).length;
+      const level = userArtifacts.length >= 50 ? "gold" : userArtifacts.length >= 25 ? "silver" : "bronze";
+      expertise.push({
+        domain,
+        tier1Count: userArtifacts.length,
+        avgQualityScore: avgScore,
+        promotedToGlobal: promotedCount,
+        level,
+      });
+    }
+  }
+  res.json({ ok: true, expertise });
+});
+
+// --- Capability 4: REAL-TIME COLLABORATION ---
+
+const COLLAB_SESSIONS = new Map();
+
+function createCollabSession(initiatorId, inviteeId, domains, description) {
+  const session = {
+    id: generateRequestId(),
+    initiator: initiatorId,
+    invitee: inviteeId,
+    status: "pending_acceptance",
+    domains,
+    description,
+    createdAt: nowISO(),
+    sharedDTUIds: new Set(),
+  };
+  COLLAB_SESSIONS.set(session.id, session);
+  realtimeEmit("collab:invite", {
+    userId: inviteeId,
+    collabId: session.id,
+    from: initiatorId,
+    domains,
+    description,
+  });
+  return session;
+}
+
+function acceptCollab(collabId, userId) {
+  const session = COLLAB_SESSIONS.get(collabId);
+  if (!session) throw new Error("Session not found");
+  if (session.invitee !== userId) throw new Error("Not your invitation");
+  session.status = "active";
+  session.acceptedAt = nowISO();
+  realtimeEmit("collab:accepted", {
+    collabId,
+    participants: [session.initiator, session.invitee],
+  });
+  return session;
+}
+
+async function collabScopedSearch(query, userId, collabId, opts = {}) {
+  const session = COLLAB_SESSIONS.get(collabId);
+  if (!session || session.status !== "active") {
+    return scopedEmbeddingSearch(query, userId, opts);
+  }
+  const partnerId = session.initiator === userId ? session.invitee : session.initiator;
+  const ownResults = await scopedEmbeddingSearch(query, userId, { limit: opts.limit || 10, minScore: 0.4 });
+  const partnerResults = await scopedEmbeddingSearch(query, partnerId, { limit: opts.limit || 5, minScore: 0.4 });
+  const filteredPartner = partnerResults
+    .filter(r => session.domains.includes(r.domain))
+    .map(r => ({ ...r, source: "collaborator", collaboratorId: partnerId }));
+  return [...ownResults, ...filteredPartner];
+}
+
+app.post("/api/collab/create", requireAuth(), async (req, res) => {
+  const { inviteeId, domains, description } = req.body;
+  if (!inviteeId) return res.status(400).json({ ok: false, error: "inviteeId required" });
+  const session = createCollabSession(req.user.id, inviteeId, domains || [], description || "");
+  res.json({ ok: true, session: { ...session, sharedDTUIds: [...session.sharedDTUIds] } });
+});
+
+app.post("/api/collab/:id/accept", requireAuth(), async (req, res) => {
+  try {
+    const session = acceptCollab(req.params.id, req.user.id);
+    res.json({ ok: true, session: { ...session, sharedDTUIds: [...session.sharedDTUIds] } });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/collab/:id/close", requireAuth(), (req, res) => {
+  const session = COLLAB_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+  if (session.initiator !== req.user.id && session.invitee !== req.user.id) {
+    return res.status(403).json({ ok: false });
+  }
+  session.status = "closed";
+  session.closedAt = nowISO();
+  res.json({ ok: true });
+});
+
+app.get("/api/collab/active", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const active = Array.from(COLLAB_SESSIONS.values())
+    .filter(s => (s.initiator === userId || s.invitee === userId) && s.status === "active")
+    .map(s => ({ ...s, sharedDTUIds: [...s.sharedDTUIds] }));
+  res.json({ ok: true, sessions: active });
+});
+
+// --- Capability 5: CONCORD AS AN API ---
+
+function requireApiKey() {
+  return (req, res, next) => {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token || !token.startsWith("ck_")) {
+      return res.status(401).json({ error: "Valid API key required (Bearer ck_...)" });
+    }
+    const apiKeys = STATE.apiKeys || new Map();
+    const found = Array.from(apiKeys.values()).find(k => k.key === token && k.active !== false);
+    if (!found) return res.status(401).json({ error: "Invalid API key" });
+    req.apiKey = found;
+    next();
+  };
+}
+
+function trackApiUsage(keyId, domain, action) {
+  STATE._apiUsage = STATE._apiUsage || new Map();
+  const key = `${keyId}-${new Date().toISOString().slice(0, 13)}`; // per-hour bucket
+  const usage = STATE._apiUsage.get(key) || { calls: 0, domains: {} };
+  usage.calls++;
+  usage.domains[domain] = (usage.domains[domain] || 0) + 1;
+  STATE._apiUsage.set(key, usage);
+}
+
+function isApiRateLimited(keyId, maxPerMinute) {
+  STATE._apiRateWindows = STATE._apiRateWindows || new Map();
+  const now = Date.now();
+  const window = STATE._apiRateWindows.get(keyId) || [];
+  const recent = window.filter(t => now - t < 60000);
+  if (recent.length >= maxPerMinute) return true;
+  recent.push(now);
+  STATE._apiRateWindows.set(keyId, recent);
+  return false;
+}
+
+app.post("/api/v1/lens/:domain/:action", requireApiKey(), async (req, res) => {
+  const { domain, action } = req.params;
+  const userId = req.apiKey.userId;
+
+  const manifest = DOMAIN_ACTION_MANIFEST[domain];
+  if (!manifest) return res.status(404).json({ error: "Unknown domain" });
+
+  const actionDef = Array.isArray(manifest) ? manifest.find(a => a.action === action) : null;
+  if (!actionDef) return res.status(404).json({ error: "Unknown action" });
+
+  if (isApiRateLimited(req.apiKey.id, req.apiKey.rateLimit || 60)) {
+    return res.status(429).json({ error: "Rate limited" });
+  }
+
+  try {
+    const result = await runMacro(domain, action, { ...req.body, userId }, { userId, source: "api" });
+
+    if (result && result.dtuId) {
+      const dtu = STATE.dtus.get(result.dtuId);
+      if (dtu?.artifact) {
+        result.downloadUrl = `/api/v1/artifact/${result.dtuId}/download`;
+        result.fileType = dtu.artifact.mimeType;
+        result.fileSize = dtu.artifact.originalSize;
+      }
+    }
+
+    trackApiUsage(req.apiKey.id, domain, action);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/v1/keys/create", requireAuth(), (req, res) => {
+  const key = {
+    id: generateRequestId(),
+    userId: req.user.id,
+    key: `ck_${crypto.randomBytes(32).toString("hex")}`,
+    name: req.body.name || "Default",
+    permissions: req.body.permissions || ["read", "execute"],
+    rateLimit: 60,
+    active: true,
+    createdAt: nowISO(),
+  };
+  STATE.apiKeys = STATE.apiKeys || new Map();
+  STATE.apiKeys.set(key.id, key);
+  saveStateDebounced();
+  res.json({ ok: true, key: key.key, id: key.id });
+});
+
+app.get("/api/v1/keys", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const keys = Array.from((STATE.apiKeys || new Map()).values())
+    .filter(k => k.userId === userId)
+    .map(k => ({ id: k.id, name: k.name, keyPreview: k.key.slice(0, 10) + "...", createdAt: k.createdAt, active: k.active }));
+  res.json({ ok: true, keys });
+});
+
+app.delete("/api/v1/keys/:keyId", requireAuth(), (req, res) => {
+  const key = STATE.apiKeys?.get(req.params.keyId);
+  if (!key || key.userId !== req.user.id) return res.status(404).json({ ok: false });
+  key.active = false;
+  saveStateDebounced();
+  res.json({ ok: true });
+});
+
+app.get("/api/v1/artifact/:dtuId/download", requireApiKey(), async (req, res) => {
+  const dtu = STATE.dtus.get(req.params.dtuId);
+  if (!dtu || dtu.ownerId !== req.apiKey.userId) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  try {
+    const { retrieveArtifact } = await import("./lib/artifact-store.js");
+    const data = retrieveArtifact(req.params.dtuId);
+    if (!data) return res.status(404).json({ error: "Artifact not found" });
+    res.setHeader("Content-Type", dtu.artifact?.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${dtu.artifact?.filename || dtu.id}"`);
+    res.send(data);
+  } catch {
+    res.status(500).json({ error: "Failed to retrieve artifact" });
+  }
+});
+
+app.get("/api/v1/docs", (req, res) => {
+  const docs = {};
+  for (const [domain, actions] of Object.entries(DOMAIN_ACTION_MANIFEST)) {
+    if (Array.isArray(actions)) {
+      docs[domain] = actions.map(a => ({
+        endpoint: `POST /api/v1/lens/${domain}/${a.action}`,
+        description: a.desc,
+        brain: a.brain,
+        producesFile: !!a.outputType,
+        fileType: a.outputType || null,
+      }));
+    }
+  }
+  res.json({
+    version: "v1",
+    authentication: "Bearer token in Authorization header",
+    rateLimit: "60 requests per minute per key",
+    domains: Object.keys(docs).length,
+    totalActions: Object.values(docs).flat().length,
+    endpoints: docs,
+  });
+});
+
+// --- Capability 6: PERSONAL AI AGENT ---
+
+function createPersonalAgent(userId) {
+  const agent = {
+    id: generateRequestId(),
+    ownerId: userId,
+    type: "personal_agent",
+    species: "agent",
+    name: null,
+    watchedLenses: [],
+    proactiveActions: true,
+    lastBriefing: null,
+    priorities: [],
+    createdAt: nowISO(),
+  };
+  STATE.entities.set(agent.id, agent);
+  saveStateDebounced();
+  return agent;
+}
+
+async function agentTick(agentId) {
+  const agent = STATE.entities.get(agentId);
+  if (!agent || agent.type !== "personal_agent") return [];
+  const userId = agent.ownerId;
+  const insights = [];
+
+  // Check for upcoming calendar events
+  try {
+    const upcoming = await runMacro("calendar", "upcoming", { userId, hoursAhead: 4 }, { userId });
+    if (upcoming?.events?.length > 0) {
+      for (const event of upcoming.events) {
+        const context = await scopedEmbeddingSearch(
+          event.title + " " + (event.description || ""),
+          userId,
+          { limit: 5 }
+        );
+        if (context.length > 0) {
+          insights.push({
+            type: "meeting_prep",
+            event,
+            relevantDTUs: context.map(c => c.id),
+            suggestion: `You have "${event.title}" in ${event.hoursUntil} hours. I found ${context.length} relevant notes in your substrate.`,
+          });
+        }
+      }
+    }
+  } catch { /* silent */ }
+
+  // Check for overdue accounting items
+  try {
+    const overdue = await runMacro("accounting", "check-overdue", { userId }, { userId });
+    if (overdue?.items?.length > 0) {
+      insights.push({
+        type: "overdue_alert",
+        items: overdue.items,
+        suggestion: `${overdue.items.length} invoice${overdue.items.length > 1 ? "s" : ""} overdue. Want me to draft follow-up emails?`,
+      });
+    }
+  } catch { /* silent */ }
+
+  // Check fitness schedule
+  try {
+    const todayWorkout = await runMacro("fitness", "today-schedule", { userId }, { userId });
+    if (todayWorkout?.workout) {
+      const healthContext = await scopedEmbeddingSearch("injury pain restriction limitation", userId, { limit: 3 });
+      if (healthContext.length > 0) {
+        insights.push({
+          type: "workout_adjustment",
+          workout: todayWorkout.workout,
+          healthContext: healthContext.map(c => c.title),
+          suggestion: `Your workout today is ${todayWorkout.workout.name}. I noticed some health notes that might affect this — want me to adjust?`,
+        });
+      }
+    }
+  } catch { /* silent */ }
+
+  // Check meal timing
+  try {
+    const mealPlan = await runMacro("food", "todays-meals", { userId }, { userId });
+    if (mealPlan?.nextMeal) {
+      insights.push({
+        type: "meal_reminder",
+        meal: mealPlan.nextMeal,
+        suggestion: `Next meal: ${mealPlan.nextMeal.name} at ${mealPlan.nextMeal.time}. Ingredients ready?`,
+      });
+    }
+  } catch { /* silent */ }
+
+  if (insights.length > 0) {
+    realtimeEmit("agent:insights", { userId, agentId, insights, generatedAt: nowISO() });
+  }
+  return insights;
+}
+
+app.post("/api/agent/create", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const existing = Array.from(STATE.entities.values())
+    .find(e => e.ownerId === userId && e.type === "personal_agent");
+  if (existing) return res.json({ ok: true, agent: existing, existing: true });
+  const agent = createPersonalAgent(userId);
+  res.json({ ok: true, agent });
+});
+
+app.get("/api/agent/status", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const agent = Array.from(STATE.entities.values())
+    .find(e => e.ownerId === userId && e.type === "personal_agent");
+  if (!agent) return res.json({ ok: true, agent: null });
+  res.json({ ok: true, agent });
+});
+
+app.post("/api/agent/tick", requireAuth(), async (req, res) => {
+  const userId = req.user.id;
+  const agent = Array.from(STATE.entities.values())
+    .find(e => e.ownerId === userId && e.type === "personal_agent");
+  if (!agent) return res.status(404).json({ ok: false, error: "No agent found" });
+  const insights = await agentTick(agent.id);
+  res.json({ ok: true, insights });
+});
+
+app.put("/api/agent/config", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const agent = Array.from(STATE.entities.values())
+    .find(e => e.ownerId === userId && e.type === "personal_agent");
+  if (!agent) return res.status(404).json({ ok: false });
+  if (req.body.name) agent.name = req.body.name;
+  if (req.body.watchedLenses) agent.watchedLenses = req.body.watchedLenses;
+  if (req.body.priorities) agent.priorities = req.body.priorities;
+  if (typeof req.body.proactiveActions === "boolean") agent.proactiveActions = req.body.proactiveActions;
+  saveStateDebounced();
+  res.json({ ok: true, agent });
+});
+
+// --- Capability 7: KNOWLEDGE INHERITANCE ---
+
+app.post("/api/inheritance/create-bequest", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const { recipientEmail, domains, message } = req.body;
+  if (!recipientEmail) return res.status(400).json({ ok: false, error: "recipientEmail required" });
+
+  const bequest = {
+    id: generateRequestId(),
+    grantorId: userId,
+    recipientEmail,
+    domains: domains === "all" ? null : (domains || null),
+    message: message || "",
+    status: "active",
+    createdAt: nowISO(),
+    claimedAt: null,
+    claimedBy: null,
+  };
+
+  STATE.bequests = STATE.bequests || new Map();
+  STATE.bequests.set(bequest.id, bequest);
+  saveStateDebounced();
+  res.json({ ok: true, bequestId: bequest.id });
+});
+
+app.post("/api/inheritance/claim", requireAuth(), async (req, res) => {
+  const userId = req.user.id;
+  const user = STATE.users?.get(userId);
+  const { bequestId } = req.body;
+
+  const bequest = STATE.bequests?.get(bequestId);
+  if (!bequest) return res.status(404).json({ ok: false, error: "Not found" });
+  if (bequest.status !== "active") return res.status(400).json({ ok: false, error: "Already claimed or revoked" });
+  if (user?.email && bequest.recipientEmail !== user.email) {
+    return res.status(403).json({ ok: false, error: "Not your bequest" });
+  }
+
+  let inherited = 0;
+  for (const [, dtu] of STATE.dtus) {
+    if (dtu.ownerId !== bequest.grantorId) continue;
+    if (dtu.scope !== "personal" && dtu.scope !== "synced_global") continue;
+    if (bequest.domains && !bequest.domains.includes(dtu.domain)) continue;
+
+    const copy = {
+      ...JSON.parse(JSON.stringify(dtu)),
+      id: generateRequestId(),
+      ownerId: userId,
+      scope: "personal",
+      meta: {
+        ...(dtu.meta || {}),
+        inheritedFrom: bequest.grantorId,
+        inheritedAt: nowISO(),
+        bequestId,
+      },
+    };
+    STATE.dtus.set(copy.id, copy);
+    inherited++;
+  }
+
+  await reindexUserDTUs(userId);
+
+  bequest.status = "claimed";
+  bequest.claimedAt = nowISO();
+  bequest.claimedBy = userId;
+  saveStateDebounced();
+
+  res.json({ ok: true, inherited, message: bequest.message });
+});
+
+app.post("/api/inheritance/revoke", requireAuth(), (req, res) => {
+  const { bequestId } = req.body;
+  const bequest = STATE.bequests?.get(bequestId);
+  if (!bequest || bequest.grantorId !== req.user.id) {
+    return res.status(403).json({ ok: false });
+  }
+  bequest.status = "revoked";
+  saveStateDebounced();
+  res.json({ ok: true });
+});
+
+app.get("/api/inheritance/bequests", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const bequests = Array.from((STATE.bequests || new Map()).values())
+    .filter(b => b.grantorId === userId);
+  res.json({ ok: true, bequests });
+});
+
+// --- Capability 8: CONCORD FOR ORGANIZATIONS ---
+
+app.post("/api/org/create", requireAuth(), (req, res) => {
+  const { name, domains } = req.body;
+  if (!name) return res.status(400).json({ ok: false, error: "name required" });
+
+  const org = {
+    id: generateRequestId(),
+    name,
+    ownerId: req.user.id,
+    domains: domains || [],
+    members: [{ userId: req.user.id, role: "admin", joinedAt: nowISO() }],
+    createdAt: nowISO(),
+  };
+
+  STATE.orgs = STATE.orgs || new Map();
+  STATE.orgs.set(org.id, org);
+  saveStateDebounced();
+  res.json({ ok: true, org });
+});
+
+app.post("/api/org/:orgId/invite", requireAuth(), (req, res) => {
+  const org = STATE.orgs?.get(req.params.orgId);
+  if (!org) return res.status(404).json({ ok: false });
+  const member = org.members.find(m => m.userId === req.user.id);
+  if (!member || member.role !== "admin") {
+    return res.status(403).json({ ok: false, error: "Admin only" });
+  }
+
+  const invite = {
+    id: generateRequestId(),
+    orgId: org.id,
+    email: req.body.email,
+    role: req.body.role || "member",
+    status: "pending",
+    createdAt: nowISO(),
+  };
+
+  STATE.orgInvites = STATE.orgInvites || new Map();
+  STATE.orgInvites.set(invite.id, invite);
+  saveStateDebounced();
+  res.json({ ok: true, invite });
+});
+
+app.post("/api/org/:orgId/join", requireAuth(), (req, res) => {
+  const { inviteId } = req.body;
+  const invite = STATE.orgInvites?.get(inviteId);
+  if (!invite || invite.status !== "pending") return res.status(404).json({ ok: false });
+
+  const org = STATE.orgs?.get(invite.orgId);
+  if (!org) return res.status(404).json({ ok: false });
+
+  const user = STATE.users?.get(req.user.id);
+  if (user?.email && invite.email !== user.email) {
+    return res.status(403).json({ ok: false, error: "Invite not for this user" });
+  }
+
+  org.members.push({ userId: req.user.id, role: invite.role, joinedAt: nowISO() });
+  invite.status = "accepted";
+  saveStateDebounced();
+  res.json({ ok: true, org });
+});
+
+async function orgScopedSearch(query, userId, orgId, opts = {}) {
+  const personal = await scopedEmbeddingSearch(query, userId, { limit: opts.limit || 10 });
+  const orgResults = Array.from(STATE.dtus.values())
+    .filter(d => d.scope === "org_global" && d.orgId === orgId)
+    .slice(0, opts.limit || 5)
+    .map(d => ({ id: d.id, title: d.title, domain: d.domain, source: "org" }));
+  return [...personal, ...orgResults];
+}
+
+app.post("/api/org/:orgId/promote", requireAuth(), (req, res) => {
+  const { dtuId } = req.body;
+  const org = STATE.orgs?.get(req.params.orgId);
+  if (!org) return res.status(404).json({ ok: false });
+  const isMember = org.members.some(m => m.userId === req.user.id);
+  if (!isMember) return res.status(403).json({ ok: false });
+
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu || dtu.ownerId !== req.user.id) return res.status(403).json({ ok: false });
+
+  const orgCopy = {
+    ...JSON.parse(JSON.stringify(dtu)),
+    id: generateRequestId(),
+    scope: "org_global",
+    orgId: org.id,
+    promotedBy: req.user.id,
+    promotedAt: nowISO(),
+  };
+  STATE.dtus.set(orgCopy.id, orgCopy);
+  saveStateDebounced();
+  res.json({ ok: true, dtuId: orgCopy.id });
+});
+
+app.get("/api/org/list", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const orgs = Array.from((STATE.orgs || new Map()).values())
+    .filter(o => o.members.some(m => m.userId === userId));
+  res.json({ ok: true, orgs });
+});
+
+// --- Capability 9: SELF-IMPROVING QUALITY (Adaptive Thresholds) ---
+
+function computeAdaptiveThresholds(domain) {
+  const approved = Array.from(STATE.dtus.values())
+    .filter(d => d.domain === domain && d.meta?.status === "marketplace_ready" && d.meta?.qualityScore);
+
+  if (approved.length < 50) return null;
+
+  const scores = approved.map(d => d.meta.qualityScore).sort((a, b) => a - b);
+  const median = scores[Math.floor(scores.length / 2)];
+
+  return {
+    domain,
+    sampleSize: approved.length,
+    median,
+    tier1Threshold: scores[Math.floor(scores.length * 0.75)],
+    tier2Threshold: median,
+    rejectionThreshold: scores[Math.floor(scores.length * 0.1)],
+    computedAt: nowISO(),
+  };
+}
+
+function getQualityThresholds(domain) {
+  const adaptive = computeAdaptiveThresholds(domain);
+  if (adaptive) return adaptive;
+  return { tier1Threshold: 0.8, tier2Threshold: 0.5, rejectionThreshold: 0.3 };
+}
+
+app.get("/api/quality/thresholds/:domain", requireAuth(), (req, res) => {
+  const thresholds = getQualityThresholds(req.params.domain);
+  res.json({ ok: true, thresholds });
+});
+
+app.get("/api/quality/thresholds", requireAuth(), (req, res) => {
+  const all = {};
+  for (const domain of Object.keys(DOMAIN_ACTION_MANIFEST)) {
+    all[domain] = getQualityThresholds(domain);
+  }
+  res.json({ ok: true, thresholds: all });
+});
+
+// --- Capability 10: OFFLINE-FIRST SOVEREIGN DEPLOYMENT ---
+
+app.get("/api/substrate/export", requireAuth(), async (req, res) => {
+  const userId = req.user.id;
+  const substrate = {
+    version: "1.0",
+    exportedAt: nowISO(),
+    userId,
+    dtus: Array.from(STATE.dtus.values())
+      .filter(d => d.ownerId === userId)
+      .map(d => ({ ...d })),
+    entities: Array.from(STATE.entities.values())
+      .filter(e => e.ownerId === userId),
+    sovereignty: STATE.users?.get(userId)?.sovereignty,
+  };
+
+  const { gzipSync } = await import("zlib");
+  const compressed = gzipSync(Buffer.from(JSON.stringify(substrate)), { level: 6 });
+
+  res.setHeader("Content-Type", "application/gzip");
+  res.setHeader("Content-Disposition", `attachment; filename="concord-substrate-${userId}-${Date.now()}.gz"`);
+  res.send(compressed);
+});
+
+app.post("/api/substrate/import", requireAuth(), async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const { gunzipSync } = await import("zlib");
+    const raw = gunzipSync(Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body));
+    const substrate = JSON.parse(raw.toString());
+
+    let imported = 0;
+    for (const dtu of (substrate.dtus || [])) {
+      const newDtu = {
+        ...dtu,
+        id: generateRequestId(),
+        ownerId: userId,
+        importedAt: nowISO(),
+        importedFrom: substrate.userId,
+      };
+      STATE.dtus.set(newDtu.id, newDtu);
+      imported++;
+    }
+
+    await reindexUserDTUs(userId);
+    saveStateDebounced();
+    res.json({ ok: true, imported });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Capability 11: COMPOUND FLYWHEEL ---
+
+function computeFlywheelMetrics() {
+  const metrics = {
+    totalDTUs: STATE.dtus.size,
+    megaCount: 0,
+    hyperCount: 0,
+    compressionRatio: 0,
+    livingEntities: 0,
+    avgMaturity: 0,
+    productionRate: 0,
+    avgQualityScore: 0,
+    tier1Rate: 0,
+    qualityTrend: "stable",
+    totalListings: STATE.marketplaceListings?.size || 0,
+    transactionsToday: 0,
+    revenueToday: 0,
+    activeUsers24h: 0,
+    chatMessages24h: 0,
+    lensActionsToday: 0,
+    velocity: 0,
+  };
+
+  let totalOriginal = 0;
+  let totalCompressed = 0;
+  let qualitySum = 0;
+  let qualityCount = 0;
+  let tier1Count = 0;
+
+  for (const dtu of STATE.dtus.values()) {
+    if (dtu.tier === "MEGA") metrics.megaCount++;
+    if (dtu.tier === "HYPER") metrics.hyperCount++;
+    totalOriginal += dtu.artifact?.originalSize || 0;
+    totalCompressed += dtu.artifact?.compressedSize || dtu.artifact?.originalSize || 0;
+    if (dtu.meta?.qualityScore) {
+      qualitySum += dtu.meta.qualityScore;
+      qualityCount++;
+      if (dtu.meta.qualityTier === 1) tier1Count++;
+    }
+  }
+
+  metrics.compressionRatio = totalOriginal > 0 ? parseFloat((1 - totalCompressed / totalOriginal).toFixed(3)) : 0;
+  metrics.avgQualityScore = qualityCount > 0 ? parseFloat((qualitySum / qualityCount).toFixed(3)) : 0;
+  metrics.tier1Rate = qualityCount > 0 ? parseFloat((tier1Count / qualityCount).toFixed(3)) : 0;
+
+  for (const entity of STATE.entities.values()) {
+    if (!entity.dead) metrics.livingEntities++;
+  }
+
+  // 24h activity
+  const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+  const activeUserSet = new Set();
+  for (const [, sess] of STATE.sessions) {
+    for (const msg of (sess.messages || [])) {
+      if (msg.ts > oneDayAgo) {
+        metrics.chatMessages24h++;
+        if (sess.userId) activeUserSet.add(sess.userId);
+      }
+    }
+  }
+  metrics.activeUsers24h = activeUserSet.size;
+
+  // Flywheel velocity
+  const factors = [
+    Math.min(metrics.totalDTUs / 10000, 1),
+    Math.min(metrics.livingEntities / 100, 1),
+    metrics.tier1Rate || 0.01,
+    Math.min(metrics.totalListings / 1000, 1) || 0.01,
+    Math.min(metrics.activeUsers24h / 100, 1) || 0.01,
+  ].filter(f => f > 0);
+
+  if (factors.length > 0) {
+    const product = factors.reduce((a, b) => a * b, 1);
+    metrics.velocity = parseFloat(Math.pow(product, 1 / factors.length).toFixed(3));
+  }
+
+  return metrics;
+}
+
+app.get("/api/flywheel/metrics", requireAuth(), (req, res) => {
+  const metrics = computeFlywheelMetrics();
+  res.json({ ok: true, metrics });
+});
+
+app.get("/api/flywheel/history", requireAuth(), (req, res) => {
+  STATE.flywheelHistory = STATE.flywheelHistory || [];
+  res.json({ ok: true, history: STATE.flywheelHistory.slice(-720) });
+});
+
+// --- Capability 12: RESEARCH PLATFORM ---
+
+async function conductResearch(userId, topic) {
+  const execution = {
+    id: generateRequestId(),
+    userId,
+    topic,
+    status: "running",
+    phases: [],
+    startedAt: nowISO(),
+  };
+
+  // Phase 1: Substrate scan
+  const existingKnowledge = await scopedEmbeddingSearch(topic, userId, { limit: 20, minScore: 0.3 });
+  execution.phases.push({
+    phase: "substrate_scan",
+    dtuCount: existingKnowledge.length,
+    domains: [...new Set(existingKnowledge.map(r => r.domain))],
+  });
+
+  // Phase 2: Generate hypotheses
+  try {
+    const hypotheses = await runMacro("hypothesis", "generate", {
+      topic,
+      existingKnowledge: existingKnowledge.map(r => r.title).join(", "),
+      count: 5,
+      userId,
+    }, { userId });
+    execution.phases.push({ phase: "hypothesis_generation", hypotheses: hypotheses?.items || [] });
+  } catch {
+    execution.phases.push({ phase: "hypothesis_generation", hypotheses: [], error: "skipped" });
+  }
+
+  // Phase 3: Cross-domain scan
+  try {
+    const crossDomain = await runMacro("research", "cross-domain-scan", {
+      topic,
+      excludeDomains: [...new Set(existingKnowledge.map(r => r.domain))],
+      userId,
+    }, { userId });
+    execution.phases.push({ phase: "cross_domain_scan", connections: crossDomain?.connections || [] });
+  } catch {
+    execution.phases.push({ phase: "cross_domain_scan", connections: [], error: "skipped" });
+  }
+
+  // Phase 4: Synthesis
+  try {
+    const synthesis = await runMacro("research", "synthesize", {
+      topic,
+      substrateKnowledge: existingKnowledge,
+      userId,
+    }, { userId });
+    execution.phases.push({ phase: "synthesis", dtuId: synthesis?.dtuId });
+  } catch {
+    execution.phases.push({ phase: "synthesis", error: "skipped" });
+  }
+
+  execution.status = "completed";
+  execution.completedAt = nowISO();
+  return execution;
+}
+
+app.post("/api/research/conduct", requireAuth(), async (req, res) => {
+  const { topic } = req.body;
+  if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
+  const userId = req.user.id;
+
+  realtimeEmit("research:started", { userId, topic });
+
+  try {
+    const result = await conductResearch(userId, topic);
+
+    realtimeEmit("research:completed", {
+      userId,
+      topic,
+      phases: result.phases.length,
+      breakthroughs: result.phases.find(p => p.phase === "breakthrough_detection")?.clusters?.length || 0,
+    });
+
+    res.json({ ok: true, research: result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Heartbeat Integration for New Capabilities ---
+// These functions are called from the existing heartbeat cycle:
+// Every 100th tick: detectUserPatterns for active users
+// Every 200th tick: predictivePreGeneration
+// Every 500th tick: suggestExpertPromotions
+// Every 3600th tick: flywheel snapshot
+
+let _capabilityTickCount = 0;
+function newCapabilitiesHeartbeat() {
+  _capabilityTickCount++;
+
+  // Pattern detection
+  if (_capabilityTickCount % 100 === 0) {
+    for (const [userId] of (STATE.users || new Map())) {
+      try { detectUserPatterns(userId); } catch { /* silent */ }
+    }
+  }
+
+  // Predictive pre-generation
+  if (_capabilityTickCount % 200 === 0) {
+    predictivePreGeneration().catch(() => {});
+  }
+
+  // Expert promotion suggestions
+  if (_capabilityTickCount % 500 === 0) {
+    try { suggestExpertPromotions(); } catch { /* silent */ }
+  }
+
+  // Flywheel snapshot
+  if (_capabilityTickCount % 3600 === 0) {
+    try {
+      STATE.flywheelHistory = STATE.flywheelHistory || [];
+      STATE.flywheelHistory.push({ ...computeFlywheelMetrics(), ts: nowISO() });
+      if (STATE.flywheelHistory.length > 720) STATE.flywheelHistory.splice(0, STATE.flywheelHistory.length - 720);
+      saveStateDebounced();
+    } catch { /* silent */ }
+  }
+
+  // Personal agent ticks
+  if (_capabilityTickCount % 300 === 0) {
+    for (const entity of STATE.entities.values()) {
+      if (entity.type === "personal_agent" && entity.proactiveActions) {
+        agentTick(entity.id).catch(() => {});
+      }
+    }
+  }
+}
+
+// ============================================================================
 // MEGA SPEC: WebSocket Chat Streaming Handler
 // ============================================================================
 
@@ -33884,6 +35063,7 @@ setInterval(() => {
 setInterval(() => {
   try { tickGlobal(STATE); } catch {}
   try { tickMarketplace(STATE); } catch {}
+  try { newCapabilitiesHeartbeat(); } catch {}
 }, 600000);
 
 structuredLog("info", "module_loaded", { detail: "Atlas Global + Platform v2: All endpoints registered" });
