@@ -26,13 +26,15 @@
  *   </LensShell>
  */
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLensNav } from '@/hooks/useLensNav';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { Loading } from '@/components/common/Loading';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { PersistentChatRail } from '@/components/chat/PersistentChatRail';
 import { Search, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -70,6 +72,9 @@ interface LensShellProps {
   aiActions?: boolean;
   selectedArtifactId?: string | null;
 
+  /** Persistent chat rail — enable the cross-lens conversation panel */
+  enableChatRail?: boolean;
+
   /** Data loading states */
   isLoading?: boolean;
   isError?: boolean;
@@ -96,6 +101,7 @@ export function LensShell({
   filters,
   aiActions,
   selectedArtifactId,
+  enableChatRail = true,
   isLoading,
   isError,
   error,
@@ -104,9 +110,15 @@ export function LensShell({
   className,
 }: LensShellProps) {
   useLensNav(domain);
+  const router = useRouter();
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const handleLensNavigate = (lensDomain: string) => {
+    router.push(`/lenses/${lensDomain}`);
+  };
 
   return (
-    <div className={cn(ds.pageContainer, className)}>
+    <div className={cn(ds.pageContainer, chatOpen && 'mr-[380px]', className)}>
       {/* Header */}
       <div className={ds.sectionHeader}>
         <div className="flex items-center gap-3">
@@ -182,6 +194,16 @@ export function LensShell({
         <ErrorState error={error?.message} onRetry={onRetry} />
       ) : (
         children
+      )}
+
+      {/* Persistent Chat Rail — follows user across all lenses */}
+      {enableChatRail && (
+        <PersistentChatRail
+          currentLens={domain}
+          collapsed={!chatOpen}
+          onToggle={() => setChatOpen(!chatOpen)}
+          onLensNavigate={handleLensNavigate}
+        />
       )}
     </div>
   );

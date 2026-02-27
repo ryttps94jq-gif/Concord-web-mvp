@@ -1691,6 +1691,94 @@ export const apiHelpers = {
       api.post(`/api/admin/promotion/${id}/reject`, { reason }),
     history: () => api.get('/api/admin/promotion/history'),
   },
+
+  // ═══════════════════════════════════════════════════════════════
+  // MEGA SPEC: New API helpers for cross-domain features
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Entity profiles */
+  entity: {
+    profile: (entityId: string) => api.get(`/api/entity/${entityId}/profile`),
+    dashboard: () => api.get('/api/entity-economy/dashboard'),
+  },
+
+  /** Lens manifest — actions available per domain */
+  lens: {
+    manifest: (domain: string) => api.get(`/api/lens/manifest/${domain}`),
+    run: (domain: string, action: string, input?: Record<string, unknown>) =>
+      api.post('/api/lens/run', { domain, action, ...input }),
+  },
+
+  /** Quality gate stats */
+  quality: {
+    stats: () => api.get('/api/quality/stats'),
+    domain: (domain: string) => api.get(`/api/quality/domain/${domain}`),
+  },
+
+  /** Artifact streaming/download helpers */
+  artifact: {
+    streamUrl: (dtuId: string) => `/api/artifact/${dtuId}/stream`,
+    downloadUrl: (dtuId: string) => `/api/artifact/${dtuId}/download`,
+    thumbnailUrl: (dtuId: string) => `/api/artifact/${dtuId}/thumbnail`,
+  },
+
+  /** Marketplace browse + purchase with royalties */
+  marketplaceBrowse: {
+    browse: (params?: Record<string, unknown>) => api.get('/api/marketplace/browse', { params }),
+    dtuBrowse: (params?: Record<string, unknown>) => api.get('/api/marketplace/dtu_browse', { params }),
+    purchaseWithRoyalties: (dtuId: string) =>
+      api.post('/api/marketplace/purchaseWithRoyalties', { dtuId }),
+    royalties: (userId?: string) =>
+      api.get(userId ? `/api/marketplace/royalties/${userId}` : '/api/marketplace/royalties'),
+  },
+
+  /** Cognitive dreams */
+  dreams: {
+    list: (limit?: number) => api.get('/api/cognitive/dreams', { params: { limit } }),
+  },
+
+  /** Admin: Shadow vault + compression management */
+  admin: {
+    unshadow: (domain: string, count?: number) =>
+      api.post('/api/admin/unshadow', { domain, count: count || 5 }),
+    migrateCompression: () => api.post('/api/admin/migrate-compression'),
+    compressionStats: () => api.get('/api/admin/compression-stats'),
+  },
+
+  /** Sovereignty: scope isolation + consent management */
+  sovereignty: {
+    setup: (mode: string, selectedDomains?: string[]) =>
+      api.post('/api/sovereignty/setup', { mode, selectedDomains }),
+    status: () => api.get('/api/sovereignty/status'),
+    preferences: (globalAssistConsent: string) =>
+      api.put('/api/sovereignty/preferences', { globalAssistConsent }),
+    unsync: (domain?: string) =>
+      api.post('/api/sovereignty/unsync', { domain: domain || null }),
+    resolve: (data: {
+      sessionId: string;
+      choice: string;
+      globalDTUIds: string[];
+      originalPrompt: string;
+      lens?: string;
+      remember?: boolean;
+    }) => api.post('/api/chat/sovereignty-resolve', data),
+  },
+
+  /** Council: proposal + voting for global promotion */
+  council: {
+    proposePromotion: (dtuId: string, reason?: string) =>
+      api.post('/api/council/propose-promotion', { dtuId, reason }),
+    vote: (proposalId: string, vote: 'approve' | 'reject') =>
+      api.post('/api/council/vote', { proposalId, vote }),
+    proposals: (status?: string) =>
+      api.get('/api/council/proposals', { params: status ? { status } : {} }),
+  },
+
+  /** Marketplace: scoped submit */
+  marketplaceSubmit: {
+    submit: (dtuId: string, price?: number) =>
+      api.post('/api/marketplace/submit', { dtuId, price }),
+  },
 };
 
 /**
@@ -1730,5 +1818,72 @@ export async function safeUtilityCall(action: string, lens: string, data: Record
     return { error: 'Connection lost. Reconnecting...', offline: true };
   }
 }
+
+// ============================================================================
+// 12 NEW CAPABILITIES: API helpers
+// ============================================================================
+
+// Predictive substrate / morning brief
+export const morningBrief = () => api.get('/api/brief/morning').then(r => r.data);
+export const dismissPrediction = (dtuId: string) => api.post('/api/brief/dismiss', { dtuId }).then(r => r.data);
+
+// Pipelines
+export const executePipeline = (pipelineId: string, variables: Record<string, unknown>, sessionId?: string) =>
+  api.post('/api/pipeline/execute', { pipelineId, variables, sessionId }).then(r => r.data);
+export const pipelineExecutions = () => api.get('/api/pipeline/executions').then(r => r.data);
+
+// Teaching
+export const teachingExpertise = () => api.get('/api/teaching/expertise').then(r => r.data);
+
+// Collaboration
+export const createCollab = (inviteeId: string, domains: string[], description: string) =>
+  api.post('/api/collab/create', { inviteeId, domains, description }).then(r => r.data);
+export const acceptCollab = (id: string) => api.post(`/api/collab/${id}/accept`).then(r => r.data);
+export const closeCollab = (id: string) => api.post(`/api/collab/${id}/close`).then(r => r.data);
+export const activeCollabs = () => api.get('/api/collab/active').then(r => r.data);
+
+// API keys
+export const createApiKey = (name: string) => api.post('/api/v1/keys/create', { name }).then(r => r.data);
+export const listApiKeys = () => api.get('/api/v1/keys').then(r => r.data);
+export const revokeApiKey = (keyId: string) => api.delete(`/api/v1/keys/${keyId}`).then(r => r.data);
+export const apiDocs = () => api.get('/api/v1/docs').then(r => r.data);
+
+// Personal agent
+export const createAgent = () => api.post('/api/agent/create').then(r => r.data);
+export const agentStatus = () => api.get('/api/agent/status').then(r => r.data);
+export const agentTick = () => api.post('/api/agent/tick').then(r => r.data);
+export const configureAgent = (config: Record<string, unknown>) => api.put('/api/agent/config', config).then(r => r.data);
+
+// Knowledge inheritance
+export const createBequest = (recipientEmail: string, domains: string[] | 'all', message?: string) =>
+  api.post('/api/inheritance/create-bequest', { recipientEmail, domains, message }).then(r => r.data);
+export const claimBequest = (bequestId: string) => api.post('/api/inheritance/claim', { bequestId }).then(r => r.data);
+export const revokeBequest = (bequestId: string) => api.post('/api/inheritance/revoke', { bequestId }).then(r => r.data);
+export const listBequests = () => api.get('/api/inheritance/bequests').then(r => r.data);
+
+// Organizations
+export const createOrg = (name: string, domains?: string[]) => api.post('/api/org/create', { name, domains }).then(r => r.data);
+export const orgInvite = (orgId: string, email: string, role?: string) =>
+  api.post(`/api/org/${orgId}/invite`, { email, role }).then(r => r.data);
+export const joinOrg = (inviteId: string) => api.post(`/api/org/${inviteId}/join`, { inviteId }).then(r => r.data);
+export const orgPromote = (orgId: string, dtuId: string) => api.post(`/api/org/${orgId}/promote`, { dtuId }).then(r => r.data);
+export const listOrgs = () => api.get('/api/org/list').then(r => r.data);
+
+// Quality thresholds
+export const qualityThresholds = (domain?: string) =>
+  domain ? api.get(`/api/quality/thresholds/${domain}`).then(r => r.data) : api.get('/api/quality/thresholds').then(r => r.data);
+
+// Substrate export/import
+export const exportSubstrate = () => api.get('/api/substrate/export', { responseType: 'arraybuffer' });
+export const importSubstrate = (data: ArrayBuffer) => api.post('/api/substrate/import', data, {
+  headers: { 'Content-Type': 'application/gzip' },
+}).then(r => r.data);
+
+// Flywheel
+export const flywheelMetrics = () => api.get('/api/flywheel/metrics').then(r => r.data);
+export const flywheelHistory = () => api.get('/api/flywheel/history').then(r => r.data);
+
+// Research
+export const conductResearch = (topic: string) => api.post('/api/research/conduct', { topic }).then(r => r.data);
 
 export default api;

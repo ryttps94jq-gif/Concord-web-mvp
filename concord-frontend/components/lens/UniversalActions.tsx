@@ -16,10 +16,12 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
+import { api } from '@/lib/api/client';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
-import { Sparkles, Lightbulb, Wand2, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Lightbulb, Wand2, X, RefreshCw, ChevronDown, ChevronUp, Zap, Search, FileText, BarChart2 } from 'lucide-react';
 
 interface UniversalActionsProps {
   /** Lens domain slug (e.g. "education", "finance") */
@@ -30,6 +32,8 @@ interface UniversalActionsProps {
   params?: Record<string, unknown>;
   /** Compact mode — inline button row instead of panel */
   compact?: boolean;
+  /** Show only generative actions */
+  generativeOnly?: boolean;
   /** Custom class name */
   className?: string;
 }
@@ -42,7 +46,49 @@ interface ActionResult {
   confidence?: { score: number; label: string; factors?: Record<string, number> };
 }
 
-const ACTIONS = [
+interface ManifestAction {
+  action: string;
+  desc: string;
+  brain: string;
+  isGenerative: boolean;
+  isAnalysis: boolean;
+}
+
+const ICON_MAP: Record<string, typeof Sparkles> = {
+  analyze: Search,
+  generate: Wand2,
+  suggest: Lightbulb,
+  create: Sparkles,
+  build: Zap,
+  plan: FileText,
+  forecast: BarChart2,
+};
+
+const COLOR_MAP: Record<string, string> = {
+  analyze: 'cyan',
+  generate: 'purple',
+  suggest: 'green',
+  create: 'pink',
+  build: 'blue',
+  default: 'cyan',
+};
+
+function getActionIcon(action: string) {
+  for (const [key, Icon] of Object.entries(ICON_MAP)) {
+    if (action.startsWith(key)) return Icon;
+  }
+  return Sparkles;
+}
+
+function getActionColor(action: string) {
+  for (const [key, color] of Object.entries(COLOR_MAP)) {
+    if (action.startsWith(key)) return color;
+  }
+  return COLOR_MAP.default;
+}
+
+// Fallback when manifest is not available
+const FALLBACK_ACTIONS = [
   { id: 'analyze',  label: 'Analyze',  icon: Sparkles,  color: 'cyan'   as const, description: 'AI analysis of this artifact' },
   { id: 'generate', label: 'Generate', icon: Wand2,     color: 'purple' as const, description: 'Generate new content from context' },
   { id: 'suggest',  label: 'Suggest',  icon: Lightbulb, color: 'green'  as const, description: 'Get suggestions for next steps' },
@@ -53,11 +99,38 @@ export function UniversalActions({
   artifactId,
   params,
   compact = false,
+  generativeOnly = false,
   className,
 }: UniversalActionsProps) {
   const runAction = useRunArtifact(domain);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [expanded, setExpanded] = useState(true);
+
+  // Fetch real action manifest from backend
+  const { data: manifest } = useQuery({
+    queryKey: ['lens-manifest', domain],
+    queryFn: () => api.get(`/api/lens/manifest/${domain}`).then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    enabled: !!domain,
+  });
+
+  // Build action list from manifest or fallback
+  const manifestActions: Array<{ id: string; label: string; icon: typeof Sparkles; color: string; description: string }> =
+    manifest?.actions
+      ? (manifest.actions as ManifestAction[])
+          .filter(a => !generativeOnly || a.isGenerative)
+          .slice(0, 8)
+          .map(a => ({
+            id: a.action,
+            label: a.action.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            icon: getActionIcon(a.action),
+            color: getActionColor(a.action),
+            description: a.desc,
+          }))
+      : FALLBACK_ACTIONS.map(a => ({ ...a, color: a.color as string }));
+
+  const ACTIONS = manifestActions;
 
   const handleAction = useCallback(async (action: string) => {
     if (!artifactId) return;

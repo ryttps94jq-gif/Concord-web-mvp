@@ -18,6 +18,15 @@ export const CORE_INVARIANTS = [
   "NoUnlabeledAssumptions",
   "NoSaaSMinimizeRegression",
   "FounderOverrideAllowed",
+  "NoSystemJargon",
+  "GroundingCheck",
+];
+
+// MEGA SPEC: System jargon patterns that should not appear in user-facing content
+const SYSTEM_JARGON_PATTERNS = [
+  /\bdtu\b/i, /\bsubstrate\b/i, /\blattice\b/i, /\bheartbeat\b/i,
+  /\bmacro(?:s)?\b/i, /\bollama\b/i, /\bstsvk\b/i, /\bcreti\b/i,
+  /\bbrain (?:council|cortex)\b/i,
 ];
 
 // ---- Invariant Check Functions ----
@@ -89,7 +98,14 @@ export function runGRCInvariantChecks(grc, opts = {}) {
     repairs.push(`Removed ${patternCheck.patternsFound} forbidden pattern(s)`);
   }
 
-  // ---- Check 5: Word count compression ----
+  // ---- Check 5: NoSystemJargon (MEGA SPEC) ----
+  const jargonCheck = checkNoSystemJargon(output.payload);
+  if (!jargonCheck.ok) {
+    output.payload = jargonCheck.cleaned;
+    repairs.push(`Removed system jargon: ${jargonCheck.found.join(", ")}`);
+  }
+
+  // ---- Check 6: Word count compression ----
   const compressionCheck = enforceWordLimits(output);
   if (compressionCheck.compressed) {
     output = compressionCheck.output;
@@ -231,6 +247,29 @@ function enforceWordLimits(grc) {
   }
 
   return { compressed, output };
+}
+
+/**
+ * MEGA SPEC: Check for system jargon in user-facing content.
+ */
+function checkNoSystemJargon(payload) {
+  if (!payload || typeof payload !== "string") return { ok: true, cleaned: payload, found: [] };
+
+  let cleaned = payload;
+  const found = [];
+
+  for (const pat of SYSTEM_JARGON_PATTERNS) {
+    if (pat.test(cleaned)) {
+      found.push(pat.source.replace(/\\b/g, "").replace(/\(\?\:|\)/g, ""));
+      cleaned = cleaned.replace(new RegExp(pat.source, "gi"), "");
+    }
+  }
+
+  return {
+    ok: found.length === 0,
+    cleaned: cleaned.replace(/\s{2,}/g, " ").trim(),
+    found,
+  };
 }
 
 // ---- Repair Functions ----

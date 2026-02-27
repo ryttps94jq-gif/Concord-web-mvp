@@ -57,6 +57,18 @@ const FORWARDED_EVENTS: SocketEvent[] = [
   'whiteboard:updated',
   // Resonance
   'resonance:update',
+  // MEGA SPEC: Chat streaming events
+  'chat:status', 'chat:token', 'chat:web_results', 'chat:complete',
+  // MEGA SPEC: Artifact & quality lifecycle events
+  'artifact:rendered', 'quality:approved', 'quality:rejected',
+  // MEGA SPEC: Entity & pipeline events
+  'entity:production_mode', 'pipeline:triggered',
+  // 12 NEW CAPABILITIES events
+  'pipeline:started', 'pipeline:step_started', 'pipeline:step_completed', 'pipeline:completed',
+  'prediction:ready', 'agent:insights',
+  'collab:invite', 'collab:accepted',
+  'teaching:promotion_suggestion',
+  'research:started', 'research:completed',
 ];
 
 interface UseSocketOptions {
