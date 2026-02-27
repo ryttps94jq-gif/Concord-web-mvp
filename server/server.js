@@ -3915,6 +3915,14 @@ setInterval(() => _TOKEN_BLACKLIST.cleanup(), 3600000);
 // ---- Refresh Token Family Tracking (detects token theft via reuse) ----
 const _REFRESH_FAMILIES = new Map(); // family -> { userId, currentJti, rotatedAt }
 
+// Cleanup stale refresh families (no rotation in 30 days) — prevents unbounded growth
+setInterval(() => {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  for (const [key, family] of _REFRESH_FAMILIES) {
+    if (!family.rotatedAt || family.rotatedAt < cutoff) _REFRESH_FAMILIES.delete(key);
+  }
+}, 6 * 60 * 60 * 1000); // every 6 hours
+
 function hashPassword(password) {
   if (!bcrypt) return null;
   return bcrypt.hashSync(password, BCRYPT_ROUNDS);
@@ -4477,6 +4485,113 @@ if (z) {
   // DTU restore
   schemas.dtuRestore = z.object({
     version: z.number().int().min(0)
+  });
+
+  // ---- Schemas for new capabilities + sovereignty routes ----
+
+  // Sovereignty
+  schemas.sovereigntySetup = z.object({
+    mode: z.enum(["empty", "domain_focused", "full_sync"]),
+    selectedDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+  });
+  schemas.sovereigntyUnsync = z.object({
+    domain: z.string().max(100).nullable().optional().default(null),
+  });
+  schemas.sovereigntyPreferences = z.object({
+    globalAssistConsent: z.enum(["ask", "always_temp", "always_permanent", "never"]),
+  });
+
+  // Pipeline
+  schemas.pipelineExecute = z.object({
+    pipelineId: z.string().min(1).max(200),
+    variables: z.record(z.unknown()).optional().default({}),
+    sessionId: z.string().max(200).optional(),
+  });
+
+  // Brief
+  schemas.briefDismiss = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+
+  // Collaboration (new capabilities)
+  schemas.collabCreate = z.object({
+    inviteeId: z.string().min(1).max(200),
+    domains: z.array(z.string().max(100)).max(120).optional().default([]),
+    description: z.string().max(2000).optional().default(""),
+  });
+
+  // API key (v1)
+  schemas.apiV1KeyCreate = z.object({
+    name: z.string().min(1).max(100).optional().default("Default"),
+    permissions: z.array(z.string().max(50)).max(20).optional(),
+  });
+
+  // Agent config
+  schemas.agentConfig = z.object({
+    name: z.string().max(200).optional(),
+    watchedLenses: z.array(z.string().max(100)).max(120).optional(),
+    priorities: z.array(z.string().max(500)).max(50).optional(),
+    proactiveActions: z.boolean().optional(),
+  });
+
+  // Inheritance
+  schemas.inheritanceBequest = z.object({
+    recipientEmail: z.string().email(),
+    domains: z.union([z.literal("all"), z.array(z.string().max(100)).max(120)]).optional().default("all"),
+    message: z.string().max(5000).optional().default(""),
+  });
+  schemas.inheritanceClaim = z.object({
+    bequestId: z.string().min(1).max(200),
+  });
+  schemas.inheritanceRevoke = z.object({
+    bequestId: z.string().min(1).max(200),
+  });
+
+  // Organization
+  schemas.orgCreate = z.object({
+    name: z.string().min(1).max(200),
+    domains: z.array(z.string().max(100)).max(120).optional().default([]),
+  });
+  schemas.orgInvite = z.object({
+    email: z.string().email(),
+    role: z.enum(["admin", "member"]).optional().default("member"),
+  });
+  schemas.orgJoin = z.object({
+    inviteId: z.string().min(1).max(200),
+  });
+  schemas.orgPromote = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+
+  // Research
+  schemas.researchConduct = z.object({
+    topic: z.string().min(1).max(5000),
+  });
+
+  // Shared sessions
+  schemas.sharedSessionCreate = z.object({
+    inviteUserIds: z.array(z.string().max(200)).max(20).optional().default([]),
+    sharingDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+    sharingLevel: z.enum(["query", "full", "none"]).optional().default("query"),
+  });
+  schemas.sharedSessionJoin = z.object({
+    sharingDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+    sharingLevel: z.enum(["query", "full", "none"]).optional().default("query"),
+  });
+  schemas.sharedSessionChat = z.object({
+    message: z.string().min(1).max(50000),
+    lens: z.string().max(100).optional(),
+  });
+  schemas.sharedSessionShareDtu = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+  schemas.sharedSessionRunAction = z.object({
+    lens: z.string().min(1).max(100),
+    action: z.string().min(1).max(200),
+    primarySubstrate: z.string().max(200).optional(),
+  });
+  schemas.sharedSessionSaveArtifact = z.object({
+    dtuId: z.string().min(1).max(200),
   });
 }
 
@@ -6813,7 +6928,8 @@ if (workingDir) {
 // Sandbox command allowlist — only these commands can be executed by entities
 const SANDBOX_ALLOWED_COMMANDS = new Set([
   "ls", "cat", "head", "tail", "wc", "grep", "find", "echo", "date", "pwd",
-  "node", "npm", "npx", "python3", "python", "curl", "wget",
+  "node", "npm", "npx", "python3", "python",
+  // curl/wget intentionally excluded — SSRF vectors if exec is ever enabled
 ]);
 
 function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
@@ -12663,6 +12779,20 @@ function _checkDTUAccess(dtuId, userId, action = "view") {
 
 // ---- Share Links ----
 const SHARE_LINKS = new Map(); // token -> { dtuId, createdBy, createdAt, expiresAt, accessCount, maxAccess }
+
+// Cleanup expired / stale share links — prevents unbounded growth
+setInterval(() => {
+  const now = new Date().toISOString();
+  const staleCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  for (const [token, link] of SHARE_LINKS) {
+    // Remove expired links
+    if (link.expiresAt && link.expiresAt < now) { SHARE_LINKS.delete(token); continue; }
+    // Remove links older than 30 days with no explicit expiry
+    if (!link.expiresAt && link.createdAt < staleCutoff) { SHARE_LINKS.delete(token); continue; }
+    // Remove links that hit their max access count
+    if (link.maxAccess && link.accessCount >= link.maxAccess) SHARE_LINKS.delete(token);
+  }
+}, 6 * 60 * 60 * 1000); // every 6 hours
 
 function createShareLink(dtuId, createdBy, options = {}) {
   const dtu = STATE.dtus.get(dtuId);
@@ -28637,7 +28767,7 @@ function getUserSovereignty(userId) {
 
 // ── Sovereignty Setup Endpoint ──────────────────────────────────────────────
 
-app.post("/api/sovereignty/setup", requireAuth(), async (req, res) => {
+app.post("/api/sovereignty/setup", requireAuth(), validate("sovereigntySetup"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -28982,7 +29112,7 @@ app.get("/api/council/proposals", (req, res) => {
 
 // ── Unsync & Sovereignty Management ─────────────────────────────────────────
 
-app.post("/api/sovereignty/unsync", requireAuth(), async (req, res) => {
+app.post("/api/sovereignty/unsync", requireAuth(), validate("sovereigntyUnsync"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -29003,7 +29133,7 @@ app.post("/api/sovereignty/unsync", requireAuth(), async (req, res) => {
   res.json({ ok: true, removed, domain: domain || "all" });
 });
 
-app.put("/api/sovereignty/preferences", requireAuth(), async (req, res) => {
+app.put("/api/sovereignty/preferences", requireAuth(), validate("sovereigntyPreferences"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -29261,8 +29391,8 @@ app.get("/api/brief/morning", requireAuth(), async (req, res) => {
 });
 
 // Prediction dismiss
-app.post("/api/brief/dismiss", requireAuth(), (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/brief/dismiss", requireAuth(), validate("briefDismiss"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const dtu = STATE.dtus.get(dtuId);
   if (dtu && dtu.ownerId === req.user.id) {
     dtu.meta = dtu.meta || {};
@@ -29277,8 +29407,8 @@ app.post("/api/brief/dismiss", requireAuth(), (req, res) => {
 // The chat.respond integration is injected separately.
 // API endpoints for pipeline management:
 
-app.post("/api/pipeline/execute", requireAuth(), async (req, res) => {
-  const { pipelineId, variables } = req.body;
+app.post("/api/pipeline/execute", requireAuth(), validate("pipelineExecute"), async (req, res) => {
+  const { pipelineId, variables } = req.validated || req.body;
   const userId = req.user.id;
   try {
     const { executePipeline } = await import("./lib/pipeline-executor.js");
@@ -29434,9 +29564,8 @@ async function collabScopedSearch(query, userId, collabId, opts = {}) {
   return [...ownResults, ...filteredPartner];
 }
 
-app.post("/api/collab/create", requireAuth(), async (req, res) => {
-  const { inviteeId, domains, description } = req.body;
-  if (!inviteeId) return res.status(400).json({ ok: false, error: "inviteeId required" });
+app.post("/api/collab/create", requireAuth(), validate("collabCreate"), async (req, res) => {
+  const { inviteeId, domains, description } = req.validated || req.body;
   const session = createCollabSession(req.user.id, inviteeId, domains || [], description || "");
   res.json({ ok: true, session: { ...session, sharedDTUIds: [...session.sharedDTUIds] } });
 });
@@ -29539,7 +29668,7 @@ app.post("/api/v1/lens/:domain/:action", requireApiKey(), async (req, res) => {
   }
 });
 
-app.post("/api/v1/keys/create", requireAuth(), (req, res) => {
+app.post("/api/v1/keys/create", requireAuth(), validate("apiV1KeyCreate"), (req, res) => {
   const key = {
     id: generateRequestId(),
     userId: req.user.id,
@@ -29732,7 +29861,7 @@ app.post("/api/agent/tick", requireAuth(), async (req, res) => {
   res.json({ ok: true, insights });
 });
 
-app.put("/api/agent/config", requireAuth(), (req, res) => {
+app.put("/api/agent/config", requireAuth(), validate("agentConfig"), (req, res) => {
   const userId = req.user.id;
   const agent = Array.from(STATE.entities.values())
     .find(e => e.ownerId === userId && e.type === "personal_agent");
@@ -29747,9 +29876,9 @@ app.put("/api/agent/config", requireAuth(), (req, res) => {
 
 // --- Capability 7: KNOWLEDGE INHERITANCE ---
 
-app.post("/api/inheritance/create-bequest", requireAuth(), (req, res) => {
+app.post("/api/inheritance/create-bequest", requireAuth(), validate("inheritanceBequest"), (req, res) => {
   const userId = req.user.id;
-  const { recipientEmail, domains, message } = req.body;
+  const { recipientEmail, domains, message } = req.validated || req.body;
   if (!recipientEmail) return res.status(400).json({ ok: false, error: "recipientEmail required" });
 
   const bequest = {
@@ -29770,7 +29899,7 @@ app.post("/api/inheritance/create-bequest", requireAuth(), (req, res) => {
   res.json({ ok: true, bequestId: bequest.id });
 });
 
-app.post("/api/inheritance/claim", requireAuth(), async (req, res) => {
+app.post("/api/inheritance/claim", requireAuth(), validate("inheritanceClaim"), async (req, res) => {
   const userId = req.user.id;
   const user = STATE.users?.get(userId);
   const { bequestId } = req.body;
@@ -29814,8 +29943,8 @@ app.post("/api/inheritance/claim", requireAuth(), async (req, res) => {
   res.json({ ok: true, inherited, message: bequest.message });
 });
 
-app.post("/api/inheritance/revoke", requireAuth(), (req, res) => {
-  const { bequestId } = req.body;
+app.post("/api/inheritance/revoke", requireAuth(), validate("inheritanceRevoke"), (req, res) => {
+  const { bequestId } = req.validated || req.body;
   const bequest = STATE.bequests?.get(bequestId);
   if (!bequest || bequest.grantorId !== req.user.id) {
     return res.status(403).json({ ok: false });
@@ -29834,9 +29963,8 @@ app.get("/api/inheritance/bequests", requireAuth(), (req, res) => {
 
 // --- Capability 8: CONCORD FOR ORGANIZATIONS ---
 
-app.post("/api/org/create", requireAuth(), (req, res) => {
-  const { name, domains } = req.body;
-  if (!name) return res.status(400).json({ ok: false, error: "name required" });
+app.post("/api/org/create", requireAuth(), validate("orgCreate"), (req, res) => {
+  const { name, domains } = req.validated || req.body;
 
   const org = {
     id: generateRequestId(),
@@ -29853,7 +29981,7 @@ app.post("/api/org/create", requireAuth(), (req, res) => {
   res.json({ ok: true, org });
 });
 
-app.post("/api/org/:orgId/invite", requireAuth(), (req, res) => {
+app.post("/api/org/:orgId/invite", requireAuth(), validate("orgInvite"), (req, res) => {
   const org = STATE.orgs?.get(req.params.orgId);
   if (!org) return res.status(404).json({ ok: false });
   const member = org.members.find(m => m.userId === req.user.id);
@@ -29876,8 +30004,8 @@ app.post("/api/org/:orgId/invite", requireAuth(), (req, res) => {
   res.json({ ok: true, invite });
 });
 
-app.post("/api/org/:orgId/join", requireAuth(), (req, res) => {
-  const { inviteId } = req.body;
+app.post("/api/org/:orgId/join", requireAuth(), validate("orgJoin"), (req, res) => {
+  const { inviteId } = req.validated || req.body;
   const invite = STATE.orgInvites?.get(inviteId);
   if (!invite || invite.status !== "pending") return res.status(404).json({ ok: false });
 
@@ -29904,8 +30032,8 @@ async function orgScopedSearch(query, userId, orgId, opts = {}) {
   return [...personal, ...orgResults];
 }
 
-app.post("/api/org/:orgId/promote", requireAuth(), (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/org/:orgId/promote", requireAuth(), validate("orgPromote"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const org = STATE.orgs?.get(req.params.orgId);
   if (!org) return res.status(404).json({ ok: false });
   const isMember = org.members.some(m => m.userId === req.user.id);
@@ -30178,9 +30306,8 @@ async function conductResearch(userId, topic) {
   return execution;
 }
 
-app.post("/api/research/conduct", requireAuth(), async (req, res) => {
-  const { topic } = req.body;
-  if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
+app.post("/api/research/conduct", requireAuth(), validate("researchConduct"), async (req, res) => {
+  const { topic } = req.validated || req.body;
   const userId = req.user.id;
 
   realtimeEmit("research:started", { userId, topic });
@@ -30378,8 +30505,8 @@ RULES:
 
 // --- Shared Session Endpoints ---
 
-app.post("/api/shared-session/create", requireAuth(), (req, res) => {
-  const { inviteUserIds, sharingDomains, sharingLevel } = req.body;
+app.post("/api/shared-session/create", requireAuth(), validate("sharedSessionCreate"), (req, res) => {
+  const { inviteUserIds, sharingDomains, sharingLevel } = req.validated || req.body;
   const session = createSharedSession(req.user.id);
 
   session.participants[0].sharingDomains = sharingDomains || [];
@@ -30397,7 +30524,7 @@ app.post("/api/shared-session/create", requireAuth(), (req, res) => {
   res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] } });
 });
 
-app.post("/api/shared-session/:id/join", requireAuth(), (req, res) => {
+app.post("/api/shared-session/:id/join", requireAuth(), validate("sharedSessionJoin"), (req, res) => {
   const session = SHARED_SESSIONS.get(req.params.id);
   if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
   if (session.status !== "active") return res.status(400).json({ ok: false, error: "Session not active" });
@@ -30458,8 +30585,8 @@ app.get("/api/shared-session/:id/invite-details", requireAuth(), (req, res) => {
 
 // --- Shared Session Chat ---
 
-app.post("/api/shared-session/:id/chat", requireAuth(), async (req, res) => {
-  const { message, lens } = req.body;
+app.post("/api/shared-session/:id/chat", requireAuth(), validate("sharedSessionChat"), async (req, res) => {
+  const { message, lens } = req.validated || req.body;
   const userId = req.user.id;
   const session = SHARED_SESSIONS.get(req.params.id);
 
@@ -30540,8 +30667,8 @@ app.post("/api/shared-session/:id/chat", requireAuth(), async (req, res) => {
 
 // --- Share DTU Into Session ---
 
-app.post("/api/shared-session/:id/share-dtu", requireAuth(), (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/shared-session/:id/share-dtu", requireAuth(), validate("sharedSessionShareDtu"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const userId = req.user.id;
   const session = SHARED_SESSIONS.get(req.params.id);
 
@@ -30575,8 +30702,8 @@ app.post("/api/shared-session/:id/share-dtu", requireAuth(), (req, res) => {
 
 // --- Artifact Production in Shared Sessions ---
 
-app.post("/api/shared-session/:id/run-action", requireAuth(), async (req, res) => {
-  const { lens, action, primarySubstrate } = req.body;
+app.post("/api/shared-session/:id/run-action", requireAuth(), validate("sharedSessionRunAction"), async (req, res) => {
+  const { lens, action, primarySubstrate } = req.validated || req.body;
   const userId = req.user.id;
   const session = SHARED_SESSIONS.get(req.params.id);
 
@@ -30637,8 +30764,8 @@ app.post("/api/shared-session/:id/run-action", requireAuth(), async (req, res) =
 
 // --- Save Shared Artifact to Own Substrate ---
 
-app.post("/api/shared-session/:id/save-artifact", requireAuth(), async (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/shared-session/:id/save-artifact", requireAuth(), validate("sharedSessionSaveArtifact"), async (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const userId = req.user.id;
   const session = SHARED_SESSIONS.get(req.params.id);
 

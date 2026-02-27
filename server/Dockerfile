@@ -36,7 +36,7 @@ ENV STATE_PATH=/data/concord_state.json
 ENV npm_config_cache=/data/npm-cache
 
 # Ensure xenova transformers cache dir exists (optional dep; avoids noisy log warnings)
-RUN mkdir -p /app/node_modules/@xenova/transformers/.cache && chmod 777 /app/node_modules/@xenova/transformers/.cache
+RUN mkdir -p /app/node_modules/@xenova/transformers/.cache && chmod 775 /app/node_modules/@xenova/transformers/.cache
 
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
