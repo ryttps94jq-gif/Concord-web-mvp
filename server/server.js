@@ -21261,6 +21261,8 @@ import createAPIBillingRouter from "./routes/api-billing.js";
 app.use("/api/billing", createAPIBillingRouter({ db }));
 import createStorageRouter from "./routes/storage.js";
 app.use("/api/storage", createStorageRouter({ db }));
+import createLensComplianceRouter from "./routes/lens-compliance.js";
+app.use("/api/lens-compliance", createLensComplianceRouter({ db }));
 
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));
