@@ -21263,6 +21263,8 @@ import createStorageRouter from "./routes/storage.js";
 app.use("/api/storage", createStorageRouter({ db }));
 import createLensComplianceRouter from "./routes/lens-compliance.js";
 app.use("/api/lens-compliance", createLensComplianceRouter({ db }));
+import createLegalLiabilityRouter from "./routes/legal-liability.js";
+app.use("/api/legal", createLegalLiabilityRouter({ db }));
 
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));
