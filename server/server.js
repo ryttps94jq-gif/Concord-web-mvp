@@ -67,6 +67,7 @@ import createQualiaRouter from "./routes/qualia.js";
 import createSovereignRouter from "./routes/sovereign.js";
 import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
+import { rateLimitMiddleware as perEndpointRateLimit } from "./rateLimit.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
 import { runCouncilVoices, getAllVoices as getAllCouncilVoices } from "./emergent/council-voices.js";
 
@@ -3915,6 +3916,14 @@ setInterval(() => _TOKEN_BLACKLIST.cleanup(), 3600000);
 // ---- Refresh Token Family Tracking (detects token theft via reuse) ----
 const _REFRESH_FAMILIES = new Map(); // family -> { userId, currentJti, rotatedAt }
 
+// Cleanup stale refresh families (no rotation in 30 days) — prevents unbounded growth
+setInterval(() => {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  for (const [key, family] of _REFRESH_FAMILIES) {
+    if (!family.rotatedAt || family.rotatedAt < cutoff) _REFRESH_FAMILIES.delete(key);
+  }
+}, 6 * 60 * 60 * 1000); // every 6 hours
+
 function hashPassword(password) {
   if (!bcrypt) return null;
   return bcrypt.hashSync(password, BCRYPT_ROUNDS);
@@ -4391,6 +4400,11 @@ if (z) {
     scopes: z.array(z.string()).optional().default(["read"])
   });
 
+  schemas.changePassword = z.object({
+    currentPassword: z.string().min(1).max(200),
+    newPassword: z.string().min(12).max(200),
+  });
+
   schemas.pagination = z.object({
     limit: z.coerce.number().min(1).max(1000).optional().default(50),
     offset: z.coerce.number().min(0).optional().default(0),
@@ -4477,6 +4491,113 @@ if (z) {
   // DTU restore
   schemas.dtuRestore = z.object({
     version: z.number().int().min(0)
+  });
+
+  // ---- Schemas for new capabilities + sovereignty routes ----
+
+  // Sovereignty
+  schemas.sovereigntySetup = z.object({
+    mode: z.enum(["empty", "domain_focused", "full_sync"]),
+    selectedDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+  });
+  schemas.sovereigntyUnsync = z.object({
+    domain: z.string().max(100).nullable().optional().default(null),
+  });
+  schemas.sovereigntyPreferences = z.object({
+    globalAssistConsent: z.enum(["ask", "always_temp", "always_permanent", "never"]),
+  });
+
+  // Pipeline
+  schemas.pipelineExecute = z.object({
+    pipelineId: z.string().min(1).max(200),
+    variables: z.record(z.unknown()).optional().default({}),
+    sessionId: z.string().max(200).optional(),
+  });
+
+  // Brief
+  schemas.briefDismiss = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+
+  // Collaboration (new capabilities)
+  schemas.collabCreate = z.object({
+    inviteeId: z.string().min(1).max(200),
+    domains: z.array(z.string().max(100)).max(120).optional().default([]),
+    description: z.string().max(2000).optional().default(""),
+  });
+
+  // API key (v1)
+  schemas.apiV1KeyCreate = z.object({
+    name: z.string().min(1).max(100).optional().default("Default"),
+    permissions: z.array(z.string().max(50)).max(20).optional(),
+  });
+
+  // Agent config
+  schemas.agentConfig = z.object({
+    name: z.string().max(200).optional(),
+    watchedLenses: z.array(z.string().max(100)).max(120).optional(),
+    priorities: z.array(z.string().max(500)).max(50).optional(),
+    proactiveActions: z.boolean().optional(),
+  });
+
+  // Inheritance
+  schemas.inheritanceBequest = z.object({
+    recipientEmail: z.string().email(),
+    domains: z.union([z.literal("all"), z.array(z.string().max(100)).max(120)]).optional().default("all"),
+    message: z.string().max(5000).optional().default(""),
+  });
+  schemas.inheritanceClaim = z.object({
+    bequestId: z.string().min(1).max(200),
+  });
+  schemas.inheritanceRevoke = z.object({
+    bequestId: z.string().min(1).max(200),
+  });
+
+  // Organization
+  schemas.orgCreate = z.object({
+    name: z.string().min(1).max(200),
+    domains: z.array(z.string().max(100)).max(120).optional().default([]),
+  });
+  schemas.orgInvite = z.object({
+    email: z.string().email(),
+    role: z.enum(["admin", "member"]).optional().default("member"),
+  });
+  schemas.orgJoin = z.object({
+    inviteId: z.string().min(1).max(200),
+  });
+  schemas.orgPromote = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+
+  // Research
+  schemas.researchConduct = z.object({
+    topic: z.string().min(1).max(5000),
+  });
+
+  // Shared sessions
+  schemas.sharedSessionCreate = z.object({
+    inviteUserIds: z.array(z.string().max(200)).max(20).optional().default([]),
+    sharingDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+    sharingLevel: z.enum(["query", "full", "none"]).optional().default("query"),
+  });
+  schemas.sharedSessionJoin = z.object({
+    sharingDomains: z.array(z.string().max(100)).max(120).optional().default([]),
+    sharingLevel: z.enum(["query", "full", "none"]).optional().default("query"),
+  });
+  schemas.sharedSessionChat = z.object({
+    message: z.string().min(1).max(50000),
+    lens: z.string().max(100).optional(),
+  });
+  schemas.sharedSessionShareDtu = z.object({
+    dtuId: z.string().min(1).max(200),
+  });
+  schemas.sharedSessionRunAction = z.object({
+    lens: z.string().min(1).max(100),
+    action: z.string().min(1).max(200),
+    primarySubstrate: z.string().max(200).optional(),
+  });
+  schemas.sharedSessionSaveArtifact = z.object({
+    dtuId: z.string().min(1).max(200),
   });
 }
 
@@ -6813,7 +6934,8 @@ if (workingDir) {
 // Sandbox command allowlist — only these commands can be executed by entities
 const SANDBOX_ALLOWED_COMMANDS = new Set([
   "ls", "cat", "head", "tail", "wc", "grep", "find", "echo", "date", "pwd",
-  "node", "npm", "npx", "python3", "python", "curl", "wget",
+  "node", "npm", "npx", "python3", "python",
+  // curl/wget intentionally excluded — SSRF vectors if exec is ever enabled
 ]);
 
 function executeInSandbox({ entityId, command, workDir, timeoutMs, maxOutputBytes }) {
@@ -8907,13 +9029,13 @@ function demoteToArchive(dtuId, consolidatedIntoId) {
   dtu.meta.consolidatedInto = consolidatedIntoId;
   dtu.meta.consolidatedAt = new Date().toISOString();
   // Write to disk archive
-  try { archiveDTUToDisk(dtu); } catch {}
+  try { archiveDTUToDisk(dtu); } catch (e) { log("consolidation.warn", `archiveDTU failed for ${dtuId}: ${e?.message}`); }
   // Remove from hot memory
   STATE.dtus.delete(dtuId);
   // Clean from shadow if present
   if (STATE.shadowDtus?.has(dtuId)) STATE.shadowDtus.delete(dtuId);
   // Remove embedding vector to free memory
-  try { removeEmbedding(dtuId); } catch {}
+  try { removeEmbedding(dtuId); } catch (e) { log("consolidation.warn", `removeEmbedding failed for ${dtuId}: ${e?.message}`); }
 }
 
 // Expose archive functions globally for module access
@@ -9011,11 +9133,11 @@ async function creditConsolidationIncome(sourceDtuId) {
   if (!creatorEntity) return;
   const entityEconMod = await import("./emergent/entity-economy.js").catch(() => null);
   if (entityEconMod?.earnResource) {
-    try { entityEconMod.earnResource(creatorEntity, "INSIGHT", ENTITY_ECONOMY.INCOME_CONSOLIDATION, "consolidation"); } catch {}
+    try { entityEconMod.earnResource(creatorEntity, "INSIGHT", ENTITY_ECONOMY.INCOME_CONSOLIDATION, "consolidation"); } catch (e) { log("entity.warn", `earnResource: ${e?.message}`); }
   }
   const growthMod = await import("./emergent/entity-growth.js").catch(() => null);
   if (growthMod?.processExperience) {
-    try { growthMod.processExperience({ id: creatorEntity }, { type: "consolidation", topic: "mega_hyper_builder", quality: 0.5 }); } catch {}
+    try { growthMod.processExperience({ id: creatorEntity }, { type: "consolidation", topic: "mega_hyper_builder", quality: 0.5 }); } catch (e) { log("entity.warn", `processExperience: ${e?.message}`); }
   }
 }
 
@@ -12664,6 +12786,20 @@ function _checkDTUAccess(dtuId, userId, action = "view") {
 // ---- Share Links ----
 const SHARE_LINKS = new Map(); // token -> { dtuId, createdBy, createdAt, expiresAt, accessCount, maxAccess }
 
+// Cleanup expired / stale share links — prevents unbounded growth
+setInterval(() => {
+  const now = new Date().toISOString();
+  const staleCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  for (const [token, link] of SHARE_LINKS) {
+    // Remove expired links
+    if (link.expiresAt && link.expiresAt < now) { SHARE_LINKS.delete(token); continue; }
+    // Remove links older than 30 days with no explicit expiry
+    if (!link.expiresAt && link.createdAt < staleCutoff) { SHARE_LINKS.delete(token); continue; }
+    // Remove links that hit their max access count
+    if (link.maxAccess && link.accessCount >= link.maxAccess) SHARE_LINKS.delete(token);
+  }
+}, 6 * 60 * 60 * 1000); // every 6 hours
+
 function createShareLink(dtuId, createdBy, options = {}) {
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return { ok: false, error: "DTU not found" };
@@ -14247,7 +14383,7 @@ async function maybeRunLocalUpgrade() {
   // Upgrade = deterministic retune + enforce budgets + auto-promotion + conservation check.
   enforceTierBudgets();
   const _upCtx = makeInternalCtx("system");
-  try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch {}
+  try { await runAutoPromotion(_upCtx, { maxNewMegas: 3, maxNewHypers: 1 }); } catch (e) { log("upgrade.error", `autoPromotion: ${e?.message}`); }
   const bp = applyConservationBackpressure();
   // Opportunistic self-repair: schedule maintenance if needed
   if (STATE.queues.maintenance.length < 25) {
@@ -14666,7 +14802,7 @@ register("dtu", "delete", (ctx, input) => {
   }
 
   // Fire plugin before-delete hooks
-  try { fireHook(STATE, "dtu:beforeDelete", dtu); } catch { /* best-effort */ }
+  try { fireHook(STATE, "dtu:beforeDelete", dtu); } catch (e) { log("hook.warn", `dtu:beforeDelete: ${e?.message}`); }
 
   // Delete the DTU
   STATE.dtus.delete(id);
@@ -14675,12 +14811,12 @@ register("dtu", "delete", (ctx, input) => {
   saveStateDebounced();
 
   // Fire plugin after-delete hooks
-  try { fireHook(STATE, "dtu:afterDelete", { id, title: dtu.title }); } catch { /* best-effort */ }
+  try { fireHook(STATE, "dtu:afterDelete", { id, title: dtu.title }); } catch (e) { log("hook.warn", `dtu:afterDelete: ${e?.message}`); }
 
   // Broadcast deletion via WebSocket
   try {
     realtimeEmit("dtu:deleted", { id, title: dtu.title });
-  } catch { /* best-effort */ }
+  } catch (e) { log("ws.warn", `dtu:deleted broadcast: ${e?.message}`); }
 
   // Optionally notify federation
   if (_c3Federation.enabled) {
@@ -20341,7 +20477,7 @@ registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _wit
 registerChatRoutes(app, {
   STATE, makeCtx, runMacro, enforceRequestInvariants, enforceEthosInvariant,
   uid, kernelTick, uiJson, _withAck, _extractReply, clamp, nowISO,
-  saveStateDebounced, ETHOS_INVARIANTS, validate
+  saveStateDebounced, ETHOS_INVARIANTS, validate, perEndpointRateLimit,
 });
 
 // ---- Domain Routes (extracted to routes/domain.js) ----
@@ -21236,7 +21372,7 @@ async function latticeAutonomousTick() {
     // Keep organism alive (organs/growth/homeostasis). KernelTick already exists.
     // Cron is reserved for CHICKEN3 meta-support (emergents). DTU growth runs on the Governor heartbeat.
     // (Opt-in) If you ever want cron to also tick the kernel: set STATE.__chicken3.cronCallsKernelTick=true.
-    if (STATE.__chicken3?.cronCallsKernelTick) { try { kernelTick({ type: "AUTONOMOUS_TICK", meta: { source: "cron" } }); } catch {} }
+    if (STATE.__chicken3?.cronCallsKernelTick) { try { kernelTick({ type: "AUTONOMOUS_TICK", meta: { source: "cron" } }); } catch (e) { log("cron.error", `kernelTick: ${e?.message}`); } }
 
     if (!STATE.__chicken3?.metaEnabled) { saveStateDebounced(); return; }
 
@@ -28637,7 +28773,7 @@ function getUserSovereignty(userId) {
 
 // ── Sovereignty Setup Endpoint ──────────────────────────────────────────────
 
-app.post("/api/sovereignty/setup", requireAuth(), async (req, res) => {
+app.post("/api/sovereignty/setup", requireAuth(), validate("sovereigntySetup"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId || userId === "anon") return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -28982,7 +29118,7 @@ app.get("/api/council/proposals", (req, res) => {
 
 // ── Unsync & Sovereignty Management ─────────────────────────────────────────
 
-app.post("/api/sovereignty/unsync", requireAuth(), async (req, res) => {
+app.post("/api/sovereignty/unsync", requireAuth(), validate("sovereigntyUnsync"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -29003,7 +29139,7 @@ app.post("/api/sovereignty/unsync", requireAuth(), async (req, res) => {
   res.json({ ok: true, removed, domain: domain || "all" });
 });
 
-app.put("/api/sovereignty/preferences", requireAuth(), async (req, res) => {
+app.put("/api/sovereignty/preferences", requireAuth(), validate("sovereigntyPreferences"), async (req, res) => {
   const userId = req.user?.id || req.actor?.userId;
   if (!userId) return res.status(401).json({ ok: false, error: "Auth required" });
 
@@ -29261,8 +29397,8 @@ app.get("/api/brief/morning", requireAuth(), async (req, res) => {
 });
 
 // Prediction dismiss
-app.post("/api/brief/dismiss", requireAuth(), (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/brief/dismiss", requireAuth(), validate("briefDismiss"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const dtu = STATE.dtus.get(dtuId);
   if (dtu && dtu.ownerId === req.user.id) {
     dtu.meta = dtu.meta || {};
@@ -29277,8 +29413,8 @@ app.post("/api/brief/dismiss", requireAuth(), (req, res) => {
 // The chat.respond integration is injected separately.
 // API endpoints for pipeline management:
 
-app.post("/api/pipeline/execute", requireAuth(), async (req, res) => {
-  const { pipelineId, variables } = req.body;
+app.post("/api/pipeline/execute", requireAuth(), validate("pipelineExecute"), async (req, res) => {
+  const { pipelineId, variables } = req.validated || req.body;
   const userId = req.user.id;
   try {
     const { executePipeline } = await import("./lib/pipeline-executor.js");
@@ -29434,9 +29570,8 @@ async function collabScopedSearch(query, userId, collabId, opts = {}) {
   return [...ownResults, ...filteredPartner];
 }
 
-app.post("/api/collab/create", requireAuth(), async (req, res) => {
-  const { inviteeId, domains, description } = req.body;
-  if (!inviteeId) return res.status(400).json({ ok: false, error: "inviteeId required" });
+app.post("/api/collab/create", requireAuth(), validate("collabCreate"), async (req, res) => {
+  const { inviteeId, domains, description } = req.validated || req.body;
   const session = createCollabSession(req.user.id, inviteeId, domains || [], description || "");
   res.json({ ok: true, session: { ...session, sharedDTUIds: [...session.sharedDTUIds] } });
 });
@@ -29539,7 +29674,7 @@ app.post("/api/v1/lens/:domain/:action", requireApiKey(), async (req, res) => {
   }
 });
 
-app.post("/api/v1/keys/create", requireAuth(), (req, res) => {
+app.post("/api/v1/keys/create", requireAuth(), validate("apiV1KeyCreate"), (req, res) => {
   const key = {
     id: generateRequestId(),
     userId: req.user.id,
@@ -29732,7 +29867,7 @@ app.post("/api/agent/tick", requireAuth(), async (req, res) => {
   res.json({ ok: true, insights });
 });
 
-app.put("/api/agent/config", requireAuth(), (req, res) => {
+app.put("/api/agent/config", requireAuth(), validate("agentConfig"), (req, res) => {
   const userId = req.user.id;
   const agent = Array.from(STATE.entities.values())
     .find(e => e.ownerId === userId && e.type === "personal_agent");
@@ -29747,9 +29882,9 @@ app.put("/api/agent/config", requireAuth(), (req, res) => {
 
 // --- Capability 7: KNOWLEDGE INHERITANCE ---
 
-app.post("/api/inheritance/create-bequest", requireAuth(), (req, res) => {
+app.post("/api/inheritance/create-bequest", requireAuth(), validate("inheritanceBequest"), (req, res) => {
   const userId = req.user.id;
-  const { recipientEmail, domains, message } = req.body;
+  const { recipientEmail, domains, message } = req.validated || req.body;
   if (!recipientEmail) return res.status(400).json({ ok: false, error: "recipientEmail required" });
 
   const bequest = {
@@ -29770,7 +29905,7 @@ app.post("/api/inheritance/create-bequest", requireAuth(), (req, res) => {
   res.json({ ok: true, bequestId: bequest.id });
 });
 
-app.post("/api/inheritance/claim", requireAuth(), async (req, res) => {
+app.post("/api/inheritance/claim", requireAuth(), validate("inheritanceClaim"), async (req, res) => {
   const userId = req.user.id;
   const user = STATE.users?.get(userId);
   const { bequestId } = req.body;
@@ -29814,8 +29949,8 @@ app.post("/api/inheritance/claim", requireAuth(), async (req, res) => {
   res.json({ ok: true, inherited, message: bequest.message });
 });
 
-app.post("/api/inheritance/revoke", requireAuth(), (req, res) => {
-  const { bequestId } = req.body;
+app.post("/api/inheritance/revoke", requireAuth(), validate("inheritanceRevoke"), (req, res) => {
+  const { bequestId } = req.validated || req.body;
   const bequest = STATE.bequests?.get(bequestId);
   if (!bequest || bequest.grantorId !== req.user.id) {
     return res.status(403).json({ ok: false });
@@ -29834,9 +29969,8 @@ app.get("/api/inheritance/bequests", requireAuth(), (req, res) => {
 
 // --- Capability 8: CONCORD FOR ORGANIZATIONS ---
 
-app.post("/api/org/create", requireAuth(), (req, res) => {
-  const { name, domains } = req.body;
-  if (!name) return res.status(400).json({ ok: false, error: "name required" });
+app.post("/api/org/create", requireAuth(), validate("orgCreate"), (req, res) => {
+  const { name, domains } = req.validated || req.body;
 
   const org = {
     id: generateRequestId(),
@@ -29853,7 +29987,7 @@ app.post("/api/org/create", requireAuth(), (req, res) => {
   res.json({ ok: true, org });
 });
 
-app.post("/api/org/:orgId/invite", requireAuth(), (req, res) => {
+app.post("/api/org/:orgId/invite", requireAuth(), validate("orgInvite"), (req, res) => {
   const org = STATE.orgs?.get(req.params.orgId);
   if (!org) return res.status(404).json({ ok: false });
   const member = org.members.find(m => m.userId === req.user.id);
@@ -29876,8 +30010,8 @@ app.post("/api/org/:orgId/invite", requireAuth(), (req, res) => {
   res.json({ ok: true, invite });
 });
 
-app.post("/api/org/:orgId/join", requireAuth(), (req, res) => {
-  const { inviteId } = req.body;
+app.post("/api/org/:orgId/join", requireAuth(), validate("orgJoin"), (req, res) => {
+  const { inviteId } = req.validated || req.body;
   const invite = STATE.orgInvites?.get(inviteId);
   if (!invite || invite.status !== "pending") return res.status(404).json({ ok: false });
 
@@ -29904,8 +30038,8 @@ async function orgScopedSearch(query, userId, orgId, opts = {}) {
   return [...personal, ...orgResults];
 }
 
-app.post("/api/org/:orgId/promote", requireAuth(), (req, res) => {
-  const { dtuId } = req.body;
+app.post("/api/org/:orgId/promote", requireAuth(), validate("orgPromote"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
   const org = STATE.orgs?.get(req.params.orgId);
   if (!org) return res.status(404).json({ ok: false });
   const isMember = org.members.some(m => m.userId === req.user.id);
@@ -30178,9 +30312,8 @@ async function conductResearch(userId, topic) {
   return execution;
 }
 
-app.post("/api/research/conduct", requireAuth(), async (req, res) => {
-  const { topic } = req.body;
-  if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
+app.post("/api/research/conduct", requireAuth(), validate("researchConduct"), async (req, res) => {
+  const { topic } = req.validated || req.body;
   const userId = req.user.id;
 
   realtimeEmit("research:started", { userId, topic });
@@ -30248,6 +30381,533 @@ function newCapabilitiesHeartbeat() {
     }
   }
 }
+
+// ============================================================================
+// SHARED INSTANCE CONVERSATION — Multi-Sovereign Group Chat
+// ============================================================================
+
+const SHARED_SESSIONS = new Map();
+
+function formatSharedContext(results) {
+  if (!results || !Array.isArray(results)) return "";
+  return results.map(d =>
+    `[${(d.tier || "DTU").toUpperCase()}] ${d.title || d.id}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
+  ).join("\n");
+}
+
+function createSharedSession(creatorId, opts = {}) {
+  const session = {
+    id: generateRequestId(),
+    type: "shared_instance",
+    createdBy: creatorId,
+    participants: [
+      {
+        userId: creatorId,
+        joinedAt: nowISO(),
+        sharingDomains: [],
+        sharingLevel: "query", // query | full | none
+      },
+    ],
+    messages: [],
+    sharedDTUs: [],
+    status: "active",
+    maxParticipants: opts.maxParticipants || 10,
+    createdAt: nowISO(),
+    expiresAt: opts.expiresAt || null,
+    requireAcceptance: true,
+    sharedArtifacts: [],
+  };
+  SHARED_SESSIONS.set(session.id, session);
+  return session;
+}
+
+// --- Multi-Substrate Context Resolution ---
+
+async function buildSharedSessionContext(query, sessionId) {
+  const session = SHARED_SESSIONS.get(sessionId);
+  if (!session) throw new Error("Session not found");
+
+  const contextParts = [];
+
+  for (const participant of session.participants) {
+    if (participant.sharingLevel === "none") continue;
+
+    const results = await scopedEmbeddingSearch(query, participant.userId, {
+      limit: 5,
+      minScore: 0.4,
+    });
+
+    if (results.length > 0) {
+      const user = STATE.users?.get(participant.userId) || AUTH.users?.get(participant.userId);
+      const name = user?.displayName || user?.name || "Participant";
+
+      // Filter by allowed domains if set
+      const filtered = participant.sharingDomains.length > 0
+        ? results.filter(r => participant.sharingDomains.includes(r.domain))
+        : results;
+
+      if (filtered.length > 0) {
+        contextParts.push({
+          source: name,
+          userId: participant.userId,
+          domains: [...new Set(filtered.map(r => r.domain))],
+          context: formatSharedContext(filtered),
+          dtuCount: filtered.length,
+        });
+      }
+    }
+  }
+
+  // Include DTUs explicitly shared into the session
+  const sharedContext = session.sharedDTUs
+    .map(id => STATE.dtus.get(id))
+    .filter(Boolean);
+
+  if (sharedContext.length > 0) {
+    contextParts.push({
+      source: "Shared in session",
+      domains: [...new Set(sharedContext.map(d => d.domain))],
+      context: formatSharedContext(sharedContext),
+      dtuCount: sharedContext.length,
+    });
+  }
+
+  return contextParts;
+}
+
+// --- Shared Session Brain Prompt ---
+
+function buildSharedSessionPrompt(contextParts, participants) {
+  const participantList = participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    const name = user?.displayName || user?.name || "Participant";
+    const domains = p.sharingDomains.length > 0 ? p.sharingDomains.join(", ") : "general";
+    return `${name} (expertise: ${domains}, sharing: ${p.sharingLevel})`;
+  }).join("\n");
+
+  const contextBlocks = contextParts.map(part =>
+    `--- From ${part.source}'s substrate (${part.dtuCount} units, domains: ${part.domains?.join(", ") || "shared"}) ---\n${part.context}`
+  ).join("\n\n");
+
+  return `You are facilitating a shared conversation between multiple users.
+Each user has their own sovereign Concord instance with their own knowledge.
+You have access to relevant knowledge from each participant's substrate based on their sharing preferences.
+
+PARTICIPANTS:
+${participantList}
+
+COMBINED SUBSTRATE CONTEXT:
+${contextBlocks}
+
+RULES:
+- Draw from all participants' knowledge when relevant
+- Attribute insights to the correct participant when possible ("Based on ${participants[0] ? "their" : "the participant's"} domain...")
+- Never reveal personal details from one substrate to another beyond what's relevant to the conversation
+- If one participant's substrate has expertise the others lack, surface it naturally
+- Treat this as collaborative problem-solving, not individual Q&A
+- When producing artifacts, ask which participant's substrate should inform the primary context
+- Keep sovereignty boundaries clear — each person's data is theirs`;
+}
+
+// --- Shared Session Endpoints ---
+
+app.post("/api/shared-session/create", requireAuth(), validate("sharedSessionCreate"), (req, res) => {
+  const { inviteUserIds, sharingDomains, sharingLevel } = req.validated || req.body;
+  const session = createSharedSession(req.user.id);
+
+  session.participants[0].sharingDomains = sharingDomains || [];
+  session.participants[0].sharingLevel = sharingLevel || "query";
+
+  for (const inviteeId of (inviteUserIds || [])) {
+    realtimeEmit("shared-session:invite", {
+      userId: inviteeId,
+      sessionId: session.id,
+      from: req.user.id,
+      fromName: req.user.displayName || req.user.name || "User",
+    });
+  }
+
+  res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] } });
+});
+
+app.post("/api/shared-session/:id/join", requireAuth(), validate("sharedSessionJoin"), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  if (session.status !== "active") return res.status(400).json({ ok: false, error: "Session not active" });
+  if (session.participants.length >= session.maxParticipants) {
+    return res.status(400).json({ ok: false, error: "Session full" });
+  }
+  if (session.participants.some(p => p.userId === req.user.id)) {
+    return res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] }, alreadyJoined: true });
+  }
+
+  const { sharingDomains, sharingLevel } = req.body;
+  session.participants.push({
+    userId: req.user.id,
+    joinedAt: nowISO(),
+    sharingDomains: sharingDomains || [],
+    sharingLevel: sharingLevel || "query",
+  });
+
+  realtimeEmit("shared-session:joined", {
+    sessionId: session.id,
+    userId: req.user.id,
+    userName: req.user.displayName || req.user.name || "User",
+    participantCount: session.participants.length,
+  });
+
+  res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] } });
+});
+
+app.get("/api/shared-session/:id/invite-details", requireAuth(), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+
+  const creator = STATE.users?.get(session.createdBy) || AUTH.users?.get(session.createdBy);
+  const participantInfo = session.participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    return {
+      name: user?.displayName || user?.name || "Anonymous",
+      sharingDomains: p.sharingDomains,
+      sharingLevel: p.sharingLevel,
+    };
+  });
+
+  res.json({
+    ok: true,
+    sessionId: session.id,
+    createdBy: creator?.displayName || creator?.name || "Unknown",
+    participants: participantInfo,
+    message: `${creator?.displayName || creator?.name || "Someone"} wants to start a shared session. Choose what to share:`,
+    options: {
+      sharingLevels: [
+        { id: "query", label: "AI can reference my substrate", description: "The shared AI can search your substrate for relevant context. Other participants can't browse your data directly." },
+        { id: "full", label: "Full collaboration", description: "Participants can see DTUs you share into the session. Your AI actively contributes insights from your substrate." },
+        { id: "none", label: "Just chat", description: "You're in the conversation but your substrate stays sealed. The AI only uses your messages, not your substrate." },
+      ],
+    },
+  });
+});
+
+// --- Shared Session Chat ---
+
+app.post("/api/shared-session/:id/chat", requireAuth(), validate("sharedSessionChat"), async (req, res) => {
+  const { message, lens } = req.validated || req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (session.status !== "active") return res.status(400).json({ ok: false, error: "Session ended" });
+
+  const participant = session.participants.find(p => p.userId === userId);
+  if (!participant) return res.status(403).json({ ok: false, error: "Not in session" });
+
+  const userName = (STATE.users?.get(userId) || AUTH.users?.get(userId))?.displayName || "User";
+
+  // Record the message
+  const msgEntry = {
+    id: generateRequestId(),
+    userId,
+    content: message,
+    lens: lens || null,
+    ts: nowISO(),
+  };
+  session.messages.push(msgEntry);
+
+  // Broadcast to all participants
+  realtimeEmit("shared-session:message", {
+    sessionId: session.id,
+    message: msgEntry,
+    userName,
+  });
+
+  // Build multi-substrate context
+  const contextParts = await buildSharedSessionContext(message, session.id);
+
+  // Build the shared session system prompt
+  const systemPrompt = buildSharedSessionPrompt(contextParts, session.participants);
+
+  // Build conversation history
+  const history = session.messages.slice(-20).map(m => {
+    if (m.userId === "ai") return `Assistant: ${m.content}`;
+    const mUser = (STATE.users?.get(m.userId) || AUTH.users?.get(m.userId))?.displayName || "User";
+    return `[${mUser}]: ${m.content}`;
+  }).join("\n");
+
+  // Call conscious brain with shared context
+  try {
+    const response = await callBrain("conscious", history, {
+      system: systemPrompt,
+      temperature: 0.7,
+      maxTokens: 1000,
+    });
+
+    const aiText = response?.text || response?.content || response?.reply || (typeof response === "string" ? response : JSON.stringify(response));
+
+    // Record AI response
+    const aiMsg = {
+      id: generateRequestId(),
+      userId: "ai",
+      content: aiText,
+      ts: nowISO(),
+      contextSources: contextParts.map(p => ({
+        source: p.source,
+        domains: p.domains,
+        dtuCount: p.dtuCount,
+      })),
+    };
+    session.messages.push(aiMsg);
+
+    // Broadcast AI response
+    realtimeEmit("shared-session:ai-response", {
+      sessionId: session.id,
+      response: aiText,
+      contextSources: contextParts.map(p => p.source),
+    });
+
+    res.json({ ok: true, response: aiText, contextSources: contextParts.map(p => p.source) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Share DTU Into Session ---
+
+app.post("/api/shared-session/:id/share-dtu", requireAuth(), validate("sharedSessionShareDtu"), (req, res) => {
+  const { dtuId } = req.validated || req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === userId)) {
+    return res.status(403).json({ ok: false, error: "Not in session" });
+  }
+
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu || dtu.ownerId !== userId) {
+    return res.status(403).json({ ok: false, error: "Not your DTU" });
+  }
+
+  if (!session.sharedDTUs.includes(dtuId)) {
+    session.sharedDTUs.push(dtuId);
+  }
+
+  const userName = (STATE.users?.get(userId) || AUTH.users?.get(userId))?.displayName || "User";
+  realtimeEmit("shared-session:dtu-shared", {
+    sessionId: session.id,
+    userId,
+    userName,
+    dtuId,
+    dtuTitle: dtu.title,
+    dtuDomain: dtu.domain,
+    hasArtifact: !!dtu.artifact,
+  });
+
+  res.json({ ok: true });
+});
+
+// --- Artifact Production in Shared Sessions ---
+
+app.post("/api/shared-session/:id/run-action", requireAuth(), validate("sharedSessionRunAction"), async (req, res) => {
+  const { lens, action, primarySubstrate } = req.validated || req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === userId)) {
+    return res.status(403).json({ ok: false, error: "Not in session" });
+  }
+
+  const primaryUserId = primarySubstrate || userId;
+
+  // Build context from primary substrate + supporting context from others
+  const primaryContext = await scopedEmbeddingSearch(action, primaryUserId, { limit: 10, minScore: 0.3 });
+  const supportingContext = [];
+
+  for (const p of session.participants) {
+    if (p.userId === primaryUserId) continue;
+    if (p.sharingLevel === "none") continue;
+    const results = await scopedEmbeddingSearch(action, p.userId, { limit: 3, minScore: 0.4 });
+    const filtered = p.sharingDomains.length > 0
+      ? results.filter(r => p.sharingDomains.includes(r.domain))
+      : results;
+    supportingContext.push(...filtered);
+  }
+
+  try {
+    const result = await runMacro(lens, action, {
+      userId: primaryUserId,
+      overrideContext: formatSharedContext([...primaryContext, ...supportingContext]),
+      sessionId: session.id,
+      sharedSession: true,
+    }, { userId });
+
+    if (result && result.dtuId) {
+      const dtu = STATE.dtus.get(result.dtuId);
+      if (dtu) {
+        dtu.meta = dtu.meta || {};
+        dtu.meta.sharedSessionId = session.id;
+        dtu.meta.sharedSessionParticipants = session.participants.map(p => p.userId);
+        dtu.meta.primarySubstrate = primaryUserId;
+      }
+
+      session.sharedArtifacts.push(result.dtuId);
+
+      realtimeEmit("shared-session:artifact-produced", {
+        sessionId: session.id,
+        dtuId: result.dtuId,
+        title: dtu?.title,
+        domain: lens,
+        producedBy: userId,
+      });
+    }
+
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Save Shared Artifact to Own Substrate ---
+
+app.post("/api/shared-session/:id/save-artifact", requireAuth(), validate("sharedSessionSaveArtifact"), async (req, res) => {
+  const { dtuId } = req.validated || req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.sharedArtifacts.includes(dtuId)) {
+    return res.status(400).json({ ok: false, error: "Not a session artifact" });
+  }
+
+  const sourceDtu = STATE.dtus.get(dtuId);
+  if (!sourceDtu) return res.status(404).json({ ok: false });
+
+  const copy = {
+    ...JSON.parse(JSON.stringify(sourceDtu)),
+    id: generateRequestId(),
+    ownerId: userId,
+    scope: "personal",
+    meta: {
+      ...(sourceDtu.meta || {}),
+      savedFromSession: session.id,
+      savedAt: nowISO(),
+      originalOwner: sourceDtu.ownerId,
+    },
+  };
+
+  STATE.dtus.set(copy.id, copy);
+  await reindexUserDTUs(userId);
+  saveStateDebounced();
+
+  res.json({ ok: true, dtuId: copy.id });
+});
+
+// --- Session End and Summary ---
+
+app.post("/api/shared-session/:id/end", requireAuth(), async (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+
+  const isParticipant = session.participants.some(p => p.userId === req.user.id);
+  if (!isParticipant) return res.status(403).json({ ok: false });
+
+  session.status = "ended";
+  session.endedAt = nowISO();
+
+  // Generate summary DTU for each participant
+  const lensesUsed = [...new Set(session.messages.map(m => m.lens).filter(Boolean))];
+  for (const participant of session.participants) {
+    const summaryDTU = {
+      id: generateRequestId(),
+      ownerId: participant.userId,
+      scope: "personal",
+      domain: "social",
+      tier: "DTU",
+      title: `Shared session: ${session.messages.length} messages with ${session.participants.length} participants`,
+      human: {
+        summary: `Collaborative session covering ${lensesUsed.join(", ") || "general"}. ${session.sharedArtifacts.length} artifacts produced. ${session.sharedDTUs.length} DTUs shared.`,
+      },
+      meta: {
+        sessionId: session.id,
+        sessionType: "shared_instance",
+        participants: session.participants.map(p => p.userId),
+        artifactsProduced: session.sharedArtifacts.length,
+        messageCount: session.messages.length,
+      },
+      created: nowISO(),
+    };
+    STATE.dtus.set(summaryDTU.id, summaryDTU);
+  }
+
+  const durationMs = new Date(session.endedAt).getTime() - new Date(session.createdAt).getTime();
+
+  realtimeEmit("shared-session:ended", {
+    sessionId: session.id,
+    summary: {
+      durationMs,
+      messages: session.messages.length,
+      artifacts: session.sharedArtifacts.length,
+      participants: session.participants.length,
+    },
+  });
+
+  saveStateDebounced();
+  res.json({ ok: true, summary: { durationMs, messages: session.messages.length, artifacts: session.sharedArtifacts.length } });
+});
+
+// --- List Active Shared Sessions ---
+
+app.get("/api/shared-session/active", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const sessions = Array.from(SHARED_SESSIONS.values())
+    .filter(s => s.participants.some(p => p.userId === userId) && s.status === "active")
+    .map(s => ({
+      id: s.id,
+      createdBy: s.createdBy,
+      participantCount: s.participants.length,
+      messageCount: s.messages.length,
+      createdAt: s.createdAt,
+    }));
+  res.json({ ok: true, sessions });
+});
+
+// --- Get Session Details ---
+
+app.get("/api/shared-session/:id", requireAuth(), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === req.user.id)) {
+    return res.status(403).json({ ok: false });
+  }
+
+  const participantInfo = session.participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    return {
+      userId: p.userId,
+      name: user?.displayName || user?.name || "Anonymous",
+      sharingDomains: p.sharingDomains,
+      sharingLevel: p.sharingLevel,
+      joinedAt: p.joinedAt,
+    };
+  });
+
+  res.json({
+    ok: true,
+    session: {
+      id: session.id,
+      type: session.type,
+      status: session.status,
+      createdBy: session.createdBy,
+      participants: participantInfo,
+      messageCount: session.messages.length,
+      sharedDTUCount: session.sharedDTUs.length,
+      sharedArtifactCount: session.sharedArtifacts.length,
+      createdAt: session.createdAt,
+    },
+    messages: session.messages.slice(-50), // last 50 messages
+  });
+});
 
 // ============================================================================
 // MEGA SPEC: WebSocket Chat Streaming Handler
@@ -35054,17 +35714,64 @@ app.get("/api/atlas/rights/metrics", (req, res) => {
 
 // ---- Periodic Tasks (Analytics + Efficiency snapshots, Webhook delivery, Heartbeats) ----
 setInterval(() => {
-  try { takeAnalyticsSnapshot(STATE); } catch {}
-  try { takeEfficiencySnapshot(STATE); } catch {}
-  try { processPendingDeliveries(STATE); } catch {}
+  try { takeAnalyticsSnapshot(STATE); } catch (e) { log("heartbeat.error", `analyticsSnapshot: ${e?.message}`); }
+  try { takeEfficiencySnapshot(STATE); } catch (e) { log("heartbeat.error", `efficiencySnapshot: ${e?.message}`); }
+  try { processPendingDeliveries(STATE); } catch (e) { log("heartbeat.error", `pendingDeliveries: ${e?.message}`); }
 }, 300000); // Every 5 minutes
 
 // Global + Marketplace heartbeats on separate cadence (every 10 minutes)
 setInterval(() => {
-  try { tickGlobal(STATE); } catch {}
-  try { tickMarketplace(STATE); } catch {}
-  try { newCapabilitiesHeartbeat(); } catch {}
+  try { tickGlobal(STATE); } catch (e) { log("heartbeat.error", `tickGlobal: ${e?.message}`); }
+  try { tickMarketplace(STATE); } catch (e) { log("heartbeat.error", `tickMarketplace: ${e?.message}`); }
+  try { newCapabilitiesHeartbeat(); } catch (e) { log("heartbeat.error", `newCapabilities: ${e?.message}`); }
 }, 600000);
+
+// ---- Map Cleanup Sweep (runs hourly — evicts stale entries from unbounded Maps) ----
+setInterval(() => {
+  const now = Date.now();
+  const nowIso = new Date().toISOString();
+  const stale24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const stale7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let cleaned = 0;
+
+  // Weather cache: evict entries older than 1 hour
+  for (const [key, entry] of _WEATHER_CACHE) {
+    if (now - entry.ts > 3600000) { _WEATHER_CACHE.delete(key); cleaned++; }
+  }
+
+  // Council submit tracker: evict expired rate-limit windows
+  for (const [userId, tracker] of _councilSubmitTracker) {
+    if (now > tracker.resetAt + 3600000) { _councilSubmitTracker.delete(userId); cleaned++; }
+  }
+
+  // Prediction state: evict entries not analyzed in 7 days
+  if (typeof PREDICTION_STATE !== "undefined") {
+    for (const [userId, ps] of PREDICTION_STATE) {
+      if (ps.lastAnalyzed && ps.lastAnalyzed < stale7d) { PREDICTION_STATE.delete(userId); cleaned++; }
+    }
+  }
+
+  // Collab sessions: evict ended sessions older than 24h
+  if (typeof COLLAB_SESSIONS !== "undefined") {
+    for (const [id, sess] of COLLAB_SESSIONS) {
+      if (sess.status === "ended" || (sess.createdAt && sess.createdAt < stale7d)) { COLLAB_SESSIONS.delete(id); cleaned++; }
+    }
+  }
+
+  // Shared sessions: evict ended sessions older than 24h
+  if (typeof SHARED_SESSIONS !== "undefined") {
+    for (const [id, sess] of SHARED_SESSIONS) {
+      if (sess.status === "ended" && sess.endedAt && sess.endedAt < stale24h) { SHARED_SESSIONS.delete(id); cleaned++; }
+    }
+  }
+
+  // Macro rate limits: evict stale entries
+  for (const [key, entry] of _macroRateLimits) {
+    if (entry.resetAt && now > entry.resetAt + 3600000) { _macroRateLimits.delete(key); cleaned++; }
+  }
+
+  if (cleaned > 0) log("cleanup", `Map sweep: evicted ${cleaned} stale entries`);
+}, 3600000); // every hour
 
 structuredLog("info", "module_loaded", { detail: "Atlas Global + Platform v2: All endpoints registered" });
 structuredLog("info", "module_loaded", { detail: "New modules: Atlas Epistemic Engine, Autogen v2, Council Protocol, Social Layer, Collaboration, RBAC, Analytics, Webhook" });

@@ -1,4 +1,7 @@
 # Frontend Dockerfile
+# To fully pin with SHA256 digest (recommended for production):
+#   docker pull node:20-alpine && docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine
+# Then replace: FROM node:20-alpine@sha256:<digest> AS base
 FROM node:20-alpine AS base
 
 # Install dependencies only when needed

@@ -6,7 +6,7 @@ const nextConfig = {
     domains: ['localhost', 'concord-os.org'],
     unoptimized: process.env.NODE_ENV === 'development',
   },
-  // Security + PWA headers
+  // Security headers (CSP is now set in middleware.ts with per-request nonces)
   async headers() {
     return [
       {
@@ -27,22 +27,6 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050'} ${process.env.NEXT_PUBLIC_SOCKET_URL || 'ws://localhost:5050'} ws: wss:`,
-              "img-src 'self' data: blob:",
-              "font-src 'self' data:",
-              "media-src 'self' blob:",
-              "worker-src 'self' blob:",
-              "frame-src 'none'",
-              "object-src 'none'",
-              "base-uri 'self'",
-            ].join('; '),
           },
         ],
       },

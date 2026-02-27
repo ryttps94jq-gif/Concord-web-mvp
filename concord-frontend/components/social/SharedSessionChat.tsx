@@ -1,0 +1,342 @@
+'use client';
+
+/**
+ * SharedSessionChat — Multi-sovereign group chat.
+ * Multiple users' Concords in one conversation. Each person's substrate
+ * contributes context. Sovereignty preserved. Context dissolves on end.
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSocket } from '@/hooks/useSocket';
+import { api } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
+import {
+  Users,
+  Send,
+  Share2,
+  Download,
+  Save,
+  Loader,
+  X,
+  Zap,
+} from 'lucide-react';
+
+interface SharedMessage {
+  id?: string;
+  type: 'user' | 'ai' | 'artifact' | 'dtu_shared' | 'system';
+  userId?: string;
+  userName?: string;
+  content?: string;
+  ts?: string;
+  contextSources?: string[];
+  // artifact fields
+  dtuId?: string;
+  title?: string;
+  domain?: string;
+  dtuTitle?: string;
+  dtuDomain?: string;
+  hasArtifact?: boolean;
+}
+
+interface Participant {
+  userId: string;
+  name: string;
+  sharingDomains: string[];
+  sharingLevel: 'query' | 'full' | 'none';
+  joinedAt: string;
+}
+
+interface SharedSessionChatProps {
+  sessionId: string;
+  currentUserId: string;
+  onEnd?: () => void;
+}
+
+export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSessionChatProps) {
+  const { on, emit } = useSocket({ autoConnect: true });
+  const [messages, setMessages] = useState<SharedMessage[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [input, setInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<'active' | 'ended'>('active');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Load session details
+  useEffect(() => {
+    api.get(`/api/shared-session/${sessionId}`).then(res => {
+      const data = res.data;
+      if (data.ok) {
+        setParticipants(data.session.participants);
+        setSessionStatus(data.session.status);
+        // Load existing messages
+        if (data.messages) {
+          const loaded: SharedMessage[] = data.messages.map((m: { userId: string; content: string; ts: string; contextSources?: Array<{ source: string }> }) => ({
+            type: m.userId === 'ai' ? 'ai' as const : 'user' as const,
+            userId: m.userId,
+            content: m.content,
+            ts: m.ts,
+            contextSources: m.contextSources?.map((c: { source: string }) => c.source),
+          }));
+          setMessages(loaded);
+        }
+      }
+    }).catch(() => {});
+  }, [sessionId]);
+
+  // WebSocket event listeners
+  useEffect(() => {
+    on('shared-session:message', (data: { sessionId: string; message: { id: string; userId: string; content: string; ts: string }; userName: string }) => {
+      if (data.sessionId !== sessionId) return;
+      if (data.message.userId === currentUserId) return; // skip own messages (already added)
+      setMessages(prev => [...prev, {
+        type: 'user',
+        userId: data.message.userId,
+        userName: data.userName,
+        content: data.message.content,
+        ts: data.message.ts,
+      }]);
+    });
+
+    on('shared-session:ai-response', (data: { sessionId: string; response: string; contextSources: string[] }) => {
+      if (data.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, {
+        type: 'ai',
+        content: data.response,
+        contextSources: data.contextSources,
+        ts: new Date().toISOString(),
+      }]);
+      setIsSending(false);
+    });
+
+    on('shared-session:artifact-produced', (data: { sessionId: string; dtuId: string; title: string; domain: string }) => {
+      if (data.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, { type: 'artifact', ...data }]);
+    });
+
+    on('shared-session:dtu-shared', (data: { sessionId: string; userName: string; dtuTitle: string; dtuDomain: string }) => {
+      if (data.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, { type: 'dtu_shared', ...data }]);
+    });
+
+    on('shared-session:joined', (data: { sessionId: string; userId: string; userName: string; participantCount: number }) => {
+      if (data.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, {
+        type: 'system',
+        content: `${data.userName} joined the session`,
+        ts: new Date().toISOString(),
+      }]);
+    });
+
+    on('shared-session:ended', (data: { sessionId: string }) => {
+      if (data.sessionId !== sessionId) return;
+      setSessionStatus('ended');
+      setMessages(prev => [...prev, {
+        type: 'system',
+        content: 'Session ended. Shared context dissolved.',
+        ts: new Date().toISOString(),
+      }]);
+    });
+  }, [sessionId, currentUserId, on]);
+
+  // Send message
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || isSending || sessionStatus !== 'active') return;
+    const content = input.trim();
+    setInput('');
+    setIsSending(true);
+
+    // Optimistic add
+    setMessages(prev => [...prev, {
+      type: 'user',
+      userId: currentUserId,
+      userName: 'You',
+      content,
+      ts: new Date().toISOString(),
+    }]);
+
+    try {
+      await api.post(`/api/shared-session/${sessionId}/chat`, { message: content });
+    } catch {
+      setIsSending(false);
+    }
+  }, [input, isSending, sessionId, currentUserId, sessionStatus]);
+
+  // Save artifact
+  const saveArtifact = async (dtuId: string) => {
+    try {
+      await api.post(`/api/shared-session/${sessionId}/save-artifact`, { dtuId });
+      setMessages(prev => [...prev, {
+        type: 'system',
+        content: 'Artifact saved to your substrate.',
+        ts: new Date().toISOString(),
+      }]);
+    } catch { /* silent */ }
+  };
+
+  // End session
+  const endSession = async () => {
+    try {
+      await api.post(`/api/shared-session/${sessionId}/end`);
+      onEnd?.();
+    } catch { /* silent */ }
+  };
+
+  return (
+    <div className="flex h-full bg-zinc-900">
+      {/* Participant sidebar */}
+      <div className="w-56 border-r border-zinc-800 p-4 flex flex-col">
+        <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          In this session
+        </h3>
+        <div className="flex-1 space-y-2">
+          {participants.map(p => (
+            <div key={p.userId} className="flex items-center gap-2">
+              <div className={cn(
+                'w-2 h-2 rounded-full',
+                sessionStatus === 'active' ? 'bg-green-400' : 'bg-zinc-600',
+              )} />
+              <span className="text-sm text-zinc-200 truncate">
+                {p.userId === currentUserId ? `${p.name} (you)` : p.name}
+              </span>
+              <span className="text-[10px] text-zinc-600 ml-auto">
+                {p.sharingLevel === 'full' ? 'Full' : p.sharingLevel === 'query' ? 'AI' : 'Chat'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {sessionStatus === 'active' && (
+          <button
+            onClick={endSession}
+            className="mt-4 py-2 text-xs rounded-lg bg-red-500/10 border
+              border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
+          >
+            End Session
+          </button>
+        )}
+      </div>
+
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.map((msg, i) => (
+            <div key={i}>
+              {msg.type === 'user' && (
+                <div className="flex gap-2">
+                  <span className={cn(
+                    'text-xs font-medium shrink-0',
+                    msg.userId === currentUserId ? 'text-cyan-400' : 'text-blue-400',
+                  )}>
+                    {msg.userId === currentUserId ? 'You' : msg.userName}
+                  </span>
+                  <p className="text-sm text-zinc-200">{msg.content}</p>
+                </div>
+              )}
+
+              {msg.type === 'ai' && (
+                <div className="bg-zinc-800/50 rounded-lg p-3 ml-4">
+                  <p className="text-sm text-zinc-200 whitespace-pre-wrap">{msg.content}</p>
+                  {msg.contextSources && msg.contextSources.length > 0 && (
+                    <p className="text-[10px] text-zinc-600 mt-2 flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5" />
+                      Drawing from: {msg.contextSources.join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {msg.type === 'artifact' && (
+                <div className="bg-cyan-500/5 border border-cyan-500/20
+                  rounded-lg p-3 ml-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-zinc-200">{msg.title}</p>
+                    <p className="text-xs text-zinc-500">{msg.domain}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => msg.dtuId && saveArtifact(msg.dtuId)}
+                      className="text-xs px-2 py-1 rounded bg-cyan-500/10
+                        text-cyan-400 border border-cyan-500/30 flex items-center gap-1
+                        hover:bg-cyan-500/20 transition-colors"
+                    >
+                      <Save className="w-3 h-3" />
+                      Save
+                    </button>
+                    <button className="text-xs px-2 py-1 rounded bg-zinc-800
+                      text-zinc-400 border border-zinc-700 flex items-center gap-1
+                      hover:bg-zinc-700 transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {msg.type === 'dtu_shared' && (
+                <div className="flex items-center gap-2 text-xs text-zinc-500 ml-4">
+                  <Share2 className="w-3 h-3" />
+                  {msg.userName} shared &ldquo;{msg.dtuTitle}&rdquo; from {msg.dtuDomain}
+                </div>
+              )}
+
+              {msg.type === 'system' && (
+                <div className="text-center text-xs text-zinc-600 py-1">
+                  {msg.content}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {isSending && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500 ml-4">
+              <Loader className="w-3 h-3 animate-spin" />
+              Thinking across substrates...
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        {sessionStatus === 'active' ? (
+          <div className="border-t border-zinc-800 p-4">
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                className="flex-1 bg-zinc-800 rounded-lg px-4 py-2 text-sm
+                  text-zinc-200 border border-zinc-700
+                  focus:border-cyan-500/50 outline-none placeholder-zinc-600"
+                placeholder="Message the group..."
+                disabled={isSending}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={isSending || !input.trim()}
+                className="px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-400
+                  border border-cyan-500/50 text-sm disabled:opacity-30
+                  hover:bg-cyan-500/30 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t border-zinc-800 p-4 text-center text-sm text-zinc-600">
+            Session ended. Shared context dissolved.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

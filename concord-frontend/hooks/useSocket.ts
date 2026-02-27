@@ -69,6 +69,11 @@ const FORWARDED_EVENTS: SocketEvent[] = [
   'collab:invite', 'collab:accepted',
   'teaching:promotion_suggestion',
   'research:started', 'research:completed',
+  // Shared Instance Conversation events
+  'shared-session:invite', 'shared-session:joined',
+  'shared-session:message', 'shared-session:ai-response',
+  'shared-session:artifact-produced', 'shared-session:dtu-shared',
+  'shared-session:ended',
 ];
 
 interface UseSocketOptions {
