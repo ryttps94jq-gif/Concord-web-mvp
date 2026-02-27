@@ -86,3 +86,18 @@ export {
   DTU_PLATFORM_REGISTRATION, DTU_IANA_REGISTRATION,
   DTU_FORMAT_CONSTANTS,
 } from "./dtu-format.js";
+
+// API Billing System (v1.0)
+export {
+  createAPIKey, revokeAPIKey, listAPIKeys, validateAPIKey,
+  determineTier, getRateLimits, updateKeyTier,
+  categorizeEndpoint, getCategoryCost,
+  getMonthlyUsage, getFreeRemaining,
+  meterAPICall,
+  getUsageSummary, getUsageLog, getDailyUsage, getEndpointUsage,
+  createAlert, getAlerts, deleteAlert, checkAlerts,
+  getFeeDistributions as getAPIFeeDistributions,
+  API_BILLING_MODEL, API_KEY_SYSTEM, API_PRICING,
+  API_DASHBOARD, API_BILLING_HEADERS, API_BALANCE_ALERTS,
+  API_CONSTANTS,
+} from "./api-billing.js";
