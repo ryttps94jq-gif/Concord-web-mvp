@@ -1886,4 +1886,25 @@ export const flywheelHistory = () => api.get('/api/flywheel/history').then(r => 
 // Research
 export const conductResearch = (topic: string) => api.post('/api/research/conduct', { topic }).then(r => r.data);
 
+// Shared Instance Conversations
+export const createSharedSession = (inviteUserIds: string[], sharingDomains?: string[], sharingLevel?: string) =>
+  api.post('/api/shared-session/create', { inviteUserIds, sharingDomains, sharingLevel }).then(r => r.data);
+export const joinSharedSession = (sessionId: string, sharingDomains?: string[], sharingLevel?: string) =>
+  api.post(`/api/shared-session/${sessionId}/join`, { sharingDomains, sharingLevel }).then(r => r.data);
+export const sharedSessionInviteDetails = (sessionId: string) =>
+  api.get(`/api/shared-session/${sessionId}/invite-details`).then(r => r.data);
+export const sharedSessionChat = (sessionId: string, message: string, lens?: string) =>
+  api.post(`/api/shared-session/${sessionId}/chat`, { message, lens }).then(r => r.data);
+export const shareSessionDTU = (sessionId: string, dtuId: string) =>
+  api.post(`/api/shared-session/${sessionId}/share-dtu`, { dtuId }).then(r => r.data);
+export const sharedSessionRunAction = (sessionId: string, lens: string, action: string, primarySubstrate?: string) =>
+  api.post(`/api/shared-session/${sessionId}/run-action`, { lens, action, primarySubstrate }).then(r => r.data);
+export const saveSharedArtifact = (sessionId: string, dtuId: string) =>
+  api.post(`/api/shared-session/${sessionId}/save-artifact`, { dtuId }).then(r => r.data);
+export const endSharedSession = (sessionId: string) =>
+  api.post(`/api/shared-session/${sessionId}/end`).then(r => r.data);
+export const activeSharedSessions = () => api.get('/api/shared-session/active').then(r => r.data);
+export const sharedSessionDetails = (sessionId: string) =>
+  api.get(`/api/shared-session/${sessionId}`).then(r => r.data);
+
 export default api;

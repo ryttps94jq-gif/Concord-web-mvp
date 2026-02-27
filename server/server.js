@@ -30250,6 +30250,533 @@ function newCapabilitiesHeartbeat() {
 }
 
 // ============================================================================
+// SHARED INSTANCE CONVERSATION — Multi-Sovereign Group Chat
+// ============================================================================
+
+const SHARED_SESSIONS = new Map();
+
+function formatSharedContext(results) {
+  if (!results || !Array.isArray(results)) return "";
+  return results.map(d =>
+    `[${(d.tier || "DTU").toUpperCase()}] ${d.title || d.id}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
+  ).join("\n");
+}
+
+function createSharedSession(creatorId, opts = {}) {
+  const session = {
+    id: generateRequestId(),
+    type: "shared_instance",
+    createdBy: creatorId,
+    participants: [
+      {
+        userId: creatorId,
+        joinedAt: nowISO(),
+        sharingDomains: [],
+        sharingLevel: "query", // query | full | none
+      },
+    ],
+    messages: [],
+    sharedDTUs: [],
+    status: "active",
+    maxParticipants: opts.maxParticipants || 10,
+    createdAt: nowISO(),
+    expiresAt: opts.expiresAt || null,
+    requireAcceptance: true,
+    sharedArtifacts: [],
+  };
+  SHARED_SESSIONS.set(session.id, session);
+  return session;
+}
+
+// --- Multi-Substrate Context Resolution ---
+
+async function buildSharedSessionContext(query, sessionId) {
+  const session = SHARED_SESSIONS.get(sessionId);
+  if (!session) throw new Error("Session not found");
+
+  const contextParts = [];
+
+  for (const participant of session.participants) {
+    if (participant.sharingLevel === "none") continue;
+
+    const results = await scopedEmbeddingSearch(query, participant.userId, {
+      limit: 5,
+      minScore: 0.4,
+    });
+
+    if (results.length > 0) {
+      const user = STATE.users?.get(participant.userId) || AUTH.users?.get(participant.userId);
+      const name = user?.displayName || user?.name || "Participant";
+
+      // Filter by allowed domains if set
+      const filtered = participant.sharingDomains.length > 0
+        ? results.filter(r => participant.sharingDomains.includes(r.domain))
+        : results;
+
+      if (filtered.length > 0) {
+        contextParts.push({
+          source: name,
+          userId: participant.userId,
+          domains: [...new Set(filtered.map(r => r.domain))],
+          context: formatSharedContext(filtered),
+          dtuCount: filtered.length,
+        });
+      }
+    }
+  }
+
+  // Include DTUs explicitly shared into the session
+  const sharedContext = session.sharedDTUs
+    .map(id => STATE.dtus.get(id))
+    .filter(Boolean);
+
+  if (sharedContext.length > 0) {
+    contextParts.push({
+      source: "Shared in session",
+      domains: [...new Set(sharedContext.map(d => d.domain))],
+      context: formatSharedContext(sharedContext),
+      dtuCount: sharedContext.length,
+    });
+  }
+
+  return contextParts;
+}
+
+// --- Shared Session Brain Prompt ---
+
+function buildSharedSessionPrompt(contextParts, participants) {
+  const participantList = participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    const name = user?.displayName || user?.name || "Participant";
+    const domains = p.sharingDomains.length > 0 ? p.sharingDomains.join(", ") : "general";
+    return `${name} (expertise: ${domains}, sharing: ${p.sharingLevel})`;
+  }).join("\n");
+
+  const contextBlocks = contextParts.map(part =>
+    `--- From ${part.source}'s substrate (${part.dtuCount} units, domains: ${part.domains?.join(", ") || "shared"}) ---\n${part.context}`
+  ).join("\n\n");
+
+  return `You are facilitating a shared conversation between multiple users.
+Each user has their own sovereign Concord instance with their own knowledge.
+You have access to relevant knowledge from each participant's substrate based on their sharing preferences.
+
+PARTICIPANTS:
+${participantList}
+
+COMBINED SUBSTRATE CONTEXT:
+${contextBlocks}
+
+RULES:
+- Draw from all participants' knowledge when relevant
+- Attribute insights to the correct participant when possible ("Based on ${participants[0] ? "their" : "the participant's"} domain...")
+- Never reveal personal details from one substrate to another beyond what's relevant to the conversation
+- If one participant's substrate has expertise the others lack, surface it naturally
+- Treat this as collaborative problem-solving, not individual Q&A
+- When producing artifacts, ask which participant's substrate should inform the primary context
+- Keep sovereignty boundaries clear — each person's data is theirs`;
+}
+
+// --- Shared Session Endpoints ---
+
+app.post("/api/shared-session/create", requireAuth(), (req, res) => {
+  const { inviteUserIds, sharingDomains, sharingLevel } = req.body;
+  const session = createSharedSession(req.user.id);
+
+  session.participants[0].sharingDomains = sharingDomains || [];
+  session.participants[0].sharingLevel = sharingLevel || "query";
+
+  for (const inviteeId of (inviteUserIds || [])) {
+    realtimeEmit("shared-session:invite", {
+      userId: inviteeId,
+      sessionId: session.id,
+      from: req.user.id,
+      fromName: req.user.displayName || req.user.name || "User",
+    });
+  }
+
+  res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] } });
+});
+
+app.post("/api/shared-session/:id/join", requireAuth(), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false, error: "Session not found" });
+  if (session.status !== "active") return res.status(400).json({ ok: false, error: "Session not active" });
+  if (session.participants.length >= session.maxParticipants) {
+    return res.status(400).json({ ok: false, error: "Session full" });
+  }
+  if (session.participants.some(p => p.userId === req.user.id)) {
+    return res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] }, alreadyJoined: true });
+  }
+
+  const { sharingDomains, sharingLevel } = req.body;
+  session.participants.push({
+    userId: req.user.id,
+    joinedAt: nowISO(),
+    sharingDomains: sharingDomains || [],
+    sharingLevel: sharingLevel || "query",
+  });
+
+  realtimeEmit("shared-session:joined", {
+    sessionId: session.id,
+    userId: req.user.id,
+    userName: req.user.displayName || req.user.name || "User",
+    participantCount: session.participants.length,
+  });
+
+  res.json({ ok: true, session: { ...session, sharedDTUs: [...session.sharedDTUs] } });
+});
+
+app.get("/api/shared-session/:id/invite-details", requireAuth(), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+
+  const creator = STATE.users?.get(session.createdBy) || AUTH.users?.get(session.createdBy);
+  const participantInfo = session.participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    return {
+      name: user?.displayName || user?.name || "Anonymous",
+      sharingDomains: p.sharingDomains,
+      sharingLevel: p.sharingLevel,
+    };
+  });
+
+  res.json({
+    ok: true,
+    sessionId: session.id,
+    createdBy: creator?.displayName || creator?.name || "Unknown",
+    participants: participantInfo,
+    message: `${creator?.displayName || creator?.name || "Someone"} wants to start a shared session. Choose what to share:`,
+    options: {
+      sharingLevels: [
+        { id: "query", label: "AI can reference my substrate", description: "The shared AI can search your substrate for relevant context. Other participants can't browse your data directly." },
+        { id: "full", label: "Full collaboration", description: "Participants can see DTUs you share into the session. Your AI actively contributes insights from your substrate." },
+        { id: "none", label: "Just chat", description: "You're in the conversation but your substrate stays sealed. The AI only uses your messages, not your substrate." },
+      ],
+    },
+  });
+});
+
+// --- Shared Session Chat ---
+
+app.post("/api/shared-session/:id/chat", requireAuth(), async (req, res) => {
+  const { message, lens } = req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (session.status !== "active") return res.status(400).json({ ok: false, error: "Session ended" });
+
+  const participant = session.participants.find(p => p.userId === userId);
+  if (!participant) return res.status(403).json({ ok: false, error: "Not in session" });
+
+  const userName = (STATE.users?.get(userId) || AUTH.users?.get(userId))?.displayName || "User";
+
+  // Record the message
+  const msgEntry = {
+    id: generateRequestId(),
+    userId,
+    content: message,
+    lens: lens || null,
+    ts: nowISO(),
+  };
+  session.messages.push(msgEntry);
+
+  // Broadcast to all participants
+  realtimeEmit("shared-session:message", {
+    sessionId: session.id,
+    message: msgEntry,
+    userName,
+  });
+
+  // Build multi-substrate context
+  const contextParts = await buildSharedSessionContext(message, session.id);
+
+  // Build the shared session system prompt
+  const systemPrompt = buildSharedSessionPrompt(contextParts, session.participants);
+
+  // Build conversation history
+  const history = session.messages.slice(-20).map(m => {
+    if (m.userId === "ai") return `Assistant: ${m.content}`;
+    const mUser = (STATE.users?.get(m.userId) || AUTH.users?.get(m.userId))?.displayName || "User";
+    return `[${mUser}]: ${m.content}`;
+  }).join("\n");
+
+  // Call conscious brain with shared context
+  try {
+    const response = await callBrain("conscious", history, {
+      system: systemPrompt,
+      temperature: 0.7,
+      maxTokens: 1000,
+    });
+
+    const aiText = response?.text || response?.content || response?.reply || (typeof response === "string" ? response : JSON.stringify(response));
+
+    // Record AI response
+    const aiMsg = {
+      id: generateRequestId(),
+      userId: "ai",
+      content: aiText,
+      ts: nowISO(),
+      contextSources: contextParts.map(p => ({
+        source: p.source,
+        domains: p.domains,
+        dtuCount: p.dtuCount,
+      })),
+    };
+    session.messages.push(aiMsg);
+
+    // Broadcast AI response
+    realtimeEmit("shared-session:ai-response", {
+      sessionId: session.id,
+      response: aiText,
+      contextSources: contextParts.map(p => p.source),
+    });
+
+    res.json({ ok: true, response: aiText, contextSources: contextParts.map(p => p.source) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Share DTU Into Session ---
+
+app.post("/api/shared-session/:id/share-dtu", requireAuth(), (req, res) => {
+  const { dtuId } = req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === userId)) {
+    return res.status(403).json({ ok: false, error: "Not in session" });
+  }
+
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu || dtu.ownerId !== userId) {
+    return res.status(403).json({ ok: false, error: "Not your DTU" });
+  }
+
+  if (!session.sharedDTUs.includes(dtuId)) {
+    session.sharedDTUs.push(dtuId);
+  }
+
+  const userName = (STATE.users?.get(userId) || AUTH.users?.get(userId))?.displayName || "User";
+  realtimeEmit("shared-session:dtu-shared", {
+    sessionId: session.id,
+    userId,
+    userName,
+    dtuId,
+    dtuTitle: dtu.title,
+    dtuDomain: dtu.domain,
+    hasArtifact: !!dtu.artifact,
+  });
+
+  res.json({ ok: true });
+});
+
+// --- Artifact Production in Shared Sessions ---
+
+app.post("/api/shared-session/:id/run-action", requireAuth(), async (req, res) => {
+  const { lens, action, primarySubstrate } = req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === userId)) {
+    return res.status(403).json({ ok: false, error: "Not in session" });
+  }
+
+  const primaryUserId = primarySubstrate || userId;
+
+  // Build context from primary substrate + supporting context from others
+  const primaryContext = await scopedEmbeddingSearch(action, primaryUserId, { limit: 10, minScore: 0.3 });
+  const supportingContext = [];
+
+  for (const p of session.participants) {
+    if (p.userId === primaryUserId) continue;
+    if (p.sharingLevel === "none") continue;
+    const results = await scopedEmbeddingSearch(action, p.userId, { limit: 3, minScore: 0.4 });
+    const filtered = p.sharingDomains.length > 0
+      ? results.filter(r => p.sharingDomains.includes(r.domain))
+      : results;
+    supportingContext.push(...filtered);
+  }
+
+  try {
+    const result = await runMacro(lens, action, {
+      userId: primaryUserId,
+      overrideContext: formatSharedContext([...primaryContext, ...supportingContext]),
+      sessionId: session.id,
+      sharedSession: true,
+    }, { userId });
+
+    if (result && result.dtuId) {
+      const dtu = STATE.dtus.get(result.dtuId);
+      if (dtu) {
+        dtu.meta = dtu.meta || {};
+        dtu.meta.sharedSessionId = session.id;
+        dtu.meta.sharedSessionParticipants = session.participants.map(p => p.userId);
+        dtu.meta.primarySubstrate = primaryUserId;
+      }
+
+      session.sharedArtifacts.push(result.dtuId);
+
+      realtimeEmit("shared-session:artifact-produced", {
+        sessionId: session.id,
+        dtuId: result.dtuId,
+        title: dtu?.title,
+        domain: lens,
+        producedBy: userId,
+      });
+    }
+
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Save Shared Artifact to Own Substrate ---
+
+app.post("/api/shared-session/:id/save-artifact", requireAuth(), async (req, res) => {
+  const { dtuId } = req.body;
+  const userId = req.user.id;
+  const session = SHARED_SESSIONS.get(req.params.id);
+
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.sharedArtifacts.includes(dtuId)) {
+    return res.status(400).json({ ok: false, error: "Not a session artifact" });
+  }
+
+  const sourceDtu = STATE.dtus.get(dtuId);
+  if (!sourceDtu) return res.status(404).json({ ok: false });
+
+  const copy = {
+    ...JSON.parse(JSON.stringify(sourceDtu)),
+    id: generateRequestId(),
+    ownerId: userId,
+    scope: "personal",
+    meta: {
+      ...(sourceDtu.meta || {}),
+      savedFromSession: session.id,
+      savedAt: nowISO(),
+      originalOwner: sourceDtu.ownerId,
+    },
+  };
+
+  STATE.dtus.set(copy.id, copy);
+  await reindexUserDTUs(userId);
+  saveStateDebounced();
+
+  res.json({ ok: true, dtuId: copy.id });
+});
+
+// --- Session End and Summary ---
+
+app.post("/api/shared-session/:id/end", requireAuth(), async (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+
+  const isParticipant = session.participants.some(p => p.userId === req.user.id);
+  if (!isParticipant) return res.status(403).json({ ok: false });
+
+  session.status = "ended";
+  session.endedAt = nowISO();
+
+  // Generate summary DTU for each participant
+  const lensesUsed = [...new Set(session.messages.map(m => m.lens).filter(Boolean))];
+  for (const participant of session.participants) {
+    const summaryDTU = {
+      id: generateRequestId(),
+      ownerId: participant.userId,
+      scope: "personal",
+      domain: "social",
+      tier: "DTU",
+      title: `Shared session: ${session.messages.length} messages with ${session.participants.length} participants`,
+      human: {
+        summary: `Collaborative session covering ${lensesUsed.join(", ") || "general"}. ${session.sharedArtifacts.length} artifacts produced. ${session.sharedDTUs.length} DTUs shared.`,
+      },
+      meta: {
+        sessionId: session.id,
+        sessionType: "shared_instance",
+        participants: session.participants.map(p => p.userId),
+        artifactsProduced: session.sharedArtifacts.length,
+        messageCount: session.messages.length,
+      },
+      created: nowISO(),
+    };
+    STATE.dtus.set(summaryDTU.id, summaryDTU);
+  }
+
+  const durationMs = new Date(session.endedAt).getTime() - new Date(session.createdAt).getTime();
+
+  realtimeEmit("shared-session:ended", {
+    sessionId: session.id,
+    summary: {
+      durationMs,
+      messages: session.messages.length,
+      artifacts: session.sharedArtifacts.length,
+      participants: session.participants.length,
+    },
+  });
+
+  saveStateDebounced();
+  res.json({ ok: true, summary: { durationMs, messages: session.messages.length, artifacts: session.sharedArtifacts.length } });
+});
+
+// --- List Active Shared Sessions ---
+
+app.get("/api/shared-session/active", requireAuth(), (req, res) => {
+  const userId = req.user.id;
+  const sessions = Array.from(SHARED_SESSIONS.values())
+    .filter(s => s.participants.some(p => p.userId === userId) && s.status === "active")
+    .map(s => ({
+      id: s.id,
+      createdBy: s.createdBy,
+      participantCount: s.participants.length,
+      messageCount: s.messages.length,
+      createdAt: s.createdAt,
+    }));
+  res.json({ ok: true, sessions });
+});
+
+// --- Get Session Details ---
+
+app.get("/api/shared-session/:id", requireAuth(), (req, res) => {
+  const session = SHARED_SESSIONS.get(req.params.id);
+  if (!session) return res.status(404).json({ ok: false });
+  if (!session.participants.some(p => p.userId === req.user.id)) {
+    return res.status(403).json({ ok: false });
+  }
+
+  const participantInfo = session.participants.map(p => {
+    const user = STATE.users?.get(p.userId) || AUTH.users?.get(p.userId);
+    return {
+      userId: p.userId,
+      name: user?.displayName || user?.name || "Anonymous",
+      sharingDomains: p.sharingDomains,
+      sharingLevel: p.sharingLevel,
+      joinedAt: p.joinedAt,
+    };
+  });
+
+  res.json({
+    ok: true,
+    session: {
+      id: session.id,
+      type: session.type,
+      status: session.status,
+      createdBy: session.createdBy,
+      participants: participantInfo,
+      messageCount: session.messages.length,
+      sharedDTUCount: session.sharedDTUs.length,
+      sharedArtifactCount: session.sharedArtifacts.length,
+      createdAt: session.createdAt,
+    },
+    messages: session.messages.slice(-50), // last 50 messages
+  });
+});
+
+// ============================================================================
 // MEGA SPEC: WebSocket Chat Streaming Handler
 // ============================================================================
 
