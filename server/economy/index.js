@@ -101,3 +101,17 @@ export {
   API_DASHBOARD, API_BILLING_HEADERS, API_BALANCE_ALERTS,
   API_CONSTANTS,
 } from "./api-billing.js";
+
+// Single-Origin Storage Model (v1.0)
+export {
+  storeInVault, getVaultEntry, incrementVaultRef, decrementVaultRef,
+  cleanupUnreferencedArtifacts, getVaultStats,
+  recordDownload, getUserDownloads, getArtifactDownloadCount, hasUserDownloaded,
+  cacheInCRI, recordCRIServe, evictFromCRI, getCRICacheContents,
+  getCRICacheStats, evictExpiredCRIEntries,
+  getRegionalStats, getTopRegionalArtifacts,
+  calculateStorageSavings,
+  STORAGE_INVARIANT, ARTIFACT_STORAGE, DOWNLOAD_FLOW,
+  STORAGE_ECONOMICS, VAULT_REFERENCE_SYSTEM, BANDWIDTH_MANAGEMENT,
+  CRI_CACHE, STORAGE_CONSTANTS,
+} from "./storage.js";
