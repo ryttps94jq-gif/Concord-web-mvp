@@ -21248,6 +21248,10 @@ app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, save
 app.use("/api/sovereign-emergent", createSovereignEmergentRouter({ STATE }));
 app.use("/api/federation", createFederationRouter({ db }));
 
+// ===== CREATIVE ARTIFACT MARKETPLACE =====
+import createCreativeMarketplaceRouter from "./routes/creative-marketplace.js";
+app.use("/api/creative-marketplace", createCreativeMarketplaceRouter({ db }));
+
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));
 app.get("/api/species/census", (_req, res) => res.json({ ok: true, ...getSpeciesCensus(STATE) }));

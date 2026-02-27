@@ -49,3 +49,15 @@ export {
 } from "./marketplace-service.js";
 export { distributeFee, getFeeSplitBalances, getFeeDistributions } from "./fee-split.js";
 export { runTreasuryReconciliation, getReconciliationHistory } from "./treasury-reconciliation.js";
+
+// Creative Artifact Marketplace (Federation v1.2)
+export {
+  publishArtifact, publishDerivativeArtifact, purchaseArtifact,
+  getArtifact, searchArtifacts, discoverLocalArtists, browseRegionArt,
+  getDerivativeTree, rateArtifact,
+  checkArtifactPromotionEligibility, promoteArtifact,
+  awardCreativeXP, completeCreativeQuest, getCreativeXP, getCreativeQuestCompletions,
+  getArtifactLicenses, getUserLicenses,
+  getArtifactCascadeEarnings, getCreatorCascadeEarnings,
+  pauseArtifact, resumeArtifact, delistArtifact, updateArtifactPrice,
+} from "./creative-marketplace.js";

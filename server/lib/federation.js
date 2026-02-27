@@ -1030,10 +1030,11 @@ export function completeQuest(db, { userId, questId, federationTier, regional = 
   const id = uid("qc");
   const now = nowISO();
 
+  // Quests reward XP and badges only — no coin rewards (constitutional invariant)
   db.prepare(`
     INSERT INTO quest_completions (id, user_id, quest_id, federation_tier, regional, national, xp_awarded, coin_awarded, badge_awarded, completed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, userId, questId, federationTier, regional, national, quest.xpReward, quest.coinReward, quest.badge, now);
+  `).run(id, userId, questId, federationTier, regional, national, quest.xpReward, 0, quest.badge, now);
 
   // Award XP
   awardXP(db, { userId, federationTier, regional, national, xpAmount: quest.xpReward });
@@ -1042,7 +1043,6 @@ export function completeQuest(db, { userId, questId, federationTier, regional = 
     ok: true,
     questId,
     xpAwarded: quest.xpReward,
-    coinAwarded: quest.coinReward,
     badgeAwarded: quest.badge,
   };
 }
@@ -1082,7 +1082,6 @@ export function getUserQuestCompletions(db, { userId, federationTier = null }) {
       questId: r.quest_id,
       federationTier: r.federation_tier,
       xpAwarded: r.xp_awarded,
-      coinAwarded: r.coin_awarded,
       badgeAwarded: r.badge_awarded,
       completedAt: r.completed_at,
     })),

@@ -1099,10 +1099,10 @@ describe("v1.1 — Quest Definitions", () => {
     assert.equal(TIER_QUESTS.global.questTypes.length, 3);
   });
 
-  it("global meta-derivation quest rewards 10000 XP", () => {
+  it("global meta-derivation quest rewards 10000 XP and no coins", () => {
     const quest = TIER_QUESTS.global.questTypes.find(q => q.id === "global_meta_derivation");
     assert.equal(quest.xpReward, 10000);
-    assert.equal(quest.coinReward, 1000);
+    assert.equal(quest.coinReward, undefined);
   });
 
   it("each tier has 5 XP levels", () => {

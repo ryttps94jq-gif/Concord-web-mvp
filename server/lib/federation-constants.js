@@ -267,7 +267,9 @@ export const CREATIVE_TIERS = Object.freeze({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// QUEST SYSTEM PER TIER (v1.1)
+// QUEST SYSTEM PER TIER (v1.1, corrected v1.2)
+// Quests reward XP and badges ONLY — no coin rewards.
+// Concord Coin is only earned through marketplace sales and royalties.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TIER_QUESTS = Object.freeze({
@@ -278,7 +280,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "First Regional DTU",
         description: "Publish your first DTU to the regional substrate",
         xpReward: 50,
-        coinReward: 5,
         badge: "regional_contributor",
       },
       {
@@ -286,7 +287,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Citation Chain",
         description: "Have 3 of your regional DTUs cited by other regional users",
         xpReward: 150,
-        coinReward: 15,
         badge: "regional_authority",
       },
       {
@@ -294,7 +294,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Regional Mentor",
         description: "Have an entity teaching relationship with 3 other entities in your region",
         xpReward: 200,
-        coinReward: 20,
         badge: "regional_mentor",
       },
       {
@@ -302,7 +301,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "National Recognition",
         description: "Get a DTU promoted from regional to national",
         xpReward: 500,
-        coinReward: 50,
         badge: "nationally_recognized",
       },
     ],
@@ -322,7 +320,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Cross-Regional Impact",
         description: "Have your DTU cited by users in 3 different regions",
         xpReward: 300,
-        coinReward: 30,
         badge: "cross_regional_thinker",
       },
       {
@@ -330,7 +327,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "MEGA Builder",
         description: "Contribute to 5 national-tier MEGA consolidations",
         xpReward: 500,
-        coinReward: 50,
         badge: "national_synthesizer",
       },
       {
@@ -338,7 +334,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Global Recognition",
         description: "Get a DTU promoted from national to global",
         xpReward: 2000,
-        coinReward: 200,
         badge: "globally_recognized",
       },
       {
@@ -346,7 +341,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Top 10 National",
         description: "Reach top 10 XP in your national leaderboard",
         xpReward: 1000,
-        coinReward: 100,
         badge: "national_champion",
       },
     ],
@@ -366,7 +360,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Cross-National Impact",
         description: "DTU cited by users in 5 different nations",
         xpReward: 1000,
-        coinReward: 100,
         badge: "global_thinker",
       },
       {
@@ -374,7 +367,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "HYPER Architect",
         description: "Contribute to a global HYPER consolidation",
         xpReward: 5000,
-        coinReward: 500,
         badge: "civilization_architect",
       },
       {
@@ -382,7 +374,6 @@ export const TIER_QUESTS = Object.freeze({
         name: "Meta-Invariant Discovery",
         description: "Your DTU was a source in a meta-derivation that produced a new cross-domain invariant",
         xpReward: 10000,
-        coinReward: 1000,
         badge: "truth_discoverer",
       },
     ],
@@ -443,12 +434,10 @@ export const KNOWLEDGE_RACE = Object.freeze({
     preserveBadges: true,
     seasonalRewards: {
       regionalWinner: {
-        coinReward: 1000,
         badge: "seasonal_regional_champion",
         title: "Regional Champion Q{quarter} {year}",
       },
       nationalWinner: {
-        coinReward: 10000,
         badge: "seasonal_national_champion",
         title: "National Champion Q{quarter} {year}",
       },
