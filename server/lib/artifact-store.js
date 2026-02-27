@@ -23,6 +23,8 @@ const SUPPORTED_TYPES = Object.freeze({
   "text/plain": { ext: "txt", compressible: true, previewable: true },
   "text/markdown": { ext: "md", compressible: true, previewable: true },
   "text/html": { ext: "html", compressible: true, previewable: true },
+  "text/csv": { ext: "csv", compressible: true, previewable: true },
+  "text/calendar": { ext: "ics", compressible: true, previewable: false },
   "application/javascript": { ext: "js", compressible: true, previewable: true },
   "application/json": { ext: "json", compressible: true, previewable: true },
   "application/zip": { ext: "zip", compressible: false, previewable: false },

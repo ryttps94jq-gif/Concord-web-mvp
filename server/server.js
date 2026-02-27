@@ -43,6 +43,8 @@ import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-route
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
+import { renderAndAttach } from "./lib/render-engine.js";
+import { registerAllRenderers } from "./lib/render-registry.js";
 
 // ---- Route modules (ESM) ----
 import registerSystemRoutes from "./routes/system.js";
@@ -23962,6 +23964,9 @@ function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
       recordEnrichmentMetric("linksCreated");
     }
 
+    // After enrichment, attempt render (fire-and-forget)
+    renderAndAttach(STATE, dtuId, domain, action, artifact, extra.actionResult);
+
     saveStateDebounced();
     return dtuId;
   } catch { return null; }
@@ -24063,7 +24068,7 @@ register("lens", "run", async (ctx, input={}) => {
   const handler = LENS_ACTIONS.get(`${artifact.domain}.${action}`);
   if (!handler) return { ok: false, error: `no handler for ${artifact.domain}.${action}` };
   const result = await handler(ctx, artifact, params);
-  _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result?.ok });
+  _lensEmitDTU(ctx, artifact.domain, action, artifact.type, artifact, { actionResult: result });
   // Run cross-lens pipelines (fire-and-forget)
   const pipelineResults = _runLensPipelines(ctx, artifact.domain, action, artifact, result);
   return { ok: true, result, pipelines: pipelineResults.length > 0 ? pipelineResults : undefined };
@@ -32927,6 +32932,13 @@ app.get("/api/learning/probation", (_req, res) => {
 
 // ── Lens DTU Enrichment Initialization ──
 registerBuiltinEnrichers();
+
+// ── Render Layer Initialization ──
+registerAllRenderers({
+  exportPDFMarkup: _lensExportPDFMarkup,
+  exportMarkdown: _lensExportMarkdown,
+  exportCSV: _lensExportCSV,
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
