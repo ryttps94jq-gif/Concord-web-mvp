@@ -1,11 +1,15 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
 import { MarketEmpireListing } from '@/components/market/MarketEmpireListing';
-import { Store, TrendingUp, Package, Coins } from 'lucide-react';
+import {
+  Store, TrendingUp, Package, Coins, Search, Filter, X,
+  ShoppingCart, Tag, ArrowUpRight, ArrowDownRight, BarChart3,
+  Clock, Star, RefreshCw,
+} from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
 interface MarketListingItem {
@@ -17,7 +21,12 @@ interface MarketListingItem {
   createdAt?: string;
   tags?: string[];
   type?: string;
+  rating?: number;
+  purchases?: number;
 }
+
+type SortField = 'newest' | 'price-asc' | 'price-desc' | 'popular';
+type ListingType = 'all' | 'beat' | 'stem' | 'sample' | 'artwork';
 
 export default function MarketLensPage() {
   useLensNav('market');
@@ -27,11 +36,23 @@ export default function MarketLensPage() {
   const [newDescription, setNewDescription] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newType, setNewType] = useState('beat');
+  const [newTags, setNewTags] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<ListingType>('all');
+  const [sortBy, setSortBy] = useState<SortField>('newest');
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [showPurchaseConfirm, setShowPurchaseConfirm] = useState<MarketListingItem | null>(null);
 
   // Backend: GET /api/marketplace/listings
-  const { data: listings, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
+  const { data: listings, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['marketplace-listings'],
     queryFn: () => apiHelpers.marketplace.listings().then((r) => r.data),
+  });
+
+  // Backend: GET /api/economy/balance
+  const { data: wallet } = useQuery({
+    queryKey: ['economy-balance'],
+    queryFn: () => apiHelpers.economy.balance().then((r) => r.data),
   });
 
   const createMutation = useMutation({
@@ -44,14 +65,90 @@ export default function MarketLensPage() {
       setNewDescription('');
       setNewPrice('');
       setNewType('beat');
+      setNewTags('');
     },
     onError: (err) => console.error('createMutation failed:', err instanceof Error ? err.message : err),
   });
 
+  const purchaseMutation = useMutation({
+    mutationFn: (listingId: string) =>
+      apiHelpers.durableMarketplace.purchase(listingId, 'me'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketplace-listings'] });
+      queryClient.invalidateQueries({ queryKey: ['economy-balance'] });
+      setShowPurchaseConfirm(null);
+      setPurchasingId(null);
+    },
+    onError: (err) => {
+      console.error('purchaseMutation failed:', err instanceof Error ? err.message : err);
+      setPurchasingId(null);
+    },
+  });
+
+  // Filter and sort listings
+  const filteredListings = useMemo(() => {
+    const raw: MarketListingItem[] = listings?.listings || [];
+    let result = raw;
+
+    // Filter by type
+    if (filterType !== 'all') {
+      result = result.filter((l) => l.type === filterType);
+    }
+
+    // Filter by search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (l) =>
+          l.title?.toLowerCase().includes(q) ||
+          l.description?.toLowerCase().includes(q) ||
+          l.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    switch (sortBy) {
+      case 'price-asc':
+        result = [...result].sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'price-desc':
+        result = [...result].sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      case 'popular':
+        result = [...result].sort((a, b) => (b.purchases || 0) - (a.purchases || 0));
+        break;
+      case 'newest':
+      default:
+        result = [...result].sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+    }
+
+    return result;
+  }, [listings, filterType, searchQuery, sortBy]);
+
+  const totalVolume = listings?.volume ?? 0;
+  const totalTransactions = listings?.transactions ?? 0;
+  const totalListings = listings?.listings?.length || 0;
+  const libraryCount = listings?.library?.length ?? 0;
+
+  const handlePurchase = (listing: MarketListingItem) => {
+    setShowPurchaseConfirm(listing);
+  };
+
+  const confirmPurchase = () => {
+    if (!showPurchaseConfirm) return;
+    setPurchasingId(showPurchaseConfirm.id);
+    purchaseMutation.mutate(showPurchaseConfirm.id);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full p-8">
-        <p className="text-gray-400 animate-pulse">Loading marketplace data...</p>
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-neon-purple border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-gray-400 animate-pulse">Loading marketplace data...</p>
+        </div>
       </div>
     );
   }
@@ -63,6 +160,7 @@ export default function MarketLensPage() {
       </div>
     );
   }
+
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">
@@ -75,16 +173,35 @@ export default function MarketLensPage() {
             </p>
           </div>
         </div>
-        <button className="btn-neon purple" onClick={() => setShowCreate(!showCreate)}>
-          <Store className="w-4 h-4 mr-2 inline" />
-          Create Listing
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-2 text-sm bg-lattice-surface rounded-lg text-gray-400 hover:text-white transition-colors" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button className="btn-neon purple" onClick={() => setShowCreate(!showCreate)}>
+            <Store className="w-4 h-4 mr-2 inline" />
+            Create Listing
+          </button>
+        </div>
       </header>
+
+      {/* Wallet Banner */}
+      {wallet && (
+        <div className="panel p-3 flex items-center justify-between bg-gradient-to-r from-neon-purple/5 to-neon-cyan/5">
+          <div className="flex items-center gap-3">
+            <Coins className="w-5 h-5 text-neon-cyan" />
+            <span className="text-sm text-gray-300">Your Balance</span>
+          </div>
+          <span className="text-lg font-bold text-neon-cyan">{wallet.balance ?? 0} CC</span>
+        </div>
+      )}
 
       {/* Create Listing Form */}
       {showCreate && (
-        <div className="panel p-4 space-y-3">
-          <h2 className="font-semibold">New Listing</h2>
+        <div className="panel p-4 space-y-3 border border-neon-purple/20">
+          <h2 className="font-semibold flex items-center gap-2">
+            <Store className="w-4 h-4 text-neon-purple" />
+            New Listing
+          </h2>
           <input
             className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none"
             placeholder="Title"
@@ -94,15 +211,16 @@ export default function MarketLensPage() {
           <textarea
             className="w-full px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none resize-none"
             placeholder="Description"
-            rows={2}
+            rows={3}
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
           />
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
-              className="flex-1 px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none"
-              placeholder="Price"
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none"
+              placeholder="Price (CC)"
               type="number"
+              min="0"
               value={newPrice}
               onChange={(e) => setNewPrice(e.target.value)}
             />
@@ -116,6 +234,12 @@ export default function MarketLensPage() {
               <option value="sample">Sample</option>
               <option value="artwork">Artwork</option>
             </select>
+            <input
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none"
+              placeholder="Tags (comma-separated)"
+              value={newTags}
+              onChange={(e) => setNewTags(e.target.value)}
+            />
           </div>
           {createMutation.isError && (
             <p className="text-xs text-red-400">
@@ -149,10 +273,73 @@ export default function MarketLensPage() {
 
       {/* Market Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={<Store />} label="Active Listings" value={listings?.listings?.length || 0} />
-        <StatCard icon={<Package />} label="Your Library" value={listings?.library?.length ?? 0} />
-        <StatCard icon={<TrendingUp />} label="Transactions" value={listings?.transactions ?? 0} />
-        <StatCard icon={<Coins />} label="Volume" value={listings?.volume ?? 0} />
+        <StatCard icon={<Store className="w-5 h-5" />} label="Active Listings" value={totalListings} trend={totalListings > 0 ? '+' : undefined} />
+        <StatCard icon={<Package className="w-5 h-5" />} label="Your Library" value={libraryCount} />
+        <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Transactions" value={totalTransactions} trend={totalTransactions > 0 ? '+' : undefined} />
+        <StatCard icon={<Coins className="w-5 h-5" />} label="Volume" value={`${totalVolume} CC`} />
+      </div>
+
+      {/* Search and Filter Bar */}
+      <div className="panel p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              className="w-full pl-10 pr-8 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-purple outline-none"
+              placeholder="Search listings by title, description, or tag..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <select
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm text-gray-300"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as ListingType)}
+            >
+              <option value="all">All Types</option>
+              <option value="beat">Beats</option>
+              <option value="stem">Stems</option>
+              <option value="sample">Samples</option>
+              <option value="artwork">Artwork</option>
+            </select>
+            <select
+              className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm text-gray-300"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortField)}
+            >
+              <option value="newest">Newest</option>
+              <option value="price-asc">Price: Low-High</option>
+              <option value="price-desc">Price: High-Low</option>
+              <option value="popular">Most Popular</option>
+            </select>
+          </div>
+        </div>
+        {(searchQuery || filterType !== 'all') && (
+          <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
+            <Filter className="w-3 h-3" />
+            <span>
+              Showing {filteredListings.length} of {totalListings} listings
+            </span>
+            {filterType !== 'all' && (
+              <span className="px-2 py-0.5 bg-neon-purple/10 text-neon-purple rounded flex items-center gap-1">
+                <Tag className="w-3 h-3" />
+                {filterType}
+                <button onClick={() => setFilterType('all')}>
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Listings Grid */}
@@ -160,29 +347,125 @@ export default function MarketLensPage() {
         <h2 className="font-semibold mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-neon-green" />
           Active Listings
+          <span className="text-xs text-gray-500 font-normal">({filteredListings.length})</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {listings?.listings?.length === 0 ? (
-            <p className="col-span-full text-center py-8 text-gray-500">
-              No listings yet. Create the first marketplace listing!
-            </p>
+          {filteredListings.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+              <p className="text-gray-500 mb-2">
+                {searchQuery || filterType !== 'all'
+                  ? 'No listings match your filters'
+                  : 'No listings yet. Create the first marketplace listing!'}
+              </p>
+              {(searchQuery || filterType !== 'all') && (
+                <button
+                  onClick={() => { setSearchQuery(''); setFilterType('all'); }}
+                  className="text-sm text-neon-purple hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           ) : (
-            listings?.listings?.map((listing: MarketListingItem) => (
-              <MarketEmpireListing key={listing.id} listing={listing} />
+            filteredListings.map((listing: MarketListingItem) => (
+              <MarketEmpireListing
+                key={listing.id}
+                listing={listing}
+                onPurchase={() => handlePurchase(listing)}
+              />
             ))
           )}
         </div>
       </div>
+
+      {/* Purchase Confirmation Modal */}
+      {showPurchaseConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="panel p-6 max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-neon-green" />
+              Confirm Purchase
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Item</span>
+                <span className="font-medium">{showPurchaseConfirm.title || 'Untitled'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Type</span>
+                <span className="text-xs px-2 py-0.5 bg-neon-green/20 text-neon-green rounded">
+                  {showPurchaseConfirm.type || 'DTU'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Price</span>
+                <span className="text-lg font-bold text-neon-cyan">
+                  {showPurchaseConfirm.price || 0} CC
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Your Balance</span>
+                <span className={`font-mono ${(wallet?.balance || 0) >= (showPurchaseConfirm.price || 0) ? 'text-neon-green' : 'text-red-400'}`}>
+                  {wallet?.balance ?? 0} CC
+                </span>
+              </div>
+            </div>
+            {(wallet?.balance || 0) < (showPurchaseConfirm.price || 0) && (
+              <p className="text-xs text-red-400 bg-red-400/10 p-2 rounded">
+                Insufficient balance. You need {(showPurchaseConfirm.price || 0) - (wallet?.balance || 0)} more CC.
+              </p>
+            )}
+            {purchaseMutation.isError && (
+              <p className="text-xs text-red-400">
+                {purchaseMutation.error instanceof Error ? purchaseMutation.error.message : 'Purchase failed'}
+              </p>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                onClick={() => { setShowPurchaseConfirm(null); setPurchasingId(null); }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-neon text-sm"
+                disabled={
+                  purchaseMutation.isPending ||
+                  (wallet?.balance || 0) < (showPurchaseConfirm.price || 0)
+                }
+                onClick={confirmPurchase}
+              >
+                {purchaseMutation.isPending ? 'Processing...' : 'Confirm Purchase'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  trend,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  trend?: '+' | '-';
+}) {
   return (
     <div className="lens-card">
       <div className="flex items-center justify-between">
         <span className="text-neon-green">{icon}</span>
-        <span className="text-2xl font-bold">{value}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-2xl font-bold">{value}</span>
+          {trend === '+' && <ArrowUpRight className="w-4 h-4 text-neon-green" />}
+          {trend === '-' && <ArrowDownRight className="w-4 h-4 text-neon-pink" />}
+        </div>
       </div>
       <p className="text-sm text-gray-400 mt-2">{label}</p>
     </div>

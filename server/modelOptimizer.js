@@ -29,7 +29,7 @@ let _log = null;
 
 // ── Initialisation ─────────────────────────────────────────────────────────
 
-export function initModelOptimizer({ structuredLog = console.log } = {}) {
+export function initModelOptimizer({ structuredLog = console.warn } = {}) {
   _log = structuredLog;
   _log("info", "model_optimizer_init", {});
 }

@@ -40,7 +40,7 @@ export function economyAudit(db, opts) {
   };
 
   // Console log for real-time monitoring
-  console.log(
+  console.warn(
     `[Economy Audit] ${entry.action} | user=${entry.userId} amount=${opts.amount || "-"} tx=${opts.txId || "-"} ip=${entry.ip || "-"}`,
   );
 

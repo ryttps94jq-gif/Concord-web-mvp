@@ -186,7 +186,14 @@ export function selectIntent(STATE, opts = {}) {
  * @returns {{ core: DTU[], peripheral: DTU[], conflicts: object[], citations: object[] }}
  */
 export function buildRetrievalPack(STATE, intent) {
-  const dtus = Array.from(STATE.dtus.values());
+  // Probation quarantine: DTUs in probation cannot be parents for new autogen candidates.
+  // This prevents confidence laundering — probationary DTUs must be validated before
+  // they can serve as source material for further generation.
+  const dtus = Array.from(STATE.dtus.values()).filter(d => {
+    if (d.classification?.status === "probation") return false;
+    if (d.meta?.probation === true) return false;
+    return true;
+  });
   if (dtus.length === 0) {
     return { core: [], peripheral: [], conflicts: [], citations: [], stats: { total: 0 } };
   }
@@ -684,8 +691,10 @@ export function noveltyCheck(STATE, candidate, opts = {}) {
     };
   }
 
-  // Check tag + title similarity against existing DTUs
-  const dtus = Array.from(STATE.dtus.values());
+  // Check tag + title similarity against FULL DTU corpus (canonical + shadow)
+  const canonical = Array.from(STATE.dtus.values());
+  const shadows = STATE.shadowDtus ? Array.from(STATE.shadowDtus.values()) : [];
+  const dtus = canonical.concat(shadows);
   const candidateTags = new Set(candidate.tags || []);
   const candidateTitle = (candidate.title || "").toLowerCase();
   const candidateClaimTexts = (candidate.core?.claims || []).map(c => c.toLowerCase());
@@ -1124,8 +1133,25 @@ export async function runPipeline(STATE, opts = {}) {
       candidate.meta.councilDemoted = true;
     }
   } catch (e) {
-    // Council failure is non-fatal; log and continue
-    trace.stages.councilVoices = { ok: false, error: String(e?.message || e) };
+    // Council offline: hold candidate in pending queue rather than auto-accepting.
+    // This prevents unreviewed candidates from entering the lattice.
+    trace.stages.councilVoices = { ok: false, error: String(e?.message || e), held: true };
+    candidate.tier = "shadow";
+    candidate.meta = candidate.meta || {};
+    candidate.meta.shadowFirst = true;
+    candidate.meta.councilOfflineHeld = true;
+    candidate.meta.councilOfflineAt = new Date().toISOString();
+    if (!ps._pendingCouncilQueue) ps._pendingCouncilQueue = [];
+    ps._pendingCouncilQueue.push({
+      candidateTitle: candidate.title,
+      candidateHash: noveltyResult?.candidateHash || null,
+      heldAt: new Date().toISOString(),
+      reason: String(e?.message || e),
+    });
+    // Cap queue size
+    if (ps._pendingCouncilQueue.length > 200) {
+      ps._pendingCouncilQueue = ps._pendingCouncilQueue.slice(-200);
+    }
   }
 
   // Stage 6: GRC Formatting — wrap candidate in GRC v1 envelope
@@ -1139,6 +1165,20 @@ export async function runPipeline(STATE, opts = {}) {
     repairs: grcResult.repairs?.length || 0,
     validationErrors: grcResult.validation?.errors?.length || 0,
     validationWarnings: grcResult.validation?.warnings?.length || 0,
+  };
+
+  // Gate enforcement assertion: every autogen output carries proof it passed all stages
+  candidate.meta = candidate.meta || {};
+  candidate.meta.gateResults = {
+    empiricalGates: criticResult.empiricalStats || { passed: true },
+    criticPassed: criticResult.ok,
+    criticIssues: criticResult.issues?.length || 0,
+    noveltyPassed: noveltyResult.novel !== false,
+    noveltyScore: noveltyResult.similarity || 0,
+    councilVerdict: candidate.meta.councilVerdict || (candidate.meta.councilOfflineHeld ? "held" : "unknown"),
+    grcFormatted: grcResult.ok,
+    allGatesPassed: criticResult.ok && noveltyResult.novel !== false && !candidate.meta.councilOfflineHeld,
+    verifiedAt: new Date().toISOString(),
   };
 
   trace.completedAt = new Date().toISOString();

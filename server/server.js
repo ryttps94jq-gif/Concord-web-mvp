@@ -43,7 +43,7 @@ import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-route
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
-import { renderAndAttach } from "./lib/render-engine.js";
+import { renderAndAttach, hasRenderer as _hasRenderer } from "./lib/render-engine.js";
 import { registerAllRenderers } from "./lib/render-registry.js";
 import { getArtifactSchema } from "./lib/artifact-schemas.js";
 import { getExemplarArtifact } from "./lib/exemplar-artifacts.js";
@@ -713,7 +713,7 @@ async function gracefulShutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log(`\n[Shutdown] Received ${signal}, starting graceful shutdown...`);
+  structuredLog("info", "shutdown_received", { signal });
 
   // Flush state to disk immediately — critical for OOM kills and SIGTERM
   try {
@@ -727,7 +727,7 @@ async function gracefulShutdown(signal) {
       fs.writeFileSync(tmpPath, data, "utf-8");
       fs.renameSync(tmpPath, STATE_PATH);
     }
-    console.log("[Shutdown] State saved to disk");
+    structuredLog("info", "shutdown_state_saved", {});
   } catch (e) {
     console.error("[Shutdown] State save failed:", e.message);
   }
@@ -738,7 +738,7 @@ async function gracefulShutdown(signal) {
   // Stop accepting new connections
   if (global.httpServer) {
     global.httpServer.close(() => {
-      console.log("[Shutdown] HTTP server closed");
+      structuredLog("info", "shutdown_http_closed", {});
     });
   }
 
@@ -755,7 +755,7 @@ async function gracefulShutdown(signal) {
   const timeout = Number(process.env.SHUTDOWN_TIMEOUT_MS || 10000);
   await new Promise(resolve => { setTimeout(resolve, timeout); });
 
-  console.log("[Shutdown] Graceful shutdown complete");
+  structuredLog("info", "shutdown_complete", {});
   process.exit(0);
 }
 
@@ -1141,7 +1141,7 @@ const CAPS = Object.freeze({
   imagegen:     Boolean((process.env.SD_URL || process.env.COMFYUI_URL || "").trim()) || Boolean(OPENAI_API_KEY),
 });
 
-console.log("[Caps]", JSON.stringify(CAPS));
+structuredLog("info", "capabilities_loaded", { caps: CAPS });
 
 // ---- immutables ----
 const IMMUTABLES = Object.freeze({ NO_MACHINE_TO_HUMAN: true, COUNCIL_REQUIRED: true });
@@ -3271,7 +3271,7 @@ const _DB_READY = initDatabase();
 if (db) {
   try {
     const migrationResult = await runSchemaMigrations(db);
-    console.log(`[Concord] Schema version: ${migrationResult.currentVersion} (${migrationResult.appliedCount} new migrations)`);
+    structuredLog("info", "schema_migration_complete", { currentVersion: migrationResult.currentVersion, appliedCount: migrationResult.appliedCount });
   } catch (e) {
     console.error("[Concord] Migration failed:", e.message);
   }
@@ -3280,7 +3280,7 @@ if (db) {
 // Register database close on shutdown
 if (db) {
   registerShutdownCallback(() => {
-    console.log("[Shutdown] Closing database...");
+    structuredLog("info", "shutdown_closing_database", {});
     db.close();
   });
 }
@@ -3864,7 +3864,7 @@ const _TOKEN_BLACKLIST = {
         }
       }
       if (loaded > 0) {
-        console.log(`[auth] Hydrated ${loaded} revoked tokens from SQLite`);
+        structuredLog("info", "auth_blacklist_hydrated", { loaded, source: "sqlite" });
       }
     } catch (err) {
       console.error('[auth] SQLite blacklist hydration failed:', err.message);
@@ -3896,7 +3896,7 @@ const _TOKEN_BLACKLIST = {
           }
         } catch {}
       }
-      if (synced > 0) console.log(`[auth] Synced ${synced} revoked tokens from Redis`);
+      if (synced > 0) structuredLog("info", "auth_blacklist_synced", { synced, source: "redis" });
     } catch (err) {
       console.error("[auth] Failed to sync token blacklist from Redis:", err.message);
     }
@@ -5864,6 +5864,63 @@ function saveStateDebounced() {
   }
 }
 
+/**
+ * Synchronous state save — bypasses debounce entirely.
+ * Used for critical writes (economy transactions, auth mutations)
+ * where data loss from a 250ms window is unacceptable.
+ */
+function saveStateSync() {
+  try {
+    clearTimeout(_saveTimer);
+    const data = JSON.stringify(_serializeState(), null, USE_SQLITE_STATE ? 0 : 2);
+    if (USE_SQLITE_STATE && db) {
+      const stmt = db.prepare("INSERT OR REPLACE INTO state_snapshots (id, data, version, saved_at) VALUES (1, ?, ?, ?)");
+      stmt.run(data, VERSION, nowISO());
+    } else if (typeof STATE_PATH === "string") {
+      const tmpPath = STATE_PATH + ".tmp";
+      fs.writeFileSync(tmpPath, data, "utf-8");
+      fs.renameSync(tmpPath, STATE_PATH);
+    }
+  } catch (e) {
+    structuredLog("error", "state_sync_save_failed", { error: String(e?.message || e) });
+  }
+}
+
+/**
+ * Critical state save — for economy transactions, auth mutations,
+ * DTU creation, and other operations that must not be lost.
+ * Bypasses the 250ms debounce window entirely.
+ */
+function saveStateCritical() {
+  saveStateSync();
+}
+
+// ---- Periodic Safety-Net Save (crash protection) ----
+// Ensures state is persisted at least every 30s even if the debounce
+// timer already fired and silent mutations accumulated (e.g. tick loops).
+const PERIODIC_SAVE_INTERVAL_MS = 30_000;
+const _periodicSaveTimer = setInterval(() => {
+  try {
+    saveStateSync();
+    structuredLog("debug", "periodic_state_save", { interval: PERIODIC_SAVE_INTERVAL_MS });
+  } catch (e) {
+    structuredLog("error", "periodic_save_failed", { error: String(e?.message || e) });
+  }
+}, PERIODIC_SAVE_INTERVAL_MS);
+_periodicSaveTimer.unref(); // Don't keep process alive just for saves
+
+// ---- beforeExit handler (supplements SIGTERM/SIGINT) ----
+process.on("beforeExit", () => {
+  try {
+    clearTimeout(_saveTimer);
+    clearInterval(_periodicSaveTimer);
+    saveStateSync();
+    structuredLog("info", "before_exit_state_saved", {});
+  } catch (e) {
+    console.error("[beforeExit] State save failed:", e.message);
+  }
+});
+
 const STATE_DISK = loadStateFromDisk();
 // Final boot normalization (ensures env-driven defaults win)
 try {
@@ -5912,7 +5969,7 @@ async function tryLoadSeedDTUs() {
           SEED_INFO.count = dtus.length; SEED_INFO.source = "seed-packs";
           SEED_INFO.path = seedDir;
           if (errors) SEED_INFO.error = `${errors} seed-pack error(s)`;
-          console.log(`[Seed-Pack] Loaded ${dtus.length} DTUs from ${manifest.packs.length} JSON packs in ${Date.now() - t0}ms`);
+          structuredLog("info", "seed_pack_loaded", { dtuCount: dtus.length, packCount: manifest.packs.length, elapsedMs: Date.now() - t0 });
           return dtus;
         }
       }
@@ -6117,6 +6174,37 @@ function seedGenesisRealityAnchor(){
     structuredLog("error", "genesis_anchor_failed", { error: String(e?.message || e) });
     return { ok:false, error:String(e?.message||e) };
   }
+}
+
+/**
+ * Lineage audit: count how many autogen DTUs trace back to seed DTUs.
+ * This validates the "growing from first principles" claim by checking
+ * that generated knowledge is grounded in the seed foundation.
+ */
+function auditSeedLineage() {
+  const seedIds = new Set();
+  const autogenIds = [];
+  for (const d of STATE.dtus.values()) {
+    if (d.seedOrigin || d.protected || d.source === "seed" || d.provenance?.source === "bootstrap_ingestion") {
+      seedIds.add(d.id);
+    }
+    if (d.source === "autogen.pipeline" || d.source === "autogen" || d.meta?.autogenIntent) {
+      autogenIds.push(d);
+    }
+  }
+  let withSeedAncestor = 0;
+  for (const d of autogenIds) {
+    const lineage = Array.isArray(d.lineage) ? d.lineage : (d.lineage?.parents || []);
+    const hasSeed = lineage.some(parentId => seedIds.has(parentId));
+    if (hasSeed) withSeedAncestor++;
+  }
+  return {
+    ok: true,
+    seedCount: seedIds.size,
+    autogenCount: autogenIds.length,
+    withSeedAncestor,
+    seedAncestorRatio: autogenIds.length > 0 ? Math.round((withSeedAncestor / autogenIds.length) * 100) / 100 : 0,
+  };
 }
 
 async function seedIfEmpty() {
@@ -9018,6 +9106,11 @@ function rehydrateDTU(dtuId) {
 function demoteToArchive(dtuId, consolidatedIntoId) {
   const dtu = STATE.dtus.get(dtuId);
   if (!dtu) return;
+  // Seed DTU protection: immutable seed DTUs cannot be archived or demoted
+  if (dtu.protected || dtu.immutable || dtu.seedOrigin) {
+    structuredLog("warn", "seed_protection_blocked", { action: "demote_to_archive", dtuId });
+    return;
+  }
   // Record consolidation in lineage
   dtu.lineage = dtu.lineage || {};
   dtu.lineage.children = dtu.lineage.children || [];
@@ -9173,12 +9266,12 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   if (isNew && dtu.source !== "user" && dtu.source !== "import") {
     const firstDef = dtu.core?.definitions?.[0] || "";
     if (firstDef.startsWith("Working definition:") || firstDef.includes("synthesis from")) {
-      console.log("[DEDUP] Blocked template DTU:", dtu.title?.slice(0, 60));
+      structuredLog("debug", "dedup_blocked_template", { title: dtu.title?.slice(0, 60) });
       return dtu;
     }
     for (const existing of STATE.dtus.values()) {
       if (existing.title === dtu.title) {
-        console.log("[DEDUP] Blocked duplicate title:", dtu.title?.slice(0, 60));
+        structuredLog("debug", "dedup_blocked_duplicate_title", { title: dtu.title?.slice(0, 60) });
         return dtu;
       }
     }
@@ -11544,6 +11637,21 @@ async function callBrain(brainName, prompt, options = {}) {
     try {
       if (typeof estimateConfidence === "function") {
         result.confidence = estimateConfidence(result, { dtuCount: 0 });
+      }
+    } catch {}
+
+    // Capture linguistic patterns from ALL brain responses into shadow DTUs.
+    // This ensures the shadow graph accumulates vocabulary and patterns from
+    // every brain (conscious, utility, subconscious), not just the retrieval path.
+    try {
+      const responseText = result.content || "";
+      if (responseText.length >= 20 && responseText.length <= 2000) {
+        const words = responseText.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+        const unique = [...new Set(words)].slice(0, 16);
+        if (unique.length >= 3) {
+          const phrase = (typeof prompt === "string" ? prompt : "").slice(0, 120);
+          maybeWriteLinguisticShadowDTU({ phrase, expands: unique, topIds: [] });
+        }
       }
     } catch {}
 
@@ -14402,12 +14510,12 @@ async function pipelineCommitDTU(ctx, dtu, opts={}) {
   if (dtu.source !== "user" && dtu.source !== "import") {
     const firstDef = dtu.core?.definitions?.[0] || "";
     if (firstDef.startsWith("Working definition:") || firstDef.includes("synthesis from")) {
-      console.log("[DEDUP] Blocked template DTU in pipeline:", dtu.title?.slice(0, 60));
+      structuredLog("debug", "dedup_blocked_template_pipeline", { title: dtu.title?.slice(0, 60) });
       return { ok: false, error: "template_blocked" };
     }
     for (const existing of STATE.dtus.values()) {
       if (existing.title === dtu.title) {
-        console.log("[DEDUP] Blocked duplicate title in pipeline:", dtu.title?.slice(0, 60));
+        structuredLog("debug", "dedup_blocked_duplicate_pipeline", { title: dtu.title?.slice(0, 60) });
         return { ok: false, error: "duplicate_blocked" };
       }
     }
@@ -14792,6 +14900,11 @@ register("dtu", "delete", (ctx, input) => {
 
   const dtu = STATE.dtus.get(id);
   if (!dtu) return { ok: false, error: "DTU not found" };
+
+  // Seed DTU protection: cannot delete immutable seed DTUs
+  if (dtu.protected || dtu.immutable || dtu.seedOrigin) {
+    return { ok: false, error: "Cannot delete protected seed DTU" };
+  }
 
   // Authorization check - only owner/admin or DTU author can delete
   const role = ctx?.actor?.role || "guest";
@@ -16974,7 +17087,7 @@ Return JSON: {"analogy":"your analogy","metaphor":"one-sentence metaphor","domai
       },
     });
 
-    console.log("[ANALOGIZE]", target.title.slice(0, 50), "->", parsed.domain || "general");
+    structuredLog("debug", "analogize_complete", { title: target.title.slice(0, 50), domain: parsed.domain || "general" });
     return { ok: true, analogy: parsed, sourceDtu: target.id, dtu: r?.dtu, created: r?.ok };
   } catch (e) {
     return { ok: false, error: String(e?.message || e) };
@@ -18674,7 +18787,7 @@ register("market","buy", (ctx, input) => {
   const entId = uid("ent");
   const ent = { id: entId, buyerOrgId, dtuId: listing.dtuId, license: listing.license, createdAt: nowISO() };
   STATE.entitlements.set(entId, ent);
-  saveStateDebounced();
+  saveStateCritical();
   return { ok:true, transaction: tx, entitlement: ent };
 }, { summary:"Buy a listing; grants entitlement (local-first ledger)." });
 
@@ -20213,23 +20326,21 @@ function ensureRootIdentity() {
     revokedAt: null
   };
   STATE.apiKeys.set(keyId, keyObj);
-  saveStateDebounced();
-  console.log("\n=== Concord v3 Auth Bootstrap ===");
-  console.log("Created root user/org. Use this API key for requests:");
+  saveStateCritical();
+  structuredLog("info", "auth_bootstrap", { rootUserId, rootOrgId });
+  structuredLog("info", "auth_bootstrap_root_created", { rootUserId, rootOrgId });
   if (NODE_ENV === "production") {
     // In production, write key to a secure file instead of stdout (prevents log leakage)
     const keyFilePath = path.join(DATA_DIR, ".root_api_key");
     try {
       fs.writeFileSync(keyFilePath, rawKey, { mode: 0o600 });
-      console.log(`API key written to: ${keyFilePath} (mode 600, owner-read only)`);
-      console.log("Retrieve it once, then delete the file for security.");
+      structuredLog("info", "api_key_written_to_file", { keyFilePath, mode: "600" });
     } catch {
-      console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED (set DATA_DIR to enable file-based key delivery)`);
+      structuredLog("info", "api_key_generated", { keyPrefix: rawKey.slice(0, 8), note: "set DATA_DIR to enable file-based key delivery" });
     }
   } else {
-    console.log(`X-API-Key: ${rawKey.slice(0, 8)}...REDACTED`);
+    structuredLog("info", "api_key_generated", { keyPrefix: rawKey.slice(0, 8) });
   }
-  console.log("================================\n");
 }
 
 function getActorFromReq(req) {
@@ -20461,12 +20572,7 @@ startJobWorker();
 
 
 // startup banner
-console.log(`\nConcord v2 (Macro‑Max) starting…`);
-console.log(`- version: ${VERSION}`);
-console.log(`- port: ${PORT}`);
-console.log(`- dotenvLoaded: ${DOTENV.loaded} (path=${DOTENV.path})`);
-console.log(`- llmReady: ${LLM_READY}`);
-console.log(`- authMode: ${AUTH_MODE} (jwt=${AUTH_USES_JWT}, apikey=${AUTH_USES_APIKEY})\n`);
+structuredLog("info", "server_starting", { version: VERSION, port: PORT, dotenvLoaded: DOTENV.loaded, dotenvPath: DOTENV.path, llmReady: LLM_READY, authMode: AUTH_MODE, jwt: AUTH_USES_JWT, apikey: AUTH_USES_APIKEY });
 
 // Root, status, LLM pipeline, quality-pipeline, time, weather, state/latest — extracted to routes/system.js
 
@@ -28414,7 +28520,7 @@ function registerDomainSpecificActions() {
 }
 registerDomainSpecificActions();
 
-console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains + ${LENS_ACTIONS.size} total actions)`);
+structuredLog("info", "lens_runtime_loaded", { domainEngines: 24, superLensDomains: domainModules.length, totalActions: LENS_ACTIONS.size });
 
 // ============================================================================
 // MEGA SPEC: Lens Recommendation Engine & Cross-Domain Context
@@ -28553,7 +28659,7 @@ app.get("/api/lens/manifest/:domain", (req, res) => {
       brain: a.brain,
       isGenerative: /^(generate|build|suggest|create|compile|plan|design)/.test(a.action),
       isAnalysis: /^(analyze|detect|validate|check|assess|compare)/.test(a.action),
-      hasRenderer: false, // TODO: check render registry
+      hasRenderer: _hasRenderer(domain, a.action),
       outputType: a.outputType || null,
     })),
     stats: {
@@ -42238,8 +42344,7 @@ app.use(validateRequestSize);
 const SHOULD_LISTEN = (String(process.env.CONCORD_NO_LISTEN || "").toLowerCase() !== "true") && (String(process.env.NODE_ENV || "").toLowerCase() !== "test");
 
 const server = SHOULD_LISTEN ? app.listen(PORT, () => {
-  console.log(`Concord v2 (Macro‑Max) listening on http://localhost:${PORT}`);
-  console.log(`Status: http://localhost:${PORT}/api/status\n`);
+  structuredLog("info", "server_listening", { url: `http://localhost:${PORT}`, statusUrl: `http://localhost:${PORT}/api/status` });
 }) : null;
 
 // Optional: enable thin realtime mirror (WebSockets) for queues/jobs/panels.
@@ -42277,6 +42382,7 @@ registerShutdownCallback(() => {
   if (typeof heartbeatTimer !== "undefined" && heartbeatTimer) clearInterval(heartbeatTimer);
   if (typeof weeklyTimer !== "undefined" && weeklyTimer) clearInterval(weeklyTimer);
   if (typeof globalTickTimer !== "undefined" && globalTickTimer) clearInterval(globalTickTimer);
+  clearInterval(_periodicSaveTimer);
 });
 // ---- OrganMaturationKernel + Growth OS (v2 upgrade) ----
 
@@ -49076,7 +49182,7 @@ app.post('/api/economic/webhook', async (req, res) => {
           ensureEconomicState();
           STATE.economic.treasury += fee;
 
-          console.log(`[Economic] Token purchase: ${odId} received ${netTokens} CT (fee: ${fee})`);
+          structuredLog("info", "economic_token_purchase", { odId, netTokens, fee });
         }
 
         if (type === 'subscription' && odId && tier) {
@@ -49091,7 +49197,7 @@ app.post('/api/economic/webhook', async (req, res) => {
             creditWallet(odId, tierConfig.tokensPerMonth, `${tier} subscription monthly tokens`);
           }
 
-          console.log(`[Economic] Subscription: ${odId} upgraded to ${tier}`);
+          structuredLog("info", "economic_subscription_upgraded", { odId, tier });
         }
         break;
       }
@@ -49105,7 +49211,7 @@ app.post('/api/economic/webhook', async (req, res) => {
             wallet.tier = 'free';
             wallet.stripeSubscriptionId = null;
             wallet.updatedAt = Date.now();
-            console.log(`[Economic] Subscription canceled: ${wallet.odId} downgraded to free`);
+            structuredLog("info", "economic_subscription_canceled", { odId: wallet.odId, tier: "free" });
             break;
           }
         }
@@ -51995,7 +52101,7 @@ function retroTagAllDTUs() {
 
     const elapsed = Date.now() - startTime;
     const msg = `[RetroTag] Tagged ${tagged}/${STATE.dtus.size} DTUs, created ${lensArtifactsCreated} lens artifacts, backfilled ${hashesBackfilled} hashes in ${elapsed}ms`;
-    console.log(msg);
+    structuredLog("info", "retro_tag_complete", { tagged, total: STATE.dtus.size, lensArtifactsCreated, hashesBackfilled, elapsedMs: elapsed });
     try { pipeAudit("retro_tag", msg, { tagged, lensArtifactsCreated, hashesBackfilled, elapsed }); } catch {}
 
     return { ok: true, tagged, lensArtifactsCreated, hashesBackfilled, elapsed, total: STATE.dtus.size };
@@ -52017,7 +52123,7 @@ function syncAllDTUsToLenses() {
     }
     if (synced > 0) {
       saveStateDebounced();
-      console.log(`[LensSync] Synced ${synced} DTU→lens artifacts`);
+      structuredLog("info", "lens_sync_complete", { synced });
     }
     return { ok: true, synced };
   } catch (e) {
@@ -52029,9 +52135,9 @@ function syncAllDTUsToLenses() {
 // ── Run retroactive tagging on startup (delayed to avoid blocking boot) ──────
 setTimeout(() => {
   try {
-    console.log("[RetroTag] Starting retroactive DTU domain tagging...");
+    structuredLog("info", "retro_tag_starting", {});
     const result = retroTagAllDTUs();
-    console.log("[RetroTag] Complete:", JSON.stringify(result));
+    structuredLog("info", "retro_tag_finished", { result });
   } catch (e) {
     console.error("[RetroTag] Startup error:", String(e?.message || e));
   }
@@ -52105,7 +52211,7 @@ function getOrCreateUserUniverse(userId) {
   };
   STATE.userUniverses.set(userId, universe);
   saveStateDebounced();
-  console.log(`[Universe] Created universe for user ${userId}`);
+  structuredLog("info", "universe_created", { userId });
   return universe;
 }
 
@@ -52191,7 +52297,7 @@ function enrichContextForOllamaCall(userId, query, localContext) {
     const enriched = [...localContext, ...borrowed];
 
     if (borrowed.length > 0) {
-      console.log(`[Enrich] User ${userId} borrowed ${borrowed.length} DTUs from global for query context`);
+      structuredLog("debug", "enrich_borrowed_dtus", { userId, borrowedCount: borrowed.length });
     }
 
     return enriched;
@@ -52840,7 +52946,7 @@ function runBackup() {
       }
     } catch {}
 
-    console.log(`[Backup] Complete: ${backupDir}`);
+    structuredLog("info", "backup_complete", { backupDir });
     return { ok: true, path: backupDir, timestamp };
   } catch (e) {
     console.error("[Backup] Failed:", String(e?.message || e));

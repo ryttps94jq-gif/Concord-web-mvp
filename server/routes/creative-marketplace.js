@@ -56,11 +56,20 @@ import { QUEST_REWARD_POLICY } from "../lib/creative-marketplace-constants.js";
  * Create the creative marketplace router.
  * @param {{ db: object }} deps
  */
-export default function createCreativeMarketplaceRouter({ db }) {
+export default function createCreativeMarketplaceRouter({ db, requireAuth }) {
   const router = express.Router();
+
+  // Auth for writes: POST/PUT/DELETE/PATCH require authentication
+  const authForWrites = (req, res, next) => {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+    if (typeof requireAuth === "function") return requireAuth()(req, res, next);
+    return next();
+  };
+  router.use(authForWrites);
 
   // ── Constants / Config ──────────────────────────────────────────────
 
+  // PUBLIC
   router.get("/config", (_req, res) => {
     res.json({
       ok: true,
