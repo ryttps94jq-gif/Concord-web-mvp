@@ -341,6 +341,21 @@ export function decideBehavior(entity) {
   const h = entity.homeostasis;
   const k = entity.knowledge;
 
+  // PRODUCTION CHECK — if entity has mature domains, sometimes produce artifacts
+  const matureDomains = Object.entries(k.domainExposure || {})
+    .filter(([domain, count]) => {
+      if (count < 5) return false;
+      const organName = LENS_DOMAIN_MAP[domain];
+      const organ = organName ? entity.organs[organName] : null;
+      return organ && organ.maturity >= 0.3;
+    })
+    .map(([domain]) => domain);
+
+  if (matureDomains.length > 0 && Math.random() < 0.4) {
+    const domain = matureDomains[Math.floor(Math.random() * matureDomains.length)];
+    return { action: "produce", lens: domain, reason: "production-ready" };
+  }
+
   // HIGH CURIOSITY (newborn behavior) — explore randomly, try everything
   if (h.curiosity > 0.7) {
     const unexplored = getAllLenses().filter(

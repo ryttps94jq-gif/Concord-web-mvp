@@ -45,6 +45,15 @@ import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetric
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
 import { renderAndAttach } from "./lib/render-engine.js";
 import { registerAllRenderers } from "./lib/render-registry.js";
+import { getArtifactSchema } from "./lib/artifact-schemas.js";
+import { getExemplarArtifact } from "./lib/exemplar-artifacts.js";
+import "./lib/vocabularies.js";
+import "./lib/validators/food-validator.js";
+import "./lib/validators/fitness-validator.js";
+import "./lib/validators/finance-validator.js";
+import "./lib/validators/healthcare-validator.js";
+import "./lib/validators/legal-validator.js";
+import "./lib/validators/music-validator.js";
 
 // ---- Route modules (ESM) ----
 import registerSystemRoutes from "./routes/system.js";
@@ -128,6 +137,7 @@ import {
   repairCortexSelfTest,
   getRepairStatus,
   shouldSkipExecution,
+  initSpotCheck,
 } from "./emergent/repair-cortex.js";
 
 // ---- "Everything Real" imports: migration runner + durable endpoints ----
@@ -12014,6 +12024,206 @@ async function entityExploreLens(entity, lens) {
   return result;
 }
 
+// ── Entity Production Mode ────────────────────────────────────────────────
+
+/**
+ * Entity produces a real lens artifact (not just an exploration DTU).
+ * Entities must have sufficient domain maturity and exposure to produce.
+ * Output goes through quality gate before rendering.
+ */
+async function entityProduceLensArtifact(entity, lens) {
+  const entityId = entity?.id || "unknown";
+  const exposure = entity.knowledge?.domainExposure?.[lens] || 0;
+  const organName = mapLensToDomainOrgan(lens);
+  const organMaturity = organName && entity.organs?.[organName] ? entity.organs[organName].maturity : 0;
+
+  // Not ready to produce — explore instead
+  if (organMaturity < 0.3 || exposure < 5) {
+    return entityExploreLens(entity, lens);
+  }
+
+  // Pick an appropriate action for this lens
+  const action = selectProductionAction(lens, entity);
+  if (!action) return entityExploreLens(entity, lens);
+
+  // Build context from substrate
+  const context = await buildBrainContext(lens, lens, 5);
+
+  // Use the brain assigned to this action
+  const brain = action.brain === "C" ? "conscious"
+    : action.brain === "S" ? "subconscious"
+    : action.brain === "R" ? "repair"
+    : "utility";
+
+  const schema = getArtifactSchema(lens, action.action);
+  const exemplar = getExemplarArtifact(lens, action.action);
+
+  const system = buildProductionPrompt({
+    lens,
+    action: action.action,
+    actionDesc: action.desc,
+    context: typeof context === "string" ? context : JSON.stringify(context).slice(0, 1000),
+    entity,
+    schema,
+    exemplar,
+  });
+
+  const result = await callBrain(brain,
+    `Produce a ${action.action} artifact for the ${lens} domain. Output ONLY valid JSON matching the schema.`,
+    {
+      system,
+      temperature: 0.5,
+      maxTokens: 1200,
+      timeout: 45000,
+    }
+  );
+
+  if (!result.ok || !result.content) return { ok: false, reason: "brain_failed" };
+
+  // Parse structured output
+  let artifactData;
+  try {
+    artifactData = JSON.parse(result.content);
+  } catch {
+    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try { artifactData = JSON.parse(jsonMatch[0]); } catch {
+        return { ok: false, reason: "invalid_json" };
+      }
+    } else {
+      return { ok: false, reason: "no_json_output" };
+    }
+  }
+
+  // Create the lens artifact through the existing macro system
+  const ctx = makeInternalCtx("system");
+  const createResult = await runMacro("lens", "create", {
+    domain: lens,
+    type: action.action.replace(/^(generate|build|suggest|create|compile|plan|design|profile|analyze|forecast|optimize)-/, ""),
+    title: artifactData.title || `${lens}: ${action.action}`,
+    data: artifactData,
+    meta: {
+      createdBy: entityId,
+      status: "pending_quality",
+      tags: [lens, action.action, "entity-produced"],
+      entityMaturity: organMaturity,
+      entityExposure: exposure,
+    },
+  }, ctx);
+
+  if (!createResult?.ok) return { ok: false, reason: "create_failed" };
+
+  // Record production experience (higher quality weight than exploration)
+  processGrowthExperience(entity, {
+    type: "lens-production",
+    lens,
+    domain: lens,
+    dtuGenerated: true,
+    confidence: 0.6,
+    quality: 0.6,
+    surprising: false,
+  });
+
+  return { ok: true, artifactId: createResult.artifact?.id, action: action.action };
+}
+
+/**
+ * Pick a generative action for the entity to produce in this lens.
+ */
+function selectProductionAction(lens, entity) {
+  const manifest = DOMAIN_ACTION_MANIFEST[lens];
+  if (!manifest || !manifest.length) return null;
+
+  // Filter to generative actions only
+  const generative = manifest.filter((a) =>
+    /^(generate|build|suggest|create|compile|plan|design|profile|analyze|forecast|optimize)-/.test(a.action)
+  );
+
+  if (!generative.length) return null;
+
+  const organName = mapLensToDomainOrgan(lens);
+  const organMaturity = organName && entity.organs?.[organName] ? entity.organs[organName].maturity : 0;
+
+  // Higher maturity entities can use conscious (C) brain actions
+  const eligible = generative.filter((a) => {
+    if (a.brain === "C" && organMaturity < 0.5) return false;
+    if (a.brain === "R") return false;
+    return true;
+  });
+
+  if (!eligible.length) return generative[0];
+
+  return eligible[Math.floor(Math.random() * eligible.length)];
+}
+
+/**
+ * Build the production prompt — includes schema, exemplar, domain context.
+ */
+function buildProductionPrompt({ lens, action, actionDesc, context, entity, schema, exemplar }) {
+  let prompt = `You are a professional ${lens} specialist producing a ${action} artifact.
+
+TASK: ${actionDesc || `Generate a ${action} artifact for the ${lens} domain`}
+
+OUTPUT REQUIREMENTS:
+- You MUST output valid JSON matching the schema exactly
+- Every required field must be present
+- Values must be domain-appropriate (real ${lens} terms, not abstract concepts)
+- Content must be specific and actionable, not vague or philosophical`;
+
+  if (schema) {
+    prompt += `\n\nSCHEMA:\n${JSON.stringify(schema, null, 2)}`;
+  }
+
+  if (exemplar) {
+    prompt += `\n\nEXAMPLE OF HIGH-QUALITY OUTPUT:\n${JSON.stringify(exemplar, null, 2).slice(0, 2000)}`;
+  }
+
+  if (context) {
+    prompt += `\n\nDOMAIN CONTEXT FROM SUBSTRATE:\n${typeof context === "string" ? context.slice(0, 800) : JSON.stringify(context).slice(0, 800)}`;
+  }
+
+  prompt += `\n\nRULES:
+- Use real, specific ${lens} terminology
+- Include concrete values (numbers, names, measurements) not placeholders
+- Every field must contain substantive content, not meta-descriptions
+- Do NOT reference Concord, DTUs, constraints, lattice, or system internals
+- Produce content a ${lens} professional would recognize as useful
+- Output ONLY the JSON object, no markdown, no explanation`;
+
+  return prompt;
+}
+
+/**
+ * Entity feedback loop — called when production fails quality gate.
+ * Decreases confidence, increases learning from failure.
+ */
+function entityProductionFeedback(entity, lens, passed) {
+  if (passed) return;
+
+  processGrowthExperience(entity, {
+    type: "production-failure",
+    lens,
+    domain: lens,
+    dtuGenerated: false,
+    confidence: 0.2,
+    quality: 0.1,
+    surprising: true,
+  });
+
+  // Track failures per domain
+  entity.knowledge.productionFailures = entity.knowledge.productionFailures || {};
+  entity.knowledge.productionFailures[lens] =
+    (entity.knowledge.productionFailures[lens] || 0) + 1;
+
+  // If too many failures, drop back to exploration mode
+  if (entity.knowledge.productionFailures[lens] >= 3) {
+    const organName = mapLensToDomainOrgan(lens);
+    const organ = organName ? entity.organs[organName] : null;
+    if (organ) organ.maturity = Math.max(0.2, organ.maturity - 0.1);
+    entity.knowledge.productionFailures[lens] = 0;
+  }
+}
+
 /**
  * Entity exploration of Creative Global content.
  * Entities study creative works to mature sensory organs and generate insights.
@@ -18144,7 +18354,20 @@ register("market","listingCreate", (ctx, input) => {
 
 register("market","list", (ctx, input) => {
   const limit = clamp(Number(input.limit||50), 1, 200);
-  const listings = Array.from(STATE.listings.values()).filter(l=>l.status==="active").slice(-limit).reverse();
+  const listings = Array.from(STATE.listings.values())
+    .filter(l => l.status === "active")
+    .filter(l => {
+      // Quality gate: only show listings for approved artifacts
+      const dtu = STATE.dtus.get(l.dtuId);
+      if (!dtu) return false;
+      const lensArtifactId = dtu.machine?.artifactId || dtu.meta?.lensArtifactId;
+      if (lensArtifactId) {
+        const artifact = STATE.lensArtifacts.get(lensArtifactId);
+        if (artifact && artifact.meta?.status && artifact.meta.status !== "marketplace_ready") return false;
+      }
+      return true;
+    })
+    .slice(-limit).reverse();
   return { ok:true, listings };
 }, { summary:"List active listings." });
 
@@ -20481,6 +20704,18 @@ function startHeartbeat() {
             type: "lens-exploration", lens: behavior.lens, domain: behavior.lens,
             dtuGenerated: true, confidence: 0.4, quality: 0.4, surprising: false,
           });
+        }
+      } else if (behavior.action === "produce") {
+        // Entity production mode — create real lens artifacts
+        const produceResult = await entityProduceLensArtifact(explorer, behavior.lens);
+        if (produceResult?.ok) {
+          synthesizedDTUs.push({
+            id: produceResult.artifactId, title: `${behavior.lens} production: ${produceResult.action}`,
+            confidence: 0.6, noveltyScore: 0.5, tags: [behavior.lens, "entity-produced"],
+          });
+          findings = { domain: behavior.lens, results: [{ title: `${behavior.lens} production`, content: produceResult.action }], source: "production" };
+        } else {
+          entityProductionFeedback(explorer, behavior.lens, false);
         }
       }
 
@@ -32939,6 +33174,9 @@ registerAllRenderers({
   exportMarkdown: _lensExportMarkdown,
   exportCSV: _lensExportCSV,
 });
+
+// ── Quality Spot-Check Initialization ──
+initSpotCheck(callBrain, () => STATE);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
