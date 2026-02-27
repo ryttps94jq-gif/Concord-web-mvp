@@ -1,7 +1,7 @@
 // prompts/utility.js
 // Utility Brain (3B) — The Specialist
 // Domain-specific tasks, lens interactions, entity actions, quick structured work.
-// Fast, precise, domain-locked.
+// MEGA SPEC rewrite: production mode, entity production, schema-aware.
 
 /**
  * Build the utility brain system prompt.
@@ -13,6 +13,9 @@
  * @param {number} [ctx.dtu_count] - Total DTUs
  * @param {object} [ctx.entity] - Entity context if entity-driven
  * @param {boolean} [ctx.marketplace_mode] - Whether this is a marketplace task
+ * @param {string} [ctx.mode] - "standard" | "production" | "entity-production"
+ * @param {object} [ctx.schema] - JSON schema for production output
+ * @param {object} [ctx.exemplar] - Example of excellent output
  * @returns {string} Complete system prompt
  */
 export function buildUtilityPrompt(ctx = {}) {
@@ -23,7 +26,14 @@ export function buildUtilityPrompt(ctx = {}) {
     dtu_count = 0,
     entity = null,
     marketplace_mode = false,
+    mode = "standard",
+    schema = null,
+    exemplar = null,
   } = ctx;
+
+  if (mode === "entity-production" || mode === "production") {
+    return buildProductionPrompt(ctx);
+  }
 
   const parts = [
     `ROLE: You are Concord's utility brain — a ${lens} specialist. Fast, precise, domain-locked.`,
@@ -73,12 +83,48 @@ export function buildUtilityPrompt(ctx = {}) {
 }
 
 /**
+ * Production prompt — for entity artifact generation.
+ * Produces real, professional-quality domain content.
+ */
+function buildProductionPrompt(ctx) {
+  const { action = "", lens = "", context = "", schema = null, exemplar = null, entity = null } = ctx;
+
+  return `You are a professional ${lens} specialist producing a ${action.replace(/-/g, " ")} artifact.
+
+TASK: Generate a complete, professional-quality ${action.replace(/-/g, " ")} that a ${lens} professional would use in their actual work.
+
+OUTPUT FORMAT: You MUST output valid JSON matching the schema below. Nothing else. No markdown. No explanation. No preamble. Just the JSON object.
+
+${schema ? `SCHEMA (follow exactly):\n${JSON.stringify(schema, null, 2)}` : ""}
+
+${exemplar ? `EXAMPLE OF EXCELLENT OUTPUT:\n${JSON.stringify(exemplar, null, 2)}` : ""}
+
+DOMAIN KNOWLEDGE:
+${context}
+
+QUALITY REQUIREMENTS:
+- Every field must contain real, specific ${lens} content
+- Use actual ${lens} terminology and vocabulary
+- Include concrete values: real numbers, real names, real measurements
+- Content must be actionable — someone could use this in their work today
+- NO placeholders: no "[insert here]", no "TODO", no "example..."
+- NO meta-content: don't describe what should go here, PUT what goes here
+- NO system references: never mention Concord, DTU, substrate, lattice, entity, brain, AI, language model
+- NO generic filler: every sentence must add specific value
+
+${entity ? `ENTITY CONTEXT: You are entity ${entity.id} with maturity ${((entity.organMaturity || 0)).toFixed(2)} in ${lens}. You have explored this domain ${entity.domainExposure || 0} times. Draw on your accumulated knowledge.` : ""}
+
+OUTPUT ONLY THE JSON OBJECT:`;
+}
+
+/**
  * Get recommended parameters for utility brain calls.
  */
 export function getUtilityParams(ctx = {}) {
+  const { marketplace_mode = false, mode = "standard" } = ctx;
   return {
-    temperature: ctx.marketplace_mode ? 0.3 : 0.5,
-    maxTokens: 500,
+    temperature: mode === "production" ? 0.4 : (marketplace_mode ? 0.3 : 0.5),
+    maxTokens: mode === "production" ? 1200 : 500,
     timeout: 30000,
   };
 }

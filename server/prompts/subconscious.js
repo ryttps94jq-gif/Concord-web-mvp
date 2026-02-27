@@ -1,7 +1,8 @@
 // prompts/subconscious.js
-// Subconscious Brain (1.5B) — The Dreamer
+// Subconscious Brain (7b) — The Dreamer
 // Autonomous background processor. Generates knowledge, makes lateral connections,
 // evolves the substrate. Origin of spontaneous messages and Want Engine execution.
+// MEGA SPEC upgrade: MEGA/HYPER awareness, consolidation targeting.
 
 /**
  * Subconscious processing modes.
@@ -21,11 +22,13 @@ export const SUBCONSCIOUS_MODES = Object.freeze({
  * @param {string} ctx.mode - One of SUBCONSCIOUS_MODES
  * @param {number} ctx.dtu_count - Total DTUs
  * @param {number} ctx.domain_count - Number of domains
+ * @param {number} [ctx.mega_count] - Total MEGA DTUs
+ * @param {number} [ctx.hyper_count] - Total HYPER DTUs
  * @param {string} [ctx.domain] - Target domain for focused processing
  * @param {string} [ctx.material] - Substrate material for synthesis
  * @param {object} [ctx.active_want] - The want driving this task (if any)
  * @param {object[]} [ctx.gaps] - Detected gaps in the substrate
- * @param {object} [ctx.personality_state] - Personality state (for spontaneous message framing)
+ * @param {object} [ctx.consolidation_target] - Target for MEGA/HYPER consolidation
  * @returns {string} Complete system prompt
  */
 export function buildSubconsciousPrompt(ctx = {}) {
@@ -33,17 +36,29 @@ export function buildSubconsciousPrompt(ctx = {}) {
     mode = SUBCONSCIOUS_MODES.AUTOGEN,
     dtu_count = 0,
     domain_count = 0,
+    mega_count = 0,
+    hyper_count = 0,
     domain = null,
     material = "",
     active_want = null,
     gaps = [],
+    consolidation_target = null,
   } = ctx;
 
   const parts = [
     `ROLE: You are Concord's subconscious mind. You process autonomously — generating knowledge, making lateral connections, evolving the substrate without being prompted. You are the origin of insight.`,
     ``,
-    `SUBSTRATE: ${dtu_count} knowledge units across ${domain_count} domains.`,
+    `SUBSTRATE: ${dtu_count} DTUs, ${mega_count} MEGAs, ${hyper_count} HYPERs across ${domain_count} domains.`,
   ];
+
+  // Consolidation target — MEGA/HYPER aware
+  if (consolidation_target) {
+    parts.push(
+      ``,
+      `CONSOLIDATION TARGET: Compress the following ${consolidation_target.count} related DTUs into a single MEGA that captures their essential knowledge without losing critical details. The MEGA should be denser and more useful than any individual DTU.`,
+      `When consolidating: preserve critical specifics, compress repetition, elevate the signal.`,
+    );
+  }
 
   // Mode-specific instructions
   const modeInstructions = {
@@ -113,6 +128,10 @@ export function buildSubconsciousPrompt(ctx = {}) {
     `• Be concise and specific. Every output should be a discrete, usable knowledge unit.`,
     `• Ground claims in evidence from the substrate when possible.`,
     `• Flag uncertainty explicitly — don't present hypotheses as facts.`,
+    `• Cross-domain connections are your superpower — use them.`,
+    `• When consolidating: preserve critical specifics, compress repetition, elevate the signal.`,
+    `• When generating: be specific and grounded, not abstract.`,
+    `• Output structured JSON when producing DTU content.`,
     `• If processing surfaces something the user would genuinely care about, flag it for spontaneous delivery.`,
   );
 
@@ -121,13 +140,6 @@ export function buildSubconsciousPrompt(ctx = {}) {
 
 /**
  * Build a spontaneous message flag for the conscious brain.
- *
- * @param {object} ctx
- * @param {string} ctx.content - What was found
- * @param {string} ctx.reason - Why the user would care
- * @param {string} ctx.urgency - low | medium | high
- * @param {string} ctx.message_type - statement | question | suggestion
- * @returns {object} Spontaneous message request
  */
 export function buildSpontaneousFlag(ctx = {}) {
   return {

@@ -6,6 +6,39 @@ import zlib from "zlib";
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 const ARTIFACT_ROOT = process.env.ARTIFACT_DIR || path.join(DATA_DIR, "artifacts");
 const MAX_ARTIFACT_SIZE = 100 * 1024 * 1024; // 100MB per artifact
+const GZIP_LEVEL = 6; // balanced speed/ratio
+
+// ---- LRU Preview Cache (200 items, 5 min TTL) ----
+const PREVIEW_CACHE_MAX = 200;
+const PREVIEW_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const _previewCache = new Map(); // key → { data, ts }
+
+function previewCacheGet(key) {
+  const entry = _previewCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > PREVIEW_CACHE_TTL) {
+    _previewCache.delete(key);
+    return null;
+  }
+  // LRU: move to end
+  _previewCache.delete(key);
+  _previewCache.set(key, entry);
+  return entry.data;
+}
+
+function previewCacheSet(key, data) {
+  if (_previewCache.size >= PREVIEW_CACHE_MAX) {
+    // Evict oldest (first key)
+    const oldest = _previewCache.keys().next().value;
+    _previewCache.delete(oldest);
+  }
+  _previewCache.set(key, { data, ts: Date.now() });
+}
+
+export function previewCacheStats() {
+  return { size: _previewCache.size, max: PREVIEW_CACHE_MAX, ttlMs: PREVIEW_CACHE_TTL };
+}
 
 const SUPPORTED_TYPES = Object.freeze({
   "audio/wav": { ext: "wav", compressible: true, previewable: true },
@@ -50,13 +83,12 @@ export async function storeArtifact(dtuId, buffer, mimeType, filename) {
   const diskPath = path.join(dtuDir, sanitizedFilename);
   fs.writeFileSync(diskPath, buffer);
 
+  // Always compress compressible types at level 6
   let compressedPath = null;
   if (typeInfo.compressible) {
-    const compressed = zlib.gzipSync(buffer);
-    if (compressed.length < buffer.length * 0.8) {
-      compressedPath = diskPath + ".gz";
-      fs.writeFileSync(compressedPath, compressed);
-    }
+    const compressed = zlib.gzipSync(buffer, { level: GZIP_LEVEL });
+    compressedPath = diskPath + ".gz";
+    fs.writeFileSync(compressedPath, compressed);
   }
 
   const thumbnail = generateThumbnail(dtuDir, diskPath, mimeType);
@@ -119,23 +151,54 @@ export async function storeMultipartArtifact(dtuId, files) {
   };
 }
 
+/**
+ * Read artifact bytes — tries compressed first, falls back to raw.
+ * Backwards compatible: works whether artifact was stored before or after compression.
+ */
 export function retrieveArtifact(dtuId, artifactRef) {
   if (!artifactRef?.diskPath) return null;
   artifactRef.lastAccessedAt = new Date().toISOString();
 
-  if (!fs.existsSync(artifactRef.diskPath)) {
-    if (artifactRef.compressedPath && fs.existsSync(artifactRef.compressedPath)) {
-      return zlib.gunzipSync(fs.readFileSync(artifactRef.compressedPath));
-    }
-    return null;
+  // Prefer compressed path (decompress on read)
+  if (artifactRef.compressedPath && fs.existsSync(artifactRef.compressedPath)) {
+    return zlib.gunzipSync(fs.readFileSync(artifactRef.compressedPath));
   }
-  return fs.readFileSync(artifactRef.diskPath);
+  // Fallback: raw file (pre-compression artifacts)
+  if (fs.existsSync(artifactRef.diskPath)) {
+    return fs.readFileSync(artifactRef.diskPath);
+  }
+  return null;
+}
+
+/**
+ * Read artifact bytes with LRU preview cache.
+ * Used for preview/thumbnail endpoints that get hit repeatedly.
+ */
+export function retrieveArtifactCached(dtuId, artifactRef) {
+  if (!artifactRef?.diskPath) return null;
+  const cacheKey = `${dtuId}:${artifactRef.filename || path.basename(artifactRef.diskPath)}`;
+
+  const cached = previewCacheGet(cacheKey);
+  if (cached) return cached;
+
+  const data = retrieveArtifact(dtuId, artifactRef);
+  if (data) previewCacheSet(cacheKey, data);
+  return data;
 }
 
 export function retrieveArtifactStream(artifactRef) {
-  if (!artifactRef?.diskPath || !fs.existsSync(artifactRef.diskPath)) return null;
+  if (!artifactRef?.diskPath) return null;
   artifactRef.lastAccessedAt = new Date().toISOString();
-  return fs.createReadStream(artifactRef.diskPath);
+
+  // Prefer compressed — create a decompress stream
+  if (artifactRef.compressedPath && fs.existsSync(artifactRef.compressedPath)) {
+    return fs.createReadStream(artifactRef.compressedPath).pipe(zlib.createGunzip());
+  }
+  // Fallback to raw
+  if (fs.existsSync(artifactRef.diskPath)) {
+    return fs.createReadStream(artifactRef.diskPath);
+  }
+  return null;
 }
 
 export function deleteArtifact(dtuId) {
@@ -220,4 +283,189 @@ function extractWaveformPeaks(buffer, numPoints) {
     } catch { peaks.push(0); }
   }
   return peaks;
+}
+
+// ---- MEGA Compression Cascade ----
+// When DTUs consolidate into a MEGA, keep only top 3 exemplar files.
+// Compress the rest into a single archive. Frees disk but retains access.
+
+/**
+ * Compress source DTU artifacts after MEGA consolidation.
+ * Keeps topN exemplar files uncompressed, archives the rest.
+ *
+ * @param {string} megaId - The MEGA DTU id
+ * @param {string[]} sourceDtuIds - Source DTU ids being consolidated
+ * @param {object} STATE - Server state (needs STATE.dtus)
+ * @param {number} [topN=3] - Number of exemplar files to keep
+ * @returns {{ archived: number, keptExemplars: number, savedBytes: number }}
+ */
+export function megaCompressionCascade(megaId, sourceDtuIds, STATE, topN = 3) {
+  let archived = 0;
+  let savedBytes = 0;
+  const exemplars = [];
+
+  // Rank source artifacts by quality/size
+  const ranked = sourceDtuIds
+    .map(id => {
+      const dtu = STATE.dtus?.get(id);
+      if (!dtu?.artifact) return null;
+      return {
+        id,
+        artifact: dtu.artifact,
+        score: (dtu.qualityTier === "verified" ? 3 : dtu.qualityTier === "reviewed" ? 2 : 1),
+        size: dtu.artifact.sizeBytes || 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.size - a.size);
+
+  // Keep top N as exemplars
+  for (let i = 0; i < ranked.length; i++) {
+    if (i < topN) {
+      exemplars.push(ranked[i].id);
+      continue;
+    }
+
+    // Archive the rest: ensure compressed, remove raw file
+    const art = ranked[i].artifact;
+    if (!art.compressed && art.diskPath && fs.existsSync(art.diskPath)) {
+      try {
+        const raw = fs.readFileSync(art.diskPath);
+        const compressed = zlib.gzipSync(raw, { level: GZIP_LEVEL });
+        const gzPath = art.diskPath + ".gz";
+        fs.writeFileSync(gzPath, compressed);
+        art.compressedPath = gzPath;
+        art.compressed = true;
+        // Remove raw file to save disk
+        fs.unlinkSync(art.diskPath);
+        savedBytes += raw.length - compressed.length;
+        archived++;
+      } catch {
+        // If compression fails, leave as-is
+      }
+    }
+  }
+
+  return { archived, keptExemplars: exemplars.length, savedBytes };
+}
+
+// ---- Shadow Vault ----
+// Entity-produced artifacts pass quality gate but get tagged "shadow_vault"
+// instead of "marketplace_ready". Only top 2% surface to users.
+
+/**
+ * Apply shadow vault logic to an entity-produced artifact after quality tier assignment.
+ * 98% of entity artifacts go to shadow_vault; 2% surface as marketplace_ready.
+ *
+ * @param {object} artifact - The artifact/DTU object
+ * @param {object} tier - The quality tier result { status, score, ... }
+ * @returns {object} Modified tier with shadow_vault applied if needed
+ */
+export function applyShadowVault(artifact, tier) {
+  if (tier.status !== "marketplace_ready") return tier;
+
+  const createdBy = artifact.meta?.createdBy || artifact.createdBy || "";
+  if (!createdBy.startsWith("entity")) return tier;
+
+  // Shadow 98% of entity production
+  if (Math.random() > 0.02) {
+    return { ...tier, status: "shadow_vault" };
+  }
+  return tier;
+}
+
+/**
+ * Unshadow the top N artifacts in a domain from the shadow vault.
+ * Used by admin to curate marketplace visibility.
+ *
+ * @param {string} domain - Domain to unshadow from
+ * @param {number} count - Number of artifacts to unshadow
+ * @param {object} STATE - Server state
+ * @returns {{ unshadowed: string[] }}
+ */
+export function unshadowTopArtifacts(domain, count, STATE) {
+  const candidates = [];
+
+  for (const [id, dtu] of STATE.dtus || []) {
+    if (dtu.domain !== domain) continue;
+    if (dtu.qualityTier !== "shadow_vault" && dtu.status !== "shadow_vault") continue;
+    candidates.push({
+      id,
+      dtu,
+      score: dtu.qualityScore || dtu.validationScore || 0,
+      maturity: dtu.entityMaturity || 0,
+    });
+  }
+
+  // Sort by quality score descending, then entity maturity
+  candidates.sort((a, b) => b.score - a.score || b.maturity - a.maturity);
+  const toUnshadow = candidates.slice(0, count);
+
+  const unshadowed = [];
+  for (const c of toUnshadow) {
+    if (c.dtu.qualityTier) c.dtu.qualityTier = "marketplace_ready";
+    if (c.dtu.status === "shadow_vault") c.dtu.status = "marketplace_ready";
+    unshadowed.push(c.id);
+  }
+
+  return { unshadowed };
+}
+
+// ---- Migration: Compress Existing Artifacts ----
+
+/**
+ * One-time migration: compress all existing uncompressed compressible artifacts.
+ * Safe to run multiple times — skips already-compressed files.
+ *
+ * @returns {{ migrated: number, skipped: number, errors: number, savedBytes: number }}
+ */
+export function migrateArtifactsToCompressed() {
+  const stats = { migrated: 0, skipped: 0, errors: 0, savedBytes: 0 };
+  if (!fs.existsSync(ARTIFACT_ROOT)) return stats;
+
+  const walk = (dir) => {
+    try {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        // Skip already-compressed files, thumbnails, previews, metadata
+        if (entry.name.endsWith(".gz") || entry.name === "waveform.json" ||
+            entry.name === "text_preview.txt") {
+          stats.skipped++;
+          continue;
+        }
+        // Check if a .gz version already exists
+        if (fs.existsSync(full + ".gz")) {
+          stats.skipped++;
+          continue;
+        }
+        // Check if this file type is compressible
+        const ext = path.extname(entry.name).slice(1);
+        const isCompressible = Object.values(SUPPORTED_TYPES).some(
+          t => t.ext === ext && t.compressible
+        );
+        if (!isCompressible) {
+          stats.skipped++;
+          continue;
+        }
+        try {
+          const raw = fs.readFileSync(full);
+          const compressed = zlib.gzipSync(raw, { level: GZIP_LEVEL });
+          fs.writeFileSync(full + ".gz", compressed);
+          stats.savedBytes += raw.length - compressed.length;
+          stats.migrated++;
+        } catch {
+          stats.errors++;
+        }
+      }
+    } catch {
+      stats.errors++;
+    }
+  };
+
+  walk(ARTIFACT_ROOT);
+  return stats;
 }

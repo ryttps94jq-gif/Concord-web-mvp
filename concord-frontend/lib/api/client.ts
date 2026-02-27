@@ -1691,6 +1691,59 @@ export const apiHelpers = {
       api.post(`/api/admin/promotion/${id}/reject`, { reason }),
     history: () => api.get('/api/admin/promotion/history'),
   },
+
+  // ═══════════════════════════════════════════════════════════════
+  // MEGA SPEC: New API helpers for cross-domain features
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Entity profiles */
+  entity: {
+    profile: (entityId: string) => api.get(`/api/entity/${entityId}/profile`),
+    dashboard: () => api.get('/api/entity-economy/dashboard'),
+  },
+
+  /** Lens manifest — actions available per domain */
+  lens: {
+    manifest: (domain: string) => api.get(`/api/lens/manifest/${domain}`),
+    run: (domain: string, action: string, input?: Record<string, unknown>) =>
+      api.post('/api/lens/run', { domain, action, ...input }),
+  },
+
+  /** Quality gate stats */
+  quality: {
+    stats: () => api.get('/api/quality/stats'),
+    domain: (domain: string) => api.get(`/api/quality/domain/${domain}`),
+  },
+
+  /** Artifact streaming/download helpers */
+  artifact: {
+    streamUrl: (dtuId: string) => `/api/artifact/${dtuId}/stream`,
+    downloadUrl: (dtuId: string) => `/api/artifact/${dtuId}/download`,
+    thumbnailUrl: (dtuId: string) => `/api/artifact/${dtuId}/thumbnail`,
+  },
+
+  /** Marketplace browse + purchase with royalties */
+  marketplaceBrowse: {
+    browse: (params?: Record<string, unknown>) => api.get('/api/marketplace/browse', { params }),
+    dtuBrowse: (params?: Record<string, unknown>) => api.get('/api/marketplace/dtu_browse', { params }),
+    purchaseWithRoyalties: (dtuId: string) =>
+      api.post('/api/marketplace/purchaseWithRoyalties', { dtuId }),
+    royalties: (userId?: string) =>
+      api.get(userId ? `/api/marketplace/royalties/${userId}` : '/api/marketplace/royalties'),
+  },
+
+  /** Cognitive dreams */
+  dreams: {
+    list: (limit?: number) => api.get('/api/cognitive/dreams', { params: { limit } }),
+  },
+
+  /** Admin: Shadow vault + compression management */
+  admin: {
+    unshadow: (domain: string, count?: number) =>
+      api.post('/api/admin/unshadow', { domain, count: count || 5 }),
+    migrateCompression: () => api.post('/api/admin/migrate-compression'),
+    compressionStats: () => api.get('/api/admin/compression-stats'),
+  },
 };
 
 /**

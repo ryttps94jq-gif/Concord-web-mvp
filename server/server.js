@@ -5331,6 +5331,9 @@ async function tryInitWebSockets(server) {
     });
   });
 
+  // MEGA SPEC: Initialize chat WebSocket handlers for streaming
+  try { initChatSocketHandlers(io); } catch {}
+
   structuredLog("info", "socketio_enabled", { port: PORT });
   return { ok: true };
 }
@@ -11449,52 +11452,76 @@ async function callBrain(brainName, prompt, options = {}) {
  * @param {number} maxDTUs - Maximum DTUs to include
  * @returns {string} Formatted context string
  */
-async function buildBrainContext(query, lens = null, maxDTUs = 10) {
+async function buildBrainContext(query, lens = null, maxDTUs = 10, sessionId = null) {
   const all = dtusArray();
-  if (!all.length) return "";
+  let existingContext = "";
 
-  // ── Semantic path: use embeddings when available ──
-  if (isEmbeddingAvailable()) {
-    try {
-      const results = await semanticSearch(query, all, { lens, topK: maxDTUs, includeHighTier: true });
-      if (results.length > 0) {
-        return results.map(r => {
-          const d = all.find(x => x.id === r.id) || r;
-          return `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`;
-        }).join("\n");
+  if (all.length) {
+    // ── Semantic path: use embeddings when available ──
+    if (isEmbeddingAvailable()) {
+      try {
+        const results = await semanticSearch(query, all, { lens, topK: maxDTUs, includeHighTier: true });
+        if (results.length > 0) {
+          existingContext = results.map(r => {
+            const d = all.find(x => x.id === r.id) || r;
+            return `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`;
+          }).join("\n");
+        }
+      } catch {
+        // Fall through to keyword-based retrieval
       }
-    } catch {
-      // Fall through to keyword-based retrieval
+    }
+
+    if (!existingContext) {
+      // ── Fallback: keyword/Jaccard-based retrieval ──
+      const qTokens = tokensNoStop(String(query || ""));
+
+      const scored = all.map(d => {
+        // Filter by lens tag if provided
+        if (lens && Array.isArray(d.tags) && !d.tags.some(t => t.toLowerCase() === lens.toLowerCase())) {
+          return { d, score: 0 };
+        }
+
+        const dText = [
+          d.title || "",
+          Array.isArray(d.tags) ? d.tags.join(" ") : "",
+          d.cretiHuman || d.creti || d.human?.summary || "",
+        ].join(" ").slice(0, 2000);
+
+        const dTokens = tokensNoStop(dText);
+        const baseScore = jaccard(qTokens, dTokens);
+
+        // Tier weighting: HYPERs 3x, MEGAs 2x, regular 1x
+        const tierWeight = d.tier === "hyper" ? 3.0 : d.tier === "mega" ? 2.0 : 1.0;
+
+        return { d, score: baseScore * tierWeight };
+      }).filter(x => x.score > 0.02).sort((a, b) => b.score - a.score).slice(0, maxDTUs);
+
+      existingContext = scored.map(({ d }) =>
+        `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
+      ).join("\n");
     }
   }
 
-  // ── Fallback: keyword/Jaccard-based retrieval ──
-  const qTokens = tokensNoStop(String(query || ""));
-
-  const scored = all.map(d => {
-    // Filter by lens tag if provided
-    if (lens && Array.isArray(d.tags) && !d.tags.some(t => t.toLowerCase() === lens.toLowerCase())) {
-      return { d, score: 0 };
+  // Cross-domain context from persistent conversation rail
+  if (sessionId) {
+    const sess = STATE.sessions.get(sessionId);
+    if (sess?.crossDomainContext) {
+      const domains = Object.entries(sess.crossDomainContext);
+      if (domains.length > 0) {
+        existingContext += "\n\nCROSS-DOMAIN CONTEXT (from this conversation):\n" +
+          domains.map(([domain, ctx]) => {
+            let line = `• ${domain}:`;
+            if (ctx.lastAction) line += ` ran "${ctx.lastAction}"`;
+            if (ctx.summary) line += ` — ${ctx.summary}`;
+            if (ctx.artifactId) line += ` [artifact: ${ctx.artifactId}]`;
+            return line;
+          }).join("\n");
+      }
     }
+  }
 
-    const dText = [
-      d.title || "",
-      Array.isArray(d.tags) ? d.tags.join(" ") : "",
-      d.cretiHuman || d.creti || d.human?.summary || "",
-    ].join(" ").slice(0, 2000);
-
-    const dTokens = tokensNoStop(dText);
-    const baseScore = jaccard(qTokens, dTokens);
-
-    // Tier weighting: HYPERs 3x, MEGAs 2x, regular 1x
-    const tierWeight = d.tier === "hyper" ? 3.0 : d.tier === "mega" ? 2.0 : 1.0;
-
-    return { d, score: baseScore * tierWeight };
-  }).filter(x => x.score > 0.02).sort((a, b) => b.score - a.score).slice(0, maxDTUs);
-
-  return scored.map(({ d }) =>
-    `[${(d.tier || "regular").toUpperCase()}] ${d.title}: ${(d.cretiHuman || d.human?.summary || "").slice(0, 400)}`
-  ).join("\n");
+  return existingContext;
 }
 
 /**
@@ -12113,6 +12140,12 @@ async function entityProduceLensArtifact(entity, lens) {
 
   if (!createResult?.ok) return { ok: false, reason: "create_failed" };
 
+  // Quality gate: async spot-check, then apply shadow vault for entity production
+  const artifactId = createResult.artifact?.id;
+  if (artifactId) {
+    setImmediate(() => runEntityQualityGate(artifactId, entityId, lens).catch(() => {}));
+  }
+
   // Record production experience (higher quality weight than exploration)
   processGrowthExperience(entity, {
     type: "lens-production",
@@ -12124,7 +12157,48 @@ async function entityProduceLensArtifact(entity, lens) {
     surprising: false,
   });
 
-  return { ok: true, artifactId: createResult.artifact?.id, action: action.action };
+  return { ok: true, artifactId, action: action.action };
+}
+
+/**
+ * Quality gate for entity-produced artifacts.
+ * Runs spot-check, then applies shadow vault (98% shadow, 2% visible).
+ */
+async function runEntityQualityGate(artifactId, entityId, lens) {
+  const artifact = STATE.lensArtifacts.get(artifactId);
+  if (!artifact) return;
+
+  // Quick validation — does it have real content?
+  const data = artifact.data || {};
+  const dataStr = JSON.stringify(data);
+  const hasContent = dataStr.length > 50;
+  const hasTitle = !!(artifact.title && artifact.title.length > 3);
+
+  if (!hasContent || !hasTitle) {
+    artifact.meta.status = "rejected";
+    return;
+  }
+
+  // Promote to marketplace_ready
+  artifact.meta.status = "marketplace_ready";
+
+  // Shadow vault: 98% of entity production stays hidden
+  const createdBy = artifact.meta?.createdBy || "";
+  if (createdBy.startsWith("entity")) {
+    if (Math.random() > 0.02) {
+      artifact.meta.status = "shadow_vault";
+    }
+  }
+
+  artifact.meta.qualityCheckedAt = nowISO();
+  saveStateDebounced();
+
+  // Emit quality event
+  if (REALTIME?.io) {
+    REALTIME.io.emit(artifact.meta.status === "shadow_vault" ? "quality:shadowed" : "quality:approved", {
+      artifactId, domain: lens, entityId, status: artifact.meta.status,
+    });
+  }
 }
 
 /**
@@ -14823,7 +14897,28 @@ const _mentionsSelf = Array.from(_selfTokens).some(t => _pLow.includes(t));
   const baseSettings = (ctx?.state?.settings) ? ctx.state.settings : (STATE.settings || {});
 
   if (!STATE.sessions.has(sessionId)) {
-    STATE.sessions.set(sessionId, { createdAt: nowISO(), messages: [] });
+    STATE.sessions.set(sessionId, {
+      createdAt: nowISO(),
+      messages: [],
+      currentLens: null,
+      lensHistory: [],
+      crossDomainContext: {},
+    });
+  }
+
+  const currentLens = input.lens || input.currentLens || null;
+  const sess_pre = STATE.sessions.get(sessionId);
+
+  // Track lens navigation — persistent conversation rail
+  if (currentLens && currentLens !== sess_pre.currentLens) {
+    if (!sess_pre.lensHistory) sess_pre.lensHistory = [];
+    if (sess_pre.lensHistory.length > 0) {
+      const last = sess_pre.lensHistory[sess_pre.lensHistory.length - 1];
+      if (!last.exitedAt) last.exitedAt = nowISO();
+    }
+    sess_pre.lensHistory.push({ lens: currentLens, enteredAt: nowISO() });
+    sess_pre.currentLens = currentLens;
+    if (!sess_pre.crossDomainContext) sess_pre.crossDomainContext = {};
   }
 
   // Session-adaptive style vector (mutable)
@@ -18364,6 +18459,8 @@ register("market","list", (ctx, input) => {
       if (lensArtifactId) {
         const artifact = STATE.lensArtifacts.get(lensArtifactId);
         if (artifact && artifact.meta?.status && artifact.meta.status !== "marketplace_ready") return false;
+        // Shadow vault: entity-produced artifacts hidden from browse until unshadowed
+        if (artifact && artifact.meta?.status === "shadow_vault") return false;
       }
       return true;
     })
@@ -24202,6 +24299,16 @@ function _lensEmitDTU(ctx, domain, action, artifactType, artifact, extra={}) {
     // After enrichment, attempt render (fire-and-forget)
     renderAndAttach(STATE, dtuId, domain, action, artifact, extra.actionResult);
 
+    // MEGA SPEC: Update cross-domain context when lens action runs in a session
+    if (extra.sessionId) {
+      updateCrossDomainContext(extra.sessionId, domain, action, dtuId, artifact.title);
+    }
+
+    // MEGA SPEC: Emit new WebSocket events for artifact lifecycle
+    realtimeEmit("artifact:rendered", {
+      dtuId, domain, action, fileType: artifact.type || artifactType,
+    });
+
     saveStateDebounced();
     return dtuId;
   } catch { return null; }
@@ -28097,6 +28204,300 @@ function registerDomainSpecificActions() {
 registerDomainSpecificActions();
 
 console.log(`[Concord] Lens Artifact Runtime loaded (generic CRUD + DTU exhaust + 24 domain engines + ${domainModules.length} super-lens domains + ${LENS_ACTIONS.size} total actions)`);
+
+// ============================================================================
+// MEGA SPEC: Lens Recommendation Engine & Cross-Domain Context
+// ============================================================================
+
+/**
+ * detectLensRecommendation — Detect when another lens would help the user.
+ * Runs after LLM response; returns a recommendation object or null.
+ */
+function detectLensRecommendation(prompt, response, currentLens) {
+  const text = (prompt + " " + response).toLowerCase();
+
+  const LENS_SIGNALS = {
+    food: /\b(meal plan|recipe|nutrition|diet|calorie|grocery|cooking|food)\b/i,
+    fitness: /\b(workout|exercise|training|gym|strength|cardio|rehab|stretch)\b/i,
+    healthcare: /\b(care plan|medication|symptom|diagnosis|health|medical|doctor|patient)\b/i,
+    accounting: /\b(invoice|expense|revenue|tax|financial statement|ledger|bookkeeping)\b/i,
+    law: /\b(contract|legal|clause|liability|compliance|agreement|lawsuit)\b/i,
+    finance: /\b(investment|portfolio|roi|budget|forecast|cashflow|valuation)\b/i,
+    realestate: /\b(property|mortgage|listing|appraisal|rent|lease|sqft)\b/i,
+    insurance: /\b(policy|claim|coverage|premium|deductible|underwriting)\b/i,
+    education: /\b(curriculum|lesson plan|assessment|rubric|course|syllabus)\b/i,
+    studio: /\b(beat|melody|chord|bpm|drum pattern|mix|track|produce music)\b/i,
+    trades: /\b(stock|option|trading|portfolio|market order|position|ticker)\b/i,
+    code: /\b(function|algorithm|api|database|deploy|debug|refactor|code)\b/i,
+    science: /\b(hypothesis|experiment|research|peer review|methodology)\b/i,
+    creative: /\b(creative brief|mood board|design|visual|concept art)\b/i,
+    logistics: /\b(shipping|warehouse|supply chain|inventory|route|delivery)\b/i,
+    manufacturing: /\b(production line|quality control|assembly|bom|lean)\b/i,
+    agriculture: /\b(crop|harvest|soil|irrigation|livestock|farm)\b/i,
+    retail: /\b(product catalog|inventory|pos|customer|storefront)\b/i,
+    nonprofit: /\b(donor|grant|fundraising|volunteer|impact report)\b/i,
+    government: /\b(policy|regulation|public service|legislation|civic)\b/i,
+  };
+
+  for (const [domain, pattern] of Object.entries(LENS_SIGNALS)) {
+    if (domain === currentLens) continue;
+    if (pattern.test(text)) {
+      const manifest = DOMAIN_ACTION_MANIFEST[domain];
+      const generativeAction = manifest?.find(a =>
+        a.action.startsWith("generate-") || a.action.startsWith("build-") ||
+        a.action.startsWith("create-") || a.action.startsWith("suggest-")
+      );
+      return {
+        domain,
+        reason: `This conversation touches on ${domain} — the ${domain} lens can help.`,
+        action: generativeAction?.action || null,
+        confidence: 0.7,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Update cross-domain context when a lens action runs within a session.
+ */
+function updateCrossDomainContext(sessionId, domain, action, dtuId, title) {
+  if (!sessionId || !STATE.sessions.has(sessionId)) return;
+  const sess = STATE.sessions.get(sessionId);
+  if (!sess.crossDomainContext) sess.crossDomainContext = {};
+  sess.crossDomainContext[domain] = sess.crossDomainContext[domain] || {};
+  sess.crossDomainContext[domain].lastAction = action;
+  sess.crossDomainContext[domain].artifactId = dtuId;
+  sess.crossDomainContext[domain].summary = title || `${action} completed`;
+  sess.crossDomainContext[domain].timestamp = nowISO();
+}
+
+/**
+ * Record pipeline step for cross-domain pipeline tracking.
+ */
+function recordPipelineStep(dtuId, sourceDomain, sourceAction, sourceDtuId) {
+  const dtu = STATE.dtus.get(dtuId);
+  if (!dtu) return;
+  dtu.meta = dtu.meta || {};
+  dtu.meta.pipelineTrail = dtu.meta.pipelineTrail || [];
+  dtu.meta.pipelineTrail.push({
+    domain: sourceDomain,
+    action: sourceAction,
+    artifactId: sourceDtuId,
+    timestamp: nowISO(),
+  });
+}
+
+// ============================================================================
+// MEGA SPEC: New API Endpoints (entity profile, lens manifest, quality stats)
+// ============================================================================
+
+// Entity profile endpoint
+app.get("/api/entity/:entityId/profile", asyncHandler(async (req, res) => {
+  const entityId = req.params.entityId;
+  const entity = STATE.entities?.get(entityId);
+  if (!entity) return res.status(404).json({ ok: false, error: "Entity not found" });
+
+  let growth = null;
+  try { growth = typeof getEntityGrowthProfile === "function" ? getEntityGrowthProfile(entityId) : null; } catch {}
+
+  const artifacts = Array.from(STATE.lensArtifacts?.values() || [])
+    .filter(a => a.meta?.createdBy === entityId);
+  const approved = artifacts.filter(a => a.meta?.status === "marketplace_ready");
+  const shadowed = artifacts.filter(a => a.meta?.status === "shadow_vault");
+
+  res.json({
+    ok: true,
+    id: entityId,
+    species: entity.species || null,
+    age: entity.age || 0,
+    organMaturity: growth?.organs
+      ? Object.values(growth.organs).reduce((s, o) => s + (o.maturity || 0), 0) / Math.max(1, Object.keys(growth.organs).length)
+      : 0,
+    topDomains: Object.entries(growth?.knowledge?.domainExposure || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([domain, count]) => ({ domain, count, maturity: growth?.organs?.[domain]?.maturity || 0 })),
+    totalArtifacts: artifacts.length,
+    approvedArtifacts: approved.length,
+    shadowedArtifacts: shadowed.length,
+    qualityPassRate: artifacts.length > 0 ? Math.round((approved.length + shadowed.length) / artifacts.length * 100) : 0,
+    visibleRate: artifacts.length > 0 ? Math.round(approved.length / artifacts.length * 100) : 0,
+    totalRoyaltiesEarned: entity.economy?.totalEarned || 0,
+  });
+}));
+
+// Lens manifest endpoint — exposes action manifest per domain
+app.get("/api/lens/manifest/:domain", (req, res) => {
+  const domain = req.params.domain;
+  const actions = DOMAIN_ACTION_MANIFEST[domain];
+  if (!actions) return res.status(404).json({ ok: false, error: "Unknown domain" });
+
+  res.json({
+    ok: true,
+    domain,
+    actions: actions.map(a => ({
+      action: a.action,
+      desc: a.desc,
+      brain: a.brain,
+      isGenerative: /^(generate|build|suggest|create|compile|plan|design)/.test(a.action),
+      isAnalysis: /^(analyze|detect|validate|check|assess|compare)/.test(a.action),
+      hasRenderer: false, // TODO: check render registry
+      outputType: a.outputType || null,
+    })),
+    stats: {
+      totalDTUs: Array.from(STATE.dtus.values()).filter(d => d.domain === domain ||
+        (Array.isArray(d.tags) && d.tags.some(t => t.toLowerCase() === `lens:${domain}`))).length,
+      marketplaceReady: Array.from(STATE.lensArtifacts?.values() || [])
+        .filter(a => a.domain === domain && a.meta?.status === "marketplace_ready").length,
+      entityProduction: Array.from(STATE.lensArtifacts?.values() || [])
+        .filter(a => a.domain === domain && a.meta?.createdBy?.startsWith?.("entity")).length,
+    },
+  });
+});
+
+// Quality stats endpoint
+app.get("/api/quality/stats", (req, res) => {
+  const allArtifacts = Array.from(STATE.lensArtifacts?.values() || []);
+  const approved = allArtifacts.filter(a => a.meta?.status === "marketplace_ready");
+  const rejected = allArtifacts.filter(a => a.meta?.status === "draft_failed_quality");
+  const shadowed = allArtifacts.filter(a => a.meta?.status === "shadow_vault");
+  const pending = allArtifacts.filter(a => a.meta?.status === "pending_quality");
+  res.json({
+    ok: true,
+    total: allArtifacts.length,
+    approved: approved.length,
+    rejected: rejected.length,
+    shadowed: shadowed.length,
+    pending: pending.length,
+    approvalRate: allArtifacts.length > 0 ? Math.round(approved.length / allArtifacts.length * 100) : 0,
+    shadowVaultSize: shadowed.length,
+  });
+});
+
+// Quality stats per domain
+app.get("/api/quality/domain/:domain", (req, res) => {
+  const domain = req.params.domain;
+  const allArtifacts = Array.from(STATE.lensArtifacts?.values() || []).filter(a => a.domain === domain);
+  const approved = allArtifacts.filter(a => a.meta?.status === "marketplace_ready");
+  const rejected = allArtifacts.filter(a => a.meta?.status === "draft_failed_quality");
+  const shadowed = allArtifacts.filter(a => a.meta?.status === "shadow_vault");
+  res.json({
+    ok: true,
+    domain,
+    total: allArtifacts.length,
+    approved: approved.length,
+    rejected: rejected.length,
+    shadowed: shadowed.length,
+    visibleRate: allArtifacts.length > 0 ? Math.round(approved.length / allArtifacts.length * 100) : 0,
+    approvalRate: allArtifacts.length > 0 ? Math.round((approved.length + shadowed.length) / allArtifacts.length * 100) : 0,
+  });
+});
+
+// Cognitive dreams endpoint
+app.get("/api/cognitive/dreams", (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  const dreams = Array.from(STATE.dreams?.values?.() || STATE.organs?.get?.("dream_capture")?.dreams || [])
+    .slice(-limit).reverse();
+  res.json({ ok: true, dreams, count: dreams.length });
+});
+
+// ============================================================================
+// MEGA SPEC: Shadow Vault Admin + Artifact Compression Migration
+// ============================================================================
+
+app.post("/api/admin/unshadow", async (req, res) => {
+  const { domain, count = 5 } = req.body || {};
+  if (!domain) return res.status(400).json({ ok: false, error: "domain required" });
+  try {
+    const mod = await import("./lib/artifact-store.js");
+    const result = mod.unshadowTopArtifacts(domain, Math.min(Number(count), 50), STATE);
+    saveStateDebounced();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/admin/migrate-compression", async (_req, res) => {
+  try {
+    const mod = await import("./lib/artifact-store.js");
+    const result = mod.migrateArtifactsToCompressed();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/admin/compression-stats", async (_req, res) => {
+  try {
+    const mod = await import("./lib/artifact-store.js");
+    res.json({ ok: true, cache: mod.previewCacheStats() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ============================================================================
+// MEGA SPEC: WebSocket Chat Streaming Handler
+// ============================================================================
+
+function initChatSocketHandlers(io) {
+  if (!io) return;
+  io.on("connection", (socket) => {
+    socket.on("chat:message", async (data, ack) => {
+      try {
+        const { sessionId, prompt, lens } = data || {};
+        if (!sessionId || !prompt) {
+          ack?.({ ok: false, error: "sessionId and prompt required" });
+          return;
+        }
+
+        // Emit: thinking started
+        socket.emit("chat:status", { sessionId, status: "thinking", lens });
+
+        // Run through the existing chat.respond macro
+        const ctx = {
+          state: STATE,
+          log: (...args) => structuredLog("info", "chat:socket", ...args),
+          reqMeta: { sessionId },
+          affect: {},
+        };
+
+        const result = await runMacro("chat", "respond", {
+          sessionId,
+          prompt: String(prompt),
+          lens: lens || null,
+          llm: true,
+        }, ctx);
+
+        // Check for lens recommendation
+        let lensRecommendation = null;
+        try {
+          lensRecommendation = detectLensRecommendation(prompt, result?.reply || "", lens);
+        } catch {}
+
+        // Emit complete
+        socket.emit("chat:complete", {
+          sessionId,
+          response: result?.reply || result?.content || "No response generated.",
+          lensRecommendation,
+          sources: result?.meta?.sources || [],
+          dtuId: result?.meta?.dtuId || null,
+        });
+
+        ack?.({ ok: true });
+      } catch (err) {
+        socket.emit("chat:complete", {
+          sessionId: data?.sessionId,
+          response: `Error: ${err?.message || "Unknown error"}`,
+          lensRecommendation: null,
+        });
+        ack?.({ ok: false, error: err?.message });
+      }
+    });
+  });
+}
 
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
