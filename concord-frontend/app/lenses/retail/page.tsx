@@ -1743,20 +1743,12 @@ export default function RetailLensPage() {
         <div className="flex items-center gap-3">
           <Store className="w-7 h-7 text-neon-purple" />
           <div>
-            <h1 className={ds.heading1}>Retail &amp; Commerce</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Retail &amp; Commerce</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Products, orders, customers, pipeline &amp; support management</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="retail" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
           <button className={view === 'library' ? ds.btnPrimary : ds.btnSecondary} onClick={() => setView('library')}>
@@ -1771,6 +1763,8 @@ export default function RetailLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="retail" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="retail" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="retail" data={{}} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1836,17 +1830,6 @@ export default function RetailLensPage() {
             </div>
           </div>
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="retail"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
     </div>

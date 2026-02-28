@@ -179,24 +179,17 @@ export default function NewsLensPage() {
         <div className="flex items-center gap-3">
           <Newspaper className="w-7 h-7 text-neon-blue" />
           <div>
-            <h1 className="text-xl font-bold">News Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">News Lens</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">
               System updates, announcements, and trends
             </p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="news" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="news" data={{}} compact />
           <button
             onClick={handleRefresh}
             className="p-2 rounded-lg text-gray-400 hover:text-neon-blue hover:bg-lattice-elevated transition-colors"
@@ -582,16 +575,7 @@ export default function NewsLensPage() {
         </div>
 
       {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="news"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
+      <RealtimeDataPanel domain="news" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
       </div>
     </div>
   );
