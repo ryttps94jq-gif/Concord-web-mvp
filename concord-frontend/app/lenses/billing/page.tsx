@@ -8,8 +8,9 @@ import {
   Coins, Check, Zap, Crown,
   ArrowRight, Sparkles, ShieldCheck, TrendingUp,
   Download, Filter, BarChart3, ArrowUpDown,
-  CreditCard, History, Wallet, ChevronDown,
+  CreditCard, History, Wallet, ChevronDown, Layers,
 } from 'lucide-react';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
@@ -49,6 +50,7 @@ export default function BillingPage() {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'subscriptions'>('overview');
   const [txFilter, setTxFilter] = useState<'all' | 'purchase' | 'usage' | 'credit'>('all');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // ---- API Queries ----
 
@@ -629,6 +631,25 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="billing" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

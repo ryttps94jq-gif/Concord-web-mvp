@@ -38,12 +38,15 @@ import {
   Timer,
   Archive,
   Search,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,6 +235,7 @@ export default function CollabLensPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeSession, setActiveSession] = useState<CollabSession | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const sessions: CollabSession[] = sessionItems.map(i => i.data as unknown as CollabSession);
   const invitations: Invitation[] = invitationItems.map(i => i.data as unknown as Invitation);
@@ -500,6 +504,25 @@ export default function CollabLensPage() {
           <CreateSessionModal onClose={() => setShowCreateModal(false)} />
         )}
       </AnimatePresence>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="collab" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

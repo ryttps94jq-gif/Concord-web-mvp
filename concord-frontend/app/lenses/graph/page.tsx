@@ -11,7 +11,8 @@ import {
   Circle, X, Play, Pause, Settings, Download,
   Share2, GitBranch, ChevronRight, Copy, ExternalLink,
   Plus, Link2, Music, User, Disc, AudioWaveform,
-  TreePine, Users, Filter
+  TreePine, Users, Filter,
+  Layers, ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
@@ -22,6 +23,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // --- Types ---
 
@@ -207,6 +209,7 @@ export default function GraphLensPage() {
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [newEdgeType, setNewEdgeType] = useState<EdgeType>('semantic');
   const [showAddNode, setShowAddNode] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
   const [addNodeType, setAddNodeType] = useState<NodeType>('track');
   const [addNodeLabel, setAddNodeLabel] = useState('');
   const [localEdges, setLocalEdges] = useState<GraphEdge[]>([]);
@@ -1623,6 +1626,25 @@ export default function GraphLensPage() {
           title="Graph DTUs"
         />
         <FeedbackWidget targetType="lens" targetId="graph" />
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="graph" />
+          </div>
+        )}
       </div>
     </div>
   );

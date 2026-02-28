@@ -5,13 +5,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { FlaskConical, Play, Square, History, Zap, Search, Plus, Trash2, CheckCircle, AlertTriangle, Lightbulb } from 'lucide-react';
+import { FlaskConical, Play, Square, History, Zap, Search, Plus, Trash2, CheckCircle, AlertTriangle, Lightbulb, Layers, ChevronDown } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 export default function LabLensPage() {
   useLensNav('lab');
@@ -20,6 +21,7 @@ export default function LabLensPage() {
   const queryClient = useQueryClient();
   const [code, setCode] = useState('');
   const [selectedOrgan, setSelectedOrgan] = useState('abstraction_governor');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const { items: organItems, isLoading, isError: isError, error: error, refetch: refetch } = useLensData<Record<string, unknown>>('lab', 'organ', { seed: [] });
   const organs = organItems.map(i => ({ id: i.id, ...(i.data || {}) })) as unknown as Record<string, unknown>[];
@@ -315,6 +317,25 @@ function RealityExplorerSection() {
       )}
         </div>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="lab" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

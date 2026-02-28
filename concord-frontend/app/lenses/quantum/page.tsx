@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState } from 'react';
-import { Atom, Zap, Waves, RotateCcw, Play, Shuffle, Loader2 } from 'lucide-react';
+import { Atom, Zap, Waves, RotateCcw, Play, Shuffle, Loader2, Layers, ChevronDown } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface SimResultData {
   qubits: number;
@@ -23,6 +24,7 @@ export default function QuantumLensPage() {
   useLensNav('quantum');
   const [qubits, setQubits] = useState(4);
   const [result, setResult] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
   const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('quantum');
 
   const { items: circuitItems, isLoading: circuitsLoading, isError: isError, error: error, refetch: refetch, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
@@ -204,6 +206,25 @@ export default function QuantumLensPage() {
           </div>
         </div>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="quantum" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

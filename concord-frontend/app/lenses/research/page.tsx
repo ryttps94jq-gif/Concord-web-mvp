@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { Search, Filter, ArrowRight, BookOpen, Tag, Calendar, Layers } from 'lucide-react';
+import { Search, Filter, ArrowRight, BookOpen, Tag, Calendar, Layers, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
@@ -14,6 +14,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface DTUResult {
   id: string;
@@ -42,6 +43,7 @@ export default function ResearchLensPage() {
   const [tierFilter, setTierFilter] = useState('');
   const [sortBy, setSortBy] = useState<'relevance' | 'date' | 'tier'>('date');
   const [selectedDtu, setSelectedDtu] = useState<DTUResult | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const { data: dtusData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['research-dtus'],
@@ -327,6 +329,25 @@ export default function ResearchLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="research" />
+          </div>
+        )}
       </div>
     </div>
   );

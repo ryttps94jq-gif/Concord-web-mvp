@@ -4,13 +4,14 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { Atom, Beaker, FlaskConical, Sparkles, Zap } from 'lucide-react';
+import { Atom, Beaker, FlaskConical, Sparkles, Zap, Layers, ChevronDown } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface Compound {
   id: string;
@@ -33,6 +34,7 @@ export default function ChemLensPage() {
   const queryClient = useQueryClient();
   const [selectedCompound, setSelectedCompound] = useState<string | null>(null);
   const [reactionInput, setReactionInput] = useState('');
+  const [showFeatures, setShowFeatures] = useState(false);
   const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('chem');
 
   const { items: compoundItems, isLoading, isError: isError, error: error, refetch: refetch } = useLensData<Record<string, unknown>>('chem', 'compound', { seed: [] });
@@ -215,6 +217,25 @@ export default function ChemLensPage() {
             ))
           )}
         </div>
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="chem" />
+          </div>
+        )}
       </div>
     </div>
   );

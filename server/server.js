@@ -21422,6 +21422,11 @@ app.use("/api/legal", createLegalLiabilityRouter({ db }));
 import createMarketplaceLensRegistryRouter from "./routes/marketplace-lens-registry.js";
 app.use("/api/marketplace-lens-registry", createMarketplaceLensRegistryRouter(db));
 
+// ===== LENS FEATURES (112-LENS FEATURE SPECIFICATION) =====
+import createLensFeatureRouter from "./routes/lens-features.js";
+import { LENS_FEATURES } from "./lib/lens-features.js";
+app.use("/api/lens-features", createLensFeatureRouter(db, LENS_FEATURES));
+
 // ===== UNIVERSAL DTU EXPORT + REAL-TIME DATA FEEDS =====
 import createUniversalExportRouter from "./routes/universal-export.js";
 app.use(createUniversalExportRouter(STATE, runMacro, makeCtx));

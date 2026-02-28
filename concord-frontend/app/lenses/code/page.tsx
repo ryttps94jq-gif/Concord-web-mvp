@@ -18,12 +18,13 @@ import {
   Sparkles, RefreshCw, Copy,
   Download, Zap, Music, Waves, SlidersHorizontal,
   Loader2, BookOpen,
-  Save, Maximize2, Minimize2
+  Save, Maximize2, Minimize2, Layers
 } from 'lucide-react';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface FileNode {
   id: string;
@@ -614,6 +615,7 @@ export default function CodeLensPage() {
   const [showApiRef, setShowApiRef] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [outputTab, setOutputTab] = useState<'output' | 'console'>('output');
+  const [showFeatures, setShowFeatures] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
@@ -1171,6 +1173,25 @@ export default function CodeLensPage() {
           compact
         />
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="code" />
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );
