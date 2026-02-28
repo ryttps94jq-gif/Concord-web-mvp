@@ -29,6 +29,8 @@ const PREVIEW_STRATEGIES = {
   art: "low_res_thumbnail",
   document: "abstract_only",
   artifact: "structural_summary",
+  film: "first_5_min",        // Film Studio: first 5 minutes free, no auth
+  video: "first_5_min",       // Video content also gets time-based preview
 };
 
 /**

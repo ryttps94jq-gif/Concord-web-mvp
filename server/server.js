@@ -21400,6 +21400,10 @@ app.use("/api/federation", createFederationRouter({ db }));
 import createCreativeMarketplaceRouter from "./routes/creative-marketplace.js";
 app.use("/api/creative-marketplace", createCreativeMarketplaceRouter({ db }));
 
+// ===== CONCORD FILM STUDIOS =====
+import createFilmStudioRouter from "./routes/film-studio.js";
+app.use("/api/film-studio", createFilmStudioRouter({ db }));
+
 // ===== LENS & CULTURE SYSTEM =====
 import createLensCultureRouter from "./routes/lens-culture.js";
 app.use("/api/lens-culture", createLensCultureRouter({ db }));
