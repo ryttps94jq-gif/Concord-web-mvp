@@ -4,7 +4,7 @@
  * One spec to rule them all. Every lens — system, user-created, emergent-created —
  * must pass compliance before going live and maintain compliance while active.
  *
- * 106 lenses + user-created + emergent-created.
+ * 112 lenses + user-created + emergent-created.
  * Each must implement: DTU bridge, protection modes, artifact layer handling,
  * one-tap purchase, export flow, vault integration, API billing compatibility,
  * federation tier compliance, culture isolation, creative marketplace wiring,

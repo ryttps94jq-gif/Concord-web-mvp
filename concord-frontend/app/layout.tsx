@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: '%s | Concord OS',
   },
   description:
-    'A sovereign knowledge operating system. 76 domain lenses, DTU-based memory, lattice governance, local-first AI. Your thoughts never leave your control.',
+    'A sovereign knowledge operating system. 112 domain lenses, DTU-based memory, lattice governance, local-first AI. Your thoughts never leave your control.',
   keywords: [
     'cognitive engine',
     'knowledge OS',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     siteName: 'Concord OS',
     title: 'Concord OS — Sovereign Cognitive Engine',
     description:
-      'A sovereign knowledge operating system. 76 domain lenses, DTU-based memory, lattice governance, local-first AI. No ads. No extraction. No surveillance.',
+      'A sovereign knowledge operating system. 112 domain lenses, DTU-based memory, lattice governance, local-first AI. No ads. No extraction. No surveillance.',
     images: [
       {
         url: '/og-image.png',
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Concord OS — Sovereign Cognitive Engine',
     description:
-      'A sovereign knowledge operating system. 76 domain lenses, local-first AI. Your thoughts never leave your control.',
+      'A sovereign knowledge operating system. 112 domain lenses, local-first AI. Your thoughts never leave your control.',
     images: ['/og-image.png'],
   },
   robots: {

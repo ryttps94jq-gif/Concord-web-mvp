@@ -21418,6 +21418,10 @@ app.use("/api/lens-compliance", createLensComplianceRouter({ db }));
 import createLegalLiabilityRouter from "./routes/legal-liability.js";
 app.use("/api/legal", createLegalLiabilityRouter({ db }));
 
+// ===== MARKETPLACE LENS REGISTRY (112 LENSES) =====
+import createMarketplaceLensRegistryRouter from "./routes/marketplace-lens-registry.js";
+app.use("/api/marketplace-lens-registry", createMarketplaceLensRegistryRouter(db));
+
 // ===== UNIVERSAL DTU EXPORT + REAL-TIME DATA FEEDS =====
 import createUniversalExportRouter from "./routes/universal-export.js";
 app.use(createUniversalExportRouter(STATE, runMacro, makeCtx));
