@@ -699,7 +699,7 @@ export const SYSTEM_LENS_DECLARATIONS = Object.freeze({
   },
   video: {
     layersUsed: ["human", "core", "artifact"],
-    supportedArtifactTypes: ["short_film", "music_video", "documentary", "tutorial", "animation"],
+    supportedArtifactTypes: ["short_film", "music_video", "documentary", "tutorial", "animation", "film", "episode", "series"],
     publishableScopes: ["regional", "national", "global"],
     federationTiers: ["regional", "national", "global"],
     protectionMode: "PROTECTED",

@@ -106,7 +106,12 @@ export const ARTIFACT_TYPES = Object.freeze({
   video: {
     extensions: [".mp4", ".mov", ".webm", ".mkv"],
     maxSizeMB: 5000,
-    derivativeTypes: ["edit", "clip", "remix", "reaction", "subtitle", "dub"],
+    derivativeTypes: [
+      "edit", "clip", "remix", "reaction", "subtitle", "dub",
+      "re-cut", "commentary-overlay", "mashup", "soundtrack-replacement",
+      "translation-dub", "accessibility-enhancement", "parody-comedy",
+      "educational-analysis", "vfx-enhancement", "alternate-ending", "highlight-reel",
+    ],
   },
 
   // Written
