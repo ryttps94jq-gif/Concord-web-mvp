@@ -1429,7 +1429,7 @@ export default function ManufacturingLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="manufacturing" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="manufacturing" artifactId={dashWOs[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

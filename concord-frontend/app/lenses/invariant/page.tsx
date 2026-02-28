@@ -136,7 +136,7 @@ export default function InvariantLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="invariant" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="invariant" artifactId={invariantItems[0]?.id} compact />
       {/* Action Tester */}
       <div className="panel p-4">
         <h2 className="font-semibold mb-4 flex items-center gap-2">

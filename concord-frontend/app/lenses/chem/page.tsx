@@ -87,7 +87,7 @@ export default function ChemLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="chem" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="chem" artifactId={compoundItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Reaction Chamber */}
         <div className="lg:col-span-2 panel p-4 space-y-4">

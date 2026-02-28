@@ -345,7 +345,7 @@ export default function CryptoLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="crypto" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="crypto" artifactId={chainItems[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

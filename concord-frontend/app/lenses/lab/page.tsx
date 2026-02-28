@@ -66,7 +66,7 @@ export default function LabLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="lab" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="lab" artifactId={organItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Experiment Editor */}
         <div className="lg:col-span-2 panel p-4 space-y-4">

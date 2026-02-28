@@ -189,7 +189,7 @@ export default function OfflineLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="offline" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="offline" artifactId={syncItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Database className="w-5 h-5 text-neon-blue mb-2" />

@@ -160,7 +160,7 @@ export default function ForkLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="fork" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="fork" artifactId={forkItems[0]?.id} compact />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

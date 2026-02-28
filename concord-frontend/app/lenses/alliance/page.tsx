@@ -169,7 +169,7 @@ export default function AllianceLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="alliance" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="alliance" artifactId={allianceItems[0]?.id} compact />
       {/* Create Alliance Form */}
       {showCreate && (
         <div className="panel p-4 space-y-3">

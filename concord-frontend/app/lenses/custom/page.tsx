@@ -109,7 +109,7 @@ export default function CustomLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="custom" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="custom" artifactId={lensItems[0]?.id} compact />
       {/* Lens Builder Modal */}
       {showBuilder && (
         <div className="panel p-4 space-y-4 border-neon-purple">

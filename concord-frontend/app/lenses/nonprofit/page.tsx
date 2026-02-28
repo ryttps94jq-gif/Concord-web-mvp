@@ -1404,7 +1404,7 @@ export default function NonprofitLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="nonprofit" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="nonprofit" artifactId={allDonors[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

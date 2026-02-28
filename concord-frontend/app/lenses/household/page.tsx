@@ -1564,7 +1564,7 @@ export default function HouseholdLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="household" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="household" artifactId={familyItems[0]?.id} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

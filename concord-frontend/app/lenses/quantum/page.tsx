@@ -95,7 +95,7 @@ export default function QuantumLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="quantum" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="quantum" artifactId={circuitItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Atom className="w-5 h-5 text-neon-purple mb-2" />

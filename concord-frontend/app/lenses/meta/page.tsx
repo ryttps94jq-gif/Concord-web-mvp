@@ -165,7 +165,7 @@ export default function MetaLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="meta" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="meta" artifactId={templateItems[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

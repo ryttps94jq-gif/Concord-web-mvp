@@ -83,7 +83,7 @@ export default function NeuroLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="neuro" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="neuro" artifactId={networkItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Brain className="w-5 h-5 text-neon-pink mb-2" />

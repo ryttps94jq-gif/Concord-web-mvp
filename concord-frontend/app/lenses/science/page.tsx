@@ -886,7 +886,7 @@ export default function ScienceLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="science" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="science" artifactId={experiments[0]?.id} compact />
       {/* Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

@@ -913,7 +913,7 @@ export default function InsuranceLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="insurance" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="insurance" artifactId={policies[0]?.id} compact />
       {/* Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

@@ -71,7 +71,7 @@ export default function SufferingLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="suffering" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="suffering" artifactId={undefined} compact />
       {/* Main Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <MetricCard

@@ -91,7 +91,7 @@ export default function AnonLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="anon" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="anon" artifactId={messageItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Identity Panel */}
         <div className="panel p-4 space-y-4">

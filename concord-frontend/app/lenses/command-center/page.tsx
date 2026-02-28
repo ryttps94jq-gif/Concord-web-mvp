@@ -550,9 +550,9 @@ function ForgettingPanel() {
 }
 
 function RepairCortexPanel() {
-  const { data: status } = useQuery({ queryKey: ['cc-repair'], queryFn: () => apiHelpers.repairExtended.status().then(r => r.data), refetchInterval: 15000 });
+  const { data: status } = useQuery({ queryKey: ['cc-repair'], queryFn: () => apiHelpers.repairExtended.fullStatus().then(r => r.data), refetchInterval: 15000 });
   const qc = useQueryClient();
-  const forceMutation = useMutation({ mutationFn: () => apiHelpers.repairExtended.force(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-repair'] }), onError: (err) => console.error('Force repair failed:', err instanceof Error ? err.message : err) });
+  const forceMutation = useMutation({ mutationFn: () => apiHelpers.repairExtended.forceCycle(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-repair'] }), onError: (err) => console.error('Force repair failed:', err instanceof Error ? err.message : err) });
 
   return (
     <div className="space-y-4">

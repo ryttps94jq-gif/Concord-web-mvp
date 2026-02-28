@@ -88,7 +88,7 @@ export default function QuestmarketLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="questmarket" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="questmarket" artifactId={questItems[0]?.id} compact />
       {/* Filter Tabs */}
       <div className="flex gap-2">
         {['all', 'open', 'in_progress', 'completed'].map((status) => (

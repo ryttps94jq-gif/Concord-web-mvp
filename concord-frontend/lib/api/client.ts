@@ -333,9 +333,13 @@ export const apiHelpers = {
     status: () => api.get('/api/cognitive/status'),
   },
 
-  // Dream mode (synthesis)
+  // Dream mode (synthesis + capture pipeline)
   dream: {
     run: (data?: { seed?: string }) => api.post('/api/dream', data || {}),
+    capture: (text: string, tags?: string[], title?: string) =>
+      api.post('/api/dream/capture', { text, tags, title }),
+    history: (limit = 50) => api.get(`/api/dream/history?limit=${limit}`),
+    convergences: () => api.get('/api/dream/convergences'),
   },
 
   // Reseed DTUs
@@ -373,15 +377,19 @@ export const apiHelpers = {
       api.post(`/api/personas/${personaId}/animate`, { kind }),
   },
 
-  // Council
+  // Council (review + proposal voting)
   council: {
     reviewGlobal: () => api.post('/api/council/review-global', {}),
     weekly: () => api.post('/api/council/weekly', {}),
-    vote: (data: { dtuId: string; vote: 'approve' | 'reject'; reason?: string }) =>
+    vote: (data: { dtuId?: string; proposalId?: string; vote: 'approve' | 'reject'; reason?: string }) =>
       api.post('/api/council/vote', data),
     tally: (dtuId: string) => api.get(`/api/council/tally/${dtuId}`),
     credibility: (data: { dtuId: string }) =>
       api.post('/api/council/credibility', data),
+    proposePromotion: (dtuId: string, reason?: string) =>
+      api.post('/api/council/propose-promotion', { dtuId, reason }),
+    proposals: (status?: string) =>
+      api.get('/api/council/proposals', { params: status ? { status } : {} }),
   },
 
   // Swarm
@@ -961,10 +969,24 @@ export const apiHelpers = {
       api.post('/api/worldmodel/counterfactual', data),
   },
 
-  // Sovereignty (expanded)
+  // Sovereignty (expanded + scope isolation + consent management)
   sovereignty: {
     status: () => api.get('/api/sovereignty/status'),
     audit: () => api.post('/api/sovereignty/audit', {}),
+    setup: (mode: string, selectedDomains?: string[]) =>
+      api.post('/api/sovereignty/setup', { mode, selectedDomains }),
+    preferences: (globalAssistConsent: string) =>
+      api.put('/api/sovereignty/preferences', { globalAssistConsent }),
+    unsync: (domain?: string) =>
+      api.post('/api/sovereignty/unsync', { domain: domain || null }),
+    resolve: (data: {
+      sessionId: string;
+      choice: string;
+      globalDTUIds: string[];
+      originalPrompt: string;
+      lens?: string;
+      remember?: boolean;
+    }) => api.post('/api/chat/sovereignty-resolve', data),
   },
 
   // Experience Learning
@@ -1204,7 +1226,7 @@ export const apiHelpers = {
     },
   },
 
-  // ---- Generic Lens Artifact API ----
+  // ---- Generic Lens Artifact API + Manifest ----
   lens: {
     list: (domain: string, params?: { type?: string; search?: string; tags?: string; status?: string; limit?: number; offset?: number }) =>
       api.get(`/api/lens/${domain}`, { params }),
@@ -1222,6 +1244,9 @@ export const apiHelpers = {
       api.get(`/api/lens/${domain}/${id}/export`, { params: { format: format || 'json' } }),
     bulkCreate: (domain: string, data: { type: string; items: Array<{ title?: string; data?: Record<string, unknown>; meta?: Record<string, unknown> }> }) =>
       api.post(`/api/lens/${domain}/bulk`, data),
+    manifest: (domain: string) => api.get(`/api/lens/manifest/${domain}`),
+    runDomain: (domain: string, action: string, input?: Record<string, unknown>) =>
+      api.post('/api/lens/run', { domain, action, ...input }),
   },
 
   // ---- Autogen Pipeline (v5.3.0+) ----
@@ -1650,14 +1675,6 @@ export const apiHelpers = {
     history: () => api.get('/api/admin/attention/history'),
   },
 
-  /** Dream Capture Pipeline */
-  dream: {
-    capture: (text: string, tags?: string[], title?: string) =>
-      api.post('/api/dream/capture', { text, tags, title }),
-    history: (limit = 50) => api.get(`/api/dream/history?limit=${limit}`),
-    convergences: () => api.get('/api/dream/convergences'),
-  },
-
   /** App Maker */
   apps: {
     list: () => api.get('/api/apps'),
@@ -1702,13 +1719,6 @@ export const apiHelpers = {
     dashboard: () => api.get('/api/entity-economy/dashboard'),
   },
 
-  /** Lens manifest — actions available per domain */
-  lens: {
-    manifest: (domain: string) => api.get(`/api/lens/manifest/${domain}`),
-    run: (domain: string, action: string, input?: Record<string, unknown>) =>
-      api.post('/api/lens/run', { domain, action, ...input }),
-  },
-
   /** Quality gate stats */
   quality: {
     stats: () => api.get('/api/quality/stats'),
@@ -1745,34 +1755,7 @@ export const apiHelpers = {
     compressionStats: () => api.get('/api/admin/compression-stats'),
   },
 
-  /** Sovereignty: scope isolation + consent management */
-  sovereignty: {
-    setup: (mode: string, selectedDomains?: string[]) =>
-      api.post('/api/sovereignty/setup', { mode, selectedDomains }),
-    status: () => api.get('/api/sovereignty/status'),
-    preferences: (globalAssistConsent: string) =>
-      api.put('/api/sovereignty/preferences', { globalAssistConsent }),
-    unsync: (domain?: string) =>
-      api.post('/api/sovereignty/unsync', { domain: domain || null }),
-    resolve: (data: {
-      sessionId: string;
-      choice: string;
-      globalDTUIds: string[];
-      originalPrompt: string;
-      lens?: string;
-      remember?: boolean;
-    }) => api.post('/api/chat/sovereignty-resolve', data),
-  },
-
-  /** Council: proposal + voting for global promotion */
-  council: {
-    proposePromotion: (dtuId: string, reason?: string) =>
-      api.post('/api/council/propose-promotion', { dtuId, reason }),
-    vote: (proposalId: string, vote: 'approve' | 'reject') =>
-      api.post('/api/council/vote', { proposalId, vote }),
-    proposals: (status?: string) =>
-      api.get('/api/council/proposals', { params: status ? { status } : {} }),
-  },
+  /* sovereignty and council merged into their primary definitions above */
 
   /** Marketplace: scoped submit */
   marketplaceSubmit: {

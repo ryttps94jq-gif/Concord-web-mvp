@@ -2479,7 +2479,7 @@ export default function FoodLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="food" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="food" artifactId={allRecipes[0]?.id} compact />
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => (
           <button

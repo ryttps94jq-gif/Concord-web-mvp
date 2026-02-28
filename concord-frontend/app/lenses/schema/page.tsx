@@ -87,7 +87,7 @@ export default function SchemaLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="schema" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="schema" artifactId={schemaItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Schema List */}
         <div className="space-y-4">

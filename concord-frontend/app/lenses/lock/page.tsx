@@ -87,7 +87,7 @@ export default function LockLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="lock" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="lock" artifactId={historyItems[0]?.id} compact />
       {/* Lock Gauge */}
       <div className="panel p-6">
         <div className="relative w-full h-12 bg-lattice-deep rounded-full overflow-hidden">

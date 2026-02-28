@@ -564,7 +564,7 @@ export default function BoardLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="board" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="board" artifactId={lensItems[0]?.id} compact />
         {/* Board columns */}
         <div className="flex-1 overflow-x-auto px-6 pb-6">
           <div

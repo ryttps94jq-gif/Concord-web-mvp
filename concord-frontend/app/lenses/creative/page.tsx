@@ -1368,7 +1368,7 @@ export default function CreativeLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="creative" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="creative" artifactId={allProjects[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {

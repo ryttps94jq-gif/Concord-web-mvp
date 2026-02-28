@@ -922,7 +922,7 @@ export default function SecurityLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="security" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="security" artifactId={incidents[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

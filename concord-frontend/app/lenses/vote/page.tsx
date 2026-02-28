@@ -207,7 +207,7 @@ export default function VoteLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="vote" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="vote" artifactId={proposalItems[0]?.id} compact />
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

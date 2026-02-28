@@ -2064,7 +2064,7 @@ export default function EnvironmentLensPage() {
                 <button
                   className={ds.btnPrimary}
                   onClick={() => {
-                    const targetId = selectedAction === action.id ? detailItem : items[0]?.id;
+                    const targetId = selectedAction === action.id ? detailItem : siteItems[0]?.id;
                     if (targetId) handleAction(action.id, targetId);
                   }}
                   disabled={runAction.isPending}
@@ -2173,7 +2173,7 @@ export default function EnvironmentLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="environment" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="environment" artifactId={siteItems[0]?.id} compact />
       {/* Navigation Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
