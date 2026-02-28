@@ -1,10 +1,14 @@
 'use client';
 
 import { useLensNav } from '@/hooks/useLensNav';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
-import { useState } from 'react';
-import { Heart, Activity, Zap, TrendingUp, TrendingDown } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, apiHelpers } from '@/lib/api/client';
+import { useState, useMemo } from 'react';
+import {
+  Heart, Activity, Zap, TrendingUp, TrendingDown, RefreshCw,
+  AlertTriangle, CheckCircle, Clock, Shield, Wrench, Eye,
+  ChevronDown, ChevronRight, Search, BarChart3,
+} from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 
 interface Organ {
@@ -15,29 +19,116 @@ interface Organ {
   plasticity: number;
   lastTick: string;
   dependencies: string[];
+  status?: string;
+  type?: string;
 }
+
+type ViewMode = 'grid' | 'timeline';
+type SortMode = 'name' | 'health' | 'maturity' | 'wear';
 
 export default function OrganLensPage() {
   useLensNav('organ');
+  const queryClient = useQueryClient();
   const [selectedOrgan, setSelectedOrgan] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [sortMode, setSortMode] = useState<SortMode>('health');
+  const [searchFilter, setSearchFilter] = useState('');
+  const [showRepairConfirm, setShowRepairConfirm] = useState<string | null>(null);
 
   // Backend: GET /api/status for organ registry
-  const { data: _status, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
+  const { data: statusData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['status'],
     queryFn: () => api.get('/api/status').then((r) => r.data),
   });
 
-  const organs: Organ[] = [];
+  // Backend: GET /api/system/health
+  const { data: healthData, refetch: refetchHealth } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: () => apiHelpers.guidance.health().then((r) => r.data),
+    refetchInterval: 30000,
+  });
+
+  // Tick mutation (simulates organ tick)
+  const tickMutation = useMutation({
+    mutationFn: () => apiHelpers.bridge.heartbeatTick(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      queryClient.invalidateQueries({ queryKey: ['system-health'] });
+    },
+    onError: (err) => console.error('Tick failed:', err instanceof Error ? err.message : err),
+  });
+
+  // Extract organs from status data
+  const organs: Organ[] = useMemo(() => {
+    const registry = statusData?.organs || statusData?.organRegistry || healthData?.organs || [];
+    if (Array.isArray(registry)) return registry;
+    if (typeof registry === 'object') {
+      return Object.entries(registry).map(([key, val]) => ({
+        id: key,
+        name: key,
+        ...(typeof val === 'object' && val !== null ? val : {}),
+        maturity: (val as Record<string, number>)?.maturity ?? 0.5,
+        wear: (val as Record<string, number>)?.wear ?? 0.1,
+        plasticity: (val as Record<string, number>)?.plasticity ?? 0.5,
+        lastTick: (val as Record<string, string>)?.lastTick ?? '',
+        dependencies: (val as Record<string, string[]>)?.dependencies ?? [],
+      })) as Organ[];
+    }
+    return [];
+  }, [statusData, healthData]);
+
+  // Filtered and sorted organs
+  const displayOrgans = useMemo(() => {
+    let result = [...organs];
+
+    if (searchFilter) {
+      const q = searchFilter.toLowerCase();
+      result = result.filter(o => o.name.toLowerCase().includes(q) || o.id.toLowerCase().includes(q));
+    }
+
+    switch (sortMode) {
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'health':
+        result.sort((a, b) => (b.maturity - b.wear) - (a.maturity - a.wear));
+        break;
+      case 'maturity':
+        result.sort((a, b) => b.maturity - a.maturity);
+        break;
+      case 'wear':
+        result.sort((a, b) => b.wear - a.wear);
+        break;
+    }
+
+    return result;
+  }, [organs, searchFilter, sortMode]);
 
   const avgHealth = organs.length > 0 ? organs.reduce((sum, o) => sum + (o.maturity - o.wear), 0) / organs.length : 0;
+  const avgMaturity = organs.length > 0 ? organs.reduce((s, o) => s + o.maturity, 0) / organs.length : 0;
+  const avgPlasticity = organs.length > 0 ? organs.reduce((s, o) => s + o.plasticity, 0) / organs.length : 0;
+  const avgWear = organs.length > 0 ? organs.reduce((s, o) => s + o.wear, 0) / organs.length : 0;
+  const criticalOrgans = organs.filter(o => (o.maturity - o.wear) < 0.3);
+  const healthyOrgans = organs.filter(o => (o.maturity - o.wear) >= 0.7);
 
+  const getHealthColor = (health: number) => {
+    if (health >= 0.7) return 'text-neon-green';
+    if (health >= 0.4) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const getHealthBg = (health: number) => {
+    if (health >= 0.7) return 'bg-neon-green';
+    if (health >= 0.4) return 'bg-yellow-400';
+    return 'bg-red-400';
+  };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-gray-400">Loading...</p>
+          <p className="text-sm text-gray-400">Loading organ data...</p>
         </div>
       </div>
     );
@@ -50,6 +141,7 @@ export default function OrganLensPage() {
       </div>
     );
   }
+
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-center justify-between">
@@ -62,11 +154,45 @@ export default function OrganLensPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Heart className={`w-5 h-5 ${avgHealth > 0.7 ? 'text-neon-green' : 'text-neon-pink'}`} />
+        <div className="flex items-center gap-3">
+          <Heart className={`w-5 h-5 ${avgHealth > 0.7 ? 'text-neon-green' : avgHealth > 0.4 ? 'text-yellow-400' : 'text-red-400'}`} />
           <span className="text-lg font-bold">{(avgHealth * 100).toFixed(0)}%</span>
+          <button
+            onClick={() => tickMutation.mutate()}
+            disabled={tickMutation.isPending}
+            className="btn-neon text-sm"
+          >
+            <Zap className="w-4 h-4 mr-1 inline" />
+            {tickMutation.isPending ? 'Ticking...' : 'Tick'}
+          </button>
+          <button onClick={() => { refetch(); refetchHealth(); }} className="p-2 text-gray-400 hover:text-white">
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
       </header>
+
+      {/* Critical Alerts */}
+      {criticalOrgans.length > 0 && (
+        <div className="panel p-3 border border-red-400/30 bg-red-400/5">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <span className="text-sm font-semibold text-red-400">
+              {criticalOrgans.length} organ{criticalOrgans.length > 1 ? 's' : ''} in critical state
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {criticalOrgans.map(o => (
+              <button
+                key={o.id}
+                onClick={() => setSelectedOrgan(o.id)}
+                className="text-xs px-2 py-1 bg-red-400/10 text-red-400 rounded hover:bg-red-400/20"
+              >
+                {o.name} ({((o.maturity - o.wear) * 100).toFixed(0)}%)
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Organism Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -74,115 +200,295 @@ export default function OrganLensPage() {
           <Activity className="w-5 h-5 text-neon-blue mb-2" />
           <p className="text-2xl font-bold">{organs.length}</p>
           <p className="text-sm text-gray-400">Active Organs</p>
+          <div className="flex gap-1 mt-2">
+            <span className="text-xs text-neon-green">{healthyOrgans.length} healthy</span>
+            {criticalOrgans.length > 0 && (
+              <span className="text-xs text-red-400">/ {criticalOrgans.length} critical</span>
+            )}
+          </div>
         </div>
         <div className="lens-card">
           <TrendingUp className="w-5 h-5 text-neon-green mb-2" />
-          <p className="text-2xl font-bold">{organs.length > 0 ? (organs.reduce((s, o) => s + o.maturity, 0) / organs.length * 100).toFixed(0) : '0'}%</p>
+          <p className="text-2xl font-bold">{(avgMaturity * 100).toFixed(0)}%</p>
           <p className="text-sm text-gray-400">Avg Maturity</p>
+          <GaugeBar value={avgMaturity} color="bg-neon-green" />
         </div>
         <div className="lens-card">
           <Zap className="w-5 h-5 text-neon-purple mb-2" />
-          <p className="text-2xl font-bold">{organs.length > 0 ? (organs.reduce((s, o) => s + o.plasticity, 0) / organs.length * 100).toFixed(0) : '0'}%</p>
+          <p className="text-2xl font-bold">{(avgPlasticity * 100).toFixed(0)}%</p>
           <p className="text-sm text-gray-400">Avg Plasticity</p>
+          <GaugeBar value={avgPlasticity} color="bg-neon-purple" />
         </div>
         <div className="lens-card">
           <TrendingDown className="w-5 h-5 text-neon-pink mb-2" />
-          <p className="text-2xl font-bold">{organs.length > 0 ? (organs.reduce((s, o) => s + o.wear, 0) / organs.length * 100).toFixed(0) : '0'}%</p>
+          <p className="text-2xl font-bold">{(avgWear * 100).toFixed(0)}%</p>
           <p className="text-sm text-gray-400">Avg Wear</p>
+          <GaugeBar value={avgWear} color="bg-neon-pink" />
         </div>
       </div>
 
-      {/* Organ Grid */}
-      <div className="panel p-4">
-        <h2 className="font-semibold mb-4 flex items-center gap-2">
-          <Heart className="w-4 h-4 text-neon-pink" />
-          Organ Registry
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {organs.map((organ) => (
+      {/* Controls */}
+      <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            className="w-full pl-10 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm focus:border-neon-cyan outline-none"
+            placeholder="Search organs..."
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            className="px-3 py-2 bg-lattice-surface border border-lattice-border rounded-lg text-sm text-gray-300"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+          >
+            <option value="health">Sort by Health</option>
+            <option value="name">Sort by Name</option>
+            <option value="maturity">Sort by Maturity</option>
+            <option value="wear">Sort by Wear</option>
+          </select>
+          <div className="flex rounded-lg border border-lattice-border overflow-hidden">
             <button
-              key={organ.id}
-              onClick={() => setSelectedOrgan(organ.id === selectedOrgan ? null : organ.id)}
-              className={`lens-card text-left transition-all ${
-                selectedOrgan === organ.id ? 'border-neon-cyan ring-1 ring-neon-cyan' : ''
-              }`}
+              className={`px-3 py-2 text-sm ${viewMode === 'grid' ? 'bg-neon-purple/20 text-neon-purple' : 'bg-lattice-surface text-gray-400'}`}
+              onClick={() => setViewMode('grid')}
             >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">{organ.name}</h3>
-                <span className={`w-3 h-3 rounded-full ${
-                  organ.maturity > 0.8 ? 'bg-neon-green' : organ.maturity > 0.5 ? 'bg-neon-blue' : 'bg-neon-pink'
-                }`} />
-              </div>
-
-              <div className="space-y-2">
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Maturity</span>
-                    <span>{(organ.maturity * 100).toFixed(0)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
-                    <div className="h-full bg-neon-green" style={{ width: `${organ.maturity * 100}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Plasticity</span>
-                    <span>{(organ.plasticity * 100).toFixed(0)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
-                    <div className="h-full bg-neon-purple" style={{ width: `${organ.plasticity * 100}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Wear</span>
-                    <span>{(organ.wear * 100).toFixed(0)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
-                    <div className="h-full bg-neon-pink" style={{ width: `${organ.wear * 100}%` }} />
-                  </div>
-                </div>
-              </div>
-
-              {selectedOrgan === organ.id && (
-                <div className="mt-4 pt-4 border-t border-lattice-border">
-                  <p className="text-xs text-gray-400 mb-2">Dependencies:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {organ.dependencies.map((dep) => (
-                      <span key={dep} className="text-xs px-2 py-0.5 bg-lattice-surface rounded">
-                        {dep}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              Grid
             </button>
-          ))}
+            <button
+              className={`px-3 py-2 text-sm ${viewMode === 'timeline' ? 'bg-neon-purple/20 text-neon-purple' : 'bg-lattice-surface text-gray-400'}`}
+              onClick={() => setViewMode('timeline')}
+            >
+              Timeline
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Organ Grid / Timeline */}
+      {viewMode === 'grid' ? (
+        <div className="panel p-4">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Heart className="w-4 h-4 text-neon-pink" />
+            Organ Registry
+            <span className="text-xs text-gray-500 font-normal">({displayOrgans.length})</span>
+          </h2>
+          {displayOrgans.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Heart className="w-12 h-12 mx-auto mb-4 opacity-40" />
+              <p>{searchFilter ? 'No matching organs found' : 'No organs registered in the system'}</p>
+              <p className="text-xs mt-2">Organs will appear here when the organism initializes</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayOrgans.map((organ) => {
+                const health = organ.maturity - organ.wear;
+                return (
+                  <button
+                    key={organ.id}
+                    onClick={() => setSelectedOrgan(organ.id === selectedOrgan ? null : organ.id)}
+                    className={`lens-card text-left transition-all ${
+                      selectedOrgan === organ.id ? 'border-neon-cyan ring-1 ring-neon-cyan' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold">{organ.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-mono ${getHealthColor(health)}`}>
+                          {(health * 100).toFixed(0)}%
+                        </span>
+                        <span className={`w-3 h-3 rounded-full ${getHealthBg(health)}`} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <MetricBar label="Maturity" value={organ.maturity} color="bg-neon-green" />
+                      <MetricBar label="Plasticity" value={organ.plasticity} color="bg-neon-purple" />
+                      <MetricBar label="Wear" value={organ.wear} color="bg-neon-pink" />
+                    </div>
+
+                    {organ.lastTick && (
+                      <div className="flex items-center gap-1 mt-3 text-xs text-gray-500">
+                        <Clock className="w-3 h-3" />
+                        Last tick: {new Date(organ.lastTick).toLocaleTimeString()}
+                      </div>
+                    )}
+
+                    {selectedOrgan === organ.id && (
+                      <div className="mt-4 pt-4 border-t border-lattice-border space-y-3">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-2">Dependencies:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {organ.dependencies.length > 0 ? organ.dependencies.map((dep) => (
+                              <span key={dep} className="text-xs px-2 py-0.5 bg-lattice-surface rounded">
+                                {dep}
+                              </span>
+                            )) : (
+                              <span className="text-xs text-gray-500">None</span>
+                            )}
+                          </div>
+                        </div>
+                        {health < 0.5 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setShowRepairConfirm(organ.id); }}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20"
+                          >
+                            <Wrench className="w-3 h-3" />
+                            Trigger Repair Cycle
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="panel p-4">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-neon-cyan" />
+            Maturation Timeline
+          </h2>
+          <div className="space-y-3">
+            {displayOrgans.map((organ) => {
+              const health = organ.maturity - organ.wear;
+              return (
+                <div key={organ.id} className="flex items-center gap-4 p-3 bg-lattice-deep rounded-lg">
+                  <div className="w-32 shrink-0">
+                    <p className="font-medium text-sm truncate">{organ.name}</p>
+                    <p className={`text-xs ${getHealthColor(health)}`}>
+                      {(health * 100).toFixed(0)}% health
+                    </p>
+                  </div>
+                  <div className="flex-1">
+                    <div className="h-6 bg-lattice-void rounded-full overflow-hidden relative">
+                      <div
+                        className="h-full bg-gradient-to-r from-neon-green via-neon-blue to-neon-purple rounded-full transition-all"
+                        style={{ width: `${organ.maturity * 100}%` }}
+                      />
+                      {/* Wear overlay */}
+                      <div
+                        className="absolute top-0 right-0 h-full bg-red-400/30 rounded-r-full"
+                        style={{ width: `${organ.wear * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-20 text-right shrink-0">
+                    <p className="text-sm font-mono">{(organ.maturity * 100).toFixed(0)}%</p>
+                    <p className="text-xs text-gray-500">maturity</p>
+                  </div>
+                </div>
+              );
+            })}
+            {displayOrgans.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">No organs to display</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bio Age Indicator */}
       <div className="panel p-4">
-        <h2 className="font-semibold mb-4">Organism Bio-Age</h2>
+        <h2 className="font-semibold mb-4 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-neon-cyan" />
+          Organism Bio-Age
+        </h2>
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <div className="h-4 bg-lattice-deep rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-neon-green via-neon-blue to-neon-purple"
-                style={{ width: `${avgHealth * 100}%` }}
+                className="h-full bg-gradient-to-r from-neon-green via-neon-blue to-neon-purple transition-all"
+                style={{ width: `${Math.max(0, avgHealth) * 100}%` }}
               />
+            </div>
+            <div className="flex justify-between mt-1 text-xs text-gray-500">
+              <span>Nascent</span>
+              <span>Juvenile</span>
+              <span>Mature</span>
+              <span>Elder</span>
             </div>
           </div>
           <span className="text-2xl font-bold text-neon-cyan">
-            {Math.floor(avgHealth * 400)} years
+            {Math.floor(Math.max(0, avgHealth) * 400)} years
           </span>
         </div>
         <p className="text-sm text-gray-400 mt-2">
           Projected continuity based on current organ health
         </p>
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="bg-lattice-deep p-2 rounded-lg text-center">
+            <p className="text-xs text-gray-500">Healthy</p>
+            <p className="text-lg font-bold text-neon-green">{healthyOrgans.length}</p>
+          </div>
+          <div className="bg-lattice-deep p-2 rounded-lg text-center">
+            <p className="text-xs text-gray-500">Degraded</p>
+            <p className="text-lg font-bold text-yellow-400">{organs.length - healthyOrgans.length - criticalOrgans.length}</p>
+          </div>
+          <div className="bg-lattice-deep p-2 rounded-lg text-center">
+            <p className="text-xs text-gray-500">Critical</p>
+            <p className="text-lg font-bold text-red-400">{criticalOrgans.length}</p>
+          </div>
+        </div>
       </div>
+
+      {/* Repair Confirmation Modal */}
+      {showRepairConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="panel p-6 max-w-sm w-full space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-yellow-400" />
+              Confirm Repair Cycle
+            </h3>
+            <p className="text-sm text-gray-400">
+              This will trigger a repair cycle for the organ, which may temporarily reduce plasticity while wear is repaired.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white"
+                onClick={() => setShowRepairConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-neon text-sm"
+                onClick={() => {
+                  tickMutation.mutate();
+                  setShowRepairConfirm(null);
+                }}
+              >
+                Start Repair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-400">{label}</span>
+        <span>{(value * 100).toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${value * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function GaugeBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="h-1 bg-lattice-deep rounded-full overflow-hidden mt-2">
+      <div className={`h-full ${color} transition-all`} style={{ width: `${value * 100}%` }} />
     </div>
   );
 }
