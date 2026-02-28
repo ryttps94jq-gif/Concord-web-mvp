@@ -34,6 +34,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Asset {
   id: string;
@@ -141,6 +145,8 @@ export default function FinanceLensPage() {
   const news: NewsItem[] = newsItems.map(i => ({ ...(i.data as unknown as NewsItem), id: i.id }));
 
   const isLoading = isLoadingAssets || isLoadingTx || isLoadingOrders || isLoadingAlerts || isLoadingNews;
+
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('finance');
 
   const chartRef = useRef<HTMLCanvasElement>(null);
 
@@ -1177,11 +1183,15 @@ export default function FinanceLensPage() {
         <div className="flex items-center gap-3">
           <span className="text-3xl">💰</span>
           <div>
-            <h1 className="text-xl font-bold">Finance Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Finance Lens</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">Portfolio tracking & trading dashboard</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="finance" data={{}} compact />
           <button onClick={() => { refetch(); refetch2(); refetch3(); refetch4(); refetch5(); }} className="p-2 rounded-lg hover:bg-lattice-elevated text-gray-400">
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -1193,6 +1203,8 @@ export default function FinanceLensPage() {
           </button>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="finance" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* Navigation */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4">

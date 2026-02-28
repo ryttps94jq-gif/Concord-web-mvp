@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -271,6 +275,7 @@ function formatHobbs(start: number, end: number): string {
 // ---------------------------------------------------------------------------
 export default function AviationLensPage() {
   useLensNav('aviation');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('aviation');
 
   const [activeMode, setActiveMode] = useState<ModeTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1629,7 +1634,10 @@ export default function AviationLensPage() {
         <div className="flex items-center gap-3">
           <Plane className="w-8 h-8 text-sky-400" />
           <div>
-            <h1 className={ds.heading1}>Aviation Operations</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Aviation Operations</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Flight ops, pilot management, fleet tracking, maintenance, charter, W&B</p>
           </div>
         </div>
@@ -1646,6 +1654,8 @@ export default function AviationLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="aviation" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="aviation" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="aviation" data={{}} compact />
       {/* Mode Tabs */}
       <div className="flex gap-1 border-b border-lattice-border pb-0 overflow-x-auto">
         {MODE_TABS.map(tab => {

@@ -6,6 +6,10 @@ import { Brain, Network, Activity, Layers, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface NetworkData {
   name: string;
@@ -27,6 +31,7 @@ const SEED_NEURONS: { title: string; data: Record<string, unknown> }[] = [];
 export default function NeuroLensPage() {
   useLensNav('neuro');
   const [networkType, setNetworkType] = useState('Feedforward');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('neuro');
 
   const { items: networkItems, isLoading: networksLoading, isError, error, refetch } = useLensData<NetworkData>('neuro', 'network', {
     seed: SEED_NETWORKS,
@@ -75,6 +80,7 @@ export default function NeuroLensPage() {
         <span className="text-2xl">🧠</span>
         <div>
           <h1 className="text-xl font-bold">Neuro Lens</h1>
+          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
           <p className="text-sm text-gray-400">
             Neural network models with DTUs as neurons
           </p>
@@ -82,8 +88,11 @@ export default function NeuroLensPage() {
       </header>
 
 
+      <RealtimeDataPanel domain="neuro" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="neuro" data={{}} compact />
+
       {/* AI Actions */}
-      <UniversalActions domain="neuro" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="neuro" artifactId={networkItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Brain className="w-5 h-5 text-neon-pink mb-2" />

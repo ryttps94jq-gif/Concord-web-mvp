@@ -11,6 +11,10 @@ import {
   Brain, Eye, Shield, BarChart3
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // Mirror icon alias
 const Mirror = Eye;
@@ -26,6 +30,7 @@ interface Reflection {
 
 export default function ReflectionLensPage() {
   useLensNav('reflection');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('reflection');
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('reflection', 'reflection');
@@ -99,6 +104,17 @@ export default function ReflectionLensPage() {
             Self-critique loop — evaluates response quality and learns from output analysis
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="reflection" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
       {/* AI Actions */}
@@ -257,6 +273,18 @@ export default function ReflectionLensPage() {
             )}
           </div>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="reflection"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

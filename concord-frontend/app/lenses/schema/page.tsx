@@ -8,9 +8,14 @@ import { useState } from 'react';
 import { FileCode, Plus, Check, X } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function SchemaLensPage() {
   useLensNav('schema');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('schema');
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [validateData, setValidateData] = useState({ schemaName: '', data: '' });
@@ -78,6 +83,17 @@ export default function SchemaLensPage() {
               Create and manage DTU schema templates (CRETI enhanced)
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="schema" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
@@ -87,7 +103,7 @@ export default function SchemaLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="schema" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="schema" artifactId={schemaItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Schema List */}
         <div className="space-y-4">
@@ -278,6 +294,18 @@ function CreateSchemaModal({ onClose, onCreate, creating }: { onClose: () => voi
             {creating ? 'Creating...' : 'Create Schema'}
           </button>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="schema"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

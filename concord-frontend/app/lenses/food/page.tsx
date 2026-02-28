@@ -22,6 +22,10 @@ import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -202,6 +206,7 @@ function generateTables(): TableInfo[] {
 
 export default function FoodLensPage() {
   useLensNav('food');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('food');
 
   const [activeTab, setActiveTab] = useState<ModeTab>('recipes');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2466,7 +2471,10 @@ export default function FoodLensPage() {
         <div className="flex items-center gap-3">
           <ChefHat className="w-8 h-8 text-orange-400" />
           <div>
-            <h1 className={ds.heading1}>Food & Hospitality</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Food & Hospitality</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Recipes, menus, inventory, bookings, and kitchen operations</p>
           </div>
         </div>
@@ -2479,7 +2487,9 @@ export default function FoodLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="food" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="food" artifactId={allRecipes[0]?.id} compact />
+      <RealtimeDataPanel domain="food" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="food" data={{}} compact />
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => (
           <button
@@ -2537,6 +2547,7 @@ export default function FoodLensPage() {
             <FeedbackWidget targetType="lens" targetId="food" />
           </aside>
         )}
+
       </div>
       {renderEditor()}
       {renderRecipeScaler()}

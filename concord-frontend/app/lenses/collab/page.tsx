@@ -40,6 +40,10 @@ import {
   Search,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,6 +216,7 @@ function formatTimestamp(ts: number): string {
 
 export default function CollabLensPage() {
   useLensNav('collab');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('collab');
   const { isLoading, isError, error, refetch, items: sessionItems } = useLensData('collab', 'session', {
     seed: INITIAL_SESSIONS.map(s => ({ title: s.name, data: s as unknown as Record<string, unknown> })),
   });
@@ -299,6 +304,17 @@ export default function CollabLensPage() {
             <h1 className="text-xl font-bold tracking-tight">Collaboration Hub</h1>
             <p className="text-sm text-gray-400">Create, join, and collaborate in real time</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="collab" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -1092,6 +1108,18 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
           {form.privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-emerald-400" /> Anyone can join this session</>}
           {form.privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-neon-purple" /> Only people with the link can join</>}
           {form.privacy === 'invite-only' && <><Mail className="w-3.5 h-3.5 text-amber-400" /> Only invited users can join</>}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="collab"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
 
         {/* Actions */}

@@ -1,0 +1,50 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci --production
+          cd ../concord-frontend && npm ci
+
+      - name: Build frontend
+        working-directory: ./concord-frontend
+        run: npm run build
+
+      - name: Run pre-deploy checks
+        working-directory: ./server
+        env:
+          NODE_ENV: test
+          JWT_SECRET: deploy-check-secret
+        run: node --test tests/routes.smoke.test.js
+
+      - name: Deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          echo "Deploy step: configure with your deployment target"
+          echo "Options: Docker push, SSH deploy, or cloud provider CLI"
+          # Example: docker compose -f docker-compose.prod.yml up -d --build

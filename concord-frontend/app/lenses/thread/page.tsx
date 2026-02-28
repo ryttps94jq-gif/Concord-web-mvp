@@ -30,6 +30,10 @@ import {
   Link2
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface ThreadNode {
   id: string;
@@ -60,6 +64,7 @@ type ViewMode = 'tree' | 'timeline' | 'linear';
 
 export default function ThreadLensPage() {
   useLensNav('thread');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('thread');
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('thread', 'conversation');
@@ -300,6 +305,17 @@ export default function ThreadLensPage() {
               Branching conversation threads with lineage tracking
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="thread" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -604,6 +620,18 @@ export default function ThreadLensPage() {
             </motion.aside>
           )}
         </AnimatePresence>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="thread"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

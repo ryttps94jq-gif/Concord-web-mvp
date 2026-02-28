@@ -10,6 +10,10 @@ import {
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ─── Interfaces ─── */
 interface ExpressionRecord {
@@ -119,6 +123,7 @@ type SolverMode = 'linear' | 'quadratic' | 'expression';
 
 export default function MathLensPage() {
   useLensNav('math');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('math');
 
   /* ─── Expression evaluator state ─── */
   const [expression, setExpression] = useState('');
@@ -327,11 +332,22 @@ export default function MathLensPage() {
             Expression evaluator, equation solver, formula reference & function plotter
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="math" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
 
       {/* AI Actions */}
-      <UniversalActions domain="math" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="math" artifactId={expressionItems[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -910,6 +926,18 @@ export default function MathLensPage() {
                   </div>
                 )}
               </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="math"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
             </div>
           )}
         </>

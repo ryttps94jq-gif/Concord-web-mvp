@@ -51,11 +51,22 @@ import {
  * Create the federation router.
  * @param {{ db: object }} deps - Database handle
  */
-export default function createFederationRouter({ db }) {
+export default function createFederationRouter({ db, requireAuth }) {
   const router = express.Router();
+
+  // ── Auth: Require authentication for all write operations ──────────
+  // GET endpoints are PUBLIC for frontend data fetching.
+  // POST/PUT/DELETE/PATCH require auth.
+  const authForWrites = (req, res, next) => {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+    if (typeof requireAuth === "function") return requireAuth()(req, res, next);
+    return next();
+  };
+  router.use(authForWrites);
 
   // ── Constants / Config ────────────────────────────────────────────────
 
+  // PUBLIC
   router.get("/config", (_req, res) => {
     res.json({
       ok: true,

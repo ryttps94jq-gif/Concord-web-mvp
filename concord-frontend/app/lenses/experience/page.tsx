@@ -15,6 +15,10 @@ import {
   Lightbulb, BarChart3, Flame, ChevronRight
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // --- Types ---
 
@@ -206,6 +210,7 @@ const staggerChild = {
 
 export default function ExperienceLensPage() {
   useLensNav('experience');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('experience');
 
   const [activeTab, setActiveTab] = useState<TabId>('portfolio');
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioFilter>('all');
@@ -437,6 +442,17 @@ export default function ExperienceLensPage() {
             <h1 className="text-xl font-bold">Creative Portfolio</h1>
             <p className="text-sm text-gray-400">Showcase your work, track your growth</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="experience" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button onClick={() => { navigator.clipboard.writeText(window.location.href); useUIStore.getState().addToast({ type: 'success', message: 'Portfolio link copied!' }); }} className="btn-neon purple flex items-center gap-2 text-sm">
           <Share2 className="w-4 h-4" />
@@ -1017,6 +1033,18 @@ export default function ExperienceLensPage() {
                   {skills.length > 0 ? 'Total skill endorsements' : 'Endorsements will appear here'}
                 </p>
               </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="experience"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
             </div>
           </motion.div>
         )}

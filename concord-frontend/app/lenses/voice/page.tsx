@@ -33,6 +33,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type RecordingStatus = 'ready' | 'recording' | 'processing';
 type ExportFormat = 'wav' | 'mp3' | 'flac';
@@ -112,6 +116,7 @@ const INITIAL_INPUTS = [
 
 export default function VoiceLensPage() {
   useLensNav('voice');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('voice');
   const queryClient = useQueryClient();
 
   // Recording state
@@ -363,6 +368,17 @@ export default function VoiceLensPage() {
             <h1 className="text-lg font-bold">Recording Booth</h1>
             <p className="text-xs text-gray-500">Voice capture and processing studio</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="voice" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-4">
           {/* Input selector */}
@@ -853,6 +869,18 @@ export default function VoiceLensPage() {
           <Activity className="w-3 h-3" />
           <span>48kHz / 24-bit</span>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="voice"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

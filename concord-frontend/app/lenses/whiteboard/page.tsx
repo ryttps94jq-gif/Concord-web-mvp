@@ -38,6 +38,10 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ---------- types ---------- */
 type BoardMode = 'canvas' | 'moodboard' | 'arrangement';
@@ -129,6 +133,7 @@ const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)
 /* ================================================================== */
 export default function WhiteboardLensPage() {
   useLensNav('whiteboard');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('whiteboard');
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -770,6 +775,17 @@ export default function WhiteboardLensPage() {
           <h1 className="text-base font-bold leading-tight">Creative Canvas<br />&amp; Moodboard</h1>
         </div>
 
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="whiteboard" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
         {/* Board mode selector */}
         <div className="relative mb-4">
           <button onClick={() => setShowModeMenu(v => !v)}
@@ -1310,6 +1326,18 @@ export default function WhiteboardLensPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="whiteboard"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
     </div>
   );
 }

@@ -57,6 +57,10 @@ import {
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -284,6 +288,7 @@ function getTrend(current?: string, previous?: string): 'up' | 'down' | 'stable'
 
 export default function HealthcareLensPage() {
   useLensNav('healthcare');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('healthcare');
 
   /* ---------- core state ---------- */
   const [activeTab, setActiveTab] = useState<ModeTab>('Patients');
@@ -934,7 +939,10 @@ export default function HealthcareLensPage() {
         <div className="flex items-center gap-3">
           <Heart className="w-7 h-7 text-red-400" />
           <div>
-            <h1 className={ds.heading1}>Healthcare</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Healthcare</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Clinical record organization and care coordination</p>
           </div>
         </div>
@@ -951,6 +959,8 @@ export default function HealthcareLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="healthcare" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="healthcare" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="healthcare" data={{}} compact />
       {/* ============================================================ */}
       {/* Mode Tabs                                                    */}
       {/* ============================================================ */}

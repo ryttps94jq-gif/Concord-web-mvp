@@ -55,6 +55,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -221,6 +225,7 @@ const genId = () => `local-${Date.now()}-${++_idCounter}`;
 
 export default function TradesLensPage() {
   useLensNav('trades');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('trades');
 
   // ----- Top-level navigation -----
   const [activeTab, setActiveTab] = useState<ModeTab>('jobs');
@@ -2048,11 +2053,15 @@ export default function TradesLensPage() {
         <div className="flex items-center gap-3">
           <HardHat className="w-8 h-8 text-yellow-400" />
           <div>
-            <h1 className={ds.heading1}>Trades & Construction</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Trades & Construction</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Manage jobs, estimates, materials, permits, equipment, and clients</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="trades" data={{}} compact />
           {selectedJob && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neon-cyan/10 border border-neon-cyan/30">
               <CircleDot className="w-3 h-3 text-neon-cyan" />
@@ -2068,6 +2077,8 @@ export default function TradesLensPage() {
         </div>
       </header>
 
+
+      <RealtimeDataPanel domain="trades" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* AI Actions */}
       <UniversalActions domain="trades" artifactId={items[0]?.id} compact />

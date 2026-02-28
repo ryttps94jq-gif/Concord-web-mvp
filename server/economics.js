@@ -28,7 +28,7 @@ let _log = null;
 
 // ── Initialisation ─────────────────────────────────────────────────────────
 
-export function initEconomics({ structuredLog = console.log } = {}) {
+export function initEconomics({ structuredLog = console.warn } = {}) {
   _log = structuredLog;
   _log("info", "economics_init", { costPerMonth: CPU_COST_PER_MONTH });
 }

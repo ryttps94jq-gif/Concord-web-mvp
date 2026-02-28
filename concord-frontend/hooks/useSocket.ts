@@ -74,6 +74,30 @@ const FORWARDED_EVENTS: SocketEvent[] = [
   'shared-session:message', 'shared-session:ai-response',
   'shared-session:artifact-produced', 'shared-session:dtu-shared',
   'shared-session:ended',
+  // Real-time data feed events (Phase 3)
+  'finance:ticker', 'finance:market_update', 'finance:alert',
+  'crypto:ticker',
+  'news:update', 'news:breaking',
+  'weather:update', 'weather:alert',
+  'research:update',
+  'health:update',
+  'legal:update',
+  'economy:update',
+  'aviation:update',
+  'realestate:update',
+  'education:update',
+  'fitness:update',
+  'agriculture:update',
+  'energy:update',
+  'retail:update',
+  'manufacturing:update',
+  'logistics:update',
+  'government:update',
+  'insurance:update',
+  // DTU artifact generation from lenses
+  'lens:dtu_generated',
+  // AI domain insights from lens-learning.js
+  'agent:domain_insight',
 ];
 
 interface UseSocketOptions {

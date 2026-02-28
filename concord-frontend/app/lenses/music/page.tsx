@@ -43,6 +43,10 @@ import { LensWrapper } from '@/components/lens/LensWrapper';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Track {
   id: string;
@@ -105,6 +109,7 @@ const _INITIAL_ARTISTS: Artist[] = [];
 
 export default function MusicLensPage() {
   useLensNav('music');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('music');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
@@ -717,6 +722,17 @@ export default function MusicLensPage() {
                 {selectedPlaylist.followers && ` · ${selectedPlaylist.followers.toLocaleString()} followers`}
               </p>
             </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="music" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
           </div>
 
           <div className="flex items-center gap-4 mb-6">
@@ -1201,6 +1217,18 @@ export default function MusicLensPage() {
           <button onClick={() => setIsFullscreen(true)} className="p-2 text-gray-400 hover:text-white">
             <Maximize2 className="w-4 h-4" />
           </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="music"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       </footer>
 

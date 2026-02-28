@@ -11,6 +11,10 @@ import {
   Save, Trash2, XCircle, Eye, Clock, ArrowUp,
   Zap, Send, MapPin, Focus, ShieldAlert,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -550,9 +554,9 @@ function ForgettingPanel() {
 }
 
 function RepairCortexPanel() {
-  const { data: status } = useQuery({ queryKey: ['cc-repair'], queryFn: () => apiHelpers.repairExtended.status().then(r => r.data), refetchInterval: 15000 });
+  const { data: status } = useQuery({ queryKey: ['cc-repair'], queryFn: () => apiHelpers.repairExtended.fullStatus().then(r => r.data), refetchInterval: 15000 });
   const qc = useQueryClient();
-  const forceMutation = useMutation({ mutationFn: () => apiHelpers.repairExtended.force(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-repair'] }), onError: (err) => console.error('Force repair failed:', err instanceof Error ? err.message : err) });
+  const forceMutation = useMutation({ mutationFn: () => apiHelpers.repairExtended.forceCycle(), onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-repair'] }), onError: (err) => console.error('Force repair failed:', err instanceof Error ? err.message : err) });
 
   return (
     <div className="space-y-4">
@@ -646,6 +650,7 @@ type TabId = typeof TABS[number]['id'];
 
 export default function CommandCenterPage() {
   useLensNav('command-center');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('command-center');
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>('vitals');
 
@@ -693,6 +698,17 @@ export default function CommandCenterPage() {
           <Shield className="w-5 h-5 text-neon-cyan" />
           <h1 className="text-base font-bold">Command Center</h1>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="command-center" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </div>
 
       {/* Tab Bar — horizontal scroll on mobile */}
@@ -722,6 +738,18 @@ export default function CommandCenterPage() {
       {/* Panel Content */}
       <div className="p-4 max-w-2xl mx-auto">
         {renderPanel()}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="command-center"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

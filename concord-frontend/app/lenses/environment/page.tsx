@@ -48,6 +48,10 @@ import {
   Zap,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -306,6 +310,7 @@ const seedData: Record<ArtifactType, { title: string; data: Record<string, unkno
 
 export default function EnvironmentLensPage() {
   useLensNav('environment');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('environment');
 
   const [mode, setMode] = useState<ModeTab>('Sites');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2064,7 +2069,7 @@ export default function EnvironmentLensPage() {
                 <button
                   className={ds.btnPrimary}
                   onClick={() => {
-                    const targetId = selectedAction === action.id ? detailItem : items[0]?.id;
+                    const targetId = selectedAction === action.id ? detailItem : siteItems[0]?.id;
                     if (targetId) handleAction(action.id, targetId);
                   }}
                   disabled={runAction.isPending}
@@ -2136,13 +2141,17 @@ export default function EnvironmentLensPage() {
             <TreePine className="w-6 h-6 text-green-400" />
           </div>
           <div>
-            <h1 className={ds.heading1}>Environmental Monitoring</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Environmental Monitoring</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>
               Sites, species tracking, sampling, trail assets, waste management & compliance
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="environment" data={{}} compact />
           <button
             className={cn(view === 'library' ? ds.btnPrimary : ds.btnSecondary)}
             onClick={() => setView('library')}
@@ -2173,7 +2182,7 @@ export default function EnvironmentLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="environment" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="environment" artifactId={siteItems[0]?.id} compact />
       {/* Navigation Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -2356,6 +2365,9 @@ export default function EnvironmentLensPage() {
               </div>
             </div>
           </div>
+
+      {/* Real-time Data Panel */}
+      <RealtimeDataPanel domain="environment" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
         </div>
       )}
     </div>

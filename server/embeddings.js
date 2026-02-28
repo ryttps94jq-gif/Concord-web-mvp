@@ -64,7 +64,7 @@ let _log = null;
  *
  * @param {{ db: object|null, ollamaUrls: string[], structuredLog: Function }} opts
  */
-export async function initEmbeddings({ db = null, ollamaUrls = [], structuredLog = console.log } = {}) {
+export async function initEmbeddings({ db = null, ollamaUrls = [], structuredLog = console.warn } = {}) {
   _db = db;
   _log = structuredLog;
 

@@ -7,6 +7,10 @@ import { useState } from 'react';
 import { Shield, Send, RefreshCw, Eye, EyeOff, Lock } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface AnonMessage {
   id: string;
@@ -18,6 +22,7 @@ interface AnonMessage {
 
 export default function AnonLensPage() {
   useLensNav('anon');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('anon');
 
   const [message, setMessage] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -82,6 +87,17 @@ export default function AnonLensPage() {
               Anonymous E2E encrypted messaging
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="anon" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <Lock className="w-4 h-4 text-neon-green" />
@@ -91,7 +107,7 @@ export default function AnonLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="anon" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="anon" artifactId={messageItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Identity Panel */}
         <div className="panel p-4 space-y-4">
@@ -228,6 +244,18 @@ export default function AnonLensPage() {
             </div>
           </div>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="anon"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

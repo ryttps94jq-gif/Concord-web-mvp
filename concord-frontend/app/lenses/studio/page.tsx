@@ -37,6 +37,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type StudioView = 'arrange' | 'mixer' | 'instruments' | 'effects' | 'ai-assistant' | 'learn';
 
@@ -107,6 +111,7 @@ const _TRACK_COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#
 
 export default function StudioLensPage() {
   useLensNav('studio');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('studio');
   const queryClient = useQueryClient();
 
   // Lens artifact persistence layer
@@ -670,6 +675,17 @@ export default function StudioLensPage() {
             <Headphones className="w-6 h-6 text-neon-cyan" />
             <h1 className="text-xl font-bold">Studio</h1>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="studio" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
           <button onClick={() => setShowNewProject(true)} className="flex items-center gap-2 px-4 py-2 bg-neon-cyan/20 text-neon-cyan rounded-lg text-sm hover:bg-neon-cyan/30">
             <Plus className="w-4 h-4" />
             New Project
@@ -813,6 +829,18 @@ export default function StudioLensPage() {
               <p>Output LUFS: {(masterMutation.data as { data: { master: { analysis: { outputLufs: number } } } }).data?.master?.analysis?.outputLufs}</p>
               <p>True Peak: {(masterMutation.data as { data: { master: { analysis: { truePeak: number } } } }).data?.master?.analysis?.truePeak} dBTP</p>
               <p>Dynamic Range: {Math.round((masterMutation.data as { data: { master: { analysis: { dynamicRange: number } } } }).data?.master?.analysis?.dynamicRange || 0)} dB</p>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="studio"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
             </div>
           </motion.div>
         )}

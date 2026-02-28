@@ -6,6 +6,10 @@ import { GitFork, GitBranch, GitMerge, Layers, Loader2 } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface ForkData {
   parentId: string | null;
@@ -25,6 +29,7 @@ const SEED_FORKS: {
 
 export default function ForkLensPage() {
   useLensNav('fork');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('fork');
   const [selectedFork, setSelectedFork] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
 
@@ -141,6 +146,17 @@ export default function ForkLensPage() {
               Visualize entity forks and workspace lineages
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="fork" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -160,7 +176,7 @@ export default function ForkLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="fork" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="fork" artifactId={forkItems[0]?.id} compact />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
@@ -250,6 +266,18 @@ export default function ForkLensPage() {
             </div>
           )}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="fork"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

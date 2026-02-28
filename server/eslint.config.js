@@ -16,7 +16,7 @@ export default [
       // Allow empty catch blocks - intentionally used for graceful fallbacks in this codebase
       'no-empty': ['error', { allowEmptyCatch: true }],
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-console': 'off',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
       'prefer-const': 'warn',
       'no-var': 'error',
       eqeqeq: ['warn', 'smart'],

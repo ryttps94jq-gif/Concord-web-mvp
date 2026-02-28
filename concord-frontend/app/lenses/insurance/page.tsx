@@ -48,6 +48,10 @@ import {
   Clock,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -246,6 +250,7 @@ function getStatusesForTab(tab: ModeTab): string[] {
 
 export default function InsuranceLensPage() {
   useLensNav('insurance');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('insurance');
 
   const [mode, setMode] = useState<ModeTab>('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -898,7 +903,10 @@ export default function InsuranceLensPage() {
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-8 h-8 text-blue-400" />
           <div>
-            <h1 className={ds.heading1}>Insurance Agency</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Insurance Agency</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Policies, claims, premium calculator, clients, commissions &amp; compliance</p>
           </div>
         </div>
@@ -913,7 +921,9 @@ export default function InsuranceLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="insurance" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="insurance" artifactId={policies[0]?.id} compact />
+      <RealtimeDataPanel domain="insurance" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="insurance" data={{}} compact />
       {/* Tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

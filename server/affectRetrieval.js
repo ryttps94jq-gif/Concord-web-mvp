@@ -26,7 +26,7 @@ let _log = null;
 
 // ── Initialisation ─────────────────────────────────────────────────────────
 
-export function initAffectRetrieval({ structuredLog = console.log } = {}) {
+export function initAffectRetrieval({ structuredLog = console.warn } = {}) {
   _log = structuredLog;
   _log("info", "affect_retrieval_init", {});
 }

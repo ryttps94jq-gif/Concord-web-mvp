@@ -249,11 +249,16 @@ export function buildSyncPackage(STATE, peerId, opts = {}) {
   if (opts.dtuIds?.length) {
     dtusToExport = opts.dtuIds
       .map(id => STATE.dtus?.get(id))
-      .filter(Boolean);
+      .filter(Boolean)
+      // Consent enforcement: only export DTUs explicitly marked as published/federated
+      .filter(d => d.meta?.published === true || d.meta?.federated === true || d.scope === "global");
   } else {
-    // Export recent DTUs that haven't been shared
+    // Export recent DTUs that haven't been shared.
+    // Consent enforcement: local DTUs cannot appear in a sync package
+    // unless explicitly published by the owner (scope: "global" or meta.published: true).
     dtusToExport = Array.from(STATE.dtus?.values() || [])
       .filter(d => !d.meta?.hidden && d.tier !== "shadow")
+      .filter(d => d.meta?.published === true || d.meta?.federated === true || d.scope === "global")
       .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
       .slice(0, limit);
   }

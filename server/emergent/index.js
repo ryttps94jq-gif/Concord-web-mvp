@@ -2737,7 +2737,7 @@ function init({ register, STATE, helpers }) {
 
       const totalIssues = audit.staleDtus.length + audit.orphanedLineage.length + audit.lowQuality.length + audit.contradictions.length;
       if (totalIssues > 0) {
-        console.log(`[REPAIR] Lattice audit: ${audit.staleDtus.length} stale, ${audit.orphanedLineage.length} orphaned, ${audit.lowQuality.length} low-quality, ${audit.contradictions.length} contradictions`);
+        console.warn(`[REPAIR] Lattice audit: ${audit.staleDtus.length} stale, ${audit.orphanedLineage.length} orphaned, ${audit.lowQuality.length} low-quality, ${audit.contradictions.length} contradictions`);
       }
     } catch (e) {
       console.error("[REPAIR] Lattice audit error:", e.message);

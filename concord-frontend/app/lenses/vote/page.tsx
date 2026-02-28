@@ -14,6 +14,10 @@ import {
   ChevronUp, Send, AlertCircle, Vote,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,6 +81,7 @@ function formatDate(d: string): string {
 
 export default function VoteLensPage() {
   useLensNav('vote');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('vote');
   const queryClient = useQueryClient();
 
   // UI state
@@ -195,6 +200,17 @@ export default function VoteLensPage() {
               Council voting on proposals and governance decisions
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="vote" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -207,7 +223,7 @@ export default function VoteLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="vote" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="vote" artifactId={proposalItems[0]?.id} compact />
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
@@ -893,6 +909,18 @@ function ResultsDashboard({
             );
           })}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="vote"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

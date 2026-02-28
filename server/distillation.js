@@ -26,7 +26,7 @@ let _log = null;
 
 // ── Initialisation ─────────────────────────────────────────────────────────
 
-export function initDistillation({ structuredLog = console.log } = {}) {
+export function initDistillation({ structuredLog = console.warn } = {}) {
   _log = structuredLog;
   _log("info", "distillation_init", {});
 }

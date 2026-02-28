@@ -137,7 +137,29 @@ export type SocketEvent =
   // Music / studio
   | 'music:toggle'
   // Whiteboard
-  | 'whiteboard:updated';
+  | 'whiteboard:updated'
+  // Real-time data feed events (Phase 3)
+  | 'finance:ticker' | 'finance:market_update' | 'finance:alert'
+  | 'crypto:ticker'
+  | 'news:update' | 'news:breaking'
+  | 'weather:update' | 'weather:alert'
+  | 'research:update'
+  | 'health:update'
+  | 'legal:update'
+  | 'economy:update'
+  | 'aviation:update'
+  | 'realestate:update'
+  | 'education:update'
+  | 'fitness:update'
+  | 'agriculture:update'
+  | 'energy:update'
+  | 'retail:update'
+  | 'manufacturing:update'
+  | 'logistics:update'
+  | 'government:update'
+  | 'insurance:update'
+  | 'lens:dtu_generated'
+  | 'agent:domain_insight';
 
 // ---- Enriched Event Payload (Category 2+5: Concurrency + Observability) ----
 interface EnrichedPayload {

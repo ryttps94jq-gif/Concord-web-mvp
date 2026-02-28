@@ -18,6 +18,10 @@ import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // --- Types ---
 
@@ -154,6 +158,7 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, node: GraphNode, cx: number
 
 export default function GraphLensPage() {
   useLensNav('graph');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('graph');
 
   const {
     hyperDTUs, megaDTUs, regularDTUs,
@@ -1040,6 +1045,17 @@ export default function GraphLensPage() {
   }
   return (
     <div className="h-full flex flex-col bg-lattice-bg">
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-1 border-b border-lattice-border/30 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="graph" data={realtimeData || {}} compact />
+        <RealtimeDataPanel domain="graph" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={realtimeInsights} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       <div className="flex-1 flex overflow-hidden">
       <div
         ref={containerRef}

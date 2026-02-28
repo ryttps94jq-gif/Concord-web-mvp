@@ -17,6 +17,10 @@ import {
   Eye, PackageCheck, Truck,
   Calculator, CircleDot, ListChecks, Shield,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -274,6 +278,7 @@ function ScheduleTimeline({ schedule }: { schedule: LensItem }) {
 // ---------------------------------------------------------------------------
 export default function ManufacturingLensPage() {
   useLensNav('manufacturing');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('manufacturing');
 
   const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
@@ -1413,7 +1418,10 @@ export default function ManufacturingLensPage() {
         <div className="flex items-center gap-3">
           <Cog className="w-7 h-7 text-neon-purple" />
           <div>
-            <h1 className={ds.heading1}>Manufacturing</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Manufacturing</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Work orders, BOM, quality, scheduling, equipment and safety management</p>
           </div>
         </div>
@@ -1429,7 +1437,9 @@ export default function ManufacturingLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="manufacturing" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="manufacturing" artifactId={dashWOs[0]?.id} compact />
+      <RealtimeDataPanel domain="manufacturing" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="manufacturing" data={{}} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1574,6 +1584,7 @@ export default function ManufacturingLensPage() {
                 </div>
               </div>
             </div>
+
           </div>
         </>
       )}

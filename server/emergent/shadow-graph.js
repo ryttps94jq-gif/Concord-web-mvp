@@ -570,8 +570,20 @@ export function cleanupShadowsByRichness(STATE, opts = {}) {
 
   const shadows = Array.from(STATE.shadowDtus?.entries() || []);
 
+  // Linguistic shadow richness floor: linguistic_map shadows get a minimum
+  // richness of 3, protecting them from aggressive TTL-based cleanup.
+  // These shadows are the sole source of vocabulary patterns for offline mode.
+  const LINGUISTIC_RICHNESS_FLOOR = 3;
+
   // Pass 1: Remove expired shadows (per-shadow TTL)
   for (const [id, dtu] of shadows) {
+    // Protect linguistic shadows with richness floor
+    const isLinguistic = dtu?.machine?.kind === "linguistic_map";
+    if (isLinguistic) {
+      const richness = computeRichness(STATE, id);
+      if (richness + LINGUISTIC_RICHNESS_FLOOR >= 3) continue; // protected
+    }
+
     const createdAt = new Date(dtu.createdAt || 0).getTime();
     const ttlDays = computeShadowTTL(STATE, id);
     const ttlMs = ttlDays * 24 * 60 * 60 * 1000;
@@ -583,9 +595,14 @@ export function cleanupShadowsByRichness(STATE, opts = {}) {
   }
 
   // Pass 2: If still over capacity, evict poorest (lowest richness first)
+  // Linguistic shadows get a richness boost to survive longer
   if (STATE.shadowDtus.size > maxShadows) {
     const scored = Array.from(STATE.shadowDtus.entries())
-      .map(([id, dtu]) => ({ id, dtu, richness: computeRichness(STATE, id) }))
+      .map(([id, dtu]) => {
+        const base = computeRichness(STATE, id);
+        const isLinguistic = dtu?.machine?.kind === "linguistic_map";
+        return { id, dtu, richness: base + (isLinguistic ? LINGUISTIC_RICHNESS_FLOOR : 0) };
+      })
       .sort((a, b) => a.richness - b.richness); // ascending → poorest first
 
     const toRemove = scored.slice(0, STATE.shadowDtus.size - maxShadows);
@@ -702,5 +719,106 @@ export function getShadowGraphMetrics(STATE) {
     conversationsTracked: convos.size,
     promotionCandidates,
     averageRichness: totalShadows > 0 ? totalRichness / totalShadows : 0,
+  };
+}
+
+/**
+ * Compute shadow coverage per domain — what percentage of that domain's
+ * vocabulary/patterns are captured in shadow DTUs.
+ *
+ * Coverage = (shadow DTUs tagged with domain) / (canonical DTUs in domain)
+ * Capped at 1.0 (100% coverage).
+ *
+ * @param {Object} STATE
+ * @returns {{ ok, domains: Object<string, { canonical, shadows, coverage }>, overallCoverage }}
+ */
+export function computeShadowCoverage(STATE) {
+  const domainStats = {};
+
+  // Count canonical DTUs per domain (by tags)
+  for (const dtu of STATE.dtus?.values() || []) {
+    for (const tag of (dtu.tags || [])) {
+      if (!domainStats[tag]) domainStats[tag] = { canonical: 0, shadows: 0 };
+      domainStats[tag].canonical++;
+    }
+  }
+
+  // Count shadow DTUs per domain (by tags)
+  for (const dtu of STATE.shadowDtus?.values() || []) {
+    for (const tag of (dtu.tags || [])) {
+      if (!domainStats[tag]) domainStats[tag] = { canonical: 0, shadows: 0 };
+      domainStats[tag].shadows++;
+    }
+  }
+
+  // Compute coverage per domain
+  let totalCanonical = 0;
+  let totalCoveredDomains = 0;
+  const domains = {};
+  for (const [tag, stats] of Object.entries(domainStats)) {
+    if (stats.canonical < 2) continue; // Skip trivial domains
+    const coverage = Math.min(stats.shadows / Math.max(stats.canonical, 1), 1.0);
+    domains[tag] = { canonical: stats.canonical, shadows: stats.shadows, coverage: Math.round(coverage * 100) / 100 };
+    totalCanonical++;
+    if (coverage >= 0.1) totalCoveredDomains++;
+  }
+
+  return {
+    ok: true,
+    domains,
+    overallCoverage: totalCanonical > 0 ? Math.round((totalCoveredDomains / totalCanonical) * 100) / 100 : 0,
+    domainCount: totalCanonical,
+    coveredDomains: totalCoveredDomains,
+  };
+}
+
+/**
+ * Offline mode quality indicator.
+ * Returns whether there is enough shadow coverage to meaningfully
+ * structure output when all LLM brains are offline.
+ *
+ * Thresholds:
+ *   - "good":     >= 20% overall coverage AND >= 50 linguistic shadows
+ *   - "degraded":  >= 5% overall coverage OR  >= 10 linguistic shadows
+ *   - "minimal":   any shadows exist
+ *   - "none":      no shadows at all
+ *
+ * @param {Object} STATE
+ * @returns {{ ok, quality, linguisticShadows, overallCoverage, warning }}
+ */
+export function offlineQualityIndicator(STATE) {
+  const totalShadows = STATE.shadowDtus?.size || 0;
+  let linguisticShadows = 0;
+  for (const dtu of STATE.shadowDtus?.values() || []) {
+    if (dtu?.machine?.kind === "linguistic_map") linguisticShadows++;
+  }
+
+  const coverage = computeShadowCoverage(STATE);
+  const overallCoverage = coverage.overallCoverage;
+
+  let quality;
+  let warning = null;
+
+  if (overallCoverage >= 0.20 && linguisticShadows >= 50) {
+    quality = "good";
+  } else if (overallCoverage >= 0.05 || linguisticShadows >= 10) {
+    quality = "degraded";
+    warning = "Offline mode may produce incomplete or generic output. Continue using online mode to build shadow coverage.";
+  } else if (totalShadows > 0) {
+    quality = "minimal";
+    warning = "Very limited shadow coverage. Offline responses will be basic and may lack domain-specific vocabulary.";
+  } else {
+    quality = "none";
+    warning = "No shadow DTUs exist. Offline mode cannot structure meaningful output. Use online mode first to accumulate patterns.";
+  }
+
+  return {
+    ok: true,
+    quality,
+    linguisticShadows,
+    totalShadows,
+    overallCoverage,
+    coveredDomains: coverage.coveredDomains,
+    warning,
   };
 }

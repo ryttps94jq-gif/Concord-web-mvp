@@ -17,6 +17,10 @@ import {
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -180,6 +184,7 @@ const daysBetween = (a: string, b: string) => {
 
 export default function RealEstateLensPage() {
   useLensNav('realestate');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('realestate');
 
   const [activeTab, setActiveTab] = useState<ModeTab>('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -530,7 +535,10 @@ export default function RealEstateLensPage() {
         <div className="flex items-center gap-3">
           <Building2 className="w-7 h-7 text-neon-cyan" />
           <div>
-            <h1 className={ds.heading1}>Real Estate</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Real Estate</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Listings, transactions, CMA, rentals, showings & investments</p>
           </div>
         </div>
@@ -552,6 +560,8 @@ export default function RealEstateLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="realestate" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="realestate" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="realestate" data={{}} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (

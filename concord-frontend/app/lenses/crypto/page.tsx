@@ -12,6 +12,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,6 +50,7 @@ type CryptoTab = 'portfolio' | 'transactions' | 'wallets';
 
 export default function CryptoLensPage() {
   useLensNav('crypto');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('crypto');
 
   const [activeTab, setActiveTab] = useState<CryptoTab>('portfolio');
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
@@ -319,13 +324,17 @@ export default function CryptoLensPage() {
             <Coins className="w-5 h-5 text-green-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Crypto Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Crypto Lens</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">
               Portfolio management, transactions, and wallet controls
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="crypto" data={{}} compact />
           <button
             onClick={() => setShowBalances(!showBalances)}
             className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
@@ -344,8 +353,10 @@ export default function CryptoLensPage() {
       </header>
 
 
+      <RealtimeDataPanel domain="crypto" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+
       {/* AI Actions */}
-      <UniversalActions domain="crypto" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="crypto" artifactId={chainItems[0]?.id} compact />
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />

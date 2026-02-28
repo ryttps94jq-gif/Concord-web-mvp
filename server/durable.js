@@ -1064,7 +1064,7 @@ export function registerDurableEndpoints(app, db) {
     }
   });
 
-  console.log("[Durable] All durable endpoints registered");
+  console.warn("[Durable] All durable endpoints registered");
 }
 
 function safeParseJSON(str) {

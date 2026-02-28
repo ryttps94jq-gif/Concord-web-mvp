@@ -63,6 +63,10 @@ import {
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -234,6 +238,7 @@ type SupportSubTab = 'tickets' | 'sla' | 'templates';
 
 export default function RetailLensPage() {
   useLensNav('retail');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('retail');
 
   const [mode, setMode] = useState<ModeTab>('Products');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1738,7 +1743,10 @@ export default function RetailLensPage() {
         <div className="flex items-center gap-3">
           <Store className="w-7 h-7 text-neon-purple" />
           <div>
-            <h1 className={ds.heading1}>Retail &amp; Commerce</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Retail &amp; Commerce</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Products, orders, customers, pipeline &amp; support management</p>
           </div>
         </div>
@@ -1755,6 +1763,8 @@ export default function RetailLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="retail" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="retail" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="retail" data={{}} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1819,6 +1829,7 @@ export default function RetailLensPage() {
               </div>
             </div>
           </div>
+
         </div>
       )}
     </div>

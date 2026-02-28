@@ -17,6 +17,10 @@ import {
   ClipboardList, UserPlus, Eye, FileText,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -294,6 +298,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'neon-green' }: { ico
 
 export default function FitnessLensPage() {
   useLensNav('fitness');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('fitness');
 
   /* ---------- core state ---------- */
   const [activeTab, setActiveTab] = useState<ModeTab>('Clients');
@@ -684,7 +689,10 @@ export default function FitnessLensPage() {
         <div className="flex items-center gap-3">
           <Dumbbell className="w-7 h-7 text-neon-green" />
           <div>
-            <h1 className={ds.heading1}>Fitness & Wellness</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Fitness & Wellness</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Client management, programming, scheduling, and recruiting</p>
           </div>
         </div>
@@ -702,6 +710,8 @@ export default function FitnessLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="fitness" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="fitness" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="fitness" data={{}} compact />
       {/* ========== Mode Tabs ========== */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (
@@ -1828,6 +1838,7 @@ export default function FitnessLensPage() {
                 </div>
               </div>
             </div>
+
           </div>
         </>
       )}

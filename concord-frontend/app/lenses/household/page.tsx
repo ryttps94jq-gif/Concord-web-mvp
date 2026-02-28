@@ -21,6 +21,10 @@ import {
   Salad, Soup, Cake,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -155,6 +159,7 @@ function getCurrentWeekDates(): { day: string; date: string }[] {
 
 export default function HouseholdLensPage() {
   useLensNav('household');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('household');
 
   const [mode, setMode] = useState<ModeTab>('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1556,7 +1561,10 @@ export default function HouseholdLensPage() {
         <div className="flex items-center gap-3">
           <Home className="w-7 h-7 text-neon-cyan" />
           <div>
-            <h1 className={ds.heading1}>Home &amp; Family</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Home &amp; Family</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Complete household management &amp; family coordination</p>
           </div>
         </div>
@@ -1564,7 +1572,9 @@ export default function HouseholdLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="household" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="household" artifactId={familyItems[0]?.id} compact />
+      <RealtimeDataPanel domain="household" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="household" data={{}} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1659,6 +1669,7 @@ export default function HouseholdLensPage() {
               </div>
             </div>
           </div>
+
         </div>
       )}
     </div>

@@ -6,6 +6,10 @@ import { api, apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import { Users, Plus, Terminal, GitFork, Activity, Play } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Entity {
   id: string;
@@ -20,6 +24,7 @@ interface Entity {
 
 export default function EntityLensPage() {
   useLensNav('entity');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('entity');
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newEntityName, setNewEntityName] = useState('');
@@ -119,6 +124,17 @@ export default function EntityLensPage() {
               Create and manage swarm entities with terminal access
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="entity" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
@@ -306,6 +322,18 @@ export default function EntityLensPage() {
             ))}
           </div>
         )}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="entity"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

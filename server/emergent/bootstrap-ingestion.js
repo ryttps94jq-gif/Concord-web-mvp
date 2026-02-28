@@ -561,6 +561,12 @@ function registerDTU(STATE, enriched) {
     epistemicStatus: "VERIFIED", // Seed DTUs are pre-verified
     // Authority (preserve seed authority, don't zero it)
     authority: enriched.meta?.seedAuthority || { model: "seed", score: 0.75 },
+    // Immutability: seed DTUs cannot be overwritten, deleted, archived, or demoted.
+    // This is enforced at the write/delete layer — any mutation attempt on a
+    // protected DTU must be rejected.
+    protected: true,
+    immutable: true,
+    seedOrigin: true,
   };
 
   STATE.dtus.set(registered.id, registered);

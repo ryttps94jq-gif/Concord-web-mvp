@@ -20,6 +20,10 @@ import {
   FileWarning, BadgeCheck, Siren, Wrench, ThermometerSun,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,6 +147,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'text-neon-cyan', tre
 // ---------------------------------------------------------------------------
 export default function LogisticsLensPage() {
   useLensNav('logistics');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('logistics');
 
   const [mode, setMode] = useState<ModeTab>('fleet');
   const [search, setSearch] = useState('');
@@ -1315,7 +1320,10 @@ export default function LogisticsLensPage() {
         <div className="flex items-center gap-3">
           <Truck className="w-7 h-7 text-neon-cyan" />
           <div>
-            <h1 className={ds.heading1}>Transportation &amp; Logistics</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Transportation &amp; Logistics</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Fleet, drivers, shipments, warehouse, routes, and compliance management</p>
           </div>
         </div>
@@ -1327,6 +1335,8 @@ export default function LogisticsLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="logistics" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="logistics" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="logistics" data={{}} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1577,6 +1587,7 @@ export default function LogisticsLensPage() {
               );
             })}
           </div>
+
         </div>
       </section>
     </div>

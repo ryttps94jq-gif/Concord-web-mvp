@@ -7,6 +7,10 @@ import { apiHelpers } from '@/lib/api/client';
 import { useLensNav } from '@/hooks/useLensNav';
 import { getCommandPaletteLenses } from '@/lib/lens-registry';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 const PAGE_SIZE = 50;
 
@@ -16,6 +20,7 @@ export default function GlobalLensPage() {
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState('');
   const [offset, setOffset] = useState(0);
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('global');
 
   const paletteLenses = useMemo(
     () => getCommandPaletteLenses().filter((l) => !['global', 'all'].includes(l.id)),
@@ -64,6 +69,7 @@ export default function GlobalLensPage() {
         <div>
           <p className="text-xs uppercase text-gray-400 tracking-wider">Truth Lens</p>
           <h1 className="text-3xl font-bold text-gradient-neon">Global DTU Browser</h1>
+          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
           <p className="text-neon-cyan mt-1 text-sm">{total.toLocaleString()} DTUs</p>
         </div>
         <button
@@ -74,6 +80,9 @@ export default function GlobalLensPage() {
           Refresh
         </button>
       </header>
+
+      <RealtimeDataPanel domain="global" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="global" data={{}} compact />
 
       <section className="panel p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="space-y-2">

@@ -32,6 +32,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -149,6 +153,7 @@ const seedData: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function AgricultureLensPage() {
   useLensNav('agriculture');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('agriculture');
 
   const [activeTab, setActiveTab] = useState<ModeTab>('fields');
   const [searchQuery, setSearchQuery] = useState('');
@@ -687,11 +692,15 @@ export default function AgricultureLensPage() {
         <div className="flex items-center gap-3">
           <Wheat className="w-8 h-8 text-green-400" />
           <div>
-            <h1 className={ds.heading1}>Agriculture & Farming</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Agriculture & Farming</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Fields, crops, livestock, equipment, water systems, and harvest tracking</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="agriculture" data={{}} compact />
           <button onClick={() => setShowDashboard(!showDashboard)} className={cn(showDashboard ? ds.btnPrimary : ds.btnSecondary)}>
             <BarChart3 className="w-4 h-4" /> Dashboard
           </button>
@@ -699,6 +708,7 @@ export default function AgricultureLensPage() {
         </div>
       </header>
 
+      <RealtimeDataPanel domain="agriculture" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* AI Actions */}
       <UniversalActions domain="agriculture" artifactId={items[0]?.id} compact />
@@ -729,6 +739,7 @@ export default function AgricultureLensPage() {
             <button onClick={() => setActionResult(null)} className={ds.btnGhost}><X className="w-4 h-4" /></button>
           </div>
           <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
+
         </div>
       )}
 

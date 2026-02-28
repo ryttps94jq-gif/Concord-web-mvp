@@ -8,6 +8,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Wifi, WifiOff, Database, RefreshCw, Upload, Download, Trash2, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface SyncItem {
   id: string;
@@ -25,6 +29,7 @@ const SEED_SYNC_ITEMS: {
 
 export default function OfflineLensPage() {
   useLensNav('offline');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('offline');
   const [isOnline, setIsOnline] = useState(true);
   const qc = useQueryClient();
 
@@ -175,6 +180,17 @@ export default function OfflineLensPage() {
               Dexie cache manager and sync queue resolution
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="offline" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button
           onClick={() => setIsOnline(!isOnline)}
@@ -189,7 +205,7 @@ export default function OfflineLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="offline" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="offline" artifactId={syncItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Database className="w-5 h-5 text-neon-blue mb-2" />
@@ -300,6 +316,18 @@ export default function OfflineLensPage() {
             <p className="text-xs text-gray-400">Remove all cached data</p>
           </button>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="offline"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

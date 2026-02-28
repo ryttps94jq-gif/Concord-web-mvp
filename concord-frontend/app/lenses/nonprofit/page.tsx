@@ -20,6 +20,10 @@ import {
   FileBarChart, CircleDollarSign, ShieldCheck, Milestone,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,6 +129,7 @@ const DOMAIN_ACTIONS = [
 // ---------------------------------------------------------------------------
 export default function NonprofitLensPage() {
   useLensNav('nonprofit');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('nonprofit');
 
   const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
@@ -1383,6 +1388,17 @@ export default function NonprofitLensPage() {
             <h1 className={ds.heading1}>Nonprofit &amp; Community</h1>
             <p className={ds.textMuted}>Donors, gifts, grants, campaigns, volunteers, impact, and fund management</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="nonprofit" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           {mode === 'gifts' && (
@@ -1404,7 +1420,7 @@ export default function NonprofitLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="nonprofit" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="nonprofit" artifactId={allDonors[0]?.id} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1780,6 +1796,18 @@ export default function NonprofitLensPage() {
                 </button>
               </div>
             </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="nonprofit"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
           </div>
         </>
       )}

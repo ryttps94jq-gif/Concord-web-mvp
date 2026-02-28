@@ -12,6 +12,10 @@ import {
   RefreshCw, AlertCircle, CheckCircle2, Timer
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface InferenceHistoryEntry {
   id?: string;
@@ -33,6 +37,7 @@ const MODEL_OPTIONS = [
 
 export default function InferenceLensPage() {
   useLensNav('inference');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('inference');
 
   const queryClient = useQueryClient();
   const [factInput, setFactInput] = useState('');
@@ -175,6 +180,17 @@ export default function InferenceLensPage() {
               Logical inference engine -- facts, rules, syllogisms, forward chaining
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="inference" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <UniversalActions domain="inference" artifactId={bridge.selectedId} compact />
@@ -491,6 +507,18 @@ export default function InferenceLensPage() {
             )}
           </div>
         )}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="inference"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

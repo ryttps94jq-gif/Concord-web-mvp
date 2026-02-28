@@ -33,6 +33,10 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // --- Types ---
 
@@ -188,6 +192,7 @@ function eventTypeColor(type: string): string {
 
 export default function AffectLensPage() {
   useLensNav('affect');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('affect');
 
   const queryClient = useQueryClient();
   const [sessionId, setSessionId] = useState('default');
@@ -501,6 +506,17 @@ export default function AffectLensPage() {
               Affect Translation Spine &mdash; 7D emotional state monitoring &amp; control
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="affect" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-3">
           <UniversalActions domain="affect" artifactId={bridge.selectedId} compact />
@@ -1383,6 +1399,18 @@ export default function AffectLensPage() {
               </div>
             </div>
           )}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="affect"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

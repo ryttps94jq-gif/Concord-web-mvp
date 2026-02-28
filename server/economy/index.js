@@ -12,7 +12,7 @@ import { registerEconomyRoutes } from "./routes.js";
  */
 export function registerEconomyEndpoints(app, db) {
   registerEconomyRoutes(app, db);
-  console.log("[Concord Economy] All economy + Stripe + marketplace endpoints registered");
+  console.warn("[Concord Economy] All economy + Stripe + marketplace endpoints registered");
 }
 
 // Re-export core modules for direct use by other server modules

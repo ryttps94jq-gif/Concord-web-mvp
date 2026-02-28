@@ -19,6 +19,10 @@ import {
   Timer,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ============================================================================
 // Types
@@ -314,6 +318,7 @@ function EventTimelineCanvas({ ticks }: { ticks: TickEvent[] }) {
 
 export default function TickLensPage() {
   useLensNav('tick');
+  const { latestData: realtimeData, isLive: rtIsLive, lastUpdated, insights } = useRealtimeLens('tick');
   const [isLive, setIsLive] = useState(true);
   const [tickHistory, setTickHistory] = useState<TickEvent[]>([]);
   const [activeTab, setActiveTab] = useState<TickViewTab>('stream');
@@ -493,13 +498,17 @@ export default function TickLensPage() {
         <div className="flex items-center gap-4">
           <HeartbeatPulse isLive={isLive} lastTickTime={lastTickTime} />
           <div>
-            <h1 className="text-xl font-bold">Tick Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Tick Lens</h1>
+              <LiveIndicator isLive={rtIsLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">
               Real-time kernel tick stream and system health monitoring
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="tick" data={{}} compact />
           <button
             onClick={() => setIsLive(!isLive)}
             className={`btn-neon ${isLive ? 'green' : ''}`}
@@ -509,6 +518,8 @@ export default function TickLensPage() {
           </button>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="tick" data={realtimeData} isLive={rtIsLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* Tabs */}
       <div className="flex gap-2">

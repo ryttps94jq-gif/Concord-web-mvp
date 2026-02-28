@@ -26,7 +26,7 @@ let _log = null;
 
 // ── Initialisation ─────────────────────────────────────────────────────────
 
-export function initSelfHealing({ structuredLog = console.log } = {}) {
+export function initSelfHealing({ structuredLog = console.warn } = {}) {
   _log = structuredLog;
   _log("info", "self_healing_init", {});
 }

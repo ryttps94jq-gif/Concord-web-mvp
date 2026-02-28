@@ -56,6 +56,10 @@ import { LensWrapper } from '@/components/lens/LensWrapper';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ──────────────────────────────────────────────
 // Types
@@ -209,6 +213,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function ChatLensPage() {
   useLensNav('chat');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('chat');
   const queryClient = useQueryClient();
 
   const {
@@ -1133,6 +1138,17 @@ export default function ChatLensPage() {
 
   return (
     <div className="h-full flex flex-col bg-lattice-bg">
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-1 border-b border-lattice-border/30 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="chat" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+      <RealtimeDataPanel domain="chat" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={realtimeInsights} compact />
       <div className="flex-1 flex overflow-hidden relative">
       {/* Mobile sidebar backdrop */}
       {chatSidebarOpen && (

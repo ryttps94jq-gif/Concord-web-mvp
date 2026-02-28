@@ -8,6 +8,10 @@ import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface SimResultData {
   qubits: number;
@@ -19,6 +23,7 @@ export default function QuantumLensPage() {
   useLensNav('quantum');
   const [qubits, setQubits] = useState(4);
   const [result, setResult] = useState<string | null>(null);
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('quantum');
 
   const { items: circuitItems, isLoading: circuitsLoading, isError: isError, error: error, refetch: refetch, create: saveResult } = useLensData<SimResultData>('quantum', 'sim-result', {
     seed: [],
@@ -87,6 +92,7 @@ export default function QuantumLensPage() {
         <span className="text-2xl">\u269B\uFE0F</span>
         <div>
           <h1 className="text-xl font-bold">Quantum Lens</h1>
+          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
           <p className="text-sm text-gray-400">
             Quantum computing simulations and circuit builder
           </p>
@@ -94,8 +100,11 @@ export default function QuantumLensPage() {
       </header>
 
 
+      <RealtimeDataPanel domain="quantum" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="quantum" data={{}} compact />
+
       {/* AI Actions */}
-      <UniversalActions domain="quantum" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="quantum" artifactId={circuitItems[0]?.id} compact />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Atom className="w-5 h-5 text-neon-purple mb-2" />

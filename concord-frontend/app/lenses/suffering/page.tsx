@@ -6,9 +6,14 @@ import { api } from '@/lib/api/client';
 import { AlertTriangle, Heart, Brain, Zap, TrendingDown, Shield } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function SufferingLensPage() {
   useLensNav('suffering');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('suffering');
 
   // Backend: GET /api/status
   const { data: _status, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
@@ -58,6 +63,17 @@ export default function SufferingLensPage() {
               Chicken2 metrics: suffering, homeostasis, coherence
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="suffering" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className={`px-4 py-2 rounded-lg ${
           healthScore > 70 ? 'bg-neon-green/20 text-neon-green' :
@@ -71,7 +87,7 @@ export default function SufferingLensPage() {
 
 
       {/* AI Actions */}
-      <UniversalActions domain="suffering" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="suffering" artifactId={undefined} compact />
       {/* Main Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <MetricCard
@@ -246,6 +262,18 @@ function MetricCard({
           className={`h-full ${bgColors[color]}`}
           style={{ width: `${value * 100}%` }}
         />
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="suffering"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
       <p className="text-xs text-gray-500">{description}</p>
     </div>

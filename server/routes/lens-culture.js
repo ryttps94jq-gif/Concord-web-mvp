@@ -25,8 +25,16 @@ import {
   registerLens, getLens, listLenses, registerSystemLenses,
 } from "../economy/lens-culture.js";
 
-export default function createLensCultureRouter({ db }) {
+export default function createLensCultureRouter({ db, requireAuth }) {
   const router = express.Router();
+
+  // Auth for writes: POST/PUT/DELETE/PATCH require authentication
+  const authForWrites = (req, res, next) => {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+    if (typeof requireAuth === "function") return requireAuth()(req, res, next);
+    return next();
+  };
+  router.use(authForWrites);
 
   // ── Config ────────────────────────────────────────────────────────
   router.get("/config", (_req, res) => {

@@ -45,6 +45,10 @@ import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -411,6 +415,7 @@ function AudioPreviewBar({
 
 export default function MarketplaceLensPage() {
   useLensNav('marketplace');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('marketplace');
   const queryClient = useQueryClient();
 
   // State
@@ -703,6 +708,17 @@ export default function MarketplaceLensPage() {
           <Store className="w-6 h-6 text-neon-purple" />
           <h1 className="text-2xl font-bold">Creative Marketplace</h1>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="marketplace" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         <div className="flex items-center gap-3">
           <button onClick={() => setTab('myshop')} className="btn-neon flex items-center gap-2 text-sm">
             <LayoutDashboard className="w-4 h-4" /> Seller Dashboard
@@ -1190,6 +1206,18 @@ export default function MarketplaceLensPage() {
               <FeedbackWidget targetType="lens" targetId="marketplace" />
             </div>
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="marketplace"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

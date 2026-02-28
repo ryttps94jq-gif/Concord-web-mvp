@@ -7,6 +7,10 @@ import { useState } from 'react';
 import { Atom, Beaker, FlaskConical, Sparkles, Zap } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Compound {
   id: string;
@@ -29,6 +33,7 @@ export default function ChemLensPage() {
   const queryClient = useQueryClient();
   const [selectedCompound, setSelectedCompound] = useState<string | null>(null);
   const [reactionInput, setReactionInput] = useState('');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('chem');
 
   const { items: compoundItems, isLoading, isError: isError, error: error, refetch: refetch } = useLensData<Record<string, unknown>>('chem', 'compound', { seed: [] });
   const compounds = compoundItems.map(i => ({ id: i.id, ...(i.data || {}) })) as unknown as Compound[];
@@ -78,6 +83,7 @@ export default function ChemLensPage() {
           <span className="text-2xl">⚗️</span>
           <div>
             <h1 className="text-xl font-bold">Chem Lens</h1>
+            <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
             <p className="text-sm text-gray-400">
               Chemical reaction simulation and compound synthesis
             </p>
@@ -86,8 +92,11 @@ export default function ChemLensPage() {
       </header>
 
 
+      <RealtimeDataPanel domain="chem" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="chem" data={{}} compact />
+
       {/* AI Actions */}
-      <UniversalActions domain="chem" artifactId={items[0]?.id} compact />
+      <UniversalActions domain="chem" artifactId={compoundItems[0]?.id} compact />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Reaction Chamber */}
         <div className="lg:col-span-2 panel p-4 space-y-4">
