@@ -1320,20 +1320,12 @@ export default function LogisticsLensPage() {
         <div className="flex items-center gap-3">
           <Truck className="w-7 h-7 text-neon-cyan" />
           <div>
-            <h1 className={ds.heading1}>Transportation &amp; Logistics</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Transportation &amp; Logistics</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Fleet, drivers, shipments, warehouse, routes, and compliance management</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="logistics" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <button onClick={openCreate} className={ds.btnPrimary}>
           <Plus className="w-4 h-4" /> New {currentType}
@@ -1343,6 +1335,8 @@ export default function LogisticsLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="logistics" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="logistics" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="logistics" data={{}} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1594,17 +1588,6 @@ export default function LogisticsLensPage() {
             })}
           </div>
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="logistics"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       </section>
     </div>

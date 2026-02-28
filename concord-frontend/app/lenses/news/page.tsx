@@ -43,7 +43,7 @@ const IMPORTANCE_COLORS: Record<string, string> = {
 
 export default function NewsLensPage() {
   useLensNav('news');
-  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('news');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('news');
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');

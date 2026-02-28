@@ -193,6 +193,8 @@ export default function MarketLensPage() {
         </div>
       </header>
 
+      <RealtimeDataPanel domain="market" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+
       {/* Wallet Banner */}
       {wallet && (
         <div className="panel p-3 flex items-center justify-between bg-gradient-to-r from-neon-purple/5 to-neon-cyan/5">
