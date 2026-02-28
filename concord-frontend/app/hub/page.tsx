@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Lens Explorer — Full ecosystem view of all 106+ lenses.
+ * Lens Explorer — Full ecosystem view of all 112 lenses.
  *
  * Designed to feel like opening a city, not picking from a menu.
  * Searchable, categorized grid showing the SCALE of what's available.
