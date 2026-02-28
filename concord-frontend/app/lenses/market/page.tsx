@@ -479,16 +479,6 @@ function StatCard({
         </div>
 
       {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="market"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
       <p className="text-sm text-gray-400 mt-2">{label}</p>
     </div>
