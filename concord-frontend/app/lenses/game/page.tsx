@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -227,6 +231,7 @@ function _xpForLevel(lv: number) {
 
 export default function GameLensPage() {
   useLensNav('game');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('game');
 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<MainTab>('dashboard');
@@ -387,6 +392,17 @@ export default function GameLensPage() {
             <h1 className="text-xl font-bold text-white">Game Lens</h1>
             <p className="text-sm text-gray-400">Gamification platform &mdash; level up your music production skills</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="game" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 text-neon-yellow font-mono text-sm">
@@ -965,6 +981,18 @@ export default function GameLensPage() {
                 <button onClick={submitChallenge} disabled={!newChallenge.name.trim()} className={cn('btn-neon py-2 px-6', !newChallenge.name.trim() && 'opacity-40 cursor-not-allowed')}>
                   Create
                 </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="game"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
               </div>
             </motion.div>
           </motion.div>

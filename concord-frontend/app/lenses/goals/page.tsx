@@ -29,6 +29,10 @@ import {
   Swords,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // --------------- Types ---------------
 
@@ -238,6 +242,7 @@ function resolveIcon(iconName: string) {
 
 export default function GoalsLensPage() {
   useLensNav('goals');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('goals');
 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'goals' | 'challenges' | 'milestones' | 'achievements'>('goals');
@@ -409,6 +414,17 @@ export default function GoalsLensPage() {
             <h1 className="text-xl font-bold text-white">Creative Goals</h1>
             <p className="text-sm text-gray-400">Track your creative journey and level up</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="goals" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-orange-500/15 text-orange-400 px-3 py-1.5 rounded-full text-sm font-semibold">
@@ -943,6 +959,18 @@ export default function GoalsLensPage() {
               </div>
             );
           })}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="goals"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

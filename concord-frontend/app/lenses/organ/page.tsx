@@ -10,6 +10,10 @@ import {
   ChevronDown, ChevronRight, Search, BarChart3,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Organ {
   id: string;
@@ -28,6 +32,7 @@ type SortMode = 'name' | 'health' | 'maturity' | 'wear';
 
 export default function OrganLensPage() {
   useLensNav('organ');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('organ');
   const queryClient = useQueryClient();
   const [selectedOrgan, setSelectedOrgan] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -153,6 +158,17 @@ export default function OrganLensPage() {
               Monitor organism health, maturity, and plasticity
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="organ" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-3">
           <Heart className={`w-5 h-5 ${avgHealth > 0.7 ? 'text-neon-green' : avgHealth > 0.4 ? 'text-yellow-400' : 'text-red-400'}`} />
@@ -481,6 +497,18 @@ function MetricBar({ label, value, color }: { label: string; value: number; colo
       <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${value * 100}%` }} />
       </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="organ"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
     </div>
   );
 }

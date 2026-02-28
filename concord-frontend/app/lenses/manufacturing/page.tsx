@@ -17,6 +17,10 @@ import {
   Eye, PackageCheck, Truck,
   Calculator, CircleDot, ListChecks, Shield,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -274,6 +278,7 @@ function ScheduleTimeline({ schedule }: { schedule: LensItem }) {
 // ---------------------------------------------------------------------------
 export default function ManufacturingLensPage() {
   useLensNav('manufacturing');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('manufacturing');
 
   const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
@@ -1416,6 +1421,17 @@ export default function ManufacturingLensPage() {
             <h1 className={ds.heading1}>Manufacturing</h1>
             <p className={ds.textMuted}>Work orders, BOM, quality, scheduling, equipment and safety management</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="manufacturing" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           {mode !== 'dashboard' && (
@@ -1574,6 +1590,18 @@ export default function ManufacturingLensPage() {
                 </div>
               </div>
             </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="manufacturing"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
           </div>
         </>
       )}

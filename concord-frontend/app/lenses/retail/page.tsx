@@ -63,6 +63,10 @@ import {
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -234,6 +238,7 @@ type SupportSubTab = 'tickets' | 'sla' | 'templates';
 
 export default function RetailLensPage() {
   useLensNav('retail');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('retail');
 
   const [mode, setMode] = useState<ModeTab>('Products');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1741,6 +1746,17 @@ export default function RetailLensPage() {
             <h1 className={ds.heading1}>Retail &amp; Commerce</h1>
             <p className={ds.textMuted}>Products, orders, customers, pipeline &amp; support management</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="retail" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <button className={view === 'library' ? ds.btnPrimary : ds.btnSecondary} onClick={() => setView('library')}>
@@ -1819,6 +1835,18 @@ export default function RetailLensPage() {
               </div>
             </div>
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="retail"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

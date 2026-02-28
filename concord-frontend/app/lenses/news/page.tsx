@@ -10,6 +10,10 @@ import {
   Filter, X, Eye, BarChart3, ArrowUpRight, Bell,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface NewsArticle {
   id: string;
@@ -39,6 +43,7 @@ const IMPORTANCE_COLORS: Record<string, string> = {
 
 export default function NewsLensPage() {
   useLensNav('news');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('news');
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -179,6 +184,17 @@ export default function NewsLensPage() {
               System updates, announcements, and trends
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="news" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -564,6 +580,18 @@ export default function NewsLensPage() {
             </div>
           </div>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="news"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

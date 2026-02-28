@@ -22,6 +22,10 @@ import {
   Box
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface DashboardData {
   ok: boolean;
@@ -204,6 +208,7 @@ function StatusBadge({ status }: { status: 'healthy' | 'warning' | 'error' }) {
 
 export default function AdminDashboardPage() {
   useLensNav('admin');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('admin');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const {
@@ -264,6 +269,17 @@ export default function AdminDashboardPage() {
               {dashboard?.system.uptime.formatted || '...'}
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="admin" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-400">
@@ -285,6 +301,8 @@ export default function AdminDashboardPage() {
           </button>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="admin" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={realtimeInsights} compact />
 
       {/* Status Overview */}
       <div className="flex gap-4">
@@ -532,6 +550,18 @@ export default function AdminDashboardPage() {
             <p className="text-gray-500 text-center py-4">No recent activity</p>
           )}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="admin"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

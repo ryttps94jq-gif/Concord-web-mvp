@@ -6,12 +6,17 @@ import { apiHelpers } from '@/lib/api/client';
 import { useState } from 'react';
 import { Glasses, Camera, Scan, Settings } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function ARLensPage() {
   useLensNav('ar');
 
   const [arEnabled, setArEnabled] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('ar');
 
   const { data: arLayers, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['ar-layers'],
@@ -52,6 +57,7 @@ export default function ARLensPage() {
           <span className="text-2xl">🥽</span>
           <div>
             <h1 className="text-xl font-bold">AR Lens</h1>
+            <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
             <p className="text-sm text-gray-400">
               Augmented reality overlay for DTU visualization
             </p>
@@ -74,6 +80,9 @@ export default function ARLensPage() {
           )}
         </button>
       </header>
+
+      <RealtimeDataPanel domain="ar" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="ar" data={{}} compact />
 
       {/* AR Viewport */}
       <div className="panel p-4">

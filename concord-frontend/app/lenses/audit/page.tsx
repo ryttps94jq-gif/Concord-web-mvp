@@ -6,6 +6,10 @@ import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { FileSearch, AlertTriangle, Check, X, Eye } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface RawEvent {
   id: string;
@@ -26,6 +30,7 @@ interface AuditEntry {
 
 export default function AuditLensPage() {
   useLensNav('audit');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('audit');
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -99,6 +104,17 @@ export default function AuditLensPage() {
               Searchable log of shadow DTUs, terminal audits, verifier events
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="audit" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
       </header>
 
@@ -213,6 +229,18 @@ export default function AuditLensPage() {
           no_secret_monitoring invariant by exposing every action, including
           shadow DTU operations and verifier failures.
         </p>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="audit"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

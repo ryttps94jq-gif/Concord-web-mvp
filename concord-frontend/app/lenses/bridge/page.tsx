@@ -9,6 +9,10 @@ import {
   RefreshCw, ChevronDown, ChevronRight, Loader2, Search,
   Users, Zap, Activity,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -81,6 +85,7 @@ type Tab = typeof TABS[number];
 
 export default function BridgeLens() {
   useLensNav('bridge');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('bridge');
 
   const [tab, setTab] = useState<Tab>('activity');
   const [organisms, setOrganisms] = useState<Organism[]>([]);
@@ -124,6 +129,17 @@ export default function BridgeLens() {
             <h1 className="text-xl font-bold">Organism Bridge</h1>
             <p className="text-sm text-zinc-500">Emergent ↔ Knowledge Organism Communication</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="bridge" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button onClick={refresh} className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors" title="Refresh">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -307,6 +323,18 @@ function EmergentsTab({ emergents }: { emergents: EmergentRole[] }) {
           </div>
         </div>
       ))}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="bridge"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
     </div>
   );
 }

@@ -7,6 +7,10 @@ import { useState } from 'react';
 import { Users, Plus, MessageSquare, Target, Shield, Zap } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface AllianceData {
   name: string;
@@ -38,6 +42,7 @@ const SEED_MESSAGES: {
 
 export default function AllianceLensPage() {
   useLensNav('alliance');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('alliance');
   const [selectedAlliance, setSelectedAlliance] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -157,6 +162,17 @@ export default function AllianceLensPage() {
               Multi-entity collaboration and shared workspaces
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="alliance" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
@@ -351,6 +367,18 @@ export default function AllianceLensPage() {
             </div>
           )}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="alliance"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

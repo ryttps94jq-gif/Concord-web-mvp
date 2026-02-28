@@ -21,6 +21,10 @@ import {
   Salad, Soup, Cake,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -155,6 +159,7 @@ function getCurrentWeekDates(): { day: string; date: string }[] {
 
 export default function HouseholdLensPage() {
   useLensNav('household');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('household');
 
   const [mode, setMode] = useState<ModeTab>('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1559,6 +1564,17 @@ export default function HouseholdLensPage() {
             <h1 className={ds.heading1}>Home &amp; Family</h1>
             <p className={ds.textMuted}>Complete household management &amp; family coordination</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="household" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
       </header>
 
@@ -1659,6 +1675,18 @@ export default function HouseholdLensPage() {
               </div>
             </div>
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="household"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

@@ -20,6 +20,10 @@ import {
   Loader2, BookOpen,
   Save, Maximize2, Minimize2
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface FileNode {
   id: string;
@@ -586,6 +590,7 @@ function generateScriptOutput(scriptType: ScriptType, code: string): { log: stri
 
 export default function CodeLensPage() {
   useLensNav('code');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('code');
 
   const {
     hyperDTUs, megaDTUs, regularDTUs,
@@ -797,6 +802,17 @@ export default function CodeLensPage() {
             <h1 className="text-lg font-bold">Script Studio</h1>
             <p className="text-xs text-gray-400">MIDI scripting, automation & macros</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="code" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -1143,6 +1159,18 @@ export default function CodeLensPage() {
             </div>
           </div>
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="code"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

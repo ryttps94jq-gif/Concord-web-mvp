@@ -50,6 +50,10 @@ import {
   Layers,
   CircleDot,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -272,6 +276,7 @@ function formatCurrency(n: number) {
 
 export default function CouncilLensPage() {
   useLensNav('council');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('council');
   const queryClient = useQueryClient();
 
   // ----- Lens persistence (auto-seeds on first use, derives local data) -----
@@ -751,6 +756,17 @@ export default function CouncilLensPage() {
             <span>Created: {formatDate(p.createdAt)}</span>
             <span>Updated: {formatDate(p.updatedAt)}</span>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="council" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
           {/* Actions */}
           <div className="flex gap-2 mt-4 flex-wrap">
@@ -1579,6 +1595,18 @@ export default function CouncilLensPage() {
               </div>
             </div>
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="council"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

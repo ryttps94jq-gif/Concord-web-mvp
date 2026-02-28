@@ -19,6 +19,10 @@ import {
 import { ErrorState } from '@/components/common/EmptyState';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -451,6 +455,7 @@ function ArgumentTreeNode({
 
 export default function ReasoningLensPage() {
   useLensNav('reasoning');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('reasoning');
 
   const queryClient = useQueryClient();
 
@@ -911,6 +916,17 @@ export default function ReasoningLensPage() {
               Argument mapping, premise analysis, evidence linking, and fallacy detection
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="reasoning" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -2350,6 +2366,18 @@ export default function ReasoningLensPage() {
                   </div>
                 </div>
               </motion.div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="reasoning"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
             </div>
           </>
         )}

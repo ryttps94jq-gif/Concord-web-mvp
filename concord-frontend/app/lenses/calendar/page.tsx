@@ -15,6 +15,10 @@ import {
 import { cn } from '@/lib/utils';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,6 +130,7 @@ const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
 
 export default function CalendarLensPage() {
   useLensNav('calendar');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('calendar');
   const queryClient = useQueryClient();
 
   // State
@@ -1145,6 +1150,17 @@ export default function CalendarLensPage() {
           </h1>
         </div>
 
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="calendar" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-lattice-deep rounded-lg p-1">
             {(['day', 'week', 'month', 'agenda'] as ViewMode[]).map((mode) => (
@@ -1756,6 +1772,18 @@ export default function CalendarLensPage() {
                     Book Session
                   </button>
                 </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="calendar"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
               </div>
             </motion.div>
           </motion.div>

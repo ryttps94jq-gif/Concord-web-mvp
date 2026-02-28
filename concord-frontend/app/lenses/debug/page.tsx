@@ -11,6 +11,10 @@ import {
   ChevronDown, ChevronRight, Search, X, Filter, MemoryStick,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type LogLevel = 'all' | 'info' | 'warn' | 'error' | 'debug';
 
@@ -23,6 +27,7 @@ interface LogEntry {
 
 export default function DebugLensPage() {
   useLensNav('debug');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('debug');
   const [activeTab, setActiveTab] = useState<'status' | 'events' | 'test' | 'inspector' | 'logs'>('status');
   const [debugOutput, setDebugOutput] = useState<string[]>(['$ concord debug', 'Ready. Type command or click button above.']);
   const [customCmd, setCustomCmd] = useState('');
@@ -158,12 +163,17 @@ export default function DebugLensPage() {
         <div className="flex items-center gap-3">
           <span className="text-2xl">🐛</span>
           <div>
-            <h1 className="text-xl font-bold">Debug Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Debug Lens</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">
               System state, organs, events, and diagnostics
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+        <DTUExportButton domain="debug" data={{}} compact />
         <button
           onClick={() => {
             refetchStatus();
@@ -175,7 +185,10 @@ export default function DebugLensPage() {
           <RefreshCw className="w-4 h-4 mr-2 inline" />
           Refresh All
         </button>
+        </div>
       </header>
+
+      <RealtimeDataPanel domain="debug" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* Quick Health Indicators */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

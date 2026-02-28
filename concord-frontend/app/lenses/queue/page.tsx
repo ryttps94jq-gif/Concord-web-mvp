@@ -7,6 +7,10 @@ import { useUIStore } from '@/store/ui';
 import { useState } from 'react';
 import { Inbox, Play, Trash2, Clock, Zap, Globe, FileText } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface QueueItem {
   id: string;
@@ -19,6 +23,7 @@ interface QueueItem {
 
 export default function QueueLensPage() {
   useLensNav('queue');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('queue');
   const queryClient = useQueryClient();
   const [selectedQueue, setSelectedQueue] = useState<'ingest' | 'autocrawl' | 'terminal'>('ingest');
 
@@ -98,7 +103,20 @@ export default function QueueLensPage() {
             Manage all system queues: ingest, crawl, terminal proposals
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="queue" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
+
+      <RealtimeDataPanel domain="queue" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={realtimeInsights} compact />
 
       {/* Queue Tabs */}
       <div className="flex gap-2">
@@ -257,6 +275,18 @@ export default function QueueLensPage() {
             })
           )}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="queue"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

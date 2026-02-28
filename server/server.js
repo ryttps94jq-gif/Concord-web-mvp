@@ -1078,6 +1078,9 @@ const TICK_FREQUENCIES = Object.freeze({
   EMBEDDINGS_CHECK: 100,
   META_DERIVATION: 200,
   WEALTH_REDISTRIBUTION: 500,
+  // Phase 3: Real-time data + lens learning
+  REALTIME_DATA: 5,
+  LENS_LEARNING: 50,
 });
 
 const CONTEXT_TIER_BOOST = Object.freeze({
@@ -4229,6 +4232,16 @@ function authMiddleware(req, res, next) {
     "/api/repair",
     // Dual Global & Creative Registry (public discovery)
     "/api/scope", "/api/creative",
+    // Missing frontend routes (three-gate audit scan)
+    "/api/bridge", "/api/brief", "/api/experience", "/api/explore",
+    "/api/flywheel", "/api/freshness", "/api/global",
+    "/api/inheritance", "/api/org", "/api/pipeline",
+    "/api/quality", "/api/shared-session", "/api/sovereignty",
+    "/api/substrate", "/api/transfer", "/api/v1",
+    "/api/economics", "/api/agent",
+    // Real-time data feeds + universal export
+    "/api/realtime", "/api/convert",
+    "/api/apps",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6478,7 +6491,7 @@ async function runMacro(domain, name, input, ctx) {
     lens: new Set(["list", "get", "export", "run"]),
     system: new Set(["status", "getStatus", "health", "analogize"]),
     settings: new Set(["get", "status"]),
-    scope: new Set(["metrics", "status", "dtus"]),
+    scope: new Set(["metrics", "status", "dtus", "promote", "checkCitations", "royaltyPreview", "overrides"]),
     lattice: new Set(["resonance", "status", "stats"]),
     guidance: new Set(["suggestions", "status"]),
     graph: new Set(["visual", "visualData", "forceGraph", "edges", "stats", "neighbors"]),
@@ -6523,11 +6536,10 @@ async function runMacro(domain, name, input, ctx) {
     daily: new Set(["list", "get"]),
     digest: new Set(["get", "list"]),
     // Extended domains (three-gate audit)
-    research: new Set(["list", "get", "results", "report", "metrics"]),
+    research: new Set(["list", "get", "results", "report", "metrics", "conduct"]),
     quest: new Set(["list", "get", "active", "progress", "metrics"]),
-    teaching: new Set(["list", "get", "profile", "metrics"]),
+    teaching: new Set(["list", "get", "profile", "metrics", "expertise"]),
     creative: new Set(["list", "get", "exhibition", "metrics", "profile", "masterworks", "registry", "domains"]),
-    scope: new Set(["promote", "checkCitations", "royaltyPreview"]),
     culture: new Set(["status", "traditions", "values", "stories", "metrics", "identity"]),
     trust: new Set(["get", "network", "metrics"]),
     federation: new Set(["status", "peers"]),
@@ -6540,6 +6552,26 @@ async function runMacro(domain, name, input, ctx) {
     ai: new Set(["search", "gaps", "embeddings"]),
     feedback: new Set(["aggregate"]),
     artifact: new Set(["info", "thumbnail"]),
+    // Missing frontend domains (three-gate audit scan)
+    bridge: new Set(["births", "debates", "emergents", "log", "organisms"]),
+    brief: new Set(["morning", "dismiss"]),
+    experience: new Set(["status", "patterns", "recent", "strategies", "consolidate", "retrieve"]),
+    explore: new Set(["history"]),
+    flywheel: new Set(["history", "metrics"]),
+    inheritance: new Set(["bequests", "claim", "create-bequest", "revoke"]),
+    pipeline: new Set(["execute", "executions"]),
+    quality: new Set(["stats", "domain", "thresholds"]),
+    sovereignty: new Set(["status", "audit", "setup", "preferences"]),
+    transfer: new Set(["history", "analogies", "apply", "classify-domain", "extract-pattern"]),
+    voice: new Set(["transcribe", "tts", "ingest"]),
+    visual: new Set(["moodboard", "sunburst", "timeline"]),
+    distillation: new Set(["stats"]),
+    efficiency: new Set(["dashboard", "history"]),
+    agent: new Set(["status", "create", "tick", "config"]),
+    // Real-time data feeds + universal export
+    realtime: new Set(["status", "feed"]),
+    convert: new Set(["to-dtu", "from-dtu"]),
+    apps: new Set(["list", "get"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6585,6 +6617,16 @@ async function runMacro(domain, name, input, ctx) {
     "/api/repair",
     // Dual Global & Creative Registry
     "/api/scope", "/api/creative",
+    // Missing frontend routes (three-gate audit scan)
+    "/api/bridge", "/api/brief", "/api/experience", "/api/explore",
+    "/api/flywheel", "/api/freshness", "/api/global",
+    "/api/inheritance", "/api/org", "/api/pipeline",
+    "/api/quality", "/api/shared-session", "/api/sovereignty",
+    "/api/substrate", "/api/transfer", "/api/v1",
+    "/api/economics", "/api/agent",
+    // Real-time data feeds + universal export
+    "/api/realtime", "/api/convert",
+    "/api/apps",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -21372,6 +21414,10 @@ app.use("/api/lens-compliance", createLensComplianceRouter({ db }));
 import createLegalLiabilityRouter from "./routes/legal-liability.js";
 app.use("/api/legal", createLegalLiabilityRouter({ db }));
 
+// ===== UNIVERSAL DTU EXPORT + REAL-TIME DATA FEEDS =====
+import createUniversalExportRouter from "./routes/universal-export.js";
+app.use(createUniversalExportRouter(STATE, runMacro, makeCtx));
+
 // ===== SPECIES API =====
 app.get("/api/species/registry", (_req, res) => res.json({ ok: true, registry: getSpeciesRegistry() }));
 app.get("/api/species/census", (_req, res) => res.json({ ok: true, ...getSpeciesCensus(STATE) }));
@@ -22144,7 +22190,30 @@ async function governorTick(reason="heartbeat") {
       }
 
       // ══════════════════════════════════════════════════════════════════════
-      // ── End Phase 2 Heartbeat Wiring ──
+      // ── Phase 3: Real-Time Data Feeds + Lens Learning ──
+      // ══════════════════════════════════════════════════════════════════════
+
+      // Real-time data feeds — every REALTIME_DATA ticks (~75s)
+      if ((_tick % TICK_FREQUENCIES.REALTIME_DATA) === 0) {
+        try {
+          const { tickRealTimeFeeds } = await import("./emergent/realtime-feeds.js");
+          await tickRealTimeFeeds(STATE, _tick, realtimeEmit, callBrain);
+        } catch (e) { structuredLog("warn", "governor_realtime_data_tick", { error: String(e?.message || e) }); }
+      }
+
+      // Lens learning — every LENS_LEARNING ticks (~8 min), staggered across domains
+      if ((_tick % TICK_FREQUENCIES.LENS_LEARNING) === 0 && _tick > 0) {
+        try {
+          const { runLensLearningCycle } = await import("./emergent/lens-learning.js");
+          const activeDomains = ["finance", "news", "weather", "healthcare", "education"];
+          for (const domain of activeDomains) {
+            try { await runLensLearningCycle(STATE, domain, realtimeEmit, callBrain); } catch {}
+          }
+        } catch (e) { structuredLog("warn", "governor_lens_learning", { error: String(e?.message || e) }); }
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── End Phase 2+3 Heartbeat Wiring ──
       // ══════════════════════════════════════════════════════════════════════
     } catch { /* emergent system ticks are non-critical */ }
 

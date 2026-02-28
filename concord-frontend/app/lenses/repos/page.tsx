@@ -29,6 +29,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Repository {
   id: string;
@@ -70,6 +74,7 @@ type ActiveTab = 'code' | 'issues' | 'pulls' | 'actions' | 'projects' | 'wiki' |
 
 export default function ReposLensPage() {
   useLensNav('repos');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('repos');
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('code');
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
@@ -221,6 +226,17 @@ export default function ReposLensPage() {
                 New repository
               </button>
             </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="repos" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
             <div className="space-y-4">
               {repos?.map((repo: Repository) => (
@@ -483,6 +499,18 @@ export default function ReposLensPage() {
             )}
           </div>
         )}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="repos"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

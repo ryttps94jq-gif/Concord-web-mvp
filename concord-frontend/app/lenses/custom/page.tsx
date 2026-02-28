@@ -7,6 +7,10 @@ import { useState } from 'react';
 import { Wand2, Plus, Code, Eye, Trash2, Copy, Settings } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface CustomLens {
   id: string;
@@ -19,6 +23,7 @@ interface CustomLens {
 
 export default function CustomLensPage() {
   useLensNav('custom');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('custom');
 
   const [showBuilder, setShowBuilder] = useState(false);
   const [newLensName, setNewLensName] = useState('');
@@ -97,6 +102,17 @@ export default function CustomLensPage() {
               Create and manage custom lens configurations
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="custom" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <button
           onClick={() => setShowBuilder(!showBuilder)}
@@ -289,6 +305,18 @@ export default function CustomLensPage() {
             </div>
           ))}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="custom"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

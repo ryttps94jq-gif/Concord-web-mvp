@@ -30,6 +30,10 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type TabId = 'dashboard' | 'introspection' | 'predictions' | 'learning';
 
@@ -85,6 +89,7 @@ function formatTimestamp(ts: unknown): string {
 
 export default function MetacognitionLensPage() {
   useLensNav('metacognition');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('metacognition');
 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -348,6 +353,17 @@ export default function MetacognitionLensPage() {
             Self-awareness, blindspot detection, calibration, and introspection
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="metacognition" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
       {/* AI Actions */}
@@ -1265,6 +1281,18 @@ export default function MetacognitionLensPage() {
               </p>
             )}
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="metacognition"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

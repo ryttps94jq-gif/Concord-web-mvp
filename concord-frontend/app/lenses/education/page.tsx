@@ -63,6 +63,10 @@ import {
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -284,6 +288,7 @@ function calculateWeightedAverage(
 
 export default function EducationLensPage() {
   useLensNav('education');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('education');
 
   /* ---------- core state ---------- */
   const [activeTab, setActiveTab] = useState<ModeTab>('Students');
@@ -1050,16 +1055,22 @@ export default function EducationLensPage() {
         <div className="flex items-center gap-3">
           <GraduationCap className="w-7 h-7 text-neon-blue" />
           <div>
-            <h1 className={ds.heading1}>Education</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Education</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Student management, courses, assignments, and academic tracking</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="education" data={{}} compact />
           <button onClick={openNewEditor} className={ds.btnPrimary}>
             <Plus className="w-4 h-4" /> New Record
           </button>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="education" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">

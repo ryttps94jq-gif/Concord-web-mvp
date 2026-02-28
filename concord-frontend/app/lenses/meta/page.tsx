@@ -7,6 +7,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface LensTemplateData {
   name: string;
@@ -48,6 +52,7 @@ const ICON_MAP: Record<string, typeof Layout> = {
 
 export default function MetaLensPage() {
   useLensNav('meta');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('meta');
   const [lensName, setLensName] = useState('');
   const [lensDescription, setLensDescription] = useState('');
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
@@ -161,6 +166,17 @@ export default function MetaLensPage() {
             Builder for custom lenses - extend the lensbuilder/forge
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="meta" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
 
@@ -341,6 +357,18 @@ export default function MetaLensPage() {
                   </div>
                 ))}
               </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="meta"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
             </div>
           )}
         </>

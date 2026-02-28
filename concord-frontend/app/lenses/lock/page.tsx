@@ -8,6 +8,10 @@ import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface LockEventData {
   event: string;
@@ -21,6 +25,7 @@ const SEED_LOCK_HISTORY: {
 
 export default function LockLensPage() {
   useLensNav('lock');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('lock');
   const { lockPercentage, invariants, isLocked, invariantSummary } = use70Lock();
 
   const { items: historyItems, isLoading: historyLoading, isError: isError, error: error, refetch: refetch, create: addEvent } = useLensData<LockEventData>('lock', 'lock-event', {
@@ -77,6 +82,17 @@ export default function LockLensPage() {
               70% sovereignty lock deep-dive and invariant visualization
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="lock" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className={`sovereignty-lock lock-70 px-6 py-3 rounded-xl ${
           isLocked ? 'border-sovereignty-locked' : 'border-sovereignty-danger'
@@ -193,6 +209,18 @@ export default function LockLensPage() {
             ))}
           </div>
         )}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="lock"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

@@ -5,6 +5,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Leaf, Sun, Droplet, Wind, TreeDeciduous, TrendingUp, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // Seed data — auto-created in backend if empty
 const SEED_METRICS: { title: string; data: { id: string; value: number; unit: string; icon: string; color: string } }[] = [];
@@ -20,6 +24,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default function EcoLensPage() {
   useLensNav('eco');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('eco');
 
   const { items: metricItems, isLoading: metricsLoading, isError, error, refetch } = useLensData('eco', 'metric', {
     seed: SEED_METRICS,
@@ -76,6 +81,17 @@ export default function EcoLensPage() {
             Ecosystem simulations with Growth OS analogs
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="eco" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
 
@@ -132,6 +148,18 @@ export default function EcoLensPage() {
             />
           ))}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="eco"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

@@ -11,6 +11,10 @@ import {
   Clock, Star, RefreshCw,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface MarketListingItem {
   id: string;
@@ -30,6 +34,7 @@ type ListingType = 'all' | 'beat' | 'stem' | 'sample' | 'artwork';
 
 export default function MarketLensPage() {
   useLensNav('market');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('market');
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -167,13 +172,17 @@ export default function MarketLensPage() {
         <div className="flex items-center gap-3">
           <span className="text-2xl">🏪</span>
           <div>
-            <h1 className="text-xl font-bold">Market Lens</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Market Lens</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className="text-sm text-gray-400">
               DTU marketplace, listings, and economy simulation
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="market" data={{}} compact />
           <button className="px-3 py-2 text-sm bg-lattice-surface rounded-lg text-gray-400 hover:text-white transition-colors" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -466,6 +475,18 @@ function StatCard({
           {trend === '+' && <ArrowUpRight className="w-4 h-4 text-neon-green" />}
           {trend === '-' && <ArrowDownRight className="w-4 h-4 text-neon-pink" />}
         </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="market"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
       <p className="text-sm text-gray-400 mt-2">{label}</p>
     </div>

@@ -6,9 +6,14 @@ import { api } from '@/lib/api/client';
 import { useState } from 'react';
 import { Download, FileJson, FileText, Database, Check, Package } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function ExportLensPage() {
   useLensNav('export');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('export');
   const [selectedFormat, setSelectedFormat] = useState<'json' | 'csv' | 'markdown'>('json');
   const [selectedData, setSelectedData] = useState<string[]>(['dtus']);
   const [exporting, setExporting] = useState(false);
@@ -81,6 +86,17 @@ export default function ExportLensPage() {
             Export DTUs and queues for user-owned data backups
           </p>
         </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="export" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -174,6 +190,18 @@ export default function ExportLensPage() {
           As per the OWNER_CONTROL invariant, you can export all your data at any time.
           Exports are complete and unredacted - this proves NO_RESALE compliance.
         </p>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="export"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

@@ -5,9 +5,12 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { LENS_CATEGORIES, getLensesByCategory } from '@/lib/lens-registry';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
 
 export default function AllLensesPage() {
   useLensNav('all');
+  const { isLive, lastUpdated } = useRealtimeLens('all');
   const [q, setQ] = useState('');
 
   const grouped = useMemo(() => {
@@ -35,6 +38,11 @@ export default function AllLensesPage() {
         <h1 className="text-3xl font-bold text-gradient-neon">All Lenses</h1>
         <p className="text-sm text-gray-400 mt-1">Search and open any lens without sidebar clutter.</p>
       </header>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+      </div>
 
       <div className="panel p-4">
         <label className="relative block">
@@ -71,6 +79,7 @@ export default function AllLensesPage() {
             </div>
           </section>
         ))}
+
       </div>
     </div>
   );

@@ -38,6 +38,10 @@ import {
 import { cn } from '@/lib/utils';
 import { generateId } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,6 +182,7 @@ function avatarColor(name: string): string {
 
 export default function BoardLensPage() {
   useLensNav('board');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('board');
 
   // Persist tasks via real backend lens artifacts (auto-seeds on first use)
   const { items: lensItems, isLoading: tasksLoading, isError, error, refetch, isSeeding, create: createLens, update: updateLens, remove: _removeLens } = useLensData<Record<string, unknown>>('board', 'task', {
@@ -417,6 +422,17 @@ export default function BoardLensPage() {
                 <Music className="w-6 h-6 text-purple-400" />
                 <h1 className="text-xl font-bold text-white">Production Board</h1>
               </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="board" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
               {/* Project selector */}
               <div className="relative">
@@ -1099,6 +1115,18 @@ function TaskDetailPanel({
             <Upload className="w-3.5 h-3.5" />
             Upload file
           </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="board"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
     </div>

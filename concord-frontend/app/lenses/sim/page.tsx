@@ -19,6 +19,10 @@ import { ErrorState } from '@/components/common/EmptyState';
 import { useUIStore } from '@/store/ui';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ─── Type Definitions ────────────────────────────────────────────────────────
 
@@ -315,6 +319,7 @@ function getEmptyResults(): SimResults {
 
 export default function SimLensPage() {
   useLensNav('sim');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('sim');
   const queryClient = useQueryClient();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -690,6 +695,17 @@ export default function SimLensPage() {
               Monte Carlo, Agent-Based, System Dynamics, Discrete Event, and Financial modeling
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="sim" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2042,6 +2058,18 @@ function ModelsTab({
               </div>
             ))}
           </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="sim"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       ))}
     </div>

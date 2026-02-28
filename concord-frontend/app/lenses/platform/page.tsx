@@ -15,6 +15,10 @@ import NerveCenter from '@/components/platform/NerveCenter';
 import EmpiricalGatesPanel from '@/components/platform/EmpiricalGatesPanel';
 import ScopeControls from '@/components/platform/ScopeControls';
 import { usePlatformEvents } from '@/components/platform/usePlatformEvents';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type Tab = 'overview' | 'pipeline' | 'nerve' | 'empirical' | 'scope' | 'events';
 
@@ -270,6 +274,7 @@ function OverviewDashboard() {
 
 export default function PlatformPage() {
   useLensNav('platform');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('platform');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const { events, connected } = usePlatformEvents();
 
@@ -285,6 +290,17 @@ export default function PlatformPage() {
                 <h1 className="text-lg font-bold text-gray-100">Concord Platform</h1>
                 <p className="text-xs text-gray-500">v5.5.0 — Pipeline + Empirical Gates + Capability Bridge</p>
               </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="platform" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
             </div>
             <div className="flex items-center gap-3">
               <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
@@ -334,6 +350,18 @@ export default function PlatformPage() {
         {activeTab === 'empirical' && <EmpiricalGatesPanel />}
         {activeTab === 'scope' && <ScopeControls />}
         {activeTab === 'events' && <EventStreamPanel events={events} connected={connected} />}
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="platform"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

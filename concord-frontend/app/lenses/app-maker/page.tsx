@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { Boxes, Plus, CheckCircle, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
 import { apiHelpers } from '@/lib/api/client';
 import { useUIStore } from '@/store/ui';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface AppEntry {
   id: string;
@@ -15,6 +19,7 @@ interface AppEntry {
 }
 
 export default function AppMakerLens() {
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('app-maker');
   const setActiveLens = useUIStore((s) => s.setActiveLens);
   setActiveLens('app-maker');
 
@@ -89,6 +94,17 @@ export default function AppMakerLens() {
         <Boxes className="w-6 h-6 text-neon-cyan" />
         <h1 className="text-xl font-bold">App Maker</h1>
       </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="app-maker" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       <p className="text-sm text-gray-400">
         Compose apps from existing primitives. Artifact + Execution + Governance + Custom UI.
       </p>
@@ -159,6 +175,18 @@ export default function AppMakerLens() {
       {/* Invariant Reminder */}
       <div className="text-xs text-gray-500 text-center">
         All fields map to Identity, Artifact, Execution, Governance, Memory, or Economy primitives. No new core objects.
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="app-maker"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

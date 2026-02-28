@@ -54,6 +54,10 @@ import {
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -205,6 +209,7 @@ function progressColor(pct: number): string {
 
 export default function GovernmentLensPage() {
   useLensNav('government');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('government');
 
   const [mode, setMode] = useState<ModeTab>('Permits');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1312,7 +1317,10 @@ export default function GovernmentLensPage() {
             <Landmark className="w-6 h-6 text-neon-cyan" />
           </div>
           <div>
-            <h1 className={ds.heading1}>Government Operations</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Government Operations</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Permits, public works, code enforcement, emergency management, records &amp; court administration</p>
           </div>
         </div>
@@ -1330,6 +1338,8 @@ export default function GovernmentLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="government" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="government" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="government" data={{}} compact />
       {/* Navigation tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {

@@ -18,6 +18,10 @@ import {
   Phone, Mail, PartyPopper, Briefcase, Heart,
   Theater, School, UtensilsCrossed, Armchair,
 } from 'lucide-react';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -156,6 +160,7 @@ function MetricCard({ icon: Icon, label, value, sub, trend }: { icon: typeof Cal
 // ---------------------------------------------------------------------------
 export default function EventsLensPage() {
   useLensNav('events');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('events');
 
   const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
@@ -1315,6 +1320,17 @@ export default function EventsLensPage() {
             <h1 className={ds.heading1}>Event Management</h1>
             <p className={ds.textMuted}>Plan, coordinate, and execute events end-to-end</p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="events" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         {mode !== 'dashboard' && (
           <button onClick={openCreate} className={ds.btnPrimary}>
@@ -1458,6 +1474,18 @@ export default function EventsLensPage() {
                 </div>
               </div>
             </div>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="events"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
           </div>
         </>
       )}

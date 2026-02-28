@@ -53,6 +53,10 @@ import {
   CircleDot,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -273,6 +277,7 @@ function deadlineUrgency(dateStr: string | undefined): 'overdue' | 'urgent' | 's
 
 export default function LegalLensPage() {
   useLensNav('legal');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('legal');
 
   const [activeTab, setActiveTab] = useState<ModeTab>('Dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2124,7 +2129,10 @@ export default function LegalLensPage() {
         <div className="flex items-center gap-3">
           <Scale className="w-7 h-7 text-neon-purple" />
           <div>
-            <h1 className={ds.heading1}>Legal Practice Management</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Legal Practice Management</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Cases, documents, billing, calendar, contacts, contracts, and compliance</p>
           </div>
         </div>
@@ -2136,6 +2144,8 @@ export default function LegalLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="legal" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="legal" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="legal" data={{}} compact />
       {/* Mode Tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (

@@ -8,6 +8,10 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { Shield, Check, X, AlertTriangle, Lock, Eye, Zap, Loader2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface Invariant {
   id: string;
@@ -23,6 +27,7 @@ const SEED_INVARIANTS: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function InvariantLensPage() {
   useLensNav('invariant');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('invariant');
   const [testAction, setTestAction] = useState('');
   const [testResult, setTestResult] = useState<{ passed: boolean; message: string } | null>(null);
 
@@ -125,6 +130,17 @@ export default function InvariantLensPage() {
               Interactive ethos enforcer and capability tester
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="invariant" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="sovereignty-lock lock-70 px-4 py-2 rounded-lg">
           <span className="text-lg font-bold text-sovereignty-locked">
@@ -237,6 +253,18 @@ export default function InvariantLensPage() {
           All invariants are frozen at 70% sovereignty lock. They cannot be disabled
           or modified without full council approval and structural verification.
         </p>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="invariant"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

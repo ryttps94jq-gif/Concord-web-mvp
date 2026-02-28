@@ -12,6 +12,10 @@ import {
   ChevronRight, FileText, Headphones,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // -- Types ------------------------------------------------------------------
 interface JournalEntry { id: string; date: string; mood: number | null; notes: string; workedOn: string; learned: string; goals: string }
@@ -88,6 +92,7 @@ function MiniWaveform({ data, playing }: { data: number[]; playing: boolean }) {
 // ===========================================================================
 export default function DailyLensPage() {
   useLensNav('daily');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('daily');
   const queryClient = useQueryClient();
   const today = new Date().toISOString().split('T')[0];
 
@@ -395,6 +400,17 @@ export default function DailyLensPage() {
               </h1>
               <p className="text-sm text-gray-400 mt-0.5">Production Journal</p>
             </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="daily" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
             <button onClick={() => generateDigest.mutate()} disabled={generateDigest.isPending}
               className="btn-neon purple flex items-center gap-2 text-sm">
               <Sparkles className="w-4 h-4" />
@@ -640,6 +656,18 @@ export default function DailyLensPage() {
           </motion.div>
 
           <div className="h-6" />
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="daily"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       </main>
     </div>

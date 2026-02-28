@@ -17,6 +17,10 @@ import { useMutation } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
 import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,6 +176,7 @@ function formatCitation(c: CitationData & { title?: string }, style: CitationDat
 
 export default function PaperLensPage() {
   useLensNav('paper');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('paper');
 
   // ---- State ----
   const [activeTab, setActiveTab] = useState<ModeTab>('papers');
@@ -471,6 +476,17 @@ export default function PaperLensPage() {
               Research workspace -- papers, hypotheses, evidence, experiments, and citations
             </p>
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="paper" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExportCSV} className={cn(ds.btnGhost, ds.btnSmall)} title="Export CSV">
@@ -1546,6 +1562,18 @@ function CitationDetailFields({ item, citationStyle }: { item: LensItem; citatio
         <div>
           <span className={ds.label}>URL</span>
           <p className={cn(ds.textMono, 'text-neon-blue text-xs break-all')}>{d.url}</p>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="paper"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
         </div>
       )}
       {d.citedByCount !== undefined && (

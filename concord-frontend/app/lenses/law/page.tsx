@@ -5,12 +5,17 @@ import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
 import { Scale, Gavel, FileText, CheckCircle, XCircle, AlertTriangle, Plus } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function LawLensPage() {
   useLensNav('law');
   const [testProposal, setTestProposal] = useState('');
   const [gateResult, setGateResult] = useState<{ passed: boolean; reasons: string[] } | null>(null);
   const [newCaseTitle, setNewCaseTitle] = useState('');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('law');
 
   // Lens artifact persistence layer
   const { isLoading, isError: isError, error: error, refetch: refetch, items: caseItems, create: createCase } = useLensData('law', 'case', { noSeed: true });
@@ -73,11 +78,15 @@ export default function LawLensPage() {
         <span className="text-2xl">⚖️</span>
         <div>
           <h1 className="text-xl font-bold">Law Lens</h1>
+          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
           <p className="text-sm text-gray-400">
             Legality gate playground for compliance testing
           </p>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="law" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="law" data={{}} compact />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">

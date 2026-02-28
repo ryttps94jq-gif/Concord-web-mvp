@@ -43,6 +43,10 @@ import { useUIStore } from '@/store/ui';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -323,6 +327,7 @@ function CollabCard({ collab }: { collab: CollabAttachment }) {
 
 export default function FeedLensPage() {
   useLensNav('feed');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('feed');
 
   const {
     hyperDTUs, megaDTUs, regularDTUs,
@@ -587,6 +592,17 @@ export default function FeedLensPage() {
             <h1 className="text-xl font-bold text-white">Feed</h1>
             <Sparkles className="w-5 h-5 text-neon-cyan" />
           </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="feed" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
           <div className="flex">
             {tabs.map(tab => (
               <button
@@ -942,6 +958,18 @@ export default function FeedLensPage() {
           title="Feed DTUs"
         />
         <FeedbackWidget targetType="lens" targetId="feed" />
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="feed"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
       </div>
     </div>
   );

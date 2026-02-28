@@ -46,6 +46,10 @@ import { LensWrapper } from '@/components/lens/LensWrapper';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 type ViewMode = 'gallery' | 'canvas' | 'marketplace' | 'my-art';
 type CanvasTool = 'brush' | 'eraser' | 'fill' | 'text' | 'shape-rect' | 'shape-circle' | 'eyedropper' | 'move' | 'pen';
@@ -86,6 +90,7 @@ const COLOR_PALETTE = [
 
 export default function ArtLensPage() {
   useLensNav('art');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('art');
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -250,6 +255,17 @@ export default function ArtLensPage() {
       <div className="flex items-center gap-2">
         <Palette className="w-6 h-6 text-neon-pink" />
         <h1 className="text-xl font-bold">Art Studio</h1>
+      </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="art" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {(['gallery', 'canvas', 'marketplace', 'my-art'] as ViewMode[]).map(mode => (
@@ -726,6 +742,18 @@ export default function ArtLensPage() {
                 <button onClick={handleCreateListing} disabled={createListingMutation.isPending} className="w-full py-2.5 bg-neon-pink text-white rounded-lg font-medium hover:bg-neon-pink/80 disabled:opacity-50">
                   {createListingMutation.isPending ? 'Creating...' : 'Create Listing'}
                 </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="art"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
               </div>
             </motion.div>
           </motion.div>

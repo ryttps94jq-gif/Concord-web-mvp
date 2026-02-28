@@ -37,6 +37,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -185,6 +189,7 @@ function countAllComments(comments: Comment[]): number {
 
 export default function ForumLensPage() {
   useLensNav('forum');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('forum');
   const queryClient = useQueryClient();
 
   // ----- State -----
@@ -504,6 +509,17 @@ export default function ForumLensPage() {
               </div>
               <h1 className="text-2xl font-bold text-white mb-3">{selectedPost.title}</h1>
               {selectedPost.content && <div className="text-gray-300 text-sm mb-4 whitespace-pre-wrap leading-relaxed">{selectedPost.content}</div>}
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="forum" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
               {selectedPost.tags.length > 0 && (
                 <div className="flex gap-1.5 mb-4 flex-wrap">
                   {selectedPost.tags.map(t => <span key={t} className="px-2 py-0.5 bg-lattice-bg border border-lattice-border rounded text-xs text-gray-400"><Hash className="w-3 h-3 inline mr-0.5" />{t}</span>)}
@@ -862,6 +878,18 @@ export default function ForumLensPage() {
                   <MessageSquare className="w-5 h-5 text-gray-400" />
                   <div><p className="text-sm text-white font-medium">Crosspost</p><p className="text-xs text-gray-500">Share to another community</p></div>
                 </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="forum"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
               </div>
             </motion.div>
           </motion.div>

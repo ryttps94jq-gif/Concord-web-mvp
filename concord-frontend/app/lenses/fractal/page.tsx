@@ -7,12 +7,17 @@ import { useState } from 'react';
 import { FractalEmpireExplorer } from '@/components/graphs/FractalEmpireExplorer';
 import { Layers, ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 export default function FractalLensPage() {
   useLensNav('fractal');
 
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('fractal');
 
   const { data: fractalData, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
     queryKey: ['fractal-structure'],
@@ -51,6 +56,7 @@ export default function FractalLensPage() {
           <span className="text-2xl">🌀</span>
           <div>
             <h1 className="text-xl font-bold">Fractal Lens</h1>
+            <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
             <p className="text-sm text-gray-400">
               Infinite zoom into DTU sub-structures
             </p>
@@ -81,6 +87,9 @@ export default function FractalLensPage() {
           </button>
         </div>
       </header>
+
+      <RealtimeDataPanel domain="fractal" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="fractal" data={{}} compact />
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-0">
         {/* Fractal Visualization */}

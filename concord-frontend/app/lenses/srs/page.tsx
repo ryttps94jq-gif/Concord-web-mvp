@@ -14,6 +14,10 @@ import {
   Play, XCircle,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 // --- Types ---
 interface SRSItem {
@@ -111,6 +115,7 @@ function getForecast(cards: SRSItem[]): number[] {
 
 export default function SRSLensPage() {
   useLensNav('srs');
+  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('srs');
 
   const queryClient = useQueryClient();
   const { isError: isError, error: error, refetch: refetch, items: cardItems, create: _createCard, remove: removeCard } = useLensData<SRSItem>('srs', 'card', {
@@ -303,6 +308,17 @@ export default function SRSLensPage() {
                 <h1 className="text-xl font-bold text-white">Spaced Repetition Studio</h1>
                 <p className="text-xs text-gray-400">Master knowledge with scientifically-optimized review scheduling</p>
               </div>
+
+      {/* Real-time Enhancement Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
+        <DTUExportButton domain="srs" data={realtimeData || {}} compact />
+        {realtimeAlerts.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
             </div>
             <div className="flex items-center gap-2">
               {navItems.map(nav => (
@@ -1107,6 +1123,18 @@ export default function SRSLensPage() {
                 <button onClick={() => { if (editingCard) { removeCard(editingCard.dtuId || ''); setEditingCard(null); } }} className="py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm">
                   <Trash2 className="w-4 h-4" />
                 </button>
+
+      {/* Real-time Data Panel */}
+      {realtimeData && (
+        <RealtimeDataPanel
+          domain="srs"
+          data={realtimeData}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
+          insights={realtimeInsights}
+          compact
+        />
+      )}
               </div>
             </motion.div>
           </motion.div>

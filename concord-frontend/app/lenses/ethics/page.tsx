@@ -8,6 +8,10 @@ import { useState } from 'react';
 import { Heart, Scale, Brain, MessageSquare, Shield } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 interface FrameworkData {
   name: string;
@@ -30,6 +34,7 @@ export default function EthicsLensPage() {
   const [dilemma, setDilemma] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('ethics');
 
   const { items: frameworkItems, isLoading: frameworksLoading, isError, error, refetch } = useLensData<FrameworkData>(
     'ethics',
@@ -99,12 +104,16 @@ export default function EthicsLensPage() {
         <span className="text-2xl">🧭</span>
         <div>
           <h1 className="text-xl font-bold">Ethics Lens</h1>
+          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
           <p className="text-sm text-gray-400">
             Invariant simulator for moral philosophy queues
           </p>
         </div>
       </header>
 
+
+      <RealtimeDataPanel domain="ethics" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="ethics" data={{}} compact />
 
       {/* AI Actions */}
       <UniversalActions domain="ethics" artifactId={frameworkItems[0]?.id} compact />

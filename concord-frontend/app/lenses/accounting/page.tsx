@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
+import { useRealtimeLens } from '@/hooks/useRealtimeLens';
+import { LiveIndicator } from '@/components/lens/LiveIndicator';
+import { DTUExportButton } from '@/components/lens/DTUExportButton';
+import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -117,6 +121,7 @@ const seedData: Record<string, { title: string; data: Record<string, unknown>; m
 
 export default function AccountingLensPage() {
   useLensNav('accounting');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('accounting');
 
   /* ---- top-level state ---- */
   const [mode, setMode] = useState<ModeTab>('Ledger');
@@ -2108,7 +2113,10 @@ export default function AccountingLensPage() {
         <div className="flex items-center gap-3">
           <Landmark className="w-7 h-7 text-green-400" />
           <div>
-            <h1 className={ds.heading1}>Accounting &amp; Finance</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Accounting &amp; Finance</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>General ledger, invoicing, payroll &amp; financial reporting</p>
           </div>
         </div>
@@ -2125,6 +2133,8 @@ export default function AccountingLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="accounting" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="accounting" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="accounting" data={{}} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
