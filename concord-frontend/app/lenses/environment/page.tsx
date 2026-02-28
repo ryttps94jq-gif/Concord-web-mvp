@@ -310,7 +310,7 @@ const seedData: Record<ArtifactType, { title: string; data: Record<string, unkno
 
 export default function EnvironmentLensPage() {
   useLensNav('environment');
-  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('environment');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('environment');
 
   const [mode, setMode] = useState<ModeTab>('Sites');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2141,24 +2141,17 @@ export default function EnvironmentLensPage() {
             <TreePine className="w-6 h-6 text-green-400" />
           </div>
           <div>
-            <h1 className={ds.heading1}>Environmental Monitoring</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Environmental Monitoring</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>
               Sites, species tracking, sampling, trail assets, waste management & compliance
             </p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="environment" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="environment" data={{}} compact />
           <button
             className={cn(view === 'library' ? ds.btnPrimary : ds.btnSecondary)}
             onClick={() => setView('library')}
@@ -2374,16 +2367,7 @@ export default function EnvironmentLensPage() {
           </div>
 
       {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="environment"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
+      <RealtimeDataPanel domain="environment" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
         </div>
       )}
     </div>

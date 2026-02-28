@@ -2471,20 +2471,12 @@ export default function FoodLensPage() {
         <div className="flex items-center gap-3">
           <ChefHat className="w-8 h-8 text-orange-400" />
           <div>
-            <h1 className={ds.heading1}>Food & Hospitality</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Food & Hospitality</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Recipes, menus, inventory, bookings, and kitchen operations</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="food" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowDashboard(!showDashboard)} className={cn(showDashboard ? ds.btnPrimary : ds.btnSecondary)}>
@@ -2496,6 +2488,8 @@ export default function FoodLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="food" artifactId={allRecipes[0]?.id} compact />
+      <RealtimeDataPanel domain="food" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="food" data={{}} compact />
       <nav className="flex items-center gap-2 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => (
           <button
@@ -2554,17 +2548,6 @@ export default function FoodLensPage() {
           </aside>
         )}
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="food"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
       {renderEditor()}
       {renderRecipeScaler()}

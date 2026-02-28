@@ -1561,26 +1561,20 @@ export default function HouseholdLensPage() {
         <div className="flex items-center gap-3">
           <Home className="w-7 h-7 text-neon-cyan" />
           <div>
-            <h1 className={ds.heading1}>Home &amp; Family</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Home &amp; Family</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Complete household management &amp; family coordination</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="household" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
       </header>
 
 
       {/* AI Actions */}
       <UniversalActions domain="household" artifactId={familyItems[0]?.id} compact />
+      <RealtimeDataPanel domain="household" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="household" data={{}} compact />
       {/* Mode tabs */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-4 overflow-x-auto">
         {MODE_TABS.map(tab => {
@@ -1676,17 +1670,6 @@ export default function HouseholdLensPage() {
             </div>
           </div>
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="household"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
     </div>

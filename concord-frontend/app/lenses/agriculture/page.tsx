@@ -153,7 +153,7 @@ const seedData: { title: string; data: Record<string, unknown> }[] = [];
 
 export default function AgricultureLensPage() {
   useLensNav('agriculture');
-  const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('agriculture');
+  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('agriculture');
 
   const [activeTab, setActiveTab] = useState<ModeTab>('fields');
   const [searchQuery, setSearchQuery] = useState('');
@@ -692,22 +692,15 @@ export default function AgricultureLensPage() {
         <div className="flex items-center gap-3">
           <Wheat className="w-8 h-8 text-green-400" />
           <div>
-            <h1 className={ds.heading1}>Agriculture & Farming</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Agriculture & Farming</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Fields, crops, livestock, equipment, water systems, and harvest tracking</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="agriculture" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
+          <DTUExportButton domain="agriculture" data={{}} compact />
           <button onClick={() => setShowDashboard(!showDashboard)} className={cn(showDashboard ? ds.btnPrimary : ds.btnSecondary)}>
             <BarChart3 className="w-4 h-4" /> Dashboard
           </button>
@@ -715,6 +708,7 @@ export default function AgricultureLensPage() {
         </div>
       </header>
 
+      <RealtimeDataPanel domain="agriculture" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
 
       {/* AI Actions */}
       <UniversalActions domain="agriculture" artifactId={items[0]?.id} compact />
@@ -746,17 +740,6 @@ export default function AgricultureLensPage() {
           </div>
           <pre className={`${ds.textMono} text-xs overflow-auto max-h-48`}>{JSON.stringify(actionResult, null, 2)}</pre>
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="agriculture"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
 

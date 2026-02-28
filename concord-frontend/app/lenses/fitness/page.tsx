@@ -689,20 +689,12 @@ export default function FitnessLensPage() {
         <div className="flex items-center gap-3">
           <Dumbbell className="w-7 h-7 text-neon-green" />
           <div>
-            <h1 className={ds.heading1}>Fitness & Wellness</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={ds.heading1}>Fitness & Wellness</h1>
+              <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
+            </div>
             <p className={ds.textMuted}>Client management, programming, scheduling, and recruiting</p>
           </div>
-
-      {/* Real-time Enhancement Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} compact />
-        <DTUExportButton domain="fitness" data={realtimeData || {}} compact />
-        {realtimeAlerts.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-            {realtimeAlerts.length} alert{realtimeAlerts.length !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowBodyComp(true)} className={ds.btnSecondary}>
@@ -718,6 +710,8 @@ export default function FitnessLensPage() {
 
       {/* AI Actions */}
       <UniversalActions domain="fitness" artifactId={items[0]?.id} compact />
+      <RealtimeDataPanel domain="fitness" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
+      <DTUExportButton domain="fitness" data={{}} compact />
       {/* ========== Mode Tabs ========== */}
       <nav className="flex items-center gap-1 border-b border-lattice-border pb-3 overflow-x-auto">
         {MODE_TABS.map(tab => (
@@ -1845,17 +1839,6 @@ export default function FitnessLensPage() {
               </div>
             </div>
 
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="fitness"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
           </div>
         </>
       )}
