@@ -82,6 +82,112 @@ export const SCOPE_FLAGS = Object.freeze({
   localPull: true,     // Available when user requests
 });
 
+// System events get their own flags — logged but NEVER inflate knowledge counts.
+// No news visibility, no substrate growth, no user/global/regional/national counts.
+export const SYSTEM_SCOPE_FLAGS = Object.freeze({
+  global: false,       // Never global
+  newsVisible: false,  // NOT in News lens — system logs are not news
+  localPush: false,    // Never pushed
+  localPull: false,    // Not even available for pull in user substrate
+  systemOnly: true,    // Routed to STATE._systemDTUs, not STATE.dtus
+});
+
+// ── System Domain Detection ──────────────────────────────────────────────────
+// Events with these domains are system maintenance — NOT knowledge.
+// They still get logged (in STATE._systemDTUs) but never inflate substrate counts.
+
+export const SYSTEM_ONLY_DOMAINS = Object.freeze(["system"]);
+
+/**
+ * Check if an event type is system-only (maintenance, not knowledge).
+ */
+export function isSystemEvent(eventType) {
+  const lenses = EVENT_SCOPE_MAP[eventType];
+  if (!lenses) return false;
+  return lenses.length === 1 && lenses[0] === "system";
+}
+
+/**
+ * Get the appropriate scope flags for an event type.
+ * System events get SYSTEM_SCOPE_FLAGS. Everything else gets SCOPE_FLAGS.
+ */
+export function getScopeFlags(eventType) {
+  return isSystemEvent(eventType) ? SYSTEM_SCOPE_FLAGS : SCOPE_FLAGS;
+}
+
+/**
+ * Ensure STATE has a separate system DTU store.
+ * System DTUs live here — NOT in STATE.dtus.
+ */
+export function ensureSystemDTUStore(STATE) {
+  if (!STATE._systemDTUs) {
+    STATE._systemDTUs = new Map();
+  }
+  if (!STATE._systemDTUMetrics) {
+    STATE._systemDTUMetrics = {
+      total: 0,
+      byType: {},     // "repair:cycle_complete" → count
+      lastAt: null,
+      oldestAt: null,
+    };
+  }
+  return STATE._systemDTUs;
+}
+
+/**
+ * Store a system DTU in the separate system store.
+ * Never touches STATE.dtus.
+ */
+export function storeSystemDTU(STATE, dtu) {
+  const store = ensureSystemDTUStore(STATE);
+  store.set(dtu.id, dtu);
+
+  // Update metrics
+  const m = STATE._systemDTUMetrics;
+  m.total = store.size;
+  const evtType = dtu.meta?.sourceEventType || "unknown";
+  m.byType[evtType] = (m.byType[evtType] || 0) + 1;
+  m.lastAt = dtu.createdAt || new Date().toISOString();
+  if (!m.oldestAt) m.oldestAt = m.lastAt;
+
+  // Cap system DTU store — keep last 5000, prune oldest
+  if (store.size > 5000) {
+    const entries = [...store.entries()]
+      .sort((a, b) => new Date(a[1].createdAt || 0) - new Date(b[1].createdAt || 0));
+    const toRemove = entries.slice(0, entries.length - 4000);
+    for (const [id] of toRemove) store.delete(id);
+    m.total = store.size;
+  }
+
+  return { ok: true, id: dtu.id, stored: "system" };
+}
+
+/**
+ * Query system DTUs — for diagnostics only.
+ */
+export function querySystemDTUs(STATE, opts = {}) {
+  const store = ensureSystemDTUStore(STATE);
+  const { type, limit = 50, since } = opts;
+
+  let results = [...store.values()];
+
+  if (type) {
+    results = results.filter(d => d.meta?.sourceEventType === type);
+  }
+  if (since) {
+    results = results.filter(d => new Date(d.createdAt) > new Date(since));
+  }
+
+  results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return {
+    ok: true,
+    total: results.length,
+    dtus: results.slice(0, limit),
+    metrics: STATE._systemDTUMetrics ? { ...STATE._systemDTUMetrics } : {},
+  };
+}
+
 // ── User Subscription Model ──────────────────────────────────────────────────
 // Users control which lenses feed into their local substrate.
 

@@ -24,11 +24,15 @@ import { createHash, randomBytes } from "crypto";
 import {
   EVENT_SCOPE_MAP,
   SCOPE_FLAGS,
+  SYSTEM_SCOPE_FLAGS,
   resolveEventScope,
   ensureSubscriptionState,
   getUserSubscription,
   checkRateLimit,
   incrementRateLimit,
+  isSystemEvent,
+  getScopeFlags,
+  storeSystemDTU,
 } from "./event-scoping.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -212,9 +216,10 @@ export function eventToDTU(event, classification) {
     ],
 
     // Scope enforcement — scoped not global, pull not push
+    // System events get SYSTEM_SCOPE_FLAGS (logged separately, never inflate counts)
     scope: {
       lenses: resolveEventScope(event.type),
-      ...SCOPE_FLAGS,
+      ...getScopeFlags(event.type),
     },
 
     // Event bridge metadata
@@ -664,6 +669,7 @@ let _bridgeMetrics = {
   dtusRejected: 0,
   crossRefsPerformed: 0,
   externalEventsProcessed: 0,
+  systemDtusRouted: 0,     // system DTUs sent to STATE._systemDTUs (not STATE.dtus)
 };
 
 /**
@@ -730,7 +736,37 @@ export async function bridgeEventToDTU(event, deps = {}) {
   candidateDTU.meta.crossRefCount = xref.crossRefCount;
 
   // ── Layer 4: Pipeline Commit ──
-  // Same pipelineCommitDTU as everything else. No shortcuts.
+  // System events (repair, heartbeat, migration) route to STATE._systemDTUs.
+  // Knowledge events route to pipelineCommitDTU → STATE.dtus.
+  // This keeps system maintenance logs from inflating user/global/regional counts.
+
+  const isSystem = isSystemEvent(event.type);
+
+  if (isSystem && STATE) {
+    // ── System DTU path: logged separately, never inflates substrate counts ──
+    candidateDTU.meta.systemOnly = true;
+    const stored = storeSystemDTU(STATE, candidateDTU);
+    _bridgeMetrics.dtusCommitted++;
+    _bridgeMetrics.systemDtusRouted = (_bridgeMetrics.systemDtusRouted || 0) + 1;
+
+    if (STATE) {
+      const es = ensureSubscriptionState(STATE);
+      es.metrics.eventsProcessed++;
+      es.metrics.systemDtusCreated = (es.metrics.systemDtusCreated || 0) + 1;
+    }
+
+    return {
+      ok: true,
+      dtuId: candidateDTU.id,
+      creti: creti.total,
+      crossRefCount: xref.crossRefCount,
+      stance: xref.stance,
+      lenses: candidateDTU.scope?.lenses || [],
+      systemOnly: true,
+    };
+  }
+
+  // ── Knowledge DTU path: same pipeline as everything else. No shortcuts. ──
   if (pipelineCommitDTU && makeInternalCtx) {
     const ctx = makeInternalCtx("event_bridge");
     ctx.meta = ctx.meta || {};
@@ -770,6 +806,7 @@ export async function bridgeEventToDTU(event, deps = {}) {
     }
 
     // Notify subscribed users in relevant lenses
+    // System events skip notification — no one subscribes to repair logs
     if (STATE) {
       notifySubscribers(STATE, candidateDTU, broadcastEvent);
     }
@@ -911,6 +948,7 @@ export function resetBridgeMetrics() {
     dtusRejected: 0,
     crossRefsPerformed: 0,
     externalEventsProcessed: 0,
+    systemDtusRouted: 0,
   };
   SEEN_HASHES.clear();
   TYPE_RATE_COUNTERS.clear();

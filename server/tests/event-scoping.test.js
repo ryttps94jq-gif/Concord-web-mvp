@@ -26,6 +26,8 @@ import assert from "node:assert/strict";
 import {
   EVENT_SCOPE_MAP,
   SCOPE_FLAGS,
+  SYSTEM_SCOPE_FLAGS,
+  SYSTEM_ONLY_DOMAINS,
   createDefaultSubscription,
   validateSubscription,
   updateSubscription,
@@ -42,6 +44,11 @@ import {
   checkRateLimit,
   incrementRateLimit,
   getEventScopingMetrics,
+  isSystemEvent,
+  getScopeFlags,
+  ensureSystemDTUStore,
+  storeSystemDTU,
+  querySystemDTUs,
 } from "../emergent/event-scoping.js";
 
 import {
@@ -1076,5 +1083,318 @@ describe("Event Scoping Metrics", () => {
     assert.strictEqual(metrics.subscriptionCount, 2);
     assert.ok(metrics.knownEventTypes > 0);
     assert.ok(metrics.receivingLenses > 0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SYSTEM SCOPE ISOLATION
+// System DTUs (repair, heartbeat, migration) go to STATE._systemDTUs,
+// NOT STATE.dtus. They never inflate user/global/regional/national counts.
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("SYSTEM_SCOPE_FLAGS", () => {
+  it("has newsVisible=false (system logs are not news)", () => {
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.newsVisible, false);
+  });
+
+  it("has localPull=false (not available in user substrate)", () => {
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.localPull, false);
+  });
+
+  it("has systemOnly=true (routes to separate store)", () => {
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.systemOnly, true);
+  });
+
+  it("still has global=false and localPush=false", () => {
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.global, false);
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.localPush, false);
+  });
+
+  it("is frozen (immutable)", () => {
+    assert.ok(Object.isFrozen(SYSTEM_SCOPE_FLAGS));
+  });
+
+  it("differs from SCOPE_FLAGS on newsVisible, localPull, systemOnly", () => {
+    assert.strictEqual(SCOPE_FLAGS.newsVisible, true);
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.newsVisible, false);
+    assert.strictEqual(SCOPE_FLAGS.localPull, true);
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.localPull, false);
+    assert.strictEqual(SCOPE_FLAGS.systemOnly, undefined);
+    assert.strictEqual(SYSTEM_SCOPE_FLAGS.systemOnly, true);
+  });
+});
+
+describe("System Event Detection", () => {
+  it("identifies repair:cycle_complete as system event", () => {
+    assert.strictEqual(isSystemEvent("repair:cycle_complete"), true);
+  });
+
+  it("identifies repair:anomaly as system event", () => {
+    assert.strictEqual(isSystemEvent("repair:anomaly"), true);
+  });
+
+  it("identifies system:heartbeat as system event", () => {
+    assert.strictEqual(isSystemEvent("system:heartbeat"), true);
+  });
+
+  it("identifies system:migration as system event", () => {
+    assert.strictEqual(isSystemEvent("system:migration"), true);
+  });
+
+  it("does NOT identify news:politics as system event", () => {
+    assert.strictEqual(isSystemEvent("news:politics"), false);
+  });
+
+  it("does NOT identify research:paper as system event", () => {
+    assert.strictEqual(isSystemEvent("research:paper"), false);
+  });
+
+  it("does NOT identify market:trade as system event", () => {
+    assert.strictEqual(isSystemEvent("market:trade"), false);
+  });
+
+  it("does NOT identify dtu:created as system event", () => {
+    assert.strictEqual(isSystemEvent("dtu:created"), false);
+  });
+
+  it("does NOT identify unknown events as system event", () => {
+    assert.strictEqual(isSystemEvent("unknown:event"), false);
+  });
+
+  it("returns correct scope flags per event type", () => {
+    const sysFlags = getScopeFlags("repair:cycle_complete");
+    assert.strictEqual(sysFlags.systemOnly, true);
+    assert.strictEqual(sysFlags.newsVisible, false);
+
+    const knowledgeFlags = getScopeFlags("news:politics");
+    assert.strictEqual(knowledgeFlags.systemOnly, undefined);
+    assert.strictEqual(knowledgeFlags.newsVisible, true);
+  });
+});
+
+describe("System DTU Store", () => {
+  it("creates separate _systemDTUs map on STATE", () => {
+    const STATE = freshState();
+    ensureSystemDTUStore(STATE);
+    assert.ok(STATE._systemDTUs instanceof Map);
+    assert.ok(STATE._systemDTUMetrics);
+    assert.strictEqual(STATE._systemDTUMetrics.total, 0);
+  });
+
+  it("stores system DTU in _systemDTUs, NOT in dtus", () => {
+    const STATE = freshState();
+    const dtu = {
+      id: "sys_test_1",
+      title: "repair:cycle_complete — Repair completed",
+      meta: { eventOrigin: true, sourceEventType: "repair:cycle_complete" },
+      createdAt: new Date().toISOString(),
+    };
+
+    const result = storeSystemDTU(STATE, dtu);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.stored, "system");
+
+    // In system store
+    assert.ok(STATE._systemDTUs.has("sys_test_1"));
+    // NOT in main DTU store
+    assert.ok(!STATE.dtus.has("sys_test_1"));
+  });
+
+  it("tracks metrics per event type", () => {
+    const STATE = freshState();
+    storeSystemDTU(STATE, {
+      id: "sys_1", meta: { sourceEventType: "repair:cycle_complete" },
+      createdAt: new Date().toISOString(),
+    });
+    storeSystemDTU(STATE, {
+      id: "sys_2", meta: { sourceEventType: "repair:cycle_complete" },
+      createdAt: new Date().toISOString(),
+    });
+    storeSystemDTU(STATE, {
+      id: "sys_3", meta: { sourceEventType: "repair:anomaly" },
+      createdAt: new Date().toISOString(),
+    });
+
+    assert.strictEqual(STATE._systemDTUMetrics.total, 3);
+    assert.strictEqual(STATE._systemDTUMetrics.byType["repair:cycle_complete"], 2);
+    assert.strictEqual(STATE._systemDTUMetrics.byType["repair:anomaly"], 1);
+  });
+
+  it("caps at 5000 entries, pruning oldest", () => {
+    const STATE = freshState();
+    for (let i = 0; i < 5010; i++) {
+      storeSystemDTU(STATE, {
+        id: `sys_cap_${i}`,
+        meta: { sourceEventType: "system:heartbeat" },
+        createdAt: new Date(Date.now() + i).toISOString(),
+      });
+    }
+    // Should have pruned down to ~4000
+    assert.ok(STATE._systemDTUs.size <= 5000);
+    assert.ok(STATE._systemDTUs.size >= 3000);
+  });
+});
+
+describe("System DTU Query", () => {
+  it("queries all system DTUs", () => {
+    const STATE = freshState();
+    storeSystemDTU(STATE, {
+      id: "sq_1", meta: { sourceEventType: "repair:cycle_complete" },
+      createdAt: new Date().toISOString(),
+    });
+    storeSystemDTU(STATE, {
+      id: "sq_2", meta: { sourceEventType: "repair:anomaly" },
+      createdAt: new Date().toISOString(),
+    });
+
+    const result = querySystemDTUs(STATE);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.total, 2);
+    assert.strictEqual(result.dtus.length, 2);
+  });
+
+  it("filters by event type", () => {
+    const STATE = freshState();
+    storeSystemDTU(STATE, {
+      id: "sqf_1", meta: { sourceEventType: "repair:cycle_complete" },
+      createdAt: new Date().toISOString(),
+    });
+    storeSystemDTU(STATE, {
+      id: "sqf_2", meta: { sourceEventType: "repair:anomaly" },
+      createdAt: new Date().toISOString(),
+    });
+
+    const result = querySystemDTUs(STATE, { type: "repair:anomaly" });
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.dtus[0].id, "sqf_2");
+  });
+
+  it("respects limit parameter", () => {
+    const STATE = freshState();
+    for (let i = 0; i < 10; i++) {
+      storeSystemDTU(STATE, {
+        id: `sql_${i}`, meta: { sourceEventType: "system:heartbeat" },
+        createdAt: new Date(Date.now() + i).toISOString(),
+      });
+    }
+
+    const result = querySystemDTUs(STATE, { limit: 3 });
+    assert.strictEqual(result.total, 10);
+    assert.strictEqual(result.dtus.length, 3);
+  });
+});
+
+describe("Bridge System DTU Routing", () => {
+  beforeEach(() => {
+    resetBridgeMetrics();
+  });
+
+  it("routes repair:cycle_complete to _systemDTUs, not pipeline", async () => {
+    const STATE = freshState();
+    let pipelineCalled = false;
+
+    const result = await bridgeEventToDTU(
+      { type: "repair:cycle_complete", data: { duration: 1234, fixed: 2 } },
+      {
+        pipelineCommitDTU: async () => { pipelineCalled = true; return { ok: true }; },
+        makeInternalCtx: () => ({ meta: {} }),
+        lookupDTU: () => null,
+        updateDTU: () => {},
+        broadcastEvent: () => {},
+        STATE,
+      }
+    );
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.systemOnly, true);
+    // Pipeline was NOT called — system DTU went straight to _systemDTUs
+    assert.strictEqual(pipelineCalled, false);
+    // System store has the DTU
+    assert.strictEqual(STATE._systemDTUs.size, 1);
+    // Main DTU store is empty
+    assert.strictEqual(STATE.dtus.size, 0);
+  });
+
+  it("routes news:politics through pipeline to STATE.dtus (knowledge)", async () => {
+    const STATE = freshState();
+    let pipelineCalled = false;
+    let committedDTU = null;
+
+    const result = await bridgeEventToDTU(
+      { type: "news:politics", data: { title: "New policy announced" } },
+      {
+        pipelineCommitDTU: async (ctx, dtu) => {
+          pipelineCalled = true;
+          committedDTU = dtu;
+          STATE.dtus.set(dtu.id, dtu);
+          return { ok: true, dtu };
+        },
+        makeInternalCtx: () => ({ meta: {} }),
+        lookupDTU: () => null,
+        updateDTU: () => {},
+        broadcastEvent: () => {},
+        STATE,
+      }
+    );
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.systemOnly, undefined);
+    // Pipeline WAS called — knowledge DTU goes through full pipeline
+    assert.strictEqual(pipelineCalled, true);
+    // Main DTU store has the DTU
+    assert.strictEqual(STATE.dtus.size, 1);
+    // System store is empty (or not created)
+    assert.strictEqual(STATE._systemDTUs?.size || 0, 0);
+  });
+
+  it("system DTU scope flags have newsVisible=false and systemOnly=true", async () => {
+    const STATE = freshState();
+
+    await bridgeEventToDTU(
+      { type: "repair:anomaly", data: { anomaly: "drift_detected" } },
+      {
+        pipelineCommitDTU: async () => ({ ok: true }),
+        makeInternalCtx: () => ({ meta: {} }),
+        lookupDTU: () => null,
+        updateDTU: () => {},
+        broadcastEvent: () => {},
+        STATE,
+      }
+    );
+
+    const sysDtu = [...STATE._systemDTUs.values()][0];
+    assert.strictEqual(sysDtu.scope.newsVisible, false);
+    assert.strictEqual(sysDtu.scope.systemOnly, true);
+    assert.strictEqual(sysDtu.scope.localPull, false);
+    assert.strictEqual(sysDtu.meta.systemOnly, true);
+  });
+
+  it("knowledge DTU scope flags have newsVisible=true and no systemOnly", async () => {
+    const dtu = eventToDTU(
+      { type: "research:paper", data: { title: "New findings" } },
+      { domain: "science", confidence: 0.85, isExternal: true, eventType: "research:paper" }
+    );
+
+    assert.strictEqual(dtu.scope.newsVisible, true);
+    assert.strictEqual(dtu.scope.localPull, true);
+    assert.strictEqual(dtu.scope.systemOnly, undefined);
+  });
+
+  it("tracks systemDtusRouted in bridge metrics", async () => {
+    const STATE = freshState();
+
+    await bridgeEventToDTU(
+      { type: "repair:cycle_complete", data: {} },
+      { STATE, pipelineCommitDTU: async () => ({ ok: true }), makeInternalCtx: () => ({ meta: {} }), lookupDTU: () => null, updateDTU: () => {}, broadcastEvent: () => {} }
+    );
+    await bridgeEventToDTU(
+      { type: "repair:anomaly", data: { anomaly: "drift" } },
+      { STATE, pipelineCommitDTU: async () => ({ ok: true }), makeInternalCtx: () => ({ meta: {} }), lookupDTU: () => null, updateDTU: () => {}, broadcastEvent: () => {} }
+    );
+
+    const metrics = getBridgeMetrics();
+    assert.strictEqual(metrics.metrics.systemDtusRouted, 2);
+    assert.strictEqual(STATE._systemDTUs.size, 2);
+    assert.strictEqual(STATE.dtus.size, 0);
   });
 });
