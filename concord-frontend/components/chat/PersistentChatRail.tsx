@@ -4,8 +4,20 @@
  * PersistentChatRail — Chat panel that persists across all lens navigations.
  *
  * The killer feature: conversation context carries across lenses.
- * User chats in healthcare → taps fitness lens → same conversation.
+ * User chats in healthcare -> taps fitness lens -> same conversation.
  * The brain now has context from both domains.
+ *
+ * ENHANCED: 5-Mode Chat System
+ *   - Welcome:  Greeting state with quick actions (shown when 0 messages)
+ *   - Assist:   Task-focused assistant with workflow buttons
+ *   - Explore:  Discovery, trending topics, "Surprise me"
+ *   - Connect:  Collaboration, shared sessions, social feed
+ *   - Chat:     Free-form conversation (legacy default)
+ *
+ * Also adds:
+ *   - Proactive messages (time-based, idle, lens navigation, DTU events)
+ *   - Action buttons on messages (Save as DTU, Explore deeper, etc.)
+ *   - Cross-lens memory indicator (lens trail, context badge, clear/preserve toggle)
  */
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
@@ -32,6 +44,25 @@ import {
   Maximize2,
   Layers,
 } from 'lucide-react';
+
+// ── Mode system imports ─────────────────────────────────────────
+
+import type { ChatMode } from './ChatModeTypes';
+import { CHAT_MODES } from './ChatModeTypes';
+import {
+  WelcomePanel,
+  AssistPanel,
+  ExplorePanel,
+  ConnectPanel,
+  ChatPanel,
+  ModeSelector,
+  MessageActions,
+  ResponseActions,
+  CrossLensMemoryBar,
+  ProactiveChip,
+} from './ChatModePanels';
+import { useChatProactive } from './useChatProactive';
+import { useCrossLensMemory } from './useCrossLensMemory';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -79,13 +110,62 @@ export function PersistentChatRail({
   const sessionId = useSessionId();
   const { on, emit, isConnected } = useSocket({ autoConnect: true });
 
+  // ── Core chat state ────────────────────────────────────────
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [chatStatus, setChatStatus] = useState<ChatStatus>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [webResults, setWebResults] = useState<WebResult[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
-  // Sovereignty prompt state
+
+  // ── Mode state ─────────────────────────────────────────────
+
+  const [chatMode, setChatMode] = useState<ChatMode>('welcome');
+
+  // Auto-switch from welcome mode when first message is sent
+  useEffect(() => {
+    if (messages.length > 0 && chatMode === 'welcome') {
+      setChatMode('chat');
+    }
+  }, [messages.length, chatMode]);
+
+  // ── Cross-lens memory ──────────────────────────────────────
+
+  const crossLensMemory = useCrossLensMemory(currentLens);
+
+  // ── Proactive messages ─────────────────────────────────────
+
+  const proactive = useChatProactive({
+    currentLens,
+    messageCount: messages.length,
+    enabled: !collapsed && chatMode !== 'chat', // disable proactive in pure chat mode
+  });
+
+  // ── DTU event listener for proactive notifications ─────────
+
+  useEffect(() => {
+    const handleDTUCreated = (data: unknown) => {
+      const d = data as { title?: string; domain?: string };
+      if (d?.title) {
+        proactive.addDTUNotification(d.title, 'created');
+      }
+    };
+    const handleDTUPromoted = (data: unknown) => {
+      const d = data as { title?: string };
+      if (d?.title) {
+        proactive.addDTUNotification(d.title, 'promoted');
+      }
+    };
+
+    on('dtu:created', handleDTUCreated);
+    on('dtu:promoted', handleDTUPromoted);
+
+    return () => {};
+  }, [on, proactive]);
+
+  // ── Sovereignty prompt state ───────────────────────────────
+
   const [sovereigntyPrompt, setSovereigntyPrompt] = useState<{
     message: string;
     localCount: number;
@@ -96,7 +176,9 @@ export function PersistentChatRail({
     originalPrompt: string;
   } | null>(null);
   const [isResolvingSovereignty, setIsResolvingSovereignty] = useState(false);
-  // Pipeline prompt state
+
+  // ── Pipeline prompt state ──────────────────────────────────
+
   const [pipelinePrompt, setPipelinePrompt] = useState<{
     pipelineId: string;
     description: string;
@@ -110,6 +192,8 @@ export function PersistentChatRail({
     description: string;
     steps: { lens: string; action: string; order: number }[];
   } | null>(null);
+
+  // ── Refs ───────────────────────────────────────────────────
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -179,6 +263,12 @@ export function PersistentChatRail({
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
+
+    // Record message in cross-lens memory
+    crossLensMemory.recordMessage();
+
+    // Reset proactive idle timer on activity
+    proactive.resetIdleTimer();
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -257,7 +347,7 @@ export function PersistentChatRail({
         setChatStatus('idle');
       }
     }
-  }, [sessionId, currentLens, isConnected, emit]);
+  }, [sessionId, currentLens, isConnected, emit, crossLensMemory, proactive]);
 
   // ── Handle sovereignty resolution ──────────────────────────
 
@@ -303,6 +393,27 @@ export function PersistentChatRail({
     }
   }, [sovereigntyPrompt, sessionId, currentLens]);
 
+  // ── Handle mode change ────────────────────────────────────
+
+  const handleModeChange = useCallback((mode: ChatMode) => {
+    setChatMode(mode);
+    // If switching to welcome with messages, auto-switch to chat instead
+    if (mode === 'welcome' && messages.length > 0) {
+      // Allow it — user explicitly chose welcome mode
+    }
+  }, [messages.length]);
+
+  // ── Handle proactive action ───────────────────────────────
+
+  const handleProactiveAction = useCallback((payload: string) => {
+    if (payload.startsWith('navigate:')) {
+      const domain = payload.replace('navigate:', '');
+      onLensNavigate?.(domain);
+    } else {
+      sendMessage(payload);
+    }
+  }, [onLensNavigate, sendMessage]);
+
   // ── Handle submit ──────────────────────────────────────────
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -323,6 +434,46 @@ export function PersistentChatRail({
     setStreamingText('');
     setChatStatus('idle');
     setWebResults([]);
+    setChatMode('welcome');
+    crossLensMemory.clearTrail();
+    proactive.dismissAll();
+  };
+
+  // ── Get mode-specific placeholder ─────────────────────────
+
+  const getPlaceholder = (): string => {
+    const modeConfig = CHAT_MODES.find(m => m.id === chatMode);
+    return modeConfig?.placeholder || 'Ask Concord anything...';
+  };
+
+  // ── Render mode panel ─────────────────────────────────────
+
+  const renderModePanel = () => {
+    // Only show mode panels when there are 0 messages OR when not in chat mode
+    const showPanel = messages.length === 0 || chatMode !== 'chat';
+
+    if (!showPanel) return null;
+
+    const panelProps = {
+      currentLens,
+      onSendMessage: sendMessage,
+      onLensNavigate,
+    };
+
+    switch (chatMode) {
+      case 'welcome':
+        return <WelcomePanel {...panelProps} />;
+      case 'assist':
+        return <AssistPanel {...panelProps} />;
+      case 'explore':
+        return <ExplorePanel {...panelProps} />;
+      case 'connect':
+        return <ConnectPanel {...panelProps} />;
+      case 'chat':
+        return <ChatPanel {...panelProps} />;
+      default:
+        return null;
+    }
   };
 
   // ── Collapsed state (floating button) ──────────────────────
@@ -399,9 +550,44 @@ export function PersistentChatRail({
         </div>
       </div>
 
+      {/* Mode selector bar */}
+      <ModeSelector activeMode={chatMode} onModeChange={handleModeChange} />
+
+      {/* Cross-lens memory indicator */}
+      <CrossLensMemoryBar
+        trail={crossLensMemory.trail}
+        totalLensCount={crossLensMemory.totalLensCount}
+        memoryPreserved={crossLensMemory.memoryPreserved}
+        onToggleMemory={crossLensMemory.toggleMemoryPreserved}
+        onClearTrail={crossLensMemory.clearTrail}
+      />
+
+      {/* Mode-specific panel (above messages) */}
+      {renderModePanel()}
+
+      {/* Proactive messages */}
+      {proactive.proactiveMessages.length > 0 && (
+        <div className="shrink-0">
+          {proactive.proactiveMessages.slice(-2).map(pm => (
+            <ProactiveChip
+              key={pm.id}
+              content={pm.content}
+              actionLabel={pm.actionLabel}
+              onAction={() => {
+                if (pm.actionPayload) {
+                  handleProactiveAction(pm.actionPayload);
+                }
+                proactive.dismissProactive(pm.id);
+              }}
+              onDismiss={() => proactive.dismissProactive(pm.id)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {messages.length === 0 && (
+        {messages.length === 0 && chatMode === 'chat' && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Brain className="w-10 h-10 text-zinc-600 mb-3" />
             <p className="text-sm text-zinc-400 mb-1">Chat with Concord</p>
@@ -485,6 +671,16 @@ export function PersistentChatRail({
                       <Zap className="w-3 h-3" />
                       Generate {msg.lensRecommendation.suggestedAction.replace(/-/g, ' ')}
                     </button>
+                  )}
+
+                  {/* Action buttons on assistant messages */}
+                  {msg.role === 'assistant' && msg.content.length > 30 && (
+                    <ResponseActions
+                      mode={chatMode}
+                      responseContent={msg.content}
+                      currentLens={currentLens}
+                      onSendMessage={sendMessage}
+                    />
                   )}
                 </div>
               </div>
@@ -622,7 +818,7 @@ export function PersistentChatRail({
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Concord anything..."
+            placeholder={getPlaceholder()}
             rows={1}
             className="flex-1 resize-none bg-lattice-deep border border-lattice-border rounded-lg
               px-3 py-2 text-sm text-white placeholder:text-zinc-500
