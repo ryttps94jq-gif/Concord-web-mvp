@@ -1,18 +1,11 @@
 'use client';
 
-import { useLensNav } from '@/hooks/useLensNav';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
-import { Loading } from '@/components/common/Loading';
 import { useState } from 'react';
-import { Heart, Scale, Brain, MessageSquare, Shield, Layers, ChevronDown } from 'lucide-react';
-import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
-import { ErrorState } from '@/components/common/EmptyState';
+import { Heart, Scale, Brain, MessageSquare, Shield } from 'lucide-react';
 import { UniversalActions } from '@/components/lens/UniversalActions';
-import { useRealtimeLens } from '@/hooks/useRealtimeLens';
-import { LiveIndicator } from '@/components/lens/LiveIndicator';
-import { DTUExportButton } from '@/components/lens/DTUExportButton';
-import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensPageShell } from '@/components/lens/LensPageShell';
 
 interface FrameworkData {
   name: string;
@@ -31,12 +24,9 @@ const SEED_FRAMEWORKS: { title: string; data: { name: string; desc: string; weig
 const SEED_MORAL_DTUS: { title: string; data: { framework: string; position: string; weight: number } }[] = [];
 
 export default function EthicsLensPage() {
-  useLensNav('ethics');
   const [dilemma, setDilemma] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [showFeatures, setShowFeatures] = useState(false);
-  const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('ethics');
 
   const { items: frameworkItems, isLoading: frameworksLoading, isError, error, refetch } = useLensData<FrameworkData>(
     'ethics',
@@ -50,7 +40,6 @@ export default function EthicsLensPage() {
     { seed: SEED_MORAL_DTUS }
   );
 
-  // Map lens items to the shapes used in rendering
   const frameworks = frameworkItems.map((item) => ({
     id: item.id,
     name: item.title || item.data?.name || '',
@@ -82,43 +71,21 @@ export default function EthicsLensPage() {
     }
   };
 
-  const isLoading = frameworksLoading || moralDTUsLoading;
-
-  if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <Loading text="Loading ethics frameworks..." />
-      </div>
-    );
-  }
-
-
-  if (isError || isError2) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
-        <ErrorState error={error?.message || error2?.message} onRetry={() => { refetch(); refetch2(); }} />
-      </div>
-    );
-  }
   return (
-    <div className="p-6 space-y-6">
-      <header className="flex items-center gap-3">
-        <span className="text-2xl">🧭</span>
-        <div>
-          <h1 className="text-xl font-bold">Ethics Lens</h1>
-          <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />
-          <p className="text-sm text-gray-400">
-            Invariant simulator for moral philosophy queues
-          </p>
-        </div>
-      </header>
-
-
-      <RealtimeDataPanel domain="ethics" data={realtimeData} isLive={isLive} lastUpdated={lastUpdated} insights={insights} compact />
-      <DTUExportButton domain="ethics" data={{}} compact />
-
+    <LensPageShell
+      domain="ethics"
+      title="Ethics Lens"
+      description="Invariant simulator for moral philosophy queues"
+      headerIcon={<span className="text-2xl">🧭</span>}
+      isLoading={frameworksLoading || moralDTUsLoading}
+      isError={isError || isError2}
+      error={error || error2}
+      onRetry={() => { refetch(); refetch2(); }}
+    >
       {/* AI Actions */}
       <UniversalActions domain="ethics" artifactId={frameworkItems[0]?.id} compact />
+
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="lens-card">
           <Scale className="w-5 h-5 text-neon-purple mb-2" />
@@ -162,7 +129,6 @@ export default function EthicsLensPage() {
           {analyzing ? 'Analyzing across frameworks...' : 'Analyze Dilemma'}
         </button>
 
-        {/* Analysis Result */}
         {analysisResult && (
           <div className="mt-4 p-4 bg-lattice-deep rounded-lg border border-neon-purple/20">
             <h3 className="text-sm font-semibold text-neon-purple mb-2">Analysis Result</h3>
@@ -211,25 +177,6 @@ export default function EthicsLensPage() {
           ))}
         </div>
       </div>
-
-      {/* Lens Features */}
-      <div className="border-t border-white/10">
-        <button
-          onClick={() => setShowFeatures(!showFeatures)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <Layers className="w-4 h-4" />
-            Lens Features & Capabilities
-          </span>
-          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
-        </button>
-        {showFeatures && (
-          <div className="px-4 pb-4">
-            <LensFeaturePanel lensId="ethics" />
-          </div>
-        )}
-      </div>
-    </div>
+    </LensPageShell>
   );
 }

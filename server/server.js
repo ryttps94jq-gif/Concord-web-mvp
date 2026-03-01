@@ -43,6 +43,7 @@ import { preloadBrains, getBrainPriority, resolveBrain } from "./lib/brain-route
 import { createBreakerRegistry } from "./lib/circuit-breaker.js";
 import { traceMiddleware, startSpan, storeTrace, getRecentTraces, getTraceMetrics } from "./lib/request-trace.js";
 import { loadPluginsFromDisk, fireHook, tickPlugins } from "./plugins/loader.js";
+import { initDTUStore, createDTUStore } from "./lib/dtu-store.js";
 import { renderAndAttach, hasRenderer as _hasRenderer } from "./lib/render-engine.js";
 import { registerAllRenderers } from "./lib/render-registry.js";
 import { getArtifactSchema } from "./lib/artifact-schemas.js";
@@ -3281,6 +3282,14 @@ if (db) {
   }
 }
 
+// ---- DTU Write-Through Store (persistent-first) ----
+// Initialize the dtu_store table for row-level DTU persistence.
+// This supplements the full-state snapshot with per-DTU durability.
+const _DTU_STORE_READY = db ? initDTUStore(db) : false;
+if (_DTU_STORE_READY) {
+  structuredLog("info", "dtu_store_initialized", { backend: "sqlite" });
+}
+
 // Register database close on shutdown
 if (db) {
   registerShutdownCallback(() => {
@@ -5936,6 +5945,22 @@ process.on("beforeExit", () => {
 });
 
 const STATE_DISK = loadStateFromDisk();
+
+// ---- Wrap STATE.dtus with write-through SQLite store ----
+// After state is loaded from disk, upgrade STATE.dtus from a plain Map
+// to a write-through store: SQLite is source of truth, Map is cache.
+if (_DTU_STORE_READY && db) {
+  const _rawDtuMap = STATE.dtus; // keep reference to original Map
+  const dtuStore = createDTUStore(db, _rawDtuMap, {
+    log: structuredLog,
+  });
+  // Migrate any DTUs loaded from state snapshot into the row-level table
+  const migResult = dtuStore.migrateMemoryToSQLite();
+  structuredLog("info", "dtu_store_boot_migration", migResult);
+  // Replace STATE.dtus with the write-through store
+  STATE.dtus = dtuStore;
+}
+
 // Final boot normalization (ensures env-driven defaults win)
 try {
   if (STATE && STATE.settings) {
@@ -22968,7 +22993,8 @@ register("admin", "dashboard", (_ctx, _input) => {
       documents: SEARCH_INDEX.documents.size,
       terms: SEARCH_INDEX.invertedIndex.size,
       dirty: SEARCH_INDEX.dirty
-    }
+    },
+    dtuStore: typeof STATE.dtus.getMetrics === "function" ? STATE.dtus.getMetrics() : { mode: "memory-only" }
   };
 });
 
