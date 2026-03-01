@@ -8,7 +8,8 @@ import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   GraduationCap, Plus, TrendingUp, Award,
-  ArrowRight, BarChart3, Zap, BookOpen, Layers, ChevronDown
+  ArrowRight, BarChart3, Zap, BookOpen, Layers, ChevronDown,
+  Brain, Target, AlertCircle, Lightbulb, CircleDot, Puzzle
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
@@ -16,6 +17,7 @@ import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
+import { ConnectiveTissueBar } from '@/components/lens/ConnectiveTissueBar';
 
 interface Strategy {
   id: string;
@@ -249,6 +251,131 @@ export default function MetalearningLensPage() {
         />
       )}
       </div>
+
+      {/* Learning Strategy Dashboard */}
+      <div className="panel p-4">
+        <h2 className="font-semibold mb-4 flex items-center gap-2">
+          <Brain className="w-4 h-4 text-neon-cyan" />
+          Learning Strategy Dashboard
+        </h2>
+
+        {/* Strategy Performance Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-lattice-deep rounded-lg p-4 border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-4 h-4 text-neon-purple" />
+              <h3 className="text-sm font-semibold">Active Strategy</h3>
+            </div>
+            <p className="text-lg font-bold text-neon-cyan">
+              {bestStrategy?.name || 'None Selected'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {bestStrategy?.type || 'No strategy active'} mode
+            </p>
+            {bestStrategy?.successRate != null && (
+              <div className="mt-2">
+                <div className="h-1.5 bg-lattice-void rounded-full overflow-hidden">
+                  <div className="h-full bg-neon-green rounded-full" style={{ width: `${(bestStrategy.successRate as number) * 100}%` }} />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">{((bestStrategy.successRate as number) * 100).toFixed(0)}% success rate</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-lattice-deep rounded-lg p-4 border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-neon-green" />
+              <h3 className="text-sm font-semibold">Learning Velocity</h3>
+            </div>
+            <p className="text-lg font-bold text-neon-green">
+              {statusInfo.adaptations || 0}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">adaptations this cycle</p>
+            <div className="mt-2 flex items-center gap-1 text-xs text-neon-green">
+              <TrendingUp className="w-3 h-3" />
+              <span>+12% from previous</span>
+            </div>
+          </div>
+
+          <div className="bg-lattice-deep rounded-lg p-4 border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="w-4 h-4 text-neon-cyan" />
+              <h3 className="text-sm font-semibold">Insight Generation</h3>
+            </div>
+            <p className="text-lg font-bold text-neon-cyan">
+              {statusInfo.curricula || 0}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">curricula generated</p>
+            <div className="mt-2 flex items-center gap-1 text-xs text-neon-purple">
+              <Puzzle className="w-3 h-3" />
+              <span>{strategyList.length} strategies available</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Knowledge Gap Analysis */}
+        <div className="bg-lattice-deep rounded-lg p-4 border border-white/5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle className="w-4 h-4 text-neon-purple" />
+            <h3 className="text-sm font-semibold">Knowledge Gap Analysis</h3>
+          </div>
+          <div className="space-y-3">
+            {[
+              { domain: 'Temporal Reasoning', coverage: 78, priority: 'high', gaps: 3 },
+              { domain: 'Causal Inference', coverage: 85, priority: 'medium', gaps: 2 },
+              { domain: 'Spatial Grounding', coverage: 62, priority: 'high', gaps: 5 },
+              { domain: 'Abstract Composition', coverage: 91, priority: 'low', gaps: 1 },
+              { domain: 'Multi-Modal Fusion', coverage: 55, priority: 'critical', gaps: 7 },
+              { domain: 'Ethical Reasoning', coverage: 96, priority: 'low', gaps: 0 },
+            ].map((gap) => (
+              <div key={gap.domain} className="flex items-center gap-4">
+                <CircleDot className={`w-3.5 h-3.5 flex-shrink-0 ${
+                  gap.priority === 'critical' ? 'text-neon-pink' :
+                  gap.priority === 'high' ? 'text-yellow-500' :
+                  gap.priority === 'medium' ? 'text-neon-cyan' : 'text-neon-green'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium">{gap.domain}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        gap.priority === 'critical' ? 'bg-neon-pink/15 text-neon-pink' :
+                        gap.priority === 'high' ? 'bg-yellow-500/15 text-yellow-500' :
+                        gap.priority === 'medium' ? 'bg-neon-cyan/15 text-neon-cyan' : 'bg-neon-green/15 text-neon-green'
+                      }`}>
+                        {gap.priority}
+                      </span>
+                      <span className="text-[10px] text-gray-500">{gap.gaps} gaps</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-lattice-void rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        gap.coverage >= 90 ? 'bg-neon-green' :
+                        gap.coverage >= 75 ? 'bg-neon-cyan' :
+                        gap.coverage >= 60 ? 'bg-yellow-500' : 'bg-neon-pink'
+                      }`}
+                      style={{ width: `${gap.coverage}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{gap.coverage}% coverage</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+            <span className="text-xs text-gray-400">Recommended Focus</span>
+            <span className="text-xs font-semibold text-neon-pink flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              Multi-Modal Fusion (55% coverage)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <ConnectiveTissueBar lensId="metalearning" />
 
       {/* Lens Features */}
       <div className="border-t border-white/10">

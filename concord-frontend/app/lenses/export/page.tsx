@@ -4,13 +4,14 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Download, FileJson, FileText, Database, Check, Package, Layers, ChevronDown } from 'lucide-react';
+import { Download, FileJson, FileText, Database, Check, Package, Layers, ChevronDown, FileCode, FileSpreadsheet, FileType, Hash, ArrowDownToLine } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
+import { ConnectiveTissueBar } from '@/components/lens/ConnectiveTissueBar';
 
 export default function ExportLensPage() {
   useLensNav('export');
@@ -205,6 +206,121 @@ export default function ExportLensPage() {
         />
       )}
       </div>
+
+      {/* Export Options Grid */}
+      <div className="panel p-4">
+        <h2 className="font-semibold mb-4 flex items-center gap-2">
+          <ArrowDownToLine className="w-4 h-4 text-neon-purple" />
+          Export Options
+        </h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Choose your preferred export format. Each format is optimized for different use cases and downstream integrations.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* JSON Card */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 hover:border-neon-cyan/30 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-neon-cyan/10 rounded-lg group-hover:bg-neon-cyan/20 transition-colors">
+                <FileJson className="w-6 h-6 text-neon-cyan" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">JSON</h3>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Structured Data</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              Full hierarchical data export preserving all relationships, metadata, and DTU provenance chains.
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <span className="text-[10px] text-gray-600">~2.4 MB estimated</span>
+              <span className="text-[10px] text-neon-cyan">application/json</span>
+            </div>
+          </div>
+
+          {/* CSV Card */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 hover:border-neon-green/30 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-neon-green/10 rounded-lg group-hover:bg-neon-green/20 transition-colors">
+                <FileSpreadsheet className="w-6 h-6 text-neon-green" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">CSV</h3>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Tabular Data</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              Flat spreadsheet format compatible with Excel, Google Sheets, and data analysis tools.
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <span className="text-[10px] text-gray-600">~1.8 MB estimated</span>
+              <span className="text-[10px] text-neon-green">text/csv</span>
+            </div>
+          </div>
+
+          {/* PDF Card */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 hover:border-neon-purple/30 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-neon-purple/10 rounded-lg group-hover:bg-neon-purple/20 transition-colors">
+                <FileText className="w-6 h-6 text-neon-purple" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">PDF</h3>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Document</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              Formatted human-readable report with charts, tables, and executive summary sections.
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <span className="text-[10px] text-gray-600">~5.1 MB estimated</span>
+              <span className="text-[10px] text-neon-purple">application/pdf</span>
+            </div>
+          </div>
+
+          {/* XML Card */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 hover:border-yellow-500/30 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
+                <FileCode className="w-6 h-6 text-yellow-500" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">XML</h3>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Interchange</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              Standards-compliant XML with XSD schema for enterprise system integration and SOAP APIs.
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <span className="text-[10px] text-gray-600">~3.2 MB estimated</span>
+              <span className="text-[10px] text-yellow-500">application/xml</span>
+            </div>
+          </div>
+
+          {/* Markdown Card */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 hover:border-blue-400/30 transition-all group cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-blue-400/10 rounded-lg group-hover:bg-blue-400/20 transition-colors">
+                <Hash className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">Markdown</h3>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Documentation</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+              Clean markdown output ideal for documentation, wikis, and version-controlled knowledge bases.
+            </p>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <span className="text-[10px] text-gray-600">~0.9 MB estimated</span>
+              <span className="text-[10px] text-blue-400">text/markdown</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ConnectiveTissueBar lensId="export_import" />
 
       {/* Lens Features */}
       <div className="border-t border-white/10">

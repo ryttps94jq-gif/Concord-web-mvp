@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiHelpers } from '@/lib/api/client';
 import { useUIStore } from '@/store/ui';
 import { useState } from 'react';
-import { Inbox, Play, Trash2, Clock, Zap, Globe, FileText, Layers, ChevronDown } from 'lucide-react';
+import { Inbox, Play, Trash2, Clock, Zap, Globe, FileText, Layers, ChevronDown, Activity, Bot, Coins, CheckCircle2, AlertCircle, RefreshCw, BarChart3 } from 'lucide-react';
+import { ConnectiveTissueBar } from '@/components/lens/ConnectiveTissueBar';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
@@ -290,6 +291,164 @@ export default function QueueLensPage() {
         />
       )}
       </div>
+
+      {/* Job Monitor — Queue Status Cards */}
+      <div className="panel p-6 space-y-5">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <Activity className="w-5 h-5 text-neon-cyan" />
+          Job Monitor
+        </h2>
+        <p className="text-sm text-gray-400">
+          Real-time status cards for compression, royalty processing, and bot task queues.
+        </p>
+
+        {/* Queue Status Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Compression Queue */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-neon-cyan" />
+                <span className="text-sm font-semibold text-white">Compression</span>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-neon-green/20 text-neon-green flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Running
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">In queue</span>
+                <span className="text-white font-mono">24</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Processing</span>
+                <span className="text-neon-cyan font-mono">3</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Completed (24h)</span>
+                <span className="text-neon-green font-mono">187</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Failed (24h)</span>
+                <span className="text-red-400 font-mono">2</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-neon-cyan rounded-full" style={{ width: '78%' }} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>Throughput</span>
+                <span className="text-neon-cyan">7.8 DTUs/min</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Royalty Processing Queue */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-neon-green" />
+                <span className="text-sm font-semibold text-white">Royalties</span>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-neon-green/20 text-neon-green flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Running
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Pending payouts</span>
+                <span className="text-white font-mono">12</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Processing</span>
+                <span className="text-neon-green font-mono">1</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Settled (24h)</span>
+                <span className="text-neon-green font-mono">89</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Disputed</span>
+                <span className="text-yellow-400 font-mono">1</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-neon-green rounded-full" style={{ width: '92%' }} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>Total CC distributed</span>
+                <span className="text-neon-green">1,247 CC</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bot Tasks Queue */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-neon-purple" />
+                <span className="text-sm font-semibold text-white">Bot Tasks</span>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Backlogged
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Queued tasks</span>
+                <span className="text-white font-mono">38</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Active bots</span>
+                <span className="text-neon-purple font-mono">5</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Completed (24h)</span>
+                <span className="text-neon-green font-mono">142</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Timed out</span>
+                <span className="text-red-400 font-mono">4</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-neon-purple rounded-full" style={{ width: '45%' }} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>Avg task time</span>
+                <span className="text-neon-purple">3.2s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Job Activity Feed */}
+        <div className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-neon-cyan" />
+            Recent Activity
+          </h3>
+          <div className="space-y-2">
+            {[
+              { time: '2s ago', task: 'Compressed DTU batch #4821', type: 'compression', status: 'done' },
+              { time: '8s ago', task: 'Royalty payout: 4.2 CC to creator @nova', type: 'royalty', status: 'done' },
+              { time: '15s ago', task: 'Bot auto-tag: 6 DTUs classified', type: 'bot', status: 'done' },
+              { time: '22s ago', task: 'Compressed DTU batch #4820', type: 'compression', status: 'done' },
+              { time: '31s ago', task: 'Bot council-vote on DTU #19284', type: 'bot', status: 'done' },
+              { time: '45s ago', task: 'Royalty split: fork lineage resolved', type: 'royalty', status: 'done' },
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-3 py-2 rounded bg-black/30 hover:bg-white/5 transition-colors">
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  item.type === 'compression' ? 'bg-neon-cyan' :
+                  item.type === 'royalty' ? 'bg-neon-green' : 'bg-neon-purple'
+                }`} />
+                <span className="text-xs text-gray-300 flex-1">{item.task}</span>
+                <span className="text-xs text-gray-600">{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ConnectiveTissueBar */}
+      <ConnectiveTissueBar lensId="queue" />
 
       {/* Lens Features */}
       <div className="border-t border-white/10">
