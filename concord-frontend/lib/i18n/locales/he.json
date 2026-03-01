@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "טוען...",
+    "error": "אירעה שגיאה",
+    "retry": "נסה שוב",
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "search": "חפש",
+    "close": "סגור",
+    "back": "חזרה",
+    "next": "הבא",
+    "submit": "שלח",
+    "confirm": "אשר",
+    "yes": "כן",
+    "no": "לא"
+  },
+  "nav": {
+    "home": "דף הבית",
+    "lenses": "עדשות",
+    "chat": "צ'אט",
+    "wallet": "ארנק",
+    "profile": "פרופיל",
+    "settings": "הגדרות",
+    "notifications": "התראות",
+    "discovery": "גילוי"
+  },
+  "chat": {
+    "title": "צ'אט קונקורד",
+    "placeholder": "שאל את קונקורד כל דבר...",
+    "thinking": "חושב...",
+    "searching": "מחפש ברשת...",
+    "newConversation": "שיחה חדשה",
+    "modes": {
+      "welcome": "ברוכים הבאים",
+      "assist": "סיוע",
+      "explore": "חקירה",
+      "connect": "התחברות",
+      "chat": "צ'אט"
+    },
+    "greeting": {
+      "morning": "בוקר טוב! מה תרצה לחקור היום?",
+      "afternoon": "צהריים טובים! איך אוכל לעזור?",
+      "evening": "ערב טוב! מה עובר לך בראש?"
+    }
+  },
+  "wallet": {
+    "title": "ארנק",
+    "balance": "יתרה",
+    "buyCC": "קנה CC",
+    "withdraw": "משוך",
+    "transactions": "עסקאות",
+    "earnings": "הכנסות",
+    "amount": "סכום",
+    "fee": "עמלה",
+    "total": "סה\"כ",
+    "confirmPurchase": "אשר רכישה",
+    "confirmWithdraw": "אשר משיכה",
+    "connectPayouts": "הגדר תשלומים",
+    "noTransactions": "אין עסקאות עדיין"
+  },
+  "media": {
+    "upload": "העלה",
+    "dragDrop": "גרור ושחרר קבצים כאן",
+    "or": "או",
+    "browse": "עיין בקבצים",
+    "title": "כותרת",
+    "description": "תיאור",
+    "tags": "תגיות",
+    "privacy": "פרטיות",
+    "public": "ציבורי",
+    "private": "פרטי",
+    "followersOnly": "עוקבים בלבד",
+    "uploading": "מעלה...",
+    "processing": "מעבד..."
+  },
+  "social": {
+    "follow": "עקוב",
+    "unfollow": "הפסק לעקוב",
+    "followers": "עוקבים",
+    "following": "עוקב אחרי",
+    "posts": "פוסטים",
+    "liked": "אהבתי",
+    "trending": "פופולרי",
+    "discover": "גלה",
+    "noResults": "לא נמצאו תוצאות"
+  },
+  "auth": {
+    "signIn": "התחבר",
+    "signUp": "הירשם",
+    "signOut": "התנתק",
+    "email": "דוא\"ל",
+    "password": "סיסמה",
+    "continueWithGoogle": "המשך עם גוגל",
+    "signInWithApple": "התחבר עם אפל",
+    "orContinueWith": "או המשך עם",
+    "forgotPassword": "שכחת סיסמה?",
+    "noAccount": "אין לך חשבון?",
+    "hasAccount": "כבר יש לך חשבון?"
+  },
+  "legal": {
+    "terms": "תנאי שימוש",
+    "privacy": "מדיניות פרטיות",
+    "dmca": "מדיניות DMCA",
+    "lastUpdated": "עדכון אחרון"
+  },
+  "dtu": {
+    "create": "צור DTU",
+    "verify": "אמת",
+    "verified": "מאומת",
+    "unverified": "לא מאומת",
+    "tampered": "שובש",
+    "compressionRatio": "יחס דחיסה",
+    "integrityReport": "דוח שלמות",
+    "saveAsDTU": "שמור כ-DTU",
+    "exploreDeeper": "חקור לעומק",
+    "share": "שתף"
+  },
+  "notifications": {
+    "title": "התראות",
+    "markAllRead": "סמן הכל כנקרא",
+    "clearAll": "נקה הכל",
+    "noNotifications": "אין התראות",
+    "follow": "עוקב אחריך",
+    "like": "אהב את התוכן שלך",
+    "comment": "הגיב על הפוסט שלך",
+    "tip": "שלח לך טיפ",
+    "citation": "ציטט את ה-DTU שלך",
+    "system": "התראת מערכת"
+  },
+  "admin": {
+    "backup": {
+      "title": "מצב גיבוי",
+      "lastBackup": "גיבוי אחרון",
+      "healthy": "תקין",
+      "warning": "אזהרה",
+      "critical": "קריטי",
+      "backupNow": "גבה עכשיו",
+      "storage": "אחסון בשימוש"
+    },
+    "cdn": {
+      "title": "מצב CDN",
+      "provider": "ספק",
+      "cacheHitRate": "שיעור פגיעות מטמון",
+      "bandwidth": "רוחב פס",
+      "purge": "נקה מטמון"
+    }
+  }
+}

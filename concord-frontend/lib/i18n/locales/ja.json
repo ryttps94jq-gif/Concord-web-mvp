@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "retry": "再試行",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "search": "検索",
+    "close": "閉じる",
+    "back": "戻る",
+    "next": "次へ",
+    "submit": "送信",
+    "confirm": "確認",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "nav": {
+    "home": "ホーム",
+    "lenses": "レンズ",
+    "chat": "チャット",
+    "wallet": "ウォレット",
+    "profile": "プロフィール",
+    "settings": "設定",
+    "notifications": "通知",
+    "discovery": "ディスカバリー"
+  },
+  "chat": {
+    "title": "Concordチャット",
+    "placeholder": "Concordに何でも聞いてみよう...",
+    "thinking": "考え中...",
+    "searching": "ウェブを検索中...",
+    "newConversation": "新しい会話",
+    "modes": {
+      "welcome": "ようこそ",
+      "assist": "アシスト",
+      "explore": "探索",
+      "connect": "つながる",
+      "chat": "チャット"
+    },
+    "greeting": {
+      "morning": "おはようございます！今日は何を探索しますか？",
+      "afternoon": "こんにちは！何かお手伝いできますか？",
+      "evening": "こんばんは！何かお考えですか？"
+    }
+  },
+  "wallet": {
+    "title": "ウォレット",
+    "balance": "残高",
+    "buyCC": "CCを購入",
+    "withdraw": "引き出し",
+    "transactions": "取引履歴",
+    "earnings": "収益",
+    "amount": "金額",
+    "fee": "手数料",
+    "total": "合計",
+    "confirmPurchase": "購入を確認",
+    "confirmWithdraw": "引き出しを確認",
+    "connectPayouts": "支払い設定",
+    "noTransactions": "取引はまだありません"
+  },
+  "media": {
+    "upload": "アップロード",
+    "dragDrop": "ここにファイルをドラッグ＆ドロップ",
+    "or": "または",
+    "browse": "ファイルを選択",
+    "title": "タイトル",
+    "description": "説明",
+    "tags": "タグ",
+    "privacy": "プライバシー",
+    "public": "公開",
+    "private": "非公開",
+    "followersOnly": "フォロワー限定",
+    "uploading": "アップロード中...",
+    "processing": "処理中..."
+  },
+  "social": {
+    "follow": "フォロー",
+    "unfollow": "フォロー解除",
+    "followers": "フォロワー",
+    "following": "フォロー中",
+    "posts": "投稿",
+    "liked": "いいね",
+    "trending": "トレンド",
+    "discover": "発見",
+    "noResults": "結果が見つかりません"
+  },
+  "auth": {
+    "signIn": "ログイン",
+    "signUp": "新規登録",
+    "signOut": "ログアウト",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "continueWithGoogle": "Googleで続行",
+    "signInWithApple": "Appleでログイン",
+    "orContinueWith": "または以下で続行",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "noAccount": "アカウントをお持ちでないですか？",
+    "hasAccount": "すでにアカウントをお持ちですか？"
+  },
+  "legal": {
+    "terms": "利用規約",
+    "privacy": "プライバシーポリシー",
+    "dmca": "DMCAポリシー",
+    "lastUpdated": "最終更新日"
+  },
+  "dtu": {
+    "create": "DTUを作成",
+    "verify": "検証",
+    "verified": "検証済み",
+    "unverified": "未検証",
+    "tampered": "改ざん済み",
+    "compressionRatio": "圧縮率",
+    "integrityReport": "整合性レポート",
+    "saveAsDTU": "DTUとして保存",
+    "exploreDeeper": "さらに探索",
+    "share": "共有"
+  },
+  "notifications": {
+    "title": "通知",
+    "markAllRead": "すべて既読にする",
+    "clearAll": "すべて消去",
+    "noNotifications": "通知はありません",
+    "follow": "があなたをフォローしました",
+    "like": "があなたのコンテンツにいいねしました",
+    "comment": "があなたの投稿にコメントしました",
+    "tip": "がチップを送りました",
+    "citation": "があなたのDTUを引用しました",
+    "system": "システム通知"
+  },
+  "admin": {
+    "backup": {
+      "title": "バックアップ状況",
+      "lastBackup": "最終バックアップ",
+      "healthy": "正常",
+      "warning": "警告",
+      "critical": "重大",
+      "backupNow": "今すぐバックアップ",
+      "storage": "使用ストレージ"
+    },
+    "cdn": {
+      "title": "CDNステータス",
+      "provider": "プロバイダー",
+      "cacheHitRate": "キャッシュヒット率",
+      "bandwidth": "帯域幅",
+      "purge": "キャッシュを削除"
+    }
+  }
+}

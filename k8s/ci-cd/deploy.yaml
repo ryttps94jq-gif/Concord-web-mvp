@@ -1,0 +1,27 @@
+# This is a reference copy of the deploy workflow.
+# The authoritative version lives at .github/workflows/deploy.yml
+#
+# This file is provided so that the full K8s deployment config
+# is browsable within the k8s/ directory tree.
+#
+# See: .github/workflows/deploy.yml for the active workflow.
+#
+# ── Quick reference ────────────────────────────────────────────────────
+#
+# Triggers:
+#   - push to main        -> auto-deploy to staging
+#   - workflow_dispatch    -> choose staging or production
+#
+# Jobs:
+#   1. build-and-push     -> Build Docker images, push to GHCR with sha tag
+#   2. deploy-staging     -> Apply K8s manifests, set image, smoke test
+#   3. deploy-production  -> Manual approval, deploy, health check, auto-rollback
+#
+# Required secrets:
+#   - KUBE_CONFIG_STAGING     (base64-encoded kubeconfig)
+#   - KUBE_CONFIG_PRODUCTION  (base64-encoded kubeconfig)
+#   - GITHUB_TOKEN            (automatic, for GHCR push)
+#
+# Required GitHub environments:
+#   - staging              (auto-deploy)
+#   - production           (requires manual approval via environment protection rules)

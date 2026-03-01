@@ -1,0 +1,42 @@
+# ClusterIP service for normal HTTP traffic
+apiVersion: v1
+kind: Service
+metadata:
+  name: concord-backend
+  namespace: concord
+  labels:
+    app.kubernetes.io/name: concord-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5050
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: concord-backend
+---
+# Headless service for WebSocket sticky sessions.
+# Ingress controllers that support session affinity can use this
+# to route socket.io connections to the same pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: concord-backend-headless
+  namespace: concord
+  labels:
+    app.kubernetes.io/name: concord-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 5050
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: concord-backend

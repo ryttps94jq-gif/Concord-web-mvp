@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Se produjo un error",
+    "retry": "Intentar de nuevo",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "nav": {
+    "home": "Inicio",
+    "lenses": "Lentes",
+    "chat": "Chat",
+    "wallet": "Billetera",
+    "profile": "Perfil",
+    "settings": "Configuración",
+    "notifications": "Notificaciones",
+    "discovery": "Descubrir"
+  },
+  "chat": {
+    "title": "Chat de Concord",
+    "placeholder": "Pregúntale algo a Concord...",
+    "thinking": "Pensando...",
+    "searching": "Buscando en la web...",
+    "newConversation": "Nueva conversación",
+    "modes": {
+      "welcome": "Bienvenida",
+      "assist": "Asistir",
+      "explore": "Explorar",
+      "connect": "Conectar",
+      "chat": "Chat"
+    },
+    "greeting": {
+      "morning": "¡Buenos días! ¿Qué te gustaría explorar hoy?",
+      "afternoon": "¡Buenas tardes! ¿En qué puedo ayudarte?",
+      "evening": "¡Buenas noches! ¿Qué tienes en mente?"
+    }
+  },
+  "wallet": {
+    "title": "Billetera",
+    "balance": "Saldo",
+    "buyCC": "Comprar CC",
+    "withdraw": "Retirar",
+    "transactions": "Transacciones",
+    "earnings": "Ganancias",
+    "amount": "Monto",
+    "fee": "Comisión",
+    "total": "Total",
+    "confirmPurchase": "Confirmar compra",
+    "confirmWithdraw": "Confirmar retiro",
+    "connectPayouts": "Configurar pagos",
+    "noTransactions": "Aún no hay transacciones"
+  },
+  "media": {
+    "upload": "Subir",
+    "dragDrop": "Arrastra y suelta archivos aquí",
+    "or": "o",
+    "browse": "explorar archivos",
+    "title": "Título",
+    "description": "Descripción",
+    "tags": "Etiquetas",
+    "privacy": "Privacidad",
+    "public": "Público",
+    "private": "Privado",
+    "followersOnly": "Solo seguidores",
+    "uploading": "Subiendo...",
+    "processing": "Procesando..."
+  },
+  "social": {
+    "follow": "Seguir",
+    "unfollow": "Dejar de seguir",
+    "followers": "Seguidores",
+    "following": "Siguiendo",
+    "posts": "Publicaciones",
+    "liked": "Me gusta",
+    "trending": "Tendencias",
+    "discover": "Descubrir",
+    "noResults": "No se encontraron resultados"
+  },
+  "auth": {
+    "signIn": "Iniciar sesión",
+    "signUp": "Registrarse",
+    "signOut": "Cerrar sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "continueWithGoogle": "Continuar con Google",
+    "signInWithApple": "Iniciar sesión con Apple",
+    "orContinueWith": "o continuar con",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "noAccount": "¿No tienes una cuenta?",
+    "hasAccount": "¿Ya tienes una cuenta?"
+  },
+  "legal": {
+    "terms": "Términos de servicio",
+    "privacy": "Política de privacidad",
+    "dmca": "Política DMCA",
+    "lastUpdated": "Última actualización"
+  },
+  "dtu": {
+    "create": "Crear DTU",
+    "verify": "Verificar",
+    "verified": "Verificado",
+    "unverified": "No verificado",
+    "tampered": "Alterado",
+    "compressionRatio": "Ratio de compresión",
+    "integrityReport": "Informe de integridad",
+    "saveAsDTU": "Guardar como DTU",
+    "exploreDeeper": "Explorar más",
+    "share": "Compartir"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markAllRead": "Marcar todo como leído",
+    "clearAll": "Borrar todo",
+    "noNotifications": "Sin notificaciones",
+    "follow": "te siguió",
+    "like": "le gustó tu contenido",
+    "comment": "comentó en tu publicación",
+    "tip": "te envió una propina",
+    "citation": "citó tu DTU",
+    "system": "Notificación del sistema"
+  },
+  "admin": {
+    "backup": {
+      "title": "Estado de respaldo",
+      "lastBackup": "Último respaldo",
+      "healthy": "Saludable",
+      "warning": "Advertencia",
+      "critical": "Crítico",
+      "backupNow": "Respaldar ahora",
+      "storage": "Almacenamiento usado"
+    },
+    "cdn": {
+      "title": "Estado del CDN",
+      "provider": "Proveedor",
+      "cacheHitRate": "Tasa de aciertos de caché",
+      "bandwidth": "Ancho de banda",
+      "purge": "Purgar caché"
+    }
+  }
+}

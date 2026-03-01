@@ -1,0 +1,106 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: concord-ingress
+  namespace: concord
+  labels:
+    app.kubernetes.io/name: concord
+    app.kubernetes.io/part-of: concord-cognitive-engine
+  annotations:
+    # ── TLS via cert-manager ───────────────────────────────────────────
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # ── NGINX Ingress Controller ───────────────────────────────────────
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+
+    # ── WebSocket support ──────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+
+    # ── Sticky sessions for socket.io ──────────────────────────────────
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "concord-affinity"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
+
+    # ── CORS headers ──────────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://concord-os.org"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-CSRF-Token"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+
+    # ── Rate limiting ─────────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/limit-rps: "30"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+
+    # ── Security headers ──────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - concord-os.org
+      secretName: concord-tls
+  rules:
+    - host: concord-os.org
+      http:
+        paths:
+          # ── Socket.io WebSocket traffic -> backend ─────────────────
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: concord-backend
+                port:
+                  number: 5050
+          # ── API traffic -> backend ─────────────────────────────────
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: concord-backend
+                port:
+                  number: 5050
+          # ── Health/ready endpoints -> backend (no auth) ────────────
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: concord-backend
+                port:
+                  number: 5050
+          - path: /ready
+            pathType: Exact
+            backend:
+              service:
+                name: concord-backend
+                port:
+                  number: 5050
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: concord-backend
+                port:
+                  number: 5050
+          # ── Everything else -> frontend ────────────────────────────
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: concord-frontend
+                port:
+                  number: 3000

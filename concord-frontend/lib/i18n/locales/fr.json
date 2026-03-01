@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "submit": "Soumettre",
+    "confirm": "Confirmer",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "nav": {
+    "home": "Accueil",
+    "lenses": "Lentilles",
+    "chat": "Discussion",
+    "wallet": "Portefeuille",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "notifications": "Notifications",
+    "discovery": "Découverte"
+  },
+  "chat": {
+    "title": "Chat Concord",
+    "placeholder": "Demandez n'importe quoi à Concord...",
+    "thinking": "Réflexion en cours...",
+    "searching": "Recherche sur le web...",
+    "newConversation": "Nouvelle conversation",
+    "modes": {
+      "welcome": "Bienvenue",
+      "assist": "Assistance",
+      "explore": "Explorer",
+      "connect": "Connecter",
+      "chat": "Discussion"
+    },
+    "greeting": {
+      "morning": "Bonjour ! Que souhaitez-vous explorer aujourd'hui ?",
+      "afternoon": "Bon après-midi ! Comment puis-je vous aider ?",
+      "evening": "Bonsoir ! Qu'avez-vous en tête ?"
+    }
+  },
+  "wallet": {
+    "title": "Portefeuille",
+    "balance": "Solde",
+    "buyCC": "Acheter des CC",
+    "withdraw": "Retirer",
+    "transactions": "Transactions",
+    "earnings": "Revenus",
+    "amount": "Montant",
+    "fee": "Frais",
+    "total": "Total",
+    "confirmPurchase": "Confirmer l'achat",
+    "confirmWithdraw": "Confirmer le retrait",
+    "connectPayouts": "Configurer les paiements",
+    "noTransactions": "Aucune transaction pour le moment"
+  },
+  "media": {
+    "upload": "Téléverser",
+    "dragDrop": "Glissez et déposez des fichiers ici",
+    "or": "ou",
+    "browse": "parcourir les fichiers",
+    "title": "Titre",
+    "description": "Description",
+    "tags": "Étiquettes",
+    "privacy": "Confidentialité",
+    "public": "Public",
+    "private": "Privé",
+    "followersOnly": "Abonnés uniquement",
+    "uploading": "Téléversement...",
+    "processing": "Traitement..."
+  },
+  "social": {
+    "follow": "Suivre",
+    "unfollow": "Ne plus suivre",
+    "followers": "Abonnés",
+    "following": "Abonnements",
+    "posts": "Publications",
+    "liked": "Aimé",
+    "trending": "Tendances",
+    "discover": "Découvrir",
+    "noResults": "Aucun résultat trouvé"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "signOut": "Se déconnecter",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "continueWithGoogle": "Continuer avec Google",
+    "signInWithApple": "Se connecter avec Apple",
+    "orContinueWith": "ou continuer avec",
+    "forgotPassword": "Mot de passe oublié ?",
+    "noAccount": "Vous n'avez pas de compte ?",
+    "hasAccount": "Vous avez déjà un compte ?"
+  },
+  "legal": {
+    "terms": "Conditions d'utilisation",
+    "privacy": "Politique de confidentialité",
+    "dmca": "Politique DMCA",
+    "lastUpdated": "Dernière mise à jour"
+  },
+  "dtu": {
+    "create": "Créer un DTU",
+    "verify": "Vérifier",
+    "verified": "Vérifié",
+    "unverified": "Non vérifié",
+    "tampered": "Altéré",
+    "compressionRatio": "Taux de compression",
+    "integrityReport": "Rapport d'intégrité",
+    "saveAsDTU": "Enregistrer comme DTU",
+    "exploreDeeper": "Explorer davantage",
+    "share": "Partager"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "clearAll": "Tout effacer",
+    "noNotifications": "Aucune notification",
+    "follow": "vous suit",
+    "like": "a aimé votre contenu",
+    "comment": "a commenté votre publication",
+    "tip": "vous a envoyé un pourboire",
+    "citation": "a cité votre DTU",
+    "system": "Notification système"
+  },
+  "admin": {
+    "backup": {
+      "title": "État de la sauvegarde",
+      "lastBackup": "Dernière sauvegarde",
+      "healthy": "Sain",
+      "warning": "Avertissement",
+      "critical": "Critique",
+      "backupNow": "Sauvegarder maintenant",
+      "storage": "Stockage utilisé"
+    },
+    "cdn": {
+      "title": "État du CDN",
+      "provider": "Fournisseur",
+      "cacheHitRate": "Taux de succès du cache",
+      "bandwidth": "Bande passante",
+      "purge": "Purger le cache"
+    }
+  }
+}

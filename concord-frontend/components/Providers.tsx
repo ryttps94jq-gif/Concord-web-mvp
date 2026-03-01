@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react
 import { AppShell } from '@/components/shell/AppShell';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { PermissionProvider } from '@/components/common/PermissionGate';
+import { I18nProvider } from '@/components/providers/I18nProvider';
 import { observeWebVitals } from '@/lib/perf';
 import { connectSocket, disconnectSocket } from '@/lib/realtime/socket';
 import { api } from '@/lib/api/client';
@@ -75,11 +76,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <PermissionProvider scopes={userScopes}>
-          <AppShell>{children}</AppShell>
-        </PermissionProvider>
-      </QueryClientProvider>
+      <I18nProvider>
+        <QueryClientProvider client={queryClient}>
+          <PermissionProvider scopes={userScopes}>
+            <AppShell>{children}</AppShell>
+          </PermissionProvider>
+        </QueryClientProvider>
+      </I18nProvider>
     </ErrorBoundary>
   );
 }
