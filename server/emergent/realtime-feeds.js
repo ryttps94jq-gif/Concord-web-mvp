@@ -2,11 +2,21 @@
 // Centralized real-time data fetching service — runs on heartbeat ticks,
 // pushes data via WebSocket (realtimeEmit).
 // All external API calls use free/public endpoints with graceful fallback.
+//
+// Event-to-DTU Bridge Integration:
+// Each feed tick now also fires individual items through bridgeEvent()
+// to convert live feed data into scoped, CRETI-scored DTUs in the substrate.
+// Feed data streams to the frontend AND persists as knowledge simultaneously.
 
 const FEED_CACHE = new Map();
 const FEED_ERRORS = new Map();
 const MAX_RETRIES = 2;
 const FETCH_TIMEOUT = 8000;
+
+// Event-to-DTU bridge callback — set by tickRealTimeFeeds when bridge is available.
+// Each tick function checks this and fires individual feed items through the bridge.
+// Null when bridge is not wired (graceful fallback — feeds still work without bridge).
+let _bridgeEvent = null;
 
 function safeFetch(url, opts = {}) {
   const ac = new AbortController();
@@ -82,6 +92,18 @@ async function tickFinancialFeeds(STATE, realtimeEmit, callBrain) {
       };
       cacheSet(cacheKey, payload);
       realtimeEmit("finance:ticker", payload);
+
+      // Bridge: each market quote → scoped event DTU
+      if (_bridgeEvent) {
+        for (const q of quotes) {
+          _bridgeEvent({
+            type: "market:trade",
+            data: { title: `${q.symbol} ${q.changePercent > 0 ? "+" : ""}${q.changePercent}%`, symbol: q.symbol, price: q.price, change: q.change, changePercent: q.changePercent, status: payload.marketStatus },
+            source: "yahoo_finance",
+            timestamp: payload.fetchedAt,
+          }).catch(() => {});
+        }
+      }
     }
   } catch (e) {
     recordError("finance", e);
@@ -111,6 +133,18 @@ async function tickCryptoFeeds(STATE, realtimeEmit) {
       const payload = { ok: true, coins, fetchedAt: new Date().toISOString() };
       cacheSet(cacheKey, payload);
       realtimeEmit("crypto:ticker", payload);
+
+      // Bridge: each crypto quote → scoped event DTU
+      if (_bridgeEvent) {
+        for (const c of coins) {
+          _bridgeEvent({
+            type: "market:crypto",
+            data: { title: `${c.id} $${c.price}`, coin: c.id, price: c.price, change24h: c.change24h, marketCap: c.marketCap },
+            source: "coingecko",
+            timestamp: payload.fetchedAt,
+          }).catch(() => {});
+        }
+      }
     }
   } catch (e) {
     recordError("crypto", e);
@@ -152,6 +186,19 @@ async function tickNewsFeeds(STATE, realtimeEmit) {
     const payload = { ok: true, articles: articles.slice(0, 15), fetchedAt: new Date().toISOString() };
     cacheSet(cacheKey, payload);
     realtimeEmit("news:update", payload);
+
+    // Bridge: each news article → scoped event DTU
+    // RSS articles are 'reported' — the source said it happened, Concord didn't witness it
+    if (_bridgeEvent) {
+      for (const article of payload.articles) {
+        _bridgeEvent({
+          type: "news:politics", // generic news — classifier will determine actual domain
+          data: { title: article.title, source: article.source, link: article.link, pubDate: article.pubDate },
+          source: article.source?.toLowerCase().replace(/\s/g, "_") || "rss",
+          timestamp: article.pubDate ? new Date(article.pubDate).toISOString() : payload.fetchedAt,
+        }).catch(() => {});
+      }
+    }
   }
 }
 
@@ -181,6 +228,16 @@ async function tickWeatherFeeds(STATE, realtimeEmit) {
       };
       cacheSet(cacheKey, payload);
       realtimeEmit("weather:update", payload);
+
+      // Bridge: weather update → scoped event DTU
+      if (_bridgeEvent) {
+        _bridgeEvent({
+          type: "weather:forecast",
+          data: { title: `Weather ${lat},${lon}: ${data.current?.temperature_2m}°`, current: data.current, location: { lat, lon } },
+          source: "open_meteo",
+          timestamp: payload.fetchedAt,
+        }).catch(() => {});
+      }
     }
   } catch (e) {
     recordError("weather", e);
@@ -218,6 +275,18 @@ async function tickResearchFeeds(STATE, realtimeEmit) {
     const payload = { ok: true, papers: papers.slice(0, 10), fetchedAt: new Date().toISOString() };
     cacheSet(cacheKey, payload);
     realtimeEmit("research:update", payload);
+
+    // Bridge: each research paper → scoped event DTU
+    if (_bridgeEvent) {
+      for (const paper of payload.papers) {
+        _bridgeEvent({
+          type: "research:paper",
+          data: { title: paper.title, summary: paper.summary, category: paper.category, arxivId: paper.id, published: paper.published },
+          source: "arxiv",
+          timestamp: paper.published || payload.fetchedAt,
+        }).catch(() => {});
+      }
+    }
   }
 }
 
@@ -251,6 +320,18 @@ async function tickEconomyFeeds(STATE, realtimeEmit) {
       const payload = { ok: true, indicators: data, fetchedAt: new Date().toISOString() };
       cacheSet(cacheKey, payload);
       realtimeEmit("economy:update", payload);
+
+      // Bridge: economic indicators → scoped event DTU
+      if (_bridgeEvent) {
+        for (const ind of data) {
+          _bridgeEvent({
+            type: "news:economics",
+            data: { title: `${ind.indicator}: ${ind.values?.[0]?.value || "N/A"} (${ind.values?.[0]?.year || "?"})`, indicator: ind.indicator, code: ind.code, values: ind.values },
+            source: "world_bank",
+            timestamp: payload.fetchedAt,
+          }).catch(() => {});
+        }
+      }
     }
   } catch (e) {
     recordError("economy", e);
@@ -280,6 +361,18 @@ async function tickHealthFeeds(STATE, realtimeEmit) {
         const payload = { ok: true, alerts, fetchedAt: new Date().toISOString() };
         cacheSet(cacheKey, payload);
         realtimeEmit("health:update", payload);
+
+        // Bridge: each health alert → scoped event DTU
+        if (_bridgeEvent) {
+          for (const alert of alerts) {
+            _bridgeEvent({
+              type: "health:alert",
+              data: { title: alert.title, link: alert.link, pubDate: alert.pubDate },
+              source: "who",
+              timestamp: alert.pubDate ? new Date(alert.pubDate).toISOString() : payload.fetchedAt,
+            }).catch(() => {});
+          }
+        }
       }
     }
   } catch (e) {
@@ -306,7 +399,10 @@ async function tickEnergyFeeds(STATE, realtimeEmit) {
 
 // ── Main tick dispatcher ──
 
-export async function tickRealTimeFeeds(STATE, tickCount, realtimeEmit, callBrain) {
+export async function tickRealTimeFeeds(STATE, tickCount, realtimeEmit, callBrain, bridgeEvent) {
+  // Set the module-level bridge callback so tick functions can use it
+  _bridgeEvent = typeof bridgeEvent === "function" ? bridgeEvent : null;
+
   const tasks = [];
 
   // Financial + Crypto — every 5th tick (~75s)
