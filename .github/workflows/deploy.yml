@@ -4,47 +4,333 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
 
 env:
-  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/concord-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/concord-frontend
 
 jobs:
-  deploy:
-    name: Deploy to Production
+  # ═══════════════════════════════════════════════════════════════════════
+  # Build Docker images and push to GitHub Container Registry
+  # ═══════════════════════════════════════════════════════════════════════
+  build-and-push:
+    name: Build & Push Images
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      sha-short: ${{ steps.vars.outputs.sha_short }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Set variables
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.vars.outputs.sha_short }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./concord-frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.vars.outputs.sha_short }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://concord-os.org
+            NEXT_PUBLIC_SOCKET_URL=https://concord-os.org
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Deploy to staging (automatic on push to main)
+  # ═══════════════════════════════════════════════════════════════════════
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    environment:
+      name: staging
+      url: https://staging.concord-os.org
+    # Deploy staging on push to main, or when manually triggered with staging
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
         run: |
-          cd server && npm ci --production
-          cd ../concord-frontend && npm ci
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
 
-      - name: Build frontend
-        working-directory: ./concord-frontend
-        run: npm run build
-
-      - name: Run pre-deploy checks
-        working-directory: ./server
+      - name: Deploy to staging
         env:
-          NODE_ENV: test
-          JWT_SECRET: deploy-check-secret
-        run: node --test tests/routes.smoke.test.js
-
-      - name: Deploy
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.sha-short }}
         run: |
-          echo "Deploy step: configure with your deployment target"
-          echo "Options: Docker push, SSH deploy, or cloud provider CLI"
-          # Example: docker compose -f docker-compose.prod.yml up -d --build
+          echo "Deploying to staging with image tag: $IMAGE_TAG"
+
+          # Apply namespace and config first
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/pvc.yaml
+          kubectl apply -f k8s/network-policies.yaml
+
+          # Apply deployments, then set the pinned image tag
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/backend-service.yaml
+          kubectl set image deployment/concord-backend \
+            backend="${{ env.BACKEND_IMAGE }}:${IMAGE_TAG}" \
+            -n concord
+
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+          kubectl set image deployment/concord-frontend \
+            frontend="${{ env.FRONTEND_IMAGE }}:${IMAGE_TAG}" \
+            -n concord
+
+          # Apply ingress, autoscaling, and backup
+          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/cronjob-backup.yaml
+
+      - name: Wait for rollout
+        run: |
+          echo "Waiting for backend rollout..."
+          kubectl rollout status deployment/concord-backend -n concord --timeout=300s
+
+          echo "Waiting for frontend rollout..."
+          kubectl rollout status deployment/concord-frontend -n concord --timeout=180s
+
+      - name: Run smoke tests against staging
+        run: |
+          echo "Running smoke tests against staging..."
+
+          # Wait for backend pods to be ready
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=concord-backend \
+            -n concord --timeout=120s
+
+          # Port-forward and run health checks
+          kubectl port-forward svc/concord-backend 5050:5050 -n concord &
+          PF_PID=$!
+          sleep 5
+
+          # Health check
+          HEALTH=$(curl -sf http://localhost:5050/health 2>/dev/null || echo "FAIL")
+          echo "Health check: $HEALTH"
+
+          # Readiness check
+          READY=$(curl -sf http://localhost:5050/ready 2>/dev/null || echo "FAIL")
+          echo "Readiness check: $READY"
+
+          kill $PF_PID 2>/dev/null || true
+
+          if echo "$HEALTH" | grep -qi "fail"; then
+            echo "Smoke test FAILED -- initiating rollback"
+            kubectl rollout undo deployment/concord-backend -n concord
+            kubectl rollout undo deployment/concord-frontend -n concord
+            exit 1
+          fi
+
+          echo "Staging smoke tests passed"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deploy failed -- rolling back staging..."
+          kubectl rollout undo deployment/concord-backend -n concord || true
+          kubectl rollout undo deployment/concord-frontend -n concord || true
+          echo "Rollback complete"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Deploy to production (manual approval required)
+  # ═══════════════════════════════════════════════════════════════════════
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-staging]
+    # Only deploy to production when manually triggered with production selected
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://concord-os.org
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Pre-deploy snapshot
+        run: |
+          echo "Recording current deployment state before production deploy..."
+
+          BACKEND_REV=$(kubectl rollout history deployment/concord-backend -n concord 2>/dev/null \
+            | tail -2 | head -1 | awk '{print $1}' || echo "0")
+          FRONTEND_REV=$(kubectl rollout history deployment/concord-frontend -n concord 2>/dev/null \
+            | tail -2 | head -1 | awk '{print $1}' || echo "0")
+
+          echo "Current backend revision: $BACKEND_REV"
+          echo "Current frontend revision: $FRONTEND_REV"
+          echo "BACKEND_REV=$BACKEND_REV" >> "$GITHUB_ENV"
+          echo "FRONTEND_REV=$FRONTEND_REV" >> "$GITHUB_ENV"
+
+      - name: Deploy to production
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.sha-short }}
+        run: |
+          echo "Deploying to PRODUCTION with image tag: $IMAGE_TAG"
+
+          # Apply manifests (secrets are NOT applied -- managed externally in prod)
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/pvc.yaml
+          kubectl apply -f k8s/network-policies.yaml
+
+          # Apply deployments then pin to the exact sha tag
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/backend-service.yaml
+          kubectl set image deployment/concord-backend \
+            backend="${{ env.BACKEND_IMAGE }}:${IMAGE_TAG}" \
+            -n concord
+
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+          kubectl set image deployment/concord-frontend \
+            frontend="${{ env.FRONTEND_IMAGE }}:${IMAGE_TAG}" \
+            -n concord
+
+          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/cronjob-backup.yaml
+
+      - name: Wait for rollout
+        run: |
+          echo "Waiting for production backend rollout..."
+          kubectl rollout status deployment/concord-backend -n concord --timeout=600s
+
+          echo "Waiting for production frontend rollout..."
+          kubectl rollout status deployment/concord-frontend -n concord --timeout=300s
+
+      - name: Production health verification
+        run: |
+          echo "Verifying production health..."
+
+          # Wait for all pods to be ready
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=concord-backend \
+            -n concord --timeout=120s
+
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=concord-frontend \
+            -n concord --timeout=120s
+
+          # Port-forward and verify health
+          kubectl port-forward svc/concord-backend 5050:5050 -n concord &
+          PF_PID=$!
+          sleep 5
+
+          RETRIES=5
+          HEALTH_OK=false
+          for i in $(seq 1 $RETRIES); do
+            HEALTH=$(curl -sf http://localhost:5050/health 2>/dev/null || echo "")
+            if [ -n "$HEALTH" ]; then
+              echo "Health check passed on attempt $i"
+              HEALTH_OK=true
+              break
+            fi
+            echo "Health check attempt $i/$RETRIES failed, retrying..."
+            sleep 5
+          done
+
+          kill $PF_PID 2>/dev/null || true
+
+          if [ "$HEALTH_OK" = false ]; then
+            echo "CRITICAL: Production health check failed after $RETRIES attempts"
+            echo "Initiating automatic rollback..."
+            exit 1
+          fi
+
+          echo "Production deploy verified successfully"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "PRODUCTION DEPLOY FAILED -- initiating rollback..."
+
+          if [ -n "$BACKEND_REV" ] && [ "$BACKEND_REV" != "0" ]; then
+            echo "Rolling back backend to revision $BACKEND_REV"
+            kubectl rollout undo deployment/concord-backend -n concord \
+              --to-revision="$BACKEND_REV"
+          else
+            echo "Rolling back backend to previous revision"
+            kubectl rollout undo deployment/concord-backend -n concord
+          fi
+
+          if [ -n "$FRONTEND_REV" ] && [ "$FRONTEND_REV" != "0" ]; then
+            echo "Rolling back frontend to revision $FRONTEND_REV"
+            kubectl rollout undo deployment/concord-frontend -n concord \
+              --to-revision="$FRONTEND_REV"
+          else
+            echo "Rolling back frontend to previous revision"
+            kubectl rollout undo deployment/concord-frontend -n concord
+          fi
+
+          # Wait for rollback to complete
+          kubectl rollout status deployment/concord-backend -n concord --timeout=300s || true
+          kubectl rollout status deployment/concord-frontend -n concord --timeout=180s || true
+
+          echo "Rollback complete. Please investigate the failure."

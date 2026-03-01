@@ -7,13 +7,28 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
 }));
 
-// Mock lucide-react
-vi.mock('lucide-react', () => ({
-  AlertTriangle: ({ className }: { className?: string }) => <span data-testid="alert-icon" className={className} />,
-  Copy: ({ className }: { className?: string }) => <span data-testid="copy-icon" className={className} />,
-  Shield: ({ className }: { className?: string }) => <span data-testid="shield-icon" className={className} />,
-  X: ({ className }: { className?: string }) => <span data-testid="x-icon" className={className} />,
-}));
+// Mock lucide-react — explicit named exports (Proxy crashes vitest)
+vi.mock('lucide-react', async () => {
+  const React = await import('react');
+  const makeMockIcon = (name: string) => {
+    const Icon = React.forwardRef<SVGSVGElement, Record<string, unknown>>((props, ref) =>
+      React.createElement('span', { 'data-testid': `icon-${name}`, ref, ...props })
+    );
+    Icon.displayName = name;
+    return Icon;
+  };
+  return {
+    __esModule: true,
+    AlertTriangle: makeMockIcon('AlertTriangle'),
+    Copy: makeMockIcon('Copy'),
+    Shield: makeMockIcon('Shield'),
+    X: makeMockIcon('X'),
+    Info: makeMockIcon('Info'),
+    AlertCircle: makeMockIcon('AlertCircle'),
+    ChevronDown: makeMockIcon('ChevronDown'),
+    ChevronUp: makeMockIcon('ChevronUp'),
+  };
+});
 
 // Mock UI store
 const mockClearRequestErrors = vi.fn();
@@ -72,6 +87,9 @@ describe('OperatorErrorBanner', () => {
     ];
 
     render(<OperatorErrorBanner />);
+    // Component starts dismissed — click the indicator to expand
+    const showBtn = screen.getByLabelText('Show debug panel');
+    fireEvent.click(showBtn);
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText('Permission denied in module X')).toBeInTheDocument();
   });
@@ -82,6 +100,8 @@ describe('OperatorErrorBanner', () => {
     ];
 
     render(<OperatorErrorBanner />);
+    // Expand the banner first
+    fireEvent.click(screen.getByLabelText('Show debug panel'));
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
   });
 
@@ -91,6 +111,7 @@ describe('OperatorErrorBanner', () => {
     ];
 
     render(<OperatorErrorBanner />);
+    fireEvent.click(screen.getByLabelText('Show debug panel'));
     expect(screen.getByText('jwt')).toBeInTheDocument();
   });
 
@@ -100,6 +121,7 @@ describe('OperatorErrorBanner', () => {
     ];
 
     render(<OperatorErrorBanner />);
+    fireEvent.click(screen.getByLabelText('Show debug panel'));
     const debugBtn = screen.getByLabelText('Copy debug bundle to clipboard');
     fireEvent.click(debugBtn);
 
@@ -112,6 +134,7 @@ describe('OperatorErrorBanner', () => {
     ];
 
     render(<OperatorErrorBanner />);
+    fireEvent.click(screen.getByLabelText('Show debug panel'));
     const dismissBtn = screen.getByLabelText('Dismiss error banner');
     fireEvent.click(dismissBtn);
 

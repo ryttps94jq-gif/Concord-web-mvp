@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "جارٍ التحميل...",
+    "error": "حدث خطأ",
+    "retry": "إعادة المحاولة",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "search": "بحث",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "submit": "إرسال",
+    "confirm": "تأكيد",
+    "yes": "نعم",
+    "no": "لا"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "lenses": "العدسات",
+    "chat": "المحادثة",
+    "wallet": "المحفظة",
+    "profile": "الملف الشخصي",
+    "settings": "الإعدادات",
+    "notifications": "الإشعارات",
+    "discovery": "اكتشاف"
+  },
+  "chat": {
+    "title": "محادثة كونكورد",
+    "placeholder": "اسأل كونكورد أي شيء...",
+    "thinking": "يفكر...",
+    "searching": "يبحث في الويب...",
+    "newConversation": "محادثة جديدة",
+    "modes": {
+      "welcome": "ترحيب",
+      "assist": "مساعدة",
+      "explore": "استكشاف",
+      "connect": "اتصال",
+      "chat": "محادثة"
+    },
+    "greeting": {
+      "morning": "صباح الخير! ماذا تريد أن تستكشف اليوم؟",
+      "afternoon": "مساء الخير! كيف يمكنني مساعدتك؟",
+      "evening": "مساء الخير! ما الذي يشغل بالك؟"
+    }
+  },
+  "wallet": {
+    "title": "المحفظة",
+    "balance": "الرصيد",
+    "buyCC": "شراء CC",
+    "withdraw": "سحب",
+    "transactions": "المعاملات",
+    "earnings": "الأرباح",
+    "amount": "المبلغ",
+    "fee": "الرسوم",
+    "total": "الإجمالي",
+    "confirmPurchase": "تأكيد الشراء",
+    "confirmWithdraw": "تأكيد السحب",
+    "connectPayouts": "إعداد المدفوعات",
+    "noTransactions": "لا توجد معاملات بعد"
+  },
+  "media": {
+    "upload": "رفع",
+    "dragDrop": "اسحب وأسقط الملفات هنا",
+    "or": "أو",
+    "browse": "تصفح الملفات",
+    "title": "العنوان",
+    "description": "الوصف",
+    "tags": "العلامات",
+    "privacy": "الخصوصية",
+    "public": "عام",
+    "private": "خاص",
+    "followersOnly": "المتابعون فقط",
+    "uploading": "جارٍ الرفع...",
+    "processing": "جارٍ المعالجة..."
+  },
+  "social": {
+    "follow": "متابعة",
+    "unfollow": "إلغاء المتابعة",
+    "followers": "المتابعون",
+    "following": "المتابَعون",
+    "posts": "المنشورات",
+    "liked": "أُعجب به",
+    "trending": "الرائج",
+    "discover": "اكتشاف",
+    "noResults": "لم يتم العثور على نتائج"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signUp": "إنشاء حساب",
+    "signOut": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "continueWithGoogle": "المتابعة مع جوجل",
+    "signInWithApple": "تسجيل الدخول بواسطة أبل",
+    "orContinueWith": "أو المتابعة مع",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "noAccount": "ليس لديك حساب؟",
+    "hasAccount": "لديك حساب بالفعل؟"
+  },
+  "legal": {
+    "terms": "شروط الخدمة",
+    "privacy": "سياسة الخصوصية",
+    "dmca": "سياسة DMCA",
+    "lastUpdated": "آخر تحديث"
+  },
+  "dtu": {
+    "create": "إنشاء DTU",
+    "verify": "تحقق",
+    "verified": "مُتحقق منه",
+    "unverified": "غير مُتحقق منه",
+    "tampered": "تم التلاعب به",
+    "compressionRatio": "نسبة الضغط",
+    "integrityReport": "تقرير السلامة",
+    "saveAsDTU": "حفظ كـ DTU",
+    "exploreDeeper": "استكشاف أعمق",
+    "share": "مشاركة"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "markAllRead": "تحديد الكل كمقروء",
+    "clearAll": "مسح الكل",
+    "noNotifications": "لا توجد إشعارات",
+    "follow": "تابعك",
+    "like": "أعجب بمحتواك",
+    "comment": "علّق على منشورك",
+    "tip": "أرسل لك إكرامية",
+    "citation": "استشهد بوحدة DTU الخاصة بك",
+    "system": "إشعار النظام"
+  },
+  "admin": {
+    "backup": {
+      "title": "حالة النسخ الاحتياطي",
+      "lastBackup": "آخر نسخة احتياطية",
+      "healthy": "سليم",
+      "warning": "تحذير",
+      "critical": "حرج",
+      "backupNow": "نسخ احتياطي الآن",
+      "storage": "التخزين المستخدم"
+    },
+    "cdn": {
+      "title": "حالة CDN",
+      "provider": "المزود",
+      "cacheHitRate": "نسبة إصابة التخزين المؤقت",
+      "bandwidth": "عرض النطاق",
+      "purge": "تطهير التخزين المؤقت"
+    }
+  }
+}

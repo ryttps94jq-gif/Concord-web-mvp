@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Try again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "nav": {
+    "home": "Home",
+    "lenses": "Lenses",
+    "chat": "Chat",
+    "wallet": "Wallet",
+    "profile": "Profile",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "discovery": "Discovery"
+  },
+  "chat": {
+    "title": "Concord Chat",
+    "placeholder": "Ask Concord anything...",
+    "thinking": "Thinking...",
+    "searching": "Searching the web...",
+    "newConversation": "New conversation",
+    "modes": {
+      "welcome": "Welcome",
+      "assist": "Assist",
+      "explore": "Explore",
+      "connect": "Connect",
+      "chat": "Chat"
+    },
+    "greeting": {
+      "morning": "Good morning! What would you like to explore today?",
+      "afternoon": "Good afternoon! How can I help?",
+      "evening": "Good evening! What's on your mind?"
+    }
+  },
+  "wallet": {
+    "title": "Wallet",
+    "balance": "Balance",
+    "buyCC": "Buy CC",
+    "withdraw": "Withdraw",
+    "transactions": "Transactions",
+    "earnings": "Earnings",
+    "amount": "Amount",
+    "fee": "Fee",
+    "total": "Total",
+    "confirmPurchase": "Confirm Purchase",
+    "confirmWithdraw": "Confirm Withdrawal",
+    "connectPayouts": "Set Up Payouts",
+    "noTransactions": "No transactions yet"
+  },
+  "media": {
+    "upload": "Upload",
+    "dragDrop": "Drag and drop files here",
+    "or": "or",
+    "browse": "browse files",
+    "title": "Title",
+    "description": "Description",
+    "tags": "Tags",
+    "privacy": "Privacy",
+    "public": "Public",
+    "private": "Private",
+    "followersOnly": "Followers Only",
+    "uploading": "Uploading...",
+    "processing": "Processing..."
+  },
+  "social": {
+    "follow": "Follow",
+    "unfollow": "Unfollow",
+    "followers": "Followers",
+    "following": "Following",
+    "posts": "Posts",
+    "liked": "Liked",
+    "trending": "Trending",
+    "discover": "Discover",
+    "noResults": "No results found"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "continueWithGoogle": "Continue with Google",
+    "signInWithApple": "Sign in with Apple",
+    "orContinueWith": "or continue with",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?"
+  },
+  "legal": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "dmca": "DMCA Policy",
+    "lastUpdated": "Last updated"
+  },
+  "dtu": {
+    "create": "Create DTU",
+    "verify": "Verify",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "tampered": "Tampered",
+    "compressionRatio": "Compression ratio",
+    "integrityReport": "Integrity Report",
+    "saveAsDTU": "Save as DTU",
+    "exploreDeeper": "Explore deeper",
+    "share": "Share"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "clearAll": "Clear all",
+    "noNotifications": "No notifications",
+    "follow": "followed you",
+    "like": "liked your content",
+    "comment": "commented on your post",
+    "tip": "sent you a tip",
+    "citation": "cited your DTU",
+    "system": "System notification"
+  },
+  "admin": {
+    "backup": {
+      "title": "Backup Status",
+      "lastBackup": "Last backup",
+      "healthy": "Healthy",
+      "warning": "Warning",
+      "critical": "Critical",
+      "backupNow": "Backup Now",
+      "storage": "Storage Used"
+    },
+    "cdn": {
+      "title": "CDN Status",
+      "provider": "Provider",
+      "cacheHitRate": "Cache Hit Rate",
+      "bandwidth": "Bandwidth",
+      "purge": "Purge Cache"
+    }
+  }
+}

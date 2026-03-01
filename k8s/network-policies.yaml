@@ -1,0 +1,135 @@
+# ── Default deny all ingress in the concord namespace ──────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: concord
+  labels:
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# ── Allow ingress controller to reach frontend ────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: concord
+  labels:
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: concord-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow from ingress controller namespace (nginx-ingress)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# ── Allow ingress controller to reach backend ─────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-backend
+  namespace: concord
+  labels:
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: concord-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow from ingress controller
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 5050
+    - from:
+        # Allow from frontend pods (server-side rendering API calls)
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: concord-frontend
+      ports:
+        - protocol: TCP
+          port: 5050
+    - from:
+        # Allow from backup CronJob pods
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: concord-backup
+      ports:
+        - protocol: TCP
+          port: 5050
+---
+# ── Allow backend to reach Ollama brain services ──────────────────────
+# (These policies apply if Ollama is deployed in the same namespace.
+#  If Ollama is external, remove these and configure egress rules instead.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-ollama
+  namespace: concord
+  labels:
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ollama
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: concord-backend
+      ports:
+        - protocol: TCP
+          port: 11434
+---
+# ── Allow DNS resolution for all pods ─────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: concord
+  labels:
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow egress to the internet (for Ollama, OpenAI, Stripe, S3, etc.)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+    # Allow egress within the concord namespace
+    - to:
+        - podSelector: {}

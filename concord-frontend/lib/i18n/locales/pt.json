@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "error": "Ocorreu um erro",
+    "retry": "Tentar novamente",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "search": "Pesquisar",
+    "close": "Fechar",
+    "back": "Voltar",
+    "next": "Próximo",
+    "submit": "Enviar",
+    "confirm": "Confirmar",
+    "yes": "Sim",
+    "no": "Não"
+  },
+  "nav": {
+    "home": "Início",
+    "lenses": "Lentes",
+    "chat": "Chat",
+    "wallet": "Carteira",
+    "profile": "Perfil",
+    "settings": "Configurações",
+    "notifications": "Notificações",
+    "discovery": "Descoberta"
+  },
+  "chat": {
+    "title": "Chat Concord",
+    "placeholder": "Pergunte qualquer coisa ao Concord...",
+    "thinking": "Pensando...",
+    "searching": "Pesquisando na web...",
+    "newConversation": "Nova conversa",
+    "modes": {
+      "welcome": "Boas-vindas",
+      "assist": "Assistir",
+      "explore": "Explorar",
+      "connect": "Conectar",
+      "chat": "Chat"
+    },
+    "greeting": {
+      "morning": "Bom dia! O que gostaria de explorar hoje?",
+      "afternoon": "Boa tarde! Como posso ajudar?",
+      "evening": "Boa noite! O que está pensando?"
+    }
+  },
+  "wallet": {
+    "title": "Carteira",
+    "balance": "Saldo",
+    "buyCC": "Comprar CC",
+    "withdraw": "Sacar",
+    "transactions": "Transações",
+    "earnings": "Ganhos",
+    "amount": "Valor",
+    "fee": "Taxa",
+    "total": "Total",
+    "confirmPurchase": "Confirmar compra",
+    "confirmWithdraw": "Confirmar saque",
+    "connectPayouts": "Configurar pagamentos",
+    "noTransactions": "Nenhuma transação ainda"
+  },
+  "media": {
+    "upload": "Enviar",
+    "dragDrop": "Arraste e solte arquivos aqui",
+    "or": "ou",
+    "browse": "procurar arquivos",
+    "title": "Título",
+    "description": "Descrição",
+    "tags": "Tags",
+    "privacy": "Privacidade",
+    "public": "Público",
+    "private": "Privado",
+    "followersOnly": "Apenas seguidores",
+    "uploading": "Enviando...",
+    "processing": "Processando..."
+  },
+  "social": {
+    "follow": "Seguir",
+    "unfollow": "Deixar de seguir",
+    "followers": "Seguidores",
+    "following": "Seguindo",
+    "posts": "Publicações",
+    "liked": "Curtido",
+    "trending": "Em alta",
+    "discover": "Descobrir",
+    "noResults": "Nenhum resultado encontrado"
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signUp": "Cadastrar",
+    "signOut": "Sair",
+    "email": "E-mail",
+    "password": "Senha",
+    "continueWithGoogle": "Continuar com Google",
+    "signInWithApple": "Entrar com Apple",
+    "orContinueWith": "ou continue com",
+    "forgotPassword": "Esqueceu a senha?",
+    "noAccount": "Não tem uma conta?",
+    "hasAccount": "Já tem uma conta?"
+  },
+  "legal": {
+    "terms": "Termos de Serviço",
+    "privacy": "Política de Privacidade",
+    "dmca": "Política DMCA",
+    "lastUpdated": "Última atualização"
+  },
+  "dtu": {
+    "create": "Criar DTU",
+    "verify": "Verificar",
+    "verified": "Verificado",
+    "unverified": "Não verificado",
+    "tampered": "Adulterado",
+    "compressionRatio": "Taxa de compressão",
+    "integrityReport": "Relatório de integridade",
+    "saveAsDTU": "Salvar como DTU",
+    "exploreDeeper": "Explorar mais",
+    "share": "Compartilhar"
+  },
+  "notifications": {
+    "title": "Notificações",
+    "markAllRead": "Marcar tudo como lido",
+    "clearAll": "Limpar tudo",
+    "noNotifications": "Sem notificações",
+    "follow": "seguiu você",
+    "like": "curtiu seu conteúdo",
+    "comment": "comentou na sua publicação",
+    "tip": "enviou uma gorjeta",
+    "citation": "citou seu DTU",
+    "system": "Notificação do sistema"
+  },
+  "admin": {
+    "backup": {
+      "title": "Status do backup",
+      "lastBackup": "Último backup",
+      "healthy": "Saudável",
+      "warning": "Aviso",
+      "critical": "Crítico",
+      "backupNow": "Fazer backup agora",
+      "storage": "Armazenamento usado"
+    },
+    "cdn": {
+      "title": "Status do CDN",
+      "provider": "Provedor",
+      "cacheHitRate": "Taxa de acerto do cache",
+      "bandwidth": "Largura de banda",
+      "purge": "Limpar cache"
+    }
+  }
+}

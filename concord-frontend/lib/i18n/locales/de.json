@@ -1,0 +1,150 @@
+{
+  "common": {
+    "loading": "Wird geladen...",
+    "error": "Ein Fehler ist aufgetreten",
+    "retry": "Erneut versuchen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "search": "Suchen",
+    "close": "Schließen",
+    "back": "Zurück",
+    "next": "Weiter",
+    "submit": "Absenden",
+    "confirm": "Bestätigen",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "nav": {
+    "home": "Startseite",
+    "lenses": "Linsen",
+    "chat": "Chat",
+    "wallet": "Geldbörse",
+    "profile": "Profil",
+    "settings": "Einstellungen",
+    "notifications": "Benachrichtigungen",
+    "discovery": "Entdecken"
+  },
+  "chat": {
+    "title": "Concord Chat",
+    "placeholder": "Frag Concord etwas...",
+    "thinking": "Denkt nach...",
+    "searching": "Suche im Web...",
+    "newConversation": "Neues Gespräch",
+    "modes": {
+      "welcome": "Willkommen",
+      "assist": "Assistieren",
+      "explore": "Erkunden",
+      "connect": "Verbinden",
+      "chat": "Chat"
+    },
+    "greeting": {
+      "morning": "Guten Morgen! Was möchtest du heute erkunden?",
+      "afternoon": "Guten Tag! Wie kann ich helfen?",
+      "evening": "Guten Abend! Was beschäftigt dich?"
+    }
+  },
+  "wallet": {
+    "title": "Geldbörse",
+    "balance": "Guthaben",
+    "buyCC": "CC kaufen",
+    "withdraw": "Abheben",
+    "transactions": "Transaktionen",
+    "earnings": "Einnahmen",
+    "amount": "Betrag",
+    "fee": "Gebühr",
+    "total": "Gesamt",
+    "confirmPurchase": "Kauf bestätigen",
+    "confirmWithdraw": "Abhebung bestätigen",
+    "connectPayouts": "Auszahlungen einrichten",
+    "noTransactions": "Noch keine Transaktionen"
+  },
+  "media": {
+    "upload": "Hochladen",
+    "dragDrop": "Dateien hierher ziehen und ablegen",
+    "or": "oder",
+    "browse": "Dateien durchsuchen",
+    "title": "Titel",
+    "description": "Beschreibung",
+    "tags": "Schlagwörter",
+    "privacy": "Datenschutz",
+    "public": "Öffentlich",
+    "private": "Privat",
+    "followersOnly": "Nur Follower",
+    "uploading": "Wird hochgeladen...",
+    "processing": "Wird verarbeitet..."
+  },
+  "social": {
+    "follow": "Folgen",
+    "unfollow": "Entfolgen",
+    "followers": "Follower",
+    "following": "Folge ich",
+    "posts": "Beiträge",
+    "liked": "Gefällt mir",
+    "trending": "Im Trend",
+    "discover": "Entdecken",
+    "noResults": "Keine Ergebnisse gefunden"
+  },
+  "auth": {
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "signOut": "Abmelden",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "continueWithGoogle": "Weiter mit Google",
+    "signInWithApple": "Mit Apple anmelden",
+    "orContinueWith": "oder weiter mit",
+    "forgotPassword": "Passwort vergessen?",
+    "noAccount": "Noch kein Konto?",
+    "hasAccount": "Bereits ein Konto?"
+  },
+  "legal": {
+    "terms": "Nutzungsbedingungen",
+    "privacy": "Datenschutzrichtlinie",
+    "dmca": "DMCA-Richtlinie",
+    "lastUpdated": "Zuletzt aktualisiert"
+  },
+  "dtu": {
+    "create": "DTU erstellen",
+    "verify": "Überprüfen",
+    "verified": "Verifiziert",
+    "unverified": "Nicht verifiziert",
+    "tampered": "Manipuliert",
+    "compressionRatio": "Kompressionsrate",
+    "integrityReport": "Integritätsbericht",
+    "saveAsDTU": "Als DTU speichern",
+    "exploreDeeper": "Tiefer erkunden",
+    "share": "Teilen"
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "clearAll": "Alle löschen",
+    "noNotifications": "Keine Benachrichtigungen",
+    "follow": "folgt dir jetzt",
+    "like": "gefällt dein Inhalt",
+    "comment": "hat deinen Beitrag kommentiert",
+    "tip": "hat dir ein Trinkgeld gesendet",
+    "citation": "hat dein DTU zitiert",
+    "system": "Systembenachrichtigung"
+  },
+  "admin": {
+    "backup": {
+      "title": "Sicherungsstatus",
+      "lastBackup": "Letzte Sicherung",
+      "healthy": "Gesund",
+      "warning": "Warnung",
+      "critical": "Kritisch",
+      "backupNow": "Jetzt sichern",
+      "storage": "Speicher belegt"
+    },
+    "cdn": {
+      "title": "CDN-Status",
+      "provider": "Anbieter",
+      "cacheHitRate": "Cache-Trefferrate",
+      "bandwidth": "Bandbreite",
+      "purge": "Cache leeren"
+    }
+  }
+}

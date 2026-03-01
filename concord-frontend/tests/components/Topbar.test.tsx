@@ -16,21 +16,26 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-// Mock lucide-react
-vi.mock('lucide-react', () => ({
-  Search: ({ className }: { className?: string }) => <span data-testid="search-icon" className={className} />,
-  Bell: ({ className }: { className?: string }) => <span data-testid="bell-icon" className={className} />,
-  User: ({ className }: { className?: string }) => <span data-testid="user-icon" className={className} />,
-  Command: ({ className }: { className?: string }) => <span data-testid="command-icon" className={className} />,
-  Activity: ({ className }: { className?: string }) => <span data-testid="activity-icon" className={className} />,
-  Zap: ({ className }: { className?: string }) => <span data-testid="zap-icon" className={className} />,
-  Menu: ({ className }: { className?: string }) => <span data-testid="menu-icon" className={className} />,
-  LogOut: ({ className }: { className?: string }) => <span data-testid="logout-icon" className={className} />,
-  Settings: ({ className }: { className?: string }) => <span data-testid="settings-icon" className={className} />,
-  Shield: ({ className }: { className?: string }) => <span data-testid="shield-icon" className={className} />,
-  Brain: ({ className }: { className?: string }) => <span data-testid="brain-icon" className={className} />,
-  Radio: ({ className }: { className?: string }) => <span data-testid="radio-icon" className={className} />,
-}));
+// Mock lucide-react — explicit named exports (Proxy crashes vitest)
+vi.mock('lucide-react', async () => {
+  const React = await import('react');
+  const makeMockIcon = (name: string) => {
+    const Icon = React.forwardRef<SVGSVGElement, Record<string, unknown>>((props, ref) =>
+      React.createElement('span', { 'data-testid': `icon-${name}`, ref, ...props })
+    );
+    Icon.displayName = name;
+    return Icon;
+  };
+  const iconNames = [
+    'Search', 'Bell', 'User', 'Command', 'Activity', 'Zap', 'Menu', 'LogOut',
+    'Settings', 'Shield', 'Brain', 'Radio', 'DollarSign', 'Coins', 'Plus',
+    'Wallet', 'ChevronDown', 'Globe', 'ChevronRight', 'ArrowRight', 'Clock',
+    'Sparkles', 'TrendingDown', 'RefreshCw', 'Home', 'X',
+  ];
+  const mocks: Record<string, unknown> = { __esModule: true };
+  for (const n of iconNames) mocks[n] = makeMockIcon(n);
+  return mocks;
+});
 
 // Mock API client
 vi.mock('@/lib/api/client', () => ({
@@ -173,7 +178,7 @@ describe('Topbar', () => {
 
   it('renders notification bell', () => {
     render(<Topbar />, { wrapper: createWrapper() });
-    expect(screen.getByTestId('bell-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('icon-Bell')).toBeInTheDocument();
   });
 
   it('closes user menu on Escape key', () => {

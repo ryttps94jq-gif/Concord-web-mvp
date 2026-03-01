@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: concord
+  labels:
+    app.kubernetes.io/name: concord
+    app.kubernetes.io/part-of: concord-cognitive-engine

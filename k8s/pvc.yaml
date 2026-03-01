@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: concord-data
+  namespace: concord
+  labels:
+    app.kubernetes.io/name: concord
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: concord-cognitive-engine
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  # Uncomment and set a storageClassName if your cluster requires it:
+  # storageClassName: gp3
