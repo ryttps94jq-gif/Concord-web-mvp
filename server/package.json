@@ -19,22 +19,22 @@
     "restore": "bash scripts/restore.sh"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "helmet": "^7.1.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "jsmidgen": "^0.1.8",
     "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.17.2",
     "prom-client": "^15.1.0",
     "socket.io": "^4.7.4",
-    "stripe": "^17.4.0",
-    "uuid": "^9.0.1",
+    "stripe": "^20.4.0",
+    "uuid": "^13.0.0",
     "ws": "^8.14.2",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -43,10 +43,10 @@
   },
   "optionalDependencies": {
     "@xenova/transformers": "^2.15.0",
-    "better-sqlite3": "^11.7.0",
-    "meilisearch": "^0.37.0",
-    "pg": "^8.11.3",
-    "redis": "^4.6.12"
+    "better-sqlite3": "^12.6.2",
+    "meilisearch": "^0.55.0",
+    "pg": "^8.19.0",
+    "redis": "^5.11.0"
   },
   "engines": {
     "node": ">=18.0.0"
