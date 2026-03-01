@@ -1,7 +1,7 @@
 'use client';
 
+import React, { useState } from 'react';
 import { Copy, ExternalLink, ShieldCheck, FileText } from 'lucide-react';
-import { useState } from 'react';
 import type { Citation } from '../../lib/types/atlas';
 import { LicenseBadge } from './AtlasStatusBadge';
 
@@ -13,7 +13,7 @@ interface CitationCardProps {
   onCopy?: (text: string) => void;
 }
 
-export function CitationCard({ citation, compact = false, onCopy }: CitationCardProps) {
+function CitationCardInner({ citation, compact = false, onCopy }: CitationCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -92,6 +92,8 @@ export function CitationCard({ citation, compact = false, onCopy }: CitationCard
     </div>
   );
 }
+
+export const CitationCard = React.memo(CitationCardInner);
 
 // ── Inline Citation Reference ───────────────────────────────────────────
 

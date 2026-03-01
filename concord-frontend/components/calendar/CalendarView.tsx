@@ -162,6 +162,7 @@ export function CalendarView({
                 onCreateEvent(dateStr);
               }}
               className="p-1 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label={`Add event on ${dateStr}`}
             >
               <Plus className="w-3 h-3" />
             </button>
@@ -215,6 +216,7 @@ export function CalendarView({
             <button
               onClick={() => navigate(-1)}
               className="p-1.5 text-gray-400 hover:text-white transition-colors"
+              aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -227,6 +229,7 @@ export function CalendarView({
             <button
               onClick={() => navigate(1)}
               className="p-1.5 text-gray-400 hover:text-white transition-colors"
+              aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

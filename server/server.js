@@ -49,6 +49,8 @@ import { registerAllRenderers } from "./lib/render-registry.js";
 import { getArtifactSchema } from "./lib/artifact-schemas.js";
 import { getExemplarArtifact } from "./lib/exemplar-artifacts.js";
 import "./lib/vocabularies.js";
+import { BoundedMap } from "./lib/bounded-map.js";
+import { httpMetricsMiddleware, getActiveRequests, installGlobalMetrics } from "./lib/http-metrics.js";
 import "./lib/validators/food-validator.js";
 import "./lib/validators/fitness-validator.js";
 import "./lib/validators/finance-validator.js";
@@ -68,6 +70,7 @@ import createQualiaRouter from "./routes/qualia.js";
 import createSovereignRouter from "./routes/sovereign.js";
 import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import createFederationRouter from "./routes/federation.js";
+import registerOAuthRoutes from "./routes/oauth.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
 import { rateLimitMiddleware as perEndpointRateLimit } from "./rateLimit.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
@@ -741,6 +744,16 @@ async function gracefulShutdown(signal) {
     global.httpServer.close(() => {
       structuredLog("info", "shutdown_http_closed", {});
     });
+  }
+
+  // Wait for in-flight requests to drain
+  const drainStart = Date.now();
+  const drainTimeout = Number(process.env.SHUTDOWN_DRAIN_MS || 5000);
+  while (getActiveRequests() > 0 && (Date.now() - drainStart) < drainTimeout) {
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (getActiveRequests() > 0) {
+    structuredLog("warn", "shutdown_drain_timeout", { activeRequests: getActiveRequests() });
   }
 
   // Run registered callbacks
@@ -4040,7 +4053,7 @@ function csrfMiddleware(req, res, next) {
   if (safeMethods.includes(req.method)) return next();
 
   // Skip for public endpoints and core API paths (chat, lens operations)
-  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready", "/api/chat", "/api/lens"];
+  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/api/auth/google", "/api/auth/apple", "/health", "/ready", "/api/chat", "/api/lens"];
   if (csrfExempt.some(p => req.path.startsWith(p))) return next();
 
   // In AUTH_MODE=public, skip CSRF — anonymous users have no session to protect
@@ -4149,7 +4162,7 @@ function authMiddleware(req, res, next) {
   if (AUTH_MODE === "public") return next();
 
   // Skip auth for always-public endpoints (any method)
-  const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
+  const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/auth/google", "/api/auth/apple", "/api/auth/providers", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
   if (alwaysPublic.some(p => req.path.startsWith(p))) return next();
 
   // Sovereign-only route protection
@@ -9438,7 +9451,7 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
 // ============================================================================
 
 // ---- DTU Version History ----
-const VERSION_HISTORY = new Map(); // dtuId -> [{ version, snapshot, changedAt, changedBy }]
+const VERSION_HISTORY = new BoundedMap(5000, "VERSION_HISTORY"); // dtuId -> [{ version, snapshot, changedAt, changedBy }]
 const MAX_VERSIONS_PER_DTU = Number(process.env.MAX_VERSIONS_PER_DTU || 50);
 
 function saveDTUVersion(dtu, changedBy = "system") {
@@ -9493,7 +9506,7 @@ function restoreDTUVersion(dtuId, version) {
 }
 
 // ---- DTU Templates ----
-const TEMPLATES = new Map(); // templateId -> { id, name, description, fields, defaultValues, tags }
+const TEMPLATES = new BoundedMap(2000, "TEMPLATES"); // templateId -> { id, name, description, fields, defaultValues, tags }
 
 // Built-in templates
 const BUILTIN_TEMPLATES = [
@@ -12799,7 +12812,7 @@ function getConsciousOllamaCallback() {
 // ============================================================================
 
 // ---- Workspaces ----
-const WORKSPACES = new Map(); // workspaceId -> { id, name, description, ownerId, members, dtuIds, settings, createdAt }
+const WORKSPACES = new BoundedMap(1000, "WORKSPACES"); // workspaceId -> { id, name, description, ownerId, members, dtuIds, settings, createdAt }
 
 function createWorkspace(ownerId, name, description = "") {
   const id = uid("ws");
@@ -12884,7 +12897,7 @@ function _checkWorkspaceAccess(workspaceId, userId, requiredRole = "member") {
 }
 
 // ---- Comments/Threads ----
-const COMMENTS = new Map(); // commentId -> { id, dtuId, userId, content, parentId, createdAt, updatedAt, resolved }
+const COMMENTS = new BoundedMap(10000, "COMMENTS"); // commentId -> { id, dtuId, userId, content, parentId, createdAt, updatedAt, resolved }
 
 function addComment(dtuId, userId, content, parentId = null) {
   const dtu = STATE.dtus.get(dtuId);
@@ -12952,7 +12965,7 @@ function addReaction(commentId, userId, emoji) {
 }
 
 // ---- DTU Permissions ----
-const DTU_PERMISSIONS = new Map(); // dtuId -> { ownerId, viewers: Set, editors: Set, isPublic }
+const DTU_PERMISSIONS = new BoundedMap(10000, "DTU_PERMISSIONS"); // dtuId -> { ownerId, viewers: Set, editors: Set, isPublic }
 
 function _setDTUPermissions(dtuId, ownerId, permissions = {}) {
   DTU_PERMISSIONS.set(dtuId, {
@@ -13103,7 +13116,7 @@ function getActivityLog(filters = {}) {
 // Note: Actual Yjs integration requires WebSocket server setup
 // This provides the server-side hooks and document management
 
-const YJS_DOCS = new Map(); // dtuId -> { updates: Buffer[], lastUpdate: Date }
+const YJS_DOCS = new BoundedMap(500, "YJS_DOCS"); // dtuId -> { updates: Buffer[], lastUpdate: Date }
 
 function initYjsDoc(dtuId) {
   if (!YJS_DOCS.has(dtuId)) {
@@ -13219,7 +13232,7 @@ const DEFAULT_SHORTCUTS = {
   "mod+shift+p": { action: "togglePreview", description: "Toggle preview" }
 };
 
-const USER_SHORTCUTS = new Map(); // userId -> { shortcutKey: action }
+const USER_SHORTCUTS = new BoundedMap(5000, "USER_SHORTCUTS"); // userId -> { shortcutKey: action }
 
 function getShortcuts(userId = null) {
   const userShortcuts = userId ? USER_SHORTCUTS.get(userId) : null;
@@ -13443,7 +13456,7 @@ function generateOpenAPISpec() {
 }
 
 // ---- Plugin System ----
-const PLUGINS = new Map(); // pluginId -> { id, name, version, hooks, enabled, config }
+const PLUGINS = new BoundedMap(200, "PLUGINS"); // pluginId -> { id, name, version, hooks, enabled, config }
 const PLUGIN_HOOKS = {
   "dtu:beforeCreate": [],
   "dtu:afterCreate": [],
@@ -20109,6 +20122,10 @@ configureMiddleware(app, {
   NODE_ENV,
 });
 
+// HTTP metrics collection middleware
+app.use(httpMetricsMiddleware);
+installGlobalMetrics();
+
 // ---- Request Tracing (unified observability across all subsystems) ----
 app.use(traceMiddleware);
 app.use((req, res, next) => {
@@ -20192,6 +20209,21 @@ app.use("/api/auth", createAuthRouter({
   structuredLog,
   saveAuthData
 }));
+
+// ---- OAuth Endpoints (Google & Apple Sign-In) ----
+registerOAuthRoutes(app, {
+  db,
+  AuthDB,
+  uid,
+  createToken,
+  createRefreshToken,
+  setAuthCookie,
+  setRefreshCookie,
+  auditLog,
+  structuredLog,
+  jwt,
+  _REFRESH_FAMILIES,
+});
 
 // Backup endpoints extracted to routes/system.js
 
@@ -29829,7 +29861,7 @@ app.get("/api/teaching/expertise", requireAuth(), (req, res) => {
 
 // --- Capability 4: REAL-TIME COLLABORATION ---
 
-const COLLAB_SESSIONS = new Map();
+const COLLAB_SESSIONS = new BoundedMap(1000, "COLLAB_SESSIONS");
 
 function createCollabSession(initiatorId, inviteeId, domains, description) {
   const session = {
@@ -30696,7 +30728,7 @@ function newCapabilitiesHeartbeat() {
 // SHARED INSTANCE CONVERSATION — Multi-Sovereign Group Chat
 // ============================================================================
 
-const SHARED_SESSIONS = new Map();
+const SHARED_SESSIONS = new BoundedMap(1000, "SHARED_SESSIONS");
 
 function formatSharedContext(results) {
   if (!results || !Array.isArray(results)) return "";
@@ -31283,8 +31315,8 @@ function initChatSocketHandlers(io) {
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
 // ============================================================================
-const COLLAB_SESSIONS = new Map();
-const COLLAB_LOCKS = new Map();
+const COLLAB_SESSIONS = new BoundedMap(1000, "COLLAB_SESSIONS");
+const COLLAB_LOCKS = new BoundedMap(1000, "COLLAB_LOCKS");
 
 register("collab", "createSession", (ctx, input) => {
   const { dtuId, userId, mode } = input;
@@ -31780,8 +31812,8 @@ structuredLog("info", "module_loaded", { module: "Wave 7: Scalability & Performa
 // ============================================================================
 // WAVE 8: INTEGRATIONS ECOSYSTEM (Surpassing Roam Research)
 // ============================================================================
-const WEBHOOKS = new Map();
-const AUTOMATIONS = new Map();
+const WEBHOOKS = new BoundedMap(2000, "WEBHOOKS");
+const AUTOMATIONS = new BoundedMap(2000, "AUTOMATIONS");
 
 register("webhook", "register", (ctx, input) => {
   const { url, events, secret, name, headers } = input;

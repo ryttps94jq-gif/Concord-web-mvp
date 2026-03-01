@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Hammer, ShieldAlert, Clock, BarChart3, Scale, GitMerge, Key,
   ChevronDown, ChevronUp,
@@ -50,7 +50,7 @@ function getStateLabel(state?: string): { label: string; colorClass: string } {
   }
 }
 
-export function EmergentCard({ emergent }: { emergent: EmergentEntity }) {
+function EmergentCardInner({ emergent }: { emergent: EmergentEntity }) {
   const [expanded, setExpanded] = useState(false);
   const role = emergent.role?.toLowerCase() || 'unknown';
   const config = ROLE_CONFIG[role] || { icon: Key, color: 'gray-400', label: role };
@@ -152,3 +152,5 @@ export function EmergentCard({ emergent }: { emergent: EmergentEntity }) {
     </div>
   );
 }
+
+export const EmergentCard = React.memo(EmergentCardInner);

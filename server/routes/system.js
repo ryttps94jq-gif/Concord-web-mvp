@@ -5,6 +5,9 @@
  *         health/deep, api/metrics (chicken2), DTU paginated, openapi, docs,
  *         search/indexed, search/dsl, search/reindex, global/search
  */
+import { asyncHandler } from "../lib/async-handler.js";
+import { validateBody, llmGenerateSchema } from "../lib/validators/mutation-schemas.js";
+
 export default function registerSystemRoutes(app, {
   STATE,
   makeCtx,
@@ -115,7 +118,7 @@ export default function registerSystemRoutes(app, {
     });
   });
 
-  app.get("/metrics", async (req, res) => {
+  app.get("/metrics", asyncHandler(async (req, res) => {
     // Prometheus-compatible plain text metrics for Concord system
     const lines = [];
     try {
@@ -184,20 +187,20 @@ export default function registerSystemRoutes(app, {
 
     res.set("Content-Type", "text/plain; charset=utf-8");
     res.send(lines.join("\n") + "\n");
-  });
+  }));
 
   // ---- Backup ----
-  app.post("/api/backup", requireRole("owner", "admin"), async (req, res) => {
+  app.post("/api/backup", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
     const result = await createBackup(req.body.name);
     res.json(result);
-  });
+  }));
   app.get("/api/backups", requireRole("owner", "admin"), (req, res) => {
     res.json(listBackups());
   });
-  app.post("/api/backup/restore", requireRole("owner"), async (req, res) => {
+  app.post("/api/backup/restore", requireRole("owner"), asyncHandler(async (req, res) => {
     const result = await restoreBackup(req.body.path || req.body.name);
     res.json(result);
-  });
+  }));
 
   // ---- Status ----
   app.get("/api/status", (req, res) => {
@@ -258,14 +261,14 @@ export default function registerSystemRoutes(app, {
   app.get("/api/llm/status", (req, res) => {
     res.json({ ok: true, ...getLLMPipelineStatus() });
   });
-  app.post("/api/llm/generate", async (req, res) => {
+  app.post("/api/llm/generate", validateBody(llmGenerateSchema), asyncHandler(async (req, res) => {
     const { prompt, mode, temperature, maxTokens } = req.body || {};
     if (!prompt) {
       return res.status(400).json({ ok: false, error: "prompt required" });
     }
     const result = await llmPipeline(prompt, { mode, temperature, maxTokens });
     res.json(result);
-  });
+  }));
   app.post("/api/llm/mode", requireRole("owner", "admin"), (req, res) => {
     const { mode } = req.body || {};
     const result = setLLMPipelineMode(mode);
@@ -332,7 +335,7 @@ export default function registerSystemRoutes(app, {
   });
 
   // ---- Weather (authoritative; cached; never uses LLM) ----
-  app.get("/api/weather", async (req, res) => {
+  app.get("/api/weather", asyncHandler(async (req, res) => {
     try {
       const location = String(req.query.location || req.query.q || "Poughkeepsie, NY");
       const tz = String(req.query.tz || "America/New_York");
@@ -341,7 +344,7 @@ export default function registerSystemRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok:false, error:String(e?.message||e) });
     }
-  });
+  }));
 
   // ---- State Snapshot ----
   app.get("/api/state/latest", (req, res) => {
@@ -534,15 +537,15 @@ export default function registerSystemRoutes(app, {
     return res.json({ ok: true, query: q, results, count: results.length });
   });
 
-  app.get("/api/search/dsl", async (req, res) => {
+  app.get("/api/search/dsl", asyncHandler(async (req, res) => {
     const out = await runMacro("search", "query", { q: req.query.q, limit: req.query.limit }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/search/reindex", async (req, res) => {
+  app.post("/api/search/reindex", asyncHandler(async (req, res) => {
     const out = await runMacro("search", "reindex", {}, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   app.get("/api/global/search", (req, res) => {
     const query = String(req.query.q || "").trim();

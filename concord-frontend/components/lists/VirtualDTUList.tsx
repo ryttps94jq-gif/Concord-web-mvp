@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -409,7 +409,7 @@ export function VirtualDTUList({
   );
 }
 
-function ContextMenuItem({
+const ContextMenuItem = React.memo(function ContextMenuItem({
   icon: Icon,
   label,
   onClick,
@@ -434,5 +434,5 @@ function ContextMenuItem({
       {label}
     </button>
   );
-}
+});
 

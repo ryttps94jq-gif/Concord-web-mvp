@@ -4,7 +4,7 @@
  * PipelineTrail — Shows the cross-domain pipeline chain that produced an artifact.
  */
 
-import { Fragment } from 'react';
+import React, { Fragment } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
@@ -19,7 +19,7 @@ interface PipelineTrailProps {
   trail: PipelineStep[];
 }
 
-export function PipelineTrail({ trail }: PipelineTrailProps) {
+function PipelineTrailInner({ trail }: PipelineTrailProps) {
   if (!trail?.length) return null;
 
   return (
@@ -47,4 +47,5 @@ export function PipelineTrail({ trail }: PipelineTrailProps) {
   );
 }
 
+export const PipelineTrail = React.memo(PipelineTrailInner);
 export default PipelineTrail;

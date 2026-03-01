@@ -5,6 +5,7 @@
  * and recent payments for a creator.
  */
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { DollarSign, TrendingUp, GitBranch, Clock } from 'lucide-react';
@@ -38,7 +39,7 @@ interface RoyaltyDashboardProps {
   userId: string;
 }
 
-function CitationBadge({ type }: { type: string }) {
+const CitationBadge = React.memo(function CitationBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     derivative: 'bg-red-500/20 text-red-400',
     adaptation: 'bg-orange-500/20 text-orange-400',
@@ -50,7 +51,7 @@ function CitationBadge({ type }: { type: string }) {
       {type}
     </span>
   );
-}
+});
 
 export function RoyaltyDashboard({ userId }: RoyaltyDashboardProps) {
   const { data: royalties, isLoading } = useQuery<RoyaltyData>({

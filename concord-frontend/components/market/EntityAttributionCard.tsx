@@ -5,6 +5,7 @@
  * Displays species, maturity, production stats, and domain expertise.
  */
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 
@@ -13,7 +14,7 @@ interface EntityAttributionCardProps {
   compact?: boolean;
 }
 
-export function EntityAttributionCard({ entityId, compact = false }: EntityAttributionCardProps) {
+function EntityAttributionCardInner({ entityId, compact = false }: EntityAttributionCardProps) {
   const { data: entity } = useQuery({
     queryKey: ['entity-profile', entityId],
     queryFn: () => api.get(`/api/entity/${entityId}/profile`).then(r => r.data),
@@ -67,4 +68,5 @@ export function EntityAttributionCard({ entityId, compact = false }: EntityAttri
   );
 }
 
+export const EntityAttributionCard = React.memo(EntityAttributionCardInner);
 export default EntityAttributionCard;

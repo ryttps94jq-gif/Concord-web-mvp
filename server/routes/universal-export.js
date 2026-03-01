@@ -3,12 +3,13 @@
 
 import { Router } from "express";
 import { lensDataToDTU, wrapFormatAsDTU, exportDTUAs, inspectDTU } from "../lib/universal-dtu-bridge.js";
+import { asyncHandler } from "../lib/async-handler.js";
 
 export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
   const router = Router();
 
   // POST /api/lens/:domain/export-dtu — Export lens artifact as .dtu file
-  router.post("/api/lens/:domain/export-dtu", async (req, res) => {
+  router.post("/api/lens/:domain/export-dtu", asyncHandler(async (req, res) => {
     try {
       const { domain } = req.params;
       const { data, title, tags, format } = req.body || {};
@@ -21,10 +22,10 @@ export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   // POST /api/lens/:domain/import-dtu — Import .dtu file into lens
-  router.post("/api/lens/:domain/import-dtu", async (req, res) => {
+  router.post("/api/lens/:domain/import-dtu", asyncHandler(async (req, res) => {
     try {
       const { domain } = req.params;
 
@@ -56,10 +57,10 @@ export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   // POST /api/convert/to-dtu — Convert any format to DTU
-  router.post("/api/convert/to-dtu", async (req, res) => {
+  router.post("/api/convert/to-dtu", asyncHandler(async (req, res) => {
     try {
       const { format, data, title, domain, tags } = req.body || {};
       if (!format || !data) return res.status(400).json({ ok: false, error: "Missing 'format' and 'data' fields" });
@@ -71,10 +72,10 @@ export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   // POST /api/convert/from-dtu — Convert DTU to any format
-  router.post("/api/convert/from-dtu", async (req, res) => {
+  router.post("/api/convert/from-dtu", asyncHandler(async (req, res) => {
     try {
       const { targetFormat } = req.body || {};
       if (!targetFormat) return res.status(400).json({ ok: false, error: "Missing 'targetFormat' field" });
@@ -91,20 +92,20 @@ export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   // GET /api/realtime/status — Get real-time feed status
-  router.get("/api/realtime/status", async (req, res) => {
+  router.get("/api/realtime/status", asyncHandler(async (req, res) => {
     try {
       const { getRealtimeFeedStatus } = await import("../emergent/realtime-feeds.js");
       res.json({ ok: true, ...getRealtimeFeedStatus() });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   // GET /api/realtime/feed/:feed — Get cached data for a specific feed
-  router.get("/api/realtime/feed/:feed", async (req, res) => {
+  router.get("/api/realtime/feed/:feed", asyncHandler(async (req, res) => {
     try {
       const { getRealtimeFeedData } = await import("../emergent/realtime-feeds.js");
       const data = getRealtimeFeedData(req.params.feed);
@@ -116,7 +117,7 @@ export default function createUniversalExportRouter(STATE, runMacro, makeCtx) {
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
-  });
+  }));
 
   return router;
 }

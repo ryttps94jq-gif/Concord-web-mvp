@@ -34,7 +34,8 @@ export function Skeleton({
 
   if (lines > 1) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div className={cn('space-y-2', className)} aria-busy="true" role="status">
+        <span className="sr-only">Loading...</span>
         {Array.from({ length: lines }).map((_, i) => (
           <div
             key={i}
@@ -53,7 +54,11 @@ export function Skeleton({
     <div
       className={cn(baseClass, variantClasses[variant], className)}
       style={style}
-    />
+      aria-busy="true"
+      role="status"
+    >
+      <span className="sr-only">Loading...</span>
+    </div>
   );
 }
 

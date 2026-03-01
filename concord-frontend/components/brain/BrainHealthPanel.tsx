@@ -2,7 +2,21 @@
 
 import { useBrainHealth } from '@/hooks/useBrainHealth';
 
-function BrainCard({ name, brain }: { name: string; brain: any }) {
+interface BrainData {
+  online?: boolean;
+  enabled?: boolean;
+  model?: string;
+  role?: string;
+  avgResponseMs?: number;
+  stats?: {
+    requests?: number;
+    errors?: number;
+    dtusGenerated?: number;
+    lastCallAt?: string;
+  };
+}
+
+function BrainCard({ name, brain }: { name: string; brain: BrainData }) {
   if (!brain) return null;
   const online = brain.online || brain.enabled;
   const statusColor = online ? 'bg-green-500' : 'bg-red-500';

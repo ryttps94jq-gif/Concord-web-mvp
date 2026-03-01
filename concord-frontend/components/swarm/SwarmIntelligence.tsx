@@ -131,11 +131,11 @@ export function SwarmIntelligence({ className }: { className?: string }) {
                 <Crown className="w-4 h-4 text-yellow-400" />
                 <span className="text-xs text-gray-400">Queen DTU:</span>
                 <span className="text-xs text-white">
-                  {detailData.swarm.memberDTUs?.find((d: any) => d.id === detailData.swarm.queen)?.title || detailData.swarm.queen}
+                  {detailData.swarm.memberDTUs?.find((d: { id: string; title: string; tier?: string; domain?: string }) => d.id === detailData.swarm.queen)?.title || detailData.swarm.queen}
                 </span>
               </div>
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {detailData.swarm.memberDTUs?.slice(0, 10).map((dtu: any) => (
+                {detailData.swarm.memberDTUs?.slice(0, 10).map((dtu: { id: string; title: string; tier?: string; domain?: string }) => (
                   <div key={dtu.id} className="flex items-center gap-2 p-1.5 bg-lattice-deep rounded text-xs">
                     <span className={cn(
                       'w-1.5 h-1.5 rounded-full',

@@ -57,11 +57,11 @@ export function CognitiveDigitalTwin({ className }: { className?: string }) {
   const twin = twinData?.twin || {};
   const circadian = twin.circadianProfile || {};
   const biases = twin.biasFingerprint || {};
-  const domains = Object.entries(twin.processingSpeed || {}).sort(([, a]: any, [, b]: any) => b.count - a.count);
+  const domains = Object.entries(twin.processingSpeed || {}).sort(([, a]: [string, { count: number }], [, b]: [string, { count: number }]) => b.count - a.count);
 
   // Find peak hours
   const peakHours = Object.entries(circadian)
-    .map(([h, d]: [string, any]) => ({ hour: parseInt(h), quality: d.avgQuality || 0, count: d.count || 0 }))
+    .map(([h, d]: [string, { avgQuality?: number; count?: number }]) => ({ hour: parseInt(h), quality: d.avgQuality || 0, count: d.count || 0 }))
     .sort((a, b) => b.quality - a.quality)
     .slice(0, 3);
 
@@ -199,7 +199,7 @@ export function CognitiveDigitalTwin({ className }: { className?: string }) {
               </div>
               {simResult?.simulations && (
                 <div className="mt-3 space-y-2">
-                  {simResult.simulations.map((sim: any, i: number) => (
+                  {simResult.simulations.map((sim: { path: string; scenario: string; confidence: number }, i: number) => (
                     <div key={i} className="p-3 bg-lattice-deep rounded-lg">
                       <p className="text-xs font-medium text-neon-cyan">{sim.path}</p>
                       <p className="text-sm text-gray-300 mt-1">{sim.scenario}</p>
@@ -257,7 +257,7 @@ export function CognitiveDigitalTwin({ className }: { className?: string }) {
               <div className="flex gap-0.5">
                 {Array.from({ length: 24 }, (_, h) => {
                   const data = circadian[h] || { count: 0, avgQuality: 0 };
-                  const maxCount = Math.max(1, ...Object.values(circadian).map((d: any) => d.count || 0));
+                  const maxCount = Math.max(1, ...Object.values(circadian).map((d: { count?: number }) => d.count || 0));
                   const intensity = data.count / maxCount;
                   return (
                     <div

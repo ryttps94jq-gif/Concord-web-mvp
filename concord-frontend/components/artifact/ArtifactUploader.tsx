@@ -43,8 +43,8 @@ export function ArtifactUploader({ lens, onUploadComplete, acceptTypes, multi = 
         if (data.ok) onUploadComplete(data.dtuId);
         else setError(data.error || "Upload failed");
       }
-    } catch (err: any) {
-      setError(err.message || "Upload failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }

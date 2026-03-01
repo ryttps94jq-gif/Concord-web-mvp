@@ -15,6 +15,7 @@ import {
   getRegionalStats, getTopRegionalArtifacts,
   calculateStorageSavings,
 } from "../economy/storage.js";
+import { validateBody, vaultStoreSchema } from "../lib/validators/mutation-schemas.js";
 
 export default function createStorageRouter({ db, requireAuth }) {
   const router = express.Router();
@@ -43,7 +44,7 @@ export default function createStorageRouter({ db, requireAuth }) {
   });
 
   // ── Vault ─────────────────────────────────────────────────────────
-  router.post("/vault/store", (req, res) => {
+  router.post("/vault/store", validateBody(vaultStoreSchema), (req, res) => {
     const { fileBase64, mimeType } = req.body || {};
     if (!fileBase64) return res.status(400).json({ ok: false, error: "missing_file_data" });
     const fileBuffer = Buffer.from(fileBase64, "base64");

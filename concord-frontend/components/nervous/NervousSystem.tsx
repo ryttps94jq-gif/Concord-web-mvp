@@ -219,7 +219,7 @@ export function NervousSystem({ className }: { className?: string }) {
                       <span>Errors: {busData.stats.errors}</span>
                     </div>
                   )}
-                  {(busData?.events || []).map((evt: any, i: number) => (
+                  {(busData?.events || []).map((evt: { type: string; timestamp: string }, i: number) => (
                     <div key={i} className="p-1.5 bg-lattice-deep rounded text-[10px] flex items-center gap-2">
                       <span className="text-neon-cyan">{evt.type}</span>
                       <span className="text-gray-500 ml-auto">{new Date(evt.timestamp).toLocaleTimeString()}</span>
@@ -231,7 +231,7 @@ export function NervousSystem({ className }: { className?: string }) {
               {/* Traces tab */}
               {activeTab === 'traces' && (
                 <div className="space-y-2">
-                  {(traceData?.traces || []).map((trace: any) => (
+                  {(traceData?.traces || []).map((trace: { traceId: string; trigger?: { type: string }; totalDuration?: number; spans?: { name: string; status: string }[] }) => (
                     <div key={trace.traceId} className="p-2 bg-lattice-deep rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-white">{trace.trigger?.type || 'unknown'}</span>
@@ -240,7 +240,7 @@ export function NervousSystem({ className }: { className?: string }) {
                         </span>
                       </div>
                       <div className="flex gap-1 mt-1">
-                        {trace.spans?.slice(0, 5).map((span: any, i: number) => (
+                        {trace.spans?.slice(0, 5).map((span: { name: string; status: string }, i: number) => (
                           <span key={i} className={cn(
                             'text-[10px] px-1 rounded',
                             span.status === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
@@ -275,7 +275,7 @@ export function NervousSystem({ className }: { className?: string }) {
                     )}
                   </div>
                   <div className="space-y-1">
-                    {(integrityData.issues || []).slice(0, 20).map((issue: any, i: number) => (
+                    {(integrityData.issues || []).slice(0, 20).map((issue: { severity: string; message: string; autofix?: boolean }, i: number) => (
                       <div key={i} className="p-1.5 bg-lattice-deep rounded text-[10px] flex items-center gap-2">
                         <span className={cn(
                           issue.severity === 'critical' ? 'text-red-400' : issue.severity === 'error' ? 'text-yellow-400' : 'text-gray-400'

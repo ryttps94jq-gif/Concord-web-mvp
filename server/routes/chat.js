@@ -2,6 +2,7 @@
  * Chat + Ask routes — extracted from server.js
  * Registered directly on app (mixed prefixes)
  */
+import { asyncHandler } from "../lib/async-handler.js";
 export default function registerChatRoutes(app, {
   STATE,
   makeCtx,
@@ -25,7 +26,7 @@ export default function registerChatRoutes(app, {
   const chatRateLimit = perEndpointRateLimit ? perEndpointRateLimit("conscious.chat") : ((_req, _res, next) => next());
 
   // Chat + Ask
-  app.post("/api/chat", chatRateLimit, validate("chat"), async (req, res) => {
+  app.post("/api/chat", chatRateLimit, validate("chat"), asyncHandler(async (req, res) => {
     const errorId = uid("err");
     try {
       req.body = enforceRequestInvariants(req, req.body || {});
@@ -103,18 +104,18 @@ export default function registerChatRoutes(app, {
         { panel: "chat", errorId }
       );
     }
-  });
+  }));
 
   // Chicken3: SSE streaming chat (additive; does not replace /api/chat)
   // POST /api/chat/feedback — record user thumbs up/down
-  app.post("/api/chat/feedback", async (req, res) => {
+  app.post("/api/chat/feedback", asyncHandler(async (req, res) => {
     try {
       const out = await runMacro("chat", "feedback", req.body, makeCtx(req));
       return res.json(out);
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
   // GET /api/chat/conversations — list chat sessions for thread view
   app.get("/api/chat/conversations", (req, res) => {
@@ -143,7 +144,7 @@ export default function registerChatRoutes(app, {
     }
   });
 
-  app.post("/api/chat/stream", async (req, res) => {
+  app.post("/api/chat/stream", asyncHandler(async (req, res) => {
     const errorId = uid("err");
     try {
       enforceEthosInvariant("chat_stream");
@@ -181,7 +182,7 @@ export default function registerChatRoutes(app, {
         return uiJson(res, { ok:false, error: msg, errorId }, req, { panel:"chat_stream", errorId });
       }
     }
-  });
+  }));
 
   // Chicken3: status + session opt-in
   app.get("/api/chicken3/status", (req, res) => {
@@ -211,7 +212,7 @@ export default function registerChatRoutes(app, {
     }
   });
 
-  app.post("/api/ask", async (req, res) => {
+  app.post("/api/ask", asyncHandler(async (req, res) => {
     const errorId = uid("err");
     try {
       req.body = enforceRequestInvariants(req, req.body || {});
@@ -236,5 +237,5 @@ export default function registerChatRoutes(app, {
         { panel: "ask", errorId }
       );
     }
-  });
+  }));
 }

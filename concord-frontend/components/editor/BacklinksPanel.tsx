@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link2, ChevronRight, Brain, Search, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -233,7 +233,7 @@ interface BacklinkItemProps {
   tierColor: string;
 }
 
-function BacklinkItem({ link, expanded, onToggle, tierColor }: BacklinkItemProps) {
+const BacklinkItem = React.memo(function BacklinkItem({ link, expanded, onToggle, tierColor }: BacklinkItemProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -289,7 +289,7 @@ function BacklinkItem({ link, expanded, onToggle, tierColor }: BacklinkItemProps
       </AnimatePresence>
     </motion.div>
   );
-}
+});
 
 // Unlinked mentions component - shows potential links
 interface UnlinkedMention {

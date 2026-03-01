@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -216,7 +216,7 @@ interface ThoughtEventItemProps {
   isNew?: boolean;
 }
 
-function ThoughtEventItem({ event, isExpanded, onToggle, onClick, isNew }: ThoughtEventItemProps) {
+const ThoughtEventItem = React.memo(function ThoughtEventItem({ event, isExpanded, onToggle, onClick, isNew }: ThoughtEventItemProps) {
   const config = eventConfig[event.type];
   const Icon = config.icon;
 
@@ -284,9 +284,9 @@ function ThoughtEventItem({ event, isExpanded, onToggle, onClick, isNew }: Thoug
       </AnimatePresence>
     </motion.div>
   );
-}
+});
 
-function FilterTab({
+const FilterTab = React.memo(function FilterTab({
   label,
   active,
   onClick,
@@ -313,7 +313,7 @@ function FilterTab({
       <span className={cn('ml-1', color || 'text-gray-500')}>({count})</span>
     </button>
   );
-}
+});
 
 // Fallback labels for WebSocket events that lack title/description
 function getRandomTitle(type: EventType): string {

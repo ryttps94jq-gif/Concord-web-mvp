@@ -7,7 +7,7 @@
  * Connects to SSE for live updates.
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { Activity, Filter, RefreshCw, Undo2, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -232,7 +232,7 @@ export function ActivityFeed() {
   );
 }
 
-function EventTypeBadge({ type }: { type: string }) {
+const EventTypeBadge = React.memo(function EventTypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     DTU_CREATED: 'text-neon-green bg-neon-green/10',
     DTU_UPDATED: 'text-neon-blue bg-neon-blue/10',
@@ -248,7 +248,7 @@ function EventTypeBadge({ type }: { type: string }) {
       {type}
     </span>
   );
-}
+});
 
 function formatTimestamp(iso: string): string {
   try {

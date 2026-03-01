@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, apiHelpers, ensureCsrfToken } from '@/lib/api/client';
 import dynamic from 'next/dynamic';
 const KnowledgeSpace3D = dynamic(
-  () => import('@/components/graphs/KnowledgeSpace3D').then(mod => ({ default: mod.KnowledgeSpace3D })),
+  () => import('@/components/graphs/KnowledgeSpace3DCanvas').then(mod => ({ default: mod.KnowledgeSpace3D })),
   { ssr: false, loading: () => (
     <div className="h-full flex items-center justify-center text-gray-500 text-sm">
       <div className="text-center">

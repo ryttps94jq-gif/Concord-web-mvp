@@ -9,6 +9,7 @@
  */
 import express from "express";
 import crypto from "crypto";
+import { asyncHandler } from "../lib/async-handler.js";
 
 const SOVEREIGN_USERNAME = process.env.SOVEREIGN_USERNAME || "dutch";
 
@@ -187,7 +188,7 @@ export default function createSovereignRouter({ STATE, makeCtx, runMacro, saveSt
   // ════════════════════════════════════════════════════════════════════
   // POST /api/sovereign/decree — The main command endpoint
   // ════════════════════════════════════════════════════════════════════
-  router.post("/decree", async (req, res) => {
+  router.post("/decree", asyncHandler(async (req, res) => {
     const S = STATE || getSTATE();
     if (!S) return res.json({ ok: false, error: "STATE not available" });
 
@@ -694,7 +695,7 @@ export default function createSovereignRouter({ STATE, makeCtx, runMacro, saveSt
     createSovereignDTU(S, action, { target, data }, result);
 
     return res.json(result);
-  });
+  }));
 
   // ════════════════════════════════════════════════════════════════════
   // GET /api/sovereign/audit — Sovereign action audit trail
