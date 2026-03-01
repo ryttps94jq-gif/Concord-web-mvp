@@ -24,6 +24,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,6 +159,7 @@ export default function LogisticsLensPage() {
   const [kanbanView, setKanbanView] = useState(true);
   const [warehouseView, setWarehouseView] = useState<'grid' | 'list'>('grid');
   const [routeExpanded, setRouteExpanded] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // Editor form state
   const [formTitle, setFormTitle] = useState('');
@@ -1590,6 +1592,25 @@ export default function LogisticsLensPage() {
 
         </div>
       </section>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="logistics" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

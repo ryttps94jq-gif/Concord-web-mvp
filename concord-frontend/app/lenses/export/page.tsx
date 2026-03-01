@@ -4,16 +4,18 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useState } from 'react';
-import { Download, FileJson, FileText, Database, Check, Package } from 'lucide-react';
+import { Download, FileJson, FileText, Database, Check, Package, Layers, ChevronDown } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 export default function ExportLensPage() {
   useLensNav('export');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('export');
+  const [showFeatures, setShowFeatures] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'json' | 'csv' | 'markdown'>('json');
   const [selectedData, setSelectedData] = useState<string[]>(['dtus']);
   const [exporting, setExporting] = useState(false);
@@ -202,6 +204,25 @@ export default function ExportLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="export_import" />
+          </div>
+        )}
       </div>
     </div>
   );

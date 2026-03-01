@@ -19,6 +19,8 @@ import {
   searchFeatures,
 } from "../economy/lens-features-service.js";
 
+import { UNIVERSAL_FEATURES } from "../lib/lens-features.js";
+
 export default function lensFeatureRoutes(db, lensFeatures) {
   const router = Router();
 
@@ -66,6 +68,19 @@ export default function lensFeatureRoutes(db, lensFeatures) {
     if (!q) return res.json({ ok: true, results: [], count: 0 });
     const result = searchFeatures(db, q);
     res.json(result);
+  });
+
+  /**
+   * GET /api/lens-features/universal
+   * Get the 20 universal features that apply to ALL 112 lenses
+   */
+  router.get("/universal", (_req, res) => {
+    res.json({
+      ok: true,
+      features: UNIVERSAL_FEATURES,
+      count: UNIVERSAL_FEATURES.length,
+      description: "These features apply to every lens across the entire Concord platform",
+    });
   });
 
   /**

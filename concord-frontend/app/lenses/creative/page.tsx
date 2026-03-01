@@ -23,12 +23,13 @@ import {
   Share2, ArrowUpRight, ArrowDownRight, Minus,
   FolderOpen, Layers, Zap, Send,
   RotateCcw, Shield, Hash, Play, Gauge,
-  CircleDot, ListChecks, ClipboardList, Receipt, PieChart,
+  CircleDot, ListChecks, ClipboardList, Receipt, PieChart, ChevronDown,
 } from 'lucide-react';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -136,6 +137,7 @@ export default function CreativeLensPage() {
   useLensNav('creative');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('creative');
 
+  const [showFeatures, setShowFeatures] = useState(false);
   const [mode, setMode] = useState<ModeTab>('dashboard');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1614,6 +1616,25 @@ export default function CreativeLensPage() {
           </div>
         </section>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="creative_production" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

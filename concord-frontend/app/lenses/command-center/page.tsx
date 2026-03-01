@@ -9,12 +9,13 @@ import {
   Shield, Activity, Brain, Layers, Puzzle, Cpu, Users, Settings,
   AlertTriangle, Moon, FileText, Pause, Play,
   Save, Trash2, XCircle, Eye, Clock, ArrowUp,
-  Zap, Send, MapPin, Focus, ShieldAlert,
+  Zap, Send, MapPin, Focus, ShieldAlert, ChevronDown,
 } from 'lucide-react';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -652,6 +653,7 @@ export default function CommandCenterPage() {
   useLensNav('command-center');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('command-center');
   const router = useRouter();
+  const [showFeatures, setShowFeatures] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('vitals');
 
   // Auth gate — check if user is owner, redirect silently if not
@@ -750,6 +752,25 @@ export default function CommandCenterPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="command_center" />
+          </div>
+        )}
       </div>
     </div>
   );

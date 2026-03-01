@@ -12,13 +12,14 @@ import {
   Palette, Trophy, Star, TrendingUp, Users, Heart,
   Clock, Target, Zap, Award, ShoppingBag, Calendar,
   MapPin, ExternalLink, Filter, GripVertical,
-  Lightbulb, BarChart3, Flame, ChevronRight
+  Lightbulb, BarChart3, Flame, ChevronRight, Layers, ChevronDown
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // --- Types ---
 
@@ -214,6 +215,7 @@ export default function ExperienceLensPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('portfolio');
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioFilter>('all');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const { isLoading, isError: isError, error: error, refetch: refetch, items: portfolioItems } = useLensData('experience', 'portfolio', {
     seed: INITIAL_PORTFOLIO.map(p => ({ title: p.title, data: p as unknown as Record<string, unknown> })),
@@ -1049,6 +1051,25 @@ export default function ExperienceLensPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="experience" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

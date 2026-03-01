@@ -19,8 +19,10 @@ import {
   Clock,
   Zap,
   Brain,
-  Box
+  Box,
+  ChevronDown
 } from 'lucide-react';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
@@ -210,6 +212,7 @@ export default function AdminDashboardPage() {
   useLensNav('admin');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('admin');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const {
     data: dashboard,
@@ -562,6 +565,25 @@ export default function AdminDashboardPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="admin" />
+          </div>
+        )}
       </div>
     </div>
   );

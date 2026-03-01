@@ -7,13 +7,14 @@ import { useState, useEffect } from 'react';
 import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
-  Shuffle, Search, ArrowRight, History, Layers, GitCompare
+  Shuffle, Search, ArrowRight, History, Layers, GitCompare, ChevronDown
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 export default function TransferLensPage() {
   useLensNav('transfer');
@@ -23,6 +24,7 @@ export default function TransferLensPage() {
   const [targetDomain, setTargetDomain] = useState('');
   const [classifyText, setClassifyText] = useState('');
   const [results, setResults] = useState<unknown>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('transfer', 'analogy');
@@ -210,6 +212,25 @@ export default function TransferLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="transfer" />
+          </div>
+        )}
       </div>
     </div>
   );

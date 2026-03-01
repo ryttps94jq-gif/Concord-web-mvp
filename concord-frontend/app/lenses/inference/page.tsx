@@ -9,13 +9,14 @@ import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   GitMerge, Plus, ArrowRight, Database, Search, Zap,
   Clock, Gauge, Activity, ListOrdered, ChevronDown, ChevronUp,
-  RefreshCw, AlertCircle, CheckCircle2, Timer
+  RefreshCw, AlertCircle, CheckCircle2, Timer, Layers
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface InferenceHistoryEntry {
   id?: string;
@@ -50,6 +51,7 @@ export default function InferenceLensPage() {
   const [inferenceHistory, setInferenceHistory] = useState<InferenceHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(true);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('inference', 'snapshot');
@@ -519,6 +521,25 @@ export default function InferenceLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="inference" />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -7,12 +7,13 @@ import {
   Network, ArrowLeftRight, Shield, MessageSquare, Skull,
   Baby, Eye, AlertTriangle, CheckCircle2, XCircle,
   RefreshCw, ChevronDown, ChevronRight, Loader2, Search,
-  Users, Zap, Activity,
+  Users, Zap, Activity, Layers,
 } from 'lucide-react';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -87,6 +88,7 @@ export default function BridgeLens() {
   useLensNav('bridge');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('bridge');
 
+  const [showFeatures, setShowFeatures] = useState(false);
   const [tab, setTab] = useState<Tab>('activity');
   const [organisms, setOrganisms] = useState<Organism[]>([]);
   const [log, setLog] = useState<BridgeLogEntry[]>([]);
@@ -172,6 +174,25 @@ export default function BridgeLens() {
           {tab === 'emergents' && <EmergentsTab emergents={emergents} />}
         </>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="bridge" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

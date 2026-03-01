@@ -10,8 +10,9 @@ import {
   X, Trash2, Edit3, Save, Download, BarChart3, Clock,
   Link2, ArrowUpDown, Copy, FileDown, Quote, Hash, Target,
   TrendingUp, TrendingDown, ListTree, PanelRightClose,
-  RefreshCw, Sparkles, ShieldCheck, AlertCircle, type LucideIcon
+  RefreshCw, Sparkles, ShieldCheck, AlertCircle, Layers, type LucideIcon
 } from 'lucide-react';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useMutation } from '@tanstack/react-query';
 import { apiHelpers } from '@/lib/api/client';
@@ -192,6 +193,7 @@ export default function PaperLensPage() {
   const [sortField, setSortField] = useState<'updatedAt' | 'title'>('updatedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [citationStyle, setCitationStyle] = useState<CitationData['style']>('apa');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // ---- Modal state for creating items ----
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -897,6 +899,25 @@ export default function PaperLensPage() {
           </div>
         </>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="paper" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

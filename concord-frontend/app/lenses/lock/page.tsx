@@ -2,7 +2,8 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { use70Lock } from '@/hooks/use70Lock';
-import { Lock, Shield, Eye, AlertTriangle, Check, Key, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, Shield, Eye, AlertTriangle, Check, Key, Loader2, Layers, ChevronDown } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { apiHelpers } from '@/lib/api/client';
 import { useMutation } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface LockEventData {
   event: string;
@@ -27,6 +29,7 @@ export default function LockLensPage() {
   useLensNav('lock');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('lock');
   const { lockPercentage, invariants, isLocked, invariantSummary } = use70Lock();
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const { items: historyItems, isLoading: historyLoading, isError: isError, error: error, refetch: refetch, create: addEvent } = useLensData<LockEventData>('lock', 'lock-event', {
     seed: SEED_LOCK_HISTORY,
@@ -221,6 +224,25 @@ export default function LockLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="lock" />
+          </div>
+        )}
       </div>
     </div>
   );

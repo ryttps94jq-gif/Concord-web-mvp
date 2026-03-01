@@ -20,6 +20,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -131,6 +132,7 @@ export default function AccountingLensPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [view, setView] = useState<'library' | 'dashboard'>('dashboard');
   const [ledgerSubType, setLedgerSubType] = useState<'Account' | 'Transaction'>('Account');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   /* ---- sub-views per tab ---- */
   const [ledgerView, setLedgerView] = useState<LedgerView>('accounts');
@@ -2259,6 +2261,25 @@ export default function AccountingLensPage() {
           </div>
         </div>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="accounting" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

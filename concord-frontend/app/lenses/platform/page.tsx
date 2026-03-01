@@ -10,6 +10,7 @@ import {
   Heart, TrendingUp, Clock, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, Search, Eye,
 } from 'lucide-react';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import PipelineMonitor from '@/components/platform/PipelineMonitor';
 import NerveCenter from '@/components/platform/NerveCenter';
 import EmpiricalGatesPanel from '@/components/platform/EmpiricalGatesPanel';
@@ -276,6 +277,7 @@ export default function PlatformPage() {
   useLensNav('platform');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('platform');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [showFeatures, setShowFeatures] = useState(false);
   const { events, connected } = usePlatformEvents();
 
   return (
@@ -362,6 +364,25 @@ export default function PlatformPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="platform" />
+          </div>
+        )}
       </div>
     </div>
   );
