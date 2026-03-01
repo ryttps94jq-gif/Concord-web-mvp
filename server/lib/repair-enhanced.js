@@ -1,1591 +1,1050 @@
 /**
- * Enhanced Repair Cortex — Code DTU Substrate Integration
+ * Concord Repair Brain Enhanced — Code DTU Integration
  *
- * Extends the repair brain with deep DTU-backed pattern knowledge for:
- *   - System health monitoring with pattern-matched analysis
- *   - Error diagnosis using DTU knowledge base
- *   - Automated repair with rollback and verification
- *   - Predictive repair from failure precursor patterns
- *   - Continuous learning loop (every repair becomes a DTU)
+ * Provides an intelligent, learning repair subsystem that leverages the code DTU
+ * substrate for monitoring, diagnosis, predictive repair, and knowledge
+ * accumulation. Works against tables created by migration 030.
  *
  * Architecture:
- *   EnhancedRepairMonitor  -> monitors system health using code DTU patterns
- *   EnhancedRepairDiagnosis -> searches DTUs for matching errors and solutions
- *   EnhancedRepairExecution -> applies fixes, verifies, rolls back if needed
- *   PredictiveRepair        -> detects precursors, applies preventive fixes
- *   RepairLearningLoop      -> learns from every repair, compresses into wisdom
+ *   - Pattern Registry: known failure signatures with scored matching
+ *   - Diagnosis Engine: token-overlap scoring + knowledge-base fusion
+ *   - Repair Executor: records every action; feeds the learning loop
+ *   - Predictive Engine: linear regression on metric trends for anomaly detection
+ *   - Knowledge Base: accumulated success/failure rates per issue type
+ *   - Metric Store: time-series metrics with trend analysis
+ *
+ * Usage:
+ *   import { createRepairBrain } from './lib/repair-enhanced.js';
+ *   const brain = createRepairBrain(db);
+ *   brain.registerPattern({ category: 'memory', ... });
+ *   const diagnosis = brain.diagnose('heap_overflow', ['growing heap', 'gc stalls']);
+ *   const result = brain.executeRepair(diagnosis);
  */
 
+import { ValidationError, NotFoundError } from "./errors.js";
 import { generateId } from "./id-factory.js";
 
-// -- Constants ----------------------------------------------------------------
+// ── Constants ────────────────────────────────────────────────────────────────
 
-export const SEVERITY = Object.freeze({
-  CRITICAL: "critical",
-  HIGH: "high",
-  MEDIUM: "medium",
-  LOW: "low",
-  INFO: "info",
-});
+const PATTERN_CATEGORIES = Object.freeze([
+  "memory",
+  "cpu",
+  "disk",
+  "network",
+  "database",
+  "llm",
+  "state",
+  "build",
+]);
 
-export const REPAIR_CATEGORIES = Object.freeze({
-  MEMORY: "memory",
-  LATENCY: "latency",
-  ERROR_RATE: "error_rate",
-  CONNECTION: "connection",
-  CPU: "cpu",
-});
+const SEVERITY_LEVELS = Object.freeze(["low", "medium", "high", "critical"]);
 
-export const MEMORY_PATTERNS = Object.freeze({
-  LINEAR_GROWTH_WITHOUT_GC_RECOVERY: "linear_growth_without_gc_recovery",
-  SAWTOOTH: "sawtooth",
-  SUDDEN_SPIKE: "sudden_spike",
-  FRAGMENTATION: "fragmentation",
-  STABLE: "stable",
-});
-
-export const LATENCY_PATTERNS = Object.freeze({
-  GRADUAL_DEGRADATION: "gradual_degradation",
-  PERIODIC_SPIKES: "periodic_spikes",
-  SUDDEN_JUMP: "sudden_jump",
-  STABLE: "stable",
-});
-
-export const ERROR_PATTERNS = Object.freeze({
-  BURST: "burst",
-  STEADY_RATE: "steady_rate",
-  CASCADING: "cascading",
-  ISOLATED: "isolated",
-  NONE: "none",
-});
-
-export const CONNECTION_PATTERNS = Object.freeze({
-  LEAK: "leak",
-  SATURATION: "saturation",
-  THRASHING: "thrashing",
-  STABLE: "stable",
-});
-
-export const CPU_PATTERNS = Object.freeze({
-  SUSTAINED_HIGH: "sustained_high",
-  SPIKE: "spike",
-  GRADUAL_INCREASE: "gradual_increase",
-  NORMAL: "normal",
-});
-
-// -- Severity weights for scoring ------------------------------------------------
-
+/** Severity weights for scoring — higher severity patterns match more aggressively. */
 const SEVERITY_WEIGHTS = Object.freeze({
-  critical: 1.0,
-  high: 0.75,
-  medium: 0.5,
   low: 0.25,
-  info: 0.1,
+  medium: 0.5,
+  high: 0.75,
+  critical: 1.0,
 });
 
-// -- Internal helpers -----------------------------------------------------------
+/** Thresholds for prediction confidence triggers per category. */
+const PREDICTION_THRESHOLDS = Object.freeze({
+  memory: { warn: 0.75, critical: 0.90 },
+  cpu: { warn: 0.80, critical: 0.95 },
+  disk: { warn: 0.80, critical: 0.95 },
+  network: { warn: 0.70, critical: 0.90 },
+  database: { warn: 0.60, critical: 0.85 },
+  llm: { warn: 0.65, critical: 0.85 },
+  state: { warn: 0.50, critical: 0.80 },
+  build: { warn: 0.50, critical: 0.80 },
+});
 
-function _nowISO() {
-  return new Date().toISOString();
-}
+/** Default metric trend window in hours. */
+const DEFAULT_TREND_HOURS = 24;
 
-function _safeParseJSON(str, fallback = null) {
-  if (str === null || str === undefined) return fallback;
-  if (typeof str === "object") return str;
-  try { return JSON.parse(str); } catch { return fallback; }
+/** Minimum data points required for meaningful linear regression. */
+const MIN_REGRESSION_POINTS = 3;
+
+// ── Internal Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Tokenize a string into lowercase words for overlap scoring.
+ * Strips punctuation and splits on whitespace, underscores, and hyphens.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function _tokenize(text) {
+  if (!text || typeof text !== "string") return [];
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, " ")
+    .split(/[\s_-]+/)
+    .filter(Boolean);
 }
 
 /**
- * Simple linear regression on an array of numbers.
- * Returns { slope, intercept, r2 } or null if insufficient data.
+ * Compute Jaccard-like overlap score between two token arrays.
+ * Returns a value between 0 and 1.
+ * @param {string[]} tokensA
+ * @param {string[]} tokensB
+ * @returns {number}
  */
-function _linearRegression(values) {
-  if (!values || values.length < 3) return null;
-  const n = values.length;
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += i;
-    sumY += values[i];
-    sumXY += i * values[i];
-    sumX2 += i * i;
+function _overlapScore(tokensA, tokensB) {
+  if (!tokensA.length || !tokensB.length) return 0;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  let intersection = 0;
+  for (const token of setA) {
+    if (setB.has(token)) intersection++;
   }
-  const denom = n * sumX2 - sumX * sumX;
-  if (Math.abs(denom) < 1e-10) return null;
-  const slope = (n * sumXY - sumX * sumY) / denom;
+  const union = new Set([...setA, ...setB]).size;
+  return union > 0 ? intersection / union : 0;
+}
+
+/**
+ * Safely parse a JSON string, returning a fallback on failure.
+ * If the input is already an object, returns it directly.
+ * @param {string|object} str
+ * @param {*} fallback
+ * @returns {*}
+ */
+function _safeParseJSON(str, fallback = null) {
+  if (str === null || str === undefined) return fallback;
+  if (typeof str === "object") return str;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Simple linear regression on an array of {x, y} points.
+ * Returns { slope, intercept, r2 } or null if insufficient data.
+ * @param {Array<{x: number, y: number}>} points
+ * @returns {{ slope: number, intercept: number, r2: number } | null}
+ */
+function _linearRegression(points) {
+  if (!points || points.length < MIN_REGRESSION_POINTS) return null;
+
+  const n = points.length;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumX2 = 0;
+
+  for (const { x, y } of points) {
+    sumX += x;
+    sumY += y;
+    sumXY += x * y;
+    sumX2 += x * x;
+  }
+
+  const denominator = n * sumX2 - sumX * sumX;
+  if (Math.abs(denominator) < 1e-10) return null;
+
+  const slope = (n * sumXY - sumX * sumY) / denominator;
   const intercept = (sumY - slope * sumX) / n;
+
+  // R-squared (coefficient of determination)
   const meanY = sumY / n;
-  let ssTot = 0, ssRes = 0;
-  for (let i = 0; i < n; i++) {
-    ssTot += (values[i] - meanY) ** 2;
-    ssRes += (values[i] - (slope * i + intercept)) ** 2;
+  let ssTot = 0;
+  let ssRes = 0;
+  for (const { x, y } of points) {
+    ssTot += (y - meanY) ** 2;
+    ssRes += (y - (slope * x + intercept)) ** 2;
   }
-  const r2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+
   return { slope, intercept, r2 };
 }
 
 /**
- * Compute standard deviation of an array of numbers.
+ * Classify a metric type string into a known pattern category.
+ * Falls back to "state" when the type is unrecognisable.
+ * @param {string} metricType
+ * @returns {string}
  */
-function _stddev(values) {
-  if (!values || values.length < 2) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1);
-  return Math.sqrt(variance);
+function _classifyMetricCategory(metricType) {
+  const lower = (metricType || "").toLowerCase();
+  if (lower.includes("memory") || lower.includes("heap") || lower.includes("rss")) return "memory";
+  if (lower.includes("cpu") || lower.includes("load") || lower.includes("process")) return "cpu";
+  if (lower.includes("disk") || lower.includes("storage") || lower.includes("fs")) return "disk";
+  if (lower.includes("network") || lower.includes("latency") || lower.includes("http")) return "network";
+  if (lower.includes("database") || lower.includes("db") || lower.includes("query")) return "database";
+  if (lower.includes("llm") || lower.includes("model") || lower.includes("inference")) return "llm";
+  if (lower.includes("state") || lower.includes("consistency")) return "state";
+  if (lower.includes("build") || lower.includes("compile") || lower.includes("bundle")) return "build";
+  return "state";
 }
 
 /**
- * Compute the mean of an array of numbers.
+ * Suggest a preventive action based on the category, trend slope, and current value.
+ * @param {string} category
+ * @param {number} slope
+ * @param {number} currentValue
+ * @returns {string}
  */
-function _mean(values) {
-  if (!values || values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-/**
- * Count how many times the sequence changes direction (for sawtooth detection).
- */
-function _countDirectionChanges(values) {
-  if (values.length < 3) return 0;
-  let changes = 0;
-  for (let i = 2; i < values.length; i++) {
-    const prev = values[i - 1] - values[i - 2];
-    const curr = values[i] - values[i - 1];
-    if ((prev > 0 && curr < 0) || (prev < 0 && curr > 0)) changes++;
-  }
-  return changes;
-}
-
-// -- Prepared statements builder ------------------------------------------------
-
-function _buildStatements(db) {
-  return {
-    // ── repair_patterns ──
-    insertPattern: db.prepare(`
-      INSERT INTO repair_patterns
-        (id, category, subcategory, name, signature, is_healthy,
-         resolution, typical_time_to_failure, severity, confidence,
-         source_dtu_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `),
-    getAllPatterns: db.prepare(
-      `SELECT * FROM repair_patterns ORDER BY created_at DESC`
-    ),
-    getPatternsByCategory: db.prepare(
-      `SELECT * FROM repair_patterns WHERE category = ? ORDER BY created_at DESC`
-    ),
-    getPatternById: db.prepare(
-      `SELECT * FROM repair_patterns WHERE id = ?`
-    ),
-    countPatterns: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_patterns`
-    ),
-
-    // ── repair_history ──
-    insertHistory: db.prepare(`
-      INSERT INTO repair_history
-        (id, issue_type, symptoms, severity, diagnosis, repair_option_used,
-         fix_applied, success, repair_time_ms, rollback_needed, verified, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `),
-    getHistoryById: db.prepare(
-      `SELECT * FROM repair_history WHERE id = ?`
-    ),
-    getHistory: db.prepare(
-      `SELECT * FROM repair_history ORDER BY created_at DESC LIMIT ?`
-    ),
-    getRecentSuccesses: db.prepare(
-      `SELECT * FROM repair_history WHERE success = 1 ORDER BY created_at DESC LIMIT ?`
-    ),
-    getRecentFailures: db.prepare(
-      `SELECT * FROM repair_history WHERE success = 0 ORDER BY created_at DESC LIMIT ?`
-    ),
-    countHistory: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_history`
-    ),
-    countSuccessful: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_history WHERE success = 1`
-    ),
-    countFailed: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_history WHERE success = 0`
-    ),
-    getAvgRepairTime: db.prepare(
-      `SELECT AVG(repair_time_ms) as avg_time FROM repair_history WHERE repair_time_ms IS NOT NULL AND repair_time_ms > 0`
-    ),
-    updateHistoryOutcome: db.prepare(
-      `UPDATE repair_history SET success = ?, verified = 1, repair_time_ms = ? WHERE id = ?`
-    ),
-
-    // ── repair_predictions ──
-    insertPrediction: db.prepare(`
-      INSERT INTO repair_predictions
-        (id, predicted_issue, confidence, time_to_impact, preventive_action,
-         applied, outcome, source_pattern_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `),
-    getPredictionById: db.prepare(
-      `SELECT * FROM repair_predictions WHERE id = ?`
-    ),
-    getRecentPredictions: db.prepare(
-      `SELECT * FROM repair_predictions ORDER BY created_at DESC LIMIT ?`
-    ),
-    getActivePredictions: db.prepare(
-      `SELECT * FROM repair_predictions WHERE applied = 0 ORDER BY confidence DESC`
-    ),
-    countPredictions: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_predictions`
-    ),
-    countActivePredictions: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_predictions WHERE applied = 0`
-    ),
-    updatePredictionApplied: db.prepare(
-      `UPDATE repair_predictions SET applied = 1, outcome = ? WHERE id = ?`
-    ),
-
-    // ── repair_knowledge ──
-    insertKnowledge: db.prepare(`
-      INSERT INTO repair_knowledge
-        (id, category, issue_type, symptoms, fix_description,
-         success_count, failure_count, avg_repair_time_ms, last_used_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `),
-    getKnowledgeByCategory: db.prepare(
-      `SELECT * FROM repair_knowledge WHERE category = ? ORDER BY success_count DESC`
-    ),
-    getKnowledgeByIssueType: db.prepare(
-      `SELECT * FROM repair_knowledge WHERE issue_type = ? ORDER BY success_count DESC`
-    ),
-    getAllKnowledge: db.prepare(
-      `SELECT * FROM repair_knowledge ORDER BY success_count DESC`
-    ),
-    updateKnowledgeSuccess: db.prepare(
-      `UPDATE repair_knowledge SET success_count = success_count + 1, last_used_at = ?, avg_repair_time_ms = ? WHERE id = ?`
-    ),
-    updateKnowledgeFailure: db.prepare(
-      `UPDATE repair_knowledge SET failure_count = failure_count + 1, last_used_at = ? WHERE id = ?`
-    ),
-    countKnowledge: db.prepare(
-      `SELECT COUNT(*) as count FROM repair_knowledge`
-    ),
-
-    // ── system_metrics_history ──
-    insertMetric: db.prepare(
-      `INSERT INTO system_metrics_history (metric_type, value, metadata, recorded_at) VALUES (?, ?, ?, ?)`
-    ),
-    getMetricTrend: db.prepare(
-      `SELECT * FROM system_metrics_history WHERE metric_type = ? AND recorded_at >= ? ORDER BY recorded_at ASC`
-    ),
-    countMetrics: db.prepare(
-      `SELECT COUNT(*) as count FROM system_metrics_history`
-    ),
-    getMetricTypes: db.prepare(
-      `SELECT DISTINCT metric_type FROM system_metrics_history ORDER BY metric_type`
-    ),
+function _suggestPreventiveAction(category, slope, currentValue) {
+  const actions = {
+    memory: `Memory trending up (slope: ${slope.toFixed(4)}). Consider triggering GC, checking for leaks, or increasing heap limit.`,
+    cpu: `CPU load increasing (slope: ${slope.toFixed(4)}). Review hot code paths, check for infinite loops, or scale horizontally.`,
+    disk: `Disk usage growing (slope: ${slope.toFixed(4)}). Clean temp files, rotate logs, or expand storage.`,
+    network: `Network latency rising (slope: ${slope.toFixed(4)}). Check connection pool, DNS resolution, or upstream health.`,
+    database: `Database performance degrading (slope: ${slope.toFixed(4)}). Analyze slow queries, rebuild indices, or check connection limits.`,
+    llm: `LLM inference degrading (slope: ${slope.toFixed(4)}). Check model loading, VRAM pressure, or queue depth.`,
+    state: `State anomaly detected (slope: ${slope.toFixed(4)}). Verify state consistency, check serialization, or review recent changes.`,
+    build: `Build metric anomaly (slope: ${slope.toFixed(4)}). Check build cache, dependency changes, or compilation errors.`,
   };
+  return (
+    actions[category] ||
+    `Anomalous trend detected in ${category} (slope: ${slope.toFixed(4)}, current: ${currentValue.toFixed(2)}).`
+  );
 }
 
-// ==============================================================================
-// Monitor Sub-component
-// ==============================================================================
+/**
+ * Estimate time until a value reaches a critical threshold, given slope per hour.
+ * @param {number} currentValue
+ * @param {number} slope
+ * @param {number} threshold
+ * @returns {string}
+ */
+function _estimateTimeToImpact(currentValue, slope, threshold) {
+  if (slope <= 0) return "stable";
+  const hoursToThreshold = (threshold - currentValue) / slope;
+  if (hoursToThreshold <= 0) return "imminent";
+  if (hoursToThreshold < 1) return `~${Math.round(hoursToThreshold * 60)} minutes`;
+  if (hoursToThreshold < 24) return `~${Math.round(hoursToThreshold)} hours`;
+  return `~${Math.round(hoursToThreshold / 24)} days`;
+}
 
 /**
- * Create the enhanced repair monitor.
- * Tracks system metrics in sliding windows and performs pattern analysis.
+ * Get the current time as an ISO-8601 string.
+ * @returns {string}
  */
-export function createEnhancedRepairMonitor({ db, stmts, log = () => {} }) {
-  const WINDOW_SIZE = 120; // Keep last 120 data points per metric
-  const windows = {};
+function _nowISO() {
+  return new Date().toISOString();
+}
+
+// ── Factory ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new Repair Brain instance bound to the given better-sqlite3 database.
+ *
+ * The brain lazily prepares and caches all SQL statements on first use
+ * (_prepareStatements pattern). Every repair attempt is recorded for learning.
+ * The knowledge base accumulates success/failure statistics that feed back
+ * into diagnosis and scoring.
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @returns {object} Repair brain public API
+ */
+export function createRepairBrain(db) {
+  const startedAt = _nowISO();
+
+  // ── Lazy Prepared Statements ─────────────────────────────────────────
+
+  /** @type {object|null} Cached prepared statements — populated on first access. */
+  let _stmts = null;
 
   /**
-   * Record a single metric value into the sliding window.
+   * Prepare (or return cached) all SQL statements used by the brain.
+   * @returns {object}
    */
-  function recordMetric(name, value) {
-    if (!windows[name]) windows[name] = [];
-    windows[name].push(value);
-    if (windows[name].length > WINDOW_SIZE) {
-      windows[name] = windows[name].slice(-WINDOW_SIZE);
-    }
+  function _prepareStatements() {
+    if (_stmts) return _stmts;
 
-    // Also persist to database
-    try {
-      stmts.insertMetric.run(name, value, "{}", _nowISO());
-    } catch (e) {
-      log("warn", "metric_persist_error", { name, error: e.message });
-    }
-  }
+    _stmts = {
+      // ── repair_patterns ──
+      insertPattern: db.prepare(`
+        INSERT INTO repair_patterns
+          (id, category, subcategory, name, signature, is_healthy,
+           resolution, typical_time_to_failure, severity, confidence,
+           source_dtu_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+      getAllPatterns: db.prepare(
+        `SELECT * FROM repair_patterns ORDER BY created_at DESC`
+      ),
+      getPatternsByCategory: db.prepare(
+        `SELECT * FROM repair_patterns WHERE category = ? ORDER BY created_at DESC`
+      ),
+      getPatternsBySeverity: db.prepare(
+        `SELECT * FROM repair_patterns WHERE severity = ? ORDER BY created_at DESC`
+      ),
+      getPatternsByCategoryAndSeverity: db.prepare(
+        `SELECT * FROM repair_patterns WHERE category = ? AND severity = ? ORDER BY created_at DESC`
+      ),
+      getPatternById: db.prepare(
+        `SELECT * FROM repair_patterns WHERE id = ?`
+      ),
+      countPatterns: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_patterns`
+      ),
+      countPatternsByCategory: db.prepare(
+        `SELECT category, COUNT(*) as count FROM repair_patterns GROUP BY category`
+      ),
 
-  /**
-   * Get current sliding windows.
-   */
-  function getWindows() {
-    return windows;
-  }
+      // ── repair_history ──
+      insertHistory: db.prepare(`
+        INSERT INTO repair_history
+          (id, issue_type, symptoms, severity, diagnosis, repair_option_used,
+           fix_applied, success, repair_time_ms, rollback_needed, verified, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+      getHistoryById: db.prepare(
+        `SELECT * FROM repair_history WHERE id = ?`
+      ),
+      getHistory: db.prepare(
+        `SELECT * FROM repair_history ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      ),
+      getHistoryBySuccess: db.prepare(
+        `SELECT * FROM repair_history WHERE success = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      ),
+      countHistory: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_history`
+      ),
+      countHistoryBySuccess: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_history WHERE success = ?`
+      ),
+      updateHistorySuccess: db.prepare(
+        `UPDATE repair_history SET success = ?, verified = 1, repair_time_ms = ? WHERE id = ?`
+      ),
+      getSuccessfulRepairs: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_history WHERE success = 1`
+      ),
+      getFailedRepairs: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_history WHERE success = 0`
+      ),
+      getAvgRepairTime: db.prepare(
+        `SELECT AVG(repair_time_ms) as avg_time FROM repair_history WHERE repair_time_ms IS NOT NULL AND repair_time_ms > 0`
+      ),
 
-  /**
-   * Record a batch of metrics and run a health analysis.
-   */
-  function monitor(metrics) {
-    if (!metrics || typeof metrics !== "object") return { healthy: true, issues: [] };
+      // ── repair_predictions ──
+      insertPrediction: db.prepare(`
+        INSERT INTO repair_predictions
+          (id, predicted_issue, confidence, time_to_impact, preventive_action,
+           applied, outcome, source_pattern_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+      getPredictionById: db.prepare(
+        `SELECT * FROM repair_predictions WHERE id = ?`
+      ),
+      getPredictions: db.prepare(
+        `SELECT * FROM repair_predictions ORDER BY confidence DESC, created_at DESC LIMIT ? OFFSET ?`
+      ),
+      getPredictionsByMinConfidence: db.prepare(
+        `SELECT * FROM repair_predictions WHERE confidence >= ? ORDER BY confidence DESC, created_at DESC LIMIT ? OFFSET ?`
+      ),
+      countPredictions: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_predictions`
+      ),
+      countActivePredictions: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_predictions WHERE applied = 0`
+      ),
+      updatePredictionApplied: db.prepare(
+        `UPDATE repair_predictions SET applied = 1, outcome = ? WHERE id = ?`
+      ),
 
-    // Record all provided metrics
-    for (const [key, value] of Object.entries(metrics)) {
-      if (typeof value === "number") {
-        recordMetric(key, value);
-      }
-    }
+      // ── repair_knowledge ──
+      insertKnowledge: db.prepare(`
+        INSERT INTO repair_knowledge
+          (id, category, issue_type, symptoms, fix_description,
+           success_count, failure_count, avg_repair_time_ms, last_used_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+      getKnowledgeByCategory: db.prepare(
+        `SELECT * FROM repair_knowledge WHERE category = ? ORDER BY success_count DESC`
+      ),
+      getAllKnowledge: db.prepare(
+        `SELECT * FROM repair_knowledge ORDER BY success_count DESC`
+      ),
+      getKnowledgeByIssueType: db.prepare(
+        `SELECT * FROM repair_knowledge WHERE issue_type = ? ORDER BY success_count DESC`
+      ),
+      updateKnowledgeSuccess: db.prepare(
+        `UPDATE repair_knowledge SET success_count = success_count + 1, last_used_at = ?, avg_repair_time_ms = ? WHERE id = ?`
+      ),
+      updateKnowledgeFailure: db.prepare(
+        `UPDATE repair_knowledge SET failure_count = failure_count + 1, last_used_at = ? WHERE id = ?`
+      ),
+      countKnowledge: db.prepare(
+        `SELECT COUNT(*) as count FROM repair_knowledge`
+      ),
 
-    return enhancedCheck();
-  }
-
-  /**
-   * Run an enhanced health check across all tracked metric windows.
-   * Returns a structured health report.
-   */
-  function enhancedCheck() {
-    const issues = [];
-    const analyses = {};
-    const timestamp = _nowISO();
-
-    // Analyze memory
-    if (windows.memoryUsage && windows.memoryUsage.length > 0) {
-      const memAnalysis = analyzeMemoryPattern(windows.memoryUsage);
-      analyses.memory = memAnalysis;
-      if (memAnalysis.severity && memAnalysis.severity !== "info") {
-        issues.push({ category: REPAIR_CATEGORIES.MEMORY, ...memAnalysis });
-      }
-    }
-
-    // Analyze latency
-    if (windows.requestLatency && windows.requestLatency.length > 0) {
-      const latAnalysis = analyzeLatencyPattern(windows.requestLatency);
-      analyses.latency = latAnalysis;
-      if (latAnalysis.severity && latAnalysis.severity !== "info") {
-        issues.push({ category: REPAIR_CATEGORIES.LATENCY, ...latAnalysis });
-      }
-    }
-
-    // Analyze error rate
-    if (windows.errorRate && windows.errorRate.length > 0) {
-      const errAnalysis = analyzeErrorPattern(windows.errorRate);
-      analyses.errorRate = errAnalysis;
-      if (errAnalysis.severity && errAnalysis.severity !== "info") {
-        issues.push({ category: REPAIR_CATEGORIES.ERROR_RATE, ...errAnalysis });
-      }
-    }
-
-    // Analyze connections
-    if (windows.connectionCount && windows.connectionCount.length > 0) {
-      const connAnalysis = analyzeConnectionPattern(windows.connectionCount);
-      analyses.connections = connAnalysis;
-      if (connAnalysis.severity && connAnalysis.severity !== "info") {
-        issues.push({ category: REPAIR_CATEGORIES.CONNECTION, ...connAnalysis });
-      }
-    }
-
-    // Analyze CPU
-    if (windows.cpuUsage && windows.cpuUsage.length > 0) {
-      const cpuAnalysis = analyzeCpuPattern(windows.cpuUsage);
-      analyses.cpu = cpuAnalysis;
-      if (cpuAnalysis.severity && cpuAnalysis.severity !== "info") {
-        issues.push({ category: REPAIR_CATEGORIES.CPU, ...cpuAnalysis });
-      }
-    }
-
-    const healthy = issues.length === 0;
-
-    return {
-      healthy,
-      status: healthy ? "healthy" : "degraded",
-      timestamp,
-      issues,
-      analyses,
-      metricWindowSizes: Object.fromEntries(
-        Object.entries(windows).map(([k, v]) => [k, v.length])
+      // ── system_metrics_history ──
+      insertMetric: db.prepare(
+        `INSERT INTO system_metrics_history (metric_type, value, metadata, recorded_at) VALUES (?, ?, ?, ?)`
+      ),
+      getMetricTrend: db.prepare(
+        `SELECT * FROM system_metrics_history WHERE metric_type = ? AND recorded_at >= ? ORDER BY recorded_at ASC`
+      ),
+      getLatestMetric: db.prepare(
+        `SELECT * FROM system_metrics_history WHERE metric_type = ? ORDER BY recorded_at DESC LIMIT 1`
+      ),
+      countMetrics: db.prepare(
+        `SELECT COUNT(*) as count FROM system_metrics_history`
+      ),
+      getMetricTypes: db.prepare(
+        `SELECT DISTINCT metric_type FROM system_metrics_history ORDER BY metric_type`
       ),
     };
+
+    return _stmts;
   }
 
-  /**
-   * Generic pattern analysis entry point.
-   */
-  function analyzePattern(category, values) {
-    switch (category) {
-      case REPAIR_CATEGORIES.MEMORY: return analyzeMemoryPattern(values);
-      case REPAIR_CATEGORIES.LATENCY: return analyzeLatencyPattern(values);
-      case REPAIR_CATEGORIES.ERROR_RATE: return analyzeErrorPattern(values);
-      case REPAIR_CATEGORIES.CONNECTION: return analyzeConnectionPattern(values);
-      case REPAIR_CATEGORIES.CPU: return analyzeCpuPattern(values);
-      default: return { pattern: "unknown", confidence: 0, severity: SEVERITY.INFO };
-    }
-  }
+  // ── 1. registerPattern ───────────────────────────────────────────────
 
-  /**
-   * Analyze a memory metric window for known patterns.
-   */
-  function analyzeMemoryPattern(values) {
-    if (!values || values.length < 5) {
-      return {
-        pattern: MEMORY_PATTERNS.STABLE,
-        confidence: 0.5,
-        severity: SEVERITY.INFO,
-        details: { dataPoints: values ? values.length : 0, reason: "insufficient data" },
-      };
+  function registerPattern(pattern) {
+    if (!pattern || !pattern.category) {
+      throw new ValidationError("Pattern category is required");
     }
 
-    const regression = _linearRegression(values);
-    const dirChanges = _countDirectionChanges(values);
-    const std = _stddev(values);
-    const avg = _mean(values);
-    const maxVal = Math.max(...values);
-    const minVal = Math.min(...values);
-    const range = maxVal - minVal;
-    const relativeStd = avg > 0 ? std / avg : 0;
-
-    // Detect sudden spike: last value is far above the mean
-    const lastVal = values[values.length - 1];
-    if (lastVal > avg + 3 * std && std > 0) {
-      const spikeSeverity = lastVal > avg + 5 * std ? SEVERITY.CRITICAL : SEVERITY.HIGH;
-      return {
-        pattern: MEMORY_PATTERNS.SUDDEN_SPIKE,
-        confidence: Math.min(0.95, 0.7 + (lastVal - avg) / (std * 10)),
-        severity: spikeSeverity,
-        details: { lastValue: lastVal, mean: avg, std, regression },
-      };
+    const severity = pattern.severity || "medium";
+    if (!SEVERITY_LEVELS.includes(severity)) {
+      throw new ValidationError(
+        `Invalid severity: ${severity}. Must be one of: ${SEVERITY_LEVELS.join(", ")}`
+      );
     }
 
-    // Detect sawtooth: many direction changes relative to length
-    const sawtoothRatio = dirChanges / values.length;
-    if (sawtoothRatio > 0.4 && range > avg * 0.1) {
-      return {
-        pattern: MEMORY_PATTERNS.SAWTOOTH,
-        confidence: Math.min(0.9, sawtoothRatio),
-        severity: SEVERITY.MEDIUM,
-        details: { directionChanges: dirChanges, range, regression },
-      };
-    }
+    const stmts = _prepareStatements();
+    const id = generateId("rp");
+    const now = _nowISO();
 
-    // Detect fragmentation: high relative std without clear linear trend
-    if (relativeStd > 0.2 && regression && Math.abs(regression.r2) < 0.5) {
-      return {
-        pattern: MEMORY_PATTERNS.FRAGMENTATION,
-        confidence: Math.min(0.85, relativeStd),
-        severity: SEVERITY.MEDIUM,
-        details: { relativeStd, regression },
-      };
-    }
+    const record = {
+      id,
+      category: pattern.category,
+      subcategory: pattern.subcategory || "general",
+      name: pattern.name || "unnamed",
+      signature: pattern.signature || "",
+      is_healthy: pattern.isHealthy ? 1 : 0,
+      resolution: pattern.resolution || null,
+      typical_time_to_failure: pattern.typicalTimeToFailure || null,
+      severity,
+      confidence: typeof pattern.confidence === "number" ? pattern.confidence : 0.5,
+      source_dtu_id: pattern.sourceDtuId || null,
+      created_at: now,
+    };
 
-    // Detect linear growth without GC recovery
-    if (regression && regression.slope > 0.5 && regression.r2 > 0.6) {
-      const growthSeverity = regression.slope > 2 ? SEVERITY.HIGH :
-        regression.slope > 1 ? SEVERITY.MEDIUM : SEVERITY.LOW;
-      return {
-        pattern: MEMORY_PATTERNS.LINEAR_GROWTH_WITHOUT_GC_RECOVERY,
-        confidence: Math.min(0.95, regression.r2),
-        severity: growthSeverity,
-        details: { slope: regression.slope, r2: regression.r2, regression },
-      };
-    }
+    stmts.insertPattern.run(
+      record.id, record.category, record.subcategory, record.name,
+      record.signature, record.is_healthy, record.resolution,
+      record.typical_time_to_failure, record.severity, record.confidence,
+      record.source_dtu_id, record.created_at
+    );
 
-    // Stable
     return {
-      pattern: MEMORY_PATTERNS.STABLE,
-      confidence: regression ? Math.min(0.9, 1 - Math.abs(regression.slope) / 10) : 0.7,
-      severity: SEVERITY.INFO,
-      details: { mean: avg, std, regression },
+      id: record.id, category: record.category, subcategory: record.subcategory,
+      name: record.name, signature: record.signature, isHealthy: !!record.is_healthy,
+      resolution: record.resolution, typicalTimeToFailure: record.typical_time_to_failure,
+      severity: record.severity, confidence: record.confidence,
+      sourceDtuId: record.source_dtu_id, createdAt: record.created_at,
     };
   }
 
-  /**
-   * Analyze latency patterns.
-   */
-  function analyzeLatencyPattern(values) {
-    if (!values || values.length < 3) {
-      return {
-        pattern: LATENCY_PATTERNS.STABLE,
-        confidence: 0.5,
-        severity: SEVERITY.INFO,
-        details: { dataPoints: values ? values.length : 0 },
-      };
-    }
+  // ── 2. matchSymptoms ─────────────────────────────────────────────────
 
-    const regression = _linearRegression(values);
-    const std = _stddev(values);
-    const avg = _mean(values);
-    const maxVal = Math.max(...values);
-    const lastVal = values[values.length - 1];
-    const dirChanges = _countDirectionChanges(values);
+  function matchSymptoms(symptoms) {
+    if (typeof symptoms === "string") symptoms = [symptoms];
+    if (!Array.isArray(symptoms)) symptoms = [];
 
-    // Sudden jump: last value >> mean
-    if (lastVal > avg + 3 * std && std > 0) {
-      return {
-        pattern: LATENCY_PATTERNS.SUDDEN_JUMP,
-        confidence: Math.min(0.95, 0.7 + (lastVal - avg) / (std * 10)),
-        severity: SEVERITY.HIGH,
-        details: { lastValue: lastVal, mean: avg, std, regression },
-      };
-    }
+    const stmts = _prepareStatements();
+    const patterns = stmts.getAllPatterns.all();
 
-    // Periodic spikes
-    const spikeRatio = dirChanges / values.length;
-    if (spikeRatio > 0.35 && maxVal > avg * 1.5) {
-      return {
-        pattern: LATENCY_PATTERNS.PERIODIC_SPIKES,
-        confidence: Math.min(0.85, spikeRatio + 0.1),
-        severity: SEVERITY.MEDIUM,
-        details: { directionChanges: dirChanges, maxSpike: maxVal, mean: avg, regression },
-      };
-    }
+    const symptomTokens = [];
+    for (const s of symptoms) symptomTokens.push(..._tokenize(s));
+    if (symptomTokens.length === 0) return [];
 
-    // Gradual degradation
-    if (regression && regression.slope > 0.3 && regression.r2 > 0.5) {
-      return {
-        pattern: LATENCY_PATTERNS.GRADUAL_DEGRADATION,
-        confidence: Math.min(0.9, regression.r2),
-        severity: regression.slope > 1 ? SEVERITY.HIGH : SEVERITY.MEDIUM,
-        details: { slope: regression.slope, r2: regression.r2, regression },
-      };
-    }
+    const symptomSet = new Set(symptomTokens);
+    const matches = [];
 
-    return {
-      pattern: LATENCY_PATTERNS.STABLE,
-      confidence: 0.8,
-      severity: SEVERITY.INFO,
-      details: { mean: avg, std, regression },
-    };
-  }
+    for (const pat of patterns) {
+      const patternTokens = [
+        ..._tokenize(pat.signature), ..._tokenize(pat.name),
+        ..._tokenize(pat.resolution || ""), ..._tokenize(pat.category),
+        ..._tokenize(pat.subcategory),
+      ];
+      if (patternTokens.length === 0) continue;
 
-  /**
-   * Analyze error rate patterns.
-   */
-  function analyzeErrorPattern(values) {
-    if (!values || values.length < 3) {
-      return {
-        pattern: ERROR_PATTERNS.NONE,
-        confidence: 0.5,
-        severity: SEVERITY.INFO,
-        details: { dataPoints: values ? values.length : 0 },
-      };
-    }
+      const patternSet = new Set(patternTokens);
+      const overlap = _overlapScore(symptomTokens, patternTokens);
+      if (overlap <= 0) continue;
 
-    const avg = _mean(values);
-    const std = _stddev(values);
-    const maxVal = Math.max(...values);
-    const lastVal = values[values.length - 1];
-    const regression = _linearRegression(values);
+      const severityWeight = SEVERITY_WEIGHTS[pat.severity] || 0.5;
+      const patConfidence = pat.confidence ?? 0.5;
+      const score = overlap * 0.6 + severityWeight * 0.2 + patConfidence * 0.2;
 
-    // If all values near zero, no errors
-    if (avg < 0.001 && maxVal < 0.01) {
-      return {
-        pattern: ERROR_PATTERNS.NONE,
-        confidence: 0.95,
-        severity: SEVERITY.INFO,
-        details: { mean: avg, max: maxVal },
-      };
-    }
+      const matchedTokens = [];
+      for (const token of symptomSet) {
+        if (patternSet.has(token)) matchedTokens.push(token);
+      }
 
-    // Burst: sudden spike in errors
-    if (lastVal > avg + 3 * std && lastVal > 0.05) {
-      return {
-        pattern: ERROR_PATTERNS.BURST,
-        confidence: Math.min(0.95, 0.7 + lastVal),
-        severity: SEVERITY.CRITICAL,
-        details: { lastValue: lastVal, mean: avg, std },
-      };
-    }
-
-    // Cascading: increasing error rate
-    if (regression && regression.slope > 0 && regression.r2 > 0.5 && avg > 0.01) {
-      return {
-        pattern: ERROR_PATTERNS.CASCADING,
-        confidence: Math.min(0.9, regression.r2),
-        severity: SEVERITY.HIGH,
-        details: { slope: regression.slope, regression },
-      };
-    }
-
-    // Steady rate
-    if (avg > 0.005 && std / avg < 0.5) {
-      return {
-        pattern: ERROR_PATTERNS.STEADY_RATE,
-        confidence: Math.min(0.85, 1 - std / avg),
-        severity: SEVERITY.MEDIUM,
-        details: { mean: avg, std },
-      };
-    }
-
-    // Isolated errors
-    if (avg > 0) {
-      return {
-        pattern: ERROR_PATTERNS.ISOLATED,
-        confidence: 0.6,
-        severity: SEVERITY.LOW,
-        details: { mean: avg, max: maxVal },
-      };
-    }
-
-    return {
-      pattern: ERROR_PATTERNS.NONE,
-      confidence: 0.8,
-      severity: SEVERITY.INFO,
-      details: { mean: avg },
-    };
-  }
-
-  /**
-   * Analyze connection patterns.
-   */
-  function analyzeConnectionPattern(values) {
-    if (!values || values.length < 3) {
-      return {
-        pattern: CONNECTION_PATTERNS.STABLE,
-        confidence: 0.5,
-        severity: SEVERITY.INFO,
-        details: { dataPoints: values ? values.length : 0 },
-      };
-    }
-
-    const regression = _linearRegression(values);
-    const avg = _mean(values);
-    const std = _stddev(values);
-    const maxVal = Math.max(...values);
-    const dirChanges = _countDirectionChanges(values);
-
-    // Leak: steadily increasing connections
-    if (regression && regression.slope > 0.3 && regression.r2 > 0.6) {
-      return {
-        pattern: CONNECTION_PATTERNS.LEAK,
-        confidence: Math.min(0.9, regression.r2),
-        severity: regression.slope > 1 ? SEVERITY.HIGH : SEVERITY.MEDIUM,
-        details: { slope: regression.slope, regression },
-      };
-    }
-
-    // Thrashing: high oscillation
-    const thrashRatio = dirChanges / values.length;
-    if (thrashRatio > 0.4 && std / avg > 0.3) {
-      return {
-        pattern: CONNECTION_PATTERNS.THRASHING,
-        confidence: Math.min(0.85, thrashRatio),
-        severity: SEVERITY.MEDIUM,
-        details: { directionChanges: dirChanges, relativeStd: std / avg },
-      };
-    }
-
-    // Saturation: high sustained count
-    if (avg > 100 && std / avg < 0.2) {
-      return {
-        pattern: CONNECTION_PATTERNS.SATURATION,
-        confidence: 0.7,
-        severity: SEVERITY.HIGH,
-        details: { mean: avg, max: maxVal },
-      };
-    }
-
-    return {
-      pattern: CONNECTION_PATTERNS.STABLE,
-      confidence: 0.8,
-      severity: SEVERITY.INFO,
-      details: { mean: avg, std, regression },
-    };
-  }
-
-  /**
-   * Analyze CPU usage patterns.
-   */
-  function analyzeCpuPattern(values) {
-    if (!values || values.length < 3) {
-      return {
-        pattern: CPU_PATTERNS.NORMAL,
-        confidence: 0.5,
-        severity: SEVERITY.INFO,
-        details: { dataPoints: values ? values.length : 0 },
-      };
-    }
-
-    const regression = _linearRegression(values);
-    const avg = _mean(values);
-    const std = _stddev(values);
-    const maxVal = Math.max(...values);
-    const lastVal = values[values.length - 1];
-
-    // Spike: sudden high value
-    if (lastVal > avg + 3 * std && lastVal > 80) {
-      return {
-        pattern: CPU_PATTERNS.SPIKE,
-        confidence: Math.min(0.95, 0.7 + (lastVal - avg) / 100),
-        severity: SEVERITY.HIGH,
-        details: { lastValue: lastVal, mean: avg, std },
-      };
-    }
-
-    // Sustained high
-    if (avg > 80 && std / avg < 0.15) {
-      return {
-        pattern: CPU_PATTERNS.SUSTAINED_HIGH,
-        confidence: Math.min(0.9, avg / 100),
-        severity: SEVERITY.HIGH,
-        details: { mean: avg, std },
-      };
-    }
-
-    // Gradual increase
-    if (regression && regression.slope > 0.2 && regression.r2 > 0.5) {
-      return {
-        pattern: CPU_PATTERNS.GRADUAL_INCREASE,
-        confidence: Math.min(0.85, regression.r2),
-        severity: regression.slope > 1 ? SEVERITY.HIGH : SEVERITY.MEDIUM,
-        details: { slope: regression.slope, regression },
-      };
-    }
-
-    return {
-      pattern: CPU_PATTERNS.NORMAL,
-      confidence: 0.8,
-      severity: SEVERITY.INFO,
-      details: { mean: avg, std, regression },
-    };
-  }
-
-  return {
-    monitor,
-    enhancedCheck,
-    analyzePattern,
-    recordMetric,
-    analyzeMemoryPattern,
-    analyzeLatencyPattern,
-    analyzeErrorPattern,
-    analyzeConnectionPattern,
-    analyzeCpuPattern,
-    getWindows,
-  };
-}
-
-// ==============================================================================
-// Diagnosis Sub-component
-// ==============================================================================
-
-/**
- * Create the enhanced repair diagnosis engine.
- * Classifies issues from health reports and ranks repair options from
- * the pattern registry and knowledge base.
- */
-export function createEnhancedRepairDiagnosis({ db, stmts, log = () => {} }) {
-
-  /**
-   * Classify the primary issue from a health report.
-   */
-  function classifyIssue(healthReport, extra = {}) {
-    const issues = healthReport.issues || [];
-    const allIssues = [];
-
-    for (const issue of issues) {
-      allIssues.push({
-        category: issue.category,
-        pattern: issue.pattern,
-        severity: issue.severity || SEVERITY.MEDIUM,
-        confidence: issue.confidence || 0.5,
+      matches.push({
+        pattern: {
+          id: pat.id, category: pat.category, subcategory: pat.subcategory,
+          name: pat.name, signature: pat.signature, severity: pat.severity,
+          resolution: pat.resolution, confidence: pat.confidence,
+        },
+        score: Math.round(score * 1000) / 1000,
+        matchedTokens,
       });
     }
 
-    // Also consider extra context (manual diagnosis)
-    if (extra.errorMessage) {
-      allIssues.push({
-        category: extra.category || "unknown",
-        pattern: "reported_error",
-        severity: extra.severity || SEVERITY.MEDIUM,
-        confidence: 0.6,
-        errorMessage: extra.errorMessage,
-      });
-    }
-
-    // Sort by severity weight then confidence
-    allIssues.sort((a, b) => {
-      const wA = SEVERITY_WEIGHTS[a.severity] || 0;
-      const wB = SEVERITY_WEIGHTS[b.severity] || 0;
-      if (wB !== wA) return wB - wA;
-      return (b.confidence || 0) - (a.confidence || 0);
-    });
-
-    const classified = allIssues.length > 0;
-    const primaryIssue = classified ? allIssues[0] : null;
-
-    return { classified, primaryIssue, allIssues };
+    matches.sort((a, b) => b.score - a.score);
+    return matches;
   }
 
-  /**
-   * Rank repair options from the pattern registry and knowledge base
-   * for the given classification.
-   */
-  function rankRepairOptions(classification) {
+  // ── 3. diagnose ──────────────────────────────────────────────────────
+
+  function diagnose(issueType, symptoms) {
+    if (!issueType || (typeof issueType === "string" && issueType.trim() === "")) {
+      throw new ValidationError("Issue type is required");
+    }
+
+    if (typeof symptoms === "string") symptoms = [symptoms];
+    if (!Array.isArray(symptoms)) symptoms = [];
+
+    const stmts = _prepareStatements();
+    const matchedPatterns = matchSymptoms(symptoms);
+    const knowledgeRows = stmts.getKnowledgeByIssueType.all(issueType);
+    const repairOptions = _buildRepairOptions(matchedPatterns, knowledgeRows, issueType, symptoms);
+
+    let severity = "medium";
+    if (matchedPatterns.length > 0) {
+      const topSeverities = matchedPatterns.slice(0, 3).map((m) => m.pattern.severity);
+      if (topSeverities.includes("critical")) severity = "critical";
+      else if (topSeverities.includes("high")) severity = "high";
+      else if (topSeverities.includes("medium")) severity = "medium";
+      else severity = "low";
+    }
+
+    return {
+      issueType, symptoms, severity,
+      matchedPatterns: matchedPatterns.slice(0, 10),
+      repairOptions,
+      knowledgeHits: knowledgeRows.map((k) => ({
+        id: k.id, category: k.category, issueType: k.issue_type,
+        symptoms: k.symptoms, fixDescription: k.fix_description,
+        successCount: k.success_count, failureCount: k.failure_count,
+        avgRepairTimeMs: k.avg_repair_time_ms,
+      })),
+      confidence: matchedPatterns.length > 0 ? matchedPatterns[0].score : 0,
+      diagnosedAt: _nowISO(),
+    };
+  }
+
+  function _buildRepairOptions(matchedPatterns, knowledgeRows, issueType, symptoms) {
     const options = [];
+    const seenResolutions = new Set();
 
-    if (!classification || !classification.classified) {
+    for (const match of matchedPatterns) {
+      const resolution = match.pattern.resolution;
+      if (resolution && !seenResolutions.has(resolution)) {
+        seenResolutions.add(resolution);
+        options.push({
+          source: "pattern", patternId: match.pattern.id,
+          description: resolution, confidence: match.score,
+          severity: match.pattern.severity,
+        });
+      }
+    }
+
+    for (const entry of knowledgeRows) {
+      const desc = entry.fix_description;
+      if (desc && !seenResolutions.has(desc)) {
+        seenResolutions.add(desc);
+        const total = (entry.success_count || 0) + (entry.failure_count || 0);
+        const successRate = total > 0 ? entry.success_count / total : 0;
+        options.push({
+          source: "knowledge", knowledgeId: entry.id,
+          description: desc, confidence: successRate,
+          successRate, avgRepairTimeMs: entry.avg_repair_time_ms,
+        });
+      }
+    }
+
+    if (options.length === 0) {
       options.push({
-        type: "observation",
-        name: "Continue monitoring",
-        description: "No issues detected. Continue normal monitoring.",
-        confidence: 0.9,
-        source: "default",
+        source: "generic",
+        description: `Restart affected subsystem for ${issueType}. Monitor symptoms: ${symptoms.join(", ") || "none specified"}.`,
+        confidence: 0.1, severity: "medium",
       });
-      return options;
     }
 
-    const primary = classification.primaryIssue;
-    const category = primary ? primary.category : "";
-
-    // Search for known patterns in the database
-    try {
-      const patterns = stmts.getPatternsByCategory.all(category);
-      for (const pat of patterns) {
-        if (pat.resolution) {
-          options.push({
-            type: "pattern_fix",
-            name: pat.name,
-            description: pat.resolution,
-            confidence: pat.confidence || 0.5,
-            source: "pattern_registry",
-            patternId: pat.id,
-          });
-        }
-      }
-    } catch (e) {
-      log("warn", "pattern_lookup_error", { category, error: e.message });
-    }
-
-    // Search knowledge base
-    try {
-      const knowledge = stmts.getKnowledgeByCategory.all(category);
-      for (const k of knowledge) {
-        const total = (k.success_count || 0) + (k.failure_count || 0);
-        const successRate = total > 0 ? k.success_count / total : 0;
-        if (k.fix_description) {
-          options.push({
-            type: "knowledge_fix",
-            name: `KB: ${k.issue_type}`,
-            description: k.fix_description,
-            confidence: successRate,
-            source: "knowledge_base",
-            knowledgeId: k.id,
-            successRate,
-          });
-        }
-      }
-    } catch (e) {
-      log("warn", "knowledge_lookup_error", { category, error: e.message });
-    }
-
-    // Add category-specific generic fixes
-    const genericFixes = _getGenericFixes(category, primary);
-    options.push(...genericFixes);
-
-    // Sort by confidence descending
     options.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
-
     return options;
   }
 
-  /**
-   * Generate generic fix options based on category.
-   */
-  function _getGenericFixes(category, issue) {
-    const fixes = [];
-    switch (category) {
-      case REPAIR_CATEGORIES.MEMORY:
-        fixes.push({
-          type: "gc_trigger",
-          name: "Trigger garbage collection",
-          description: "Force a garbage collection cycle to recover memory.",
-          confidence: 0.4,
-          source: "generic",
-        });
-        fixes.push({
-          type: "restart",
-          name: "Restart service",
-          description: "Restart the affected service to clear memory state.",
-          confidence: 0.3,
-          source: "generic",
-        });
-        break;
-      case REPAIR_CATEGORIES.LATENCY:
-        fixes.push({
-          type: "cache_clear",
-          name: "Clear caches",
-          description: "Clear application caches to reduce lookup latency.",
-          confidence: 0.35,
-          source: "generic",
-        });
-        break;
-      case REPAIR_CATEGORIES.ERROR_RATE:
-        fixes.push({
-          type: "circuit_break",
-          name: "Activate circuit breaker",
-          description: "Enable circuit breaker for failing endpoints.",
-          confidence: 0.4,
-          source: "generic",
-        });
-        break;
-      case REPAIR_CATEGORIES.CONNECTION:
-        fixes.push({
-          type: "pool_reset",
-          name: "Reset connection pool",
-          description: "Reset and resize the connection pool.",
-          confidence: 0.4,
-          source: "generic",
-        });
-        break;
-      case REPAIR_CATEGORIES.CPU:
-        fixes.push({
-          type: "throttle",
-          name: "Throttle background tasks",
-          description: "Reduce concurrency of background tasks to lower CPU usage.",
-          confidence: 0.35,
-          source: "generic",
-        });
-        break;
-      default:
-        fixes.push({
-          type: "monitor",
-          name: "Increase monitoring",
-          description: "Increase monitoring granularity to gather more diagnostic data.",
-          confidence: 0.2,
-          source: "generic",
-        });
-    }
-    return fixes;
-  }
+  // ── 4. executeRepair ─────────────────────────────────────────────────
 
-  /**
-   * Full diagnosis: classify + rank options.
-   */
-  function diagnose(healthReport, extra = {}) {
-    const id = generateId("diag");
-    const timestamp = _nowISO();
-    const classification = classifyIssue(healthReport, extra);
-    const repairOptions = rankRepairOptions(classification);
-    const recommendedAction = repairOptions.length > 0 ? repairOptions[0] : null;
-
-    return {
-      id,
-      timestamp,
-      classification,
-      healthReport,
-      repairOptions,
-      recommendedAction,
-      optionCount: repairOptions.length,
-    };
-  }
-
-  return { diagnose, classifyIssue, rankRepairOptions };
-}
-
-// ==============================================================================
-// Executor Sub-component
-// ==============================================================================
-
-/**
- * Create the enhanced repair executor.
- * Applies fixes, verifies results, and supports rollback.
- */
-export function createEnhancedRepairExecution({ db, stmts, log = () => {}, actionHandlers = {} }) {
-
-  /**
-   * Capture a snapshot of the current process state for before/after comparison.
-   */
-  function captureSnapshot() {
-    const mem = process.memoryUsage();
-    return {
-      timestamp: _nowISO(),
-      ts: Date.now(),
-      memory: mem.heapUsed,
-      memoryMB: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
-      rssMB: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
-      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
-      uptime: process.uptime(),
-    };
-  }
-
-  /**
-   * Apply a specific fix option.
-   */
-  function applyFix(option) {
-    const startTime = Date.now();
-    let success = false;
-    let description = "";
-
-    try {
-      // Check for custom action handler
-      if (option.type && actionHandlers[option.type]) {
-        const result = actionHandlers[option.type](option);
-        success = result ? (result.success !== false) : true;
-        description = result ? (result.description || option.description) : option.description;
-      } else {
-        // Default: simulate the fix
-        success = true;
-        description = option.description || "Fix applied (simulated)";
-      }
-    } catch (e) {
-      success = false;
-      description = `Fix failed: ${e.message}`;
-      log("warn", "fix_apply_error", { option: option.type, error: e.message });
-    }
-
-    return {
-      success,
-      description,
-      option: option.type || "unknown",
-      repairTimeMs: Date.now() - startTime,
-      attempted: true,
-    };
-  }
-
-  /**
-   * Verify that a repair was effective by comparing before/after snapshots.
-   */
-  function verifyRepair(beforeSnapshot, afterSnapshot) {
-    const memDelta = afterSnapshot.memoryMB - beforeSnapshot.memoryMB;
-    const improved = memDelta < 0; // Memory went down = improvement for memory issues
-    return {
-      verified: true,
-      memoryDeltaMB: Math.round(memDelta * 100) / 100,
-      improved,
-      before: beforeSnapshot,
-      after: afterSnapshot,
-    };
-  }
-
-  /**
-   * Rollback a repair (placeholder - in practice this would restore state).
-   */
-  function rollback(repairId) {
-    log("info", "repair_rollback", { repairId });
-    return { rolledBack: true, repairId, timestamp: _nowISO() };
-  }
-
-  /**
-   * Full repair cycle: snapshot -> apply -> verify -> record.
-   */
-  function repair(diagnosis) {
-    const beforeSnapshot = captureSnapshot();
-    const startTime = Date.now();
-
-    // Pick the recommended action
-    const option = diagnosis.recommendedAction || (diagnosis.repairOptions && diagnosis.repairOptions[0]);
-    if (!option) {
-      return {
-        success: false,
-        description: "No repair options available",
-        option: "none",
-        repairTimeMs: Date.now() - startTime,
-        attempted: false,
-      };
-    }
-
-    const fixResult = applyFix(option);
-    const afterSnapshot = captureSnapshot();
-    const verification = verifyRepair(beforeSnapshot, afterSnapshot);
-
-    // Record in repair_history
+  function executeRepair(diagnosis, options = {}) {
+    const stmts = _prepareStatements();
     const repairId = generateId("repair");
-    try {
-      const issueType = diagnosis.classification && diagnosis.classification.primaryIssue
-        ? diagnosis.classification.primaryIssue.category
-        : "unknown";
-      const symptoms = diagnosis.classification && diagnosis.classification.allIssues
-        ? JSON.stringify(diagnosis.classification.allIssues.map(i => i.pattern))
-        : "[]";
-      const severity = diagnosis.classification && diagnosis.classification.primaryIssue
-        ? diagnosis.classification.primaryIssue.severity
-        : "medium";
-
-      stmts.insertHistory.run(
-        repairId,
-        issueType,
-        symptoms,
-        severity,
-        JSON.stringify(diagnosis),
-        option.type || "unknown",
-        fixResult.description,
-        fixResult.success ? 1 : 0,
-        fixResult.repairTimeMs,
-        0, // rollback_needed
-        verification.verified ? 1 : 0,
-        _nowISO()
-      );
-    } catch (e) {
-      log("warn", "repair_history_save_error", { error: e.message });
-    }
-
-    return {
-      ...fixResult,
-      repairId,
-      verification,
-    };
-  }
-
-  return { repair, applyFix, verifyRepair, rollback, captureSnapshot };
-}
-
-// ==============================================================================
-// Predictor Sub-component
-// ==============================================================================
-
-/**
- * Precursor pattern definitions for predictive repair.
- */
-const PRECURSOR_PATTERNS = Object.freeze([
-  {
-    name: "memory_leak_precursor",
-    category: REPAIR_CATEGORIES.MEMORY,
-    check: (analyses) => {
-      const mem = analyses.memory;
-      if (!mem) return null;
-      if (mem.pattern === MEMORY_PATTERNS.LINEAR_GROWTH_WITHOUT_GC_RECOVERY) {
-        return {
-          predictedIssue: "memory_exhaustion",
-          confidence: mem.confidence || 0.7,
-          timeToImpact: mem.details && mem.details.slope
-            ? `~${Math.max(1, Math.round(100 / mem.details.slope))} data points`
-            : "unknown",
-          preventiveAction: "Trigger GC cycle and investigate allocation patterns.",
-          severity: SEVERITY.HIGH,
-        };
-      }
-      return null;
-    },
-  },
-  {
-    name: "latency_degradation_precursor",
-    category: REPAIR_CATEGORIES.LATENCY,
-    check: (analyses) => {
-      const lat = analyses.latency;
-      if (!lat) return null;
-      if (lat.pattern === LATENCY_PATTERNS.GRADUAL_DEGRADATION) {
-        return {
-          predictedIssue: "service_timeout",
-          confidence: lat.confidence || 0.6,
-          timeToImpact: "~30 minutes",
-          preventiveAction: "Check database query performance and connection pool health.",
-          severity: SEVERITY.MEDIUM,
-        };
-      }
-      return null;
-    },
-  },
-  {
-    name: "error_cascade_precursor",
-    category: REPAIR_CATEGORIES.ERROR_RATE,
-    check: (analyses) => {
-      const err = analyses.errorRate;
-      if (!err) return null;
-      if (err.pattern === ERROR_PATTERNS.CASCADING || err.pattern === ERROR_PATTERNS.BURST) {
-        return {
-          predictedIssue: "service_failure",
-          confidence: err.confidence || 0.8,
-          timeToImpact: "imminent",
-          preventiveAction: "Activate circuit breakers and scale error-handling capacity.",
-          severity: SEVERITY.CRITICAL,
-        };
-      }
-      return null;
-    },
-  },
-  {
-    name: "connection_exhaustion_precursor",
-    category: REPAIR_CATEGORIES.CONNECTION,
-    check: (analyses) => {
-      const conn = analyses.connections;
-      if (!conn) return null;
-      if (conn.pattern === CONNECTION_PATTERNS.LEAK || conn.pattern === CONNECTION_PATTERNS.SATURATION) {
-        return {
-          predictedIssue: "connection_exhaustion",
-          confidence: conn.confidence || 0.65,
-          timeToImpact: "~1 hour",
-          preventiveAction: "Reset connection pools and check for unclosed connections.",
-          severity: SEVERITY.HIGH,
-        };
-      }
-      return null;
-    },
-  },
-  {
-    name: "cpu_overload_precursor",
-    category: REPAIR_CATEGORIES.CPU,
-    check: (analyses) => {
-      const cpu = analyses.cpu;
-      if (!cpu) return null;
-      if (cpu.pattern === CPU_PATTERNS.GRADUAL_INCREASE || cpu.pattern === CPU_PATTERNS.SUSTAINED_HIGH) {
-        return {
-          predictedIssue: "cpu_overload",
-          confidence: cpu.confidence || 0.6,
-          timeToImpact: cpu.pattern === CPU_PATTERNS.SUSTAINED_HIGH ? "imminent" : "~2 hours",
-          preventiveAction: "Throttle background tasks and check for hot code paths.",
-          severity: cpu.pattern === CPU_PATTERNS.SUSTAINED_HIGH ? SEVERITY.HIGH : SEVERITY.MEDIUM,
-        };
-      }
-      return null;
-    },
-  },
-]);
-
-/**
- * Create the predictive repair engine.
- */
-export function createPredictiveRepair({ db, stmts, monitor, executor, log = () => {} }) {
-
-  /**
-   * Scan the current health report for precursor patterns
-   * and generate predictions.
-   */
-  function predictIssues(healthReport) {
-    const predictions = [];
-    const analyses = healthReport.analyses || {};
-    let scanned = 0;
-
-    for (const precursor of PRECURSOR_PATTERNS) {
-      scanned++;
-      const prediction = precursor.check(analyses);
-      if (prediction) {
-        const predId = generateId("pred");
-        predictions.push({
-          id: predId,
-          precursorName: precursor.name,
-          category: precursor.category,
-          ...prediction,
-        });
-
-        // Persist prediction
-        try {
-          stmts.insertPrediction.run(
-            predId,
-            prediction.predictedIssue,
-            prediction.confidence,
-            prediction.timeToImpact,
-            prediction.preventiveAction,
-            0, // not applied
-            null,
-            null,
-            _nowISO()
-          );
-        } catch (e) {
-          log("warn", "prediction_persist_error", { error: e.message });
-        }
-      }
-    }
-
-    return { predictions, scanned };
-  }
-
-  /**
-   * Apply a preventive fix for a prediction.
-   */
-  function applyPreventiveFix(predictionId) {
-    let prediction = null;
-    try {
-      prediction = stmts.getPredictionById.get(predictionId);
-    } catch (e) {
-      log("warn", "prediction_lookup_error", { predictionId, error: e.message });
-    }
-
-    if (!prediction) {
-      return { applied: false, reason: "Prediction not found" };
-    }
-
-    const outcome = `Preventive action applied at ${_nowISO()}: ${prediction.preventive_action || "N/A"}`;
-
-    try {
-      stmts.updatePredictionApplied.run(outcome, predictionId);
-    } catch (e) {
-      log("warn", "prediction_update_error", { predictionId, error: e.message });
-    }
-
-    return {
-      applied: true,
-      predictionId,
-      predictedIssue: prediction.predicted_issue,
-      preventiveAction: prediction.preventive_action,
-      outcome,
-      appliedAt: _nowISO(),
-    };
-  }
-
-  return {
-    predictIssues,
-    applyPreventiveFix,
-    PRECURSOR_PATTERNS,
-  };
-}
-
-// ==============================================================================
-// Learner Sub-component
-// ==============================================================================
-
-/**
- * Create the repair learning loop.
- * Tracks outcomes, accumulates knowledge, and compresses repair wisdom.
- */
-function createRepairLearningLoop({ db, stmts, log = () => {} }) {
-
-  /**
-   * Learn from a completed repair. Updates or creates knowledge entries.
-   */
-  function learnFromRepair(repairResult, diagnosis) {
     const now = _nowISO();
-    const success = repairResult.success;
-    const issueType = diagnosis.classification && diagnosis.classification.primaryIssue
-      ? diagnosis.classification.primaryIssue.category
-      : "unknown";
-    const category = issueType;
-    const fixDescription = repairResult.description || "";
-    const repairTimeMs = repairResult.repairTimeMs || 0;
+    const startTime = Date.now();
 
-    // Check for existing knowledge entry
-    let existing = [];
-    try {
-      existing = stmts.getKnowledgeByIssueType.all(issueType);
-    } catch (e) {
-      log("warn", "knowledge_lookup_error", { error: e.message });
+    const repairOptions = diagnosis.repairOptions || [];
+    let selectedOption = null;
+    let optionIndex = 0;
+
+    if (options.preferredOption !== undefined) {
+      const idx = Number(options.preferredOption);
+      if (!isNaN(idx) && idx >= 0 && idx < repairOptions.length) {
+        selectedOption = repairOptions[idx];
+        optionIndex = idx;
+      }
     }
+    if (!selectedOption && repairOptions.length > 0) {
+      selectedOption = repairOptions[0];
+    }
+
+    const repairOptionUsed = selectedOption ? JSON.stringify(selectedOption) : null;
+    const fixApplied = selectedOption ? selectedOption.description : "No applicable fix found";
+    const severity = diagnosis.severity || "medium";
+    const repairTimeMs = Date.now() - startTime;
+
+    stmts.insertHistory.run(
+      repairId, diagnosis.issueType || "unknown",
+      JSON.stringify(diagnosis.symptoms || []), severity,
+      JSON.stringify(diagnosis), repairOptionUsed, fixApplied,
+      0, repairTimeMs, 0, 0, now
+    );
+
+    return {
+      repairId, id: repairId, issueType: diagnosis.issueType,
+      severity, fixApplied, repairOptionUsed: selectedOption,
+      optionIndex, dryRun: !!options.dryRun, repairTimeMs, createdAt: now,
+    };
+  }
+
+  // ── 5. recordOutcome ─────────────────────────────────────────────────
+
+  function recordOutcome(repairId, success, details = {}) {
+    const stmts = _prepareStatements();
+    const repair = stmts.getHistoryById.get(repairId);
+    if (!repair) throw new NotFoundError("Repair", repairId);
+
+    const repairTimeMs = details.repairTimeMs || repair.repair_time_ms || 0;
+    stmts.updateHistorySuccess.run(success ? 1 : 0, repairTimeMs, repairId);
+    _updateKnowledgeBase(repair, success, repairTimeMs);
+
+    return { repairId, success, verified: true, repairTimeMs, updatedAt: _nowISO() };
+  }
+
+  function _updateKnowledgeBase(repair, success, repairTimeMs) {
+    const stmts = _prepareStatements();
+    const now = _nowISO();
+    const issueType = repair.issue_type;
+    const category = _classifyMetricCategory(issueType);
+    const existing = stmts.getKnowledgeByIssueType.all(issueType);
 
     if (existing.length > 0) {
       const entry = existing[0];
-      try {
-        if (success) {
-          const total = entry.success_count + 1;
-          const avgTime = entry.avg_repair_time_ms > 0
-            ? (entry.avg_repair_time_ms * entry.success_count + repairTimeMs) / total
-            : repairTimeMs;
-          stmts.updateKnowledgeSuccess.run(now, avgTime, entry.id);
-        } else {
-          stmts.updateKnowledgeFailure.run(now, entry.id);
-        }
-      } catch (e) {
-        log("warn", "knowledge_update_error", { error: e.message });
+      if (success) {
+        const total = entry.success_count + 1;
+        const avgTime = entry.avg_repair_time_ms > 0
+          ? (entry.avg_repair_time_ms * entry.success_count + repairTimeMs) / total
+          : repairTimeMs;
+        stmts.updateKnowledgeSuccess.run(now, avgTime, entry.id);
+      } else {
+        stmts.updateKnowledgeFailure.run(now, entry.id);
       }
     } else {
-      // Create new knowledge entry
-      try {
-        const knowledgeId = generateId("rk");
-        const symptoms = diagnosis.classification && diagnosis.classification.allIssues
-          ? JSON.stringify(diagnosis.classification.allIssues.map(i => i.pattern))
-          : "[]";
-        stmts.insertKnowledge.run(
-          knowledgeId,
-          category,
-          issueType,
-          symptoms,
-          fixDescription,
-          success ? 1 : 0,
-          success ? 0 : 1,
-          repairTimeMs,
-          now,
-          now
-        );
-      } catch (e) {
-        log("warn", "knowledge_insert_error", { error: e.message });
-      }
+      const knowledgeId = generateId("rk");
+      const symptomsStr = typeof repair.symptoms === "string"
+        ? repair.symptoms : JSON.stringify(repair.symptoms || []);
+      stmts.insertKnowledge.run(
+        knowledgeId, category, issueType, symptomsStr,
+        repair.fix_applied || "", success ? 1 : 0, success ? 0 : 1,
+        repairTimeMs || 0, now, now
+      );
     }
-
-    return { learned: true, issueType, success };
   }
 
-  /**
-   * Compress repair knowledge by consolidating duplicate entries.
-   * Returns a summary of the compression operation.
-   */
-  function compressRepairKnowledge() {
-    let compressed = 0;
-    let reviewed = 0;
+  // ── 6. predict ───────────────────────────────────────────────────────
 
-    try {
-      const all = stmts.getAllKnowledge.all();
-      reviewed = all.length;
+  function predict(metrics) {
+    if (!metrics || typeof metrics !== "object") return [];
 
-      // Group by issue_type and look for duplicates
-      const byType = {};
-      for (const entry of all) {
-        if (!byType[entry.issue_type]) byType[entry.issue_type] = [];
-        byType[entry.issue_type].push(entry);
-      }
-
-      for (const [type, entries] of Object.entries(byType)) {
-        if (entries.length > 1) {
-          // Keep the entry with the highest success count as the canonical one
-          entries.sort((a, b) => b.success_count - a.success_count);
-          // Mark others as compressed (in practice we'd merge; here we count)
-          compressed += entries.length - 1;
-        }
-      }
-    } catch (e) {
-      log("warn", "knowledge_compression_error", { error: e.message });
-    }
-
-    return { compressed, reviewed, timestamp: _nowISO() };
-  }
-
-  /**
-   * Get comprehensive repair statistics.
-   */
-  function getRepairStats() {
-    let patterns = 0;
-    let repairsTotal = 0;
-    let successful = 0;
-    let failed = 0;
-    let avgRepairTimeMs = 0;
-    let predictionsTotal = 0;
-    let predictionsActive = 0;
-    let knowledgeTotal = 0;
-
-    try { patterns = (stmts.countPatterns.get() || { count: 0 }).count; } catch {}
-    try { repairsTotal = (stmts.countHistory.get() || { count: 0 }).count; } catch {}
-    try { successful = (stmts.countSuccessful.get() || { count: 0 }).count; } catch {}
-    try { failed = (stmts.countFailed.get() || { count: 0 }).count; } catch {}
-    try {
-      const avg = stmts.getAvgRepairTime.get();
-      avgRepairTimeMs = avg && avg.avg_time ? Math.round(avg.avg_time * 100) / 100 : 0;
-    } catch {}
-    try { predictionsTotal = (stmts.countPredictions.get() || { count: 0 }).count; } catch {}
-    try { predictionsActive = (stmts.countActivePredictions.get() || { count: 0 }).count; } catch {}
-    try { knowledgeTotal = (stmts.countKnowledge.get() || { count: 0 }).count; } catch {}
-
-    const successRate = repairsTotal > 0
-      ? Math.round((successful / repairsTotal) * 1000) / 1000
-      : 0;
-
-    return {
-      patterns,
-      repairs: {
-        total: repairsTotal,
-        successful,
-        failed,
-        successRate,
-        avgRepairTimeMs,
-      },
-      predictions: {
-        total: predictionsTotal,
-        active: predictionsActive,
-      },
-      knowledge: {
-        total: knowledgeTotal,
-      },
-    };
-  }
-
-  return { learnFromRepair, compressRepairKnowledge, getRepairStats };
-}
-
-// ==============================================================================
-// Main initializer
-// ==============================================================================
-
-/**
- * Initialize the complete enhanced repair system.
- *
- * Returns an object containing all sub-components plus convenience methods
- * for full repair cycles and manual pattern submission.
- *
- * @param {object} opts
- * @param {object} opts.db — better-sqlite3 database instance
- * @param {Function} [opts.log] — structured logger
- * @param {object} [opts.actionHandlers] — custom action handlers for the executor
- * @returns {object} The repair system with monitor, diagnosis, executor, predictor, learner
- */
-export function initEnhancedRepair({ db, log = () => {}, actionHandlers = {} }) {
-  const stmts = _buildStatements(db);
-
-  const monitor = createEnhancedRepairMonitor({ db, stmts, log });
-  const diagnosis = createEnhancedRepairDiagnosis({ db, stmts, log });
-  const executor = createEnhancedRepairExecution({ db, stmts, log, actionHandlers });
-  const predictor = createPredictiveRepair({ db, stmts, monitor, executor, log });
-  const learner = createRepairLearningLoop({ db, stmts, log });
-
-  /**
-   * Run a full repair cycle: monitor -> diagnose -> repair -> learn.
-   */
-  function fullRepairCycle(metrics) {
-    // Step 1: Record metrics and get health report
-    const healthReport = monitor.monitor(metrics || {});
-
-    // Step 2: Diagnose
-    const diag = diagnosis.diagnose(healthReport);
-
-    // Step 3: If issues found, attempt repair
-    let repairResult = null;
-    if (diag.classification.classified) {
-      repairResult = executor.repair(diag);
-      // Step 4: Learn
-      learner.learnFromRepair(repairResult, diag);
-    }
-
-    // Step 5: Run predictions
-    const { predictions } = predictor.predictIssues(healthReport);
-
-    return {
-      healthReport,
-      diagnosis: diag,
-      repair: repairResult,
-      predictions,
-      timestamp: _nowISO(),
-    };
-  }
-
-  /**
-   * Manually submit an error pattern for learning.
-   * Creates both a pattern entry and a knowledge entry.
-   */
-  function submitErrorPattern({ category, subcategory, name, symptoms, resolution, severity, confidence }) {
-    const patternId = generateId("rp");
-    const knowledgeId = generateId("rk");
+    const stmts = _prepareStatements();
+    const predictions = [];
     const now = _nowISO();
 
-    const symptomsStr = Array.isArray(symptoms) ? JSON.stringify(symptoms) : (symptoms || "[]");
-    const sig = Array.isArray(symptoms) ? symptoms.join("; ") : (symptoms || "");
+    for (const [metricType, currentValue] of Object.entries(metrics)) {
+      if (typeof currentValue !== "number") continue;
 
-    try {
-      stmts.insertPattern.run(
-        patternId,
-        category || "unknown",
-        subcategory || "manual",
-        name || "manual_pattern",
-        sig,
-        0, // not a healthy pattern
-        resolution || "",
-        null,
-        severity || "medium",
-        typeof confidence === "number" ? confidence : 0.5,
-        null,
-        now
+      const cutoff = new Date(Date.now() - DEFAULT_TREND_HOURS * 60 * 60 * 1000).toISOString();
+      const history = stmts.getMetricTrend.all(metricType, cutoff);
+
+      const points = history.map((row, i) => ({ x: i, y: row.value }));
+      points.push({ x: points.length, y: currentValue });
+
+      const regression = _linearRegression(points);
+      if (!regression) continue;
+
+      const category = _classifyMetricCategory(metricType);
+      const thresholds = PREDICTION_THRESHOLDS[category] || PREDICTION_THRESHOLDS.state;
+      const { slope, r2 } = regression;
+
+      if (slope <= 0.001 && r2 < 0.3) continue;
+
+      let confidence = 0;
+      let severity = "low";
+
+      if (currentValue >= thresholds.critical) {
+        confidence = 0.9; severity = "critical";
+      } else if (currentValue >= thresholds.warn) {
+        confidence = 0.7; severity = "high";
+      } else if (slope > 0 && r2 > 0.6) {
+        confidence = Math.min(0.8, r2 * slope * 10);
+        severity = slope > 0.05 ? "high" : "medium";
+      } else if (slope > 0 && r2 > 0.5) {
+        confidence = Math.min(0.5, r2 * slope * 5);
+        severity = "low";
+      } else {
+        continue;
+      }
+
+      if (confidence < 0.1) continue;
+
+      const timeToImpact = _estimateTimeToImpact(currentValue, slope, thresholds.critical);
+      const preventiveAction = _suggestPreventiveAction(category, slope, currentValue);
+      const relatedPatterns = stmts.getPatternsByCategory.all(category);
+      const sourcePatternId = relatedPatterns.length > 0 ? relatedPatterns[0].id : null;
+      const predictionId = generateId("pred");
+
+      stmts.insertPrediction.run(
+        predictionId, `${category}_degradation`,
+        Math.round(confidence * 1000) / 1000, timeToImpact, preventiveAction,
+        0, null, sourcePatternId, now
       );
-    } catch (e) {
-      log("warn", "pattern_insert_error", { error: e.message });
+
+      predictions.push({
+        id: predictionId, predictedIssue: `${category}_degradation`,
+        metricType, currentValue,
+        confidence: Math.round(confidence * 1000) / 1000,
+        severity, timeToImpact, preventiveAction, sourcePatternId,
+        regression: {
+          slope: Math.round(slope * 10000) / 10000,
+          r2: Math.round(r2 * 1000) / 1000,
+        },
+        createdAt: now,
+      });
     }
 
-    try {
-      stmts.insertKnowledge.run(
-        knowledgeId,
-        category || "unknown",
-        category || "unknown",
-        symptomsStr,
-        resolution || "",
-        0,
-        0,
-        0,
-        now,
-        now
-      );
-    } catch (e) {
-      log("warn", "knowledge_insert_error", { error: e.message });
-    }
-
-    return { patternId, knowledgeId };
+    predictions.sort((a, b) => b.confidence - a.confidence);
+    return predictions;
   }
 
+  // ── 7. applyPrevention ───────────────────────────────────────────────
+
+  function applyPrevention(predictionId) {
+    const stmts = _prepareStatements();
+    const prediction = stmts.getPredictionById.get(predictionId);
+    if (!prediction) throw new NotFoundError("Prediction", predictionId);
+
+    const outcome = `Preventive action applied at ${_nowISO()}: ${prediction.preventive_action || "no action specified"}`;
+    stmts.updatePredictionApplied.run(outcome, predictionId);
+
+    return {
+      predictionId, predictedIssue: prediction.predicted_issue,
+      preventiveAction: prediction.preventive_action,
+      applied: true, outcome, appliedAt: _nowISO(),
+    };
+  }
+
+  // ── 8. recordMetric ──────────────────────────────────────────────────
+
+  function recordMetric(metricType, value, metadata = {}) {
+    if (!metricType || (typeof metricType === "string" && metricType.trim() === "")) {
+      throw new ValidationError("Metric type is required");
+    }
+
+    const stmts = _prepareStatements();
+    const now = _nowISO();
+    stmts.insertMetric.run(metricType, Number(value) || 0, JSON.stringify(metadata), now);
+
+    return { metricType, value: Number(value) || 0, metadata, recordedAt: now };
+  }
+
+  // ── 9. getMetricTrend ────────────────────────────────────────────────
+
+  function getMetricTrend(metricType, hours = DEFAULT_TREND_HOURS) {
+    const stmts = _prepareStatements();
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const rows = stmts.getMetricTrend.all(metricType, cutoff);
+
+    const values = rows.map((r) => r.value);
+    const points = rows.map((r) => ({
+      value: r.value,
+      metadata: _safeParseJSON(r.metadata, {}),
+      recordedAt: r.recorded_at,
+    }));
+
+    let min = Infinity, max = -Infinity, sum = 0;
+    for (const v of values) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+      sum += v;
+    }
+    const count = values.length;
+    const avg = count > 0 ? sum / count : 0;
+
+    let variance = 0;
+    for (const v of values) variance += (v - avg) ** 2;
+    variance = count > 1 ? variance / (count - 1) : 0;
+    const stddev = Math.sqrt(variance);
+
+    const regressionPoints = values.map((y, i) => ({ x: i, y }));
+    const regression = _linearRegression(regressionPoints);
+
+    return {
+      metricType, hours, points, count,
+      stats: {
+        min: count > 0 ? Math.round(min * 10000) / 10000 : 0,
+        max: count > 0 ? Math.round(max * 10000) / 10000 : 0,
+        avg: Math.round(avg * 10000) / 10000,
+        stddev: Math.round(stddev * 10000) / 10000,
+      },
+      regression: regression ? {
+        slope: Math.round(regression.slope * 10000) / 10000,
+        intercept: Math.round(regression.intercept * 10000) / 10000,
+        r2: Math.round(regression.r2 * 1000) / 1000,
+        trend: regression.slope > 0.01 ? "increasing"
+          : regression.slope < -0.01 ? "decreasing" : "stable",
+      } : null,
+    };
+  }
+
+  // ── 10. getPatterns ──────────────────────────────────────────────────
+
+  function getPatterns(filters = {}) {
+    const stmts = _prepareStatements();
+    const { category, severity } = filters;
+
+    let rows;
+    if (category && severity) rows = stmts.getPatternsByCategoryAndSeverity.all(category, severity);
+    else if (category) rows = stmts.getPatternsByCategory.all(category);
+    else if (severity) rows = stmts.getPatternsBySeverity.all(severity);
+    else rows = stmts.getAllPatterns.all();
+
+    return rows.map((r) => ({
+      id: r.id, category: r.category, subcategory: r.subcategory,
+      name: r.name, signature: r.signature, isHealthy: !!r.is_healthy,
+      resolution: r.resolution, typicalTimeToFailure: r.typical_time_to_failure,
+      severity: r.severity, confidence: r.confidence,
+      sourceDtuId: r.source_dtu_id, createdAt: r.created_at,
+    }));
+  }
+
+  // ── 11. getKnowledge ─────────────────────────────────────────────────
+
+  function getKnowledge(category) {
+    const stmts = _prepareStatements();
+    const rows = category
+      ? stmts.getKnowledgeByCategory.all(category)
+      : stmts.getAllKnowledge.all();
+
+    return rows.map((r) => ({
+      id: r.id, category: r.category, issueType: r.issue_type,
+      symptoms: r.symptoms, fixDescription: r.fix_description,
+      successCount: r.success_count, failureCount: r.failure_count,
+      avgRepairTimeMs: r.avg_repair_time_ms,
+      successRate: r.success_count + r.failure_count > 0
+        ? Math.round((r.success_count / (r.success_count + r.failure_count)) * 1000) / 1000 : 0,
+      lastUsedAt: r.last_used_at, createdAt: r.created_at,
+    }));
+  }
+
+  // ── 12. getHistory ───────────────────────────────────────────────────
+
+  function getHistory(options = {}) {
+    const stmts = _prepareStatements();
+    const limit = Math.max(1, Math.min(1000, options.limit || 50));
+    const offset = Math.max(0, options.offset || 0);
+
+    let rows, totalResult;
+    if (options.success !== undefined) {
+      const successVal = options.success ? 1 : 0;
+      rows = stmts.getHistoryBySuccess.all(successVal, limit, offset);
+      totalResult = stmts.countHistoryBySuccess.get(successVal);
+    } else {
+      rows = stmts.getHistory.all(limit, offset);
+      totalResult = stmts.countHistory.get();
+    }
+
+    const total = totalResult ? totalResult.count : 0;
+    const items = rows.map((r) => ({
+      id: r.id, issueType: r.issue_type,
+      symptoms: _safeParseJSON(r.symptoms, []), severity: r.severity,
+      diagnosis: _safeParseJSON(r.diagnosis, {}),
+      repairOptionUsed: _safeParseJSON(r.repair_option_used, null),
+      fixApplied: r.fix_applied, success: !!r.success,
+      repairTimeMs: r.repair_time_ms, rollbackNeeded: !!r.rollback_needed,
+      verified: !!r.verified, createdAt: r.created_at,
+    }));
+
+    return { items, total, limit, offset };
+  }
+
+  // ── 13. getPredictions ───────────────────────────────────────────────
+
+  function getPredictions(options = {}) {
+    const stmts = _prepareStatements();
+    const limit = Math.max(1, Math.min(1000, options.limit || 50));
+    const offset = Math.max(0, options.offset || 0);
+    const minConfidence = options.minConfidence || 0;
+
+    let rows;
+    if (minConfidence > 0) {
+      rows = stmts.getPredictionsByMinConfidence.all(minConfidence, limit, offset);
+    } else {
+      rows = stmts.getPredictions.all(limit, offset);
+    }
+
+    const totalResult = stmts.countPredictions.get();
+    const activeResult = stmts.countActivePredictions.get();
+    const total = totalResult ? totalResult.count : 0;
+    const active = activeResult ? activeResult.count : 0;
+
+    const items = rows.map((r) => ({
+      id: r.id, predictedIssue: r.predicted_issue,
+      confidence: r.confidence, timeToImpact: r.time_to_impact,
+      preventiveAction: r.preventive_action, applied: !!r.applied,
+      outcome: r.outcome, sourcePatternId: r.source_pattern_id,
+      createdAt: r.created_at,
+    }));
+
+    return { items, active, total };
+  }
+
+  // ── 14. getStats ─────────────────────────────────────────────────────
+
+  function getStats() {
+    const stmts = _prepareStatements();
+
+    const patternTotal = stmts.countPatterns.get();
+    const patternsByCategory = stmts.countPatternsByCategory.all();
+    const byCategoryMap = {};
+    for (const row of patternsByCategory) byCategoryMap[row.category] = row.count;
+
+    const repairTotal = stmts.countHistory.get();
+    const successfulResult = stmts.getSuccessfulRepairs.get();
+    const failedResult = stmts.getFailedRepairs.get();
+    const avgTimeResult = stmts.getAvgRepairTime.get();
+
+    const totalRepairs = repairTotal ? repairTotal.count : 0;
+    const successful = successfulResult ? successfulResult.count : 0;
+    const failed = failedResult ? failedResult.count : 0;
+    const avgRepairTimeMs = avgTimeResult && avgTimeResult.avg_time
+      ? Math.round(avgTimeResult.avg_time * 100) / 100 : 0;
+    const successRate = totalRepairs > 0
+      ? Math.round((successful / totalRepairs) * 1000) / 1000 : 0;
+
+    const predictionTotal = stmts.countPredictions.get();
+    const predictionActive = stmts.countActivePredictions.get();
+    const knowledgeTotal = stmts.countKnowledge.get();
+    const metricsTotal = stmts.countMetrics.get();
+    const metricTypesRows = stmts.getMetricTypes.all();
+
+    return {
+      startedAt,
+      patterns: {
+        total: patternTotal ? patternTotal.count : 0,
+        byCategory: byCategoryMap,
+      },
+      repairs: { total: totalRepairs, successful, failed, successRate, avgRepairTimeMs },
+      predictions: {
+        total: predictionTotal ? predictionTotal.count : 0,
+        active: predictionActive ? predictionActive.count : 0,
+      },
+      knowledge: { total: knowledgeTotal ? knowledgeTotal.count : 0 },
+      metrics: {
+        total: metricsTotal ? metricsTotal.count : 0,
+        types: metricTypesRows.map((r) => r.metric_type),
+      },
+    };
+  }
+
+  // ── 15. runHealthCheck ───────────────────────────────────────────────
+
+  function runHealthCheck() {
+    const timestamp = _nowISO();
+    const checks = [];
+
+    checks.push(_checkSubsystem("database_connectivity", () => {
+      db.prepare("SELECT 1 as ok").get();
+      return "Database is accessible";
+    }));
+    checks.push(_checkSubsystem("pattern_registry", () => {
+      const count = (_prepareStatements().countPatterns.get() || { count: 0 }).count;
+      return `Pattern registry accessible (${count} patterns)`;
+    }));
+    checks.push(_checkSubsystem("repair_history", () => {
+      const count = (_prepareStatements().countHistory.get() || { count: 0 }).count;
+      return `Repair history accessible (${count} records)`;
+    }));
+    checks.push(_checkSubsystem("knowledge_base", () => {
+      const count = (_prepareStatements().countKnowledge.get() || { count: 0 }).count;
+      return `Knowledge base accessible (${count} entries)`;
+    }));
+    checks.push(_checkSubsystem("prediction_engine", () => {
+      const s = _prepareStatements();
+      const count = (s.countPredictions.get() || { count: 0 }).count;
+      const active = (s.countActivePredictions.get() || { count: 0 }).count;
+      return `Prediction engine ready (${count} total, ${active} active)`;
+    }));
+    checks.push(_checkSubsystem("metric_store", () => {
+      const s = _prepareStatements();
+      const count = (s.countMetrics.get() || { count: 0 }).count;
+      const types = s.getMetricTypes.all().length;
+      return `Metric store accessible (${count} data points, ${types} metric types)`;
+    }));
+
+    const passed = checks.filter((c) => c.passed).length;
+    const failed = checks.filter((c) => !c.passed).length;
+
+    return {
+      healthy: failed === 0,
+      timestamp,
+      checks,
+      summary: { total: checks.length, passed, failed },
+    };
+  }
+
+  function _checkSubsystem(name, fn) {
+    try {
+      const message = fn();
+      return { name, passed: true, message };
+    } catch (err) {
+      return { name, passed: false, message: `${name} check failed: ${err.message}` };
+    }
+  }
+
+  // ── Public API ───────────────────────────────────────────────────────
+
   return {
-    monitor,
-    diagnosis,
-    executor,
-    predictor,
-    learner,
-    stmts,
-    fullRepairCycle,
-    submitErrorPattern,
+    PATTERN_CATEGORIES,
+    SEVERITY_LEVELS,
+
+    registerPattern,
+    matchSymptoms,
+    diagnose,
+    executeRepair,
+    recordOutcome,
+
+    predict,
+    applyPrevention,
+
+    recordMetric,
+    getMetricTrend,
+
+    getPatterns,
+    getKnowledge,
+    getHistory,
+    getPredictions,
+
+    getStats,
+    runHealthCheck,
   };
 }
