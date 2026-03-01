@@ -57,8 +57,8 @@ export function registerEconomyRoutes(app, db) {
 
   app.get("/api/economy/balance", (req, res) => {
     try {
-      const userId = req.query.user_id || req.user?.id;
-      if (!userId) return res.status(400).json({ ok: false, error: "missing_user_id" });
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ ok: false, error: "unauthorized" });
 
       const result = getBalance(db, userId);
       res.json({ ok: true, userId, ...result });
@@ -71,8 +71,8 @@ export function registerEconomyRoutes(app, db) {
 
   app.get("/api/economy/history", (req, res) => {
     try {
-      const userId = req.query.user_id || req.user?.id;
-      if (!userId) return res.status(400).json({ ok: false, error: "missing_user_id" });
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ ok: false, error: "unauthorized" });
 
       const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
       const offset = parseInt(req.query.offset, 10) || 0;
@@ -142,7 +142,7 @@ export function registerEconomyRoutes(app, db) {
 
   app.post("/api/economy/transfer", (req, res) => {
     try {
-      const from = req.body.from || req.user?.id;
+      const from = req.user?.id;
       const to = req.body.to;
       const amount = parseFloat(req.body.amount);
 

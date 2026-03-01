@@ -122,7 +122,7 @@ export default function configureMiddleware(app, deps) {
     const matchedLimit = Object.entries(BODY_LIMITS).find(([prefix]) => req.url.startsWith(prefix));
     const limit = matchedLimit ? matchedLimit[1] : '10mb';
     express.json({ limit, verify: (innerReq, _res, buf) => {
-      if (innerReq.url === '/api/economic/webhook') innerReq.rawBody = buf;
+      if (innerReq.url === '/api/economy/webhook') innerReq.rawBody = buf;
     } })(req, res, next);
   });
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));

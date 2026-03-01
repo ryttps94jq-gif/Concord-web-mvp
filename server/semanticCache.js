@@ -54,7 +54,7 @@ export function initSemanticCache({ structuredLog = console.log } = {}) {
  * @param {{ dtusArray: Function, threshold?: number }} opts
  * @returns {Promise<{ cached: boolean, response?: string, sourceId?: string, score?: number }>}
  */
-export async function semanticCacheCheck(query, lens, { dtusArray, threshold } = {}) {
+export async function semanticCacheCheck(query, lens, { dtusArray, threshold, userId: _userId } = {}) {
   if (!isEmbeddingAvailable()) {
     cacheStats.misses++;
     return { cached: false, reason: "embeddings_unavailable" };
@@ -70,7 +70,7 @@ export async function semanticCacheCheck(query, lens, { dtusArray, threshold } =
 
   // Get candidate DTUs — only chat/utility-generated ones, scoped to user's local instance
   const allDTUs = typeof dtusArray === "function" ? dtusArray() : [];
-  const userId = opts?.userId || null;
+  const userId = _userId || null;
   const candidates = allDTUs.filter(d => {
     const src = String(d.source || "");
     if (!src.startsWith("conscious.chat") && !src.startsWith("utility.") && !src.startsWith("conscious.cache")) return false;

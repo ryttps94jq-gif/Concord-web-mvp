@@ -3945,7 +3945,7 @@ const _REFRESH_FAMILIES = new Map(); // family -> { userId, currentJti, rotatedA
 
 // Cleanup stale refresh families (no rotation in 30 days) — prevents unbounded growth
 setInterval(() => {
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   for (const [key, family] of _REFRESH_FAMILIES) {
     if (!family.rotatedAt || family.rotatedAt < cutoff) _REFRESH_FAMILIES.delete(key);
   }

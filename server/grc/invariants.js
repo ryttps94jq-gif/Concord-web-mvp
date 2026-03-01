@@ -192,7 +192,9 @@ function checkForbiddenPatterns(payload) {
   let patternsFound = 0;
 
   for (const pat of FORBIDDEN_PATTERNS) {
+    pat.lastIndex = 0;
     if (pat.test(cleaned)) {
+      pat.lastIndex = 0;
       cleaned = cleaned.replace(pat, "");
       patternsFound++;
     }
@@ -259,6 +261,7 @@ function checkNoSystemJargon(payload) {
   const found = [];
 
   for (const pat of SYSTEM_JARGON_PATTERNS) {
+    pat.lastIndex = 0;
     if (pat.test(cleaned)) {
       found.push(pat.source.replace(/\\b/g, "").replace(/\(\?\:|\)/g, ""));
       cleaned = cleaned.replace(new RegExp(pat.source, "gi"), "");
@@ -301,7 +304,9 @@ function repairPayload(payload, reason) {
     ];
 
     for (const [pat, replacement] of softeners) {
+      pat.lastIndex = 0;
       if (pat.test(text)) {
+        pat.lastIndex = 0;
         text = text.replace(pat, replacement);
         changed = true;
       }

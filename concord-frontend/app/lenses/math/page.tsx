@@ -85,6 +85,9 @@ const PLOT_WIDTH = 300;
 const PLOT_HEIGHT = 200;
 const PLOT_PADDING = 30;
 
+// Safe math expression evaluator — no new Function / eval
+const SAFE_MATH_TOKEN = /^(\s|[0-9.+\-*/()x,]|Math\.(sin|cos|tan|abs|log|exp|sqrt|PI|E)|\*\*)*$/;
+
 function evaluatePlotFn(expr: string, x: number): number | null {
   try {
     const sanitized = expr
@@ -98,9 +101,12 @@ function evaluatePlotFn(expr: string, x: number): number | null {
       .replace(/\bpi\b/g, 'Math.PI')
       .replace(/\be\b(?!x)/g, 'Math.E')
       .replace(/\^/g, '**');
+    // Allowlist: only permit math tokens, numbers, operators, and x
+    const withX = sanitized.replace(/\bx\b/g, String(x));
+    if (!SAFE_MATH_TOKEN.test(withX)) return null;
     // eslint-disable-next-line no-new-func
-    const fn = new Function('x', `"use strict"; return (${sanitized});`);
-    const result = fn(x);
+    const fn = new Function(`"use strict"; return (${withX});`);
+    const result = fn();
     if (typeof result === 'number' && isFinite(result)) return result;
     return null;
   } catch {
