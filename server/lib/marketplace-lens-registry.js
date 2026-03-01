@@ -2730,3 +2730,47 @@ export function getRegistrySummary() {
     version: REGISTRY_STATS.version,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LENS FEATURES CROSS-REFERENCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { LENS_FEATURES, getLensFeatureStats } from "./lens-features.js";
+
+/**
+ * Get the full feature spec for a lens by ID.
+ * Returns features from the lens-features registry if available.
+ */
+export function getLensFeatures(id) {
+  return LENS_FEATURES[id] || null;
+}
+
+/**
+ * Get a combined lens entry with marketplace data AND features.
+ */
+export function getFullLensSpec(id) {
+  const lens = _byId.get(id);
+  if (!lens) return null;
+  const features = LENS_FEATURES[id] || null;
+  return {
+    ...lens,
+    features: features?.features || [],
+    featureCount: features?.featureCount || 0,
+    emergentAccess: features?.emergentAccess || false,
+    botAccess: features?.botAccess || false,
+    usbIntegration: features?.usbIntegration || false,
+    economicIntegrations: features?.economicIntegrations || [],
+  };
+}
+
+/**
+ * Get combined summary: marketplace registry + feature stats.
+ */
+export function getFullRegistrySummary() {
+  const registrySummary = getRegistrySummary();
+  const featureStats = getLensFeatureStats();
+  return {
+    ...registrySummary,
+    features: featureStats,
+  };
+}

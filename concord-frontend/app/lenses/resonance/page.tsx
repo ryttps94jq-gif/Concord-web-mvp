@@ -27,6 +27,7 @@ import {
   Dna,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import { EntityGrowthDashboard } from '@/components/emergent/EntityGrowthDashboard';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
@@ -678,6 +679,7 @@ export default function ResonanceBoundaryPage() {
   const [thresholdOpen, setThresholdOpen] = useState(false);
   const [thresholds, setThresholds] = useState<ThresholdConfig>({ ...DEFAULT_THRESHOLDS });
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // Fetch latest boundary scan
   const { data: scan, isLoading: scanLoading, isError: scanError, error: scanErrorObj, refetch: refetchScan } = useQuery<BoundaryScan>({
@@ -1116,6 +1118,25 @@ export default function ResonanceBoundaryPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="resonance" />
+          </div>
+        )}
       </div>
     </div>
   );

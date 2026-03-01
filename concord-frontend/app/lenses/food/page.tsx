@@ -12,7 +12,7 @@ import {
   TrendingUp, Flame, Leaf, Scale, DollarSign, ClipboardList, CalendarDays,
   Star, Puzzle, TrendingDown, Package, FileText, UserCheck, MapPin,
   ArrowDown, ArrowUp, Minus, Hash, CircleDot, Layers,
-  RotateCcw, Zap, Target, PieChart, Armchair,
+  RotateCcw, Zap, Target, PieChart, Armchair, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
@@ -26,6 +26,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -214,6 +215,7 @@ export default function FoodLensPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LensItem<FoodArtifact> | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // Sub-views
   const [recipeScaleId, setRecipeScaleId] = useState<string | null>(null);
@@ -2551,6 +2553,25 @@ export default function FoodLensPage() {
       </div>
       {renderEditor()}
       {renderRecipeScaler()}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="food" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

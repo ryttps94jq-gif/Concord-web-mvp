@@ -51,12 +51,15 @@ import {
   ArrowRight,
   Hourglass,
   CircleDot,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -288,6 +291,7 @@ export default function LegalLensPage() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [detailItem, setDetailItem] = useState<LensItem<LegalArtifact> | null>(null);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // --- Case form state ---
   const [formTitle, setFormTitle] = useState('');
@@ -2207,6 +2211,25 @@ export default function LegalLensPage() {
 
       {/* Detail Panel */}
       {renderDetailPanel()}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="legal" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useLensNav } from '@/hooks/useLensNav';
 import { useState } from 'react';
-import { Brain, Network, Activity, Layers, Loader2 } from 'lucide-react';
+import { Brain, Network, Activity, Layers, Loader2, ChevronDown } from 'lucide-react';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
@@ -10,6 +10,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface NetworkData {
   name: string;
@@ -31,6 +32,7 @@ const SEED_NEURONS: { title: string; data: Record<string, unknown> }[] = [];
 export default function NeuroLensPage() {
   useLensNav('neuro');
   const [networkType, setNetworkType] = useState('Feedforward');
+  const [showFeatures, setShowFeatures] = useState(false);
   const { latestData: realtimeData, isLive, lastUpdated, insights } = useRealtimeLens('neuro');
 
   const { items: networkItems, isLoading: networksLoading, isError, error, refetch } = useLensData<NetworkData>('neuro', 'network', {
@@ -171,6 +173,25 @@ export default function NeuroLensPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="neuro" />
+          </div>
+        )}
       </div>
     </div>
   );

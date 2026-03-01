@@ -19,12 +19,14 @@ import {
   Sun, Snowflake, Leaf, CloudRain, ClipboardList,
   CheckCircle2, Coffee,
   Salad, Soup, Cake,
+  Layers, ChevronDown,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -166,6 +168,7 @@ export default function HouseholdLensPage() {
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
   const [calendarOffset, setCalendarOffset] = useState(0);
   const [mealWeekOffset, setMealWeekOffset] = useState(0);
@@ -1672,6 +1675,25 @@ export default function HouseholdLensPage() {
 
         </div>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="household" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

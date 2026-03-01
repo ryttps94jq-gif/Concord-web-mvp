@@ -46,6 +46,7 @@ import {
   Users,
   Check,
   ExternalLink,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
@@ -60,6 +61,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // ──────────────────────────────────────────────
 // Types
@@ -232,6 +234,7 @@ export default function ChatLensPage() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // New state — Persona picker
   const [selectedPersona, setSelectedPersona] = useState<Persona>(PERSONAS[0]);
@@ -1698,6 +1701,25 @@ export default function ChatLensPage() {
           </div>
         </div>
       </main>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="chat" />
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );

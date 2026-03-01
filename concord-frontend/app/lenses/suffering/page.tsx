@@ -1,19 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { AlertTriangle, Heart, Brain, Zap, TrendingDown, Shield } from 'lucide-react';
+import { AlertTriangle, Heart, Brain, Zap, TrendingDown, Shield, Layers, ChevronDown } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 export default function SufferingLensPage() {
   useLensNav('suffering');
   const { latestData: realtimeData, alerts: realtimeAlerts, insights: realtimeInsights, isLive, lastUpdated } = useRealtimeLens('suffering');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // Backend: GET /api/status
   const { data: _status, isLoading, isError: isError, error: error, refetch: refetch,} = useQuery({
@@ -214,6 +217,25 @@ export default function SufferingLensPage() {
           invariant. Suffering metrics help maintain ethical boundaries and prevent harmful
           accumulation of unresolved contradictions.
         </p>
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="suffering" />
+          </div>
+        )}
       </div>
     </div>
   );

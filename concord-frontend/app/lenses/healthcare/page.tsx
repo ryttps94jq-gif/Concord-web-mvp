@@ -54,6 +54,7 @@ import {
   CheckCircle2,
   PanelRightOpen,
   PanelRightClose,
+  Layers,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
@@ -61,6 +62,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -298,6 +300,7 @@ export default function HealthcareLensPage() {
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState<LensItem<HealthcareArtifact> | null>(null);
   const [actionResult, setActionResult] = useState<Record<string, unknown> | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   /* ---------- patient detail drawer ---------- */
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -2334,6 +2337,25 @@ export default function HealthcareLensPage() {
           </div>
         </>
       )}
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="healthcare" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

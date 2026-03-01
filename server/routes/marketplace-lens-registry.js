@@ -19,6 +19,10 @@ import {
   getLensesByClassification,
   LENS_CATEGORIES,
 } from "../economy/marketplace-lens-service.js";
+import {
+  getFullLensSpec,
+  getFullRegistrySummary,
+} from "../lib/marketplace-lens-registry.js";
 
 export default function marketplaceLensRegistryRoutes(db) {
   const router = Router();
@@ -149,6 +153,25 @@ export default function marketplaceLensRegistryRoutes(db) {
       })),
       count: lenses.length,
     });
+  });
+
+  /**
+   * GET /api/marketplace-lens-registry/lens/:lensId/full
+   * Full lens spec including marketplace data AND feature specification
+   */
+  router.get("/lens/:lensId/full", (req, res) => {
+    const spec = getFullLensSpec(req.params.lensId);
+    if (!spec) return res.status(404).json({ ok: false, error: "lens_not_found" });
+    res.json({ ok: true, lens: spec });
+  });
+
+  /**
+   * GET /api/marketplace-lens-registry/full-summary
+   * Combined summary: marketplace registry + feature stats
+   */
+  router.get("/full-summary", (_req, res) => {
+    const summary = getFullRegistrySummary();
+    res.json({ ok: true, ...summary });
   });
 
   /**

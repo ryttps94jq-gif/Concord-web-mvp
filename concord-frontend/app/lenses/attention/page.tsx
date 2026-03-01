@@ -9,13 +9,14 @@ import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Eye, Plus, Play, CheckCircle2, Layers, Clock, BarChart3,
   Sliders, Focus, Pause, AlertTriangle, ArrowUpDown,
-  RefreshCw, Activity, Target, Cpu
+  RefreshCw, Activity, Target, Cpu, ChevronDown
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface Thread {
   id: string;
@@ -50,6 +51,7 @@ export default function AttentionLensPage() {
   const [threadFilter, setThreadFilter] = useState<'all' | 'active' | 'pending' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'priority' | 'created' | 'status'>('priority');
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('attention', 'thread');
@@ -565,6 +567,25 @@ export default function AttentionLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="attention" />
+          </div>
+        )}
       </div>
     </div>
   );

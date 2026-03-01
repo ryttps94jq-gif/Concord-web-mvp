@@ -4,7 +4,8 @@ import { useLensNav } from '@/hooks/useLensNav';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLensData } from '@/lib/hooks/use-lens-data';
 import { useState } from 'react';
-import { Target, Trophy, Coins, Clock, Users } from 'lucide-react';
+import { Target, Trophy, Coins, Clock, Users, Layers, ChevronDown } from 'lucide-react';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 import { ErrorState } from '@/components/common/EmptyState';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
@@ -29,6 +30,7 @@ export default function QuestmarketLensPage() {
 
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>('all');
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const { items: questItems, isLoading, isError: isError, error: error, refetch: refetch } = useLensData<Record<string, unknown>>('questmarket', 'quest', { seed: [], status: filter !== 'all' ? filter : undefined });
   const quests = questItems.map(i => ({ id: i.id, title: i.title, ...(i.data || {}) })) as unknown as Quest[];
@@ -207,6 +209,25 @@ export default function QuestmarketLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="questmarket" />
+          </div>
+        )}
       </div>
     </div>
   );

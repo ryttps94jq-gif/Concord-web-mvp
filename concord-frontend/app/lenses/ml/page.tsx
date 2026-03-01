@@ -34,7 +34,8 @@ import {
   Rocket,
   TestTube,
   Beaker,
-  LineChart
+  LineChart,
+  ChevronDown
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useUIStore } from '@/store/ui';
@@ -42,6 +43,7 @@ import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 // Types
 interface Model {
@@ -267,6 +269,7 @@ export default function MLLensPage() {
   const [selectedExperiment, setSelectedExperiment] = useState<Experiment | null>(null);
   const [showNewExperiment, setShowNewExperiment] = useState(false);
   const [playgroundInput, setPlaygroundInput] = useState('');
+  const [showFeatures, setShowFeatures] = useState(false);
   const [playgroundOutput, setPlaygroundOutput] = useState<unknown>(null);
   const [playgroundModel, setPlaygroundModel] = useState<string>('');
 
@@ -1007,6 +1010,25 @@ export default function MLLensPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="ml" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

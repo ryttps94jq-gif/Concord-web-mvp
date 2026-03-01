@@ -9,13 +9,14 @@ import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   Lightbulb, Plus, Search, Database, ArrowRight, Brain,
   Filter, X, RefreshCw, ChevronDown, ChevronRight,
-  Tag, Copy, BarChart3, Network, Eye,
+  Tag, Copy, BarChart3, Network, Eye, Layers,
 } from 'lucide-react';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
+import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
 
 interface Fact {
   id?: string;
@@ -57,6 +58,7 @@ export default function CommonsenseLensPage() {
   const [selectedFact, setSelectedFact] = useState<Fact | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   // --- Lens Bridge ---
   const bridge = useLensBridge('commonsense', 'fact');
@@ -650,6 +652,25 @@ export default function CommonsenseLensPage() {
           compact
         />
       )}
+      </div>
+
+      {/* Lens Features */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFeatures(!showFeatures)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Lens Features & Capabilities
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showFeatures ? 'rotate-180' : ''}`} />
+        </button>
+        {showFeatures && (
+          <div className="px-4 pb-4">
+            <LensFeaturePanel lensId="commonsense" />
+          </div>
+        )}
       </div>
     </div>
   );
