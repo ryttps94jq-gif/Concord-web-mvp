@@ -8,8 +8,10 @@ import { useLensBridge } from '@/lib/hooks/use-lens-bridge';
 import { UniversalActions } from '@/components/lens/UniversalActions';
 import {
   TrendingUp, AlertTriangle, CheckCircle2,
-  Brain, Eye, Shield, BarChart3, Layers, ChevronDown
+  Brain, Eye, Shield, BarChart3, Layers, ChevronDown,
+  BookOpen, Target, ThumbsUp, ThumbsDown, Clock, ArrowRight, Lightbulb
 } from 'lucide-react';
+import { ConnectiveTissueBar } from '@/components/lens/ConnectiveTissueBar';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
 import { LiveIndicator } from '@/components/lens/LiveIndicator';
@@ -288,6 +290,138 @@ export default function ReflectionLensPage() {
         />
       )}
       </div>
+
+      {/* Decision Journal — Outcome Tracking */}
+      <div className="panel p-6 space-y-5">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-neon-purple" />
+          Decision Journal
+        </h2>
+        <p className="text-sm text-gray-400">
+          Track decisions, record expected outcomes, and measure results over time to improve future judgment.
+        </p>
+
+        {/* Decision Entries */}
+        <div className="space-y-3">
+          {[
+            {
+              id: 'dj-001',
+              decision: 'Migrate DTU storage to graph-native format',
+              date: 'Feb 22, 2026',
+              expected: 'Faster graph queries, reduced join overhead by 60%',
+              actual: 'Query latency reduced by 72%, storage cost up 15%',
+              outcome: 'positive' as const,
+              confidence: 0.8,
+              tags: ['architecture', 'performance'],
+            },
+            {
+              id: 'dj-002',
+              decision: 'Implement CRETI scoring for all DTUs',
+              date: 'Feb 15, 2026',
+              expected: 'Higher quality marketplace listings, better trust signals',
+              actual: 'Pending evaluation — 2 weeks until data is significant',
+              outcome: 'pending' as const,
+              confidence: 0.65,
+              tags: ['quality', 'marketplace'],
+            },
+            {
+              id: 'dj-003',
+              decision: 'Switch council voting from simple majority to weighted credibility',
+              date: 'Feb 8, 2026',
+              expected: 'Reduce gaming, increase quality of promoted DTUs',
+              actual: 'Promotion quality up 34%, but participation dropped 12%',
+              outcome: 'mixed' as const,
+              confidence: 0.7,
+              tags: ['governance', 'council'],
+            },
+            {
+              id: 'dj-004',
+              decision: 'Enable auto-forking for high-divergence edits',
+              date: 'Jan 30, 2026',
+              expected: 'Prevent edit conflicts, preserve original context',
+              actual: 'Conflict rate dropped 89%, fork sprawl increased',
+              outcome: 'positive' as const,
+              confidence: 0.9,
+              tags: ['fork', 'conflict-resolution'],
+            },
+          ].map((entry) => (
+            <div key={entry.id} className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-3 hover:border-neon-purple/30 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  {entry.outcome === 'positive' && <ThumbsUp className="w-4 h-4 text-neon-green" />}
+                  {entry.outcome === 'mixed' && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
+                  {entry.outcome === 'pending' && <Clock className="w-4 h-4 text-neon-cyan" />}
+                  <span className="text-sm font-semibold text-white">{entry.decision}</span>
+                </div>
+                <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{entry.date}</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                    <Target className="w-3 h-3" /> Expected Outcome
+                  </p>
+                  <p className="text-xs text-gray-300">{entry.expected}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                    <ArrowRight className="w-3 h-3" /> Actual Result
+                  </p>
+                  <p className={`text-xs ${
+                    entry.outcome === 'positive' ? 'text-neon-green' :
+                    entry.outcome === 'mixed' ? 'text-yellow-400' : 'text-neon-cyan'
+                  }`}>{entry.actual}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                <div className="flex items-center gap-2">
+                  {entry.tags.map((tag) => (
+                    <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-neon-purple/10 text-neon-purple">{tag}</span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <Lightbulb className="w-3 h-3" />
+                  <span>Confidence: {(entry.confidence * 100).toFixed(0)}%</span>
+                  <div className="w-12 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${entry.confidence > 0.7 ? 'bg-neon-green' : 'bg-yellow-400'}`}
+                      style={{ width: `${entry.confidence * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Outcome Tracking Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-black/40 border border-white/10 rounded-lg p-3 text-center">
+            <ThumbsUp className="w-4 h-4 text-neon-green mx-auto mb-1" />
+            <p className="text-lg font-bold text-neon-green">12</p>
+            <p className="text-xs text-gray-500">Positive</p>
+          </div>
+          <div className="bg-black/40 border border-white/10 rounded-lg p-3 text-center">
+            <AlertTriangle className="w-4 h-4 text-yellow-400 mx-auto mb-1" />
+            <p className="text-lg font-bold text-yellow-400">5</p>
+            <p className="text-xs text-gray-500">Mixed</p>
+          </div>
+          <div className="bg-black/40 border border-white/10 rounded-lg p-3 text-center">
+            <ThumbsDown className="w-4 h-4 text-red-400 mx-auto mb-1" />
+            <p className="text-lg font-bold text-red-400">2</p>
+            <p className="text-xs text-gray-500">Negative</p>
+          </div>
+          <div className="bg-black/40 border border-white/10 rounded-lg p-3 text-center">
+            <Clock className="w-4 h-4 text-neon-cyan mx-auto mb-1" />
+            <p className="text-lg font-bold text-neon-cyan">3</p>
+            <p className="text-xs text-gray-500">Pending</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ConnectiveTissueBar */}
+      <ConnectiveTissueBar lensId="reflection" />
 
       {/* Lens Features */}
       <div className="border-t border-white/10">

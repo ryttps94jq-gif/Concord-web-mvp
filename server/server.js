@@ -21427,6 +21427,14 @@ import createLensFeatureRouter from "./routes/lens-features.js";
 import { LENS_FEATURES } from "./lib/lens-features.js";
 app.use("/api/lens-features", createLensFeatureRouter(db, LENS_FEATURES));
 
+// ===== CONNECTIVE TISSUE (economy wiring, DTU pipeline, CRETI, compression, fork, preview, search, emergent/bot auth) =====
+import createConnectiveTissueRouter from "./routes/connective-tissue.js";
+app.use("/api/ct", createConnectiveTissueRouter(db));
+
+// ===== OPENAPI DOCUMENTATION =====
+import createOpenAPIRouter from "./routes/openapi.js";
+app.use("/api", createOpenAPIRouter());
+
 // ===== UNIVERSAL DTU EXPORT + REAL-TIME DATA FEEDS =====
 import createUniversalExportRouter from "./routes/universal-export.js";
 app.use(createUniversalExportRouter(STATE, runMacro, makeCtx));

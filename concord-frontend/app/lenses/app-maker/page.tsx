@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Boxes, Plus, CheckCircle, AlertTriangle, ArrowUp, ArrowDown, Layers, ChevronDown } from 'lucide-react';
+import { Boxes, Plus, CheckCircle, AlertTriangle, ArrowUp, ArrowDown, Layers, ChevronDown, Rocket, Layout, ShoppingCart, Briefcase, UserCircle } from 'lucide-react';
 import { apiHelpers } from '@/lib/api/client';
 import { useUIStore } from '@/store/ui';
 import { useRealtimeLens } from '@/hooks/useRealtimeLens';
@@ -9,6 +9,7 @@ import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
+import { ConnectiveTissueBar } from '@/components/lens/ConnectiveTissueBar';
 
 interface AppEntry {
   id: string;
@@ -29,6 +30,10 @@ export default function AppMakerLens() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('crm');
+  const [appBuildName, setAppBuildName] = useState('');
+  const [deploying, setDeploying] = useState(false);
+  const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'deployed'>('idle');
 
   useEffect(() => {
     loadApps();
@@ -78,6 +83,37 @@ export default function AppMakerLens() {
         alert(`Violations:\n${(data.violations || []).join('\n')}`);
       }
     } catch { /* silent */ }
+  };
+
+  const templates = [
+    { id: 'crm', name: 'Business CRM', icon: Briefcase, description: 'Customer relationship management with contacts, deals, and pipeline tracking' },
+    { id: 'ecommerce', name: 'E-Commerce', icon: ShoppingCart, description: 'Online store with product catalog, cart, and order management' },
+    { id: 'portfolio', name: 'Portfolio', icon: UserCircle, description: 'Personal or agency portfolio with project showcases and testimonials' },
+    { id: 'booking', name: 'Service Booking', icon: Layout, description: 'Appointment scheduling with calendar integration and client management' },
+  ];
+
+  const handleDeploy = async () => {
+    if (!appBuildName.trim()) return;
+    setDeploying(true);
+    setDeployStatus('deploying');
+    try {
+      await apiHelpers.apps.create({
+        name: appBuildName.trim(),
+        primitives: {
+          artifacts: { types: [selectedTemplate], schema: {} },
+          execution: { macros: [] },
+          governance: { council_gated: false },
+        },
+        ui: { lens: 'custom', layout: 'dashboard', panels: [] },
+      });
+      setDeployStatus('deployed');
+      setAppBuildName('');
+      await loadApps();
+    } catch {
+      setDeployStatus('idle');
+    }
+    setDeploying(false);
+    setTimeout(() => setDeployStatus('idle'), 3000);
   };
 
   const statusColor = (status: string) => {
@@ -190,6 +226,118 @@ export default function AppMakerLens() {
         />
       )}
       </div>
+
+      {/* Build Your App */}
+      <div className="panel p-4 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Rocket className="w-4 h-4 text-neon-purple" />
+          Build Your App
+        </h2>
+        <p className="text-sm text-gray-400">
+          Choose a template, name your app, and deploy it directly into the Lattice ecosystem.
+        </p>
+
+        {/* App Name Input */}
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400 uppercase tracking-wider">App Name</label>
+          <input
+            type="text"
+            value={appBuildName}
+            onChange={(e) => setAppBuildName(e.target.value)}
+            placeholder="Enter your app name..."
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-colors"
+          />
+        </div>
+
+        {/* Template Selector */}
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400 uppercase tracking-wider">Template</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {templates.map((tpl) => {
+              const Icon = tpl.icon;
+              const isSelected = selectedTemplate === tpl.id;
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => setSelectedTemplate(tpl.id)}
+                  className={`text-left p-4 rounded-lg border transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-neon-purple/10 border-neon-purple/50 ring-1 ring-neon-purple/30'
+                      : 'bg-black/40 border-white/10 hover:border-white/20 hover:bg-black/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-2 rounded-lg ${isSelected ? 'bg-neon-purple/20' : 'bg-white/5'}`}>
+                      <Icon className={`w-5 h-5 ${isSelected ? 'text-neon-purple' : 'text-gray-400'}`} />
+                    </div>
+                    <span className={`font-medium text-sm ${isSelected ? 'text-neon-purple' : 'text-white'}`}>
+                      {tpl.name}
+                    </span>
+                    {isSelected && (
+                      <CheckCircle className="w-4 h-4 text-neon-purple ml-auto" />
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed pl-12">
+                    {tpl.description}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Template Preview */}
+        <div className="bg-black/40 border border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-gray-400 uppercase tracking-wider">Preview</span>
+            <span className="text-xs text-neon-cyan font-mono">
+              {templates.find(t => t.id === selectedTemplate)?.name}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {['Dashboard', 'Data View', 'Settings'].map((panel) => (
+              <div key={panel} className="bg-white/5 rounded p-2 text-center">
+                <div className="h-8 bg-neon-cyan/5 rounded mb-1" />
+                <span className="text-[10px] text-gray-500">{panel}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <Layers className="w-3 h-3" />
+            <span>Includes: Artifact schema, execution macros, governance rules, UI panels</span>
+          </div>
+        </div>
+
+        {/* Deploy Button */}
+        <button
+          onClick={handleDeploy}
+          disabled={deploying || !appBuildName.trim()}
+          className={`w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all duration-200 ${
+            deployStatus === 'deployed'
+              ? 'bg-neon-green/20 border border-neon-green/50 text-neon-green'
+              : 'bg-neon-purple/10 border border-neon-purple/30 text-neon-purple hover:bg-neon-purple/20 disabled:opacity-50 disabled:cursor-not-allowed'
+          }`}
+        >
+          {deployStatus === 'deploying' ? (
+            <>
+              <div className="w-4 h-4 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
+              Deploying...
+            </>
+          ) : deployStatus === 'deployed' ? (
+            <>
+              <CheckCircle className="w-4 h-4" />
+              Deployed Successfully!
+            </>
+          ) : (
+            <>
+              <Rocket className="w-4 h-4" />
+              Deploy App
+            </>
+          )}
+        </button>
+      </div>
+
+      <ConnectiveTissueBar lensId="app_maker" />
 
       {/* Lens Features */}
       <div className="border-t border-white/10">
