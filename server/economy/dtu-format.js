@@ -509,7 +509,8 @@ export function registerDTUExport(db, {
       fileRecord: { id, dtuId, exportId, fileHash, signature, totalSize, exportedAt: now },
     };
   } catch (err) {
-    return { ok: false, error: "registration_failed", detail: err.message };
+    console.error("[economy] registration_failed:", err.message);
+    return { ok: false, error: "registration_failed" };
   }
 }
 
@@ -610,7 +611,8 @@ export function reimportDTU(db, { buffer, importedBy, source }) {
       dtu: decoded,
     };
   } catch (err) {
-    return { ok: false, error: "reimport_failed", detail: err.message };
+    console.error("[economy] reimport_failed:", err.message);
+    return { ok: false, error: "reimport_failed" };
   }
 }
 

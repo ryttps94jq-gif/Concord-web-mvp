@@ -41,7 +41,7 @@ function buildCspHeader(nonce: string): string {
     "font-src 'self' data:",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
-    "frame-src 'none'",
+    "frame-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
   ].join('; ');

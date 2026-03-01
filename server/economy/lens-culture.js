@@ -106,7 +106,8 @@ export function postCultureDTU(db, {
       },
     };
   } catch (err) {
-    return { ok: false, error: "post_failed", detail: err.message };
+    console.error("[economy] post_failed:", err.message);
+    return { ok: false, error: "post_failed" };
   }
 }
 
@@ -230,7 +231,8 @@ export function resonateCulture(db, { userId, dtuId }) {
     if (err.message.includes("UNIQUE") || err.message.includes("PRIMARY KEY")) {
       return { ok: false, error: "already_resonated" };
     }
-    return { ok: false, error: "resonance_failed", detail: err.message };
+    console.error("[economy] resonance_failed:", err.message);
+    return { ok: false, error: "resonance_failed" };
   }
 }
 
@@ -273,7 +275,8 @@ export function reflectOnCulture(db, { userId, dtuId, body, media }) {
       reflectionCount: updated.reflection_count,
     };
   } catch (err) {
-    return { ok: false, error: "reflection_failed", detail: err.message };
+    console.error("[economy] reflection_failed:", err.message);
+    return { ok: false, error: "reflection_failed" };
   }
 }
 
@@ -347,7 +350,8 @@ export function setLensProtection(db, { artifactId, lensId, protectionMode, crea
 
     return { ok: true, artifactId, lensId, protectionMode, isOverride };
   } catch (err) {
-    return { ok: false, error: "set_protection_failed", detail: err.message };
+    console.error("[economy] set_protection_failed:", err.message);
+    return { ok: false, error: "set_protection_failed" };
   }
 }
 
@@ -599,7 +603,8 @@ export function recordBiomonitorReading(db, {
       concordAction: SOVEREIGN_BIOMONITOR.alertLevels[alertLevel].concordAction || "none",
     };
   } catch (err) {
-    return { ok: false, error: "reading_failed", detail: err.message };
+    console.error("[economy] reading_failed:", err.message);
+    return { ok: false, error: "reading_failed" };
   }
 }
 
@@ -788,7 +793,8 @@ export function initGreatMerge(db, { launchDate }) {
 
     return { ok: true, launchDate, mergeDate: mergeDateISO, status: "countdown" };
   } catch (err) {
-    return { ok: false, error: "init_failed", detail: err.message };
+    console.error("[economy] init_failed:", err.message);
+    return { ok: false, error: "init_failed" };
   }
 }
 
@@ -886,7 +892,8 @@ export function advanceMergePhase(db, { targetPhase }) {
       },
     };
   } catch (err) {
-    return { ok: false, error: "advance_failed", detail: err.message };
+    console.error("[economy] advance_failed:", err.message);
+    return { ok: false, error: "advance_failed" };
   }
 }
 
@@ -966,7 +973,8 @@ export function registerLens(db, {
     if (err.message.includes("UNIQUE")) {
       return { ok: false, error: "lens_name_exists" };
     }
-    return { ok: false, error: "registration_failed", detail: err.message };
+    console.error("[economy] registration_failed:", err.message);
+    return { ok: false, error: "registration_failed" };
   }
 }
 

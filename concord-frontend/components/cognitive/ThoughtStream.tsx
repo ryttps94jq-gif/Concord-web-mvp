@@ -16,8 +16,7 @@ import {
   RefreshCw,
   ChevronRight
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatRelativeTime } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 
 type EventType = 'create' | 'update' | 'connect' | 'synthesis' | 'ai' | 'alert' | 'consolidate';
 

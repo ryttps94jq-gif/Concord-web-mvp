@@ -23,7 +23,10 @@ interface PipelineProgressProps {
   description: string;
   steps: PipelineStep[];
   onComplete?: (data: { status: string; dtuIds: string[] }) => void;
-  socket?: { on: (event: string, handler: (data: unknown) => void) => void };
+  socket?: {
+    on: (event: string, handler: (data: unknown) => void) => void;
+    off: (event: string, handler: (data: unknown) => void) => void;
+  };
 }
 
 export function PipelineProgress({
@@ -60,6 +63,12 @@ export function PipelineProgress({
     socket.on('pipeline:step_started', handleStepStarted);
     socket.on('pipeline:step_completed', handleStepCompleted);
     socket.on('pipeline:completed', handleCompleted);
+
+    return () => {
+      socket.off('pipeline:step_started', handleStepStarted);
+      socket.off('pipeline:step_completed', handleStepCompleted);
+      socket.off('pipeline:completed', handleCompleted);
+    };
   }, [socket, executionId, onComplete]);
 
   return (

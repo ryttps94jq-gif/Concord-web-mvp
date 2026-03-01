@@ -56,7 +56,6 @@ import {
   ConnectPanel,
   ChatPanel,
   ModeSelector,
-  MessageActions,
   ResponseActions,
   CrossLensMemoryBar,
   ProactiveChip,

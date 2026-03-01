@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSocket } from './useSocket';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -67,7 +67,7 @@ export function useRealtimeLens(domain: string): UseRealtimeLensResult {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const alertIdCounter = useRef(0);
 
-  const events = DOMAIN_EVENTS[domain] || [`${domain}:update`];
+  const events = useMemo(() => DOMAIN_EVENTS[domain] || [`${domain}:update`], [domain]);
 
   useEffect(() => {
     if (!socket || !isConnected) return;

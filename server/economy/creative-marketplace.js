@@ -145,7 +145,8 @@ export function publishArtifact(db, {
       },
     };
   } catch (err) {
-    return { ok: false, error: "publish_failed", detail: err.message };
+    console.error("[economy] publish_failed:", err.message);
+    return { ok: false, error: "publish_failed" };
   }
 }
 
@@ -472,7 +473,8 @@ export function purchaseArtifact(db, { buyerId, artifactId, requestId, ip }) {
       batchId,
     };
   } catch (err) {
-    return { ok: false, error: "purchase_failed", detail: err.message };
+    console.error("[economy] purchase_failed:", err.message);
+    return { ok: false, error: "purchase_failed" };
   }
 }
 

@@ -119,7 +119,8 @@ export function createDTU(db, {
       },
     };
   } catch (err) {
-    return { ok: false, error: "dtu_creation_failed", detail: err.message };
+    console.error("[economy] dtu_creation_failed:", err.message);
+    return { ok: false, error: "dtu_creation_failed" };
   }
 }
 
@@ -145,7 +146,8 @@ export function listDTU(db, { dtuId, sellerId, price, licenseType = "standard" }
     awardMeritCredit(db, sellerId, "dtu_listed", 2, { dtuId });
     return { ok: true, listing: { dtuId, price, licenseType, status: "ACTIVE" } };
   } catch (err) {
-    return { ok: false, error: "listing_failed", detail: err.message };
+    console.error("[economy] listing_failed:", err.message);
+    return { ok: false, error: "listing_failed" };
   }
 }
 

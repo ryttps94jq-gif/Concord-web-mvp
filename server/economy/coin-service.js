@@ -71,7 +71,8 @@ export function mintCoins(db, { amount, userId, refId, requestId, ip }) {
       },
     };
   } catch (err) {
-    return { ok: false, error: "mint_failed", detail: err.message };
+    console.error("[economy] mint_failed:", err.message);
+    return { ok: false, error: "mint_failed" };
   }
 }
 
@@ -132,7 +133,8 @@ export function burnCoins(db, { amount, userId, refId, requestId, ip }) {
       const parts = err.message.split(":");
       return { ok: false, error: "treasury_insufficient", available: Number(parts[1]), requested: Number(parts[2]) };
     }
-    return { ok: false, error: "burn_failed", detail: err.message };
+    console.error("[economy] burn_failed:", err.message);
+    return { ok: false, error: "burn_failed" };
   }
 }
 
