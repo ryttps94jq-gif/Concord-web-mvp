@@ -87,6 +87,12 @@ import { selectSubconsciousTask, checkSpontaneousTrigger, generateWantFromIntera
 import { enqueueMessage, processQueue as processSpQueue, getQueueStatus, setUserSpontaneousEnabled, startTicker, stopTicker } from "./prompts/spontaneous-queue.js";
 import { checkSpontaneousContent } from "./prompts/spontaneous.js";
 
+// ── Chat Router + Forge Pipeline ─────────────────────────────────────────
+import { routeMessage as chatRouterRoute, buildLensChain, emitResonanceSignal, shouldOfferForge, detectEmergentRoute, recordRouteMetric, getRouterMetrics, ACTION_TYPES as CHAT_ACTION_TYPES } from "./lib/chat-router.js";
+import { initializeManifests, getManifestStats, registerUserLens, registerEmergentLens } from "./lib/lens-manifest.js";
+import { accumulate as accumulateSessionContext, getContextSnapshot, getAccumulatorMetrics, cleanupExpiredSessions as cleanupAccumulatorSessions } from "./lib/session-context-accumulator.js";
+import { detectForge, runForgePipeline, saveForgedDTU, deleteForgedDTU, saveAndList, iterateForge, recordForgeMetric, getForgeMetrics, recordEmergentContribution } from "./lib/inline-dtu-forge.js";
+
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
   CLASSIFICATIONS, computeSubstrateStats, migrateClassifications, applyClassification, isPublicDTU,
@@ -15568,6 +15574,45 @@ if (_isWeatherQuery(prompt)) {
 
 const intentInfo = classifyIntent(prompt);
 
+  // ── Chat Router: classify action type + resolve lens chain ──────────
+  let _chatRoute = null;
+  let _forgeDetection = null;
+  let _lensChain = null;
+  try {
+    const _sessionContext = getContextSnapshot(sessionId);
+    _chatRoute = chatRouterRoute(prompt, {
+      sessionContext: _sessionContext,
+      userId: ctx?.actor?.userId,
+      currentLens: currentLens || sess_pre.currentLens,
+      STATE,
+    });
+    if (_chatRoute.ok) {
+      recordRouteMetric(_chatRoute);
+
+      // Accumulate session context for compounding
+      accumulateSessionContext(sessionId, _chatRoute, prompt);
+
+      // Build lens chain for multi-lens synthesis
+      _lensChain = buildLensChain(_chatRoute, STATE);
+
+      // Check for forge-worthy request (artifact creation)
+      _forgeDetection = detectForge(prompt, _chatRoute.actionType);
+
+      // Emit resonance signal for cross-domain connections
+      if (_chatRoute.isMultiLens) {
+        emitResonanceSignal(_chatRoute, STATE);
+      }
+
+      // Check for emergent routing ("ask the legal emergent to review this")
+      const _emergentRoute = detectEmergentRoute(prompt, STATE);
+      if (_emergentRoute.routed) {
+        _chatRoute._emergentTarget = _emergentRoute;
+      }
+    }
+  } catch (_routerErr) {
+    // Chat router is supplementary — never block the chat path
+  }
+
   // Identity answers are declarative: Concord refers to itself.
   if (_mentionsSelf || intentInfo.intent === INTENT.IDENTITY) {
     const base = SYSTEM_IDENTITY.short;
@@ -16214,8 +16259,108 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     } catch {}
   }
 
-  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })), grc: _grcOutput };
-}, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement. Outputs GRC v1 envelope." });
+  // ── Chat Router + Forge Pipeline Integration ──────────────────────────
+  // Attach route metadata to the response for the frontend to render
+  // lens attribution, forge cards, and action confirmation UI.
+  let _forgeResult = null;
+  let _routeMeta = null;
+  try {
+    if (_chatRoute?.ok) {
+      _routeMeta = {
+        actionType: _chatRoute.actionType,
+        lenses: (_chatRoute.lenses || []).slice(0, 5).map(l => ({ lensId: l.lensId, score: l.score })),
+        primaryLens: _chatRoute.primaryLens?.lensId || null,
+        isMultiLens: _chatRoute.isMultiLens,
+        confidence: _chatRoute.confidence,
+        attribution: _lensChain?.attribution || [],
+        message: _lensChain?.message || _chatRoute.message || null,
+      };
+
+      // Forge pipeline: if the request produced a deliverable artifact
+      if (_forgeDetection?.shouldForge && finalReply) {
+        _forgeResult = runForgePipeline({
+          message: prompt,
+          route: _chatRoute,
+          generatedContent: finalReply,
+          title: null, // auto-derived from message
+          userId: ctx?.actor?.userId,
+          STATE,
+        });
+        if (_forgeResult?.ok) {
+          recordForgeMetric("forgeCount", _forgeResult.presentation?.format);
+          // Offer forge promotion
+          _forgeResult._offerForge = shouldOfferForge(_chatRoute, { reply: finalReply });
+        }
+      }
+    }
+  } catch (_forgeErr) {
+    // Forge is supplementary — never block the chat path
+  }
+
+  return {
+    ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed,
+    relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })),
+    grc: _grcOutput,
+    route: _routeMeta,
+    forge: _forgeResult ? {
+      dtu: _forgeResult.dtu,
+      presentation: _forgeResult.presentation,
+      actions: _forgeResult.actions,
+      isMultiArtifact: _forgeResult.isMultiArtifact,
+      offerForge: _forgeResult._offerForge?.shouldOfferForge || false,
+    } : null,
+  };
+}, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
+
+// ===== FORGE ARTIFACT ACTIONS =====
+// Save, delete, list, and iterate on forged DTUs from the chat pipeline.
+
+register("chat", "forge.save", (ctx, input) => {
+  const dtu = input.dtu;
+  if (!dtu?.id) return { ok: false, error: "dtu required" };
+  const result = saveForgedDTU(STATE, dtu);
+  if (result.ok) recordForgeMetric("saveCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Save a forged artifact to the user's substrate." });
+
+register("chat", "forge.delete", (ctx, input) => {
+  const dtuId = input.dtuId || input.id;
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  const result = deleteForgedDTU(STATE, dtuId);
+  if (result.ok) recordForgeMetric("deleteCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Delete a forged artifact completely. No tombstone. No trace." });
+
+register("chat", "forge.list", (ctx, input) => {
+  const dtu = input.dtu;
+  if (!dtu?.id) return { ok: false, error: "dtu required" };
+  const result = saveAndList(STATE, dtu, { price: input.price || null });
+  if (result.ok) recordForgeMetric("listCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Save and immediately list a forged artifact on the marketplace." });
+
+register("chat", "forge.iterate", (ctx, input) => {
+  const existingDtu = input.dtu;
+  const editInstruction = String(input.instruction || input.edit || "");
+  const newContent = String(input.content || "");
+  if (!existingDtu?.id || !newContent) return { ok: false, error: "dtu and content required" };
+  const result = iterateForge(existingDtu, editInstruction, newContent, !!input.alreadySaved);
+  recordForgeMetric("iterationCount");
+  saveStateDebounced();
+  return { ok: true, dtu: result };
+}, { description: "Iterate on an existing forged artifact with edits." });
+
+register("chat", "route.metrics", (ctx, input) => {
+  return {
+    ok: true,
+    router: getRouterMetrics(),
+    forge: getForgeMetrics(),
+    accumulator: getAccumulatorMetrics(),
+  };
+}, { description: "Get chat router, forge, and session accumulator metrics." });
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -22181,6 +22326,11 @@ async function governorTick(reason="heartbeat") {
             try { questMod.getActiveQuests(); } catch {}
           }
         }
+      }
+
+      // 2.9 — Chat Router Session Cleanup — every 100th tick
+      if (_tick % 100 === 0) {
+        try { cleanupAccumulatorSessions(); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -28759,6 +28909,17 @@ function registerDomainSpecificActions() {
   });
 }
 registerDomainSpecificActions();
+
+// ── Initialize Lens Manifest Registry (Chat Router) ──────────────────────────
+try {
+  const manifestResult = initializeManifests(ALL_LENS_DOMAINS, DOMAIN_ACTION_MANIFEST);
+  structuredLog("info", "lens_manifests_initialized", {
+    registered: manifestResult.registered,
+    stats: getManifestStats(),
+  });
+} catch (e) {
+  structuredLog("warn", "lens_manifests_init_failed", { error: e?.message });
+}
 
 structuredLog("info", "lens_runtime_loaded", { domainEngines: 24, superLensDomains: domainModules.length, totalActions: LENS_ACTIONS.size });
 

@@ -212,6 +212,57 @@ export default function registerChatRoutes(app, {
     }
   });
 
+  // ── Forge Artifact Actions ────────────────────────────────────────────
+  // POST /api/chat/forge/save — Save forged DTU to substrate
+  app.post("/api/chat/forge/save", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "forge.save", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // POST /api/chat/forge/delete — Delete forged DTU completely
+  app.post("/api/chat/forge/delete", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "forge.delete", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // POST /api/chat/forge/list — Save and list on marketplace
+  app.post("/api/chat/forge/list", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "forge.list", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // POST /api/chat/forge/iterate — Iterate on existing forged artifact
+  app.post("/api/chat/forge/iterate", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "forge.iterate", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // GET /api/chat/route/metrics — Chat router, forge, and accumulator metrics
+  app.get("/api/chat/route/metrics", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "route.metrics", {}, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
   app.post("/api/ask", asyncHandler(async (req, res) => {
     const errorId = uid("err");
     try {
