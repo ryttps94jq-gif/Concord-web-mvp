@@ -70,6 +70,7 @@ import createQualiaRouter from "./routes/qualia.js";
 import createSovereignRouter from "./routes/sovereign.js";
 import createSovereignEmergentRouter from "./routes/sovereign-emergent.js";
 import createFederationRouter from "./routes/federation.js";
+import registerOAuthRoutes from "./routes/oauth.js";
 import { QualiaEngine, hooks as qualiaHooks } from "./existential/index.js";
 import { rateLimitMiddleware as perEndpointRateLimit } from "./rateLimit.js";
 import { detectVulnerability, chooseDeliveryMode, hookVulnerability, assessAndAdapt } from "./emergent/vulnerability-engine.js";
@@ -4052,7 +4053,7 @@ function csrfMiddleware(req, res, next) {
   if (safeMethods.includes(req.method)) return next();
 
   // Skip for public endpoints and core API paths (chat, lens operations)
-  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/health", "/ready", "/api/chat", "/api/lens"];
+  const csrfExempt = ["/api/auth/login", "/api/auth/register", "/api/auth/google", "/api/auth/apple", "/health", "/ready", "/api/chat", "/api/lens"];
   if (csrfExempt.some(p => req.path.startsWith(p))) return next();
 
   // In AUTH_MODE=public, skip CSRF — anonymous users have no session to protect
@@ -4161,7 +4162,7 @@ function authMiddleware(req, res, next) {
   if (AUTH_MODE === "public") return next();
 
   // Skip auth for always-public endpoints (any method)
-  const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
+  const alwaysPublic = ["/health", "/ready", "/metrics", "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/csrf-token", "/api/auth/google", "/api/auth/apple", "/api/auth/providers", "/api/docs", "/api/status", "/api/chat", "/api/brain/conscious"];
   if (alwaysPublic.some(p => req.path.startsWith(p))) return next();
 
   // Sovereign-only route protection
@@ -20208,6 +20209,21 @@ app.use("/api/auth", createAuthRouter({
   structuredLog,
   saveAuthData
 }));
+
+// ---- OAuth Endpoints (Google & Apple Sign-In) ----
+registerOAuthRoutes(app, {
+  db,
+  AuthDB,
+  uid,
+  createToken,
+  createRefreshToken,
+  setAuthCookie,
+  setRefreshCookie,
+  auditLog,
+  structuredLog,
+  jwt,
+  _REFRESH_FAMILIES,
+});
 
 // Backup endpoints extracted to routes/system.js
 
