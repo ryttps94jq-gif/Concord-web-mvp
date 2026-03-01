@@ -13,6 +13,7 @@ import { ActivityTimeline } from '@/components/common/ActivityTimeline';
 import DomainAssistant from '@/components/common/DomainAssistant';
 import { CrossDomainConnections } from '@/components/common/CrossDomainConnections';
 import { BrainMonitor } from '@/components/common/BrainMonitor';
+import { SkeletonCard } from '@/components/common/Skeleton';
 import {
   isCoreLens,
   getParentCoreLens,
@@ -84,9 +85,19 @@ function UniversalLensFeatures({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Main lens content */}
+      {/* Main lens content — per-lens Suspense boundary */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {children}
+        <Suspense
+          fallback={
+            <div className="space-y-4 p-6">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          }
+        >
+          {children}
+        </Suspense>
       </div>
 
       {/* Bottom: Activity Timeline */}
@@ -124,11 +135,10 @@ export default function LensLayout({ children }: { children: React.ReactNode }) 
         <RepairBoundary lens={lensName}>
           <Suspense
             fallback={
-              <div className="flex-1 flex items-center justify-center p-8">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-10 h-10 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-400">Loading lens...</p>
-                </div>
+              <div className="space-y-4 p-6">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </div>
             }
           >

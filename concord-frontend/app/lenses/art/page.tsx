@@ -42,6 +42,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
+import type { DTU } from '@/lib/api/generated-types';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { LensWrapper } from '@/components/lens/LensWrapper';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
@@ -145,7 +146,7 @@ export default function ArtLensPage() {
     isLoading: dtusLoading, refetch: refetchDTUs,
   } = useLensDTUs({ lens: 'art' });
 
-  const imageArtifacts = contextDTUs.filter((d: any) => d.artifact?.type?.startsWith('image/'));
+  const imageArtifacts = contextDTUs.filter((d: DTU) => d.artifact?.type?.startsWith('image/'));
 
   const uploadMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => apiHelpers.artistry.assets.create(data as { type: string; title?: string; description?: string; tags?: string[]; genre?: string; bpm?: number; key?: string; ownerId?: string; metadata?: Record<string, unknown> }),
@@ -650,7 +651,7 @@ export default function ArtLensPage() {
               <section className="px-6 pb-6 space-y-4">
                 <h2 className="text-lg font-bold">Image Artifacts</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {imageArtifacts.slice(0, 8).map((dtu: any) => (
+                  {imageArtifacts.slice(0, 8).map((dtu: DTU) => (
                     <div key={dtu.id} className="rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-neon-pink/30 transition-colors">
                       <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
                       <div className="p-3">

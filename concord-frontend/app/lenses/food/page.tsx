@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useRunArtifact } from '@/lib/hooks/use-lens-artifacts';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
+import type { DTU } from '@/lib/api/generated-types';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
@@ -294,7 +295,7 @@ export default function FoodLensPage() {
     refetch: refetchDTUs,
   } = useLensDTUs({ lens: 'food' });
 
-  const foodArtifacts = foodDTUs.filter((d: any) => d.artifact);
+  const foodArtifacts = foodDTUs.filter((d: DTU) => d.artifact);
 
   // Additional hooks for cross-tab data
   const { items: allRecipes } = useLensData<FoodArtifact>('food', 'Recipe', { noSeed: true });
@@ -2538,7 +2539,7 @@ export default function FoodLensPage() {
             {foodArtifacts.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-gray-400 uppercase">Food Artifacts</h4>
-                {foodArtifacts.slice(0, 3).map((dtu: any) => (
+                {foodArtifacts.slice(0, 3).map((dtu: DTU) => (
                   <div key={dtu.id} className="p-2 rounded bg-lattice-elevated/50 border border-lattice-border">
                     <p className="text-xs font-medium truncate mb-1">{dtu.title || 'Untitled'}</p>
                     <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />

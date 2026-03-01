@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import {
@@ -159,7 +159,7 @@ export function Achievements({
   );
 }
 
-function AchievementCard({ achievement }: { achievement: Achievement }) {
+const AchievementCard = React.memo(function AchievementCard({ achievement }: { achievement: Achievement }) {
   const Icon = achievement.icon;
   const rarity = rarityConfig[achievement.rarity];
   const isUnlocked = !!achievement.unlockedAt;
@@ -236,7 +236,7 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
       </div>
     </motion.div>
   );
-}
+});
 
 // Achievement unlock notification
 interface AchievementNotificationProps {

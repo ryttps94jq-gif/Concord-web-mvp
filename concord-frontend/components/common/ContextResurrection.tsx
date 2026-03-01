@@ -81,6 +81,7 @@ export function ContextResurrection() {
       {/* Dismiss button */}
       <button
         onClick={handleDismiss}
+        aria-label="Dismiss welcome message"
         className="absolute top-3 right-3 p-1 text-gray-500 hover:text-white rounded transition-colors"
       >
         <X className="w-4 h-4" />

@@ -375,6 +375,7 @@ export function PersistentChatRail({
             onClick={handleNewConversation}
             className="p-1.5 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
             title="New conversation"
+            aria-label="New conversation"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -382,6 +383,8 @@ export function PersistentChatRail({
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1.5 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
             title={isExpanded ? 'Collapse' : 'Expand'}
+            aria-label={isExpanded ? 'Collapse chat panel' : 'Expand chat panel'}
+            aria-expanded={isExpanded}
           >
             {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -389,6 +392,7 @@ export function PersistentChatRail({
             onClick={onToggle}
             className="p-1.5 rounded-lg hover:bg-lattice-elevated text-gray-400 hover:text-white transition-colors"
             title="Close chat"
+            aria-label="Close chat"
           >
             <X className="w-4 h-4" />
           </button>
@@ -628,6 +632,7 @@ export function PersistentChatRail({
           <button
             type="submit"
             disabled={!inputValue.trim() || chatStatus !== 'idle'}
+            aria-label={chatStatus !== 'idle' ? 'Sending message' : 'Send message'}
             className="p-2 rounded-lg bg-neon-blue/20 text-neon-blue
               hover:bg-neon-blue/30 disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors"

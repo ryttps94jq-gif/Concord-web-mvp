@@ -23,13 +23,14 @@ import {
   registerEmergent, registerBot, authenticateBot,
   checkLensAccess, listEntities,
 } from "../economy/emergent-auth.js";
+import { validateBody, tipSchema, bountyCreateSchema, bountyClaimSchema, purchaseSchema } from "../lib/validators/mutation-schemas.js";
 
 export default function connectiveTissueRoutes(db) {
   const router = Router();
 
   // ── TIPPING ────────────────────────────────────────────────────────
 
-  router.post("/tip", (req, res) => {
+  router.post("/tip", validateBody(tipSchema), (req, res) => {
     const { tipperId, creatorId, contentId, contentType, lensId, amount } = req.body;
     const result = tipContent(db, {
       tipperId, creatorId, contentId, contentType, lensId, amount,
@@ -40,7 +41,7 @@ export default function connectiveTissueRoutes(db) {
 
   // ── BOUNTIES ───────────────────────────────────────────────────────
 
-  router.post("/bounties", (req, res) => {
+  router.post("/bounties", validateBody(bountyCreateSchema), (req, res) => {
     const { posterId, title, description, lensId, amount, tags, expiresAt } = req.body;
     const result = postBounty(db, {
       posterId, title, description, lensId, amount, tags, expiresAt,
@@ -49,7 +50,7 @@ export default function connectiveTissueRoutes(db) {
     res.json(result);
   });
 
-  router.post("/bounties/:bountyId/claim", (req, res) => {
+  router.post("/bounties/:bountyId/claim", validateBody(bountyClaimSchema), (req, res) => {
     const { claimerId, posterId, solutionDtuId } = req.body;
     const result = claimBounty(db, {
       bountyId: req.params.bountyId, claimerId, posterId, solutionDtuId,
@@ -95,7 +96,7 @@ export default function connectiveTissueRoutes(db) {
     res.json(result);
   });
 
-  router.post("/dtu/purchase", (req, res) => {
+  router.post("/dtu/purchase", validateBody(purchaseSchema), (req, res) => {
     const { buyerId, dtuId, sellerId, amount, lensId } = req.body;
     const result = purchaseDTU(db, {
       buyerId, dtuId, sellerId, amount, lensId,

@@ -5,6 +5,9 @@
  *         abstraction, queues, auth/keys, orgs, research
  * Registered directly on app (mixed prefixes)
  */
+import { asyncHandler } from "../lib/async-handler.js";
+import { validateBody, ingestUrlSchema, ingestTextSchema, ingestSchema, ingestSubmitSchema, researchRunSchema, harnessRunSchema, apiKeyCreateSchema } from "../lib/validators/mutation-schemas.js";
+
 export default function registerOperationRoutes(app, {
   STATE,
   makeCtx,
@@ -61,7 +64,7 @@ export default function registerOperationRoutes(app, {
     res.json({ ok:true, growth: STATE.growth });
   });
 
-  app.get("/api/lattice/beacon", async (req, res) => {
+  app.get("/api/lattice/beacon", asyncHandler(async (req, res) => {
     try{
       const ctx = makeCtx(req);
       const out = await ctx.macro.run("lattice", "beacon", { threshold: req.query.threshold });
@@ -69,9 +72,9 @@ export default function registerOperationRoutes(app, {
     } catch(e){
       res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
     }
-  });
+  }));
 
-  app.post("/api/harness/run", async (req, res) => {
+  app.post("/api/harness/run", validateBody(harnessRunSchema), asyncHandler(async (req, res) => {
     try{
       const ctx = makeCtx(req);
       const out = await ctx.macro.run("harness", "run", req.body || {});
@@ -79,27 +82,27 @@ export default function registerOperationRoutes(app, {
     } catch(e){
       res.status(500).json({ ok:false, error:String(e?.message||e), meta: e?.meta || null });
     }
-  });
+  }));
 
   // === v3 identity/account + global + marketplace + ingest endpoints (explicit HTTP surface) ===
   // These wrap existing macro domains so frontend can wire cleanly without calling /api/macros/run directly.
 
-  app.post("/api/auth/keys", async (req,res) => {
+  app.post("/api/auth/keys", validateBody(apiKeyCreateSchema), asyncHandler(async (req,res) => {
     try {
       const input = req.body || {};
       return res.json(await runMacro("auth","createApiKey", input, makeCtx(req)));
     } catch (e) {
       return res.status(500).json({ ok:false, error:String(e?.message||e) });
     }
-  });
+  }));
 
-  app.post("/api/orgs", async (req,res) => {
+  app.post("/api/orgs", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("org","create", req.body||{}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
   // --- Research (engine dispatcher) ---
-  app.post("/api/research/run", async (req,res) => {
+  app.post("/api/research/run", validateBody(researchRunSchema), asyncHandler(async (req,res) => {
     try {
       const engine = String(req.body?.engine || "math.exec");
       const input = req.body?.input ?? req.body ?? {};
@@ -107,10 +110,10 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok:false, error:String(e?.message||e) });
     }
-  });
+  }));
 
   // --- Ingest (URL/text) ---
-  app.post("/api/ingest/url", async (req,res) => {
+  app.post("/api/ingest/url", validateBody(ingestUrlSchema), asyncHandler(async (req,res) => {
     try {
       const url = String(req.body?.url||"").trim();
       if (!url) return res.status(400).json({ ok:false, error:"url required" });
@@ -119,9 +122,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok:false, error:String(e?.message||e) });
     }
-  });
+  }));
 
-  app.post("/api/ingest/text", (req,res) => {
+  app.post("/api/ingest/text", validateBody(ingestTextSchema), (req,res) => {
     try {
       const text = String(req.body?.text||"").trim();
       const title = String(req.body?.title||"").trim();
@@ -138,7 +141,7 @@ export default function registerOperationRoutes(app, {
   });
 
   // Unified ingest endpoint (handles both text and URL based on input)
-  app.post("/api/ingest", async (req, res) => {
+  app.post("/api/ingest", validateBody(ingestSchema), asyncHandler(async (req, res) => {
     try {
       const { text, url, title, tags, makeGlobal, declaredSourceType } = req.body || {};
 
@@ -178,7 +181,7 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
   // Queue-based ingest (adds to processing queue)
   app.post("/api/ingest/queue", (req, res) => {
@@ -209,7 +212,7 @@ export default function registerOperationRoutes(app, {
   // These wire to ingest-engine.js for the full pipeline:
   // URL → tier check → domain validation → fetch → extract → dedup → HLR → council gate → DTU
 
-  app.post("/api/ingest/submit", async (req, res) => {
+  app.post("/api/ingest/submit", validateBody(ingestSubmitSchema), asyncHandler(async (req, res) => {
     try {
       const url = String(req.body?.url || "").trim();
       if (!url) return res.status(400).json({ ok: false, error: "url required" });
@@ -228,9 +231,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.get("/api/ingest/status/:id", async (req, res) => {
+  app.get("/api/ingest/status/:id", asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod?.getIngestStatus) return res.status(501).json({ ok: false, error: "Ingest engine not available" });
@@ -240,9 +243,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.get("/api/ingest/queue", async (req, res) => {
+  app.get("/api/ingest/queue", asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod?.getQueue) return res.json({ ok: true, queue: [], total: 0 });
@@ -256,9 +259,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.get("/api/ingest/history", async (req, res) => {
+  app.get("/api/ingest/history", asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod?.getIngestMetrics) return res.json({ ok: true, history: [], metrics: {} });
@@ -267,9 +270,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.get("/api/ingest/stats", async (req, res) => {
+  app.get("/api/ingest/stats", asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod?.getIngestStats) return res.json({ ok: true, stats: {} });
@@ -278,9 +281,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.get("/api/ingest/allowlist", async (req, res) => {
+  app.get("/api/ingest/allowlist", asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod?.getAllowlist) return res.json({ ok: true, allowlist: [] });
@@ -288,9 +291,9 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
-  app.post("/api/ingest/allowlist", requireRole("owner", "admin", "founder"), async (req, res) => {
+  app.post("/api/ingest/allowlist", requireRole("owner", "admin", "founder"), asyncHandler(async (req, res) => {
     try {
       const mod = await import("../emergent/ingest-engine.js").catch(() => null);
       if (!mod) return res.status(501).json({ ok: false, error: "Ingest engine not available" });
@@ -306,7 +309,7 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
   // Jobs status endpoint
   app.get("/api/jobs/status", (req, res) => {
@@ -361,15 +364,15 @@ export default function registerOperationRoutes(app, {
   });
 
   // --- Global simulation / publish (explicit) ---
-  app.post("/api/global/propose", async (req,res) => {
+  app.post("/api/global/propose", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("global","propose", req.body||{}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
-  app.post("/api/global/publish", async (req,res) => {
+  app.post("/api/global/publish", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("global","publish", req.body||{}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
   app.get("/api/global/index", (req,res) => {
     try {
@@ -386,77 +389,77 @@ export default function registerOperationRoutes(app, {
   });
 
   // --- Marketplace simulation (explicit) ---
-  app.post("/api/market/listing", async (req,res) => {
+  app.post("/api/market/listing", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("market","listingCreate", req.body||{}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
-  app.get("/api/market/listings", async (req,res) => {
+  app.get("/api/market/listings", asyncHandler(async (req,res) => {
     try {
       const input = { limit: Number(req.query?.limit||50), offset: Number(req.query?.offset||0) };
       return res.json(await runMacro("market","list", input, makeCtx(req)));
     } catch (e) {
       return res.status(500).json({ ok:false, error:String(e?.message||e) });
     }
-  });
+  }));
 
-  app.post("/api/market/buy", async (req,res) => {
+  app.post("/api/market/buy", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("market","buy", req.body||{}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
-  app.get("/api/market/library", async (req,res) => {
+  app.get("/api/market/library", asyncHandler(async (req,res) => {
     try { return res.json(await runMacro("market","library", {}, makeCtx(req))); }
     catch (e) { return res.status(500).json({ ok:false, error:String(e?.message||e) }); }
-  });
+  }));
 
   // Style
-  app.get("/api/style/:sessionId", async (req, res) => {
+  app.get("/api/style/:sessionId", asyncHandler(async (req, res) => {
     const out = await runMacro("style", "get", { sessionId: req.params.sessionId }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/style/mutate", async (req, res) => {
+  app.post("/api/style/mutate", asyncHandler(async (req, res) => {
     const out = await runMacro("style", "mutate", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   // Verify endpoints
-  app.post("/api/verify/feasibility", async (req, res) => {
+  app.post("/api/verify/feasibility", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "feasibility", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/verify/designScore", async (req, res) => {
+  app.post("/api/verify/designScore", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "designScore", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/verify/conflictCheck", async (req, res) => {
+  app.post("/api/verify/conflictCheck", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "conflictCheck", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/verify/stressTest", async (req, res) => {
+  app.post("/api/verify/stressTest", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "stressTest", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/verify/deriveSecondOrder", async (req, res) => {
+  app.post("/api/verify/deriveSecondOrder", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "deriveSecondOrder", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "derive" }));
-  });
+  }));
 
-  app.post("/api/verify/lineageLink", async (req, res) => {
+  app.post("/api/verify/lineageLink", asyncHandler(async (req, res) => {
     const out = await runMacro("verify", "lineageLink", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   // Experiments
-  app.post("/api/experiments", async (req, res) => {
+  app.post("/api/experiments", asyncHandler(async (req, res) => {
     const out = await runMacro("experiment", "log", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "experiment" }));
-  });
+  }));
 
   app.get("/api/experiments", (req, res) => {
     const experiments = dtusArray().filter(d => (d.tags || []).includes("experiment"));
@@ -472,36 +475,36 @@ export default function registerOperationRoutes(app, {
   });
 
   // Synth + evolution
-  app.post("/api/synth/combine", async (req, res) => {
+  app.post("/api/synth/combine", asyncHandler(async (req, res) => {
     const out = await runMacro("synth", "combine", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "synth" }));
-  });
+  }));
 
-  app.post("/api/evolution/dedupe", async (req, res) => {
+  app.post("/api/evolution/dedupe", asyncHandler(async (req, res) => {
     const out = await runMacro("evolution", "dedupe", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "evolution_dedupe" }));
-  });
+  }));
 
-  app.post("/api/heartbeat/tick", async (req, res) => {
+  app.post("/api/heartbeat/tick", asyncHandler(async (req, res) => {
     const out = await runMacro("heartbeat", "tick", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   // System maintenance
-  app.post("/api/system/continuity", async (req, res) => {
+  app.post("/api/system/continuity", asyncHandler(async (req, res) => {
     const out = await runMacro("system", "continuity", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "continuity" }));
-  });
+  }));
 
-  app.post("/api/system/gap-scan", async (req, res) => {
+  app.post("/api/system/gap-scan", asyncHandler(async (req, res) => {
     const out = await runMacro("system", "gapScan", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/system/promotion-tick", async (req, res) => {
+  app.post("/api/system/promotion-tick", asyncHandler(async (req, res) => {
     const out = await runMacro("system", "promotionTick", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state", "queues"], ["/api/dtus", "/api/state/latest", "/api/queues"], null, { panel: "promotion" }));
-  });
+  }));
 
   // Temporal frames
   app.get("/api/temporal/frames", (req, res) => {
@@ -581,10 +584,10 @@ export default function registerOperationRoutes(app, {
   });
 
   // Agents
-  app.post("/api/agents", async (req, res) => {
+  app.post("/api/agents", asyncHandler(async (req, res) => {
     const out = await runMacro("agent", "create", req.body, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   app.get("/api/agents", (req, res) => {
     const agents = Array.from(STATE.personas.values()).filter(p =>
@@ -601,18 +604,18 @@ export default function registerOperationRoutes(app, {
     return res.json({ ok: true, agent });
   });
 
-  app.post("/api/agents/:id/enable", async (req, res) => {
+  app.post("/api/agents/:id/enable", asyncHandler(async (req, res) => {
     const out = await runMacro("agent", "enable", { id: req.params.id, enabled: req.body.enabled }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/agents/:id/tick", async (req, res) => {
+  app.post("/api/agents/:id/tick", asyncHandler(async (req, res) => {
     const out = await runMacro("agent", "tick", { id: req.params.id, prompt: req.body.prompt }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   // Reseed
-  app.post("/api/reseed", requireRole("owner", "admin"), async (req, res) => {
+  app.post("/api/reseed", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
     try {
       const force = req.body?.force === true;
       if (!force && STATE.dtus.size > 0) {
@@ -637,7 +640,7 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
   // Abstraction governor status / controls
   app.get("/api/abstraction", (req, res) => {
@@ -649,7 +652,7 @@ export default function registerOperationRoutes(app, {
     }
   });
 
-  app.post("/api/abstraction/upgrade", async (req, res) => {
+  app.post("/api/abstraction/upgrade", asyncHandler(async (req, res) => {
     try {
       // force a local upgrade now
       STATE.abstraction.lastUpgradeAt = null;
@@ -658,10 +661,10 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       res.json({ ok:false, error: String(e?.message||e) });
     }
-  });
+  }));
 
   // Manual consolidation trigger - creates MEGAs/HYPERs immediately
-  app.post("/api/abstraction/consolidate", requireRole("owner", "admin"), async (req, res) => {
+  app.post("/api/abstraction/consolidate", requireRole("owner", "admin"), asyncHandler(async (req, res) => {
     try {
       const { maxMegas = 5, maxHypers = 2, force = false } = req.body || {};
 
@@ -684,7 +687,7 @@ export default function registerOperationRoutes(app, {
     } catch (e) {
       res.json({ ok: false, error: String(e?.message || e) });
     }
-  });
+  }));
 
   // ---- Queues (proposals + maintenance; never flood DTU library) ----
   app.get("/api/queues", (req,res)=>{
@@ -704,7 +707,7 @@ export default function registerOperationRoutes(app, {
     res.json({ ok:true, item });
   });
 
-  app.post("/api/queues/:queue/decide", async (req,res)=>{
+  app.post("/api/queues/:queue/decide", asyncHandler(async (req,res)=>{
     ensureQueues();
     const q = String(req.params.queue||"");
     if (!STATE.queues[q]) return res.status(404).json({ ok:false, error:`Unknown queue: ${q}` });
@@ -730,5 +733,5 @@ export default function registerOperationRoutes(app, {
 
     saveStateDebounced();
     res.json({ ok:true, item, promoted });
-  });
+  }));
 }

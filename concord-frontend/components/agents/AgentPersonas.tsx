@@ -91,6 +91,8 @@ export function AgentPersonas({ className }: { className?: string }) {
         <button
           onClick={() => setExpanded(!expanded)}
           className="p-1.5 rounded-lg hover:bg-lattice-deep text-gray-400 hover:text-white transition-colors"
+          aria-label={expanded ? 'Collapse agent personas' : 'Expand agent personas'}
+          aria-expanded={expanded}
         >
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>

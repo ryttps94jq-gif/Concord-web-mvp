@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Store, Tag, Clock, User } from 'lucide-react';
 
 interface Listing {
@@ -18,7 +19,7 @@ interface MarketEmpireListingProps {
   onPurchase?: (id: string) => void;
 }
 
-export function MarketEmpireListing({ listing, onPurchase }: MarketEmpireListingProps) {
+function MarketEmpireListingInner({ listing, onPurchase }: MarketEmpireListingProps) {
   return (
     <div className="lens-card hover:border-neon-green/50 transition-colors">
       <div className="flex items-start justify-between mb-3">
@@ -84,4 +85,5 @@ export function MarketEmpireListing({ listing, onPurchase }: MarketEmpireListing
   );
 }
 
+export const MarketEmpireListing = React.memo(MarketEmpireListingInner);
 export default MarketEmpireListing;

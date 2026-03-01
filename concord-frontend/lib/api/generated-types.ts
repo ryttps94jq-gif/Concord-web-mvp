@@ -125,6 +125,19 @@ export interface DTU {
   stability: number;
   permissions?: DTUPermissions;
   meta: Record<string, unknown>;
+
+  // Extended runtime fields (populated by API for lens contexts)
+  domain?: string;
+  artifact?: {
+    type: string;
+    filename: string;
+    sizeBytes: number;
+    multipart: boolean;
+    parts?: { filename: string; type: string; sizeBytes: number }[];
+    hasThumbnail?: boolean;
+    hasPreview?: boolean;
+  };
+  human?: { summary?: string };
 }
 
 export interface DTUPermissions {

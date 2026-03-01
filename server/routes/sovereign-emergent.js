@@ -8,6 +8,7 @@
  */
 import express from "express";
 import crypto from "crypto";
+import { asyncHandler } from "../lib/async-handler.js";
 
 const SOVEREIGN_USERNAME = process.env.SOVEREIGN_USERNAME || "dutch";
 
@@ -71,7 +72,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
   // ════════════════════════════════════════════════════════════════════════════
   // POST /api/sovereign-emergent/decree — Extended decree handler
   // ════════════════════════════════════════════════════════════════════════════
-  router.post("/decree", async (req, res) => {
+  router.post("/decree", asyncHandler(async (req, res) => {
     const S = STATE || getSTATE();
     if (!S) return res.json({ ok: false, error: "STATE not available" });
 
@@ -1779,14 +1780,14 @@ export default function createSovereignEmergentRouter({ STATE }) {
     createSovereignDTU(S, action, { target, data }, result);
 
     return res.json(result);
-  });
+  }));
 
   // ════════════════════════════════════════════════════════════════════════════
   // REST API Endpoints (for direct access)
   // ════════════════════════════════════════════════════════════════════════════
 
   // Ingest endpoints (tier-gated via query param)
-  router.post("/ingest/submit", async (req, res) => {
+  router.post("/ingest/submit", asyncHandler(async (req, res) => {
     try {
       const mod = await loadModule("../emergent/ingest-engine.js");
       if (!mod) return res.json({ ok: false, error: "ingest-engine not available" });
@@ -1796,7 +1797,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
       result = mod.submitUrl(userId, url, tier || "free");
       return res.json(result);
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
-  });
+  }));
 
   router.get("/ingest/queue", async (_req, res) => {
     try {
@@ -1822,7 +1823,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
   });
 
-  router.get("/ingest/status/:id", async (req, res) => {
+  router.get("/ingest/status/:id", asyncHandler(async (req, res) => {
     try {
       const mod = await loadModule("../emergent/ingest-engine.js");
       if (!mod) return res.json({ ok: false, error: "ingest-engine not available" });
@@ -1830,10 +1831,10 @@ export default function createSovereignEmergentRouter({ STATE }) {
       if (!status) return res.json({ ok: false, error: "not found" });
       return res.json({ ok: true, status });
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
-  });
+  }));
 
   // Research endpoints
-  router.post("/research/submit", async (req, res) => {
+  router.post("/research/submit", asyncHandler(async (req, res) => {
     try {
       const mod = await loadModule("../emergent/research-jobs.js");
       if (!mod) return res.json({ ok: false, error: "research-jobs not available" });
@@ -1841,7 +1842,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
       if (!topic) return res.status(400).json({ ok: false, error: "topic required" });
       return res.json(mod.submitResearchJob(topic, config || {}));
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
-  });
+  }));
 
   router.get("/research/queue", async (_req, res) => {
     try {
@@ -1851,7 +1852,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
   });
 
-  router.get("/research/:id", async (req, res) => {
+  router.get("/research/:id", asyncHandler(async (req, res) => {
     try {
       const mod = await loadModule("../emergent/research-jobs.js");
       if (!mod) return res.json({ ok: false, error: "research-jobs not available" });
@@ -1859,9 +1860,9 @@ export default function createSovereignEmergentRouter({ STATE }) {
       if (!job) return res.json({ ok: false, error: "not found" });
       return res.json({ ok: true, job });
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
-  });
+  }));
 
-  router.get("/research/:id/report", async (req, res) => {
+  router.get("/research/:id/report", asyncHandler(async (req, res) => {
     try {
       const mod = await loadModule("../emergent/research-jobs.js");
       if (!mod) return res.json({ ok: false, error: "research-jobs not available" });
@@ -1869,7 +1870,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
       if (!report) return res.json({ ok: false, error: "not found" });
       return res.json({ ok: true, report });
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
-  });
+  }));
 
   return router;
 }

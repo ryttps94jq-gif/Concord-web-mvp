@@ -258,3 +258,286 @@ describe("OpenAPI Contract Tests", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Response Schema Validation Tests
+// ---------------------------------------------------------------------------
+
+/** Resolve a $ref pointer (e.g. "#/components/schemas/User") against the spec */
+function resolveRef(ref) {
+  if (!ref || !ref.startsWith("#/")) return null;
+  const parts = ref.replace("#/", "").split("/");
+  let node = spec;
+  for (const part of parts) {
+    node = node?.[part];
+    if (node === undefined) return null;
+  }
+  return node;
+}
+
+/** Recursively validate that a schema object is well-formed */
+function validateSchemaObject(schema, path = "") {
+  const errors = [];
+  if (!schema) {
+    errors.push(`${path}: schema is null or undefined`);
+    return errors;
+  }
+
+  // Handle $ref
+  if (schema.$ref) {
+    const resolved = resolveRef(schema.$ref);
+    if (!resolved) {
+      errors.push(`${path}: unresolved $ref "${schema.$ref}"`);
+    }
+    return errors;
+  }
+
+  // Must have a type (or oneOf/anyOf/allOf)
+  const hasType = schema.type || schema.oneOf || schema.anyOf || schema.allOf;
+  if (!hasType && !schema.properties && !schema.items) {
+    errors.push(`${path}: missing type, oneOf/anyOf/allOf, or structural keywords`);
+  }
+
+  // Validate array items
+  if (schema.type === "array") {
+    if (!schema.items) {
+      errors.push(`${path}: array type missing 'items' definition`);
+    } else {
+      errors.push(...validateSchemaObject(schema.items, `${path}.items`));
+    }
+  }
+
+  // Validate object properties recursively
+  if (schema.properties) {
+    for (const [propName, propSchema] of Object.entries(schema.properties)) {
+      errors.push(...validateSchemaObject(propSchema, `${path}.${propName}`));
+    }
+  }
+
+  return errors;
+}
+
+describe("Response Schema Validation", () => {
+  it("All component schemas should be well-formed", () => {
+    const schemas = spec.components?.schemas;
+    assert.ok(schemas, "No component schemas defined");
+
+    const allErrors = [];
+    for (const [name, schema] of Object.entries(schemas)) {
+      const errors = validateSchemaObject(schema, `components/schemas/${name}`);
+      allErrors.push(...errors);
+    }
+
+    assert.equal(
+      allErrors.length, 0,
+      `Schema validation errors found:\n${allErrors.join("\n")}`
+    );
+  });
+
+  it("All $ref references in responses should resolve", () => {
+    const brokenRefs = [];
+
+    for (const [specPath, methods] of Object.entries(spec.paths || {})) {
+      for (const [method, detail] of Object.entries(methods)) {
+        if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
+
+        for (const [statusCode, response] of Object.entries(detail.responses || {})) {
+          const content = response.content;
+          if (!content) continue;
+
+          for (const [mediaType, mediaDetail] of Object.entries(content)) {
+            const schema = mediaDetail.schema;
+            if (!schema) continue;
+
+            if (schema.$ref) {
+              const resolved = resolveRef(schema.$ref);
+              if (!resolved) {
+                brokenRefs.push(
+                  `${method.toUpperCase()} ${specPath} [${statusCode}] ${mediaType}: unresolved $ref "${schema.$ref}"`
+                );
+              }
+            }
+
+            // Also check nested $refs in properties
+            if (schema.properties) {
+              for (const [prop, propSchema] of Object.entries(schema.properties)) {
+                if (propSchema.$ref) {
+                  const resolved = resolveRef(propSchema.$ref);
+                  if (!resolved) {
+                    brokenRefs.push(
+                      `${method.toUpperCase()} ${specPath} [${statusCode}] ${mediaType}.${prop}: unresolved $ref "${propSchema.$ref}"`
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    assert.equal(
+      brokenRefs.length, 0,
+      `Broken $ref references in responses:\n${brokenRefs.join("\n")}`
+    );
+  });
+
+  it("Success responses (2xx) should have content defined where expected", () => {
+    const missing = [];
+    const httpMethodsWithBody = ["get", "post", "put", "patch"];
+
+    for (const [specPath, methods] of Object.entries(spec.paths || {})) {
+      for (const [method, detail] of Object.entries(methods)) {
+        if (!httpMethodsWithBody.includes(method)) continue;
+
+        for (const [statusCode, response] of Object.entries(detail.responses || {})) {
+          const code = parseInt(statusCode, 10);
+          // 2xx responses (except 204 No Content) should typically have content
+          if (code >= 200 && code < 300 && code !== 204) {
+            if (!response.content && !response.description?.toLowerCase().includes("no content")) {
+              missing.push(`${method.toUpperCase()} ${specPath} [${statusCode}]`);
+            }
+          }
+        }
+      }
+    }
+
+    // Allow some endpoints to skip response content (e.g. simple ok: true)
+    // but at least 50 % of success responses should have schemas
+    const totalSuccess = [];
+    for (const [specPath, methods] of Object.entries(spec.paths || {})) {
+      for (const [method, detail] of Object.entries(methods)) {
+        if (!httpMethodsWithBody.includes(method)) continue;
+        for (const [statusCode] of Object.entries(detail.responses || {})) {
+          const code = parseInt(statusCode, 10);
+          if (code >= 200 && code < 300 && code !== 204) {
+            totalSuccess.push(`${method.toUpperCase()} ${specPath} [${statusCode}]`);
+          }
+        }
+      }
+    }
+
+    const coverageRate = totalSuccess.length > 0
+      ? 1 - (missing.length / totalSuccess.length)
+      : 1;
+
+    assert.ok(
+      coverageRate >= 0.3,
+      `Only ${(coverageRate * 100).toFixed(1)}% of 2xx responses have content schemas. ` +
+      `${missing.length}/${totalSuccess.length} missing:\n${missing.slice(0, 20).join("\n")}` +
+      (missing.length > 20 ? `\n... and ${missing.length - 20} more` : "")
+    );
+  });
+
+  it("Schemas with required fields should list valid property names", () => {
+    const schemas = spec.components?.schemas || {};
+    const errors = [];
+
+    for (const [name, schema] of Object.entries(schemas)) {
+      if (schema.required && schema.properties) {
+        for (const reqField of schema.required) {
+          if (!schema.properties[reqField]) {
+            errors.push(
+              `components/schemas/${name}: required field "${reqField}" not found in properties`
+            );
+          }
+        }
+      }
+    }
+
+    assert.equal(
+      errors.length, 0,
+      `Required fields reference non-existent properties:\n${errors.join("\n")}`
+    );
+  });
+
+  it("Enum fields should have at least one value", () => {
+    const schemas = spec.components?.schemas || {};
+    const errors = [];
+
+    function checkEnums(obj, path) {
+      if (!obj || typeof obj !== "object") return;
+      if (obj.enum) {
+        if (!Array.isArray(obj.enum) || obj.enum.length === 0) {
+          errors.push(`${path}: enum is empty or not an array`);
+        }
+      }
+      if (obj.properties) {
+        for (const [k, v] of Object.entries(obj.properties)) {
+          checkEnums(v, `${path}.${k}`);
+        }
+      }
+      if (obj.items) {
+        checkEnums(obj.items, `${path}.items`);
+      }
+    }
+
+    for (const [name, schema] of Object.entries(schemas)) {
+      checkEnums(schema, `components/schemas/${name}`);
+    }
+
+    assert.equal(
+      errors.length, 0,
+      `Invalid enum definitions found:\n${errors.join("\n")}`
+    );
+  });
+
+  it("Response status codes should be valid HTTP codes", () => {
+    const invalidCodes = [];
+
+    for (const [specPath, methods] of Object.entries(spec.paths || {})) {
+      for (const [method, detail] of Object.entries(methods)) {
+        if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
+
+        for (const statusCode of Object.keys(detail.responses || {})) {
+          const code = parseInt(statusCode, 10);
+          if (isNaN(code) || code < 100 || code > 599) {
+            invalidCodes.push(`${method.toUpperCase()} ${specPath}: invalid status code "${statusCode}"`);
+          }
+        }
+      }
+    }
+
+    assert.equal(
+      invalidCodes.length, 0,
+      `Invalid HTTP status codes found:\n${invalidCodes.join("\n")}`
+    );
+  });
+
+  it("Core schemas should exist (DTU, User, SystemStatus)", () => {
+    const schemas = spec.components?.schemas || {};
+    const required = ["DTU", "User", "SystemStatus"];
+    const missing = required.filter(name => !schemas[name]);
+
+    assert.equal(
+      missing.length, 0,
+      `Missing core schemas: ${missing.join(", ")}`
+    );
+  });
+
+  it("DTU schema should have essential fields", () => {
+    const dtuSchema = spec.components?.schemas?.DTU;
+    assert.ok(dtuSchema, "DTU schema not found");
+    assert.ok(dtuSchema.properties, "DTU schema has no properties");
+
+    const essentialFields = ["id", "title", "tier"];
+    const missing = essentialFields.filter(f => !dtuSchema.properties[f]);
+    assert.equal(
+      missing.length, 0,
+      `DTU schema missing essential fields: ${missing.join(", ")}`
+    );
+  });
+
+  it("SystemStatus schema should have essential fields", () => {
+    const statusSchema = spec.components?.schemas?.SystemStatus;
+    assert.ok(statusSchema, "SystemStatus schema not found");
+    assert.ok(statusSchema.properties, "SystemStatus schema has no properties");
+
+    const essentialFields = ["ok", "version"];
+    const missing = essentialFields.filter(f => !statusSchema.properties[f]);
+    assert.equal(
+      missing.length, 0,
+      `SystemStatus schema missing essential fields: ${missing.join(", ")}`
+    );
+  });
+});

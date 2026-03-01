@@ -8,6 +8,7 @@
  * Rejected (Draft): Failed quality gate
  */
 
+import React from 'react';
 import { cn } from '@/lib/utils';
 
 interface QualityTierBadgeProps {
@@ -22,7 +23,7 @@ const TIER_CONFIG: Record<string | number, { label: string; color: string; icon:
   rejected: { label: 'Draft', color: 'text-red-400 border-red-600/30 bg-red-900/10', icon: '\u2717' },
 };
 
-export function QualityTierBadge({ tier, className }: QualityTierBadgeProps) {
+function QualityTierBadgeInner({ tier, className }: QualityTierBadgeProps) {
   const config = TIER_CONFIG[tier] || TIER_CONFIG[3];
 
   return (
@@ -36,4 +37,5 @@ export function QualityTierBadge({ tier, className }: QualityTierBadgeProps) {
   );
 }
 
+export const QualityTierBadge = React.memo(QualityTierBadgeInner);
 export default QualityTierBadge;

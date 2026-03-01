@@ -38,6 +38,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
+import type { DTU } from '@/lib/api/generated-types';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { LensWrapper } from '@/components/lens/LensWrapper';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
@@ -156,7 +157,7 @@ export default function MusicLensPage() {
     isLoading: dtusLoading, refetch: refetchDTUs,
   } = useLensDTUs({ lens: 'music' });
 
-  const audioArtifacts = contextDTUs.filter((d: any) => d.artifact?.type?.startsWith('audio/'));
+  const audioArtifacts = contextDTUs.filter((d: DTU) => d.artifact?.type?.startsWith('audio/'));
 
   // Queue
   const [queue, setQueue] = useState<Track[]>([]);
@@ -529,7 +530,7 @@ export default function MusicLensPage() {
                 <span className="text-xs text-gray-400">{audioArtifacts.length} tracks</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {audioArtifacts.slice(0, 6).map((dtu: any) => (
+                {audioArtifacts.slice(0, 6).map((dtu: DTU) => (
                   <div key={dtu.id} className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</h3>

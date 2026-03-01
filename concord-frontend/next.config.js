@@ -6,6 +6,15 @@ const nextConfig = {
     domains: ['localhost', 'concord-os.org'],
     unoptimized: process.env.NODE_ENV === 'development',
   },
+  // Tree-shake heavy icon libraries and UI packages
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'framer-motion',
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+    ],
+  },
   // Security headers (CSP is now set in middleware.ts with per-request nonces)
   async headers() {
     return [

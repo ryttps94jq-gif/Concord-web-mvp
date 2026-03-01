@@ -2,6 +2,7 @@
  * DTU routes — extracted from server.js
  * Registered directly on app (mixed prefixes)
  */
+import { asyncHandler } from "../lib/async-handler.js";
 export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuForClient, dtusArray, _withAck, _saveStateDebounced, validate }) {
 
   // CRETI-first DTU view (no raw JSON by default)
@@ -14,7 +15,7 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
 
 
   // DTUs
-  app.get("/api/dtus", async (req, res) => {
+  app.get("/api/dtus", asyncHandler(async (req, res) => {
     try {
       const ctx = makeCtx(req);
       const out = await runMacro("dtu","list",{ q:req.query.q, tier:req.query.tier || "any", limit:req.query.limit, offset:req.query.offset, scope: req.query.scope || null }, ctx);
@@ -23,8 +24,8 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
       const msg = String(e?.message || e);
       res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
     }
-  });
-  app.get("/api/dtus/:id", async (req, res) => {
+  }));
+  app.get("/api/dtus/:id", asyncHandler(async (req, res) => {
     try {
       const ctx = makeCtx(req);
       const out = await runMacro("dtu","get",{ id:req.params.id }, ctx);
@@ -34,8 +35,8 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
       const msg = String(e?.message || e);
       res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
     }
-  });
-  app.post("/api/dtus", validate("dtuCreate"), async (req, res) => {
+  }));
+  app.post("/api/dtus", validate("dtuCreate"), asyncHandler(async (req, res) => {
     try {
       const ctx = makeCtx(req);
       const out = await runMacro("dtu","create", req.body || {}, ctx);
@@ -44,8 +45,8 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
       const msg = String(e?.message || e);
       res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
     }
-  });
-  app.post("/api/dtus/saveSuggested", async (req, res) => {
+  }));
+  app.post("/api/dtus/saveSuggested", asyncHandler(async (req, res) => {
     try {
       const ctx = makeCtx(req);
       const out = await runMacro("dtu","saveSuggested", req.body || {}, ctx);
@@ -54,13 +55,13 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
       const msg = String(e?.message || e);
       res.status(msg.startsWith("forbidden") ? 403 : 500).json({ ok: false, error: msg });
     }
-  });
+  }));
 
   // DTU maintenance
-  app.post("/api/dtus/dedupe", async (req,res)=> {
+  app.post("/api/dtus/dedupe", asyncHandler(async (req,res)=> {
     const out = await runMacro("dtu","dedupeSweep", req.body||{}, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus","state","logs"], ["/api/dtus","/api/state/latest","/api/logs"], null, { panel: "dtus_dedupe" }));
-  });
+  }));
   app.get("/api/megas", (req,res)=> {
     const tier = "mega";
     const out = dtusArray().filter(d => d.tier===tier).sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
@@ -72,50 +73,50 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
   });
 
   // Extended DTU endpoints
-  app.put("/api/dtus/:id", validate("dtuUpdate"), async (req, res) => {
+  app.put("/api/dtus/:id", validate("dtuUpdate"), asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
   // PATCH is an alias for PUT — frontend client.ts sends PATCH for partial updates
-  app.patch("/api/dtus/:id", async (req, res) => {
+  app.patch("/api/dtus/:id", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "update", { id: req.params.id, ...req.body }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.delete("/api/dtus/:id", async (req, res) => {
+  app.delete("/api/dtus/:id", asyncHandler(async (req, res) => {
     // Note: You may need to create a dtu.delete macro first
     const out = await runMacro("dtu", "delete", { id: req.params.id }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/dtus/cluster", async (req, res) => {
+  app.post("/api/dtus/cluster", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "cluster", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "cluster" }));
-  });
+  }));
 
-  app.post("/api/dtus/reconcile", async (req, res) => {
+  app.post("/api/dtus/reconcile", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "reconcile", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "reconcile" }));
-  });
+  }));
 
-  app.post("/api/dtus/define", async (req, res) => {
+  app.post("/api/dtus/define", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "define", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus"], ["/api/dtus"], null, { panel: "define" }));
-  });
+  }));
 
-  app.get("/api/dtus/shadow", async (req, res) => {
+  app.get("/api/dtus/shadow", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "listShadow", { limit: req.query.limit, q: req.query.q }, makeCtx(req));
     return res.json(out);
-  });
+  }));
 
-  app.post("/api/dtus/gap-promote", async (req, res) => {
+  app.post("/api/dtus/gap-promote", asyncHandler(async (req, res) => {
     const out = await runMacro("dtu", "gapPromote", req.body, makeCtx(req));
     return res.json(_withAck(out, req, ["dtus", "state"], ["/api/dtus", "/api/state/latest"], null, { panel: "gap_promote" }));
-  });
+  }));
 
   // Sync a global DTU into the user's local inventory
-  app.post("/api/dtus/sync-from-global", async (req, res) => {
+  app.post("/api/dtus/sync-from-global", asyncHandler(async (req, res) => {
     try {
       const ctx = makeCtx(req);
       const out = await runMacro("dtu", "syncFromGlobal", req.body || {}, ctx);
@@ -125,7 +126,7 @@ export default function registerDtuRoutes(app, { STATE, makeCtx, runMacro, dtuFo
       const msg = String(e?.message || e);
       res.status(500).json({ ok: false, error: msg });
     }
-  });
+  }));
 
   app.get("/api/definitions", (req, res) => {
     const dtus = dtusArray().filter(d =>

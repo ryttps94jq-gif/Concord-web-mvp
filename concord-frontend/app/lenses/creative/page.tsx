@@ -8,6 +8,7 @@ import { ds } from '@/lib/design-system';
 import { cn } from '@/lib/utils';
 import { ErrorState } from '@/components/common/EmptyState';
 import { useLensDTUs } from '@/hooks/useLensDTUs';
+import type { DTU } from '@/lib/api/generated-types';
 import { LensContextPanel } from '@/components/lens/LensContextPanel';
 import { ArtifactRenderer } from '@/components/artifact/ArtifactRenderer';
 import { ArtifactUploader } from '@/components/artifact/ArtifactUploader';
@@ -179,7 +180,7 @@ export default function CreativeLensPage() {
     refetch: refetchDTUs,
   } = useLensDTUs({ lens: 'creative' });
 
-  const creativeArtifacts = creativeDTUs.filter((d: any) => d.artifact);
+  const creativeArtifacts = creativeDTUs.filter((d: DTU) => d.artifact);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -1577,7 +1578,7 @@ export default function CreativeLensPage() {
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-gray-400 uppercase">Creative Artifacts</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {creativeArtifacts.slice(0, 4).map((dtu: any) => (
+                  {creativeArtifacts.slice(0, 4).map((dtu: DTU) => (
                     <div key={dtu.id} className="p-3 rounded-lg bg-lattice-elevated/50 border border-lattice-border space-y-2">
                       <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
                       <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />

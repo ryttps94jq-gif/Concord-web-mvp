@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Clock, GitBranch, Zap, Crown, Ghost, ExternalLink } from 'lucide-react';
 
 interface DTU {
@@ -68,7 +68,7 @@ const tierConfig = {
   },
 };
 
-export function DTUEmpireCard({
+function DTUEmpireCardInner({
   dtu,
   onClick,
   compact = false,
@@ -185,3 +185,5 @@ export function DTUEmpireCard({
     </div>
   );
 }
+
+export const DTUEmpireCard = React.memo(DTUEmpireCardInner);
