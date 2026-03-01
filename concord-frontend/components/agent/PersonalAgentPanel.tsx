@@ -16,7 +16,10 @@ interface AgentInsight {
 }
 
 interface PersonalAgentPanelProps {
-  socket?: { on: (event: string, handler: (data: unknown) => void) => void };
+  socket?: {
+    on: (event: string, handler: (data: unknown) => void) => void;
+    off: (event: string, handler: (data: unknown) => void) => void;
+  };
   onAction?: (insight: AgentInsight) => void;
 }
 
@@ -25,9 +28,13 @@ export function PersonalAgentPanel({ socket, onAction }: PersonalAgentPanelProps
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('agent:insights', (data: { insights: AgentInsight[] }) => {
+    const handler = (data: { insights: AgentInsight[] }) => {
       setInsights(data.insights);
-    });
+    };
+    socket.on('agent:insights', handler);
+    return () => {
+      socket.off('agent:insights', handler);
+    };
   }, [socket]);
 
   if (insights.length === 0) return null;

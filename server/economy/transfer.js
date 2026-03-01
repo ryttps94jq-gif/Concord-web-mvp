@@ -126,7 +126,8 @@ export function executeTransfer(db, { from, to, amount, type = "TRANSFER", metad
     if (err.message?.includes('UNIQUE constraint') && refId) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "transaction_failed", detail: err.message };
+    console.error("[economy] transaction_failed:", err.message);
+    return { ok: false, error: "transaction_failed" };
   }
 }
 
@@ -201,7 +202,8 @@ export function executePurchase(db, { userId, amount, metadata = {}, refId, requ
     if (err.message?.includes('UNIQUE constraint') && refId) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "purchase_failed", detail: err.message };
+    console.error("[economy] purchase_failed:", err.message);
+    return { ok: false, error: "purchase_failed" };
   }
 }
 
@@ -300,7 +302,8 @@ export function executeMarketplacePurchase(db, { buyerId, sellerId, amount, list
     if (err.message?.includes('UNIQUE constraint') && refId) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "marketplace_purchase_failed", detail: err.message };
+    console.error("[economy] marketplace_purchase_failed:", err.message);
+    return { ok: false, error: "marketplace_purchase_failed" };
   }
 }
 
@@ -340,6 +343,7 @@ export function executeReversal(db, { originalTxId, reason, requestId, ip }) {
     const results = doReversal();
     return { ok: true, batchId, transactions: results, originalTxId };
   } catch (err) {
-    return { ok: false, error: "reversal_failed", detail: err.message };
+    console.error("[economy] reversal_failed:", err.message);
+    return { ok: false, error: "reversal_failed" };
   }
 }

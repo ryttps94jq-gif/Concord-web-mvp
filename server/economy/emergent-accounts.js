@@ -86,7 +86,8 @@ export function createEmergentAccount(db, { emergentId, displayName, seedAmount 
     };
   } catch (err) {
     if (err.message?.includes("UNIQUE")) return { ok: false, error: "emergent_account_exists" };
-    return { ok: false, error: "account_creation_failed", detail: err.message };
+    console.error("[economy] account_creation_failed:", err.message);
+    return { ok: false, error: "account_creation_failed" };
   }
 }
 
@@ -180,7 +181,8 @@ export function transferToReserve(db, { emergentId, amount, refId, requestId, ip
     }
     if (err.message === "emergent_not_found") return { ok: false, error: "emergent_not_found" };
     if (err.message === "emergent_suspended") return { ok: false, error: "emergent_suspended" };
-    return { ok: false, error: "transfer_failed", detail: err.message };
+    console.error("[economy] transfer_failed:", err.message);
+    return { ok: false, error: "transfer_failed" };
   }
 }
 
@@ -208,7 +210,8 @@ export function creditOperatingWallet(db, { emergentId, amount, source, refId, m
     doCredit();
     return { ok: true, emergentId, amount, source };
   } catch (err) {
-    return { ok: false, error: "credit_failed", detail: err.message };
+    console.error("[economy] credit_failed:", err.message);
+    return { ok: false, error: "credit_failed" };
   }
 }
 
@@ -243,7 +246,8 @@ export function debitReserveAccount(db, { emergentId, amount, refId, metadata = 
       const parts = err.message.split(":");
       return { ok: false, error: "insufficient_reserve_balance", balance: Number(parts[1]), required: Number(parts[2]) };
     }
-    return { ok: false, error: "debit_failed", detail: err.message };
+    console.error("[economy] debit_failed:", err.message);
+    return { ok: false, error: "debit_failed" };
   }
 }
 

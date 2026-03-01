@@ -16,7 +16,9 @@ interface AuthPageProps {
   onAuthSuccess?: (user: { id: string; username: string; email: string }) => void;
 }
 
-export function AuthPage({ redirectTo = '/', onAuthSuccess }: AuthPageProps) {
+export function AuthPage({ redirectTo: rawRedirectTo = '/', onAuthSuccess }: AuthPageProps) {
+  // Validate redirect is a safe relative path to prevent open redirect attacks
+  const redirectTo = rawRedirectTo.startsWith('/') && !rawRedirectTo.startsWith('//') ? rawRedirectTo : '/';
   const { user, isLoading: isCheckingAuth, isAuthenticated } = useAuth();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');

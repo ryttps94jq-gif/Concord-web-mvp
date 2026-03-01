@@ -137,7 +137,8 @@ export async function createCheckoutSession(db, { userId, tokens, requestId, ip 
 
     return { ok: true, checkoutUrl: session.url, sessionId: session.id };
   } catch (err) {
-    return { ok: false, error: "checkout_creation_failed", detail: err.message };
+    console.error("[economy] checkout_creation_failed:", err.message);
+    return { ok: false, error: "checkout_creation_failed" };
   }
 }
 
@@ -157,7 +158,8 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
   try {
     event = stripeClient.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    return { ok: false, error: "webhook_signature_invalid", detail: err.message };
+    console.error("[economy] webhook_signature_invalid:", err.message);
+    return { ok: false, error: "webhook_signature_invalid" };
   }
 
   // Idempotency: skip already-processed events
@@ -279,7 +281,8 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
 
     return { ok: true, eventId: event.id, eventType: event.type };
   } catch (err) {
-    return { ok: false, error: "webhook_processing_failed", detail: err.message };
+    console.error("[economy] webhook_processing_failed:", err.message);
+    return { ok: false, error: "webhook_processing_failed" };
   }
 }
 
@@ -304,7 +307,8 @@ export async function createConnectOnboarding(db, { userId, requestId, ip }) {
       accountId = account.id;
       upsertStripeAccount(db, userId, accountId);
     } catch (err) {
-      return { ok: false, error: "connect_account_creation_failed", detail: err.message };
+      console.error("[economy] connect_account_creation_failed:", err.message);
+    return { ok: false, error: "connect_account_creation_failed" };
     }
   }
 
@@ -327,7 +331,8 @@ export async function createConnectOnboarding(db, { userId, requestId, ip }) {
 
     return { ok: true, onboardingUrl: accountLink.url, stripeAccountId: accountId };
   } catch (err) {
-    return { ok: false, error: "connect_link_creation_failed", detail: err.message };
+    console.error("[economy] connect_link_creation_failed:", err.message);
+    return { ok: false, error: "connect_link_creation_failed" };
   }
 }
 
@@ -434,7 +439,8 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
 
     ledgerResults = doLedgerDebit();
   } catch (err) {
-    return { ok: false, error: "ledger_debit_failed", detail: err.message };
+    console.error("[economy] ledger_debit_failed:", err.message);
+    return { ok: false, error: "ledger_debit_failed" };
   }
 
   // Step 2: Execute Stripe transfer
@@ -528,7 +534,8 @@ export async function processStripeWithdrawal(db, { withdrawalId, requestId, ip 
       ip,
     });
 
-    return { ok: false, error: "stripe_payout_failed", detail: err.message };
+    console.error("[economy] stripe_payout_failed:", err.message);
+    return { ok: false, error: "stripe_payout_failed" };
   }
 }
 

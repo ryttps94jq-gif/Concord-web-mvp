@@ -6,6 +6,7 @@
  */
 
 const rateLimits = new Map(); // key → { count, windowStart }
+const MAX_RATE_LIMIT_ENTRIES = 50000;
 
 const LIMITS = {
   'conscious.chat': { max: 30, windowMs: 60000 },       // 30/min — GPU: conversational speed
@@ -84,6 +85,13 @@ setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of rateLimits) {
     if (now - entry.windowStart > 3600000) rateLimits.delete(key);
+  }
+  // Hard cap: evict oldest entries if still over limit
+  if (rateLimits.size > MAX_RATE_LIMIT_ENTRIES) {
+    const it = rateLimits.keys();
+    for (let i = 0, n = rateLimits.size - MAX_RATE_LIMIT_ENTRIES; i < n; i++) {
+      rateLimits.delete(it.next().value);
+    }
   }
 }, 300000);
 

@@ -128,7 +128,8 @@ export function distributeFee(db, { feeAmount, sourceTxId, refId, requestId, ip 
       transactions: results,
     };
   } catch (err) {
-    return { ok: false, error: "fee_distribution_failed", detail: err.message };
+    console.error("[economy] fee_distribution_failed:", err.message);
+    return { ok: false, error: "fee_distribution_failed" };
   }
 }
 

@@ -35,8 +35,10 @@ function LoginForm() {
         // Small delay to ensure cookies propagate before navigation
         await new Promise(r => setTimeout(r, 100));
         // Redirect to the page they were trying to reach, or home
+        // Validate redirect is a relative path to prevent open redirect attacks
         const from = searchParams.get('from');
-        router.push(from || '/');
+        const safeRedirect = from && from.startsWith('/') && !from.startsWith('//') ? from : '/';
+        router.push(safeRedirect);
       } else {
         setError(res.data?.error || 'Login failed');
       }

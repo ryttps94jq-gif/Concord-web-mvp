@@ -17,7 +17,6 @@ import {
   Download,
   Save,
   Loader,
-  X,
   Zap,
 } from 'lucide-react';
 
@@ -53,7 +52,7 @@ interface SharedSessionChatProps {
 }
 
 export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSessionChatProps) {
-  const { on, emit } = useSocket({ autoConnect: true });
+  const { on, off, emit } = useSocket({ autoConnect: true });
   const [messages, setMessages] = useState<SharedMessage[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [input, setInput] = useState('');
@@ -91,7 +90,7 @@ export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSes
 
   // WebSocket event listeners
   useEffect(() => {
-    on('shared-session:message', (data: { sessionId: string; message: { id: string; userId: string; content: string; ts: string }; userName: string }) => {
+    const handleMessage = (data: { sessionId: string; message: { id: string; userId: string; content: string; ts: string }; userName: string }) => {
       if (data.sessionId !== sessionId) return;
       if (data.message.userId === currentUserId) return; // skip own messages (already added)
       setMessages(prev => [...prev, {
@@ -101,9 +100,9 @@ export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSes
         content: data.message.content,
         ts: data.message.ts,
       }]);
-    });
+    };
 
-    on('shared-session:ai-response', (data: { sessionId: string; response: string; contextSources: string[] }) => {
+    const handleAiResponse = (data: { sessionId: string; response: string; contextSources: string[] }) => {
       if (data.sessionId !== sessionId) return;
       setMessages(prev => [...prev, {
         type: 'ai',
@@ -112,28 +111,28 @@ export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSes
         ts: new Date().toISOString(),
       }]);
       setIsSending(false);
-    });
+    };
 
-    on('shared-session:artifact-produced', (data: { sessionId: string; dtuId: string; title: string; domain: string }) => {
+    const handleArtifact = (data: { sessionId: string; dtuId: string; title: string; domain: string }) => {
       if (data.sessionId !== sessionId) return;
       setMessages(prev => [...prev, { type: 'artifact', ...data }]);
-    });
+    };
 
-    on('shared-session:dtu-shared', (data: { sessionId: string; userName: string; dtuTitle: string; dtuDomain: string }) => {
+    const handleDtuShared = (data: { sessionId: string; userName: string; dtuTitle: string; dtuDomain: string }) => {
       if (data.sessionId !== sessionId) return;
       setMessages(prev => [...prev, { type: 'dtu_shared', ...data }]);
-    });
+    };
 
-    on('shared-session:joined', (data: { sessionId: string; userId: string; userName: string; participantCount: number }) => {
+    const handleJoined = (data: { sessionId: string; userId: string; userName: string; participantCount: number }) => {
       if (data.sessionId !== sessionId) return;
       setMessages(prev => [...prev, {
         type: 'system',
         content: `${data.userName} joined the session`,
         ts: new Date().toISOString(),
       }]);
-    });
+    };
 
-    on('shared-session:ended', (data: { sessionId: string }) => {
+    const handleEnded = (data: { sessionId: string }) => {
       if (data.sessionId !== sessionId) return;
       setSessionStatus('ended');
       setMessages(prev => [...prev, {
@@ -141,8 +140,24 @@ export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSes
         content: 'Session ended. Shared context dissolved.',
         ts: new Date().toISOString(),
       }]);
-    });
-  }, [sessionId, currentUserId, on]);
+    };
+
+    on('shared-session:message', handleMessage);
+    on('shared-session:ai-response', handleAiResponse);
+    on('shared-session:artifact-produced', handleArtifact);
+    on('shared-session:dtu-shared', handleDtuShared);
+    on('shared-session:joined', handleJoined);
+    on('shared-session:ended', handleEnded);
+
+    return () => {
+      off('shared-session:message', handleMessage);
+      off('shared-session:ai-response', handleAiResponse);
+      off('shared-session:artifact-produced', handleArtifact);
+      off('shared-session:dtu-shared', handleDtuShared);
+      off('shared-session:joined', handleJoined);
+      off('shared-session:ended', handleEnded);
+    };
+  }, [sessionId, currentUserId, on, off]);
 
   // Send message
   const sendMessage = useCallback(async () => {

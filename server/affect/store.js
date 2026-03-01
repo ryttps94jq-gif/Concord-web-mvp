@@ -6,8 +6,28 @@
 import { createState, createMomentum, resetState as engineReset } from "./engine.js";
 import { EVENT_LOG_SIZE } from "./defaults.js";
 
-/** @type {Map<string, { E: object, M: object, events: object[] }>} */
+/** @type {Map<string, { E: object, M: object, events: object[], lastAccess: number }>} */
 const sessions = new Map();
+const MAX_SESSIONS = 10000;
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Evict stale sessions when the map exceeds MAX_SESSIONS.
+ */
+function _evictStaleSessions() {
+  if (sessions.size <= MAX_SESSIONS) return;
+  const now = Date.now();
+  // First pass: remove expired sessions
+  for (const [id, session] of sessions) {
+    if (now - session.lastAccess > SESSION_TTL_MS) sessions.delete(id);
+  }
+  // Second pass: if still over cap, remove oldest
+  if (sessions.size > MAX_SESSIONS) {
+    const sorted = [...sessions.entries()].sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    const toRemove = sorted.slice(0, sessions.size - MAX_SESSIONS);
+    for (const [id] of toRemove) sessions.delete(id);
+  }
+}
 
 /**
  * Get or create the affective state for a session.
@@ -16,13 +36,17 @@ const sessions = new Map();
  */
 export function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
+    _evictStaleSessions();
     sessions.set(sessionId, {
       E: createState(),
       M: createMomentum(),
       events: [],
+      lastAccess: Date.now(),
     });
   }
-  return sessions.get(sessionId);
+  const session = sessions.get(sessionId);
+  session.lastAccess = Date.now();
+  return session;
 }
 
 /**

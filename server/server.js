@@ -3769,6 +3769,7 @@ function verifyToken(token) {
 // In-memory blacklist with Redis support (when available) and SQLite persistence
 const _TOKEN_BLACKLIST = {
   revoked: new Map(), // jti -> { revokedAt, expiresAt, userId }
+  MAX_ENTRIES: 100000,
 
   /**
    * Revoke a single token by JTI.
@@ -3784,6 +3785,14 @@ const _TOKEN_BLACKLIST = {
 
     // Primary: in-memory (synchronous — keeps verifyToken fast)
     this.revoked.set(jti, entry);
+
+    // Evict oldest entries if over cap
+    if (this.revoked.size > this.MAX_ENTRIES) {
+      const it = this.revoked.keys();
+      for (let i = 0, n = this.revoked.size - this.MAX_ENTRIES; i < n; i++) {
+        this.revoked.delete(it.next().value);
+      }
+    }
 
     // Redis: write-through for multi-instance consistency
     if (redisClient) {
@@ -5030,12 +5039,21 @@ const _CONCURRENCY = {
 const _SLIDING_WINDOW = {
   windows: new Map(), // key -> { timestamps: number[] }
   MAX_REQUESTS_PER_MINUTE: Number(process.env.SLIDING_WINDOW_RPM || 120),
+  MAX_ENTRIES: 50000,
 
   check(key) {
     const now = Date.now();
     const WINDOW_MS = 60000;
     let entry = this.windows.get(key);
-    if (!entry) { entry = { timestamps: [] }; this.windows.set(key, entry); }
+    if (!entry) {
+      entry = { timestamps: [] };
+      this.windows.set(key, entry);
+      // Evict oldest entries if over cap
+      if (this.windows.size > this.MAX_ENTRIES) {
+        const it = this.windows.keys();
+        this.windows.delete(it.next().value);
+      }
+    }
 
     // Remove timestamps older than window
     entry.timestamps = entry.timestamps.filter(t => now - t < WINDOW_MS);
@@ -5155,6 +5173,7 @@ const _LLM_BUDGET = {
   totalRequestCount: 0,
   windowStart: Date.now(),
   perUser: new Map(), // userId -> { tokens, requests, windowStart }
+  MAX_PER_USER_ENTRIES: 50000,
 
   // Budget limits — effectively disabled for local Ollama (no API cost)
   // checkBudget() short-circuits when no OPENAI_API_KEY is configured
@@ -5185,6 +5204,11 @@ const _LLM_BUDGET = {
       entry.tokens += tokens;
       entry.requests++;
       this.perUser.set(userId, entry);
+      // Evict oldest entries if over cap
+      if (this.perUser.size > this.MAX_PER_USER_ENTRIES) {
+        const it = this.perUser.keys();
+        this.perUser.delete(it.next().value);
+      }
     }
   },
 
@@ -24576,7 +24600,7 @@ register("schema", "validate", (ctx, input) => {
           const regexStr = String(field.validation.regex);
           if (regexStr.length > 200) {
             errors.push({ field: field.name, error: "Regex pattern too long" });
-          } else if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/g.test(regexStr)) {
+          } else if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/.test(regexStr)) {
             errors.push({ field: field.name, error: "Regex pattern too complex" });
           } else {
             try {
@@ -31638,7 +31662,7 @@ register("cache", "invalidate", (ctx, input) => {
     // ReDoS protection - validate pattern before use
     const patternStr = String(pattern);
     if (patternStr.length > 100) return { ok: false, error: "Pattern too long (max 100 chars)" };
-    if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/g.test(patternStr)) return { ok: false, error: "Pattern too complex" };
+    if (/(\+\+|\*\*|\{\d+,\d*\}\+|\(\?[!<])/.test(patternStr)) return { ok: false, error: "Pattern too complex" };
     try {
       const re = new RegExp(patternStr);
       let count = 0;

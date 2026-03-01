@@ -149,7 +149,8 @@ export function createFilmDTU(db, {
 
     return { ok: true, filmDtuId: id, artifactId, filmType, createdAt: now };
   } catch (err) {
-    return { ok: false, error: "film_dtu_creation_failed", detail: err.message };
+    console.error("[economy] film_dtu_creation_failed:", err.message);
+    return { ok: false, error: "film_dtu_creation_failed" };
   }
 }
 
@@ -475,7 +476,8 @@ export function addCrewMember(db, {
     if (err.message?.includes("UNIQUE")) {
       return { ok: false, error: "crew_member_already_tagged" };
     }
-    return { ok: false, error: "crew_add_failed", detail: err.message };
+    console.error("[economy] crew_add_failed:", err.message);
+    return { ok: false, error: "crew_add_failed" };
   }
 }
 
@@ -721,7 +723,8 @@ export function registerFilmRemix(db, {
     if (err.message?.includes("UNIQUE")) {
       return { ok: false, error: "remix_already_registered" };
     }
-    return { ok: false, error: "remix_registration_failed", detail: err.message };
+    console.error("[economy] remix_registration_failed:", err.message);
+    return { ok: false, error: "remix_registration_failed" };
   }
 }
 
@@ -977,7 +980,8 @@ export function joinWatchParty(db, partyId, userId) {
     return { ok: true, partyId, userId };
   } catch (err) {
     if (err.message?.includes("UNIQUE")) return { ok: true, alreadyJoined: true };
-    return { ok: false, error: "join_failed", detail: err.message };
+    console.error("[economy] join_failed:", err.message);
+    return { ok: false, error: "join_failed" };
   }
 }
 

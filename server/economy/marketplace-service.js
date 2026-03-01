@@ -116,7 +116,8 @@ export function createListing(db, {
       },
     };
   } catch (err) {
-    return { ok: false, error: "listing_creation_failed", detail: err.message };
+    console.error("[economy] listing_creation_failed:", err.message);
+    return { ok: false, error: "listing_creation_failed" };
   }
 }
 

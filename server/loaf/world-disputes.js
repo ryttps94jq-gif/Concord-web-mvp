@@ -161,6 +161,11 @@ function quarantineItem(itemId, item, reason) {
     reason: String(reason),
     quarantinedAt: new Date().toISOString(),
   });
+  // Cap quarantine to prevent unbounded growth
+  if (quarantine.size > 10000) {
+    const oldest = quarantine.keys().next().value;
+    quarantine.delete(oldest);
+  }
   return { ok: true, itemId, quarantined: true };
 }
 

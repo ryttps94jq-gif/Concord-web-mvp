@@ -468,7 +468,7 @@ function checkUnicodeTricks(content, findings) {
   }
 
   // RTL override (used to reverse text display)
-  if (/[\u202A-\u202E\u2066-\u2069]/g.test(content)) {
+  if (/[\u202A-\u202E\u2066-\u2069]/.test(content)) {
     findings.push({
       type: INJECTION_TYPES.UNICODE_TRICK,
       severity: "high",

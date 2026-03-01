@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ArtifactInfo {
   type: string;
@@ -40,12 +40,12 @@ function WaveformDisplay({ dtuId }: { dtuId: string }) {
   const [peaks, setPeaks] = useState<number[]>([]);
 
   // Fetch waveform data on mount
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/artifact/${dtuId}/thumbnail`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setPeaks(data); })
       .catch(() => {});
-  });
+  }, [dtuId]);
 
   if (!peaks.length) return <div className="h-12 bg-zinc-900 rounded animate-pulse" />;
 
@@ -203,12 +203,12 @@ export function ArtifactRenderer({ dtuId, artifact, mode = "inline" }: ArtifactR
 function TextViewer({ dtuId, filename, sizeBytes, downloadUrl }: { dtuId: string; filename: string; sizeBytes: number; downloadUrl: string }) {
   const [content, setContent] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/artifact/${dtuId}/stream`)
       .then(r => r.text())
       .then(text => setContent(text.slice(0, 5000)))
       .catch(() => setContent("Error loading file"));
-  });
+  }, [dtuId]);
 
   return (
     <div className="space-y-2">
@@ -227,7 +227,7 @@ function TextViewer({ dtuId, filename, sizeBytes, downloadUrl }: { dtuId: string
 function CSVTablePreview({ dtuId, filename, downloadUrl }: { dtuId: string; filename: string; downloadUrl: string }) {
   const [rows, setRows] = useState<string[][]>([]);
 
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/artifact/${dtuId}/stream`)
       .then(r => r.text())
       .then(text => {
@@ -237,7 +237,7 @@ function CSVTablePreview({ dtuId, filename, downloadUrl }: { dtuId: string; file
         setRows(parsed.slice(0, 100));
       })
       .catch(() => {});
-  });
+  }, [dtuId]);
 
   if (!rows.length) return <div className="h-32 bg-zinc-900 rounded animate-pulse" />;
 
@@ -296,12 +296,12 @@ function MidiPreview({ dtuId, filename, downloadUrl }: { dtuId: string; filename
 function CalendarEventPreview({ dtuId, filename, downloadUrl }: { dtuId: string; filename: string; downloadUrl: string }) {
   const [content, setContent] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/artifact/${dtuId}/stream`)
       .then(r => r.text())
       .then(text => setContent(text.slice(0, 2000)))
       .catch(() => setContent(null));
-  });
+  }, [dtuId]);
 
   const summary = content?.match(/SUMMARY:(.*)/)?.[1]?.trim() || filename;
   const dtStart = content?.match(/DTSTART[^:]*:(.*)/)?.[1]?.trim() || "";
@@ -326,12 +326,12 @@ function CalendarEventPreview({ dtuId, filename, downloadUrl }: { dtuId: string;
 function MarkdownPreview({ dtuId, filename, sizeBytes, downloadUrl }: { dtuId: string; filename: string; sizeBytes: number; downloadUrl: string }) {
   const [content, setContent] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/artifact/${dtuId}/stream`)
       .then(r => r.text())
       .then(text => setContent(text.slice(0, 10000)))
       .catch(() => setContent("Error loading file"));
-  });
+  }, [dtuId]);
 
   return (
     <div className="space-y-2">

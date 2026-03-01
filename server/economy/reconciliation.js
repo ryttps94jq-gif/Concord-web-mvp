@@ -373,7 +373,8 @@ function executeReversalCorrection(db, purchase, { correctionRefId, batchId, rea
     if (err.message?.includes("UNIQUE constraint")) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "reversal_failed", detail: err.message };
+    console.error("[economy] reversal_failed:", err.message);
+    return { ok: false, error: "reversal_failed" };
   }
 }
 
@@ -427,7 +428,8 @@ function executeAdjustmentCorrection(db, purchase, { correctionRefId, batchId, r
     if (err.message?.includes("UNIQUE constraint")) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "adjustment_failed", detail: err.message };
+    console.error("[economy] adjustment_failed:", err.message);
+    return { ok: false, error: "adjustment_failed" };
   }
 }
 
@@ -488,7 +490,8 @@ function executeMakeGoodCorrection(db, purchase, { correctionRefId, batchId, rea
     if (err.message?.includes("UNIQUE constraint")) {
       return { ok: true, idempotent: true };
     }
-    return { ok: false, error: "make_good_failed", detail: err.message };
+    console.error("[economy] make_good_failed:", err.message);
+    return { ok: false, error: "make_good_failed" };
   }
 }
 
@@ -621,6 +624,7 @@ export function getReconciliationSummary(db) {
       timestamp: new Date().toISOString(),
     };
   } catch (err) {
-    return { ok: false, error: "summary_failed", detail: err.message };
+    console.error("[economy] summary_failed:", err.message);
+    return { ok: false, error: "summary_failed" };
   }
 }

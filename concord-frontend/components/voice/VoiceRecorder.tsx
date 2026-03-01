@@ -40,6 +40,7 @@ export function VoiceRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
 
@@ -54,8 +55,14 @@ export function VoiceRecorder({
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+      // Close any previous AudioContext before creating a new one
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+
       // Set up audio analyzer for visualization
       const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
@@ -92,6 +99,10 @@ export function VoiceRecorder({
         stream.getTracks().forEach(track => track.stop());
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
         }
         setAudioLevel(0);
       };
@@ -164,6 +175,10 @@ export function VoiceRecorder({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, [audioUrl]);

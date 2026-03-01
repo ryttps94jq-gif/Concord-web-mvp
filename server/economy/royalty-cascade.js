@@ -72,7 +72,8 @@ export function registerCitation(db, { childId, parentId, creatorId, parentCreat
     return { ok: true, lineageId: id, childId, parentId, generation };
   } catch (err) {
     if (err.message?.includes("UNIQUE")) return { ok: true, existing: true };
-    return { ok: false, error: "citation_registration_failed", detail: err.message };
+    console.error("[economy] citation_registration_failed:", err.message);
+    return { ok: false, error: "citation_registration_failed" };
   }
 }
 
@@ -252,7 +253,8 @@ export function distributeRoyalties(db, { contentId, transactionAmount, sourceTx
       transactionCount: results.length,
     };
   } catch (err) {
-    return { ok: false, error: "royalty_distribution_failed", detail: err.message };
+    console.error("[economy] royalty_distribution_failed:", err.message);
+    return { ok: false, error: "royalty_distribution_failed" };
   }
 }
 

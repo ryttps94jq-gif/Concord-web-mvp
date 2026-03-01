@@ -147,20 +147,95 @@ export class InterfaceAdapter {
   _basicSentiment(text) {
     if (!text) return { intensity: 0.3, emotion: {} };
 
+    const lower = text.toLowerCase();
     const upper = text.toUpperCase() === text && text.length > 3;
     const exclamation = (text.match(/!/g) || []).length;
     const length = text.length;
+    const words = lower.split(/\s+/);
+    const wordCount = words.length;
 
-    const intensity = Math.min(1, 0.3 + (upper ? 0.3 : 0) + (exclamation * 0.1) + (length > 200 ? 0.2 : 0));
+    // Negation detection — window of 3 words after a negator
+    const negators = new Set(['not', "n't", 'no', 'never', 'neither', 'nobody', 'nothing', 'nowhere', 'hardly', 'barely', "don't", "doesn't", "didn't", "won't", "wouldn't", "can't", "couldn't", "shouldn't"]);
+    const negatedZones = new Set();
+    for (let i = 0; i < words.length; i++) {
+      if (negators.has(words[i]) || words[i].endsWith("n't")) {
+        for (let j = i + 1; j <= Math.min(i + 3, words.length - 1); j++) {
+          negatedZones.add(j);
+        }
+      }
+    }
+    const isNegated = (word) => {
+      const idx = words.indexOf(word);
+      return idx !== -1 && negatedZones.has(idx);
+    };
 
-    // Very basic — real NLP would do much better
-    // But even this basic version works for text-mode mind spaces
+    // Intensity: caps, punctuation, length, repetition (e.g., "sooo", "!!!"), question density
+    const elongated = (text.match(/(.)\1{2,}/g) || []).length;
+    const questionMarks = (text.match(/\?/g) || []).length;
+    const intensity = Math.min(1,
+      0.3
+      + (upper ? 0.3 : 0)
+      + (Math.min(exclamation, 5) * 0.08)
+      + (elongated * 0.05)
+      + (length > 200 ? 0.15 : length > 100 ? 0.08 : 0)
+    );
+
+    // Multi-pattern emotion detection across all 10 channels
     const emotion = {};
-    const lower = text.toLowerCase();
-    if (lower.includes('love') || lower.includes('miss')) emotion[EmotionalChannel.LOVE] = 0.7;
-    if (lower.includes('worried') || lower.includes('scared')) emotion[EmotionalChannel.DISTRESS] = 0.6;
-    if (lower.includes('happy') || lower.includes('excited')) emotion[EmotionalChannel.JOY] = 0.7;
-    if (lower.includes('help') || lower.includes('need')) emotion[EmotionalChannel.CONCERN] = 0.5;
+
+    const patterns = [
+      { channel: EmotionalChannel.LOVE,      words: ['love', 'adore', 'cherish', 'miss', 'heart', 'dear', 'sweetheart', 'darling', 'treasure'], base: 0.7 },
+      { channel: EmotionalChannel.JOY,       words: ['happy', 'excited', 'glad', 'great', 'wonderful', 'amazing', 'awesome', 'fantastic', 'delighted', 'thrilled', 'yay', 'hooray', 'celebrate', 'laugh', 'smile', 'proud of'], base: 0.7 },
+      { channel: EmotionalChannel.DISTRESS,   words: ['scared', 'afraid', 'terrified', 'panic', 'hurt', 'pain', 'cry', 'crying', 'suffer', 'desperate', 'emergency', 'dying', 'broken', 'devastated', 'trauma', 'nightmare'], base: 0.7 },
+      { channel: EmotionalChannel.CONCERN,    words: ['worried', 'help', 'need', 'concern', 'anxious', 'nervous', 'uneasy', 'trouble', 'problem', 'struggling', 'confused', 'uncertain', 'doubt'], base: 0.5 },
+      { channel: EmotionalChannel.WARMTH,     words: ['thank', 'thanks', 'grateful', 'appreciate', 'kind', 'warm', 'gentle', 'sweet', 'thoughtful', 'care', 'caring', 'hug'], base: 0.6 },
+      { channel: EmotionalChannel.CALM,       words: ['calm', 'peaceful', 'relaxed', 'serene', 'quiet', 'easy', 'chill', 'steady', 'comfortable', 'alright', 'fine', 'okay', 'settled'], base: 0.6 },
+      { channel: EmotionalChannel.FOCUS,      words: ['focus', 'concentrate', 'think', 'working', 'study', 'figure', 'analyze', 'plan', 'research', 'learn', 'building', 'creating'], base: 0.5 },
+      { channel: EmotionalChannel.CURIOSITY,  words: ['wonder', 'curious', 'interesting', 'fascinated', 'how', 'why', 'what if', 'explore', 'discover', 'question', 'intrigued'], base: 0.5 },
+      { channel: EmotionalChannel.PRIDE,      words: ['proud', 'accomplished', 'achieved', 'nailed', 'did it', 'success', 'mastered', 'impressed', 'earned'], base: 0.6 },
+      { channel: EmotionalChannel.COMFORT,    words: ['safe', 'home', 'cozy', 'comfort', 'secure', 'belong', 'protected', 'trust', 'familiar', 'together'], base: 0.5 },
+    ];
+
+    for (const { channel, words: triggers, base } of patterns) {
+      let hits = 0;
+      for (const trigger of triggers) {
+        if (lower.includes(trigger)) {
+          // Check if this hit is negated
+          if (trigger.includes(' ')) {
+            // Multi-word trigger — simple presence check, skip negation
+            hits++;
+          } else if (!isNegated(trigger)) {
+            hits++;
+          }
+        }
+      }
+      if (hits > 0) {
+        // Multiple hits in same channel strengthen the signal (diminishing returns)
+        emotion[channel] = Math.min(1, base + (hits - 1) * 0.1);
+      }
+    }
+
+    // Question-heavy text suggests curiosity even without explicit keywords
+    if (questionMarks >= 2 && !emotion[EmotionalChannel.CURIOSITY]) {
+      emotion[EmotionalChannel.CURIOSITY] = 0.4;
+    }
+
+    // Negation can flip positive emotions to their opposites
+    // "I'm not happy" — remove joy, add mild concern
+    if (negatedZones.size > 0) {
+      for (const trigger of ['happy', 'glad', 'great', 'excited', 'fine', 'okay']) {
+        if (lower.includes(trigger) && isNegated(trigger)) {
+          delete emotion[EmotionalChannel.JOY];
+          if (!emotion[EmotionalChannel.CONCERN]) emotion[EmotionalChannel.CONCERN] = 0.4;
+        }
+      }
+      for (const trigger of ['calm', 'relaxed', 'comfortable']) {
+        if (lower.includes(trigger) && isNegated(trigger)) {
+          delete emotion[EmotionalChannel.CALM];
+          if (!emotion[EmotionalChannel.DISTRESS]) emotion[EmotionalChannel.DISTRESS] = 0.3;
+        }
+      }
+    }
 
     return { intensity, emotion };
   }
@@ -177,7 +252,8 @@ export class InterfaceAdapter {
     const warmth = emotions[EmotionalChannel.WARMTH] || 0;
     const joy = emotions[EmotionalChannel.JOY] || 0;
     const concern = emotions[EmotionalChannel.CONCERN] || 0;
-    if (concern > 0.5) return 'gentle';
+    const distress = emotions[EmotionalChannel.DISTRESS] || 0;
+    if (concern > 0.5 || distress > 0.5) return 'gentle';
     if (joy > 0.5) return 'bright';
     if (warmth > 0.5) return 'warm';
     return 'neutral';

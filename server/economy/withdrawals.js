@@ -146,7 +146,8 @@ export function processWithdrawal(db, { withdrawalId, requestId, ip }) {
     const results = doProcess();
     return { ok: true, batchId, transactions: results, withdrawal: { ...wd, status: "complete" } };
   } catch (err) {
-    return { ok: false, error: "withdrawal_processing_failed", detail: err.message };
+    console.error("[economy] withdrawal_processing_failed:", err.message);
+    return { ok: false, error: "withdrawal_processing_failed" };
   }
 }
 
