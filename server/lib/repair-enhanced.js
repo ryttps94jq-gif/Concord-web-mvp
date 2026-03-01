@@ -291,7 +291,7 @@ function _buildStatements(db) {
  * Create the enhanced repair monitor.
  * Tracks system metrics in sliding windows and performs pattern analysis.
  */
-function createEnhancedRepairMonitor({ db, stmts, log = () => {} }) {
+export function createEnhancedRepairMonitor({ db, stmts, log = () => {} }) {
   const WINDOW_SIZE = 120; // Keep last 120 data points per metric
   const windows = {};
 
@@ -768,7 +768,7 @@ function createEnhancedRepairMonitor({ db, stmts, log = () => {} }) {
  * Classifies issues from health reports and ranks repair options from
  * the pattern registry and knowledge base.
  */
-function createEnhancedRepairDiagnosis({ db, stmts, log = () => {} }) {
+export function createEnhancedRepairDiagnosis({ db, stmts, log = () => {} }) {
 
   /**
    * Classify the primary issue from a health report.
@@ -985,7 +985,7 @@ function createEnhancedRepairDiagnosis({ db, stmts, log = () => {} }) {
  * Create the enhanced repair executor.
  * Applies fixes, verifies results, and supports rollback.
  */
-function createEnhancedRepairExecution({ db, stmts, log = () => {}, actionHandlers = {} }) {
+export function createEnhancedRepairExecution({ db, stmts, log = () => {}, actionHandlers = {} }) {
 
   /**
    * Capture a snapshot of the current process state for before/after comparison.
@@ -1229,7 +1229,7 @@ const PRECURSOR_PATTERNS = Object.freeze([
 /**
  * Create the predictive repair engine.
  */
-function createPredictiveRepair({ db, stmts, monitor, executor, log = () => {} }) {
+export function createPredictiveRepair({ db, stmts, monitor, executor, log = () => {} }) {
 
   /**
    * Scan the current health report for precursor patterns
