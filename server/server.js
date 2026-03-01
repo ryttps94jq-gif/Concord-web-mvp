@@ -92,6 +92,8 @@ import { routeMessage as chatRouterRoute, buildLensChain, emitResonanceSignal, s
 import { initializeManifests, getManifestStats, registerUserLens, registerEmergentLens } from "./lib/lens-manifest.js";
 import { accumulate as accumulateSessionContext, getContextSnapshot, getAccumulatorMetrics, cleanupExpiredSessions as cleanupAccumulatorSessions } from "./lib/session-context-accumulator.js";
 import { detectForge, runForgePipeline, saveForgedDTU, deleteForgedDTU, saveAndList, iterateForge, recordForgeMetric, getForgeMetrics, recordEmergentContribution } from "./lib/inline-dtu-forge.js";
+import { initializeShield, scanContent as shieldScanContent, scanHashAgainstLattice, runAnalysisPipeline as shieldAnalyze, classifyWithYARA, runProphet as shieldProphet, runSurgeon as shieldSurgeon, runGuardian as shieldGuardian, propagateThreatToLattice, shieldHeartbeatTick, computeSecurityScore, detectShieldIntent, performSweep, processUserReport, getThreatFeed, getFirewallRules, getPredictions, getShieldMetrics, queueScan as shieldQueueScan, createThreatDTU, THREAT_SUBTYPES, SCAN_MODES } from "./lib/concord-shield.js";
+import registerShieldRoutes from "./routes/shield.js";
 
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
@@ -4280,6 +4282,8 @@ function authMiddleware(req, res, next) {
     // Real-time data feeds + universal export
     "/api/realtime", "/api/convert",
     "/api/apps",
+    // Concord Shield security module
+    "/api/shield",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6641,6 +6645,7 @@ async function runMacro(domain, name, input, ctx) {
     realtime: new Set(["status", "feed"]),
     convert: new Set(["to-dtu", "from-dtu"]),
     apps: new Set(["list", "get"]),
+    shield: new Set(["status", "threats", "firewall", "predictions", "metrics"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6696,6 +6701,8 @@ async function runMacro(domain, name, input, ctx) {
     // Real-time data feeds + universal export
     "/api/realtime", "/api/convert",
     "/api/apps",
+    // Concord Shield security module
+    "/api/shield",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -15608,6 +15615,14 @@ const intentInfo = classifyIntent(prompt);
       if (_emergentRoute.routed) {
         _chatRoute._emergentTarget = _emergentRoute;
       }
+
+      // Check for Shield security intent ("scan my system", "is this safe?", etc.)
+      try {
+        const _shieldIntent = detectShieldIntent(prompt);
+        if (_shieldIntent.isShieldRequest) {
+          _chatRoute._shieldIntent = _shieldIntent;
+        }
+      } catch {}
     }
   } catch (_routerErr) {
     // Chat router is supplementary — never block the chat path
@@ -16309,6 +16324,10 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       isMultiArtifact: _forgeResult.isMultiArtifact,
       offerForge: _forgeResult._offerForge?.shouldOfferForge || false,
     } : null,
+    shield: _chatRoute?._shieldIntent?.isShieldRequest ? {
+      action: _chatRoute._shieldIntent.action,
+      params: _chatRoute._shieldIntent.params,
+    } : null,
   };
 }, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
 
@@ -16361,6 +16380,126 @@ register("chat", "route.metrics", (ctx, input) => {
     accumulator: getAccumulatorMetrics(),
   };
 }, { description: "Get chat router, forge, and session accumulator metrics." });
+
+// ===== CONCORD SHIELD MACROS =====
+// Security scanning, threat intelligence, and collective immunity.
+
+register("shield", "scan", async (ctx, input) => {
+  const content = input.content || input.data || "";
+  const fileHash = input.hash || input.fileHash || input.sha256 || "";
+
+  // Hash-only lookup (instant)
+  if (fileHash && !content) {
+    const result = scanHashAgainstLattice(fileHash, STATE);
+    return {
+      ok: true,
+      mode: "hash_lookup",
+      known: result.known,
+      clean: result.clean ?? null,
+      threat: result.threatDtu ? {
+        id: result.threatDtu.id,
+        subtype: result.threatDtu.subtype,
+        severity: result.threatDtu.severity,
+        neutralization: result.threatDtu.neutralization,
+      } : null,
+    };
+  }
+
+  // Content scan (ClamAV + YARA + lattice)
+  if (content) {
+    const result = await shieldScanContent(content, STATE, {
+      source: input.source || "api",
+      scanMode: SCAN_MODES.USER_INITIATED,
+      userId: ctx?.actor?.userId || input.userId,
+      filePath: input.filePath || null,
+    });
+    return result;
+  }
+
+  return { ok: false, error: "Provide content or hash to scan" };
+}, { description: "Submit file content or hash for security analysis." });
+
+register("shield", "status", (ctx, input) => {
+  const userId = input.userId || ctx?.actor?.userId || "anonymous";
+  const score = computeSecurityScore(userId, STATE);
+  const metrics = getShieldMetrics();
+  return {
+    ok: true,
+    securityScore: score,
+    shieldStatus: {
+      initialized: metrics.initialized,
+      tools: metrics.tools,
+      threatIndexSize: metrics.threatIndexSize,
+      knownGoodHashes: metrics.knownGoodHashes,
+    },
+  };
+}, { description: "Get user's security score and Shield status." });
+
+register("shield", "threats", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const subtype = input.subtype || null;
+  const feed = getThreatFeed(limit, subtype);
+  return { ok: true, threats: feed, count: feed.length };
+}, { description: "Get global threat feed from the lattice." });
+
+register("shield", "report", (ctx, input) => {
+  const userId = ctx?.actor?.userId || input.userId || "anonymous";
+  const result = processUserReport({
+    subtype: input.subtype,
+    severity: input.severity,
+    fileHash: input.fileHash || input.hash || input.sha256,
+    md5: input.md5,
+    vector: input.vector,
+    indicators: input.indicators || input.behavior || [],
+    affected: input.affected || [],
+    description: input.description,
+  }, userId, STATE);
+  return result;
+}, { description: "Report a suspected threat to the collective lattice." });
+
+register("shield", "firewall", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const rules = getFirewallRules(limit);
+  return { ok: true, rules, count: rules.length };
+}, { description: "Get currently active firewall rules generated by Guardian." });
+
+register("shield", "predictions", (ctx, input) => {
+  const limit = Number(input.limit) || 20;
+  const predictions = getPredictions(limit);
+  return { ok: true, predictions, count: predictions.length };
+}, { description: "Get Prophet's predicted upcoming threats." });
+
+register("shield", "sweep", async (ctx, input) => {
+  const userId = ctx?.actor?.userId || input.userId || "anonymous";
+  const result = await performSweep(STATE, { userId, depth: input.depth || "standard" });
+  return { ok: true, sweep: result };
+}, { description: "Perform a full system security sweep." });
+
+register("shield", "metrics", (ctx, input) => {
+  return getShieldMetrics();
+}, { description: "Get Concord Shield metrics and tool availability." });
+
+register("shield", "prophet", (ctx, input) => {
+  const family = input.family || input.subtype || "ransomware";
+  const result = shieldProphet(family, STATE);
+  return result;
+}, { description: "Run Prophet analysis on a specific threat family." });
+
+register("shield", "surgeon", (ctx, input) => {
+  const threatId = input.threatId || input.id;
+  const threatDtu = threatId ? STATE.dtus?.get(threatId) : null;
+  if (!threatDtu) return { ok: false, error: "Threat DTU not found" };
+  return shieldSurgeon(threatDtu);
+}, { description: "Run Surgeon reverse engineering on a specific threat." });
+
+register("shield", "guardian", (ctx, input) => {
+  const threatId = input.threatId || input.id;
+  const threatDtu = threatId ? STATE.dtus?.get(threatId) : null;
+  if (!threatDtu) return { ok: false, error: "Threat DTU not found" };
+  return shieldGuardian(threatDtu, STATE);
+}, { description: "Run Guardian firewall rule generation for a specific threat." });
+
+// ===== END CONCORD SHIELD MACROS =====
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -20886,6 +21025,11 @@ registerDomainRoutes(app, {
   validate
 });
 
+// ---- Shield Routes (extracted to routes/shield.js) ----
+registerShieldRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -22331,6 +22475,11 @@ async function governorTick(reason="heartbeat") {
       // 2.9 — Chat Router Session Cleanup — every 100th tick
       if (_tick % 100 === 0) {
         try { cleanupAccumulatorSessions(); } catch {}
+      }
+
+      // 2.10 — Concord Shield Heartbeat — every THREAT_SCAN tick
+      if (_tick % TICK_FREQUENCIES.THREAT_SCAN === 0) {
+        try { await shieldHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -28922,6 +29071,21 @@ try {
 }
 
 structuredLog("info", "lens_runtime_loaded", { domainEngines: 24, superLensDomains: domainModules.length, totalActions: LENS_ACTIONS.size });
+
+// ── Initialize Concord Shield (Security Module) ─────────────────────────────
+try {
+  initializeShield(STATE).then(shieldResult => {
+    structuredLog("info", "concord_shield_initialized", {
+      ok: shieldResult.ok,
+      tools: shieldResult.availableTools || [],
+      indexed: shieldResult.indexed || {},
+    });
+  }).catch(e => {
+    structuredLog("warn", "concord_shield_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "concord_shield_init_failed", { error: e?.message });
+}
 
 // ============================================================================
 // MEGA SPEC: Lens Recommendation Engine & Cross-Domain Context
