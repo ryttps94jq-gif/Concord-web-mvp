@@ -1,6 +1,63 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Mock lucide-react icons used by NotificationCenter component
+vi.mock('lucide-react', () => {
+  const createIcon = (name: string) => {
+    const Component = (props: any) => {
+      const React = require('react');
+      return React.createElement('span', { 'data-testid': `icon-${name}`, ...props });
+    };
+    Component.displayName = name;
+    return Component;
+  };
+  return {
+    Bell: createIcon('Bell'),
+    BellOff: createIcon('BellOff'),
+    Heart: createIcon('Heart'),
+    MessageCircle: createIcon('MessageCircle'),
+    UserPlus: createIcon('UserPlus'),
+    Quote: createIcon('Quote'),
+    Coins: createIcon('Coins'),
+    Megaphone: createIcon('Megaphone'),
+    Check: createIcon('Check'),
+    CheckCheck: createIcon('CheckCheck'),
+    Trash2: createIcon('Trash2'),
+    X: createIcon('X'),
+    ChevronRight: createIcon('ChevronRight'),
+    Settings: createIcon('Settings'),
+    Filter: createIcon('Filter'),
+    Loader2: createIcon('Loader2'),
+    Eye: createIcon('Eye'),
+    EyeOff: createIcon('EyeOff'),
+    Music: createIcon('Music'),
+    Video: createIcon('Video'),
+    FileText: createIcon('FileText'),
+    Star: createIcon('Star'),
+    AlertCircle: createIcon('AlertCircle'),
+  };
+});
+
+// Mock framer-motion
+vi.mock('framer-motion', () => {
+  const React = require('react');
+  return {
+    motion: {
+      div: React.forwardRef(({ children }: any, ref: any) =>
+        React.createElement('div', { ref }, children)
+      ),
+      button: React.forwardRef(({ children }: any, ref: any) =>
+        React.createElement('button', { ref }, children)
+      ),
+      span: React.forwardRef(({ children }: any, ref: any) =>
+        React.createElement('span', { ref }, children)
+      ),
+    },
+    AnimatePresence: ({ children }: any) => React.createElement(React.Fragment, null, children),
+  };
+});
 
 // Mock the api client
 vi.mock('@/lib/api/client', () => ({
@@ -23,74 +80,93 @@ const mockedApi = api as unknown as {
 };
 
 describe('NotificationCenter', () => {
-  const mockNotifications = {
-    ok: true,
-    notifications: [
-      {
-        id: 'notif-1',
-        type: 'like',
-        message: 'Alice liked your DTU',
-        read: false,
-        createdAt: '2026-02-28T10:00:00Z',
-        actor: { username: 'alice', avatar: null },
-      },
-      {
-        id: 'notif-2',
-        type: 'follow',
-        message: 'Bob started following you',
-        read: false,
-        createdAt: '2026-02-28T09:00:00Z',
-        actor: { username: 'bob', avatar: null },
-      },
-      {
-        id: 'notif-3',
-        type: 'comment',
-        message: 'Carol commented on your post',
-        read: true,
-        createdAt: '2026-02-27T15:00:00Z',
-        actor: { username: 'carol', avatar: null },
-      },
-    ],
-    unreadCount: 2,
-  };
+  let queryClient: QueryClient;
+
+  const mockNotifications = [
+    {
+      id: 'notif-1',
+      type: 'like' as const,
+      title: 'Content Liked',
+      message: 'Alice liked your DTU',
+      actorId: 'user-alice',
+      actorName: 'Alice',
+      targetId: 'dtu-1',
+      targetTitle: 'My DTU',
+      read: false,
+      createdAt: '2026-02-28T10:00:00Z',
+    },
+    {
+      id: 'notif-2',
+      type: 'follow' as const,
+      title: 'New Follower',
+      message: 'Bob started following you',
+      actorId: 'user-bob',
+      actorName: 'Bob',
+      read: false,
+      createdAt: '2026-02-28T09:00:00Z',
+    },
+    {
+      id: 'notif-3',
+      type: 'comment' as const,
+      title: 'New Comment',
+      message: 'Carol commented on your post',
+      actorId: 'user-carol',
+      actorName: 'Carol',
+      targetId: 'dtu-2',
+      targetTitle: 'Another DTU',
+      read: true,
+      createdAt: '2026-02-27T15:00:00Z',
+    },
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedApi.get.mockResolvedValue({ data: mockNotifications });
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0, refetchInterval: false },
+      },
+    });
+    mockedApi.get.mockResolvedValue({ data: { notifications: mockNotifications } });
     mockedApi.post.mockResolvedValue({ data: { ok: true } });
     mockedApi.put.mockResolvedValue({ data: { ok: true } });
+    mockedApi.delete.mockResolvedValue({ data: { ok: true } });
   });
 
-  it('bell icon renders with unread count badge', async () => {
-    render(<NotificationCenter />);
+  afterEach(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  function renderNotificationCenter(props: Record<string, any> = {}) {
+    return render(
+      React.createElement(QueryClientProvider, { client: queryClient },
+        React.createElement(NotificationCenter, { userId: 'current-user', ...props })
+      )
+    );
+  }
+
+  it('renders header with unread count badge', async () => {
+    renderNotificationCenter();
 
     await waitFor(() => {
+      // The component shows unread count (2 unread notifications)
       expect(screen.getByText('2')).toBeDefined();
     });
   });
 
-  it('click opens dropdown/panel', async () => {
-    render(<NotificationCenter />);
+  it('notification items render in panel mode', async () => {
+    renderNotificationCenter();
 
+    // In panel mode (default), notifications are visible immediately
     await waitFor(() => {
-      expect(screen.getByText('2')).toBeDefined();
-    });
-
-    // Click the bell icon / notification trigger
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
-
-    await waitFor(() => {
-      expect(screen.getByText('Alice liked your DTU')).toBeDefined();
+      expect(screen.getByText('Alice')).toBeDefined();
+      expect(screen.getByText('Bob')).toBeDefined();
+      expect(screen.getByText('Carol')).toBeDefined();
     });
   });
 
-  it('notification items render with type, message, and time', async () => {
-    render(<NotificationCenter />);
-
-    // Open panel
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
+  it('notification messages display', async () => {
+    renderNotificationCenter();
 
     await waitFor(() => {
       expect(screen.getByText('Alice liked your DTU')).toBeDefined();
@@ -99,80 +175,69 @@ describe('NotificationCenter', () => {
     });
   });
 
-  it('mark as read works', async () => {
-    render(<NotificationCenter />);
-
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
+  it('mark all as read button works', async () => {
+    renderNotificationCenter();
 
     await waitFor(() => {
-      expect(screen.getByText('Alice liked your DTU')).toBeDefined();
+      expect(screen.getByText('2')).toBeDefined();
     });
 
-    // Find and click mark as read (could be a button or link)
-    const markReadButtons = screen.getAllByTitle(/mark.*read|read/i);
-    if (markReadButtons.length > 0) {
-      fireEvent.click(markReadButtons[0]);
-      await waitFor(() => {
-        expect(mockedApi.put).toHaveBeenCalled();
-      });
-    }
+    // Find the mark-all-as-read button (has title "Mark all as read")
+    const markAllBtn = screen.getByTitle('Mark all as read');
+    fireEvent.click(markAllBtn);
+
+    // Optimistic update should clear unread count
+    await waitFor(() => {
+      expect(screen.queryByText('2')).toBeNull();
+    });
   });
 
-  it('filter by type works', async () => {
-    render(<NotificationCenter />);
-
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
+  it('filter button toggles filter options', async () => {
+    renderNotificationCenter();
 
     await waitFor(() => {
-      expect(screen.getByText('Alice liked your DTU')).toBeDefined();
+      expect(screen.getByText('Alice')).toBeDefined();
     });
 
-    // Look for type filter buttons
-    const likeFilter = screen.queryByText(/likes/i);
-    const followFilter = screen.queryByText(/follows/i);
+    // Click the filter button
+    const filterBtn = screen.getByTitle('Filter notifications');
+    fireEvent.click(filterBtn);
 
-    if (likeFilter) {
-      fireEvent.click(likeFilter);
-      // After filtering, only like notifications should show
-    }
-    if (followFilter) {
-      fireEvent.click(followFilter);
-    }
+    // Filter options should appear
+    await waitFor(() => {
+      expect(screen.getByText('Likes')).toBeDefined();
+      expect(screen.getByText('Follows')).toBeDefined();
+      expect(screen.getByText('Comments')).toBeDefined();
+    });
   });
 
   it('clear all button works', async () => {
-    render(<NotificationCenter />);
-
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
+    renderNotificationCenter();
 
     await waitFor(() => {
-      expect(screen.getByText('Alice liked your DTU')).toBeDefined();
+      expect(screen.getByText('Alice')).toBeDefined();
     });
 
-    const clearAllBtn = screen.queryByText(/clear all|mark all|read all/i);
-    if (clearAllBtn) {
-      fireEvent.click(clearAllBtn);
-      await waitFor(() => {
-        expect(mockedApi.post).toHaveBeenCalled();
-      });
-    }
+    // Find the clear all button (has title "Clear all")
+    const clearAllBtn = screen.getByTitle('Clear all');
+    fireEvent.click(clearAllBtn);
+
+    // After clearing, should show empty state
+    await waitFor(() => {
+      const empty = screen.queryByText(/no notification|all caught up/i);
+      expect(empty).not.toBeNull();
+    });
   });
 
   it('empty state when no notifications', async () => {
     mockedApi.get.mockResolvedValue({
-      data: { ok: true, notifications: [], unreadCount: 0 },
+      data: { notifications: [] },
     });
 
-    render(<NotificationCenter />);
-
-    const bell = screen.getByRole('button');
-    fireEvent.click(bell);
+    renderNotificationCenter();
 
     await waitFor(() => {
-      const empty = screen.queryByText(/no notification|all caught up|empty/i);
+      const empty = screen.queryByText(/no notification|all caught up/i);
       expect(empty).not.toBeNull();
     });
   });
@@ -180,22 +245,22 @@ describe('NotificationCenter', () => {
   it('unread count badge not shown when all read', async () => {
     mockedApi.get.mockResolvedValue({
       data: {
-        ok: true,
         notifications: [
           {
             id: 'notif-1',
             type: 'like',
+            title: 'Content Liked',
             message: 'Test notification',
             read: true,
             createdAt: '2026-02-28T10:00:00Z',
-            actor: { username: 'alice', avatar: null },
+            actorName: 'Alice',
+            actorId: 'user-alice',
           },
         ],
-        unreadCount: 0,
       },
     });
 
-    render(<NotificationCenter />);
+    renderNotificationCenter();
 
     await waitFor(() => {
       // Badge should not show count of 0
@@ -203,9 +268,9 @@ describe('NotificationCenter', () => {
     });
   });
 
-  it('renders bell icon', () => {
-    render(<NotificationCenter />);
-    const bellButton = screen.getByRole('button');
-    expect(bellButton).toBeDefined();
+  it('renders Notifications header', async () => {
+    renderNotificationCenter();
+
+    expect(screen.getByText('Notifications')).toBeDefined();
   });
 });

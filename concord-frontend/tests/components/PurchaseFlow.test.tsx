@@ -87,7 +87,7 @@ describe('PurchaseFlow', () => {
   it('custom amount input works', () => {
     render(<PurchaseFlow />);
 
-    const customInput = screen.getByPlaceholderText(/custom|enter amount|amount/i) as HTMLInputElement;
+    const customInput = screen.getByPlaceholderText(/\d+\s*-\s*[\d,]+/) as HTMLInputElement;
     fireEvent.change(customInput, { target: { value: '250' } });
     expect(customInput.value).toBe('250');
   });
@@ -95,7 +95,7 @@ describe('PurchaseFlow', () => {
   it('custom amount input validation rejects non-numeric', () => {
     render(<PurchaseFlow />);
 
-    const customInput = screen.getByPlaceholderText(/custom|enter amount|amount/i) as HTMLInputElement;
+    const customInput = screen.getByPlaceholderText(/\d+\s*-\s*[\d,]+/) as HTMLInputElement;
     fireEvent.change(customInput, { target: { value: 'abc' } });
     expect(customInput.value).toBe('');
   });
@@ -121,8 +121,8 @@ describe('PurchaseFlow', () => {
     // Select a preset amount
     fireEvent.click(screen.getByText('100').closest('button')!);
 
-    // Click buy button
-    const buyBtn = screen.getByText(/buy|purchase|checkout/i);
+    // Click buy button - match the button text "Buy 100 CC for $100"
+    const buyBtn = screen.getByText(/buy \d+ cc for/i);
     fireEvent.click(buyBtn);
 
     await waitFor(() => {
@@ -136,7 +136,7 @@ describe('PurchaseFlow', () => {
     render(<PurchaseFlow />);
 
     fireEvent.click(screen.getByText('50').closest('button')!);
-    fireEvent.click(screen.getByText(/buy|purchase|checkout/i));
+    fireEvent.click(screen.getByText(/buy \d+ cc for/i));
 
     await waitFor(() => {
       expect(window.location.href).toBe('https://checkout.stripe.com/test');
@@ -149,11 +149,11 @@ describe('PurchaseFlow', () => {
     render(<PurchaseFlow />);
 
     fireEvent.click(screen.getByText('100').closest('button')!);
-    fireEvent.click(screen.getByText(/buy|purchase|checkout/i));
+    fireEvent.click(screen.getByText(/buy \d+ cc for/i));
 
     await waitFor(() => {
-      const errorMsg = screen.queryByText(/went wrong|try again|failed/i);
-      expect(errorMsg).not.toBeNull();
+      // The error state shows "Something Went Wrong" heading
+      expect(screen.getByText('Something Went Wrong')).toBeDefined();
     });
   });
 
@@ -165,18 +165,18 @@ describe('PurchaseFlow', () => {
     render(<PurchaseFlow />);
 
     fireEvent.click(screen.getByText('100').closest('button')!);
-    fireEvent.click(screen.getByText(/buy|purchase|checkout/i));
+    fireEvent.click(screen.getByText(/buy \d+ cc for/i));
 
     await waitFor(() => {
-      const errorMsg = screen.queryByText(/insufficient funds|went wrong/i);
-      expect(errorMsg).not.toBeNull();
+      // The component converts underscores to spaces: "insufficient funds"
+      expect(screen.getByText(/insufficient funds/i)).toBeDefined();
     });
   });
 
   it('selecting preset clears custom amount', () => {
     render(<PurchaseFlow />);
 
-    const customInput = screen.getByPlaceholderText(/custom|enter amount|amount/i) as HTMLInputElement;
+    const customInput = screen.getByPlaceholderText(/\d+\s*-\s*[\d,]+/) as HTMLInputElement;
     fireEvent.change(customInput, { target: { value: '250' } });
     expect(customInput.value).toBe('250');
 
@@ -194,7 +194,7 @@ describe('PurchaseFlow', () => {
     expect(btn100.className).toContain('neon-blue');
 
     // Type custom amount
-    const customInput = screen.getByPlaceholderText(/custom|enter amount|amount/i);
+    const customInput = screen.getByPlaceholderText(/\d+\s*-\s*[\d,]+/);
     fireEvent.change(customInput, { target: { value: '75' } });
 
     // Preset should no longer be highlighted

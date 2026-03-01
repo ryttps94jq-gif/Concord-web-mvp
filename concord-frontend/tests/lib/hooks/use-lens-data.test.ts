@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -120,6 +120,17 @@ describe('useLensData', () => {
   });
 
   describe('auto-seeding', () => {
+    const originalEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+      // Auto-seeding only runs in development mode
+      process.env.NODE_ENV = 'development';
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
+    });
+
     it('triggers bulk seed when backend returns empty and seed data is provided', async () => {
       mockedApi.get.mockResolvedValue({
         data: { ok: true, artifacts: [], total: 0 },

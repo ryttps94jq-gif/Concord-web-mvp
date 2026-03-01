@@ -8,12 +8,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 
 // Mock NextResponse and NextRequest
+const makeMockHeaders = () => {
+  const store = new Map<string, string>();
+  return { set: vi.fn((k: string, v: string) => store.set(k, v)), get: (k: string) => store.get(k) };
+};
+
 const mockRedirect = vi.fn().mockImplementation((url: URL) => ({
   type: 'redirect',
   url: url.toString(),
+  headers: makeMockHeaders(),
 }));
 
-const mockNext = vi.fn().mockReturnValue({ type: 'next' });
+const mockNext = vi.fn().mockImplementation(() => ({ type: 'next', headers: makeMockHeaders() }));
 
 vi.mock('next/server', () => ({
   NextResponse: {

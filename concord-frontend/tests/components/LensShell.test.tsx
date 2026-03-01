@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock hooks and dependencies
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/lenses/test',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('@/hooks/useLensNav', () => ({
   useLensNav: vi.fn(),
 }));
@@ -37,11 +43,26 @@ vi.mock('@/components/common/EmptyState', () => ({
   ),
 }));
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Search: ({ className }: { className?: string }) => <span data-testid="search-icon" className={className} />,
-  X: ({ className }: { className?: string }) => <span data-testid="x-icon" className={className} />,
-}));
+// Mock lucide-react — use importOriginal to get all exports, then override with simple components
+vi.mock('lucide-react', async (importOriginal) => {
+  const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
+  const makeMockIcon = (name: string) => {
+    const Icon = React.forwardRef<SVGSVGElement, Record<string, unknown>>((props, ref) =>
+      React.createElement('span', { 'data-testid': `icon-${name}`, ref, ...props })
+    );
+    Icon.displayName = name;
+    return Icon;
+  };
+  const overrides: Record<string, unknown> = {};
+  for (const key of Object.keys(actual)) {
+    // Override all PascalCase exports (icon components) but skip utility functions/types
+    if (key[0] >= 'A' && key[0] <= 'Z' && key !== 'createLucideIcon' && key !== 'default') {
+      overrides[key] = makeMockIcon(key);
+    }
+  }
+  return { ...actual, ...overrides };
+});
 
 import type { LucideIcon } from 'lucide-react';
 import { LensShell, StatusBadge, ItemList } from '@/components/common/LensShell';
@@ -188,7 +209,7 @@ describe('LensShell', () => {
     );
 
     // Clear button should exist
-    const clearBtn = screen.getByTestId('x-icon').closest('button');
+    const clearBtn = screen.getByTestId('icon-X').closest('button');
     expect(clearBtn).toBeInTheDocument();
 
     fireEvent.click(clearBtn!);

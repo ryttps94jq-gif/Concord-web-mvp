@@ -115,7 +115,9 @@ describe('WithdrawFlow', () => {
     render(<WithdrawFlow mode="inline" balance={1000} />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText(/set up payouts/i)).toBeDefined();
+      // The heading "Set Up Payouts" appears on the onboard step
+      const matches = screen.getAllByText(/set up payouts/i);
+      expect(matches.length).toBeGreaterThan(0);
     });
   });
 
@@ -126,7 +128,7 @@ describe('WithdrawFlow', () => {
       expect(screen.getByText(/withdraw cc/i)).toBeDefined();
     });
 
-    const maxButton = screen.getByText(/max/i);
+    const maxButton = screen.getByRole('button', { name: /^MAX$/i });
     fireEvent.click(maxButton);
 
     const input = screen.getByPlaceholderText(/min/i) as HTMLInputElement;
@@ -178,7 +180,9 @@ describe('WithdrawFlow', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/confirm withdrawal/i)).toBeDefined();
+      // Both the heading and button contain "Confirm Withdrawal"
+      const matches = screen.getAllByText(/confirm withdrawal/i);
+      expect(matches.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -198,7 +202,8 @@ describe('WithdrawFlow', () => {
     });
 
     await waitFor(() => {
-      const confirmBtn = screen.getByText(/confirm withdrawal/i);
+      // Target the confirm button specifically (not the heading)
+      const confirmBtn = screen.getByRole('button', { name: /confirm withdrawal/i });
       fireEvent.click(confirmBtn);
     });
 
@@ -226,11 +231,13 @@ describe('WithdrawFlow', () => {
     });
 
     await waitFor(() => {
-      fireEvent.click(screen.getByText(/confirm withdrawal/i));
+      // Target the confirm button specifically (not the heading)
+      const confirmBtn = screen.getByRole('button', { name: /confirm withdrawal/i });
+      fireEvent.click(confirmBtn);
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/failed|went wrong/i)).toBeDefined();
+      expect(screen.getByText('Withdrawal Failed')).toBeDefined();
     });
   });
 

@@ -50,7 +50,9 @@ describe('useSocket', () => {
     );
   });
 
-  it('initializes with custom options', () => {
+  it('passes custom options through to socket behavior', () => {
+    // getSocket() is a singleton — io() is called once with fixed config.
+    // Custom options control hook behavior (e.g. autoConnect triggers socket.connect())
     renderHook(() =>
       useSocket({
         autoConnect: true,
@@ -60,15 +62,8 @@ describe('useSocket', () => {
       })
     );
 
-    expect(mockedIo).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        autoConnect: true,
-        reconnection: false,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 500,
-      })
-    );
+    // With autoConnect=true and socket not connected, the hook calls socket.connect()
+    expect(mockSocketInstance.connect).toHaveBeenCalled();
   });
 
   it('starts disconnected', () => {
@@ -267,10 +262,18 @@ describe('useSocket', () => {
   it('cleans up on unmount', () => {
     const { unmount } = renderHook(() => useSocket());
 
+    // The hook registers 'connect', 'disconnect', 'connect_error' + all forwarded events
+    // On unmount, it calls socket.off() for each individually (shared singleton — no disconnect)
+    const onCallCount = mockSocketInstance.on.mock.calls.length;
+
     unmount();
 
-    expect(mockSocketInstance.removeAllListeners).toHaveBeenCalled();
-    expect(mockSocketInstance.disconnect).toHaveBeenCalled();
+    // Each .on() call should have a corresponding .off() call on cleanup
+    expect(mockSocketInstance.off.mock.calls.length).toBeGreaterThanOrEqual(3);
+    // Verify connect/disconnect/connect_error listeners were removed
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('connect', expect.any(Function));
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('disconnect', expect.any(Function));
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('connect_error', expect.any(Function));
   });
 });
 
@@ -300,15 +303,18 @@ describe('useResonanceSocket', () => {
     );
   });
 
-  it('cleans up on unmount via removeAllListeners', () => {
+  it('cleans up on unmount via individual off() calls', () => {
     const { unmount } = renderHook(() => useResonanceSocket());
 
     unmount();
 
-    // useSocket cleanup calls removeAllListeners + disconnect on unmount,
-    // which handles all listener cleanup including the resonance:update handler
-    expect(mockSocketInstance.removeAllListeners).toHaveBeenCalled();
-    expect(mockSocketInstance.disconnect).toHaveBeenCalled();
+    // useSocket cleanup removes listeners individually via socket.off() (shared singleton)
+    // The resonance:update handler is cleaned up by useResonanceSocket's own effect,
+    // and core listeners (connect/disconnect/connect_error) are cleaned up by useSocket
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('connect', expect.any(Function));
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('disconnect', expect.any(Function));
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('connect_error', expect.any(Function));
+    expect(mockSocketInstance.off).toHaveBeenCalledWith('resonance:update', expect.any(Function));
   });
 });
 

@@ -2,170 +2,167 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
-// Mock the api client
-vi.mock('@/lib/api/client', () => ({
-  api: {
-    get: vi.fn(),
-    post: vi.fn(),
-  },
-}));
+// Mock lucide-react icons for jsdom environment
+vi.mock('lucide-react', async (importOriginal) => {
+  const makeMockIcon = (name: string) => {
+    const Icon = React.forwardRef<SVGSVGElement, any>((props, ref) =>
+      React.createElement('span', { 'data-testid': `icon-${name}`, ref, ...props })
+    );
+    Icon.displayName = name;
+    return Icon;
+  };
+
+  return {
+    __esModule: true,
+    Shield: makeMockIcon('Shield'),
+    ShieldCheck: makeMockIcon('ShieldCheck'),
+    ShieldAlert: makeMockIcon('ShieldAlert'),
+    ShieldX: makeMockIcon('ShieldX'),
+    ChevronDown: makeMockIcon('ChevronDown'),
+    ChevronUp: makeMockIcon('ChevronUp'),
+    Archive: makeMockIcon('Archive'),
+    FileCheck: makeMockIcon('FileCheck'),
+  };
+});
 
 import { DTUIntegrityBadge } from '@/components/dtu/DTUIntegrityBadge';
-import { api } from '@/lib/api/client';
-
-const mockedApi = api as unknown as {
-  get: ReturnType<typeof vi.fn>;
-  post: ReturnType<typeof vi.fn>;
-};
 
 describe('DTUIntegrityBadge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('shows green checkmark when verified', async () => {
-    mockedApi.get.mockResolvedValue({
-      data: {
-        ok: true,
-        status: 'verified',
-        compressionRatio: 3.2,
-        integrityCheck: 'sha256_match',
-        lastVerified: '2026-02-28T10:00:00Z',
-      },
-    });
+  it('shows green checkmark when verified', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="verified"
+        contentHash="abc123def456"
+        compressionRatio={0.3}
+        verifiedAt="2026-02-28T10:00:00Z"
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-123" />);
-
-    await waitFor(() => {
-      const verified = screen.queryByText(/verified|valid/i) ||
-        screen.queryByTitle(/verified/i);
-      expect(verified).not.toBeNull();
-    });
+    const verified = screen.queryByText(/Verified/);
+    expect(verified).not.toBeNull();
   });
 
-  it('shows warning icon when unverified', async () => {
-    mockedApi.get.mockResolvedValue({
-      data: {
-        ok: true,
-        status: 'unverified',
-        compressionRatio: 2.1,
-        integrityCheck: null,
-        lastVerified: null,
-      },
-    });
+  it('shows warning icon when unverified', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-456"
+        status="unverified"
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-456" />);
-
-    await waitFor(() => {
-      const unverified = screen.queryByText(/unverified|pending/i) ||
-        screen.queryByTitle(/unverified|warning/i);
-      expect(unverified).not.toBeNull();
-    });
+    const unverified = screen.queryByText(/Unverified/);
+    expect(unverified).not.toBeNull();
   });
 
-  it('shows red X when tampered', async () => {
-    mockedApi.get.mockResolvedValue({
-      data: {
-        ok: true,
-        status: 'tampered',
-        compressionRatio: 0,
-        integrityCheck: 'mismatch',
-        lastVerified: '2026-02-28T08:00:00Z',
-      },
-    });
+  it('shows red X when tampered', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-789"
+        status="tampered"
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-789" />);
-
-    await waitFor(() => {
-      const tampered = screen.queryByText(/tampered|invalid|compromised/i) ||
-        screen.queryByTitle(/tampered|invalid/i);
-      expect(tampered).not.toBeNull();
-    });
+    const tampered = screen.queryByText(/Tampered/);
+    expect(tampered).not.toBeNull();
   });
 
-  it('click opens integrity report', async () => {
-    mockedApi.get.mockResolvedValue({
-      data: {
-        ok: true,
-        status: 'verified',
-        compressionRatio: 3.2,
-        integrityCheck: 'sha256_match',
-        lastVerified: '2026-02-28T10:00:00Z',
-        report: {
-          hashAlgorithm: 'SHA-256',
-          originalHash: 'abc123',
-          currentHash: 'abc123',
-          layerCount: 7,
-          compressionRatio: 3.2,
-        },
-      },
-    });
+  it('click opens integrity report', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="verified"
+        contentHash="abc123def456"
+        compressionRatio={0.3}
+        compressionAlgorithm="gzip"
+        originalSize={10000}
+        compressedSize={3000}
+        verifiedAt="2026-02-28T10:00:00Z"
+        integrityReport={{
+          dtuId: 'dtu-123',
+          contentHash: 'abc123def456',
+          isValid: true,
+          layerChecksums: {
+            layer1: 'checksum1abcdef1234567890',
+            layer2: 'checksum2abcdef1234567890',
+          },
+        }}
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-123" />);
+    // Verify badge is shown
+    const badge = screen.getByText('Verified');
+    expect(badge).toBeDefined();
 
-    await waitFor(() => {
-      const badge = screen.queryByText(/verified/i) || screen.queryByTitle(/verified/i);
-      expect(badge).not.toBeNull();
-    });
+    // Click the badge to expand details
+    fireEvent.click(badge);
 
-    // Click the badge to open details
-    const badge = screen.queryByText(/verified/i) || screen.queryByTitle(/verified/i);
-    if (badge) {
-      fireEvent.click(badge);
-      await waitFor(() => {
-        // Should show integrity report details
-        const report = screen.queryByText(/SHA-256|integrity|hash/i);
-        expect(report).not.toBeNull();
-      });
-    }
+    // Should show content hash details after expanding
+    const hashLabel = screen.queryByText(/Content Hash/i);
+    expect(hashLabel).not.toBeNull();
   });
 
-  it('shows compression ratio', async () => {
-    mockedApi.get.mockResolvedValue({
-      data: {
-        ok: true,
-        status: 'verified',
-        compressionRatio: 3.2,
-        integrityCheck: 'sha256_match',
-        lastVerified: '2026-02-28T10:00:00Z',
-      },
-    });
+  it('shows compression ratio', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="verified"
+        compressionRatio={0.3}
+        verifiedAt="2026-02-28T10:00:00Z"
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-123" />);
-
-    await waitFor(() => {
-      const ratio = screen.queryByText(/3\.2|compression/i);
-      expect(ratio).not.toBeNull();
-    });
+    // compressionRatio=0.3 => savingsPercent = (1-0.3)*100 = 70.0% saved
+    const ratio = screen.queryByText(/70\.0% saved/);
+    expect(ratio).not.toBeNull();
   });
 
-  it('handles loading state', () => {
-    mockedApi.get.mockReturnValue(new Promise(() => {}));
+  it('handles compact mode', () => {
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="verified"
+        compressionRatio={0.3}
+        compact={true}
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-123" />);
+    // In compact mode, still shows the label
+    const verified = screen.queryByText(/Verified/);
+    expect(verified).not.toBeNull();
 
-    // Should show loading indicator
-    const loading = screen.queryByText(/loading|verifying|checking/i) ||
-      document.querySelector('.animate-spin, .animate-pulse');
-    expect(loading).not.toBeNull();
+    // Also shows savings in compact mode
+    const savings = screen.queryByText(/70\.0% saved/);
+    expect(savings).not.toBeNull();
   });
 
-  it('handles error state gracefully', async () => {
-    mockedApi.get.mockRejectedValue(new Error('Failed to verify'));
+  it('calls onVerify when unverified badge is clicked', () => {
+    const onVerify = vi.fn();
+    render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="unverified"
+        onVerify={onVerify}
+      />
+    );
 
-    render(<DTUIntegrityBadge dtuId="dtu-123" />);
+    const badge = screen.getByText('Unverified');
+    fireEvent.click(badge);
 
-    await waitFor(() => {
-      const errorOrUnknown = screen.queryByText(/error|unknown|failed/i) ||
-        screen.queryByTitle(/error|unknown/i);
-      expect(errorOrUnknown).not.toBeNull();
-    });
+    expect(onVerify).toHaveBeenCalledWith('dtu-123');
   });
 
   it('renders as a compact badge element', () => {
-    mockedApi.get.mockReturnValue(new Promise(() => {}));
-
-    const { container } = render(<DTUIntegrityBadge dtuId="dtu-123" />);
+    const { container } = render(
+      <DTUIntegrityBadge
+        dtuId="dtu-123"
+        status="verified"
+      />
+    );
     expect(container.firstChild).toBeDefined();
   });
 });

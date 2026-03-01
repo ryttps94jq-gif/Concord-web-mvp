@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
 // Mock the api client
@@ -9,7 +9,7 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
-import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { useMediaUrl, _resetCDNInfoCache } from '@/hooks/useMediaUrl';
 import { api } from '@/lib/api/client';
 
 const mockedApi = api as unknown as {
@@ -19,9 +19,10 @@ const mockedApi = api as unknown as {
 describe('useMediaUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
 
-    // Reset CDN info cache by reloading the module
+    // Reset the module-level CDN info cache so each test starts fresh
+    _resetCDNInfoCache();
+
     // Default: CDN not configured, so it falls back to direct URL
     mockedApi.get.mockImplementation((url: string) => {
       if (url.includes('/api/cdn/info')) {
@@ -40,10 +41,6 @@ describe('useMediaUrl', () => {
       }
       return Promise.resolve({ data: {} });
     });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('returns direct API URL when CDN is not configured', async () => {
@@ -134,9 +131,11 @@ describe('useMediaUrl', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    // Should fall back to direct URL even on error
+    // ensureCDNInfo() catches CDN info fetch errors internally and falls
+    // back to local mode, so the hook resolves successfully with a direct
+    // URL and no error propagated to the caller.
     expect(result.current.url).toContain('/api/media/abc123/stream');
-    expect(result.current.error).not.toBeNull();
+    expect(result.current.error).toBeNull();
   });
 
   it('handles empty artifactHash', async () => {

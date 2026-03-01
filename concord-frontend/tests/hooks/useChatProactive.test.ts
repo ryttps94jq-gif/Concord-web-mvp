@@ -94,9 +94,21 @@ describe('useChatProactive', () => {
   it('idle timer fires after 30s of inactivity when messageCount > 0', () => {
     vi.setSystemTime(new Date(2026, 2, 1, 14, 0, 0));
 
-    const { result } = renderHook(() =>
-      useChatProactive({ currentLens: 'healthcare', messageCount: 5, enabled: true })
+    // On initial mount, the idle detection effect sets up a 30s timer, but the
+    // resetIdleTimer effect (which depends on messageCount) also runs on mount
+    // and clears that timer. To get the idle timer to actually fire, we need to
+    // re-trigger the idle detection effect without re-triggering the reset effect.
+    // Changing currentLens (a dependency of the idle effect but NOT of the reset
+    // effect) accomplishes this. We use a lens with no navigation relations to
+    // avoid lens navigation suggestion side-effects.
+    const { result, rerender } = renderHook(
+      (props: { currentLens: string; messageCount: number; enabled: boolean }) =>
+        useChatProactive(props),
+      { initialProps: { currentLens: 'healthcare', messageCount: 5, enabled: true } }
     );
+
+    // Change currentLens to re-trigger idle effect without re-triggering reset effect
+    rerender({ currentLens: 'general', messageCount: 5, enabled: true });
 
     act(() => {
       vi.advanceTimersByTime(31_000);

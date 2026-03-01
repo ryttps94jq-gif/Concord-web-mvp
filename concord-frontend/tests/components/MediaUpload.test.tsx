@@ -2,6 +2,68 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
+// Mock lucide-react — use explicit named exports instead of Proxy
+// (Proxy-based mock causes vitest to hang during module collection)
+vi.mock('lucide-react', () => {
+  const createIcon = (name: string) => {
+    const Component = (props: any) => {
+      const React = require('react');
+      return React.createElement('span', { 'data-testid': `icon-${name}`, ...props });
+    };
+    Component.displayName = name;
+    return Component;
+  };
+  return {
+    Upload: createIcon('Upload'),
+    X: createIcon('X'),
+    File: createIcon('File'),
+    Image: createIcon('Image'),
+    Music: createIcon('Music'),
+    Video: createIcon('Video'),
+    FileText: createIcon('FileText'),
+    Radio: createIcon('Radio'),
+    Tag: createIcon('Tag'),
+    Lock: createIcon('Lock'),
+    Globe: createIcon('Globe'),
+    Users: createIcon('Users'),
+    Loader2: createIcon('Loader2'),
+    CheckCircle2: createIcon('CheckCircle2'),
+    AlertCircle: createIcon('AlertCircle'),
+    ChevronDown: createIcon('ChevronDown'),
+    Plus: createIcon('Plus'),
+  };
+});
+
+// Mock framer-motion to render plain DOM elements
+vi.mock('framer-motion', () => {
+  const React = require('react');
+  const createMotionComponent = (tag: string) => {
+    const Comp = React.forwardRef((props: any, ref: any) => {
+      const {
+        initial, animate, exit, transition, whileHover, whileTap, whileFocus,
+        whileInView, whileDrag, variants, layout, layoutId, onAnimationComplete,
+        onAnimationStart, drag, dragConstraints, dragElastic,
+        ...rest
+      } = props;
+      return React.createElement(tag, { ...rest, ref });
+    });
+    Comp.displayName = `motion.${tag}`;
+    return Comp;
+  };
+  return {
+    motion: {
+      div: createMotionComponent('div'),
+      span: createMotionComponent('span'),
+      button: createMotionComponent('button'),
+      a: createMotionComponent('a'),
+      p: createMotionComponent('p'),
+      section: createMotionComponent('section'),
+      input: createMotionComponent('input'),
+    },
+    AnimatePresence: ({ children }: any) => React.createElement(React.Fragment, null, children),
+  };
+});
+
 // Mock the api client
 vi.mock('@/lib/api/client', () => ({
   api: {
@@ -10,6 +72,30 @@ vi.mock('@/lib/api/client', () => ({
     put: vi.fn(),
     delete: vi.fn(),
   },
+}));
+
+// Mock @tanstack/react-query — capture mutationFn so tests can trigger it
+let capturedMutationOpts: any = null;
+vi.mock('@tanstack/react-query', () => ({
+  useMutation: (opts: any) => {
+    capturedMutationOpts = opts;
+    return {
+      mutate: () => {
+        opts.mutationFn().then(
+          (data: any) => opts.onSuccess?.(data),
+          (err: any) => opts.onError?.(err),
+        );
+      },
+      mutateAsync: opts.mutationFn,
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      isSuccess: false,
+      reset: vi.fn(),
+    };
+  },
+  QueryClient: vi.fn(),
+  QueryClientProvider: ({ children }: any) => children,
 }));
 
 import { MediaUpload } from '@/components/media/MediaUpload';
@@ -24,125 +110,104 @@ const mockedApi = api as unknown as {
 
 describe('MediaUpload', () => {
   const onUploadComplete = vi.fn();
-  const onClose = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedMutationOpts = null;
     mockedApi.post.mockResolvedValue({
       data: { ok: true, artifactHash: 'test-hash', id: 'dtu-1' },
     });
   });
 
-  it('renders drop zone', () => {
-    render(<MediaUpload onUploadComplete={onUploadComplete} />);
-    expect(screen.getByText(/drag.*drop|click.*upload|browse/i)).toBeDefined();
-  });
-
-  it('renders accepted file type info', () => {
-    render(<MediaUpload onUploadComplete={onUploadComplete} />);
-    // Should mention accepted types
-    expect(screen.getByText(/audio|video|image/i)).toBeDefined();
-  });
-
-  it('shows upload progress when a file is dropped', async () => {
-    render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
+  function dropFile(
+    dropZone: Element,
+    fileName: string,
+    type: string,
+    sizeOverride?: number,
+  ) {
+    const file = new File(['test content'], fileName, { type });
+    if (sizeOverride !== undefined) {
+      Object.defineProperty(file, 'size', { value: sizeOverride });
+    }
     const dataTransfer = {
       files: [file],
       items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
       types: ['Files'],
     };
-
     fireEvent.drop(dropZone, { dataTransfer });
+    return file;
+  }
 
-    // After drop, should show some progress or file info
+  function getDropZone() {
+    return screen.getByText(/drag.*drop/i).closest('div')!;
+  }
+
+  it('renders drop zone', () => {
+    render(<MediaUpload onUploadComplete={onUploadComplete} />);
+    expect(screen.getByText(/drag.*drop/i)).toBeDefined();
+  });
+
+  it('renders accepted file type info', () => {
+    render(<MediaUpload onUploadComplete={onUploadComplete} />);
+    // The component renders media type labels (audio, video, image, etc.) in the drop zone
+    expect(screen.getByText('audio')).toBeDefined();
+    expect(screen.getByText('video')).toBeDefined();
+    expect(screen.getByText('image')).toBeDefined();
+  });
+
+  it('shows file name when a file is dropped', async () => {
+    render(<MediaUpload onUploadComplete={onUploadComplete} />);
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
+
     await waitFor(() => {
-      const progressOrFileName = screen.queryByText(/test\.mp3|uploading|progress/i);
-      expect(progressOrFileName).not.toBeNull();
+      expect(screen.queryByText('test.mp3')).not.toBeNull();
     });
   });
 
   it('metadata form fields render after file selection', async () => {
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      // Should show metadata fields like title, description
-      const titleField = screen.queryByLabelText(/title/i) || screen.queryByPlaceholderText(/title/i);
+      // Component uses <label>Title *</label> and a placeholder on the input
+      const titleField = screen.queryByPlaceholderText(/title/i);
       expect(titleField).not.toBeNull();
     });
   });
 
   it('shows description field', async () => {
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      const descField = screen.queryByLabelText(/description/i) || screen.queryByPlaceholderText(/description/i);
+      const descField = screen.queryByPlaceholderText(/describe/i);
       expect(descField).not.toBeNull();
     });
   });
 
   it('privacy selector renders', async () => {
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      const privacyEl = screen.queryByText(/privacy|private|public/i);
+      // The component shows a Privacy label and a Public selector
+      const privacyEl = screen.queryByText('Privacy');
       expect(privacyEl).not.toBeNull();
     });
   });
 
   it('submit calls API', async () => {
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      const submitBtn = screen.queryByText(/upload|submit/i);
-      expect(submitBtn).not.toBeNull();
+      // The Upload button appears in the actions bar
+      const uploadBtn = screen.queryByText('Upload');
+      expect(uploadBtn).not.toBeNull();
     });
 
-    const submitBtn = screen.getByText(/upload|submit/i);
-    fireEvent.click(submitBtn);
+    // Click the Upload button
+    fireEvent.click(screen.getByText('Upload'));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalled();
@@ -153,69 +218,42 @@ describe('MediaUpload', () => {
     mockedApi.post.mockRejectedValue(new Error('Upload failed'));
 
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      const submitBtn = screen.queryByText(/upload|submit/i);
-      if (submitBtn) fireEvent.click(submitBtn);
+      expect(screen.queryByText('Upload')).not.toBeNull();
     });
 
+    fireEvent.click(screen.getByText('Upload'));
+
     await waitFor(() => {
-      const errorText = screen.queryByText(/fail|error/i);
-      expect(errorText).not.toBeNull();
+      expect(screen.queryByText(/Upload failed/i)).not.toBeNull();
     });
   });
 
-  it('rejects non-accepted file types', async () => {
+  it('rejects oversized files with an error', async () => {
+    // Image max size is 50 MB; provide a file with reported size > 50 MB
     render(
       <MediaUpload
         onUploadComplete={onUploadComplete}
-        acceptedTypes={['audio/*']}
+        defaultMediaType="image"
       />
     );
 
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test content'], 'test.exe', { type: 'application/x-msdownload' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
+    dropFile(getDropZone(), 'huge.jpg', 'image/jpeg', 60 * 1024 * 1024);
 
-    fireEvent.drop(dropZone, { dataTransfer });
-
-    // Should show error or not accept the file
     await waitFor(() => {
-      const errorOrReject = screen.queryByText(/not supported|invalid|reject|file type/i);
-      expect(errorOrReject).not.toBeNull();
+      expect(screen.queryByText(/exceeds maximum size/i)).not.toBeNull();
     });
   });
 
   it('shows tags field', async () => {
     render(<MediaUpload onUploadComplete={onUploadComplete} />);
-
-    const dropZone = screen.getByText(/drag.*drop|click.*upload|browse/i).closest('div')!;
-    const file = new File(['test'], 'test.mp3', { type: 'audio/mpeg' });
-    const dataTransfer = {
-      files: [file],
-      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
-      types: ['Files'],
-    };
-
-    fireEvent.drop(dropZone, { dataTransfer });
+    dropFile(getDropZone(), 'test.mp3', 'audio/mpeg');
 
     await waitFor(() => {
-      const tagsField = screen.queryByLabelText(/tags/i) || screen.queryByPlaceholderText(/tags/i);
-      expect(tagsField).not.toBeNull();
+      const tagsLabel = screen.queryByText('Tags');
+      expect(tagsLabel).not.toBeNull();
     });
   });
 });

@@ -140,7 +140,9 @@ describe('WalletPage', () => {
     render(React.createElement(WalletPage), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText(/1,250|1250/)).toBeDefined();
+      // Balance "1,250" appears in multiple places (balance display + USD display)
+      const matches = screen.getAllByText(/1,250|1250/);
+      expect(matches.length).toBeGreaterThan(0);
     });
   });
 
@@ -149,8 +151,9 @@ describe('WalletPage', () => {
     render(React.createElement(WalletPage), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      const buyBtn = screen.queryByText(/buy cc|buy tokens|purchase/i);
-      expect(buyBtn).not.toBeNull();
+      // "Buy CC" button in the action bar
+      const buyBtn = screen.getByRole('button', { name: /buy cc/i });
+      expect(buyBtn).toBeDefined();
     });
   });
 
@@ -159,8 +162,9 @@ describe('WalletPage', () => {
     render(React.createElement(WalletPage), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      const withdrawBtn = screen.queryByText(/withdraw/i);
-      expect(withdrawBtn).not.toBeNull();
+      // "Withdraw" button in the action bar
+      const withdrawBtn = screen.getByRole('button', { name: /^withdraw$/i });
+      expect(withdrawBtn).toBeDefined();
     });
   });
 
@@ -169,7 +173,9 @@ describe('WalletPage', () => {
     render(React.createElement(WalletPage), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText(/bought 100 cc|tipped @alice/i)).toBeDefined();
+      // Both transaction descriptions should be visible
+      const txItems = screen.getAllByText(/bought 100 cc|tipped @alice/i);
+      expect(txItems.length).toBeGreaterThanOrEqual(1);
     });
   });
 

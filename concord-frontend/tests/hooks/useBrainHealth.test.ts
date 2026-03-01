@@ -18,9 +18,13 @@ describe('useBrainHealth', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
-        conscious: { online: true },
-        subconscious: { online: true },
-        utility: { online: true },
+        mode: 'four-brain',
+        onlineCount: 3,
+        brains: {
+          conscious: { enabled: true, model: '', role: 'conscious', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          subconscious: { enabled: true, model: '', role: 'subconscious', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          utility: { enabled: true, model: '', role: 'utility', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+        },
       }),
     });
 
@@ -32,9 +36,13 @@ describe('useBrainHealth', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
-        conscious: { online: true, model: 'qwen2.5:7b' },
-        subconscious: { online: true, model: 'qwen2.5:1.5b' },
-        utility: { online: false, model: 'qwen2.5:3b' },
+        mode: 'four-brain',
+        onlineCount: 2,
+        brains: {
+          conscious: { enabled: true, model: 'qwen2.5:7b', role: 'conscious', avgResponseMs: 100, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          subconscious: { enabled: true, model: 'qwen2.5:1.5b', role: 'subconscious', avgResponseMs: 50, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          utility: { enabled: false, model: 'qwen2.5:3b', role: 'utility', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+        },
       }),
     });
 
@@ -67,10 +75,14 @@ describe('useBrainHealth', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
-        conscious: { online: true },
-        subconscious: { online: true },
-        utility: { online: true },
-        repair: { online: true },
+        mode: 'four-brain',
+        onlineCount: 4,
+        brains: {
+          conscious: { enabled: true, model: '', role: 'conscious', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          subconscious: { enabled: true, model: '', role: 'subconscious', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          utility: { enabled: true, model: '', role: 'utility', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+          repair: { enabled: true, model: '', role: 'repair', avgResponseMs: 0, stats: { requests: 0, totalMs: 0, dtusGenerated: 0, errors: 0, lastCallAt: null } },
+        },
       }),
     });
 

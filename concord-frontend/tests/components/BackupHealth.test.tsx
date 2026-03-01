@@ -1,6 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+
+// Mock lucide-react icons for jsdom environment
+vi.mock('lucide-react', async () => {
+  const makeMockIcon = (name: string) => {
+    const Icon = React.forwardRef<SVGSVGElement, any>((props, ref) =>
+      React.createElement('span', { 'data-testid': `icon-${name}`, ref, ...props })
+    );
+    Icon.displayName = name;
+    return Icon;
+  };
+
+  return {
+    __esModule: true,
+    HardDrive: makeMockIcon('HardDrive'),
+    Cloud: makeMockIcon('Cloud'),
+    CloudOff: makeMockIcon('CloudOff'),
+    CheckCircle: makeMockIcon('CheckCircle'),
+    AlertTriangle: makeMockIcon('AlertTriangle'),
+    XCircle: makeMockIcon('XCircle'),
+    Clock: makeMockIcon('Clock'),
+    RefreshCw: makeMockIcon('RefreshCw'),
+    Play: makeMockIcon('Play'),
+    Database: makeMockIcon('Database'),
+    Archive: makeMockIcon('Archive'),
+    Loader2: makeMockIcon('Loader2'),
+  };
+});
+
 import { BackupHealth } from '@/components/admin/BackupHealth';
 
 describe('BackupHealth', () => {
@@ -120,7 +148,7 @@ describe('BackupHealth', () => {
     render(<BackupHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText('Healthy')).toBeDefined();
+      expect(screen.getAllByText('Healthy').length).toBeGreaterThan(0);
     });
   });
 
@@ -141,7 +169,7 @@ describe('BackupHealth', () => {
     render(<BackupHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText('Warning')).toBeDefined();
+      expect(screen.getAllByText('Warning').length).toBeGreaterThan(0);
     });
   });
 
@@ -162,7 +190,7 @@ describe('BackupHealth', () => {
     render(<BackupHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText('Critical')).toBeDefined();
+      expect(screen.getAllByText('Critical').length).toBeGreaterThan(0);
     });
   });
 

@@ -265,11 +265,10 @@ describe("Integration: Backup System", () => {
         alertThresholdMs: 12 * 60 * 60 * 1000, // 12 hours
       });
 
+      // Ensure table is created by calling getStatus first
+      scheduler.getStatus();
+
       // Insert a recent completed backup
-      const rows = db._getRows("backup_history");
-      if (!rows) {
-        db.exec("CREATE TABLE IF NOT EXISTS backup_history (id TEXT)");
-      }
       const backupRows = db._getRows("backup_history");
       backupRows.push({
         id: "bak_recent",
@@ -290,6 +289,9 @@ describe("Integration: Backup System", () => {
         alertThresholdMs: 6 * 60 * 60 * 1000, // 6 hours
       });
 
+      // Ensure table is created
+      scheduler.getStatus();
+
       // Insert a backup completed 9 hours ago (between threshold and 2x threshold)
       const backupRows = db._getRows("backup_history");
       backupRows.push({
@@ -309,6 +311,9 @@ describe("Integration: Backup System", () => {
         schedule: "0 */6 * * *",
         alertThresholdMs: 6 * 60 * 60 * 1000, // 6 hours
       });
+
+      // Ensure table is created
+      scheduler.getStatus();
 
       // Insert a backup completed 24 hours ago (> 2x threshold)
       const backupRows = db._getRows("backup_history");
@@ -345,6 +350,9 @@ describe("Integration: Backup System", () => {
         schedule: "0 */6 * * *",
       });
 
+      // Ensure table is created
+      scheduler.getStatus();
+
       const completedAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const backupRows = db._getRows("backup_history");
       backupRows.push({
@@ -376,6 +384,9 @@ describe("Integration: Backup System", () => {
         schedule: "0 */6 * * *",
         alertThresholdMs: 6 * 60 * 60 * 1000,
       });
+
+      // Ensure table is created
+      scheduler.getStatus();
 
       // Insert only failed backups
       const backupRows = db._getRows("backup_history");

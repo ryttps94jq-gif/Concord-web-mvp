@@ -98,6 +98,12 @@ async function ensureCDNInfo(): Promise<typeof cdnInfoCache> {
   return cdnInfoCache;
 }
 
+/** @internal Reset the CDN info cache (for testing only). */
+export function _resetCDNInfoCache(): void {
+  cdnInfoCache = null;
+  cdnInfoPromise = null;
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────
 
 export function useMediaUrl(

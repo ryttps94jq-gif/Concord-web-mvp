@@ -105,7 +105,7 @@ describe('AuthPage', () => {
       target: { value: 'mypassword123' },
     });
 
-    fireEvent.submit(screen.getByRole('form') || screen.getByText(/sign in$/i).closest('form')!);
+    fireEvent.submit(screen.getByText(/^sign in$/i).closest('form')!);
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(

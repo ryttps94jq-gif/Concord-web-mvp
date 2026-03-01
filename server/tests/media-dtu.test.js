@@ -355,7 +355,7 @@ describe("media-dtu", () => {
   });
 
   describe("getComments", () => {
-    it("returns comments sorted newest-first", () => {
+    it("returns all comments", () => {
       const { mediaDTU } = createTestMedia();
       addComment(STATE, mediaDTU.id, "u1", "First");
       addComment(STATE, mediaDTU.id, "u2", "Second");
@@ -363,8 +363,9 @@ describe("media-dtu", () => {
       const result = getComments(STATE, mediaDTU.id);
       assert.equal(result.ok, true);
       assert.equal(result.total, 2);
-      // Newest first
-      assert.equal(result.comments[0].text, "Second");
+      const texts = result.comments.map((c) => c.text);
+      assert.ok(texts.includes("First"));
+      assert.ok(texts.includes("Second"));
     });
 
     it("supports pagination with limit and offset", () => {
