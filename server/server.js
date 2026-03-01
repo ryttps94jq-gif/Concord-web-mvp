@@ -1081,6 +1081,7 @@ const TICK_FREQUENCIES = Object.freeze({
   // Phase 3: Real-time data + lens learning
   REALTIME_DATA: 5,
   LENS_LEARNING: 50,
+  NEWS_COMPRESSION: 200,
 });
 
 const CONTEXT_TIER_BOOST = Object.freeze({
@@ -9361,6 +9362,28 @@ function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
         updatedAt: dtu.updatedAt
       });
     } catch (e) { observe(e, "dtu_realtime_broadcast"); }
+
+    // Event-to-DTU bridge: internal dtu:created events become knowledge DTUs
+    // Only for new DTUs that aren't already from the bridge (prevents recursion)
+    if (isNew && dtu.source !== "event_bridge" && dtu.source !== "event_bridge_compression") {
+      try {
+        import("./emergent/event-to-dtu-bridge.js").then(({ bridgeEventToDTU }) => {
+          bridgeEventToDTU({
+            type: "dtu:created",
+            data: { title: dtu.title, tier: dtu.tier, tags: dtu.tags, id: dtu.id, source: dtu.source },
+            id: dtu.id,
+            timestamp: dtu.updatedAt || nowISO(),
+          }, {
+            pipelineCommitDTU,
+            makeInternalCtx,
+            lookupDTU: (id) => STATE.dtus.get(id) || null,
+            updateDTU: (d) => { STATE.dtus.set(d.id, d); },
+            broadcastEvent: (type, data) => { try { realtimeEmit(type, data); } catch {} },
+            STATE,
+          }).catch(() => {});
+        }).catch(() => {});
+      } catch { /* bridge not critical */ }
+    }
   }
 
   // Optionally broadcast to federation (multi-node sync)
@@ -22215,10 +22238,23 @@ async function governorTick(reason="heartbeat") {
       // ══════════════════════════════════════════════════════════════════════
 
       // Real-time data feeds — every REALTIME_DATA ticks (~75s)
+      // Bridge integration: feed data streams to frontend AND persists as knowledge DTUs
       if ((_tick % TICK_FREQUENCIES.REALTIME_DATA) === 0) {
         try {
           const { tickRealTimeFeeds } = await import("./emergent/realtime-feeds.js");
-          await tickRealTimeFeeds(STATE, _tick, realtimeEmit, callBrain);
+          const { bridgeEventToDTU } = await import("./emergent/event-to-dtu-bridge.js");
+
+          // Build bridge callback with all dependencies injected
+          const feedBridge = (event) => bridgeEventToDTU(event, {
+            pipelineCommitDTU,
+            makeInternalCtx,
+            lookupDTU: (id) => STATE.dtus.get(id) || null,
+            updateDTU: (dtu) => { STATE.dtus.set(dtu.id, dtu); },
+            broadcastEvent: (type, data) => { try { realtimeEmit(type, data); } catch {} },
+            STATE,
+          });
+
+          await tickRealTimeFeeds(STATE, _tick, realtimeEmit, callBrain, feedBridge);
         } catch (e) { structuredLog("warn", "governor_realtime_data_tick", { error: String(e?.message || e) }); }
       }
 
@@ -22231,6 +22267,19 @@ async function governorTick(reason="heartbeat") {
             try { await runLensLearningCycle(STATE, domain, realtimeEmit, callBrain); } catch {}
           }
         } catch (e) { structuredLog("warn", "governor_lens_learning", { error: String(e?.message || e) }); }
+      }
+
+      // News event compression — every NEWS_COMPRESSION ticks (~50 min)
+      // Compresses old event DTUs into daily Megas, weekly Megas, monthly Hypers
+      // Keeps the News lens clean and current while preserving depth
+      if ((_tick % TICK_FREQUENCIES.NEWS_COMPRESSION) === 0 && _tick > 0) {
+        try {
+          const { compressNewsEvents } = await import("./emergent/news-lens-hub.js");
+          const compressed = compressNewsEvents(STATE);
+          if (compressed.dailyMegas || compressed.weeklyMegas || compressed.monthlyHypers) {
+            structuredLog("info", "news_compression_cycle", compressed);
+          }
+        } catch (e) { structuredLog("warn", "governor_news_compression", { error: String(e?.message || e) }); }
       }
 
       // ══════════════════════════════════════════════════════════════════════
@@ -23967,6 +24016,25 @@ register("scope", "promote", async (ctx, input) => {
     }
 
     realtimeEmit("dtu:promoted", { dtuId: dtu.id, targetScope, votes: reviewResult.votes });
+
+    // Event-to-DTU bridge: promotion events are knowledge worth preserving
+    try {
+      import("./emergent/event-to-dtu-bridge.js").then(({ bridgeEventToDTU }) => {
+        bridgeEventToDTU({
+          type: "dtu:promoted",
+          data: { title: `DTU promoted: ${dtu.title}`, dtuId: dtu.id, targetScope, votes: reviewResult.votes },
+          id: dtu.id,
+          timestamp: nowISO(),
+        }, {
+          pipelineCommitDTU,
+          makeInternalCtx,
+          lookupDTU: (id) => STATE.dtus.get(id) || null,
+          updateDTU: (d) => { STATE.dtus.set(d.id, d); },
+          broadcastEvent: (type, data) => { try { realtimeEmit(type, data); } catch {} },
+          STATE,
+        }).catch(() => {});
+      }).catch(() => {});
+    } catch { /* bridge not critical */ }
 
     return { ok: true, scope: targetScope, votes: reviewResult.votes };
   } else {
