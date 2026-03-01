@@ -45,6 +45,9 @@ export const EmotionalChannel = {
   COMFORT: 'comfort'
 };
 
+// Pre-computed set for O(1) channel validation instead of O(n) array scan per call
+const _validChannels = new Set(Object.values(EmotionalChannel));
+
 export class MindSpace {
   constructor(config) {
     this.id = `ms_${crypto.randomUUID()}`;
@@ -125,7 +128,7 @@ export class MindSpace {
 
     const validated = {};
     for (const [channel, value] of Object.entries(emotionalState)) {
-      if (Object.values(EmotionalChannel).includes(channel)) {
+      if (_validChannels.has(channel)) {
         validated[channel] = Math.max(0, Math.min(1, value));
       }
     }
@@ -177,7 +180,7 @@ export class MindSpace {
     participant.lastActivity = Date.now();
 
     if (enrichedThought.intensity > 0.8) {
-      this._escalateAmbientParticipants();
+      await this._escalateAmbientParticipants();
     }
 
     this.emitter.emit('thought:shared', { spaceId: this.id, thought: enrichedThought });
@@ -304,8 +307,7 @@ export class MindSpace {
   async _handleDistressDetected(nodeId, emotionalState) {
     for (const [id, p] of this.participants) {
       if (id !== nodeId && p.presence === PresenceState.AMBIENT) {
-        p.presence = PresenceState.ATTENTIVE;
-        p.isSubconscious = false;
+        await this.transitionPresence(id, PresenceState.ATTENTIVE);
       }
     }
     this.metrics.escalations++;
@@ -316,9 +318,11 @@ export class MindSpace {
     });
   }
 
-  _escalateAmbientParticipants() {
-    for (const [, p] of this.participants) {
-      if (p.presence === PresenceState.AMBIENT) p.presence = PresenceState.ATTENTIVE;
+  async _escalateAmbientParticipants() {
+    for (const [id, p] of this.participants) {
+      if (p.presence === PresenceState.AMBIENT) {
+        await this.transitionPresence(id, PresenceState.ATTENTIVE);
+      }
     }
   }
 
@@ -339,12 +343,14 @@ export class MindSpace {
 
   async _archiveThoughts() {
     if (!this.substrate) return;
-    const archived = this.sharedContext.thoughts.splice(0, 500);
+    const toArchive = this.sharedContext.thoughts.slice(0, 500);
     await this.substrate.commitDTU({
       type: 'mind_space_thoughts', domain: 'mind_space',
-      content: { spaceId: this.id, thoughts: archived, archivedAt: Date.now() },
+      content: { spaceId: this.id, thoughts: toArchive, archivedAt: Date.now() },
       epistemologicalStance: 'observed'
     });
+    // Only remove after successful commit — no data loss on failure
+    this.sharedContext.thoughts.splice(0, 500);
   }
 
   _getParticipantSummary() {

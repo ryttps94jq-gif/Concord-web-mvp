@@ -47,13 +47,13 @@ export class MultiSpaceHandler {
    */
   registerRelationship(targetNodeId, metadata) {
     this.relationships.set(targetNodeId, {
+      ...metadata,
       targetNodeId,
       type: metadata.type || 'general', // 'child', 'partner', 'friend', 'colleague'
       name: metadata.name,
       emotionalPriority: metadata.emotionalPriority || 0.5,
       escalationSensitivity: metadata.escalationSensitivity || 0.5,
-      createdAt: Date.now(),
-      ...metadata
+      createdAt: Date.now()
     });
   }
 
@@ -77,7 +77,11 @@ export class MultiSpaceHandler {
         if (event.fromNodeId !== this.bridge.nodeId) {
           const distress = event.emotionalState?.distress || 0;
           if (distress > 0.3) { // Lower threshold for children (normal is 0.7)
-            this.bridge.bringToConscious(space.id).catch(() => {});
+            this.bridge.bringToConscious(space.id).catch((err) => {
+              this.emitter.emit('escalation:failed', {
+                spaceId: space.id, targetNodeId, error: err.message
+              });
+            });
           }
         }
       });

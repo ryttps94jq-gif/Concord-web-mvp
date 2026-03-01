@@ -57,7 +57,11 @@ export class LocalVolumeAdapter extends StorageAdapter {
   _uriToFilePath(uri) {
     // uri format: "local:///artifacts/abc/v1/file.wav"
     const stripped = uri.replace(/^local:\/\//, "");
-    return path.join(this.basePath, stripped);
+    const resolved = path.resolve(this.basePath, stripped);
+    if (!resolved.startsWith(path.resolve(this.basePath) + path.sep) && resolved !== path.resolve(this.basePath)) {
+      throw new Error("Path traversal detected");
+    }
+    return resolved;
   }
 
   _filePathToUri(filePath) {
@@ -66,7 +70,10 @@ export class LocalVolumeAdapter extends StorageAdapter {
   }
 
   async put(storagePath, data, _contentType = "application/octet-stream") {
-    const fullPath = path.join(this.basePath, storagePath);
+    const fullPath = path.resolve(this.basePath, storagePath);
+    if (!fullPath.startsWith(path.resolve(this.basePath) + path.sep) && fullPath !== path.resolve(this.basePath)) {
+      throw new Error("Path traversal detected");
+    }
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
     const hash = crypto.createHash("sha256");

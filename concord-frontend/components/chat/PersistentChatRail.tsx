@@ -108,7 +108,7 @@ export function PersistentChatRail({
   onLensNavigate,
 }: PersistentChatRailProps) {
   const sessionId = useSessionId();
-  const { on, emit, isConnected } = useSocket({ autoConnect: true });
+  const { on, off, emit, isConnected } = useSocket({ autoConnect: true });
 
   // ── Core chat state ────────────────────────────────────────
 
@@ -161,8 +161,11 @@ export function PersistentChatRail({
     on('dtu:created', handleDTUCreated);
     on('dtu:promoted', handleDTUPromoted);
 
-    return () => {};
-  }, [on, proactive]);
+    return () => {
+      off('dtu:created', handleDTUCreated);
+      off('dtu:promoted', handleDTUPromoted);
+    };
+  }, [on, off, proactive]);
 
   // ── Sovereignty prompt state ───────────────────────────────
 
@@ -256,8 +259,13 @@ export function PersistentChatRail({
     on('chat:web_results', handleWebResults);
     on('chat:complete', handleComplete);
 
-    return () => {};
-  }, [on, sessionId, currentLens]);
+    return () => {
+      off('chat:status', handleStatus);
+      off('chat:token', handleToken);
+      off('chat:web_results', handleWebResults);
+      off('chat:complete', handleComplete);
+    };
+  }, [on, off, sessionId, currentLens]);
 
   // ── Send message ──────────────────────────────────────────
 

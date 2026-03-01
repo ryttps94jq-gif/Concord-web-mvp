@@ -38,6 +38,10 @@ export class SubconsciousManager {
     // Background processing interval
     this.pulseInterval = null;
     this.pulseRate = config.pulseRate || 5000; // 5 second heartbeat
+    this._pulsing = false; // Overlap guard for async pulse
+
+    // Bound listener references per space for targeted removal
+    this._listeners = new Map(); // spaceId → { distress, thought }
   }
 
   /**
@@ -48,7 +52,11 @@ export class SubconsciousManager {
   start() {
     if (this.pulseInterval) return;
 
-    this.pulseInterval = setInterval(() => this._pulse(), this.pulseRate);
+    this.pulseInterval = setInterval(() => {
+      if (this._pulsing) return; // Skip if previous pulse still running
+      this._pulsing = true;
+      this._pulse().finally(() => { this._pulsing = false; });
+    }, this.pulseRate);
     this.emitter.emit('subconscious:started', { nodeId: this.nodeId });
   }
 
@@ -82,19 +90,8 @@ export class SubconsciousManager {
     // Transmit baseline emotional warmth
     await mindSpace.transmitEmotion(this.nodeId, this.emotionalBaseline);
 
-    // Listen for distress
-    mindSpace.emitter.on('distress:detected', (event) => {
-      if (event.nodeId !== this.nodeId) {
-        this._handleEscalation(mindSpace.id, event);
-      }
-    });
-
-    // Listen for high-intensity thoughts
-    mindSpace.emitter.on('thought:shared', (event) => {
-      if (event.thought.fromNodeId !== this.nodeId && event.thought.intensity > 0.7) {
-        this._evaluateThoughtEscalation(mindSpace.id, event.thought);
-      }
-    });
+    // Attach monitoring listeners (stored for targeted removal)
+    this._attachListeners(mindSpace);
 
     this.emitter.emit('space:added', { spaceId: mindSpace.id });
   }
@@ -106,8 +103,7 @@ export class SubconsciousManager {
     const entry = this.ambientSpaces.get(spaceId);
     if (!entry) return;
 
-    entry.space.emitter.removeAllListeners('distress:detected');
-    entry.space.emitter.removeAllListeners('thought:shared');
+    this._detachListeners(spaceId, entry.space);
 
     this.ambientSpaces.delete(spaceId);
     this.emitter.emit('space:removed', { spaceId });
@@ -120,20 +116,26 @@ export class SubconsciousManager {
   async focusOn(spaceId) {
     // Drop current conscious space to ambient
     if (this.consciousSpace) {
-      const currentId = this.consciousSpace.id;
-      await this.consciousSpace.transitionPresence(this.nodeId, PresenceState.AMBIENT);
+      const prevSpace = this.consciousSpace;
+      await prevSpace.transitionPresence(this.nodeId, PresenceState.AMBIENT);
 
-      this.ambientSpaces.set(currentId, {
-        space: this.consciousSpace,
+      this.ambientSpaces.set(prevSpace.id, {
+        space: prevSpace,
         lastChecked: Date.now(),
         escalationScore: 0,
         emotionalTrend: 'stable'
       });
+
+      // Re-attach monitoring listeners for the space returning to ambient
+      this._attachListeners(prevSpace);
     }
 
     // Elevate target space to conscious
     const entry = this.ambientSpaces.get(spaceId);
     if (!entry) throw new Error(`Space ${spaceId} not in ambient pool`);
+
+    // Detach monitoring — conscious space doesn't need background monitoring
+    this._detachListeners(spaceId, entry.space);
 
     this.consciousSpace = entry.space;
     this.ambientSpaces.delete(spaceId);
@@ -164,6 +166,9 @@ export class SubconsciousManager {
       escalationScore: 0,
       emotionalTrend: 'stable'
     });
+
+    // Re-attach monitoring listeners for the space returning to ambient
+    this._attachListeners(space);
 
     this.consciousSpace = null;
 
@@ -303,6 +308,38 @@ export class SubconsciousManager {
         error: err.message
       });
     }
+  }
+
+  _attachListeners(mindSpace) {
+    // Remove existing listeners first to prevent duplicates
+    this._detachListeners(mindSpace.id, mindSpace);
+
+    const distressHandler = (event) => {
+      if (event.nodeId !== this.nodeId) {
+        this._handleEscalation(mindSpace.id, event);
+      }
+    };
+
+    const thoughtHandler = (event) => {
+      if (event.thought.fromNodeId !== this.nodeId && event.thought.intensity > 0.7) {
+        this._evaluateThoughtEscalation(mindSpace.id, event.thought);
+      }
+    };
+
+    mindSpace.emitter.on('distress:detected', distressHandler);
+    mindSpace.emitter.on('thought:shared', thoughtHandler);
+
+    // Store references for targeted removal
+    this._listeners.set(mindSpace.id, { distress: distressHandler, thought: thoughtHandler });
+  }
+
+  _detachListeners(spaceId, space) {
+    const handlers = this._listeners.get(spaceId);
+    if (!handlers) return;
+
+    space.emitter.removeListener('distress:detected', handlers.distress);
+    space.emitter.removeListener('thought:shared', handlers.thought);
+    this._listeners.delete(spaceId);
   }
 
   _evaluateThoughtEscalation(spaceId, thought) {

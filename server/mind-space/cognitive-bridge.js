@@ -16,7 +16,6 @@
 import { MindSpace, PresenceState, EmotionalChannel } from './presence-protocol.js';
 import { SubconsciousManager } from './subconscious-manager.js';
 import { EventEmitter } from 'events';
-import crypto from 'crypto';
 
 // ============================================================
 // INTERFACE ADAPTERS
@@ -150,7 +149,6 @@ export class InterfaceAdapter {
 
     const upper = text.toUpperCase() === text && text.length > 3;
     const exclamation = (text.match(/!/g) || []).length;
-    const question = (text.match(/\?/g) || []).length;
     const length = text.length;
 
     const intensity = Math.min(1, 0.3 + (upper ? 0.3 : 0) + (exclamation * 0.1) + (length > 200 ? 0.2 : 0));
