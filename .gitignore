@@ -16,5 +16,8 @@ server/data/*
 !server/data/seed/
 !server/data/seed/**
 
+# Test coverage output
+coverage/
+
 # Next.js build output (when built from root)
 .next/

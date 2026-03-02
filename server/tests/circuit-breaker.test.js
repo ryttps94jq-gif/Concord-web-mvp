@@ -107,7 +107,7 @@ describe("Circuit Breaker — Open State", () => {
     const cb = createCircuitBreaker("test", { failureThreshold: 1, cooldownMs: 1 });
     await assert.rejects(() => cb.call(failFn()));
     assert.equal(cb.state, "open");
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise(r => { setTimeout(r, 10); });
     // Next call should transition to half-open and attempt the call
     await cb.call(succeedFn());
     // After a success in half-open, may transition to closed (depends on successThreshold)
@@ -128,7 +128,7 @@ describe("Circuit Breaker — Half-Open State", () => {
     });
     await assert.rejects(() => cb.call(failFn()));
     assert.equal(cb.state, "open");
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise(r => { setTimeout(r, 10); });
     // First success transitions to half-open
     await cb.call(succeedFn());
     assert.equal(cb.state, "half_open");
@@ -140,7 +140,7 @@ describe("Circuit Breaker — Half-Open State", () => {
   it("reopens on failure in half-open", async () => {
     const cb = createCircuitBreaker("test", { failureThreshold: 1, cooldownMs: 1 });
     await assert.rejects(() => cb.call(failFn()));
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise(r => { setTimeout(r, 10); });
     // Probe fails — should reopen
     await assert.rejects(() => cb.call(failFn()));
     assert.equal(cb.state, "open");

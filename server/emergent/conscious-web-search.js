@@ -67,7 +67,7 @@ function isBlockedUrl(url) {
 // ── Delay Helper ────────────────────────────────────────────────────────────
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
 // ── Web Search Execution ────────────────────────────────────────────────────
@@ -284,7 +284,7 @@ RESPONSE RULES:
  * Extract URLs from a response string.
  */
 export function extractUrls(text) {
-  const urlRegex = /https?:\/\/[^\s\)]+/g;
+  const urlRegex = /https?:\/\/[^\s)]+/g;
   return [...new Set((text || "").match(urlRegex) || [])];
 }
 

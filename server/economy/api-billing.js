@@ -318,7 +318,7 @@ export function meterAPICall(db, { keyHash, userId, endpoint, method, metadata =
   if (!keyHash || !userId) return { allowed: false, reason: "missing_credentials" };
 
   const category = categorizeEndpoint(endpoint, method);
-  let cost = getCategoryCost(category, metadata);
+  const cost = getCategoryCost(category, metadata);
 
   // Check free allowance first
   const freeRemaining = getFreeRemaining(db, userId, category);

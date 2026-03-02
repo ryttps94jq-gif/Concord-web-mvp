@@ -71,7 +71,7 @@ const BASE_BACKOFF_MS = 60 * 60 * 1000;
 const MAX_BACKOFF_MULTIPLIER = 48;
 
 /** Emoji regex for style detection */
-const EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FEFF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu;
+const EMOJI_REGEX = /\p{Emoji}/gu;
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 

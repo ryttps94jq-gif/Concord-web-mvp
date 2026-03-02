@@ -40,7 +40,7 @@ const TIERS = {
 
 // ── Module State ────────────────────────────────────────────────────────────
 
-let _tier = ENABLED ? "connected" : "free";
+const _tier = ENABLED ? "connected" : "free";
 let _lastPush = null;
 let _lastPull = null;
 let _globalFixCount = 0;

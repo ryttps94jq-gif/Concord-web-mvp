@@ -858,11 +858,11 @@ export function checkPromotionEligibility({
     const promo = TIER_QUALITY_GATES.regional.promotionToNational;
     const failures = [];
     if (authorityScore < promo.minAuthorityScore)
-      failures.push({ gate: "minAuthorityScore", required: promo.minAuthorityScore, actual: authorityScore });
+      {failures.push({ gate: "minAuthorityScore", required: promo.minAuthorityScore, actual: authorityScore });}
     if (citationCount < promo.minCitations)
-      failures.push({ gate: "minCitations", required: promo.minCitations, actual: citationCount });
+      {failures.push({ gate: "minCitations", required: promo.minCitations, actual: citationCount });}
     if (ageHours < promo.minAgeHours)
-      failures.push({ gate: "minAgeHours", required: promo.minAgeHours, actual: ageHours });
+      {failures.push({ gate: "minAgeHours", required: promo.minAgeHours, actual: ageHours });}
     return { ok: failures.length === 0, from: "regional", to: "national", failures };
   }
 
@@ -870,13 +870,13 @@ export function checkPromotionEligibility({
     const promo = TIER_QUALITY_GATES.national.promotionToGlobal;
     const failures = [];
     if (authorityScore < promo.minAuthorityScore)
-      failures.push({ gate: "minAuthorityScore", required: promo.minAuthorityScore, actual: authorityScore });
+      {failures.push({ gate: "minAuthorityScore", required: promo.minAuthorityScore, actual: authorityScore });}
     if (citationCount < promo.minCitations)
-      failures.push({ gate: "minCitations", required: promo.minCitations, actual: citationCount });
+      {failures.push({ gate: "minCitations", required: promo.minCitations, actual: citationCount });}
     if (ageHours < promo.minAgeDays * 24)
-      failures.push({ gate: "minAgeDays", required: promo.minAgeDays, actual: Math.floor(ageHours / 24) });
+      {failures.push({ gate: "minAgeDays", required: promo.minAgeDays, actual: Math.floor(ageHours / 24) });}
     if (crossRegionalPresence < promo.crossRegionalPresence)
-      failures.push({ gate: "crossRegionalPresence", required: promo.crossRegionalPresence, actual: crossRegionalPresence });
+      {failures.push({ gate: "crossRegionalPresence", required: promo.crossRegionalPresence, actual: crossRegionalPresence });}
     return { ok: failures.length === 0, from: "national", to: "global", failures };
   }
 

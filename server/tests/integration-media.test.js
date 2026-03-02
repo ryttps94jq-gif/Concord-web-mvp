@@ -168,7 +168,7 @@ describe("Integration: Media Pipeline", () => {
     assert.equal(statusResult.job.status, "processing");
 
     // Wait for simulated completion
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => { setTimeout(r, 2500); });
 
     // After completion, job should be ready
     const finalStatus = getTranscodeStatus(STATE, transcodeResult.job.jobId);
@@ -224,7 +224,7 @@ describe("Integration: Media Pipeline", () => {
 
     // Initiate transcode and wait for completion
     initiateTranscode(STATE, mediaDTU.id, "720p");
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => { setTimeout(r, 2500); });
 
     const manifestResult = generateHLSManifest(STATE, mediaDTU.id);
     assert.ok(manifestResult.ok);

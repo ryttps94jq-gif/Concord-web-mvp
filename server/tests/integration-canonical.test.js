@@ -62,7 +62,7 @@ function createMockCanonicalStore() {
 
   function normalizeContent(content) {
     if (content === null || content === undefined) return "";
-    let str = typeof content === "object"
+    const str = typeof content === "object"
       ? JSON.stringify(content, Object.keys(content).sort())
       : String(content);
     return str

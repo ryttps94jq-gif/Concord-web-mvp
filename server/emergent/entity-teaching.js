@@ -207,7 +207,7 @@ function _recordLessonScore(mentorId, score) {
     p.avgLessonScore = (p.avgLessonScore * p.totalLessonsGiven + score) / (p.totalLessonsGiven + 1);
     p.totalLessonsGiven++; p.lastUpdatedAt = nowISO();
     if (p.totalLessonsGiven % 10 === 0 && p.avgLessonScore > ADVANCE_SCORE)
-      p.teachingReputation = clamp01(p.teachingReputation + 0.01);
+      {p.teachingReputation = clamp01(p.teachingReputation + 0.01);}
   } catch { /* silent */ }
 }
 
@@ -274,13 +274,13 @@ export function generateCurriculum(mentorId, studentId, domain) {
 
     // Phase 1: Observation
     for (const o of targets.slice(0, 2))
-      add(STEP.OBSERVATION, o, `Observe mentor's approach to ${o.replace(/_/g, " ")}`);
+      {add(STEP.OBSERVATION, o, `Observe mentor's approach to ${o.replace(/_/g, " ")}`);}
     // Phase 2: Practice
     for (const o of targets)
-      add(STEP.PRACTICE, o, `Practice applying ${o.replace(/_/g, " ")} reasoning`);
+      {add(STEP.PRACTICE, o, `Practice applying ${o.replace(/_/g, " ")} reasoning`);}
     // Phase 3: Critique
     for (const o of targets.slice(0, 2))
-      add(STEP.CRITIQUE, o, `Receive mentor critique on ${o.replace(/_/g, " ")} work`);
+      {add(STEP.CRITIQUE, o, `Receive mentor critique on ${o.replace(/_/g, " ")} work`);}
     // Phase 4: Synthesis
     add(STEP.SYNTHESIS, targets[0] || organs[0], `Synthesize learnings across ${domain} into cohesive understanding`);
     // Phase 5: Assessment
@@ -573,7 +573,7 @@ export function completeMentorship(mentorshipId) {
     const m = _mentorships.get(mentorshipId);
     if (!m) return { ok: false, error: "mentorship_not_found" };
     if (m.status !== STATUS.ACTIVE && m.status !== STATUS.PAUSED)
-      return { ok: false, error: "mentorship_not_completable", currentStatus: m.status };
+      {return { ok: false, error: "mentorship_not_completable", currentStatus: m.status };}
 
     m.status = STATUS.COMPLETED; m.completedAt = nowISO(); m.progress = 1.0;
     m.studentMaturityNow = _domainMat(m.studentId, m.domain);
@@ -604,7 +604,7 @@ export function dissolveMentorship(mentorshipId, reason) {
     const m = _mentorships.get(mentorshipId);
     if (!m) return { ok: false, error: "mentorship_not_found" };
     if (m.status === STATUS.COMPLETED || m.status === STATUS.DISSOLVED)
-      return { ok: false, error: "mentorship_already_ended", currentStatus: m.status };
+      {return { ok: false, error: "mentorship_already_ended", currentStatus: m.status };}
 
     m.status = STATUS.DISSOLVED; m.completedAt = nowISO();
     m.dissolveReason = reason || "unspecified";

@@ -217,7 +217,7 @@ describe("Integration: CDN System", () => {
       assert.ok(signed.ok);
 
       // Wait for the URL to expire
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await new Promise((resolve) => { setTimeout(resolve, 1100); });
 
       const verified = signer.verify(signed.signedUrl);
       assert.ok(verified.ok);
@@ -342,7 +342,7 @@ describe("Integration: CDN System", () => {
       const { token } = signer.generateStreamToken("artifact-hash-123", "user-42", 1);
 
       // Wait for the token to expire (just over 1 second)
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await new Promise((resolve) => { setTimeout(resolve, 1100); });
 
       const verified = signer.verifyStreamToken(token);
 

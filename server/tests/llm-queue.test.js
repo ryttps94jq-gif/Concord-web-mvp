@@ -13,7 +13,7 @@ import { PRIORITY, createLLMQueue } from "../lib/llm-queue.js";
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function delay(ms) {
-  return new Promise(r => setTimeout(r, ms));
+  return new Promise(r => { setTimeout(r, ms); });
 }
 
 function slowFn(ms, val = "ok") {

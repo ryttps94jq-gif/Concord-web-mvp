@@ -852,7 +852,7 @@ export function getStory(storyId) {
  */
 export function listStories(sortBy = "significance", limit = 50) {
   try {
-    let stories = Array.from(_stories.values());
+    const stories = Array.from(_stories.values());
 
     switch (sortBy) {
       case "retellings":

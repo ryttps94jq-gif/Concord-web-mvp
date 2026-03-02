@@ -277,7 +277,7 @@ export default function registerDomainRoutes(app, {
     try {
       const result = await Promise.race([
         runMacro("emergent", "scope.metrics", {}, makeCtx(req)),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("scope.metrics timeout")), 8000)),
+        new Promise((_, reject) => { setTimeout(() => reject(new Error("scope.metrics timeout")), 8000); }),
       ]);
       res.json(result);
     } catch (e) {

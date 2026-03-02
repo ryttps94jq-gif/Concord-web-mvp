@@ -1794,7 +1794,7 @@ export default function createSovereignEmergentRouter({ STATE }) {
       const { url, tier } = req.body || {};
       if (!url) return res.status(400).json({ ok: false, error: "url required" });
       const userId = req.user?.id || req.user?.username || "anonymous";
-      result = mod.submitUrl(userId, url, tier || "free");
+      const result = mod.submitUrl(userId, url, tier || "free");
       return res.json(result);
     } catch (e) { return res.json({ ok: false, error: String(e?.message || e) }); }
   }));

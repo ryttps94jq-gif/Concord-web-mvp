@@ -444,7 +444,7 @@ export async function backfillEmbeddings(dtusMap, { onProgress = null } = {}) {
     }
 
     // Yield to event loop between batches
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise(r => { setTimeout(r, 10); });
   }
 
   embeddingState.stats.backfillComplete = true;

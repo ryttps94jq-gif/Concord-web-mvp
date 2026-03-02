@@ -265,6 +265,8 @@ export function up(db) {
       ON film_preview_events(event_type);
     CREATE INDEX IF NOT EXISTS idx_film_preview_created
       ON film_preview_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_film_preview_film_type
+      ON film_preview_events(film_dtu_id, event_type);
 
     -- ═══════════════════════════════════════════════════
     -- Film Remix Tracking

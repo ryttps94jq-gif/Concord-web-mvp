@@ -21,6 +21,10 @@ function nowISO() {
   return new Date().toISOString().replace("T", " ").replace("Z", "");
 }
 
+function escapeLike(str) {
+  return String(str).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SSE Connection Manager
 // ═══════════════════════════════════════════════════════════════
@@ -131,9 +135,9 @@ export function registerGuidanceEndpoints(app, db) {
       const params = [];
 
       if (type) { where.push("type = ?"); params.push(type); }
-      if (entityType) { where.push("payload_json LIKE ?"); params.push(`%"_entityType":"${entityType}"%`); }
-      if (entityId) { where.push("payload_json LIKE ?"); params.push(`%"_entityId":"${entityId}"%`); }
-      if (scope) { where.push("payload_json LIKE ?"); params.push(`%"_scope":"${scope}"%`); }
+      if (entityType) { where.push("payload_json LIKE ?"); params.push(`%"_entityType":"${escapeLike(entityType)}"%`); }
+      if (entityId) { where.push("payload_json LIKE ?"); params.push(`%"_entityId":"${escapeLike(entityId)}"%`); }
+      if (scope) { where.push("payload_json LIKE ?"); params.push(`%"_scope":"${escapeLike(scope)}"%`); }
 
       const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -307,7 +311,7 @@ export function registerGuidanceEndpoints(app, db) {
       try {
         recentEvents = db.prepare(
           "SELECT * FROM events WHERE payload_json LIKE ? ORDER BY created_at DESC LIMIT 20"
-        ).all(`%"_entityId":"${entityId}"%`).map((row) => {
+        ).all(`%"_entityId":"${escapeLike(entityId)}"%`).map((row) => {
           const p = safeJSON(row.payload_json);
           return {
             id: row.id,
@@ -345,7 +349,7 @@ export function registerGuidanceEndpoints(app, db) {
       // Find event with this undo token
       const event = db.prepare(
         "SELECT * FROM events WHERE payload_json LIKE ? ORDER BY created_at DESC LIMIT 1"
-      ).get(`%"_undoToken":"${undoToken}"%`);
+      ).get(`%"_undoToken":"${escapeLike(undoToken)}"%`);
 
       if (!event) return res.status(404).json({ error: "Undo token not found or expired" });
 

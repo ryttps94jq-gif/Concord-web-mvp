@@ -527,7 +527,7 @@ function init({ register, STATE, helpers }) {
   // EMERGENT MANAGEMENT MACROS (from v1)
   // ══════════════════════════════════════════════════════════════════════════
 
-  register("emergent", "register", (_ctx, input = {}) => {
+  register("emergent", "register", async (_ctx, input = {}) => {
     const emergent = {
       id: input.id || `em_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       name: String(input.name || "Unnamed Emergent"),

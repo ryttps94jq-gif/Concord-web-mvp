@@ -574,7 +574,7 @@ describe("Sovereign Vault", () => {
     assert.equal(status.count, 1);
     assert.equal(status.categories.military_installation, 1);
     // No data field — only counts
-    assert.ok(!status.hasOwnProperty("data"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(status, "data"));
   });
 
   it("accumulates across categories", async () => {

@@ -104,7 +104,7 @@ const ACTION_TO_TYPE = Object.freeze({
 
   // TRADE
   "sell": "TRADE", "buy": "TRADE", "purchase": "TRADE",
-  "list": "TRADE", "trade": "TRADE", "transfer": "TRADE",
+  "list-for-sale": "TRADE", "trade": "TRADE", "transfer": "TRADE",
 
   // CONNECT
   "connect": "CONNECT", "relate": "CONNECT", "link": "CONNECT",

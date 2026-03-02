@@ -385,7 +385,7 @@ export function agentTickJob(dtus = []) {
       }
     }
   } catch (_err) {
-    // Silent failure on entire tick
+    console.error("[agent-system] tick failed:", _err?.message || _err);
   }
 
   return { ok: true, ran, skipped, ranCount: ran.length, skippedCount: skipped.length };

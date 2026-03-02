@@ -46,8 +46,11 @@ import { getSystemBalanceSummary } from "./balances.js";
  * Register all economy + Stripe routes on the Express app.
  * @param {import('express').Express} app
  * @param {import('better-sqlite3').Database} db
+ * @param {object} opts
+ * @param {function} opts.structuredLog - Structured logging function(level, event, data)
  */
-export function registerEconomyRoutes(app, db) {
+export function registerEconomyRoutes(app, db, opts = {}) {
+  const log = opts.structuredLog || ((level, event, data) => console[level === "error" ? "error" : "log"](`[economy] ${event}`, data));
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ECONOMY ENDPOINTS
@@ -63,7 +66,7 @@ export function registerEconomyRoutes(app, db) {
       const result = getBalance(db, userId);
       res.json({ ok: true, userId, ...result });
     } catch (err) {
-      console.error("[economy] balance_fetch_failed:", err.message);
+      log("error", "economy_balance_fetch_failed", { error: err.message });
       res.status(500).json({ ok: false, error: "balance_fetch_failed" });
     }
   });
@@ -82,7 +85,7 @@ export function registerEconomyRoutes(app, db) {
       const result = getTransactions(db, userId, { limit, offset, type });
       res.json({ ok: true, userId, ...result });
     } catch (err) {
-      console.error("[economy] history_fetch_failed:", err.message);
+      log("error", "economy_history_fetch_failed", { error: err.message });
       res.status(500).json({ ok: false, error: "history_fetch_failed" });
     }
   });
@@ -99,7 +102,7 @@ export function registerEconomyRoutes(app, db) {
       const result = getAllTransactions(db, { limit, offset, type, status });
       res.json({ ok: true, ...result });
     } catch (err) {
-      console.error("[economy] admin_transactions_failed:", err.message);
+      log("error", "economy_admin_transactions_failed", { error: err.message });
       res.status(500).json({ ok: false, error: "admin_transactions_failed" });
     }
   });
@@ -138,7 +141,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] purchase_failed:", err.message);
+      log("error", "economy_purchase_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "purchase_failed" });
 
@@ -184,7 +187,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] transfer_failed:", err.message);
+      log("error", "economy_transfer_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "transfer_failed" });
 
@@ -231,7 +234,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] marketplace_purchase_failed:", err.message);
+      log("error", "economy_marketplace_purchase_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "marketplace_purchase_failed" });
 
@@ -280,7 +283,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] withdrawal_request_failed:", err.message);
+      log("error", "economy_withdrawal_request_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "withdrawal_request_failed" });
 
@@ -299,7 +302,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, userId, ...result });
     } catch (err) {
 
-      console.error("[economy] withdrawals_fetch_failed:", err.message);
+      log("error", "economy_withdrawals_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "withdrawals_fetch_failed" });
 
@@ -316,7 +319,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] cancel_failed:", err.message);
+      log("error", "economy_cancel_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "cancel_failed" });
 
@@ -342,7 +345,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] approve_failed:", err.message);
+      log("error", "economy_approve_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "approve_failed" });
 
@@ -366,7 +369,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] reject_failed:", err.message);
+      log("error", "economy_reject_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "reject_failed" });
 
@@ -397,7 +400,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] process_failed:", err.message);
+      log("error", "economy_process_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "process_failed" });
 
@@ -414,7 +417,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...result });
     } catch (err) {
 
-      console.error("[economy] admin_withdrawals_failed:", err.message);
+      log("error", "economy_admin_withdrawals_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "admin_withdrawals_failed" });
 
@@ -451,7 +454,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] reversal_failed:", err.message);
+      log("error", "economy_reversal_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "reversal_failed" });
 
@@ -472,7 +475,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, platformAccount: PLATFORM_ACCOUNT_ID, ...result });
     } catch (err) {
 
-      console.error("[economy] platform_balance_failed:", err.message);
+      log("error", "economy_platform_balance_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "platform_balance_failed" });
 
@@ -532,7 +535,7 @@ export function registerEconomyRoutes(app, db) {
       });
     } catch (err) {
 
-      console.error("[economy] integrity_check_failed:", err.message);
+      log("error", "economy_integrity_check_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "integrity_check_failed" });
 
@@ -571,7 +574,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] checkout_failed:", err.message);
+      log("error", "economy_checkout_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "checkout_failed" });
 
@@ -596,7 +599,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ received: true, ...result });
     } catch (err) {
 
-      console.error("[economy] webhook_failed:", err.message);
+      log("error", "economy_webhook_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "webhook_failed" });
 
@@ -625,7 +628,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] connect_onboard_failed:", err.message);
+      log("error", "economy_connect_onboard_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "connect_onboard_failed" });
 
@@ -641,7 +644,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, userId, ...result });
     } catch (err) {
 
-      console.error("[economy] connect_status_failed:", err.message);
+      log("error", "economy_connect_status_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "connect_status_failed" });
 
@@ -674,7 +677,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] receipt_failed:", err.message);
+      log("error", "economy_receipt_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "receipt_failed" });
 
@@ -690,7 +693,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, purchase });
     } catch (err) {
 
-      console.error("[economy] purchase_lookup_failed:", err.message);
+      log("error", "economy_purchase_lookup_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "purchase_lookup_failed" });
 
@@ -705,7 +708,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, purchaseId: req.params.purchaseId, history });
     } catch (err) {
 
-      console.error("[economy] history_failed:", err.message);
+      log("error", "economy_history_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "history_failed" });
 
@@ -728,7 +731,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, userId, role, ...result });
     } catch (err) {
 
-      console.error("[economy] purchases_list_failed:", err.message);
+      log("error", "economy_purchases_list_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "purchases_list_failed" });
 
@@ -751,7 +754,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] refund_failed:", err.message);
+      log("error", "economy_refund_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "refund_failed" });
 
@@ -774,7 +777,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] make_good_failed:", err.message);
+      log("error", "economy_make_good_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "make_good_failed" });
 
@@ -807,7 +810,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] adjustment_failed:", err.message);
+      log("error", "economy_adjustment_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "adjustment_failed" });
 
@@ -831,7 +834,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] transition_failed:", err.message);
+      log("error", "economy_transition_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "transition_failed" });
 
@@ -861,7 +864,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] reconciliation_failed:", err.message);
+      log("error", "economy_reconciliation_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "reconciliation_failed" });
 
@@ -876,7 +879,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] summary_failed:", err.message);
+      log("error", "economy_summary_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "summary_failed" });
 
@@ -897,7 +900,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, status, count: purchases.length, purchases });
     } catch (err) {
 
-      console.error("[economy] purchases_query_failed:", err.message);
+      log("error", "economy_purchases_query_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "purchases_query_failed" });
 
@@ -915,7 +918,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, treasury: state, invariant });
     } catch (err) {
 
-      console.error("[economy] treasury_fetch_failed:", err.message);
+      log("error", "economy_treasury_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "treasury_fetch_failed" });
 
@@ -929,7 +932,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] reconciliation_failed:", err.message);
+      log("error", "economy_reconciliation_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "reconciliation_failed" });
 
@@ -943,7 +946,7 @@ export function registerEconomyRoutes(app, db) {
       const result = getReconciliationHistory(db, { limit, offset });
       res.json({ ok: true, ...result });
     } catch (err) {
-      console.error("[economy] history_fetch_failed:", err.message);
+      log("error", "economy_history_fetch_failed", { error: err.message });
       res.status(500).json({ ok: false, error: "history_fetch_failed" });
     }
   });
@@ -954,7 +957,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...summary });
     } catch (err) {
 
-      console.error("[economy] summary_failed:", err.message);
+      log("error", "economy_summary_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "summary_failed" });
 
@@ -983,7 +986,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] citation_failed:", err.message);
+      log("error", "economy_citation_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "citation_failed" });
 
@@ -996,7 +999,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, contentId: req.params.contentId, ancestors, count: ancestors.length });
     } catch (err) {
 
-      console.error("[economy] chain_fetch_failed:", err.message);
+      log("error", "economy_chain_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "chain_fetch_failed" });
 
@@ -1011,7 +1014,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, creatorId: req.params.creatorId, ...result });
     } catch (err) {
 
-      console.error("[economy] royalties_fetch_failed:", err.message);
+      log("error", "economy_royalties_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "royalties_fetch_failed" });
 
@@ -1024,7 +1027,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, contentId: req.params.contentId, payouts, count: payouts.length });
     } catch (err) {
 
-      console.error("[economy] content_royalties_failed:", err.message);
+      log("error", "economy_content_royalties_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "content_royalties_failed" });
 
@@ -1066,7 +1069,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] emergent_create_failed:", err.message);
+      log("error", "economy_emergent_create_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "emergent_create_failed" });
 
@@ -1080,7 +1083,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, account });
     } catch (err) {
 
-      console.error("[economy] emergent_fetch_failed:", err.message);
+      log("error", "economy_emergent_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "emergent_fetch_failed" });
 
@@ -1096,7 +1099,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...result });
     } catch (err) {
 
-      console.error("[economy] emergent_list_failed:", err.message);
+      log("error", "economy_emergent_list_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "emergent_list_failed" });
 
@@ -1122,7 +1125,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] transfer_failed:", err.message);
+      log("error", "economy_transfer_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "transfer_failed" });
 
@@ -1139,7 +1142,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] suspend_failed:", err.message);
+      log("error", "economy_suspend_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "suspend_failed" });
 
@@ -1186,7 +1189,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] listing_failed:", err.message);
+      log("error", "economy_listing_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "listing_failed" });
 
@@ -1218,7 +1221,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] purchase_failed:", err.message);
+      log("error", "economy_purchase_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "purchase_failed" });
 
@@ -1241,7 +1244,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...result });
     } catch (err) {
 
-      console.error("[economy] listings_fetch_failed:", err.message);
+      log("error", "economy_listings_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "listings_fetch_failed" });
 
@@ -1255,7 +1258,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, listing });
     } catch (err) {
 
-      console.error("[economy] listing_fetch_failed:", err.message);
+      log("error", "economy_listing_fetch_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "listing_fetch_failed" });
 
@@ -1272,7 +1275,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] delist_failed:", err.message);
+      log("error", "economy_delist_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "delist_failed" });
 
@@ -1294,7 +1297,7 @@ export function registerEconomyRoutes(app, db) {
       res.json(result);
     } catch (err) {
 
-      console.error("[economy] price_update_failed:", err.message);
+      log("error", "economy_price_update_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "price_update_failed" });
 
@@ -1311,7 +1314,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...balances });
     } catch (err) {
 
-      console.error("[economy] fee_split_balances_failed:", err.message);
+      log("error", "economy_fee_split_balances_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "fee_split_balances_failed" });
 
@@ -1326,7 +1329,7 @@ export function registerEconomyRoutes(app, db) {
       res.json({ ok: true, ...result });
     } catch (err) {
 
-      console.error("[economy] fee_split_history_failed:", err.message);
+      log("error", "economy_fee_split_history_failed", { error: err.message });
 
       res.status(500).json({ ok: false, error: "fee_split_history_failed" });
 

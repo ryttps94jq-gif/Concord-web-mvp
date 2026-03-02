@@ -57,6 +57,10 @@ export function generateOAuthState() {
  * @returns {string} Full authorization URL
  */
 export function getGoogleAuthUrl(state) {
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    throw new Error("Google OAuth is not configured: GOOGLE_CLIENT_ID environment variable is missing");
+  }
+
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${process.env.PUBLIC_URL || "http://localhost:5050"}/api/auth/google/callback`,
@@ -75,6 +79,11 @@ export function getGoogleAuthUrl(state) {
  * @returns {Promise<{ email: string, name: string, picture: string, sub: string }>}
  */
 export async function exchangeGoogleCode(code) {
+  const missingGoogle = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"].filter((k) => !process.env[k]);
+  if (missingGoogle.length > 0) {
+    throw new Error(`Google OAuth is not configured: missing environment variable(s): ${missingGoogle.join(", ")}`);
+  }
+
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.PUBLIC_URL || "http://localhost:5050"}/api/auth/google/callback`;
 
   // Step 1: Exchange code for tokens
@@ -136,6 +145,10 @@ export async function exchangeGoogleCode(code) {
  * @returns {string} Full authorization URL
  */
 export function getAppleAuthUrl(state) {
+  if (!process.env.APPLE_CLIENT_ID) {
+    throw new Error("Apple OAuth is not configured: APPLE_CLIENT_ID environment variable is missing");
+  }
+
   const params = new URLSearchParams({
     client_id: process.env.APPLE_CLIENT_ID,
     redirect_uri: process.env.APPLE_REDIRECT_URI || `${process.env.PUBLIC_URL || "http://localhost:5050"}/api/auth/apple/callback`,
@@ -156,6 +169,12 @@ export function getAppleAuthUrl(state) {
  * @returns {string} JWT client secret
  */
 function generateAppleClientSecret() {
+  const requiredAppleVars = ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"];
+  const missingApple = requiredAppleVars.filter((k) => !process.env[k]);
+  if (missingApple.length > 0) {
+    throw new Error(`Apple OAuth is not configured: missing environment variable(s): ${missingApple.join(", ")}`);
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const expiry = now + 15777000; // ~6 months
 
