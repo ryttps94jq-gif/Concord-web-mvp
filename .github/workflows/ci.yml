@@ -26,6 +26,7 @@ jobs:
           cache-dependency-path: |
             server/package-lock.json
             concord-frontend/package-lock.json
+            concord-mobile/package-lock.json
 
       - name: Install server dependencies
         working-directory: ./server
@@ -77,6 +78,68 @@ jobs:
           ADMIN_PASSWORD: testpassword123
         run: npx c8 --check-coverage --statements 40 --branches 30 --functions 30 --lines 40 node --test tests/*.test.js
 
+  mobile-test:
+    name: Mobile Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: ./concord-mobile
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
+
+      - name: Lint mobile
+        working-directory: ./concord-mobile
+        run: npm run lint
+
+      - name: Typecheck mobile
+        working-directory: ./concord-mobile
+        run: npm run typecheck
+
+      - name: Run mobile unit tests with coverage
+        working-directory: ./concord-mobile
+        run: npm run test:coverage
+
+      - name: Upload mobile coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: mobile-coverage-report
+          path: concord-mobile/coverage/
+          retention-days: 7
+
+  mobile-perf:
+    name: Mobile Performance Tests
+    runs-on: ubuntu-latest
+    needs: [mobile-test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: ./concord-mobile
+        run: npm ci || (sleep 5 && npm ci) || (sleep 10 && npm ci)
+
+      - name: Run performance benchmarks
+        working-directory: ./concord-mobile
+        run: npx jest --testPathPattern='perf/' --no-coverage
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -94,6 +157,7 @@ jobs:
         run: |
           cd server && npm ci --ignore-scripts || (sleep 5 && npm ci --ignore-scripts)
           cd ../concord-frontend && npm ci --ignore-scripts || (sleep 5 && npm ci --ignore-scripts)
+          cd ../concord-mobile && npm ci --ignore-scripts || (sleep 5 && npm ci --ignore-scripts)
 
       - name: Audit server dependencies
         working-directory: ./server
@@ -101,6 +165,10 @@ jobs:
 
       - name: Audit frontend dependencies
         working-directory: ./concord-frontend
+        run: npm audit --audit-level=critical
+
+      - name: Audit mobile dependencies
+        working-directory: ./concord-mobile
         run: npm audit --audit-level=critical
 
   docker-build:
