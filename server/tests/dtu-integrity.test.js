@@ -273,10 +273,10 @@ describe("dtu-integrity", () => {
       const dtuStore = {
         get(id) {
           if (id === "dtu_root")
-            return makeDTU({
+            {return makeDTU({
               id: "dtu_root",
               childIds: ["dtu_missing"],
-            });
+            });}
           return null;
         },
       };

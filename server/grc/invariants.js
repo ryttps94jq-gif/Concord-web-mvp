@@ -263,7 +263,7 @@ function checkNoSystemJargon(payload) {
   for (const pat of SYSTEM_JARGON_PATTERNS) {
     pat.lastIndex = 0;
     if (pat.test(cleaned)) {
-      found.push(pat.source.replace(/\\b/g, "").replace(/\(\?\:|\)/g, ""));
+      found.push(pat.source.replace(/\\b/g, "").replace(/\(\?:|\)/g, ""));
       cleaned = cleaned.replace(new RegExp(pat.source, "gi"), "");
     }
   }

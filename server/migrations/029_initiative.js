@@ -49,6 +49,7 @@ export function up(db) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_initiatives_trigger ON initiatives(trigger_type)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_initiatives_created ON initiatives(created_at DESC)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_initiatives_user_status ON initiatives(user_id, status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_initiatives_user_status_score ON initiatives(user_id, status, score DESC, created_at)`);
 
   // ── Initiative Backoff ──────────────────────────────────────────────
   db.exec(`

@@ -53,7 +53,7 @@ const workers = [];
 const queue = [];
 let _stateSnapshot = null;
 let _poolReady = false;
-let _metrics = {
+const _metrics = {
   dispatched: 0,
   completed: 0,
   errors: 0,

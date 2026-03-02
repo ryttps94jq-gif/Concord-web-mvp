@@ -83,7 +83,7 @@ export default function registerBackupRoutes(app, { requireRole, backupScheduler
     const status = backupScheduler.getStatus();
 
     // Also count local backup files
-    let localFiles = { db: 0, artifacts: 0, totalSizeBytes: 0 };
+    const localFiles = { db: 0, artifacts: 0, totalSizeBytes: 0 };
     try {
       const { stdout } = await execFileAsync("bash", ["-c",
         `ls -la "${process.env.DATA_DIR || "/data"}/backups/" 2>/dev/null | wc -l && ` +

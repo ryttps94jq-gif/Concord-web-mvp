@@ -212,7 +212,7 @@ export function recombine(sig1, sig2) {
     const m1 = sig1.organProfile?.[organ] || 0;
     const m2 = sig2.organProfile?.[organ] || 0;
     // Use higher-maturity parent as base, then reset plasticity
-    let base = m1 >= m2 ? m1 : m2;
+    const base = m1 >= m2 ? m1 : m2;
     organProfile[organ] = clamp01(base * PLASTICITY_RESET); // Reset plasticity
 
     // Mutation

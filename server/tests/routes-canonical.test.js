@@ -37,7 +37,7 @@ function createMockApp() {
 
     let statusCode = 200;
     let responseBody = null;
-    let sentHeaders = {};
+    const sentHeaders = {};
 
     const req = {
       body: body || {},

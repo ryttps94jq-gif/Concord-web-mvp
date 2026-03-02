@@ -66,13 +66,13 @@ export function verifyPackageSignature(secret, pkg, signature) {
 function validateSyncDtu(dtu) {
   if (!dtu || typeof dtu !== "object") return { valid: false, reason: "not_an_object" };
   if (typeof dtu.id !== "string" || dtu.id.length === 0 || dtu.id.length > 128)
-    return { valid: false, reason: "invalid_id" };
+    {return { valid: false, reason: "invalid_id" };}
   if (typeof dtu.title !== "string" || dtu.title.length === 0 || dtu.title.length > MAX_DTU_TITLE_LEN)
-    return { valid: false, reason: "invalid_title" };
+    {return { valid: false, reason: "invalid_title" };}
   if (dtu.tags && (!Array.isArray(dtu.tags) || dtu.tags.length > MAX_DTU_TAGS))
-    return { valid: false, reason: "invalid_tags" };
+    {return { valid: false, reason: "invalid_tags" };}
   if (dtu.tier && typeof dtu.tier !== "string")
-    return { valid: false, reason: "invalid_tier" };
+    {return { valid: false, reason: "invalid_tier" };}
   return { valid: true };
 }
 

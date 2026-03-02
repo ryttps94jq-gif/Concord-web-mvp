@@ -348,7 +348,7 @@ export function resolveReport(STATE, reportId, moderatorId, params) {
       mod.metrics.warningsIssued++;
       break;
 
-    case "suspend":
+    case "suspend": {
       report.status = "resolved";
       report.resolution = reason || "User suspended";
       const authorId = getContentAuthor(STATE, report.contentId, report.contentType);
@@ -357,6 +357,7 @@ export function resolveReport(STATE, reportId, moderatorId, params) {
       mod.metrics.pendingReports = Math.max(0, mod.metrics.pendingReports - 1);
       mod.metrics.suspensions++;
       break;
+    }
 
     case "flag":
       report.status = "escalated";

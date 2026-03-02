@@ -135,11 +135,12 @@ export function wrapFormatAsDTU(sourceFormat, sourceData, metadata = {}) {
       parsedData = typeof sourceData === "string" ? JSON.parse(sourceData) : sourceData;
       summary = `JSON document with ${Object.keys(parsedData).length} top-level keys`;
       break;
-    case "csv":
+    case "csv": {
       parsedData = { raw: String(sourceData), format: "csv" };
       const lines = String(sourceData).split("\n").filter(Boolean);
       summary = `CSV with ${lines.length} rows`;
       break;
+    }
     case "md":
     case "markdown":
       parsedData = { raw: String(sourceData), format: "markdown" };

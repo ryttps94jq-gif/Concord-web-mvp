@@ -77,7 +77,72 @@ export function registerDurableEndpoints(app, db) {
   /**
    * Build a paginated query with optional search, filters, and facets.
    */
+
+  // Allowlists for SQL-interpolated identifiers to prevent injection.
+  const PAGINATED_VALID_TABLES = {
+    dtus: new Set([
+      "id", "owner_user_id", "title", "body_json", "tags_json",
+      "visibility", "tier", "created_at", "updated_at",
+    ]),
+    artifacts: new Set([
+      "id", "owner_user_id", "type", "title", "metadata_json",
+      "visibility", "created_at", "updated_at",
+    ]),
+    jobs: new Set([
+      "id", "type", "owner_user_id", "status", "input_json",
+      "output_json", "error_json", "created_at", "started_at", "finished_at",
+    ]),
+    marketplace_listings: new Set([
+      "id", "owner_user_id", "dtu_id", "seller_id", "title", "description",
+      "price_cents", "price", "currency", "license_id", "license_type",
+      "status", "visibility", "listed_at", "created_at", "updated_at",
+    ]),
+    studio_projects: new Set([
+      "id", "owner_user_id", "name", "bpm", "key", "scale", "genre",
+      "metadata_json", "created_at", "updated_at",
+    ]),
+  };
+
+  const PAGINATED_VALID_ORDER_DIRS = new Set(["ASC", "DESC"]);
+
+  function _validatePaginatedParams(table, { orderBy, searchCols, filters }) {
+    // Validate table name
+    const validCols = PAGINATED_VALID_TABLES[table];
+    if (!validCols) {
+      throw new Error(`paginatedQuery: invalid table "${table}". Allowed: ${Object.keys(PAGINATED_VALID_TABLES).join(", ")}`);
+    }
+
+    // Validate orderBy — must be "column DIR" or "column"
+    if (orderBy) {
+      const parts = orderBy.trim().split(/\s+/);
+      const col = parts[0];
+      const dir = parts[1] || "ASC";
+      if (!validCols.has(col)) {
+        throw new Error(`paginatedQuery: invalid orderBy column "${col}" for table "${table}"`);
+      }
+      if (!PAGINATED_VALID_ORDER_DIRS.has(dir.toUpperCase())) {
+        throw new Error(`paginatedQuery: invalid orderBy direction "${dir}". Allowed: ASC, DESC`);
+      }
+    }
+
+    // Validate searchCols
+    for (const col of searchCols) {
+      if (!validCols.has(col)) {
+        throw new Error(`paginatedQuery: invalid searchCol "${col}" for table "${table}"`);
+      }
+    }
+
+    // Validate filter keys
+    for (const key of Object.keys(filters)) {
+      if (!validCols.has(key)) {
+        throw new Error(`paginatedQuery: invalid filter key "${key}" for table "${table}"`);
+      }
+    }
+  }
+
   function paginatedQuery(table, { q, limit = 50, offset = 0, filters = {}, searchCols = [], orderBy = "created_at DESC" }) {
+    _validatePaginatedParams(table, { orderBy, searchCols, filters });
+
     const where = [];
     const params = [];
 

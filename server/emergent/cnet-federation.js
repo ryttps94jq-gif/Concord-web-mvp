@@ -588,7 +588,7 @@ export function pollGlobal() {
 
     _metrics.globalPolls++;
     const received = [];
-    let autoIngested = 0;
+    const autoIngested = 0;
 
     // For each subscription, simulate receiving candidate DTUs from Global.
     // In production, this would be an HTTP/WebSocket call to registryUrl.

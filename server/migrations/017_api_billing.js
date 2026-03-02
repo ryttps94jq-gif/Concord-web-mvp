@@ -82,6 +82,8 @@ export function up(db) {
 
     CREATE INDEX IF NOT EXISTS idx_api_alerts_user
       ON api_balance_alerts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_api_alerts_user_status
+      ON api_balance_alerts(user_id, status, created_at DESC);
 
     -- Fee distribution tracking (API-specific)
     CREATE TABLE IF NOT EXISTS api_fee_distribution (

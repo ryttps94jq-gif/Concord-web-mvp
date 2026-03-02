@@ -80,6 +80,7 @@ export function up(db) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dtu_own_dtu ON dtu_ownership(dtu_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dtu_own_owner ON dtu_ownership(owner_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_dtu_own_dtu_via ON dtu_ownership(dtu_id, acquired_via)`);
 
   // ── DTU Previews ─────────────────────────────────────────────────────
   db.exec(`

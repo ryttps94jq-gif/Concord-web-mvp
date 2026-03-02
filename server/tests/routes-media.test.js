@@ -23,7 +23,7 @@ function createMockRouter() {
 
     let statusCode = 200;
     let responseBody = null;
-    let sentHeaders = {};
+    const sentHeaders = {};
 
     const req = {
       body: body || {},
@@ -134,7 +134,7 @@ describe("routes/media", () => {
 
       let statusCode = 200;
       let responseBody = null;
-      let sentHeaders = {};
+      const sentHeaders = {};
 
       const req = {
         body: opts.body || {},

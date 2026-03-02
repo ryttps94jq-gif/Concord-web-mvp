@@ -862,7 +862,7 @@ export function setOrganState(entityId, organId, state) {
     const body = _bodies.get(entityId);
     if (!body) return { ok: false, error: "body_not_found" };
 
-    let organ = body.organs.get(organId);
+    const organ = body.organs.get(organId);
     if (!organ) return { ok: false, error: "organ_not_found" };
 
     // Merge maturity

@@ -122,7 +122,7 @@ import registerAtlasSignalRoutes from "./routes/atlas-signals.js";
 import {
   CLASSIFICATIONS, computeSubstrateStats, migrateClassifications, applyClassification, isPublicDTU,
   getLearningStore, recordQueryMethod, getRetrievalHitRate, getRetrievalTrend,
-  recordCitation, getUtilizationStats, recordGeneration, getNoveltyStats, checkNovelty,
+  recordCitation as learningRecordCitation, getUtilizationStats, recordGeneration, getNoveltyStats, checkNovelty,
   recordResponseQuality, getHelpfulnessScores,
   checkGenerationQuota, recordGenerationUsed, getRecommendedEvolutionRatio,
   checkProbation, runProbationAudit, getDomainCoverage,
@@ -739,9 +739,22 @@ const BREAKERS = {
 // ---- Graceful Shutdown ----
 let isShuttingDown = false;
 const shutdownCallbacks = [];
+const _activeTimers = new Set();
 
 function registerShutdownCallback(callback) {
   shutdownCallbacks.push(callback);
+}
+
+/** Track setInterval timers for cleanup on SIGTERM */
+function trackedSetInterval(fn, ms) {
+  const id = setInterval(fn, ms);
+  _activeTimers.add(id);
+  return id;
+}
+
+function clearTrackedInterval(id) {
+  clearInterval(id);
+  _activeTimers.delete(id);
 }
 
 async function gracefulShutdown(signal) {
@@ -767,6 +780,13 @@ async function gracefulShutdown(signal) {
     console.error("[Shutdown] State save failed:", e.message);
   }
 
+  // Clear all tracked interval timers
+  for (const timerId of _activeTimers) {
+    clearInterval(timerId);
+  }
+  _activeTimers.clear();
+  structuredLog("info", "shutdown_timers_cleared", { count: _activeTimers.size });
+
   // Stop repair cortex loop
   try { stopRepairLoop(); } catch { /* best-effort */ }
 
@@ -781,7 +801,7 @@ async function gracefulShutdown(signal) {
   const drainStart = Date.now();
   const drainTimeout = Number(process.env.SHUTDOWN_DRAIN_MS || 5000);
   while (getActiveRequests() > 0 && (Date.now() - drainStart) < drainTimeout) {
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => { setTimeout(r, 500); });
   }
   if (getActiveRequests() > 0) {
     structuredLog("warn", "shutdown_drain_timeout", { activeRequests: getActiveRequests() });
@@ -1288,6 +1308,7 @@ const nowISO = () => new Date().toISOString();
 const uid = (prefix="id") => `${prefix}_${crypto.randomBytes(10).toString("hex")}`;
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const safeJson = (x, fallback=null) => { try { return JSON.parse(x); } catch { return fallback; } };
+function safeJSONParse(str, fallback = null) { try { return JSON.parse(str); } catch { return fallback; } }
 
 // ---- Input Validation Helpers ----
 const _VALIDATION = {
@@ -6606,7 +6627,7 @@ async function runMacro(domain, name, input, ctx) {
     council: new Set(["tally", "status", "list"]),
     hypothesis: new Set(["list", "get", "status"]),
     analytics: new Set(["dashboard", "growth", "density", "citations", "marketplace", "personal"]),
-    atlas: new Set(["status", "get", "list", "scope", "config", "thresholds", "autogen", "chat", "contradictions", "score-explain", "submission", "search", "antigaming", "rights", "write-guard", "scope-metrics", "local-hints"]),
+    atlas: new Set(["status", "get", "list", "scope", "config", "thresholds", "autogen", "chat", "contradictions", "score-explain", "submission", "search", "antigaming", "rights", "write-guard", "scope-metrics", "local-hints", "tile", "volume", "material", "subsurface", "change", "coverage", "live", "metrics"]),
     agents: new Set(["list", "get", "status"]),
     personas: new Set(["list", "get"]),
     affect: new Set(["state", "events", "health", "system", "policy"]),
@@ -6681,7 +6702,6 @@ async function runMacro(domain, name, input, ctx) {
     mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
     foundation: new Set(["status", "sense.readings", "sense.patterns", "identity.verify", "energy.map", "energy.grid", "spectrum.map", "spectrum.available", "emergency.status", "market.earnings", "market.topology", "archive.fossils", "archive.decoded", "synthesis.correlations", "neural.readiness", "protocol.stats"]),
     intel: new Set(["weather", "geology", "energy", "ocean", "seismic", "agriculture", "environment", "research.status", "research.data", "research.synthesis", "research.archive", "classifier.status", "metrics"]),
-    atlas: new Set(["tile", "volume", "material", "subsurface", "change", "coverage", "live", "metrics"]),
     cortex: new Set(["taxonomy", "unknown", "anomalies", "classify", "spectrum", "privacy.zones", "privacy.verify", "privacy.stats", "metrics"]),
   };
   const _domainSet = publicReadDomains[domain];
@@ -7597,10 +7617,10 @@ register("voice","tts", async (ctx, input={}) => {
     if (outPath) {
       // Path traversal protection - only allow writes to entity workspace or tmp
       const TTS_OUTPUT_DIR = path.join(DATA_DIR, "tts_output");
-      try { fs.mkdirSync(TTS_OUTPUT_DIR, { recursive: true }); } catch {}
+      try { fs.mkdirSync(TTS_OUTPUT_DIR, { recursive: true }); } catch (e) { return { ok:false, error:"Failed to create TTS output directory", detail: String(e) }; }
       const safeName = path.basename(outPath).replace(/[^a-zA-Z0-9._-]/g, "_");
       const safePath = path.join(TTS_OUTPUT_DIR, safeName);
-      try { fs.writeFileSync(safePath, p.stdout); } catch {}
+      try { fs.writeFileSync(safePath, p.stdout); } catch (e) { return { ok:false, error:"Failed to write TTS audio file", detail: String(e) }; }
       return { ok:true, outPath: safePath, source: "piper", note:"TTS wrote audio to safe path." };
     }
     return { ok:true, source: "piper", audioBase64: Buffer.from(p.stdout).toString("base64") };
@@ -7629,7 +7649,7 @@ register("voice","tts", async (ctx, input={}) => {
     const audioBuffer = Buffer.from(await r.arrayBuffer());
     const outPath = String(input.outPath || "");
     if (outPath) {
-      try { fs.writeFileSync(outPath, audioBuffer); } catch {}
+      try { fs.writeFileSync(outPath, audioBuffer); } catch (e) { return { ok:false, error:"Failed to write OpenAI TTS audio file", detail: String(e) }; }
       return { ok:true, outPath, source: "openai_tts", format: "mp3" };
     }
     return { ok:true, source: "openai_tts", format: "mp3", audioBase64: audioBuffer.toString("base64") };
@@ -9238,7 +9258,7 @@ function archiveDTUToDisk(dtu) {
       stmt.run(dtu.id, JSON.stringify(dtu), dtu.tier || "regular", dtu.meta?.consolidatedInto || null, new Date().toISOString());
       return;
     }
-  } catch {}
+  } catch (e) { structuredLog("error", "archive_dtu_to_disk_failed", { id: dtu?.id, error: String(e) }); }
 }
 
 function rehydrateDTU(dtuId) {
@@ -9264,7 +9284,7 @@ function rehydrateDTU(dtuId) {
         return dtu;
       }
     }
-  } catch {}
+  } catch (e) { structuredLog("error", "rehydrate_dtu_failed", { id: dtuId, error: String(e) }); }
   return null;
 }
 
@@ -9422,7 +9442,7 @@ function dtusByIds(ids=[]) {
 function upsertDTU(dtu, { broadcast = true, federate = false } = {}) {
   // Input sanitization: prevent XSS and normalize tags
   if (typeof sanitizeDTUInput === "function") {
-    try { sanitizeDTUInput(dtu); } catch {}
+    try { sanitizeDTUInput(dtu); } catch (e) { structuredLog("error", "dtu_sanitization_failed", { id: dtu?.id, error: String(e) }); }
   }
 
   const isNew = !STATE.dtus.has(dtu.id);
@@ -11808,7 +11828,7 @@ async function callBrain(brainName, prompt, options = {}) {
 
     // Record cost (Spec V #85)
     if (typeof recordCost === "function") {
-      try { recordCost(options._userId || "default", brainName, prompt.length, data.eval_count || 0, elapsed); } catch {}
+      try { recordCost(options._userId || "default", brainName, prompt.length, data.eval_count || 0, elapsed); } catch (e) { structuredLog("warn", "llm_cost_recording_failed", { brain: brainName, error: String(e) }); }
     }
 
     const result = {
@@ -12468,6 +12488,7 @@ async function consciousLensCall(action, domain, data) {
 async function entityExploreLens(entity, lens) {
   const lensData = await buildBrainContext(lens, lens, 5);
   const entityId = entity?.id || "unknown";
+  const species = entity?.species || null;
 
   // Use utility brain prompt builder with entity context
   const system = buildUtilityPrompt({
@@ -13991,7 +14012,7 @@ function pipeEnsureDirs() {
 pipeEnsureDirs();
 
 function pipeAppendJsonl(file, obj) {
-  try { fs.appendFileSync(file, JSON.stringify(obj) + "\n", "utf-8"); } catch {}
+  try { fs.appendFileSync(file, JSON.stringify(obj) + "\n", "utf-8"); } catch (e) { structuredLog("warn", "pipe_audit_write_failed", { file, error: String(e) }); }
 }
 
 function pipeAudit(type, message, meta={}) {
@@ -14012,7 +14033,7 @@ function pipeSnapshot() {
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   try {
     fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify(_serializeState(), null, 2), "utf-8");
-  } catch {}
+  } catch (e) { structuredLog("error", "pipe_snapshot_write_failed", { dir, error: String(e) }); }
   return dir;
 }
 
@@ -21449,7 +21470,7 @@ function startJobWorker() {
       const next = runnable[0];
       if (!next) return;
       await runJob(next);
-    } catch {}
+    } catch (e) { structuredLog("error", "job_worker_tick_failed", { error: String(e) }); }
   }, 250);
   log("jobs.worker", "Job worker started", { everyMs: 250 });
 }
@@ -21797,7 +21818,7 @@ function startHeartbeat() {
 
     // v5.7: analogize engine — minimal delay on GPU (let main pipelines settle)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => { setTimeout(resolve, 1000); });
       await runMacro("system","analogize", {}, ctx).catch((err) => { console.error('[system] Analogize error:', err); });
     } catch (err) { console.error('[system] Analogize error:', err); }
 
@@ -22694,7 +22715,7 @@ async function governorTick(reason="heartbeat") {
 
       // Vulnerability engine: periodic system-wide scan (every 5th tick)
       if ((STATE.__bgTickCounter || 0) % TICK_FREQUENCIES.VULNERABILITY === 0) {
-        try { assessAndAdapt(STATE); } catch {}
+        try { assessAndAdapt(STATE); } catch (e) { structuredLog("error", "heartbeat_vulnerability_scan_failed", { error: String(e) }); }
       }
 
       // v3.1 Repair Queue processing — every 3rd tick
@@ -22702,7 +22723,7 @@ async function governorTick(reason="heartbeat") {
         try {
           const { processRepairQueue: prq } = await import("./emergent/repair-cortex.js");
           await prq();
-        } catch {}
+        } catch (e) { structuredLog("error", "heartbeat_repair_queue_failed", { error: String(e) }); }
       }
 
       // v3.1 Repair cortex self-test — every 100th tick
@@ -22774,12 +22795,12 @@ async function governorTick(reason="heartbeat") {
         }
         // Economic health check — every 100th tick
         if (_tick % TICK_FREQUENCIES.ECONOMY_HEALTH === 0) {
-          try { entityEconMod.runEconomicCycle(); } catch {}
+          try { entityEconMod.runEconomicCycle(); } catch (e) { structuredLog("error", "heartbeat_economic_cycle_failed", { error: String(e) }); }
         }
         // Wealth redistribution — every 500th tick
         if (_tick % TICK_FREQUENCIES.WEALTH_REDISTRIBUTION === 0) {
           if (entityEconMod?.enforceWealthCaps) {
-            try { entityEconMod.enforceWealthCaps(); } catch {}
+            try { entityEconMod.enforceWealthCaps(); } catch (e) { structuredLog("error", "heartbeat_wealth_caps_failed", { error: String(e) }); }
           }
         }
       }
@@ -23181,7 +23202,7 @@ async function governorTick(reason="heartbeat") {
         _tickHistory.push({
           tick: STATE.__bgTickCounter || 0,
           at: new Date().toISOString(),
-          entityCount: _bgEntities?.length || 0,
+          entityCount: STATE.__emergent ? Array.from((STATE.__emergent?.emergents || new Map()).values()).filter(e => e.active).length : 0,
           dtuCount: STATE.dtus?.size || 0,
         });
         if (_tickHistory.length > 100) _tickHistory.shift();
@@ -29734,7 +29755,7 @@ app.get("/api/entity/:entityId/profile", asyncHandler(async (req, res) => {
   if (!entity) return res.status(404).json({ ok: false, error: "Entity not found" });
 
   let growth = null;
-  try { growth = typeof getEntityGrowthProfile === "function" ? getEntityGrowthProfile(entityId) : null; } catch {}
+  try { growth = typeof getGrowthProfile === "function" ? getGrowthProfile(entityId) : null; } catch {}
 
   const artifacts = Array.from(STATE.lensArtifacts?.values() || [])
     .filter(a => a.meta?.createdBy === entityId);
@@ -32217,7 +32238,6 @@ function initChatSocketHandlers(io) {
 // ============================================================================
 // WAVE 5: REAL-TIME COLLABORATION & WHITEBOARD (Surpassing AFFiNE)
 // ============================================================================
-const COLLAB_SESSIONS = new BoundedMap(1000, "COLLAB_SESSIONS");
 const COLLAB_LOCKS = new BoundedMap(1000, "COLLAB_LOCKS");
 
 register("collab", "createSession", (ctx, input) => {
@@ -36719,9 +36739,9 @@ app.get("/api/atlas/scope/:dtuId", (req, res) => {
 });
 
 app.get("/api/atlas/scope-metrics", async (req, res) => {
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("scope_metrics_timeout")), 5000)
-  );
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("scope_metrics_timeout")), 5000);
+  });
   try {
     const result = await Promise.race([Promise.resolve(getScopeMetrics(STATE)), timeoutPromise]);
     res.json(result);
@@ -37176,7 +37196,7 @@ registerDurableEndpoints(app, db);
 registerGuidanceEndpoints(app, db);
 
 // ── Economy System: ledger, balances, transfers, withdrawals ─────────────────
-registerEconomyEndpoints(app, db);
+registerEconomyEndpoints(app, db, { structuredLog });
 
 // ── Brain Prompts & Want Engine API ──────────────────────────────────────────
 

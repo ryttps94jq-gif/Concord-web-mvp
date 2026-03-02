@@ -9,6 +9,7 @@
  */
 import express from "express";
 import crypto from "crypto";
+import vm from "node:vm";
 import { asyncHandler } from "../lib/async-handler.js";
 
 const SOVEREIGN_USERNAME = process.env.SOVEREIGN_USERNAME || "dutch";
@@ -729,9 +730,8 @@ export default function createSovereignRouter({ STATE, makeCtx, runMacro, saveSt
 
     let output;
     try {
-      // Make STATE available in eval scope
-      const evalFn = new Function("STATE", "S", code);
-      const raw = evalFn(S, S);
+      const context = vm.createContext({ STATE: S, S, console });
+      const raw = vm.runInNewContext(code, context, { timeout: 5000 });
       output = typeof raw === "object" ? JSON.stringify(raw, null, 2) : String(raw ?? "undefined");
     } catch (e) {
       output = `Error: ${e?.message || e}`;

@@ -2032,7 +2032,7 @@ const PRE_BUILD_CHECKS = {
         const composePath = path.join(projectRoot, "docker-compose.yml");
         if (fs.existsSync(composePath)) {
           const composeContent = fs.readFileSync(composePath, "utf-8");
-          const proxyPasses = content.matchAll(/proxy_pass\s+https?:\/\/([^:\/\s;]+)/g);
+          const proxyPasses = content.matchAll(/proxy_pass\s+https?:\/\/([^:/\s;]+)/g);
           for (const m of proxyPasses) {
             const upstream = m[1];
             // Check that the upstream is a service in docker-compose
@@ -2941,7 +2941,7 @@ const GUARDIAN_MONITORS = {
     check: async () => {
       try {
         const start = process.hrtime.bigint();
-        await new Promise(resolve => setImmediate(resolve));
+        await new Promise(resolve => { setImmediate(resolve); });
         const lagNs = Number(process.hrtime.bigint() - start);
         const lagMs = lagNs / 1_000_000;
 

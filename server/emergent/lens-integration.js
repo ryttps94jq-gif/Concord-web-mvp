@@ -814,7 +814,7 @@ export function registerBuiltinEnrichers() {
 
 // ── Metrics ─────────────────────────────────────────────────────────────────
 
-let _enrichmentMetrics = {
+const _enrichmentMetrics = {
   enriched: 0,
   unenriched: 0,
   edgesCreated: 0,
