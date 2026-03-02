@@ -108,6 +108,9 @@ import { initializeSynthesis, getSynthesisMetrics, getCorrelations as synthesisG
 import { initializeNeural, getNeuralMetrics, assessReadiness as neuralAssessReadiness } from "./lib/foundation-neural.js";
 import { initializeProtocol, getProtocolMetrics } from "./lib/foundation-protocol.js";
 import registerFoundationRoutes from "./routes/foundation.js";
+// Foundation Intelligence — 3-tier intelligence architecture
+import { initializeIntelligence, getIntelligenceMetrics, getPublicIntelligence, getAllPublicCategories, getResearchIntelligence, getResearchSynthesis, getResearchArchive, submitResearchApplication, reviewResearchApplication, getResearchApplicationStatus, getSovereignVaultStatus, getClassifierStatus, processSignalIntelligence, detectIntelIntent, intelligenceHeartbeatTick } from "./lib/foundation-intelligence.js";
+import registerFoundationIntelRoutes from "./routes/foundation-intel.js";
 
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
@@ -6666,6 +6669,7 @@ async function runMacro(domain, name, input, ctx) {
     shield: new Set(["status", "threats", "firewall", "predictions", "metrics"]),
     mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
     foundation: new Set(["status", "sense.readings", "sense.patterns", "identity.verify", "energy.map", "energy.grid", "spectrum.map", "spectrum.available", "emergency.status", "market.earnings", "market.topology", "archive.fossils", "archive.decoded", "synthesis.correlations", "neural.readiness", "protocol.stats"]),
+    intel: new Set(["weather", "geology", "energy", "ocean", "seismic", "agriculture", "environment", "research.status", "research.data", "research.synthesis", "research.archive", "classifier.status", "metrics"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -15655,6 +15659,14 @@ const intentInfo = classifyIntent(prompt);
           _chatRoute._meshIntent = _meshIntent;
         }
       } catch {}
+
+      // Check for Foundation Intelligence intent ("weather intel", "seismic data", etc.)
+      try {
+        const _intelIntent = detectIntelIntent(prompt);
+        if (_intelIntent.isIntelRequest) {
+          _chatRoute._intelIntent = _intelIntent;
+        }
+      } catch {}
     }
   } catch (_routerErr) {
     // Chat router is supplementary — never block the chat path
@@ -16364,6 +16376,10 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       action: _chatRoute._meshIntent.action,
       params: _chatRoute._meshIntent.params,
     } : null,
+    intel: _chatRoute?._intelIntent?.isIntelRequest ? {
+      action: _chatRoute._intelIntent.action,
+      params: _chatRoute._intelIntent.params,
+    } : null,
   };
 }, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
 
@@ -16738,6 +16754,81 @@ register("foundation", "protocol.stats", (ctx, input) => {
 }, { description: "Get Concord Protocol metrics and stats." });
 
 // ===== END FOUNDATION SOVEREIGNTY MACROS =====
+
+// ===== FOUNDATION INTELLIGENCE MACROS — 3-Tier Architecture =====
+
+// -- Public Tier (7 categories) --
+register("intel", "weather", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("weather", limit);
+}, { description: "Get public weather intelligence from Foundation signal analysis." });
+
+register("intel", "geology", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("geology", limit);
+}, { description: "Get geological survey intelligence from Foundation signal analysis." });
+
+register("intel", "energy", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("energy", limit);
+}, { description: "Get energy distribution intelligence from Foundation signal analysis." });
+
+register("intel", "ocean", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("ocean", limit);
+}, { description: "Get ocean monitoring intelligence from Foundation signal analysis." });
+
+register("intel", "seismic", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("seismic", limit);
+}, { description: "Get seismic monitoring intelligence from Foundation signal analysis." });
+
+register("intel", "agriculture", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("agriculture", limit);
+}, { description: "Get agricultural intelligence from Foundation signal analysis." });
+
+register("intel", "environment", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("environment", limit);
+}, { description: "Get environmental assessment intelligence from Foundation signal analysis." });
+
+// -- Research Tier (governance-controlled access) --
+register("intel", "research.apply", (ctx, input) => {
+  return submitResearchApplication(
+    input.researcherId, input.institution, input.purpose, input.categories || []
+  );
+}, { description: "Submit research access application for Tier 2 intelligence." });
+
+register("intel", "research.status", (ctx, input) => {
+  return getResearchApplicationStatus(input.applicationId);
+}, { description: "Check research access application status." });
+
+register("intel", "research.data", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchIntelligence(input.researcherId, input.category, limit);
+}, { description: "Access authorized research intelligence data (governance-approved only)." });
+
+register("intel", "research.synthesis", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchSynthesis(input.researcherId, limit);
+}, { description: "Access cross-medium synthesis research findings." });
+
+register("intel", "research.archive", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchArchive(input.researcherId, limit);
+}, { description: "Access historical signal archaeology research data." });
+
+// -- Classifier & Metrics --
+register("intel", "classifier.status", (ctx, input) => {
+  return { ok: true, ...getClassifierStatus() };
+}, { description: "Get sovereign classifier status and statistics." });
+
+register("intel", "metrics", (ctx, input) => {
+  return { ok: true, ...getIntelligenceMetrics() };
+}, { description: "Get Foundation Intelligence metrics across all tiers." });
+
+// ===== END FOUNDATION INTELLIGENCE MACROS =====
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -21278,6 +21369,11 @@ registerFoundationRoutes(app, {
   STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
 });
 
+// ---- Foundation Intelligence Routes (extracted to routes/foundation-intel.js) ----
+registerFoundationIntelRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -22738,6 +22834,11 @@ async function governorTick(reason="heartbeat") {
       // 2.12 — Foundation Sense Heartbeat — every 10th tick (pattern detection)
       if (_tick % 10 === 0) {
         try { await senseHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.13 — Foundation Intelligence Heartbeat — every 15th tick (access grant cleanup)
+      if (_tick % 15 === 0) {
+        try { await intelligenceHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -29374,14 +29475,15 @@ try {
     initializeSynthesis(STATE),
     initializeNeural(STATE),
     initializeProtocol(STATE),
+    initializeIntelligence(STATE),
   ]).then(results => {
     const initialized = results.filter(r => r.ok).length;
     structuredLog("info", "foundation_initialized", {
-      modules: initialized, total: 10,
+      modules: initialized, total: 11,
       sense: results[0]?.ok, identity: results[1]?.ok, energy: results[2]?.ok,
       spectrum: results[3]?.ok, emergency: results[4]?.ok, market: results[5]?.ok,
       archive: results[6]?.ok, synthesis: results[7]?.ok, neural: results[8]?.ok,
-      protocol: results[9]?.ok,
+      protocol: results[9]?.ok, intelligence: results[10]?.ok,
     });
   }).catch(e => {
     structuredLog("warn", "foundation_init_failed", { error: e?.message });
