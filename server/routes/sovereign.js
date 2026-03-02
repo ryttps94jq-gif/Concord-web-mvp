@@ -762,6 +762,27 @@ export default function createSovereignRouter({ STATE, makeCtx, runMacro, saveSt
     } catch { /* silent */ }
   }
 
+  // GET /sovereign/dashboard — Sovereign dashboard overview
+  router.get("/dashboard", (req, res) => {
+    const S = STATE || getSTATE();
+    if (!S) return res.json({ ok: false, error: "STATE not available" });
+
+    const totalDTUs = S.dtus ? S.dtus.size : 0;
+    const totalEdges = S.edges ? S.edges.size : 0;
+    const uptime = S.uptime ? Date.now() - S.uptime : 0;
+
+    return res.json({
+      ok: true,
+      dashboard: {
+        totalDTUs,
+        totalEdges,
+        uptime,
+        sovereign: SOVEREIGN_USERNAME,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  });
+
   return router;
 }
 

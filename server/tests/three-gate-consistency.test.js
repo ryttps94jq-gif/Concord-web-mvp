@@ -11,7 +11,8 @@
  */
 
 import { readFileSync } from "fs";
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import path from "path";
 
 const SERVER_PATH = path.resolve(import.meta.dirname, "../server.js");
@@ -52,11 +53,11 @@ describe("Three-Gate Consistency", () => {
   const gate3Paths = extractArrayFromSource(source, "const _safeReadPaths = [");
 
   it("should have found Gate 1 paths", () => {
-    expect(gate1Paths.length).toBeGreaterThan(10);
+    assert.ok(gate1Paths.length > 10);
   });
 
   it("should have found Gate 3 paths", () => {
-    expect(gate3Paths.length).toBeGreaterThan(10);
+    assert.ok(gate3Paths.length > 10);
   });
 
   it("every Gate 1 path should exist in Gate 3", () => {
@@ -65,7 +66,7 @@ describe("Three-Gate Consistency", () => {
     if (missing.length > 0) {
       console.warn("Paths in Gate 1 (publicReadPaths) but missing from Gate 3 (_safeReadPaths):", missing);
     }
-    expect(missing).toEqual([]);
+    assert.deepEqual(missing, []);
   });
 
   it("every Gate 3 path should exist in Gate 1", () => {
@@ -74,22 +75,22 @@ describe("Three-Gate Consistency", () => {
     if (missing.length > 0) {
       console.warn("Paths in Gate 3 (_safeReadPaths) but missing from Gate 1 (publicReadPaths):", missing);
     }
-    expect(missing).toEqual([]);
+    assert.deepEqual(missing, []);
   });
 
   it("should have CONSOLIDATION constants defined", () => {
-    expect(source).toContain("const CONSOLIDATION = Object.freeze({");
+    assert.ok(source.includes("const CONSOLIDATION = Object.freeze({"));
   });
 
   it("should have FORGETTING_CONSTANTS defined", () => {
-    expect(source).toContain("const FORGETTING_CONSTANTS = Object.freeze({");
+    assert.ok(source.includes("const FORGETTING_CONSTANTS = Object.freeze({"));
   });
 
   it("should have ENTITY_ECONOMY_CONSTANTS defined", () => {
-    expect(source).toContain("const ENTITY_ECONOMY_CONSTANTS = Object.freeze({");
+    assert.ok(source.includes("const ENTITY_ECONOMY_CONSTANTS = Object.freeze({"));
   });
 
   it("should have ENTITY_LIMITS defined", () => {
-    expect(source).toContain("const ENTITY_LIMITS = Object.freeze({");
+    assert.ok(source.includes("const ENTITY_LIMITS = Object.freeze({"));
   });
 });

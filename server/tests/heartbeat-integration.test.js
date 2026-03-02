@@ -7,7 +7,8 @@
  */
 
 import { readFileSync } from "fs";
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import path from "path";
 
 const SERVER_PATH = path.resolve(import.meta.dirname, "../server.js");
@@ -16,15 +17,15 @@ describe("Heartbeat Integration", () => {
   const source = readFileSync(SERVER_PATH, "utf-8");
 
   it("should have governorTick function defined", () => {
-    expect(source).toContain("async function governorTick(");
+    assert.ok(source.includes("async function governorTick("));
   });
 
   it("should have _tickHistory ring buffer", () => {
-    expect(source).toContain("const _tickHistory = []");
+    assert.ok(source.includes("const _tickHistory = []"));
   });
 
   it("should push to _tickHistory after each tick", () => {
-    expect(source).toContain("_tickHistory.push(");
+    assert.ok(source.includes("_tickHistory.push("));
   });
 
   // Phase 2 module wiring checks
@@ -53,7 +54,7 @@ describe("Heartbeat Integration", () => {
       const tickStart = source.indexOf("async function governorTick(");
       const tickEnd = source.indexOf("function _startGovernorHeartbeat()");
       const tickBody = source.slice(tickStart, tickEnd);
-      expect(tickBody).toContain(mod.marker);
+      assert.ok(tickBody.includes(mod.marker));
     });
   }
 
@@ -61,49 +62,49 @@ describe("Heartbeat Integration", () => {
     const tickStart = source.indexOf("async function governorTick(");
     const tickEnd = source.indexOf("function _startGovernorHeartbeat()");
     const tickBody = source.slice(tickStart, tickEnd);
-    expect(tickBody).toContain("CONSOLIDATION.TICK_INTERVAL");
-    expect(tickBody).toContain("demoteToArchive");
+    assert.ok(tickBody.includes("CONSOLIDATION.TICK_INTERVAL"));
+    assert.ok(tickBody.includes("demoteToArchive"));
   });
 
   it("should have self-healing dream review wiring", () => {
     const tickStart = source.indexOf("async function governorTick(");
     const tickEnd = source.indexOf("function _startGovernorHeartbeat()");
     const tickBody = source.slice(tickStart, tickEnd);
-    expect(tickBody).toContain("runDreamReview");
+    assert.ok(tickBody.includes("runDreamReview"));
   });
 
   it("should have embeddings health check wiring", () => {
     const tickStart = source.indexOf("async function governorTick(");
     const tickEnd = source.indexOf("function _startGovernorHeartbeat()");
     const tickBody = source.slice(tickStart, tickEnd);
-    expect(tickBody).toContain("getEmbeddingStatus");
+    assert.ok(tickBody.includes("getEmbeddingStatus"));
   });
 
   // Archive system checks
   it("should have archiveDTUToDisk function", () => {
-    expect(source).toContain("function archiveDTUToDisk(");
+    assert.ok(source.includes("function archiveDTUToDisk("));
   });
 
   it("should have rehydrateDTU function", () => {
-    expect(source).toContain("function rehydrateDTU(");
+    assert.ok(source.includes("function rehydrateDTU("));
   });
 
   it("should have demoteToArchive function", () => {
-    expect(source).toContain("function demoteToArchive(");
+    assert.ok(source.includes("function demoteToArchive("));
   });
 
   it("should have archived_dtus table creation", () => {
-    expect(source).toContain("CREATE TABLE IF NOT EXISTS archived_dtus");
+    assert.ok(source.includes("CREATE TABLE IF NOT EXISTS archived_dtus"));
   });
 
   // Brain routing check
   it("should route chat LLM to conscious brain when OpenAI unavailable", () => {
-    expect(source).toContain("const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled");
+    assert.ok(source.includes("const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled"));
   });
 
   // Rate limiting check
   it("should have rate limiting for expensive macros", () => {
-    expect(source).toContain("EXPENSIVE_MACROS");
-    expect(source).toContain("checkMacroRateLimit");
+    assert.ok(source.includes("EXPENSIVE_MACROS"));
+    assert.ok(source.includes("checkMacroRateLimit"));
   });
 });

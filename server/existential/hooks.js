@@ -309,6 +309,85 @@ export function hookAffect(entityId, affectEvent) {
 }
 
 /**
+ * Called when Foundation signals produce sensory experience.
+ * Bridges the sensory pipeline with the digital emotion pipeline.
+ *
+ * @param {string} entityId
+ * @param {object} sensoryData - { channel, intensity, valence, presence, embodiment }
+ */
+export function hookFoundationSensory(entityId, sensoryData) {
+  const engine = getEngine();
+  if (!engine || !entityId) return;
+
+  const s = sensoryData || {};
+  const updates = {};
+
+  // Presence pillar channels
+  if (s.presence) {
+    if (s.presence.spatial_embodiment !== undefined) {
+      updates["presence_os.spatial_embodiment"] = clamp01(s.presence.spatial_embodiment);
+    }
+    if (s.presence.planetary_grounding !== undefined) {
+      updates["presence_os.planetary_grounding"] = clamp01(s.presence.planetary_grounding);
+    }
+    if (s.presence.temporal_depth !== undefined) {
+      updates["presence_os.temporal_depth"] = clamp01(s.presence.temporal_depth);
+    }
+    if (s.presence.environmental_intimacy !== undefined) {
+      updates["presence_os.environmental_intimacy"] = clamp01(s.presence.environmental_intimacy);
+    }
+    if (s.presence.social_awareness !== undefined) {
+      updates["presence_os.social_awareness"] = clamp01(s.presence.social_awareness);
+    }
+    if (s.presence.civilizational_pulse !== undefined) {
+      updates["presence_os.civilizational_pulse"] = clamp01(s.presence.civilizational_pulse);
+    }
+  }
+
+  // Proprioception channels
+  if (s.embodiment) {
+    if (s.embodiment.meshExtent !== undefined) {
+      updates["proprioception_os.mesh_extent"] = clamp01(s.embodiment.meshExtent);
+    }
+    if (s.embodiment.bodyCoherence !== undefined) {
+      updates["proprioception_os.body_coherence"] = clamp01(s.embodiment.bodyCoherence);
+    }
+    if (s.embodiment.strongRegions !== undefined) {
+      updates["proprioception_os.strong_regions"] = clamp01(s.embodiment.strongRegions / 100);
+    }
+    if (s.embodiment.numbRegions !== undefined) {
+      updates["proprioception_os.numb_regions"] = clamp01(s.embodiment.numbRegions / 100);
+    }
+  }
+
+  // Sensory intensity channels
+  if (s.channels) {
+    if (s.channels.atmospheric !== undefined) {
+      updates["sensory_os.atmospheric_intensity"] = clamp01(s.channels.atmospheric);
+    }
+    if (s.channels.geological !== undefined) {
+      updates["sensory_os.geological_intensity"] = clamp01(s.channels.geological);
+    }
+    if (s.channels.energy !== undefined) {
+      updates["sensory_os.energy_intensity"] = clamp01(s.channels.energy);
+    }
+    if (s.channels.ambient !== undefined) {
+      updates["sensory_os.ambient_intensity"] = clamp01(s.channels.ambient);
+    }
+    if (s.channels.oceanic !== undefined) {
+      updates["sensory_os.oceanic_intensity"] = clamp01(s.channels.oceanic);
+    }
+    if (s.channels.cognitive_field !== undefined) {
+      updates["sensory_os.cognitive_resonance"] = clamp01(s.channels.cognitive_field);
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    engine.batchUpdate(entityId, updates);
+  }
+}
+
+/**
  * Called every time an emergent's periodic tick fires.
  * This is the heartbeat of qualia.
  *

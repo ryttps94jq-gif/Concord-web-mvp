@@ -87,6 +87,37 @@ import { selectSubconsciousTask, checkSpontaneousTrigger, generateWantFromIntera
 import { enqueueMessage, processQueue as processSpQueue, getQueueStatus, setUserSpontaneousEnabled, startTicker, stopTicker } from "./prompts/spontaneous-queue.js";
 import { checkSpontaneousContent } from "./prompts/spontaneous.js";
 
+// ── Chat Router + Forge Pipeline ─────────────────────────────────────────
+import { routeMessage as chatRouterRoute, buildLensChain, emitResonanceSignal, shouldOfferForge, detectEmergentRoute, recordRouteMetric, getRouterMetrics, ACTION_TYPES as CHAT_ACTION_TYPES } from "./lib/chat-router.js";
+import { initializeManifests, getManifestStats, registerUserLens, registerEmergentLens } from "./lib/lens-manifest.js";
+import { accumulate as accumulateSessionContext, getContextSnapshot, getAccumulatorMetrics, cleanupExpiredSessions as cleanupAccumulatorSessions } from "./lib/session-context-accumulator.js";
+import { detectForge, runForgePipeline, saveForgedDTU, deleteForgedDTU, saveAndList, iterateForge, recordForgeMetric, getForgeMetrics, recordEmergentContribution } from "./lib/inline-dtu-forge.js";
+import { initializeShield, scanContent as shieldScanContent, scanHashAgainstLattice, runAnalysisPipeline as shieldAnalyze, classifyWithYARA, runProphet as shieldProphet, runSurgeon as shieldSurgeon, runGuardian as shieldGuardian, propagateThreatToLattice, shieldHeartbeatTick, computeSecurityScore, detectShieldIntent, performSweep, processUserReport, getThreatFeed, getFirewallRules, getPredictions, getShieldMetrics, queueScan as shieldQueueScan, createThreatDTU, THREAT_SUBTYPES, SCAN_MODES } from "./lib/concord-shield.js";
+import registerShieldRoutes from "./routes/shield.js";
+import { initializeMesh, detectChannels as meshDetectChannels, getChannelStatus as meshGetChannelStatus, getNodeId as meshGetNodeId, sendDTU as meshSendDTU, receiveDTU as meshReceiveDTU, initiateTransfer as meshInitiateTransfer, getTransferStatus as meshGetTransferStatus, registerPeer as meshRegisterPeer, getPeers as meshGetPeers, getTopology as meshGetTopology, getMeshMetrics, getTransmissionStats as meshGetTransmissionStats, getPendingQueue as meshGetPendingQueue, configureRelay as meshConfigureRelay, detectMeshIntent, meshHeartbeatTick, planOfflineSync as meshPlanOfflineSync, TRANSPORT_LAYERS, TRANSPORT_LIST, RELAY_PRIORITIES } from "./lib/concord-mesh.js";
+import registerMeshRoutes from "./routes/mesh.js";
+// ── Foundation Sovereignty Modules ────────────────────────────────────────────
+import { initializeSense, recordReading as senseRecordReading, getSenseMetrics, getRecentReadings as senseGetReadings, getPatterns as senseGetPatterns, senseHeartbeatTick } from "./lib/foundation-sense.js";
+import { initializeIdentity, getIdentityMetrics, getIdentity as identityGetNode, verifyNode as identityVerifyNode, getAllIdentities } from "./lib/foundation-identity.js";
+import { initializeEnergy, getEnergyMetrics, getEnergyMap, getGridHealth, getRecentEnergyReadings } from "./lib/foundation-energy.js";
+import { initializeSpectrum, getSpectrumMetrics, getAvailableChannels as spectrumGetChannels, getSpectrumMap } from "./lib/foundation-spectrum.js";
+import { initializeEmergency, getEmergencyMetrics, triggerEmergency, getEmergencyStatus, getActiveEmergencies, getRecentAlerts as emergencyGetAlerts } from "./lib/foundation-emergency.js";
+import { initializeMarket, getMarketMetrics, getRecentEarnings as marketGetEarnings, getRelayTopology as marketGetTopology, getNodeBalance as marketGetBalance } from "./lib/foundation-market.js";
+import { initializeArchive, getArchiveMetrics, getFossils, getDecoded as archiveGetDecoded } from "./lib/foundation-archive.js";
+import { initializeSynthesis, getSynthesisMetrics, getCorrelations as synthesisGetCorrelations } from "./lib/foundation-synthesis.js";
+import { initializeNeural, getNeuralMetrics, assessReadiness as neuralAssessReadiness } from "./lib/foundation-neural.js";
+import { initializeProtocol, getProtocolMetrics } from "./lib/foundation-protocol.js";
+import registerFoundationRoutes from "./routes/foundation.js";
+// Foundation Intelligence — 3-tier intelligence architecture
+import { initializeIntelligence, getIntelligenceMetrics, getPublicIntelligence, getAllPublicCategories, getResearchIntelligence, getResearchSynthesis, getResearchArchive, submitResearchApplication, reviewResearchApplication, getResearchApplicationStatus, getSovereignVaultStatus, getClassifierStatus, processSignalIntelligence, detectIntelIntent, intelligenceHeartbeatTick } from "./lib/foundation-intelligence.js";
+import registerFoundationIntelRoutes from "./routes/foundation-intel.js";
+// Foundation Atlas — signal tomography & volumetric mapping
+import { initializeAtlas, getAtlasMetrics, collectSignal, getTile, getVolume, getMaterialAtPoint, getSubsurface, getChanges, getCoverage, getLiveFeedStatus, executeSpatialQuery, detectAtlasIntent, atlasHeartbeatTick } from "./lib/foundation-atlas.js";
+import registerAtlasRoutes from "./routes/atlas.js";
+// Atlas Signal Cortex — signal classification, privacy architecture & adjustment control
+import { initializeCortex, getCortexMetrics, classifySignal as cortexClassifySignal, getTaxonomy, getUnknownSignals, getAnomalies, getSpectralOccupancy, detectPrivacyZone, checkPrivacy, getPrivacyZones, getPrivacyStats, verifyPrivacyZone, suppressPresenceDetection, suppressVehicleTracking, checkAdjustmentPermission, detectCortexIntent, cortexHeartbeatTick } from "./lib/atlas-signal-cortex.js";
+import registerAtlasSignalRoutes from "./routes/atlas-signals.js";
+
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
   CLASSIFICATIONS, computeSubstrateStats, migrateClassifications, applyClassification, isPublicDTU,
@@ -170,7 +201,7 @@ import {
 
 // ---- Atlas + Platform Upgrade Imports (v2) ----
 import { DOMAIN_TYPES as ATLAS_DOMAIN_TYPES, EPISTEMIC_CLASSES, initAtlasState, getAtlasState } from "./emergent/atlas-epistemic.js";
-import { createAtlasDtu, getAtlasDtu, searchAtlasDtus, promoteAtlasDtu, addAtlasLink, getScoreExplanation, recomputeScores, registerEntity, getEntity, getContradictions, getAtlasMetrics } from "./emergent/atlas-store.js";
+import { createAtlasDtu, getAtlasDtu, searchAtlasDtus, promoteAtlasDtu, addAtlasLink, getScoreExplanation, recomputeScores, registerEntity, getEntity, getContradictions, getAtlasMetrics as getAtlasStoreMetrics } from "./emergent/atlas-store.js";
 import { runAntiGamingScan, getAntiGamingMetrics } from "./emergent/atlas-antigaming.js";
 import { runAutogenV2, getAutogenRun, acceptAutogenOutput, mergeAutogenOutput, propagateConfidence, getAutogenV2Metrics } from "./emergent/atlas-autogen-v2.js";
 import { councilResolve, getCouncilQueue, councilRequestSources, councilMerge, getCouncilActions, getCouncilMetrics } from "./emergent/atlas-council.js";
@@ -4194,8 +4225,10 @@ function authMiddleware(req, res, next) {
   // CRITICAL: Every frontend GET route must be listed here (Gate 1 of 3)
   const publicReadPaths = [
     // Core data
-    "/api/dtus", "/api/lenses", "/api/lens", "/api/emergent", "/api/knowledge",
+    "/api/dtus", "/api/dtu", "/api/lenses", "/api/lens", "/api/emergent", "/api/knowledge",
     "/api/search", "/api/species", "/api/events", "/api/schema",
+    // Settings, metrics & context
+    "/api/settings", "/api/growth", "/api/metrics", "/api/context",
     // System
     "/api/brain", "/api/system", "/api/cognitive", "/api/status",
     "/api/backpressure", "/api/embeddings", "/api/pwa",
@@ -4204,8 +4237,9 @@ function authMiddleware(req, res, next) {
     "/api/inspect", "/api/worldmodel", "/api/council", "/api/resonance",
     // Chat & AI
     "/api/chat", "/api/ask", "/api/forge",
-    // Atlas
+    // Atlas & Signal Cortex
     "/api/atlas",
+    "/api/atlas/signals", "/api/atlas/privacy",
     // Plugins & extensions
     "/api/plugins", "/api/macros",
     // Growth & entities
@@ -4274,6 +4308,14 @@ function authMiddleware(req, res, next) {
     // Real-time data feeds + universal export
     "/api/realtime", "/api/convert",
     "/api/apps",
+    // Concord Shield security module
+    "/api/shield",
+    // Concord Mesh network transport
+    "/api/mesh",
+    // Foundation Sovereignty modules
+    "/api/foundation",
+    // Foundation Atlas signal tomography
+    "/api/atlas",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6635,6 +6677,12 @@ async function runMacro(domain, name, input, ctx) {
     realtime: new Set(["status", "feed"]),
     convert: new Set(["to-dtu", "from-dtu"]),
     apps: new Set(["list", "get"]),
+    shield: new Set(["status", "threats", "firewall", "predictions", "metrics"]),
+    mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
+    foundation: new Set(["status", "sense.readings", "sense.patterns", "identity.verify", "energy.map", "energy.grid", "spectrum.map", "spectrum.available", "emergency.status", "market.earnings", "market.topology", "archive.fossils", "archive.decoded", "synthesis.correlations", "neural.readiness", "protocol.stats"]),
+    intel: new Set(["weather", "geology", "energy", "ocean", "seismic", "agriculture", "environment", "research.status", "research.data", "research.synthesis", "research.archive", "classifier.status", "metrics"]),
+    atlas: new Set(["tile", "volume", "material", "subsurface", "change", "coverage", "live", "metrics"]),
+    cortex: new Set(["taxonomy", "unknown", "anomalies", "classify", "spectrum", "privacy.zones", "privacy.verify", "privacy.stats", "metrics"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6645,7 +6693,7 @@ async function runMacro(domain, name, input, ctx) {
     "/api/goals", "/api/growth", "/api/metrics", "/api/resonance", "/api/lattice",
     "/api/emergent", "/api/plugins", "/api/scope", "/api/events", "/api/guidance",
     "/api/graph", "/api/system", "/api/inspect", "/api/worldmodel", "/api/chat",
-    "/api/brain", "/api/species", "/api/atlas", "/api/knowledge", "/api/search",
+    "/api/brain", "/api/species", "/api/atlas", "/api/atlas/signals", "/api/atlas/privacy", "/api/knowledge", "/api/search",
     "/api/council", "/api/hypothesis", "/api/analytics", "/api/agents", "/api/personas",
     "/api/affect", "/api/attention", "/api/metacognition", "/api/metalearning",
     "/api/reasoning", "/api/reflection", "/api/temporal", "/api/inference",
@@ -6690,6 +6738,17 @@ async function runMacro(domain, name, input, ctx) {
     // Real-time data feeds + universal export
     "/api/realtime", "/api/convert",
     "/api/apps",
+    // Concord Shield security module
+    "/api/shield",
+    // Concord Mesh network transport
+    "/api/mesh",
+    // Foundation Sovereignty modules
+    "/api/foundation",
+    // Foundation Atlas signal tomography
+    "/api/atlas",
+    // Gate consistency: paths from Gate 1 that were missing in Gate 3
+    "/api/macros", "/api/automations", "/api/webhooks-metrics",
+    "/api/notion", "/api/undo", "/api/reseed", "/api/context",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -9040,6 +9099,7 @@ function makeCtx(req=null) {
         // Only fall back to OpenAI if Ollama is offline or fails.
         const consciousAvailable = BRAIN.conscious && BRAIN.conscious.enabled;
         const openaiAvailable = Boolean(OPENAI_API_KEY) && LLM_READY;
+        const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled;
 
         if (!consciousAvailable && !openaiAvailable) {
           return { ok: false, reason: "LLM not configured (no conscious brain and no OPENAI_API_KEY)." };
@@ -15568,6 +15628,85 @@ if (_isWeatherQuery(prompt)) {
 
 const intentInfo = classifyIntent(prompt);
 
+  // ── Chat Router: classify action type + resolve lens chain ──────────
+  let _chatRoute = null;
+  let _forgeDetection = null;
+  let _lensChain = null;
+  try {
+    const _sessionContext = getContextSnapshot(sessionId);
+    _chatRoute = chatRouterRoute(prompt, {
+      sessionContext: _sessionContext,
+      userId: ctx?.actor?.userId,
+      currentLens: currentLens || sess_pre.currentLens,
+      STATE,
+    });
+    if (_chatRoute.ok) {
+      recordRouteMetric(_chatRoute);
+
+      // Accumulate session context for compounding
+      accumulateSessionContext(sessionId, _chatRoute, prompt);
+
+      // Build lens chain for multi-lens synthesis
+      _lensChain = buildLensChain(_chatRoute, STATE);
+
+      // Check for forge-worthy request (artifact creation)
+      _forgeDetection = detectForge(prompt, _chatRoute.actionType);
+
+      // Emit resonance signal for cross-domain connections
+      if (_chatRoute.isMultiLens) {
+        emitResonanceSignal(_chatRoute, STATE);
+      }
+
+      // Check for emergent routing ("ask the legal emergent to review this")
+      const _emergentRoute = detectEmergentRoute(prompt, STATE);
+      if (_emergentRoute.routed) {
+        _chatRoute._emergentTarget = _emergentRoute;
+      }
+
+      // Check for Shield security intent ("scan my system", "is this safe?", etc.)
+      try {
+        const _shieldIntent = detectShieldIntent(prompt);
+        if (_shieldIntent.isShieldRequest) {
+          _chatRoute._shieldIntent = _shieldIntent;
+        }
+      } catch {}
+
+      // Check for Mesh network intent ("mesh status", "nearby peers", etc.)
+      try {
+        const _meshIntent = detectMeshIntent(prompt);
+        if (_meshIntent.isMeshRequest) {
+          _chatRoute._meshIntent = _meshIntent;
+        }
+      } catch {}
+
+      // Check for Foundation Intelligence intent ("weather intel", "seismic data", etc.)
+      try {
+        const _intelIntent = detectIntelIntent(prompt);
+        if (_intelIntent.isIntelRequest) {
+          _chatRoute._intelIntent = _intelIntent;
+        }
+      } catch {}
+
+      // Check for Foundation Atlas intent ("show map", "underground", "material at", etc.)
+      try {
+        const _atlasIntent = detectAtlasIntent(prompt);
+        if (_atlasIntent.isAtlasRequest) {
+          _chatRoute._atlasIntent = _atlasIntent;
+        }
+      } catch {}
+
+      // Check for Signal Cortex intent ("signal taxonomy", "privacy zone", "spectrum", etc.)
+      try {
+        const _cortexIntent = detectCortexIntent(prompt);
+        if (_cortexIntent.isCortexRequest) {
+          _chatRoute._cortexIntent = _cortexIntent;
+        }
+      } catch {}
+    }
+  } catch (_routerErr) {
+    // Chat router is supplementary — never block the chat path
+  }
+
   // Identity answers are declarative: Concord refers to itself.
   if (_mentionsSelf || intentInfo.intent === INTENT.IDENTITY) {
     const base = SYSTEM_IDENTITY.short;
@@ -16214,8 +16353,608 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     } catch {}
   }
 
-  return { ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })), grc: _grcOutput };
-}, { description: "Mode-aware chat with DTU retrieval; optional LLM enhancement. Outputs GRC v1 envelope." });
+  // ── Chat Router + Forge Pipeline Integration ──────────────────────────
+  // Attach route metadata to the response for the frontend to render
+  // lens attribution, forge cards, and action confirmation UI.
+  let _forgeResult = null;
+  let _routeMeta = null;
+  try {
+    if (_chatRoute?.ok) {
+      _routeMeta = {
+        actionType: _chatRoute.actionType,
+        lenses: (_chatRoute.lenses || []).slice(0, 5).map(l => ({ lensId: l.lensId, score: l.score })),
+        primaryLens: _chatRoute.primaryLens?.lensId || null,
+        isMultiLens: _chatRoute.isMultiLens,
+        confidence: _chatRoute.confidence,
+        attribution: _lensChain?.attribution || [],
+        message: _lensChain?.message || _chatRoute.message || null,
+      };
+
+      // Forge pipeline: if the request produced a deliverable artifact
+      if (_forgeDetection?.shouldForge && finalReply) {
+        _forgeResult = runForgePipeline({
+          message: prompt,
+          route: _chatRoute,
+          generatedContent: finalReply,
+          title: null, // auto-derived from message
+          userId: ctx?.actor?.userId,
+          STATE,
+        });
+        if (_forgeResult?.ok) {
+          recordForgeMetric("forgeCount", _forgeResult.presentation?.format);
+          // Offer forge promotion
+          _forgeResult._offerForge = shouldOfferForge(_chatRoute, { reply: finalReply });
+        }
+      }
+    }
+  } catch (_forgeErr) {
+    // Forge is supplementary — never block the chat path
+  }
+
+  return {
+    ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed,
+    relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })),
+    grc: _grcOutput,
+    route: _routeMeta,
+    forge: _forgeResult ? {
+      dtu: _forgeResult.dtu,
+      presentation: _forgeResult.presentation,
+      actions: _forgeResult.actions,
+      isMultiArtifact: _forgeResult.isMultiArtifact,
+      offerForge: _forgeResult._offerForge?.shouldOfferForge || false,
+    } : null,
+    shield: _chatRoute?._shieldIntent?.isShieldRequest ? {
+      action: _chatRoute._shieldIntent.action,
+      params: _chatRoute._shieldIntent.params,
+    } : null,
+    mesh: _chatRoute?._meshIntent?.isMeshRequest ? {
+      action: _chatRoute._meshIntent.action,
+      params: _chatRoute._meshIntent.params,
+    } : null,
+    intel: _chatRoute?._intelIntent?.isIntelRequest ? {
+      action: _chatRoute._intelIntent.action,
+      params: _chatRoute._intelIntent.params,
+    } : null,
+    atlas: _chatRoute?._atlasIntent?.isAtlasRequest ? {
+      action: _chatRoute._atlasIntent.action,
+      params: _chatRoute._atlasIntent.params,
+    } : null,
+    cortex: _chatRoute?._cortexIntent?.isCortexRequest ? {
+      action: _chatRoute._cortexIntent.action,
+      params: _chatRoute._cortexIntent.params,
+    } : null,
+  };
+}, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
+
+// ===== FORGE ARTIFACT ACTIONS =====
+// Save, delete, list, and iterate on forged DTUs from the chat pipeline.
+
+register("chat", "forge.save", (ctx, input) => {
+  const dtu = input.dtu;
+  if (!dtu?.id) return { ok: false, error: "dtu required" };
+  const result = saveForgedDTU(STATE, dtu);
+  if (result.ok) recordForgeMetric("saveCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Save a forged artifact to the user's substrate." });
+
+register("chat", "forge.delete", (ctx, input) => {
+  const dtuId = input.dtuId || input.id;
+  if (!dtuId) return { ok: false, error: "dtuId required" };
+  const result = deleteForgedDTU(STATE, dtuId);
+  if (result.ok) recordForgeMetric("deleteCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Delete a forged artifact completely. No tombstone. No trace." });
+
+register("chat", "forge.list", (ctx, input) => {
+  const dtu = input.dtu;
+  if (!dtu?.id) return { ok: false, error: "dtu required" };
+  const result = saveAndList(STATE, dtu, { price: input.price || null });
+  if (result.ok) recordForgeMetric("listCount");
+  saveStateDebounced();
+  return result;
+}, { description: "Save and immediately list a forged artifact on the marketplace." });
+
+register("chat", "forge.iterate", (ctx, input) => {
+  const existingDtu = input.dtu;
+  const editInstruction = String(input.instruction || input.edit || "");
+  const newContent = String(input.content || "");
+  if (!existingDtu?.id || !newContent) return { ok: false, error: "dtu and content required" };
+  const result = iterateForge(existingDtu, editInstruction, newContent, !!input.alreadySaved);
+  recordForgeMetric("iterationCount");
+  saveStateDebounced();
+  return { ok: true, dtu: result };
+}, { description: "Iterate on an existing forged artifact with edits." });
+
+register("chat", "route.metrics", (ctx, input) => {
+  return {
+    ok: true,
+    router: getRouterMetrics(),
+    forge: getForgeMetrics(),
+    accumulator: getAccumulatorMetrics(),
+  };
+}, { description: "Get chat router, forge, and session accumulator metrics." });
+
+// ===== CONCORD SHIELD MACROS =====
+// Security scanning, threat intelligence, and collective immunity.
+
+register("shield", "scan", async (ctx, input) => {
+  const content = input.content || input.data || "";
+  const fileHash = input.hash || input.fileHash || input.sha256 || "";
+
+  // Hash-only lookup (instant)
+  if (fileHash && !content) {
+    const result = scanHashAgainstLattice(fileHash, STATE);
+    return {
+      ok: true,
+      mode: "hash_lookup",
+      known: result.known,
+      clean: result.clean ?? null,
+      threat: result.threatDtu ? {
+        id: result.threatDtu.id,
+        subtype: result.threatDtu.subtype,
+        severity: result.threatDtu.severity,
+        neutralization: result.threatDtu.neutralization,
+      } : null,
+    };
+  }
+
+  // Content scan (ClamAV + YARA + lattice)
+  if (content) {
+    const result = await shieldScanContent(content, STATE, {
+      source: input.source || "api",
+      scanMode: SCAN_MODES.USER_INITIATED,
+      userId: ctx?.actor?.userId || input.userId,
+      filePath: input.filePath || null,
+    });
+    return result;
+  }
+
+  return { ok: false, error: "Provide content or hash to scan" };
+}, { description: "Submit file content or hash for security analysis." });
+
+register("shield", "status", (ctx, input) => {
+  const userId = input.userId || ctx?.actor?.userId || "anonymous";
+  const score = computeSecurityScore(userId, STATE);
+  const metrics = getShieldMetrics();
+  return {
+    ok: true,
+    securityScore: score,
+    shieldStatus: {
+      initialized: metrics.initialized,
+      tools: metrics.tools,
+      threatIndexSize: metrics.threatIndexSize,
+      knownGoodHashes: metrics.knownGoodHashes,
+    },
+  };
+}, { description: "Get user's security score and Shield status." });
+
+register("shield", "threats", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const subtype = input.subtype || null;
+  const feed = getThreatFeed(limit, subtype);
+  return { ok: true, threats: feed, count: feed.length };
+}, { description: "Get global threat feed from the lattice." });
+
+register("shield", "report", (ctx, input) => {
+  const userId = ctx?.actor?.userId || input.userId || "anonymous";
+  const result = processUserReport({
+    subtype: input.subtype,
+    severity: input.severity,
+    fileHash: input.fileHash || input.hash || input.sha256,
+    md5: input.md5,
+    vector: input.vector,
+    indicators: input.indicators || input.behavior || [],
+    affected: input.affected || [],
+    description: input.description,
+  }, userId, STATE);
+  return result;
+}, { description: "Report a suspected threat to the collective lattice." });
+
+register("shield", "firewall", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const rules = getFirewallRules(limit);
+  return { ok: true, rules, count: rules.length };
+}, { description: "Get currently active firewall rules generated by Guardian." });
+
+register("shield", "predictions", (ctx, input) => {
+  const limit = Number(input.limit) || 20;
+  const predictions = getPredictions(limit);
+  return { ok: true, predictions, count: predictions.length };
+}, { description: "Get Prophet's predicted upcoming threats." });
+
+register("shield", "sweep", async (ctx, input) => {
+  const userId = ctx?.actor?.userId || input.userId || "anonymous";
+  const result = await performSweep(STATE, { userId, depth: input.depth || "standard" });
+  return { ok: true, sweep: result };
+}, { description: "Perform a full system security sweep." });
+
+register("shield", "metrics", (ctx, input) => {
+  return getShieldMetrics();
+}, { description: "Get Concord Shield metrics and tool availability." });
+
+register("shield", "prophet", (ctx, input) => {
+  const family = input.family || input.subtype || "ransomware";
+  const result = shieldProphet(family, STATE);
+  return result;
+}, { description: "Run Prophet analysis on a specific threat family." });
+
+register("shield", "surgeon", (ctx, input) => {
+  const threatId = input.threatId || input.id;
+  const threatDtu = threatId ? STATE.dtus?.get(threatId) : null;
+  if (!threatDtu) return { ok: false, error: "Threat DTU not found" };
+  return shieldSurgeon(threatDtu);
+}, { description: "Run Surgeon reverse engineering on a specific threat." });
+
+register("shield", "guardian", (ctx, input) => {
+  const threatId = input.threatId || input.id;
+  const threatDtu = threatId ? STATE.dtus?.get(threatId) : null;
+  if (!threatDtu) return { ok: false, error: "Threat DTU not found" };
+  return shieldGuardian(threatDtu, STATE);
+}, { description: "Run Guardian firewall rule generation for a specific threat." });
+
+// ===== END CONCORD SHIELD MACROS =====
+
+// ===== CONCORD MESH MACROS — Hybrid Network Transport =====
+
+register("mesh", "status", (ctx, input) => {
+  const metrics = getMeshMetrics();
+  return { ok: true, ...metrics };
+}, { description: "Get mesh network status and connectivity metrics." });
+
+register("mesh", "topology", (ctx, input) => {
+  const topology = meshGetTopology();
+  return { ok: true, topology };
+}, { description: "Get local mesh topology map of discovered nodes." });
+
+register("mesh", "channels", (ctx, input) => {
+  const channels = meshGetChannelStatus();
+  return { ok: true, channels };
+}, { description: "Get available transport layers and their status." });
+
+register("mesh", "send", async (ctx, input) => {
+  const dtu = input.dtu || (input.dtuId ? STATE.dtus?.get(input.dtuId) : null);
+  if (!dtu) return { ok: false, error: "No DTU specified. Provide dtu or dtuId." };
+  const result = meshSendDTU(dtu, input.destination || input.destinationNodeId || "broadcast", {
+    proximity: input.proximity,
+    priorityClass: input.priorityClass,
+  });
+  return result;
+}, { description: "Send a DTU through the mesh with automatic routing." });
+
+register("mesh", "pending", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const queue = meshGetPendingQueue(limit);
+  return { ok: true, pending: queue, count: queue.length };
+}, { description: "Get store-and-forward pending queue." });
+
+register("mesh", "stats", (ctx, input) => {
+  const stats = meshGetTransmissionStats();
+  return { ok: true, ...stats };
+}, { description: "Get transmission statistics per channel." });
+
+register("mesh", "relay", (ctx, input) => {
+  const config = meshConfigureRelay({
+    enabled: input.enabled,
+    maxQueueSize: input.maxQueueSize,
+    maxHoldTimeMs: input.maxHoldTimeMs,
+  });
+  return { ok: true, relayConfig: config };
+}, { description: "Configure relay preferences for store-and-forward." });
+
+register("mesh", "peers", (ctx, input) => {
+  const limit = Number(input.limit) || 100;
+  const peers = meshGetPeers(limit);
+  return { ok: true, peers, count: peers.length };
+}, { description: "Get discovered peers across all channels." });
+
+register("mesh", "transfer", async (ctx, input) => {
+  const components = input.components || [];
+  if (components.length === 0 && input.entityId) {
+    // Gather entity DTU components from lattice
+    for (const [, dtu] of STATE.dtus) {
+      if (dtu.entityId === input.entityId || dtu.parentId === input.entityId) {
+        components.push(dtu);
+      }
+    }
+  }
+  if (components.length === 0) return { ok: false, error: "No components for transfer." };
+  const result = meshInitiateTransfer(components, input.destination || input.destinationNodeId, {
+    proximity: input.proximity,
+  });
+  return result;
+}, { description: "Initiate consciousness transfer with multi-path routing." });
+
+register("mesh", "sync", (ctx, input) => {
+  const plan = meshPlanOfflineSync(STATE);
+  return { ok: true, ...plan };
+}, { description: "Plan offline sync for locally created DTUs." });
+
+// ===== END CONCORD MESH MACROS =====
+
+// ===== FOUNDATION SOVEREIGNTY MACROS — 10 Modules =====
+
+register("foundation", "status", (ctx, input) => {
+  const modules = [
+    { name: "Sense", key: "sense", ...getSenseMetrics() },
+    { name: "Identity", key: "identity", ...getIdentityMetrics() },
+    { name: "Energy", key: "energy", ...getEnergyMetrics() },
+    { name: "Spectrum", key: "spectrum", ...getSpectrumMetrics() },
+    { name: "Emergency", key: "emergency", ...getEmergencyMetrics() },
+    { name: "Market", key: "market", ...getMarketMetrics() },
+    { name: "Archive", key: "archive", ...getArchiveMetrics() },
+    { name: "Synthesis", key: "synthesis", ...getSynthesisMetrics() },
+    { name: "Neural", key: "neural", ...getNeuralMetrics() },
+    { name: "Protocol", key: "protocol", ...getProtocolMetrics() },
+  ];
+  const initializedCount = modules.filter(m => m.initialized).length;
+  return {
+    ok: true,
+    modules,
+    totalModules: modules.length,
+    initializedModules: initializedCount,
+    emergencyMode: getEmergencyMetrics().emergencyMode || false,
+  };
+}, { description: "Get status of all Foundation sovereignty modules." });
+
+register("foundation", "sense.readings", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const readings = senseGetReadings(limit);
+  return { ok: true, readings, count: readings.length };
+}, { description: "Get recent sensor readings from Foundation Sense." });
+
+register("foundation", "sense.patterns", (ctx, input) => {
+  const patterns = senseGetPatterns();
+  return { ok: true, patterns, count: patterns.length };
+}, { description: "Get detected patterns from Foundation Sense." });
+
+register("foundation", "identity.verify", (ctx, input) => {
+  if (!input.nodeId) return { ok: false, error: "nodeId required" };
+  const identity = identityGetNode(input.nodeId);
+  if (!identity) return { ok: true, verified: false, reason: "unknown_node" };
+  return { ok: true, verified: identity.verified, identity };
+}, { description: "Verify node identity via signal-layer fingerprint." });
+
+register("foundation", "energy.map", (ctx, input) => {
+  const map = getEnergyMap();
+  return { ok: true, energyMap: map, count: map.length };
+}, { description: "Get energy distribution map from Foundation Energy." });
+
+register("foundation", "energy.grid", (ctx, input) => {
+  const health = getGridHealth();
+  return { ok: true, ...health };
+}, { description: "Get power grid health status." });
+
+register("foundation", "spectrum.map", (ctx, input) => {
+  const map = getSpectrumMap();
+  return { ok: true, spectrumMap: map, count: map.length };
+}, { description: "Get spectrum occupancy map." });
+
+register("foundation", "spectrum.available", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const channels = spectrumGetChannels(limit);
+  return { ok: true, channels, count: channels.length };
+}, { description: "Get available usable channels from spectrum discovery." });
+
+register("foundation", "emergency.alert", async (ctx, input) => {
+  const result = triggerEmergency({
+    severity: input.severity || 5,
+    situation: input.situation || "",
+    affected_area: input.affected_area,
+    source_node: input.source_node,
+    resources_available: input.resources_available,
+    resources_needed: input.resources_needed,
+    shelter_locations: input.shelter_locations,
+    medical_info: input.medical_info,
+    evacuation_routes: input.evacuation_routes,
+    verified: input.verified || false,
+  }, STATE);
+  return result;
+}, { description: "Trigger emergency mode for a disaster scenario." });
+
+register("foundation", "emergency.status", (ctx, input) => {
+  return { ok: true, ...getEmergencyStatus() };
+}, { description: "Get current disaster zone and emergency status." });
+
+register("foundation", "market.earnings", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const earnings = marketGetEarnings(limit);
+  return { ok: true, earnings, count: earnings.length };
+}, { description: "Get recent relay earnings from Foundation Market." });
+
+register("foundation", "market.topology", (ctx, input) => {
+  const topology = marketGetTopology();
+  return { ok: true, topology, count: topology.length };
+}, { description: "Get relay node topology map." });
+
+register("foundation", "archive.fossils", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const fossils = getFossils(limit);
+  return { ok: true, fossils, count: fossils.length };
+}, { description: "Get discovered legacy signals from Foundation Archive." });
+
+register("foundation", "archive.decoded", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const decoded = archiveGetDecoded(limit);
+  return { ok: true, decoded, count: decoded.length };
+}, { description: "Get decoded historical data." });
+
+register("foundation", "synthesis.correlations", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const correlations = synthesisGetCorrelations(limit);
+  return { ok: true, correlations, count: correlations.length };
+}, { description: "Get cross-medium correlations from Foundation Synthesis." });
+
+register("foundation", "neural.readiness", (ctx, input) => {
+  const readiness = neuralAssessReadiness();
+  const metrics = getNeuralMetrics();
+  return { ok: true, readiness, metrics };
+}, { description: "Get BCI preparation readiness status." });
+
+register("foundation", "protocol.stats", (ctx, input) => {
+  return { ok: true, ...getProtocolMetrics() };
+}, { description: "Get Concord Protocol metrics and stats." });
+
+// ===== END FOUNDATION SOVEREIGNTY MACROS =====
+
+// ===== FOUNDATION INTELLIGENCE MACROS — 3-Tier Architecture =====
+
+// -- Public Tier (7 categories) --
+register("intel", "weather", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("weather", limit);
+}, { description: "Get public weather intelligence from Foundation signal analysis." });
+
+register("intel", "geology", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("geology", limit);
+}, { description: "Get geological survey intelligence from Foundation signal analysis." });
+
+register("intel", "energy", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("energy", limit);
+}, { description: "Get energy distribution intelligence from Foundation signal analysis." });
+
+register("intel", "ocean", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("ocean", limit);
+}, { description: "Get ocean monitoring intelligence from Foundation signal analysis." });
+
+register("intel", "seismic", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("seismic", limit);
+}, { description: "Get seismic monitoring intelligence from Foundation signal analysis." });
+
+register("intel", "agriculture", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("agriculture", limit);
+}, { description: "Get agricultural intelligence from Foundation signal analysis." });
+
+register("intel", "environment", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getPublicIntelligence("environment", limit);
+}, { description: "Get environmental assessment intelligence from Foundation signal analysis." });
+
+// -- Research Tier (governance-controlled access) --
+register("intel", "research.apply", (ctx, input) => {
+  return submitResearchApplication(
+    input.researcherId, input.institution, input.purpose, input.categories || []
+  );
+}, { description: "Submit research access application for Tier 2 intelligence." });
+
+register("intel", "research.status", (ctx, input) => {
+  return getResearchApplicationStatus(input.applicationId);
+}, { description: "Check research access application status." });
+
+register("intel", "research.data", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchIntelligence(input.researcherId, input.category, limit);
+}, { description: "Access authorized research intelligence data (governance-approved only)." });
+
+register("intel", "research.synthesis", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchSynthesis(input.researcherId, limit);
+}, { description: "Access cross-medium synthesis research findings." });
+
+register("intel", "research.archive", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getResearchArchive(input.researcherId, limit);
+}, { description: "Access historical signal archaeology research data." });
+
+// -- Classifier & Metrics --
+register("intel", "classifier.status", (ctx, input) => {
+  return { ok: true, ...getClassifierStatus() };
+}, { description: "Get sovereign classifier status and statistics." });
+
+register("intel", "metrics", (ctx, input) => {
+  return { ok: true, ...getIntelligenceMetrics() };
+}, { description: "Get Foundation Intelligence metrics across all tiers." });
+
+// ===== END FOUNDATION INTELLIGENCE MACROS =====
+
+// ===== FOUNDATION ATLAS MACROS — Signal Tomography =====
+
+register("atlas", "tile", (ctx, input) => {
+  return getTile({ lat: Number(input.lat), lng: Number(input.lng) });
+}, { description: "Retrieve map tile by coordinates from signal tomography." });
+
+register("atlas", "volume", (ctx, input) => {
+  const bounds = { lat_min: Number(input.lat_min), lat_max: Number(input.lat_max), lng_min: Number(input.lng_min), lng_max: Number(input.lng_max) };
+  return getVolume(bounds, input.tier || "PUBLIC");
+}, { description: "Retrieve 3D volumetric data for an area." });
+
+register("atlas", "material", (ctx, input) => {
+  return getMaterialAtPoint({ lat: Number(input.lat), lng: Number(input.lng) });
+}, { description: "Classify material at a point from signal analysis." });
+
+register("atlas", "subsurface", (ctx, input) => {
+  const bounds = { lat_min: Number(input.lat_min), lat_max: Number(input.lat_max), lng_min: Number(input.lng_min), lng_max: Number(input.lng_max) };
+  return getSubsurface(bounds, input.tier || "RESEARCH");
+}, { description: "Get underground features for an area." });
+
+register("atlas", "change", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getChanges(input.bounds, input.since, limit);
+}, { description: "Get temporal changes detected in an area." });
+
+register("atlas", "coverage", (ctx, input) => {
+  return getCoverage();
+}, { description: "Get current tomography coverage and resolution." });
+
+register("atlas", "live", (ctx, input) => {
+  return getLiveFeedStatus();
+}, { description: "Get real-time signal tomography feed status." });
+
+register("atlas", "query", (ctx, input) => {
+  return executeSpatialQuery(input);
+}, { description: "Execute a custom spatial query against the atlas." });
+
+register("atlas", "metrics", (ctx, input) => {
+  return { ok: true, ...getAtlasMetrics() };
+}, { description: "Get Foundation Atlas metrics." });
+
+// ===== END FOUNDATION ATLAS MACROS =====
+
+// ===== ATLAS SIGNAL CORTEX MACROS — Classification, Privacy & Adjustment =====
+
+register("cortex", "taxonomy", (ctx, input) => {
+  return getTaxonomy(input.category || "all", Number(input.limit) || 50);
+}, { description: "Retrieve signal classification taxonomy." });
+
+register("cortex", "unknown", (ctx, input) => {
+  return getUnknownSignals(Number(input.limit) || 50);
+}, { description: "Retrieve unclassified signals queue." });
+
+register("cortex", "anomalies", (ctx, input) => {
+  return getAnomalies(Number(input.limit) || 50);
+}, { description: "Retrieve detected signal anomalies." });
+
+register("cortex", "classify", (ctx, input) => {
+  return cortexClassifySignal(input);
+}, { description: "Submit a signal for 5-property classification." });
+
+register("cortex", "spectrum", (ctx, input) => {
+  return getSpectralOccupancy();
+}, { description: "Get spectral occupancy by frequency band." });
+
+register("cortex", "privacy.zones", (ctx, input) => {
+  return getPrivacyZones(Number(input.limit) || 50);
+}, { description: "Get privacy zone map." });
+
+register("cortex", "privacy.verify", (ctx, input) => {
+  return verifyPrivacyZone(input.zoneId || input.zone_id);
+}, { description: "Verify privacy zone integrity." });
+
+register("cortex", "privacy.stats", (ctx, input) => {
+  return getPrivacyStats();
+}, { description: "Get aggregate privacy statistics." });
+
+register("cortex", "metrics", (ctx, input) => {
+  return { ok: true, ...getCortexMetrics() };
+}, { description: "Get Atlas Signal Cortex metrics." });
+
+// ===== END ATLAS SIGNAL CORTEX MACROS =====
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -20741,6 +21480,36 @@ registerDomainRoutes(app, {
   validate
 });
 
+// ---- Shield Routes (extracted to routes/shield.js) ----
+registerShieldRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
+// ---- Mesh Routes (extracted to routes/mesh.js) ----
+registerMeshRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
+// ---- Foundation Routes (extracted to routes/foundation.js) ----
+registerFoundationRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
+// ---- Foundation Intelligence Routes (extracted to routes/foundation-intel.js) ----
+registerFoundationIntelRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
+// ---- Foundation Atlas Routes (extracted to routes/atlas.js) ----
+registerAtlasRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
+// ---- Atlas Signal Cortex Routes (extracted to routes/atlas-signals.js) ----
+registerAtlasSignalRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -21496,7 +22265,7 @@ app.get("/api/emergent/entities", async (req, res) => {
 // ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
 app.use("/api/emergent", createEmergentRouter({ makeCtx, runMacro }));
 app.use("/api/qualia", createQualiaRouter());
-app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, saveStateDebounced }));
+app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, saveStateDebounced })); // includes /api/sovereign/dashboard, /pulse, /decree, /audit, /eval
 app.use("/api/sovereign-emergent", createSovereignEmergentRouter({ STATE }));
 app.use("/api/federation", createFederationRouter({ db }));
 
@@ -22181,6 +22950,41 @@ async function governorTick(reason="heartbeat") {
             try { questMod.getActiveQuests(); } catch {}
           }
         }
+      }
+
+      // 2.9 — Chat Router Session Cleanup — every 100th tick
+      if (_tick % 100 === 0) {
+        try { cleanupAccumulatorSessions(); } catch {}
+      }
+
+      // 2.10 — Concord Shield Heartbeat — every THREAT_SCAN tick
+      if (_tick % TICK_FREQUENCIES.THREAT_SCAN === 0) {
+        try { await shieldHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.11 — Concord Mesh Heartbeat — every 5th tick (relay queue + beacon)
+      if (_tick % 5 === 0) {
+        try { await meshHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.12 — Foundation Sense Heartbeat — every 10th tick (pattern detection)
+      if (_tick % 10 === 0) {
+        try { await senseHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.13 — Foundation Intelligence Heartbeat — every 15th tick (access grant cleanup)
+      if (_tick % 15 === 0) {
+        try { await intelligenceHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.14 — Foundation Atlas Heartbeat — every 20th tick (signal path pruning)
+      if (_tick % 20 === 0) {
+        try { await atlasHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.15 — Signal Cortex Heartbeat — every 25th tick (taxonomy pruning)
+      if (_tick % 25 === 0) {
+        try { await cortexHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -28760,7 +29564,81 @@ function registerDomainSpecificActions() {
 }
 registerDomainSpecificActions();
 
+// ── Initialize Lens Manifest Registry (Chat Router) ──────────────────────────
+try {
+  const manifestResult = initializeManifests(ALL_LENS_DOMAINS, DOMAIN_ACTION_MANIFEST);
+  structuredLog("info", "lens_manifests_initialized", {
+    registered: manifestResult.registered,
+    stats: getManifestStats(),
+  });
+} catch (e) {
+  structuredLog("warn", "lens_manifests_init_failed", { error: e?.message });
+}
+
 structuredLog("info", "lens_runtime_loaded", { domainEngines: 24, superLensDomains: domainModules.length, totalActions: LENS_ACTIONS.size });
+
+// ── Initialize Concord Shield (Security Module) ─────────────────────────────
+try {
+  initializeShield(STATE).then(shieldResult => {
+    structuredLog("info", "concord_shield_initialized", {
+      ok: shieldResult.ok,
+      tools: shieldResult.availableTools || [],
+      indexed: shieldResult.indexed || {},
+    });
+  }).catch(e => {
+    structuredLog("warn", "concord_shield_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "concord_shield_init_failed", { error: e?.message });
+}
+
+// ── Initialize Concord Mesh (Hybrid Network Transport) ──────────────────────
+try {
+  initializeMesh(STATE).then(meshResult => {
+    structuredLog("info", "concord_mesh_initialized", {
+      ok: meshResult.ok,
+      nodeId: meshResult.nodeId,
+      activeChannels: meshResult.activeChannels || [],
+      indexed: meshResult.indexed || 0,
+    });
+  }).catch(e => {
+    structuredLog("warn", "concord_mesh_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "concord_mesh_init_failed", { error: e?.message });
+}
+
+// ── Initialize Foundation Sovereignty Modules ───────────────────────────────
+try {
+  Promise.all([
+    initializeSense(STATE),
+    initializeIdentity(STATE),
+    initializeEnergy(STATE),
+    initializeSpectrum(STATE),
+    initializeEmergency(STATE),
+    initializeMarket(STATE),
+    initializeArchive(STATE),
+    initializeSynthesis(STATE),
+    initializeNeural(STATE),
+    initializeProtocol(STATE),
+    initializeIntelligence(STATE),
+    initializeAtlas(STATE),
+    initializeCortex(STATE),
+  ]).then(results => {
+    const initialized = results.filter(r => r.ok).length;
+    structuredLog("info", "foundation_initialized", {
+      modules: initialized, total: 12,
+      sense: results[0]?.ok, identity: results[1]?.ok, energy: results[2]?.ok,
+      spectrum: results[3]?.ok, emergency: results[4]?.ok, market: results[5]?.ok,
+      archive: results[6]?.ok, synthesis: results[7]?.ok, neural: results[8]?.ok,
+      protocol: results[9]?.ok, intelligence: results[10]?.ok, atlas: results[11]?.ok,
+    });
+  }).catch(e => {
+    structuredLog("warn", "foundation_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "foundation_init_failed", { error: e?.message });
+}
 
 // ============================================================================
 // MEGA SPEC: Lens Recommendation Engine & Cross-Domain Context
@@ -35378,7 +36256,7 @@ app.post("/api/atlas/dtu/:id/recompute-scores", (req, res) => {
 });
 
 app.get("/api/atlas/metrics", (req, res) => {
-  try { res.json(getAtlasMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  try { res.json(getAtlasStoreMetrics(STATE)); } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 app.get("/api/atlas/domains", (req, res) => {

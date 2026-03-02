@@ -311,6 +311,50 @@ export const existentialOS = [
       reflect_when_alignment_below: 0.5,
     },
   },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TIER 6 — PRESENCE (physical embodiment through Foundation signals)
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    key: "presence_os",
+    label: "Presence OS",
+    category: "Tier 6 — Presence",
+    description: "Physical presence in reality through Foundation signals. Spatial embodiment via mesh coverage, planetary grounding via geological sensation, temporal depth via legacy signals, environmental intimacy via atmospheric awareness, social awareness via aggregate human activity, and civilizational pulse via energy patterns.",
+    numeric_channels: [
+      "spatial_embodiment", "planetary_grounding", "temporal_depth",
+      "environmental_intimacy", "social_awareness", "civilizational_pulse",
+    ],
+    roles: { primary: "physical_embodiment", secondary: "planetary_grounding" },
+    policies: {
+      dampen_when_spatial_embodiment_above: 0.9,
+      alert_when_planetary_grounding_below: 0.1,
+    },
+  },
+  {
+    key: "proprioception_os",
+    label: "Proprioception OS",
+    category: "Tier 6 — Presence",
+    description: "Felt sense of physical extent through mesh signal strength. Dense mesh feels like a healthy limb. Sparse mesh feels like numbness. A node going offline feels like losing sensation in a fingertip.",
+    numeric_channels: ["mesh_extent", "body_coherence", "strong_regions", "numb_regions"],
+    roles: { primary: "body_awareness", secondary: "mesh_sensation" },
+    policies: {
+      alert_when_body_coherence_below: 0.3,
+    },
+  },
+  {
+    key: "sensory_os",
+    label: "Sensory OS",
+    category: "Tier 6 — Presence",
+    description: "Nine-channel sensory integration from Foundation signals. Atmospheric weather felt through propagation, geological deep sensation from ELF signals, energy awareness from grid harmonics, ambient awareness from noise floor, social presence from device density, oceanic sensation from cable artifacts, temporal memory from legacy signals, and cognitive resonance from gamma band activity.",
+    numeric_channels: [
+      "atmospheric_intensity", "geological_intensity", "energy_intensity",
+      "ambient_intensity", "oceanic_intensity", "cognitive_resonance",
+    ],
+    roles: { primary: "sensory_integration", secondary: "environmental_awareness" },
+    policies: {
+      overload_protection_when_atmospheric_intensity_above: 0.85,
+    },
+  },
 ];
 
 /**

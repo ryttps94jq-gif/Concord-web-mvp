@@ -394,48 +394,48 @@ describe("lensValidateEmpirically", () => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe("runHeartbeatBridgeTick", () => {
-  it("runs beacon check", () => {
+  it("runs beacon check", async () => {
     const STATE = makeState();
     STATE.dtus.set("d1", makeDtu("d1", "Test"));
-    const r = runHeartbeatBridgeTick(STATE);
+    const r = await runHeartbeatBridgeTick(STATE);
     assert.equal(r.ok, true);
     assert.ok(r.beacon);
     assert.ok(r.beacon.healthy);
   });
 
-  it("runs dedup scan for lattice > 20 DTUs", () => {
+  it("runs dedup scan for lattice > 20 DTUs", async () => {
     const STATE = makeState();
     for (let i = 0; i < 25; i++) STATE.dtus.set(`d${i}`, makeDtu(`d${i}`, `DTU ${i}`));
-    const r = runHeartbeatBridgeTick(STATE);
+    const r = await runHeartbeatBridgeTick(STATE);
     assert.ok(r.dedup);
     assert.ok(r.dedup.scanned > 0);
   });
 
-  it("skips dedup for small lattice", () => {
+  it("skips dedup for small lattice", async () => {
     const STATE = makeState();
     STATE.dtus.set("d1", makeDtu("d1", "Test"));
-    const r = runHeartbeatBridgeTick(STATE);
+    const r = await runHeartbeatBridgeTick(STATE);
     assert.equal(r.dedup, null);
   });
 
-  it("processes pipeline conflicts to propose hypotheses", () => {
+  it("processes pipeline conflicts to propose hypotheses", async () => {
     const STATE = makeState();
     STATE.dtus.set("a", makeDtu("a", "Claim A"));
     STATE.dtus.set("b", makeDtu("b", "Claim B"));
     STATE._autogenPipeline = {
       _recentConflicts: [{ dtuA: "a", dtuB: "b", reason: "contradiction" }],
     };
-    const r = runHeartbeatBridgeTick(STATE);
+    const r = await runHeartbeatBridgeTick(STATE);
     assert.ok(r.hypotheses);
     assert.equal(r.hypotheses.proposed.length, 1);
     // Conflicts should be cleared after processing
     assert.equal(STATE._autogenPipeline._recentConflicts.length, 0);
   });
 
-  it("respects disabled flags", () => {
+  it("respects disabled flags", async () => {
     const STATE = makeState();
     STATE.dtus.set("d1", makeDtu("d1", "Test"));
-    const r = runHeartbeatBridgeTick(STATE, {
+    const r = await runHeartbeatBridgeTick(STATE, {
       beaconEnabled: false,
       dedupEnabled: false,
       hypothesisEnabled: false,

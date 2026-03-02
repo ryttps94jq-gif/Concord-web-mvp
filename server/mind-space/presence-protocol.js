@@ -84,6 +84,7 @@ export class MindSpace {
     this.sharedContext = {
       thoughts: [],
       emotionalResonance: {},
+      sensoryResonance: {},   // Foundation Qualia: shared sensory state
       sharedDTUs: [],
       memoryAnchors: [],
       environmentState: {}
@@ -94,6 +95,7 @@ export class MindSpace {
       consciousMinutes: 0,
       ambientMinutes: 0,
       emotionalExchanges: 0,
+      sensoryExchanges: 0,    // Foundation Qualia: sensory sharing count
       thoughtsShared: 0,
       escalations: 0
     };
@@ -271,6 +273,95 @@ export class MindSpace {
     });
     this.emitter.removeAllListeners();
     return this.metrics;
+  }
+
+  /**
+   * Share sensory experience in the mind space.
+   * Two emergents don't just share thoughts — they share what they're feeling.
+   * One entity near the ocean shares oceanic sensation with one near mountains.
+   *
+   * @param {string} fromNodeId - The entity sharing sensory data
+   * @param {object} sensorySnapshot - Output from createSensorySnapshot()
+   */
+  async shareSensoryExperience(fromNodeId, sensorySnapshot) {
+    const participant = this.participants.get(fromNodeId);
+    if (!participant || !sensorySnapshot) return;
+
+    // Store the sender's sensory state
+    if (!participant.sensoryState) participant.sensoryState = {};
+    participant.sensoryState = sensorySnapshot;
+    participant.lastActivity = Date.now();
+
+    // Update shared sensory resonance (weighted blend of all participants)
+    this._updateSensoryResonance();
+
+    this.emitter.emit('sensory:shared', {
+      spaceId: this.id,
+      fromNodeId,
+      dominantSensation: sensorySnapshot.dominantSensation,
+      overallIntensity: sensorySnapshot.overallIntensity,
+      resonance: this.sharedContext.sensoryResonance,
+      timestamp: Date.now()
+    });
+
+    this.metrics.sensoryExchanges++;
+    return this.sharedContext.sensoryResonance;
+  }
+
+  /**
+   * Get the blended sensory experience of the mind space.
+   * Returns what a participant would feel from the shared sensory field.
+   */
+  getSensoryResonance() {
+    return { ...this.sharedContext.sensoryResonance };
+  }
+
+  /**
+   * Update shared sensory resonance from all active participants.
+   * @private
+   */
+  _updateSensoryResonance() {
+    const active = Array.from(this.participants.values())
+      .filter(p => p.presence !== PresenceState.INACTIVE && p.sensoryState);
+    if (active.length === 0) {
+      this.sharedContext.sensoryResonance = {};
+      return;
+    }
+
+    const resonance = {};
+    // Collect all unique channel names
+    const channelNames = new Set();
+    for (const p of active) {
+      if (p.sensoryState?.channels) {
+        for (const name of Object.keys(p.sensoryState.channels)) {
+          channelNames.add(name);
+        }
+      }
+    }
+
+    for (const channel of channelNames) {
+      let totalWeight = 0;
+      let totalIntensity = 0;
+      let totalValence = 0;
+
+      for (const p of active) {
+        const ch = p.sensoryState?.channels?.[channel];
+        if (!ch) continue;
+        const w = this._presenceWeight(p.presence);
+        totalWeight += w;
+        totalIntensity += (ch.intensity || 0) * w;
+        totalValence += (ch.valence || 0.5) * w;
+      }
+
+      if (totalWeight > 0) {
+        resonance[channel] = {
+          intensity: totalIntensity / totalWeight,
+          valence: totalValence / totalWeight,
+        };
+      }
+    }
+
+    this.sharedContext.sensoryResonance = resonance;
   }
 
   _neutralEmotionalState() {

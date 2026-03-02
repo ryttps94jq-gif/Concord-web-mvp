@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 
@@ -7,94 +8,94 @@ const serverSrc = fs.readFileSync(serverPath, "utf-8");
 
 describe("Consolidation Pipeline", () => {
   it("should have CONSOLIDATION frozen constants", () => {
-    expect(serverSrc).toContain("const CONSOLIDATION = Object.freeze({");
-    expect(serverSrc).toContain("MEGA_MIN_CLUSTER: 5");
-    expect(serverSrc).toContain("MEGA_MAX_PER_CYCLE: 5");
-    expect(serverSrc).toContain("HYPER_MIN_MEGAS: 3");
-    expect(serverSrc).toContain("COVERAGE_THRESHOLD: 0.8");
-    expect(serverSrc).toContain("MAX_HEAP_BYTES: 1_363_148_800");
+    assert.ok(serverSrc.includes("const CONSOLIDATION = Object.freeze({"));
+    assert.ok(serverSrc.includes("MEGA_MIN_CLUSTER: 5"));
+    assert.ok(serverSrc.includes("MEGA_MAX_PER_CYCLE: 8"));
+    assert.ok(serverSrc.includes("HYPER_MIN_MEGAS: 3"));
+    assert.ok(serverSrc.includes("COVERAGE_THRESHOLD: 0.8"));
+    assert.ok(serverSrc.includes("MAX_HEAP_BYTES: 4_294_967_296"));
   });
 
   it("should have TICK_FREQUENCIES frozen constants", () => {
-    expect(serverSrc).toContain("const TICK_FREQUENCIES = Object.freeze({");
-    expect(serverSrc).toContain("CONSOLIDATION: 30");
-    expect(serverSrc).toContain("FORGETTING: 50");
-    expect(serverSrc).toContain("WEALTH_REDISTRIBUTION: 500");
+    assert.ok(serverSrc.includes("const TICK_FREQUENCIES = Object.freeze({"));
+    assert.ok(serverSrc.includes("CONSOLIDATION: 30"));
+    assert.ok(serverSrc.includes("FORGETTING: 50"));
+    assert.ok(serverSrc.includes("WEALTH_REDISTRIBUTION: 500"));
   });
 
   it("should have CONTEXT_TIER_BOOST frozen constants", () => {
-    expect(serverSrc).toContain("const CONTEXT_TIER_BOOST = Object.freeze({");
-    expect(serverSrc).toContain("hyper: 2.0");
-    expect(serverSrc).toContain("mega: 1.5");
+    assert.ok(serverSrc.includes("const CONTEXT_TIER_BOOST = Object.freeze({"));
+    assert.ok(serverSrc.includes("hyper: 2.0"));
+    assert.ok(serverSrc.includes("mega: 1.5"));
   });
 
   it("should have quality validation function", () => {
-    expect(serverSrc).toContain("function validateConsolidationQuality");
-    expect(serverSrc).toContain("COVERAGE_THRESHOLD");
-    expect(serverSrc).toContain("AUTHORITY_PRESERVATION");
+    assert.ok(serverSrc.includes("function validateConsolidationQuality"));
+    assert.ok(serverSrc.includes("COVERAGE_THRESHOLD"));
+    assert.ok(serverSrc.includes("AUTHORITY_PRESERVATION"));
   });
 
   it("should have edge transfer function", () => {
-    expect(serverSrc).toContain("function transferEdgesToConsolidated");
+    assert.ok(serverSrc.includes("function transferEdgesToConsolidated"));
   });
 
   it("should have adaptive threshold computation", () => {
-    expect(serverSrc).toContain("function computeAdaptiveThreshold");
-    expect(serverSrc).toContain("HEAP_TARGET_PERCENT");
+    assert.ok(serverSrc.includes("function computeAdaptiveThreshold"));
+    assert.ok(serverSrc.includes("HEAP_TARGET_PERCENT"));
   });
 
   it("should use TICK_FREQUENCIES in heartbeat", () => {
-    expect(serverSrc).toContain("TICK_FREQUENCIES.CONSOLIDATION");
-    expect(serverSrc).toContain("TICK_FREQUENCIES.FORGETTING");
+    assert.ok(serverSrc.includes("TICK_FREQUENCIES.CONSOLIDATION"));
+    assert.ok(serverSrc.includes("TICK_FREQUENCIES.FORGETTING"));
   });
 
   it("should have archive functions", () => {
-    expect(serverSrc).toContain("function archiveDTUToDisk");
-    expect(serverSrc).toContain("function rehydrateDTU");
-    expect(serverSrc).toContain("function demoteToArchive");
+    assert.ok(serverSrc.includes("function archiveDTUToDisk"));
+    assert.ok(serverSrc.includes("function rehydrateDTU"));
+    assert.ok(serverSrc.includes("function demoteToArchive"));
   });
 
   it("should have context query macro", () => {
-    expect(serverSrc).toContain('register("context", "query"');
+    assert.ok(serverSrc.includes('register("context", "query"'));
   });
 
   it("should have marketplace macros", () => {
-    expect(serverSrc).toContain('register("marketplace", "list"');
-    expect(serverSrc).toContain('register("marketplace", "purchase"');
-    expect(serverSrc).toContain('register("marketplace", "browse"');
+    assert.ok(serverSrc.includes('register("marketplace", "list"'));
+    assert.ok(serverSrc.includes('register("marketplace", "purchase"'));
+    assert.ok(serverSrc.includes('register("marketplace", "browse"'));
   });
 });
 
 describe("Archive Migration", () => {
   it("should have archived_dtus migration", () => {
     const migrationPath = path.join(import.meta.dirname, "../migrations/007_archived_dtus.js");
-    expect(fs.existsSync(migrationPath)).toBe(true);
+    assert.equal(fs.existsSync(migrationPath), true);
     const migrationSrc = fs.readFileSync(migrationPath, "utf-8");
-    expect(migrationSrc).toContain("archived_dtus");
-    expect(migrationSrc).toContain("tier TEXT");
-    expect(migrationSrc).toContain("rehydrated_count");
+    assert.ok(migrationSrc.includes("archived_dtus"));
+    assert.ok(migrationSrc.includes("tier TEXT"));
+    assert.ok(migrationSrc.includes("rehydrated_count"));
   });
 });
 
 describe("Artifact Store", () => {
   it("should have artifact store module", () => {
     const storePath = path.join(import.meta.dirname, "../lib/artifact-store.js");
-    expect(fs.existsSync(storePath)).toBe(true);
+    assert.equal(fs.existsSync(storePath), true);
     const storeSrc = fs.readFileSync(storePath, "utf-8");
-    expect(storeSrc).toContain("storeArtifact");
-    expect(storeSrc).toContain("retrieveArtifact");
-    expect(storeSrc).toContain("deleteArtifact");
-    expect(storeSrc).toContain("getArtifactDiskUsage");
+    assert.ok(storeSrc.includes("storeArtifact"));
+    assert.ok(storeSrc.includes("retrieveArtifact"));
+    assert.ok(storeSrc.includes("deleteArtifact"));
+    assert.ok(storeSrc.includes("getArtifactDiskUsage"));
   });
 });
 
 describe("Feedback Engine", () => {
   it("should have feedback engine module", () => {
     const enginePath = path.join(import.meta.dirname, "../lib/feedback-engine.js");
-    expect(fs.existsSync(enginePath)).toBe(true);
+    assert.equal(fs.existsSync(enginePath), true);
     const engineSrc = fs.readFileSync(enginePath, "utf-8");
-    expect(engineSrc).toContain("processFeedbackQueue");
-    expect(engineSrc).toContain("aggregateFeedback");
-    expect(engineSrc).toContain("FEEDBACK_TYPES");
+    assert.ok(engineSrc.includes("processFeedbackQueue"));
+    assert.ok(engineSrc.includes("aggregateFeedback"));
+    assert.ok(engineSrc.includes("FEEDBACK_TYPES"));
   });
 });

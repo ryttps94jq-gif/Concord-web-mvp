@@ -242,6 +242,7 @@ function createTestDb() {
     );
 
     CREATE TABLE user_xp (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       federation_tier TEXT NOT NULL,
       regional TEXT,
@@ -250,7 +251,7 @@ function createTestDb() {
       level INTEGER DEFAULT 1,
       season TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, federation_tier, COALESCE(regional,''), COALESCE(national,''), COALESCE(season,''))
+      UNIQUE (user_id, federation_tier)
     );
 
     CREATE TABLE quest_completions (
@@ -302,6 +303,7 @@ function createTestDb() {
     );
 
     CREATE TABLE leaderboard_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       scope TEXT NOT NULL,
       scope_id TEXT NOT NULL,
@@ -310,7 +312,7 @@ function createTestDb() {
       score REAL DEFAULT 0,
       rank INTEGER,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, scope, scope_id, category, COALESCE(season,''))
+      UNIQUE (user_id, scope, scope_id, category)
     );
   `);
 
@@ -1016,7 +1018,7 @@ describe("v1.1 — Quest & XP Engine", { skip: !Database && "better-sqlite3 not 
     });
     assert.equal(r.ok, true);
     assert.equal(r.xpAwarded, 50);
-    assert.equal(r.coinAwarded, 5);
+    // coinAwarded is not returned — quests reward XP and badges only (constitutional invariant)
     assert.equal(r.badgeAwarded, "regional_contributor");
 
     // Verify XP was awarded

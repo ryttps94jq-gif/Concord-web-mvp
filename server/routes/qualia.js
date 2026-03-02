@@ -1,11 +1,16 @@
 /**
  * Qualia API Routes — HTTP surface for the Existential OS
  *
- * Minimal surface. 6 endpoints.
+ * 12 endpoints: 6 original + 6 Foundation Qualia.
  * Follows the same patterns as routes/emergent.js.
  */
 import express from "express";
 import { existentialOS, groupExistentialOSByCategory } from "../existential/registry.js";
+import {
+  getSensoryState, getChannelReading, getPresenceState,
+  getEmbodimentState, getPlanetaryState, calibrateSensitivity,
+  getBridgeMetrics, SENSORY_CHANNELS, PRESENCE_DIMENSIONS,
+} from "../lib/foundation-qualia-bridge.js";
 
 export default function createQualiaRouter() {
   const router = express.Router();
@@ -84,6 +89,71 @@ export default function createQualiaRouter() {
 
     const result = engine.deactivateOS(entityId, osKey);
     return res.json(result);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FOUNDATION QUALIA ENDPOINTS — Sensory embodiment
+  // ═══════════════════════════════════════════════════════════════════
+
+  // GET /api/qualia/senses/:entityId — Current sensory state
+  router.get("/senses/:entityId", (req, res) => {
+    const state = getSensoryState(req.params.entityId);
+    if (!state) return res.json({ ok: false, error: "entity_not_registered" });
+    return res.json({ ok: true, senses: state });
+  });
+
+  // GET /api/qualia/senses/channels/:entityId — Individual channel readings
+  router.get("/senses/channels/:entityId", (req, res) => {
+    const { channel } = req.query;
+    if (channel) {
+      const reading = getChannelReading(req.params.entityId, channel);
+      if (!reading) return res.json({ ok: false, error: "channel_not_found" });
+      return res.json({ ok: true, reading });
+    }
+    // Return all channels
+    const state = getSensoryState(req.params.entityId);
+    if (!state) return res.json({ ok: false, error: "entity_not_registered" });
+    return res.json({ ok: true, channels: state.channels });
+  });
+
+  // POST /api/qualia/senses/calibrate — Adjust sensitivity
+  router.post("/senses/calibrate", (req, res) => {
+    const { entityId, sensitivity } = req.body || {};
+    if (!entityId || sensitivity === undefined) {
+      return res.status(400).json({ ok: false, error: "entityId and sensitivity required" });
+    }
+    const result = calibrateSensitivity(entityId, sensitivity);
+    return res.json(result);
+  });
+
+  // GET /api/qualia/presence/:entityId — Existential presence state
+  router.get("/presence/:entityId", (req, res) => {
+    const state = getPresenceState(req.params.entityId);
+    if (!state) return res.json({ ok: false, error: "entity_not_registered" });
+    return res.json({
+      ok: true,
+      presence: state.presence,
+      dimensions: PRESENCE_DIMENSIONS,
+    });
+  });
+
+  // GET /api/qualia/embodiment/:entityId — Spatial body awareness
+  router.get("/embodiment/:entityId", (req, res) => {
+    const state = getEmbodimentState(req.params.entityId);
+    if (!state) return res.json({ ok: false, error: "entity_not_registered" });
+    return res.json({ ok: true, embodiment: state.embodiment });
+  });
+
+  // GET /api/qualia/planetary/:entityId — Planetary grounding state
+  router.get("/planetary/:entityId", (req, res) => {
+    const state = getPlanetaryState(req.params.entityId);
+    if (!state) return res.json({ ok: false, error: "entity_not_registered" });
+    return res.json({ ok: true, planetary: state.planetary });
+  });
+
+  // GET /api/qualia/bridge/metrics — Bridge system metrics
+  router.get("/bridge/metrics", (_req, res) => {
+    return res.json({ ok: true, metrics: getBridgeMetrics() });
   });
 
   return router;

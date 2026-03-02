@@ -327,7 +327,7 @@ describe("Error Class Hierarchy", () => {
   });
 
   it("ConcordError serializes to JSON", () => {
-    const err = new errors.ConcordError("test", "CODE", 400);
+    const err = new errors.ConcordError("test", { code: "CODE", statusCode: 400 });
     const json = err.toJSON();
     assert.equal(json.ok, false);
     assert.equal(json.error, "test");
@@ -352,7 +352,7 @@ describe("Error Class Hierarchy", () => {
 
   it("NotFoundError formats message with resource and id", () => {
     const err = new errors.NotFoundError("DTU", "abc123");
-    assert.equal(err.message, 'DTU "abc123" not found');
+    assert.equal(err.message, "DTU not found: abc123");
     assert.equal(err.statusCode, 404);
   });
 
@@ -362,7 +362,7 @@ describe("Error Class Hierarchy", () => {
   });
 
   it("RateLimitError is 429 with retryAfter", () => {
-    const err = new errors.RateLimitError(30);
+    const err = new errors.RateLimitError("Rate limit exceeded, retry after 30s", { retryAfter: 30 });
     assert.equal(err.statusCode, 429);
     assert.ok(err.message.includes("30"));
   });

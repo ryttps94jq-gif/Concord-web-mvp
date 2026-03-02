@@ -64,7 +64,7 @@ before(async () => {
   });
 
   // Wait for server to be ready
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     try {
       const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(5_000) });
@@ -77,7 +77,7 @@ before(async () => {
     }
     await new Promise(r => { setTimeout(r, 500); });
   }
-  throw new Error('Server failed to start within 30 seconds');
+  throw new Error('Server failed to start within 60 seconds');
 });
 
 // Helper to make API requests

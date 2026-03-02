@@ -82,11 +82,13 @@ function addDtu(STATE, dtu) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("Scope Constants", () => {
-  it("defines three scopes", () => {
-    assert.equal(ALL_SCOPES.length, 3);
+  it("defines five scopes", () => {
+    assert.equal(ALL_SCOPES.length, 5);
     assert.ok(ALL_SCOPES.includes("local"));
     assert.ok(ALL_SCOPES.includes("marketplace"));
     assert.ok(ALL_SCOPES.includes("global"));
+    assert.ok(ALL_SCOPES.includes("creative_global"));
+    assert.ok(ALL_SCOPES.includes("shadow"));
   });
 
   it("scopes are frozen", () => {

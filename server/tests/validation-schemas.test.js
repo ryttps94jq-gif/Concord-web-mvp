@@ -8,7 +8,17 @@ import assert from "node:assert/strict";
 
 // Zod is an optional dependency — dynamically import like server.js does
 let z;
-try { z = (await import("zod")).z || (await import("zod")).default?.z; } catch { /* zod not installed */ }
+try {
+  const mod = await import("zod");
+  z = mod.z || mod.default?.z || mod;
+} catch { /* zod not installed */ }
+
+if (!z || typeof z.object !== "function") {
+  // Skip all tests if zod is not available
+  import("node:test").then(({ describe }) => {
+    describe("Validation Schemas", { skip: "zod not installed" }, () => {});
+  });
+}
 
 // ---- Reconstruct schemas (same as server.js) ----
 // We replicate them here to test in isolation without booting the full server.
