@@ -1,0 +1,98 @@
+name: Concord Mobile CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['concord-mobile/**']
+  pull_request:
+    branches: [main]
+    paths: ['concord-mobile/**']
+
+defaults:
+  run:
+    working-directory: concord-mobile
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+      - run: npm ci
+      - run: npm run test:coverage
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          echo "Line coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 90" | bc -l) )); then
+            echo "Coverage below 90% threshold"
+            exit 1
+          fi
+
+  build-ios:
+    runs-on: macos-latest
+    needs: [lint-and-typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+      - run: npm ci
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - run: cd ios && pod install
+      - run: npx expo run:ios --no-install --configuration Release
+        env:
+          CI: true
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: concord-mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - run: npm ci
+      - run: npx expo run:android --no-install --variant release
+        env:
+          CI: true
+
+  e2e-nightly:
+    runs-on: macos-latest
+    if: github.event_name == 'schedule'
+    needs: [build-ios]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run test:e2e

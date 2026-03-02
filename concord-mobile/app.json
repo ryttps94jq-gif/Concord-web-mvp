@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Concord",
+    "slug": "concord-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.concord.mobile",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Concord uses Bluetooth to discover and communicate with nearby mesh peers for decentralized data exchange.",
+        "NSBluetoothPeripheralUsageDescription": "Concord advertises over Bluetooth to participate in the mesh network.",
+        "NSLocalNetworkUsageDescription": "Concord uses the local network for WiFi Direct peer-to-peer data transfer.",
+        "NSLocationWhenInUseUsageDescription": "Concord uses approximate location for Foundation Sense environmental readings. Your exact location is never stored or transmitted.",
+        "NFCReaderUsageDescription": "Concord uses NFC for tap-to-share data transfer between devices.",
+        "UIBackgroundModes": [
+          "bluetooth-central",
+          "bluetooth-peripheral",
+          "fetch",
+          "processing"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.concord.mobile",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE",
+        "NFC",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "HIGH_SAMPLING_RATE_SENSORS"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"]
+        }
+      ],
+      "react-native-nfc-manager",
+      "react-native-background-fetch"
+    ]
+  }
+}
