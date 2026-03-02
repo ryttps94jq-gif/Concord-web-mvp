@@ -26,7 +26,7 @@
     "react-native-safe-area-context": "~5.0.0",
 
     "react-native-ble-plx": "^3.2.0",
-    "react-native-wifi-p2p": "^2.1.0",
+    "react-native-wifi-p2p": "^3.6.0",
     "react-native-nfc-manager": "^3.14.0",
     "react-native-background-fetch": "^4.2.0",
     "react-native-background-actions": "^4.0.0",
