@@ -94,6 +94,8 @@ import { accumulate as accumulateSessionContext, getContextSnapshot, getAccumula
 import { detectForge, runForgePipeline, saveForgedDTU, deleteForgedDTU, saveAndList, iterateForge, recordForgeMetric, getForgeMetrics, recordEmergentContribution } from "./lib/inline-dtu-forge.js";
 import { initializeShield, scanContent as shieldScanContent, scanHashAgainstLattice, runAnalysisPipeline as shieldAnalyze, classifyWithYARA, runProphet as shieldProphet, runSurgeon as shieldSurgeon, runGuardian as shieldGuardian, propagateThreatToLattice, shieldHeartbeatTick, computeSecurityScore, detectShieldIntent, performSweep, processUserReport, getThreatFeed, getFirewallRules, getPredictions, getShieldMetrics, queueScan as shieldQueueScan, createThreatDTU, THREAT_SUBTYPES, SCAN_MODES } from "./lib/concord-shield.js";
 import registerShieldRoutes from "./routes/shield.js";
+import { initializeMesh, detectChannels as meshDetectChannels, getChannelStatus as meshGetChannelStatus, getNodeId as meshGetNodeId, sendDTU as meshSendDTU, receiveDTU as meshReceiveDTU, initiateTransfer as meshInitiateTransfer, getTransferStatus as meshGetTransferStatus, registerPeer as meshRegisterPeer, getPeers as meshGetPeers, getTopology as meshGetTopology, getMeshMetrics, getTransmissionStats as meshGetTransmissionStats, getPendingQueue as meshGetPendingQueue, configureRelay as meshConfigureRelay, detectMeshIntent, meshHeartbeatTick, planOfflineSync as meshPlanOfflineSync, TRANSPORT_LAYERS, TRANSPORT_LIST, RELAY_PRIORITIES } from "./lib/concord-mesh.js";
+import registerMeshRoutes from "./routes/mesh.js";
 
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
@@ -4284,6 +4286,8 @@ function authMiddleware(req, res, next) {
     "/api/apps",
     // Concord Shield security module
     "/api/shield",
+    // Concord Mesh network transport
+    "/api/mesh",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6646,6 +6650,7 @@ async function runMacro(domain, name, input, ctx) {
     convert: new Set(["to-dtu", "from-dtu"]),
     apps: new Set(["list", "get"]),
     shield: new Set(["status", "threats", "firewall", "predictions", "metrics"]),
+    mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6703,6 +6708,8 @@ async function runMacro(domain, name, input, ctx) {
     "/api/apps",
     // Concord Shield security module
     "/api/shield",
+    // Concord Mesh network transport
+    "/api/mesh",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -15623,6 +15630,14 @@ const intentInfo = classifyIntent(prompt);
           _chatRoute._shieldIntent = _shieldIntent;
         }
       } catch {}
+
+      // Check for Mesh network intent ("mesh status", "nearby peers", etc.)
+      try {
+        const _meshIntent = detectMeshIntent(prompt);
+        if (_meshIntent.isMeshRequest) {
+          _chatRoute._meshIntent = _meshIntent;
+        }
+      } catch {}
     }
   } catch (_routerErr) {
     // Chat router is supplementary — never block the chat path
@@ -16328,6 +16343,10 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       action: _chatRoute._shieldIntent.action,
       params: _chatRoute._shieldIntent.params,
     } : null,
+    mesh: _chatRoute?._meshIntent?.isMeshRequest ? {
+      action: _chatRoute._meshIntent.action,
+      params: _chatRoute._meshIntent.params,
+    } : null,
   };
 }, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
 
@@ -16500,6 +16519,83 @@ register("shield", "guardian", (ctx, input) => {
 }, { description: "Run Guardian firewall rule generation for a specific threat." });
 
 // ===== END CONCORD SHIELD MACROS =====
+
+// ===== CONCORD MESH MACROS — Hybrid Network Transport =====
+
+register("mesh", "status", (ctx, input) => {
+  const metrics = getMeshMetrics();
+  return { ok: true, ...metrics };
+}, { description: "Get mesh network status and connectivity metrics." });
+
+register("mesh", "topology", (ctx, input) => {
+  const topology = meshGetTopology();
+  return { ok: true, topology };
+}, { description: "Get local mesh topology map of discovered nodes." });
+
+register("mesh", "channels", (ctx, input) => {
+  const channels = meshGetChannelStatus();
+  return { ok: true, channels };
+}, { description: "Get available transport layers and their status." });
+
+register("mesh", "send", async (ctx, input) => {
+  const dtu = input.dtu || (input.dtuId ? STATE.dtus?.get(input.dtuId) : null);
+  if (!dtu) return { ok: false, error: "No DTU specified. Provide dtu or dtuId." };
+  const result = meshSendDTU(dtu, input.destination || input.destinationNodeId || "broadcast", {
+    proximity: input.proximity,
+    priorityClass: input.priorityClass,
+  });
+  return result;
+}, { description: "Send a DTU through the mesh with automatic routing." });
+
+register("mesh", "pending", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const queue = meshGetPendingQueue(limit);
+  return { ok: true, pending: queue, count: queue.length };
+}, { description: "Get store-and-forward pending queue." });
+
+register("mesh", "stats", (ctx, input) => {
+  const stats = meshGetTransmissionStats();
+  return { ok: true, ...stats };
+}, { description: "Get transmission statistics per channel." });
+
+register("mesh", "relay", (ctx, input) => {
+  const config = meshConfigureRelay({
+    enabled: input.enabled,
+    maxQueueSize: input.maxQueueSize,
+    maxHoldTimeMs: input.maxHoldTimeMs,
+  });
+  return { ok: true, relayConfig: config };
+}, { description: "Configure relay preferences for store-and-forward." });
+
+register("mesh", "peers", (ctx, input) => {
+  const limit = Number(input.limit) || 100;
+  const peers = meshGetPeers(limit);
+  return { ok: true, peers, count: peers.length };
+}, { description: "Get discovered peers across all channels." });
+
+register("mesh", "transfer", async (ctx, input) => {
+  const components = input.components || [];
+  if (components.length === 0 && input.entityId) {
+    // Gather entity DTU components from lattice
+    for (const [, dtu] of STATE.dtus) {
+      if (dtu.entityId === input.entityId || dtu.parentId === input.entityId) {
+        components.push(dtu);
+      }
+    }
+  }
+  if (components.length === 0) return { ok: false, error: "No components for transfer." };
+  const result = meshInitiateTransfer(components, input.destination || input.destinationNodeId, {
+    proximity: input.proximity,
+  });
+  return result;
+}, { description: "Initiate consciousness transfer with multi-path routing." });
+
+register("mesh", "sync", (ctx, input) => {
+  const plan = meshPlanOfflineSync(STATE);
+  return { ok: true, ...plan };
+}, { description: "Plan offline sync for locally created DTUs." });
+
+// ===== END CONCORD MESH MACROS =====
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -21030,6 +21126,11 @@ registerShieldRoutes(app, {
   STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
 });
 
+// ---- Mesh Routes (extracted to routes/mesh.js) ----
+registerMeshRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -22480,6 +22581,11 @@ async function governorTick(reason="heartbeat") {
       // 2.10 — Concord Shield Heartbeat — every THREAT_SCAN tick
       if (_tick % TICK_FREQUENCIES.THREAT_SCAN === 0) {
         try { await shieldHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.11 — Concord Mesh Heartbeat — every 5th tick (relay queue + beacon)
+      if (_tick % 5 === 0) {
+        try { await meshHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -29085,6 +29191,22 @@ try {
   });
 } catch (e) {
   structuredLog("warn", "concord_shield_init_failed", { error: e?.message });
+}
+
+// ── Initialize Concord Mesh (Hybrid Network Transport) ──────────────────────
+try {
+  initializeMesh(STATE).then(meshResult => {
+    structuredLog("info", "concord_mesh_initialized", {
+      ok: meshResult.ok,
+      nodeId: meshResult.nodeId,
+      activeChannels: meshResult.activeChannels || [],
+      indexed: meshResult.indexed || 0,
+    });
+  }).catch(e => {
+    structuredLog("warn", "concord_mesh_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "concord_mesh_init_failed", { error: e?.message });
 }
 
 // ============================================================================
