@@ -111,6 +111,9 @@ import registerFoundationRoutes from "./routes/foundation.js";
 // Foundation Intelligence — 3-tier intelligence architecture
 import { initializeIntelligence, getIntelligenceMetrics, getPublicIntelligence, getAllPublicCategories, getResearchIntelligence, getResearchSynthesis, getResearchArchive, submitResearchApplication, reviewResearchApplication, getResearchApplicationStatus, getSovereignVaultStatus, getClassifierStatus, processSignalIntelligence, detectIntelIntent, intelligenceHeartbeatTick } from "./lib/foundation-intelligence.js";
 import registerFoundationIntelRoutes from "./routes/foundation-intel.js";
+// Foundation Atlas — signal tomography & volumetric mapping
+import { initializeAtlas, getAtlasMetrics, collectSignal, getTile, getVolume, getMaterialAtPoint, getSubsurface, getChanges, getCoverage, getLiveFeedStatus, executeSpatialQuery, detectAtlasIntent, atlasHeartbeatTick } from "./lib/foundation-atlas.js";
+import registerAtlasRoutes from "./routes/atlas.js";
 
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
@@ -4305,6 +4308,8 @@ function authMiddleware(req, res, next) {
     "/api/mesh",
     // Foundation Sovereignty modules
     "/api/foundation",
+    // Foundation Atlas signal tomography
+    "/api/atlas",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6670,6 +6675,7 @@ async function runMacro(domain, name, input, ctx) {
     mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
     foundation: new Set(["status", "sense.readings", "sense.patterns", "identity.verify", "energy.map", "energy.grid", "spectrum.map", "spectrum.available", "emergency.status", "market.earnings", "market.topology", "archive.fossils", "archive.decoded", "synthesis.correlations", "neural.readiness", "protocol.stats"]),
     intel: new Set(["weather", "geology", "energy", "ocean", "seismic", "agriculture", "environment", "research.status", "research.data", "research.synthesis", "research.archive", "classifier.status", "metrics"]),
+    atlas: new Set(["tile", "volume", "material", "subsurface", "change", "coverage", "live", "metrics"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6731,6 +6737,8 @@ async function runMacro(domain, name, input, ctx) {
     "/api/mesh",
     // Foundation Sovereignty modules
     "/api/foundation",
+    // Foundation Atlas signal tomography
+    "/api/atlas",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -15667,6 +15675,14 @@ const intentInfo = classifyIntent(prompt);
           _chatRoute._intelIntent = _intelIntent;
         }
       } catch {}
+
+      // Check for Foundation Atlas intent ("show map", "underground", "material at", etc.)
+      try {
+        const _atlasIntent = detectAtlasIntent(prompt);
+        if (_atlasIntent.isAtlasRequest) {
+          _chatRoute._atlasIntent = _atlasIntent;
+        }
+      } catch {}
     }
   } catch (_routerErr) {
     // Chat router is supplementary — never block the chat path
@@ -16380,6 +16396,10 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
       action: _chatRoute._intelIntent.action,
       params: _chatRoute._intelIntent.params,
     } : null,
+    atlas: _chatRoute?._atlasIntent?.isAtlasRequest ? {
+      action: _chatRoute._atlasIntent.action,
+      params: _chatRoute._atlasIntent.params,
+    } : null,
   };
 }, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
 
@@ -16829,6 +16849,49 @@ register("intel", "metrics", (ctx, input) => {
 }, { description: "Get Foundation Intelligence metrics across all tiers." });
 
 // ===== END FOUNDATION INTELLIGENCE MACROS =====
+
+// ===== FOUNDATION ATLAS MACROS — Signal Tomography =====
+
+register("atlas", "tile", (ctx, input) => {
+  return getTile({ lat: Number(input.lat), lng: Number(input.lng) });
+}, { description: "Retrieve map tile by coordinates from signal tomography." });
+
+register("atlas", "volume", (ctx, input) => {
+  const bounds = { lat_min: Number(input.lat_min), lat_max: Number(input.lat_max), lng_min: Number(input.lng_min), lng_max: Number(input.lng_max) };
+  return getVolume(bounds, input.tier || "PUBLIC");
+}, { description: "Retrieve 3D volumetric data for an area." });
+
+register("atlas", "material", (ctx, input) => {
+  return getMaterialAtPoint({ lat: Number(input.lat), lng: Number(input.lng) });
+}, { description: "Classify material at a point from signal analysis." });
+
+register("atlas", "subsurface", (ctx, input) => {
+  const bounds = { lat_min: Number(input.lat_min), lat_max: Number(input.lat_max), lng_min: Number(input.lng_min), lng_max: Number(input.lng_max) };
+  return getSubsurface(bounds, input.tier || "RESEARCH");
+}, { description: "Get underground features for an area." });
+
+register("atlas", "change", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  return getChanges(input.bounds, input.since, limit);
+}, { description: "Get temporal changes detected in an area." });
+
+register("atlas", "coverage", (ctx, input) => {
+  return getCoverage();
+}, { description: "Get current tomography coverage and resolution." });
+
+register("atlas", "live", (ctx, input) => {
+  return getLiveFeedStatus();
+}, { description: "Get real-time signal tomography feed status." });
+
+register("atlas", "query", (ctx, input) => {
+  return executeSpatialQuery(input);
+}, { description: "Execute a custom spatial query against the atlas." });
+
+register("atlas", "metrics", (ctx, input) => {
+  return { ok: true, ...getAtlasMetrics() };
+}, { description: "Get Foundation Atlas metrics." });
+
+// ===== END FOUNDATION ATLAS MACROS =====
 
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
@@ -21374,6 +21437,11 @@ registerFoundationIntelRoutes(app, {
   STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
 });
 
+// ---- Foundation Atlas Routes (extracted to routes/atlas.js) ----
+registerAtlasRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -22839,6 +22907,11 @@ async function governorTick(reason="heartbeat") {
       // 2.13 — Foundation Intelligence Heartbeat — every 15th tick (access grant cleanup)
       if (_tick % 15 === 0) {
         try { await intelligenceHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.14 — Foundation Atlas Heartbeat — every 20th tick (signal path pruning)
+      if (_tick % 20 === 0) {
+        try { await atlasHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -29476,14 +29549,15 @@ try {
     initializeNeural(STATE),
     initializeProtocol(STATE),
     initializeIntelligence(STATE),
+    initializeAtlas(STATE),
   ]).then(results => {
     const initialized = results.filter(r => r.ok).length;
     structuredLog("info", "foundation_initialized", {
-      modules: initialized, total: 11,
+      modules: initialized, total: 12,
       sense: results[0]?.ok, identity: results[1]?.ok, energy: results[2]?.ok,
       spectrum: results[3]?.ok, emergency: results[4]?.ok, market: results[5]?.ok,
       archive: results[6]?.ok, synthesis: results[7]?.ok, neural: results[8]?.ok,
-      protocol: results[9]?.ok, intelligence: results[10]?.ok,
+      protocol: results[9]?.ok, intelligence: results[10]?.ok, atlas: results[11]?.ok,
     });
   }).catch(e => {
     structuredLog("warn", "foundation_init_failed", { error: e?.message });
