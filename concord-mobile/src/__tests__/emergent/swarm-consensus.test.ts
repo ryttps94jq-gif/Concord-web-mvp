@@ -6,7 +6,6 @@ import {
 } from '../../emergent/swarm-consensus';
 import type {
   ConsensusProposal,
-  QuorumResult,
 } from '../../emergent/swarm-consensus';
 import type { MeshPeer, PeerCapabilities, PeerReputation } from '../../utils/types';
 

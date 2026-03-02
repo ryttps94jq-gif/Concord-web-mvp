@@ -4,7 +4,18 @@ export { useIdentityStore } from './identity-store';
 
 export { useMeshStore } from './mesh-store';
 
-export { useHeartbeatStore } from './heartbeat-store';
+export {
+  createHeartbeatEngine,
+  computeInterval,
+} from './heartbeat-store';
+export type {
+  MeshControllerDep,
+  FoundationCaptureDep,
+  RelayEngineDep,
+  LedgerDep,
+  HeartbeatDeps,
+  HeartbeatEngine,
+} from './heartbeat-store';
 
 export { useLatticeStore } from './lattice-store';
 

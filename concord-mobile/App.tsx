@@ -9,6 +9,7 @@ import { useMeshStore } from './src/store/mesh-store';
 import { detectHardwareCapabilities, getGracefulDegradation } from './src/utils/hardware-detect';
 import { createIdentityManager } from './src/identity/identity-manager';
 import type { SecureStorage } from './src/identity/identity-manager';
+import { TRANSPORT_LAYERS } from './src/utils/constants';
 
 // ── Boot Phase Labels ────────────────────────────────────────────────────────
 
@@ -122,7 +123,7 @@ export default function App() {
         // In a full build:
         //   const meshController = createMeshController(deps);
         //   await meshController.start();
-        setTransportStatus(3 /* BLUETOOTH */, {
+        setTransportStatus(TRANSPORT_LAYERS.BLUETOOTH, {
           available: true,
           active: false,
           peerCount: 0,

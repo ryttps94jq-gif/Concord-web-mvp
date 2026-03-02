@@ -4,7 +4,7 @@
 // temporal bursts, geographic clusters, and content similarity patterns
 // that arise organically from mesh-wide DTU propagation.
 
-import type { DTU, DTUTypeCode, GeoGrid, DTUMeta } from '../utils/types';
+import type { DTU, DTUTypeCode, GeoGrid } from '../utils/types';
 
 // ── DTU Store Interface ──────────────────────────────────────────────────────
 // Minimal read-only interface for accessing the local DTU store.

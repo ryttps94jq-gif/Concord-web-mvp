@@ -4,7 +4,7 @@
 // Builds local snapshots of what this node knows, computes diversity metrics,
 // identifies knowledge gaps relative to peers, and prioritizes sync targets.
 
-import type { DTU, DTUTypeCode, GeoGrid, DTUMeta } from '../utils/types';
+import type { DTU, DTUTypeCode } from '../utils/types';
 
 // ── DTU Store Interface ──────────────────────────────────────────────────────
 

@@ -7,8 +7,6 @@ import {
 import type {
   DTUStore,
   EmergentPattern,
-  TemporalBurst,
-  GeoCluster,
 } from '../../emergent/pattern-detector';
 import type { DTU, DTUHeader, DTUMeta, GeoGrid } from '../../utils/types';
 
