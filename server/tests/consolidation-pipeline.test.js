@@ -9,10 +9,10 @@ describe("Consolidation Pipeline", () => {
   it("should have CONSOLIDATION frozen constants", () => {
     expect(serverSrc).toContain("const CONSOLIDATION = Object.freeze({");
     expect(serverSrc).toContain("MEGA_MIN_CLUSTER: 5");
-    expect(serverSrc).toContain("MEGA_MAX_PER_CYCLE: 5");
+    expect(serverSrc).toContain("MEGA_MAX_PER_CYCLE: 8");
     expect(serverSrc).toContain("HYPER_MIN_MEGAS: 3");
     expect(serverSrc).toContain("COVERAGE_THRESHOLD: 0.8");
-    expect(serverSrc).toContain("MAX_HEAP_BYTES: 1_363_148_800");
+    expect(serverSrc).toContain("MAX_HEAP_BYTES: 4_294_967_296");
   });
 
   it("should have TICK_FREQUENCIES frozen constants", () => {

@@ -4225,8 +4225,10 @@ function authMiddleware(req, res, next) {
   // CRITICAL: Every frontend GET route must be listed here (Gate 1 of 3)
   const publicReadPaths = [
     // Core data
-    "/api/dtus", "/api/lenses", "/api/lens", "/api/emergent", "/api/knowledge",
+    "/api/dtus", "/api/dtu", "/api/lenses", "/api/lens", "/api/emergent", "/api/knowledge",
     "/api/search", "/api/species", "/api/events", "/api/schema",
+    // Settings, metrics & context
+    "/api/settings", "/api/growth", "/api/metrics", "/api/context",
     // System
     "/api/brain", "/api/system", "/api/cognitive", "/api/status",
     "/api/backpressure", "/api/embeddings", "/api/pwa",
@@ -6744,6 +6746,9 @@ async function runMacro(domain, name, input, ctx) {
     "/api/foundation",
     // Foundation Atlas signal tomography
     "/api/atlas",
+    // Gate consistency: paths from Gate 1 that were missing in Gate 3
+    "/api/macros", "/api/automations", "/api/webhooks-metrics",
+    "/api/notion", "/api/undo", "/api/reseed", "/api/context",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -9094,6 +9099,7 @@ function makeCtx(req=null) {
         // Only fall back to OpenAI if Ollama is offline or fails.
         const consciousAvailable = BRAIN.conscious && BRAIN.conscious.enabled;
         const openaiAvailable = Boolean(OPENAI_API_KEY) && LLM_READY;
+        const useConscious = !OPENAI_API_KEY && BRAIN.conscious.enabled;
 
         if (!consciousAvailable && !openaiAvailable) {
           return { ok: false, reason: "LLM not configured (no conscious brain and no OPENAI_API_KEY)." };
@@ -22259,7 +22265,7 @@ app.get("/api/emergent/entities", async (req, res) => {
 // ===== EMERGENT AGENT GOVERNANCE API (extracted to routes/emergent.js) =====
 app.use("/api/emergent", createEmergentRouter({ makeCtx, runMacro }));
 app.use("/api/qualia", createQualiaRouter());
-app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, saveStateDebounced }));
+app.use("/api/sovereign", createSovereignRouter({ STATE, makeCtx, runMacro, saveStateDebounced })); // includes /api/sovereign/dashboard, /pulse, /decree, /audit, /eval
 app.use("/api/sovereign-emergent", createSovereignEmergentRouter({ STATE }));
 app.use("/api/federation", createFederationRouter({ db }));
 
