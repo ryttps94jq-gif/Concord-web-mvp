@@ -96,6 +96,18 @@ import { initializeShield, scanContent as shieldScanContent, scanHashAgainstLatt
 import registerShieldRoutes from "./routes/shield.js";
 import { initializeMesh, detectChannels as meshDetectChannels, getChannelStatus as meshGetChannelStatus, getNodeId as meshGetNodeId, sendDTU as meshSendDTU, receiveDTU as meshReceiveDTU, initiateTransfer as meshInitiateTransfer, getTransferStatus as meshGetTransferStatus, registerPeer as meshRegisterPeer, getPeers as meshGetPeers, getTopology as meshGetTopology, getMeshMetrics, getTransmissionStats as meshGetTransmissionStats, getPendingQueue as meshGetPendingQueue, configureRelay as meshConfigureRelay, detectMeshIntent, meshHeartbeatTick, planOfflineSync as meshPlanOfflineSync, TRANSPORT_LAYERS, TRANSPORT_LIST, RELAY_PRIORITIES } from "./lib/concord-mesh.js";
 import registerMeshRoutes from "./routes/mesh.js";
+// ── Foundation Sovereignty Modules ────────────────────────────────────────────
+import { initializeSense, recordReading as senseRecordReading, getSenseMetrics, getRecentReadings as senseGetReadings, getPatterns as senseGetPatterns, senseHeartbeatTick } from "./lib/foundation-sense.js";
+import { initializeIdentity, getIdentityMetrics, getIdentity as identityGetNode, verifyNode as identityVerifyNode, getAllIdentities } from "./lib/foundation-identity.js";
+import { initializeEnergy, getEnergyMetrics, getEnergyMap, getGridHealth, getRecentEnergyReadings } from "./lib/foundation-energy.js";
+import { initializeSpectrum, getSpectrumMetrics, getAvailableChannels as spectrumGetChannels, getSpectrumMap } from "./lib/foundation-spectrum.js";
+import { initializeEmergency, getEmergencyMetrics, triggerEmergency, getEmergencyStatus, getActiveEmergencies, getRecentAlerts as emergencyGetAlerts } from "./lib/foundation-emergency.js";
+import { initializeMarket, getMarketMetrics, getRecentEarnings as marketGetEarnings, getRelayTopology as marketGetTopology, getNodeBalance as marketGetBalance } from "./lib/foundation-market.js";
+import { initializeArchive, getArchiveMetrics, getFossils, getDecoded as archiveGetDecoded } from "./lib/foundation-archive.js";
+import { initializeSynthesis, getSynthesisMetrics, getCorrelations as synthesisGetCorrelations } from "./lib/foundation-synthesis.js";
+import { initializeNeural, getNeuralMetrics, assessReadiness as neuralAssessReadiness } from "./lib/foundation-neural.js";
+import { initializeProtocol, getProtocolMetrics } from "./lib/foundation-protocol.js";
+import registerFoundationRoutes from "./routes/foundation.js";
 
 // ── Learning Verification & Substrate Integrity ──────────────────────────────
 import {
@@ -4288,6 +4300,8 @@ function authMiddleware(req, res, next) {
     "/api/shield",
     // Concord Mesh network transport
     "/api/mesh",
+    // Foundation Sovereignty modules
+    "/api/foundation",
   ];
   if (req.method === "GET" && !_isSovereignRoute && publicReadPaths.some(p => req.path.startsWith(p))) return next();
   // Gate 1 POST bypass: allow /api/repair POST without auth (frontend error fallback path)
@@ -6651,6 +6665,7 @@ async function runMacro(domain, name, input, ctx) {
     apps: new Set(["list", "get"]),
     shield: new Set(["status", "threats", "firewall", "predictions", "metrics"]),
     mesh: new Set(["status", "topology", "channels", "peers", "stats", "pending"]),
+    foundation: new Set(["status", "sense.readings", "sense.patterns", "identity.verify", "energy.map", "energy.grid", "spectrum.map", "spectrum.available", "emergency.status", "market.earnings", "market.topology", "archive.fossils", "archive.decoded", "synthesis.correlations", "neural.readiness", "protocol.stats"]),
   };
   const _domainSet = publicReadDomains[domain];
   const _domainNameAllowed = _domainSet ? _domainSet.has(name) : false;
@@ -6710,6 +6725,8 @@ async function runMacro(domain, name, input, ctx) {
     "/api/shield",
     // Concord Mesh network transport
     "/api/mesh",
+    // Foundation Sovereignty modules
+    "/api/foundation",
   ];
   // Safe POST paths: chat and brain endpoints that must bypass Chicken2 for unauthenticated users
   const _safePostPaths = ["/api/chat", "/api/brain/conscious", "/api/repair", "/api/creative/registry"];
@@ -16597,6 +16614,131 @@ register("mesh", "sync", (ctx, input) => {
 
 // ===== END CONCORD MESH MACROS =====
 
+// ===== FOUNDATION SOVEREIGNTY MACROS — 10 Modules =====
+
+register("foundation", "status", (ctx, input) => {
+  const modules = [
+    { name: "Sense", key: "sense", ...getSenseMetrics() },
+    { name: "Identity", key: "identity", ...getIdentityMetrics() },
+    { name: "Energy", key: "energy", ...getEnergyMetrics() },
+    { name: "Spectrum", key: "spectrum", ...getSpectrumMetrics() },
+    { name: "Emergency", key: "emergency", ...getEmergencyMetrics() },
+    { name: "Market", key: "market", ...getMarketMetrics() },
+    { name: "Archive", key: "archive", ...getArchiveMetrics() },
+    { name: "Synthesis", key: "synthesis", ...getSynthesisMetrics() },
+    { name: "Neural", key: "neural", ...getNeuralMetrics() },
+    { name: "Protocol", key: "protocol", ...getProtocolMetrics() },
+  ];
+  const initializedCount = modules.filter(m => m.initialized).length;
+  return {
+    ok: true,
+    modules,
+    totalModules: modules.length,
+    initializedModules: initializedCount,
+    emergencyMode: getEmergencyMetrics().emergencyMode || false,
+  };
+}, { description: "Get status of all Foundation sovereignty modules." });
+
+register("foundation", "sense.readings", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const readings = senseGetReadings(limit);
+  return { ok: true, readings, count: readings.length };
+}, { description: "Get recent sensor readings from Foundation Sense." });
+
+register("foundation", "sense.patterns", (ctx, input) => {
+  const patterns = senseGetPatterns();
+  return { ok: true, patterns, count: patterns.length };
+}, { description: "Get detected patterns from Foundation Sense." });
+
+register("foundation", "identity.verify", (ctx, input) => {
+  if (!input.nodeId) return { ok: false, error: "nodeId required" };
+  const identity = identityGetNode(input.nodeId);
+  if (!identity) return { ok: true, verified: false, reason: "unknown_node" };
+  return { ok: true, verified: identity.verified, identity };
+}, { description: "Verify node identity via signal-layer fingerprint." });
+
+register("foundation", "energy.map", (ctx, input) => {
+  const map = getEnergyMap();
+  return { ok: true, energyMap: map, count: map.length };
+}, { description: "Get energy distribution map from Foundation Energy." });
+
+register("foundation", "energy.grid", (ctx, input) => {
+  const health = getGridHealth();
+  return { ok: true, ...health };
+}, { description: "Get power grid health status." });
+
+register("foundation", "spectrum.map", (ctx, input) => {
+  const map = getSpectrumMap();
+  return { ok: true, spectrumMap: map, count: map.length };
+}, { description: "Get spectrum occupancy map." });
+
+register("foundation", "spectrum.available", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const channels = spectrumGetChannels(limit);
+  return { ok: true, channels, count: channels.length };
+}, { description: "Get available usable channels from spectrum discovery." });
+
+register("foundation", "emergency.alert", async (ctx, input) => {
+  const result = triggerEmergency({
+    severity: input.severity || 5,
+    situation: input.situation || "",
+    affected_area: input.affected_area,
+    source_node: input.source_node,
+    resources_available: input.resources_available,
+    resources_needed: input.resources_needed,
+    shelter_locations: input.shelter_locations,
+    medical_info: input.medical_info,
+    evacuation_routes: input.evacuation_routes,
+    verified: input.verified || false,
+  }, STATE);
+  return result;
+}, { description: "Trigger emergency mode for a disaster scenario." });
+
+register("foundation", "emergency.status", (ctx, input) => {
+  return { ok: true, ...getEmergencyStatus() };
+}, { description: "Get current disaster zone and emergency status." });
+
+register("foundation", "market.earnings", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const earnings = marketGetEarnings(limit);
+  return { ok: true, earnings, count: earnings.length };
+}, { description: "Get recent relay earnings from Foundation Market." });
+
+register("foundation", "market.topology", (ctx, input) => {
+  const topology = marketGetTopology();
+  return { ok: true, topology, count: topology.length };
+}, { description: "Get relay node topology map." });
+
+register("foundation", "archive.fossils", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const fossils = getFossils(limit);
+  return { ok: true, fossils, count: fossils.length };
+}, { description: "Get discovered legacy signals from Foundation Archive." });
+
+register("foundation", "archive.decoded", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const decoded = archiveGetDecoded(limit);
+  return { ok: true, decoded, count: decoded.length };
+}, { description: "Get decoded historical data." });
+
+register("foundation", "synthesis.correlations", (ctx, input) => {
+  const limit = Number(input.limit) || 50;
+  const correlations = synthesisGetCorrelations(limit);
+  return { ok: true, correlations, count: correlations.length };
+}, { description: "Get cross-medium correlations from Foundation Synthesis." });
+
+register("foundation", "neural.readiness", (ctx, input) => {
+  const readiness = neuralAssessReadiness();
+  const metrics = getNeuralMetrics();
+  return { ok: true, readiness, metrics };
+}, { description: "Get BCI preparation readiness status." });
+
+register("foundation", "protocol.stats", (ctx, input) => {
+  return { ok: true, ...getProtocolMetrics() };
+}, { description: "Get Concord Protocol metrics and stats." });
+
+// ===== END FOUNDATION SOVEREIGNTY MACROS =====
+
 // ===== USER FEEDBACK → EXPERIENCE LEARNING =====
 // Records thumbs up/down and ratings, feeds into experience memory + affect
 register("chat", "feedback", (ctx, input) => {
@@ -21131,6 +21273,11 @@ registerMeshRoutes(app, {
   STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
 });
 
+// ---- Foundation Routes (extracted to routes/foundation.js) ----
+registerFoundationRoutes(app, {
+  STATE, makeCtx, runMacro, uiJson, uid, validate, perEndpointRateLimit,
+});
+
 // Error handler
 app.use((err, req, res, _next) => {
   if (res.headersSent) return;
@@ -22586,6 +22733,11 @@ async function governorTick(reason="heartbeat") {
       // 2.11 — Concord Mesh Heartbeat — every 5th tick (relay queue + beacon)
       if (_tick % 5 === 0) {
         try { await meshHeartbeatTick(STATE, _tick); } catch {}
+      }
+
+      // 2.12 — Foundation Sense Heartbeat — every 10th tick (pattern detection)
+      if (_tick % 10 === 0) {
+        try { await senseHeartbeatTick(STATE, _tick); } catch {}
       }
 
       // ── Consolidation Pipeline (derived from hardware math) ──
@@ -29207,6 +29359,35 @@ try {
   });
 } catch (e) {
   structuredLog("warn", "concord_mesh_init_failed", { error: e?.message });
+}
+
+// ── Initialize Foundation Sovereignty Modules ───────────────────────────────
+try {
+  Promise.all([
+    initializeSense(STATE),
+    initializeIdentity(STATE),
+    initializeEnergy(STATE),
+    initializeSpectrum(STATE),
+    initializeEmergency(STATE),
+    initializeMarket(STATE),
+    initializeArchive(STATE),
+    initializeSynthesis(STATE),
+    initializeNeural(STATE),
+    initializeProtocol(STATE),
+  ]).then(results => {
+    const initialized = results.filter(r => r.ok).length;
+    structuredLog("info", "foundation_initialized", {
+      modules: initialized, total: 10,
+      sense: results[0]?.ok, identity: results[1]?.ok, energy: results[2]?.ok,
+      spectrum: results[3]?.ok, emergency: results[4]?.ok, market: results[5]?.ok,
+      archive: results[6]?.ok, synthesis: results[7]?.ok, neural: results[8]?.ok,
+      protocol: results[9]?.ok,
+    });
+  }).catch(e => {
+    structuredLog("warn", "foundation_init_failed", { error: e?.message });
+  });
+} catch (e) {
+  structuredLog("warn", "foundation_init_failed", { error: e?.message });
 }
 
 // ============================================================================
