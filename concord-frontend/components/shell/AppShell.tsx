@@ -14,6 +14,7 @@ import { LensErrorBoundary } from '@/components/common/LensErrorBoundary';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineFallback } from '@/components/pwa/OfflineFallback';
 import { QuickCapture, useQuickCapture } from '@/components/capture/QuickCapture';
+import { NowPlayingBar } from '@/components/music/NowPlayingBar';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -107,6 +108,7 @@ export function AppShell({ children }: AppShellProps) {
       <OfflineFallback />
       <InstallPrompt />
       <QuickCapture isOpen={quickCapture.isOpen} onClose={quickCapture.close} />
+      <NowPlayingBar />
     </div>
   );
 }
