@@ -1,7 +1,7 @@
 
 Concord Cognitive Engine
 A synthetic civilization platform. Concord creates, governs, and sustains populations of autonomous digital entities within a structured knowledge substrate — backed by a four-brain cognitive architecture, constitutional governance, and an internal economy.
-752,746 lines of code. Built in 49 days. One developer.
+752,746 lines of code. Built in 90 days. One developer.
 
 What This Is
 Concord is not a chatbot. It is not an AI wrapper. It is not a SaaS tool.
