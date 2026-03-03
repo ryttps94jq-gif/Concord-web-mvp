@@ -59,6 +59,7 @@ import { CognitiveDigitalTwin } from '@/components/twin/CognitiveDigitalTwin';
 import { SwarmIntelligence } from '@/components/swarm/SwarmIntelligence';
 import { TimeCrystals } from '@/components/temporal/TimeCrystals';
 import { NervousSystem } from '@/components/nervous/NervousSystem';
+import { UniversalImport } from '@/components/import/UniversalImport';
 
 const ENTERED_KEY = 'concord_entered';
 
@@ -361,9 +362,14 @@ function DashboardPage() {
         <LensErrorBoundary name="Emergent Panel">
           <EmergentPanel />
         </LensErrorBoundary>
-        <LensErrorBoundary name="Governance Feed">
-          <GovernanceFeed />
-        </LensErrorBoundary>
+        <div className="space-y-5">
+          <LensErrorBoundary name="Universal Import">
+            <UniversalImport compact />
+          </LensErrorBoundary>
+          <LensErrorBoundary name="Governance Feed">
+            <GovernanceFeed />
+          </LensErrorBoundary>
+        </div>
       </div>
 
       {/* Resonance Universe Graph + Sovereignty */}

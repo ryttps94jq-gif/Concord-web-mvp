@@ -12,6 +12,7 @@ import { LiveIndicator } from '@/components/lens/LiveIndicator';
 import { DTUExportButton } from '@/components/lens/DTUExportButton';
 import { RealtimeDataPanel } from '@/components/lens/RealtimeDataPanel';
 import { LensFeaturePanel } from '@/components/lens/LensFeaturePanel';
+import { UniversalImport } from '@/components/import/UniversalImport';
 
 interface ImportJob {
   id: string;
@@ -302,7 +303,7 @@ export default function ImportLens() {
           <Upload className="w-8 h-8 text-neon-blue" />
           <div>
             <h1 className="text-2xl font-bold text-white">Import Lens</h1>
-            <p className="text-void-400">Restore data from backups and external sources</p>
+            <p className="text-void-400">Drop any file — music, images, documents, code, data — it just works</p>
           </div>
 
       {/* Real-time Enhancement Toolbar */}
@@ -322,114 +323,92 @@ export default function ImportLens() {
       <UniversalActions domain="import" artifactId={importJobItems[0]?.id} compact />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upload Zone */}
-        <div className="lens-card">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Upload className="w-5 h-5 text-neon-blue" />
-            Upload Data
-          </h2>
+        {/* Universal Import — Drop any file */}
+        <div className="space-y-4">
+          <UniversalImport
+            onImported={async (result) => {
+              // Record the import in lens history
+              await createJob({
+                title: result.filename,
+                data: {
+                  filename: result.filename,
+                  type: result.category as ImportJob['type'],
+                  status: 'completed',
+                  progress: 100,
+                  records_total: 1,
+                  records_imported: 1,
+                  records_skipped: 0,
+                  records_failed: 0,
+                  errors: [],
+                  started_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                } as unknown as Partial<ImportJob>,
+                meta: { tags: ['import', result.category], status: 'completed' },
+              });
+            }}
+          />
 
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive
-                ? 'border-neon-blue bg-neon-blue/10'
-                : 'border-void-600 hover:border-void-500'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            {validating ? (
-              <Loader2 className="w-12 h-12 mx-auto mb-4 text-neon-blue animate-spin" />
-            ) : (
-              <Upload className={`w-12 h-12 mx-auto mb-4 ${dragActive ? 'text-neon-blue' : 'text-void-500'}`} />
-            )}
-            <p className="text-void-300 mb-2">
-              {validating ? 'Validating file...' : 'Drag and drop your export file here'}
+          {/* Legacy structured import (JSON/JSONL/ZIP backups) */}
+          <div className="lens-card">
+            <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <FileJson className="w-4 h-4 text-neon-blue" />
+              Structured Data Import
+            </h2>
+            <p className="text-void-500 text-xs mb-3">
+              For Concord backups, JSON/JSONL data files, and ZIP archives.
             </p>
-            <p className="text-void-500 text-sm mb-4">
-              Supports .json, .jsonl, .zip formats
-            </p>
-            <label className="btn-secondary cursor-pointer">
-              <input
-                type="file"
-                className="hidden"
-                accept=".json,.jsonl,.zip"
-                onChange={handleFileSelect}
-                disabled={validating}
-              />
-              Browse Files
-            </label>
-          </div>
-
-          {/* Validation Result */}
-          {validationResult && selectedFile && (
-            <div className="mt-4 p-4 bg-void-800 rounded-lg">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FileJson className="w-5 h-5 text-neon-blue" />
-                  <span className="text-white font-medium">{selectedFile.name}</span>
-                </div>
-                {validationResult.valid ? (
-                  <span className="text-neon-green text-sm flex items-center gap-1">
-                    <Check className="w-4 h-4" /> Valid
-                  </span>
-                ) : (
-                  <span className="text-red-400 text-sm flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4" /> Invalid
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                <div>
-                  <span className="text-void-400">Type:</span>
-                  <span className="text-white ml-2 capitalize">{validationResult.type}</span>
-                </div>
-                <div>
-                  <span className="text-void-400">Records:</span>
-                  <span className="text-white ml-2">{validationResult.record_count.toLocaleString()}</span>
-                </div>
-                <div>
-                  <span className="text-void-400">Schema:</span>
-                  <span className="text-white ml-2">v{validationResult.schema_version}</span>
-                </div>
-                <div>
-                  <span className="text-void-400">Compatible:</span>
-                  <span className={`ml-2 ${validationResult.compatible ? 'text-neon-green' : 'text-red-400'}`}>
-                    {validationResult.compatible ? 'Yes' : 'No'}
-                  </span>
-                </div>
-              </div>
-
-              {validationResult.warnings.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-yellow-400 text-sm mb-1">Warnings:</p>
-                  {validationResult.warnings.map((warning, i) => (
-                    <p key={i} className="text-void-400 text-sm">* {warning}</p>
-                  ))}
-                </div>
+            <div
+              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                dragActive
+                  ? 'border-neon-blue bg-neon-blue/10'
+                  : 'border-void-600 hover:border-void-500'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              {validating ? (
+                <Loader2 className="w-8 h-8 mx-auto mb-2 text-neon-blue animate-spin" />
+              ) : (
+                <Upload className={`w-8 h-8 mx-auto mb-2 ${dragActive ? 'text-neon-blue' : 'text-void-500'}`} />
               )}
+              <p className="text-void-400 text-sm mb-2">
+                {validating ? 'Validating...' : 'Drop backup or data files here'}
+              </p>
+              <label className="btn-secondary cursor-pointer text-xs">
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".json,.jsonl,.zip"
+                  onChange={handleFileSelect}
+                  disabled={validating}
+                />
+                Browse
+              </label>
+            </div>
 
-              {validationResult.errors.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-red-400 text-sm mb-1">Errors:</p>
-                  {validationResult.errors.map((error, i) => (
-                    <p key={i} className="text-red-300 text-sm">* {error}</p>
-                  ))}
+            {/* Validation Result */}
+            {validationResult && selectedFile && (
+              <div className="mt-3 p-3 bg-void-800 rounded-lg text-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white font-medium truncate">{selectedFile.name}</span>
+                  {validationResult.valid ? (
+                    <span className="text-neon-green text-xs flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Valid
+                    </span>
+                  ) : (
+                    <span className="text-red-400 text-xs flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Invalid
+                    </span>
+                  )}
                 </div>
-              )}
-
-              {/* Import Mode */}
-              <div className="mb-4">
-                <label className="text-void-400 text-sm block mb-2">Import Mode:</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-2">
                   {(['merge', 'replace', 'skip_existing'] as const).map(mode => (
                     <button
                       key={mode}
                       onClick={() => setImportMode(mode)}
-                      className={`px-3 py-1 rounded text-sm capitalize ${
+                      className={`px-2 py-0.5 rounded text-xs capitalize ${
                         importMode === mode
                           ? 'bg-neon-blue text-white'
                           : 'bg-void-700 text-void-300 hover:bg-void-600'
@@ -439,18 +418,17 @@ export default function ImportLens() {
                     </button>
                   ))}
                 </div>
+                <button
+                  onClick={startImport}
+                  disabled={!validationResult.valid || importing}
+                  className="btn-primary w-full flex items-center justify-center gap-1 text-xs py-1.5"
+                >
+                  {importing && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {importing ? 'Importing...' : 'Import'}
+                </button>
               </div>
-
-              <button
-                onClick={startImport}
-                disabled={!validationResult.valid || importing}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {importing && <Loader2 className="w-4 h-4 animate-spin" />}
-                {importing ? 'Importing...' : 'Start Import'}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Import Options */}
@@ -506,25 +484,31 @@ export default function ImportLens() {
 
           {/* Supported Formats */}
           <div className="mt-6 p-4 bg-void-800 rounded-lg">
-            <h3 className="text-white font-medium mb-3">Supported Data Types</h3>
+            <h3 className="text-white font-medium mb-3">Supported Formats</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> DTUs
+                <Check className="w-4 h-4 text-neon-green" /> Audio (MP3, WAV, FLAC...)
               </div>
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> Personas
+                <Check className="w-4 h-4 text-neon-green" /> Images (PNG, JPG, SVG...)
               </div>
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> Memories
+                <Check className="w-4 h-4 text-neon-green" /> Video (MP4, WebM, MOV...)
               </div>
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> Config
+                <Check className="w-4 h-4 text-neon-green" /> Documents (PDF, TXT, MD...)
               </div>
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> Simulations
+                <Check className="w-4 h-4 text-neon-green" /> Data (JSON, CSV, XML...)
               </div>
               <div className="flex items-center gap-2 text-void-300">
-                <Check className="w-4 h-4 text-neon-green" /> Full Backup
+                <Check className="w-4 h-4 text-neon-green" /> Code (JS, Python, Rust...)
+              </div>
+              <div className="flex items-center gap-2 text-void-300">
+                <Check className="w-4 h-4 text-neon-green" /> Backups (JSON, ZIP)
+              </div>
+              <div className="flex items-center gap-2 text-void-300">
+                <Check className="w-4 h-4 text-neon-green" /> Anything else
               </div>
             </div>
           </div>
