@@ -1131,18 +1131,6 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
           {form.privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-emerald-400" /> Anyone can join this session</>}
           {form.privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-neon-purple" /> Only people with the link can join</>}
           {form.privacy === 'invite-only' && <><Mail className="w-3.5 h-3.5 text-amber-400" /> Only invited users can join</>}
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="collab"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
 
         {/* Actions */}

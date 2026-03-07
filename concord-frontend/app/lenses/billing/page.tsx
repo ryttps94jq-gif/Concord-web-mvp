@@ -703,18 +703,6 @@ function TierCard({
       <div className="mb-4">
         <span className="text-4xl font-bold text-white">${price}</span>
         <span className="text-gray-400">/mo{priceNote}</span>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="billing"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
 
       <ul className="space-y-2 mb-6">

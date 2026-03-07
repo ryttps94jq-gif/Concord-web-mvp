@@ -138,6 +138,25 @@ export type SocketEvent =
   | 'music:toggle'
   // Whiteboard
   | 'whiteboard:updated'
+  // Creative Registry & Royalties
+  | 'creative_registry:update' | 'marketplace:purchase'
+  // MEGA SPEC: Chat streaming events
+  | 'chat:status' | 'chat:token' | 'chat:web_results' | 'chat:complete'
+  // MEGA SPEC: Artifact & quality lifecycle events
+  | 'artifact:rendered' | 'quality:approved' | 'quality:rejected'
+  // MEGA SPEC: Entity & pipeline events
+  | 'entity:production_mode' | 'pipeline:triggered'
+  // 12 NEW CAPABILITIES events
+  | 'pipeline:started' | 'pipeline:step_started' | 'pipeline:step_completed' | 'pipeline:completed'
+  | 'prediction:ready' | 'agent:insights'
+  | 'collab:invite' | 'collab:accepted'
+  | 'teaching:promotion_suggestion'
+  | 'research:started' | 'research:completed'
+  // Shared Instance Conversation events
+  | 'shared-session:invite' | 'shared-session:joined'
+  | 'shared-session:message' | 'shared-session:ai-response'
+  | 'shared-session:artifact-produced' | 'shared-session:dtu-shared'
+  | 'shared-session:ended'
   // Real-time data feed events (Phase 3)
   | 'finance:ticker' | 'finance:market_update' | 'finance:alert'
   | 'crypto:ticker'

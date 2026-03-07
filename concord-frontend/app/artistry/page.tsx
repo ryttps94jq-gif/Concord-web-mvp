@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Palette, Info } from 'lucide-react';
 import { ArtistryFeed } from '@/components/artistry/ArtistryFeed';

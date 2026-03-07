@@ -150,11 +150,11 @@ export function TimeCrystals({ className }: { className?: string }) {
                 {diffData.diff.domainGrowth && Object.keys(diffData.diff.domainGrowth).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {Object.entries(diffData.diff.domainGrowth)
-                      .sort(([, a]: [string, number], [, b]: [string, number]) => b - a)
+                      .sort(([, a], [, b]) => (b as number) - (a as number))
                       .slice(0, 8)
-                      .map(([domain, count]: [string, number]) => (
+                      .map(([domain, count]) => (
                         <span key={domain} className="px-2 py-0.5 bg-lattice-surface rounded text-[10px] text-gray-400">
-                          {domain}: +{count}
+                          {domain}: +{count as number}
                         </span>
                       ))}
                   </div>
@@ -170,18 +170,18 @@ export function TimeCrystals({ className }: { className?: string }) {
                 </h4>
                 <div className="space-y-2">
                   {Object.entries(archData.memories)
-                    .filter(([, dtus]: [string, { id: string; title: string }[]]) => dtus.length > 0)
-                    .map(([period, dtus]: [string, { id: string; title: string }[]]) => (
+                    .filter(([, dtus]) => (dtus as { id: string; title: string }[]).length > 0)
+                    .map(([period, dtus]) => (
                       <div key={period}>
                         <p className="text-[10px] text-gray-500 mb-1">{period}</p>
-                        {dtus.slice(0, 3).map((dtu: { id: string; title: string }) => (
+                        {(dtus as { id: string; title: string }[]).slice(0, 3).map((dtu: { id: string; title: string }) => (
                           <div key={dtu.id} className="pl-3 text-xs text-gray-400 truncate">
                             {dtu.title}
                           </div>
                         ))}
                       </div>
                     ))}
-                  {Object.values(archData.memories).every((dtus: { id: string; title: string }[]) => dtus.length === 0) && (
+                  {Object.values(archData.memories).every((dtus) => (dtus as { id: string; title: string }[]).length === 0) && (
                     <p className="text-xs text-gray-500">No memories found for these dates.</p>
                   )}
                 </div>

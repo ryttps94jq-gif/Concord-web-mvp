@@ -79,7 +79,7 @@ export function generateTextHash(text: string, ngramSize: number = 3): string {
     }
   }
 
-  return hashBits.map(b => b >= 0 ? '1' : '0').join('');
+  return Array.from(hashBits).map(b => b >= 0 ? '1' : '0').join('');
 }
 
 /**

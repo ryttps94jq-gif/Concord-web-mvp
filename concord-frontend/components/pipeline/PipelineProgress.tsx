@@ -42,22 +42,25 @@ export function PipelineProgress({
   useEffect(() => {
     if (!socket) return;
 
-    const handleStepStarted = (data: { executionId: string; step: number }) => {
-      if (data.executionId !== executionId) return;
-      setStepStatuses(prev => new Map(prev).set(data.step, 'running'));
+    const handleStepStarted = (data: unknown) => {
+      const d = data as { executionId: string; step: number };
+      if (d.executionId !== executionId) return;
+      setStepStatuses(prev => new Map(prev).set(d.step, 'running'));
     };
 
-    const handleStepCompleted = (data: { executionId: string; step: number; status: string; dtuId?: string }) => {
-      if (data.executionId !== executionId) return;
-      setStepStatuses(prev => new Map(prev).set(data.step, {
-        status: data.status as 'completed' | 'failed',
-        dtuId: data.dtuId,
+    const handleStepCompleted = (data: unknown) => {
+      const d = data as { executionId: string; step: number; status: string; dtuId?: string };
+      if (d.executionId !== executionId) return;
+      setStepStatuses(prev => new Map(prev).set(d.step, {
+        status: d.status as 'completed' | 'failed',
+        dtuId: d.dtuId,
       }));
     };
 
-    const handleCompleted = (data: { executionId: string; status: string; dtuIds: string[] }) => {
-      if (data.executionId !== executionId) return;
-      onComplete?.(data);
+    const handleCompleted = (data: unknown) => {
+      const d = data as { executionId: string; status: string; dtuIds: string[] };
+      if (d.executionId !== executionId) return;
+      onComplete?.(d);
     };
 
     socket.on('pipeline:step_started', handleStepStarted);

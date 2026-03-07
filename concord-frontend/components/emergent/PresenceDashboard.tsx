@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Globe, Map, Mountain, Clock, Cloud, Users, Zap,
-  Eye, Brain, Heart, Shield, Sparkles,
+  Eye, Brain, Heart, Shield, Sparkles, Activity,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ export default function PresenceDashboard({
             {[
               { label: 'Tectonic', value: planetary.tectonicActivity, icon: Mountain },
               { label: 'Atmospheric', value: planetary.atmosphericState, icon: Cloud },
-              { label: 'Oceanic', value: planetary.oceanicPresence, icon: Waves },
+              { label: 'Oceanic', value: planetary.oceanicPresence, icon: Activity },
               { label: 'History', value: planetary.signalHistory, icon: Clock },
             ].map((item) => {
               const PIcon = item.icon;

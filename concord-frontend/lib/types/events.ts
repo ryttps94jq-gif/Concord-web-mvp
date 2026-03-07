@@ -121,7 +121,7 @@ export interface MetaCommittedPayload {
 
 // ── System ──────────────────────────────────────────────────────
 
-export interface SystemAlertPayload extends SystemAlert {}
+export type SystemAlertPayload = SystemAlert;
 
 export interface QueueNotificationPayload {
   count: number;
@@ -201,9 +201,9 @@ export interface DreamCapturedPayload {
   convergence: boolean;
 }
 
-export interface PromotionApprovedPayload extends Promotion {}
+export type PromotionApprovedPayload = Promotion;
 
-export interface PromotionRejectedPayload extends Promotion {}
+export type PromotionRejectedPayload = Promotion;
 
 export interface AppPublishedPayload {
   appId: string;

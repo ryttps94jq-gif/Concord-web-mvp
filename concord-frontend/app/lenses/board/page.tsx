@@ -1137,18 +1137,6 @@ function TaskDetailPanel({
             <Upload className="w-3.5 h-3.5" />
             Upload file
           </button>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="board"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
     </div>

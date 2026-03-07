@@ -653,7 +653,7 @@ export default function ArtLensPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {imageArtifacts.slice(0, 8).map((dtu: DTU) => (
                     <div key={dtu.id} className="rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-neon-pink/30 transition-colors">
-                      <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                      <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact!} mode="thumbnail" />
                       <div className="p-3">
                         <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
                         <FeedbackWidget targetType="dtu" targetId={dtu.id} />

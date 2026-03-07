@@ -301,18 +301,6 @@ function CreateWebhookModal({ onClose, onCreate, creating }: { onClose: () => vo
             {creating ? 'Creating...' : 'Create'}
           </button>
         </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="integrations"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
     </div>
   );

@@ -1187,7 +1187,7 @@ export default function MarketplaceLensPage() {
                 {marketArtifacts.slice(0, 6).map((dtu: DTU) => (
                   <div key={dtu.id} className="p-3 rounded-lg bg-lattice-surface border border-lattice-border space-y-2">
                     <p className="text-sm font-medium truncate">{dtu.title || dtu.human?.summary || 'Untitled'}</p>
-                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact!} mode="thumbnail" />
                     <FeedbackWidget targetType="dtu" targetId={dtu.id} />
                   </div>
                 ))}

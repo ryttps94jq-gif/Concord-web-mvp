@@ -57,11 +57,11 @@ export function CognitiveDigitalTwin({ className }: { className?: string }) {
   const twin = twinData?.twin || {};
   const circadian = twin.circadianProfile || {};
   const biases = twin.biasFingerprint || {};
-  const domains = Object.entries(twin.processingSpeed || {}).sort(([, a]: [string, { count: number }], [, b]: [string, { count: number }]) => b.count - a.count);
+  const domains = Object.entries(twin.processingSpeed || {}).sort(([, a], [, b]) => (b as { count: number }).count - (a as { count: number }).count);
 
   // Find peak hours
   const peakHours = Object.entries(circadian)
-    .map(([h, d]: [string, { avgQuality?: number; count?: number }]) => ({ hour: parseInt(h), quality: d.avgQuality || 0, count: d.count || 0 }))
+    .map(([h, d]) => ({ hour: parseInt(h), quality: (d as { avgQuality?: number; count?: number }).avgQuality || 0, count: (d as { avgQuality?: number; count?: number }).count || 0 }))
     .sort((a, b) => b.quality - a.quality)
     .slice(0, 3);
 
@@ -257,7 +257,7 @@ export function CognitiveDigitalTwin({ className }: { className?: string }) {
               <div className="flex gap-0.5">
                 {Array.from({ length: 24 }, (_, h) => {
                   const data = circadian[h] || { count: 0, avgQuality: 0 };
-                  const maxCount = Math.max(1, ...Object.values(circadian).map((d: { count?: number }) => d.count || 0));
+                  const maxCount = Math.max(1, ...Object.values(circadian).map((d: unknown) => (d as { count?: number }).count || 0));
                   const intensity = data.count / maxCount;
                   return (
                     <div

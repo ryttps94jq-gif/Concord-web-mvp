@@ -2058,18 +2058,6 @@ function ModelsTab({
               </div>
             ))}
           </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="sim"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       ))}
     </div>

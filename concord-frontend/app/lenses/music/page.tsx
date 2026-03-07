@@ -217,7 +217,7 @@ export default function MusicLensPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {isLive && <LiveIndicator />}
+          {isLive && <LiveIndicator isLive={isLive} lastUpdated={lastUpdated} />}
           <button
             onClick={() => setView('upload')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 transition-colors"
@@ -720,7 +720,7 @@ export default function MusicLensPage() {
         <div className="fixed right-4 bottom-24 z-40">
           <RealtimeDataPanel
             domain="music"
-            latestData={realtimeData}
+            data={realtimeData}
             insights={realtimeInsights}
             isLive={isLive}
             lastUpdated={lastUpdated}

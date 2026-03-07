@@ -2542,7 +2542,7 @@ export default function FoodLensPage() {
                 {foodArtifacts.slice(0, 3).map((dtu: DTU) => (
                   <div key={dtu.id} className="p-2 rounded bg-lattice-elevated/50 border border-lattice-border">
                     <p className="text-xs font-medium truncate mb-1">{dtu.title || 'Untitled'}</p>
-                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact} mode="thumbnail" />
+                    <ArtifactRenderer dtuId={dtu.id} artifact={dtu.artifact!} mode="thumbnail" />
                   </div>
                 ))}
               </div>

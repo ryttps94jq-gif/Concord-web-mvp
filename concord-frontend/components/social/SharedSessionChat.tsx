@@ -90,50 +90,56 @@ export function SharedSessionChat({ sessionId, currentUserId, onEnd }: SharedSes
 
   // WebSocket event listeners
   useEffect(() => {
-    const handleMessage = (data: { sessionId: string; message: { id: string; userId: string; content: string; ts: string }; userName: string }) => {
-      if (data.sessionId !== sessionId) return;
-      if (data.message.userId === currentUserId) return; // skip own messages (already added)
+    const handleMessage = (data: unknown) => {
+      const d = data as { sessionId: string; message: { id: string; userId: string; content: string; ts: string }; userName: string };
+      if (d.sessionId !== sessionId) return;
+      if (d.message.userId === currentUserId) return; // skip own messages (already added)
       setMessages(prev => [...prev, {
         type: 'user',
-        userId: data.message.userId,
-        userName: data.userName,
-        content: data.message.content,
-        ts: data.message.ts,
+        userId: d.message.userId,
+        userName: d.userName,
+        content: d.message.content,
+        ts: d.message.ts,
       }]);
     };
 
-    const handleAiResponse = (data: { sessionId: string; response: string; contextSources: string[] }) => {
-      if (data.sessionId !== sessionId) return;
+    const handleAiResponse = (data: unknown) => {
+      const d = data as { sessionId: string; response: string; contextSources: string[] };
+      if (d.sessionId !== sessionId) return;
       setMessages(prev => [...prev, {
         type: 'ai',
-        content: data.response,
-        contextSources: data.contextSources,
+        content: d.response,
+        contextSources: d.contextSources,
         ts: new Date().toISOString(),
       }]);
       setIsSending(false);
     };
 
-    const handleArtifact = (data: { sessionId: string; dtuId: string; title: string; domain: string }) => {
-      if (data.sessionId !== sessionId) return;
-      setMessages(prev => [...prev, { type: 'artifact', ...data }]);
+    const handleArtifact = (data: unknown) => {
+      const d = data as { sessionId: string; dtuId: string; title: string; domain: string };
+      if (d.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, { type: 'artifact', ...d }]);
     };
 
-    const handleDtuShared = (data: { sessionId: string; userName: string; dtuTitle: string; dtuDomain: string }) => {
-      if (data.sessionId !== sessionId) return;
-      setMessages(prev => [...prev, { type: 'dtu_shared', ...data }]);
+    const handleDtuShared = (data: unknown) => {
+      const d = data as { sessionId: string; userName: string; dtuTitle: string; dtuDomain: string };
+      if (d.sessionId !== sessionId) return;
+      setMessages(prev => [...prev, { type: 'dtu_shared', ...d }]);
     };
 
-    const handleJoined = (data: { sessionId: string; userId: string; userName: string; participantCount: number }) => {
-      if (data.sessionId !== sessionId) return;
+    const handleJoined = (data: unknown) => {
+      const d = data as { sessionId: string; userId: string; userName: string; participantCount: number };
+      if (d.sessionId !== sessionId) return;
       setMessages(prev => [...prev, {
         type: 'system',
-        content: `${data.userName} joined the session`,
+        content: `${d.userName} joined the session`,
         ts: new Date().toISOString(),
       }]);
     };
 
-    const handleEnded = (data: { sessionId: string }) => {
-      if (data.sessionId !== sessionId) return;
+    const handleEnded = (data: unknown) => {
+      const d = data as { sessionId: string };
+      if (d.sessionId !== sessionId) return;
       setSessionStatus('ended');
       setMessages(prev => [...prev, {
         type: 'system',

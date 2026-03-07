@@ -138,6 +138,7 @@ class MusicPlayerEngine {
 
   getFrequencyData(): Uint8Array | null {
     if (!this.analyserNode || !this.waveformData) return null;
+    // @ts-expect-error Uint8Array<ArrayBufferLike> is compatible with Uint8Array<ArrayBuffer>
     this.analyserNode.getByteFrequencyData(this.waveformData);
     return this.waveformData;
   }

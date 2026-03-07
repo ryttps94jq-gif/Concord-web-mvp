@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Code2, GitBranch, Package, Layers, AlertTriangle,
-  RefreshCw, Play, Compress, CheckCircle, XCircle, Clock
+  RefreshCw, Play, Minimize2, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -243,7 +243,7 @@ export function CodeEngineStatus({ className, apiBase = '' }: CodeEngineStatusPr
                 </>
               ) : (
                 <>
-                  <Compress className="w-4 h-4" />
+                  <Minimize2 className="w-4 h-4" />
                   Compress
                 </>
               )}

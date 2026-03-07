@@ -275,8 +275,8 @@ describe('System Store', () => {
         rejected: 3,
         avgLatencyMs: 250,
         byPriority: {
-          high: { queued: 2, inflight: 1 },
-          normal: { queued: 3, inflight: 1 },
+          high: { queued: 2, inflight: 1, completed: 0, rejected: 0, avgLatencyMs: 0 },
+          normal: { queued: 3, inflight: 1, completed: 0, rejected: 0, avgLatencyMs: 0 },
         },
       };
 

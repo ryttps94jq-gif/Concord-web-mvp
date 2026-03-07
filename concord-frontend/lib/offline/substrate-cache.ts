@@ -82,6 +82,7 @@ export async function loadOfflineSubstrate(): Promise<SubstrateData | null> {
         // Check for gzip magic bytes
         if (raw[0] === 0x1f && raw[1] === 0x8b) {
           // Need pako for decompression in browser
+          // @ts-expect-error pako has no type declarations
           import('pako').then(pako => {
             const decompressed = pako.ungzip(raw);
             resolve(JSON.parse(new TextDecoder().decode(decompressed)));

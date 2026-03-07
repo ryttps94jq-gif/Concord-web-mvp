@@ -90,6 +90,10 @@ describe('DTUIntegrityBadge', () => {
             layer1: 'checksum1abcdef1234567890',
             layer2: 'checksum2abcdef1234567890',
           },
+          signatureValid: true,
+          verifiedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }}
       />
     );

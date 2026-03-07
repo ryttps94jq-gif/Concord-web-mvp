@@ -182,7 +182,7 @@ describe('UniversalPlayer', () => {
       if (hasError) return React.createElement('div', { 'data-testid': 'error-boundary' }, 'Error caught');
       return React.createElement(
         ErrorBoundaryClass,
-        { onError: () => setHasError(true) },
+        { onError: () => setHasError(true) } as any,
         children,
       );
     };
@@ -206,7 +206,7 @@ describe('UniversalPlayer', () => {
     }
 
     const { container } = render(
-      React.createElement(ErrorBoundaryClass, { onError: () => {} },
+      React.createElement(ErrorBoundaryClass, { onError: () => {} } as any,
         React.createElement(UniversalPlayer, { mediaDTU: undefined as never })
       )
     );
@@ -230,7 +230,7 @@ describe('UniversalPlayer', () => {
     }
 
     const { container } = render(
-      React.createElement(ErrorBoundaryClass, {},
+      React.createElement(ErrorBoundaryClass, {} as any,
         React.createElement(UniversalPlayer, { mediaDTU: null as never })
       )
     );

@@ -212,6 +212,51 @@ export default function registerChatRoutes(app, {
     }
   });
 
+  // ── DTU Context Pipeline Endpoints ─────────────────────────────────────
+
+  // GET /api/chat/context — returns assembled working set for debugging
+  app.get("/api/chat/context", asyncHandler(async (req, res) => {
+    try {
+      const sessionId = String(req.query.sessionId || "default");
+      const lens = String(req.query.lens || "chat");
+      const out = await runMacro("chat", "context", { sessionId, lens }, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // POST /api/chat/harvest — runs Phase 1 only, returns ranked DTU candidates
+  app.post("/api/chat/harvest", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "harvest", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // GET /api/chat/summary/:sessionId — returns conversation summary DTU
+  app.get("/api/chat/summary/:sessionId", asyncHandler(async (req, res) => {
+    try {
+      const sessionId = String(req.params.sessionId || "default");
+      const out = await runMacro("chat", "summary", { sessionId }, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
+  // POST /api/chat/forge/message — Forge DTU from chat message
+  app.post("/api/chat/forge/message", asyncHandler(async (req, res) => {
+    try {
+      const out = await runMacro("chat", "forge.message", req.body, makeCtx(req));
+      return res.json(out);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }));
+
   // ── Forge Artifact Actions ────────────────────────────────────────────
   // POST /api/chat/forge/save — Save forged DTU to substrate
   app.post("/api/chat/forge/save", asyncHandler(async (req, res) => {

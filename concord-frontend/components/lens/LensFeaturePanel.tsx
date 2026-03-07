@@ -129,9 +129,9 @@ export function LensFeaturePanel({ lensId, className, compact = false }: LensFea
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <Layers className="w-4 h-4 text-neon-cyan" />
           <span className="font-medium">{features.length} Features</span>
-          {summary?.emergentAccess && <Bot className="w-3.5 h-3.5 text-neon-purple" title="Emergent access" />}
-          {summary?.botAccess && <Cpu className="w-3.5 h-3.5 text-neon-green" title="Bot access" />}
-          {summary?.usbIntegration && <Globe className="w-3.5 h-3.5 text-neon-cyan" title="USB integration" />}
+          {summary?.emergentAccess && <Bot className="w-3.5 h-3.5 text-neon-purple" />}
+          {summary?.botAccess && <Cpu className="w-3.5 h-3.5 text-neon-green" />}
+          {summary?.usbIntegration && <Globe className="w-3.5 h-3.5 text-neon-cyan" />}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {features.slice(0, 6).map(f => {

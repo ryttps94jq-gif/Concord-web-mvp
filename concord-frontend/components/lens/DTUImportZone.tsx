@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { useApi } from '../../hooks/useApi';
+import { api } from '@/lib/api/client';
 
 interface DTUImportZoneProps {
   domain: string;
@@ -16,7 +16,6 @@ export function DTUImportZone({
   compact,
   className = '',
 }: DTUImportZoneProps) {
-  const api = useApi();
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<string | null>(null);

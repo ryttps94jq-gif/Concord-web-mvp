@@ -124,11 +124,11 @@ describe('useLensData', () => {
 
     beforeEach(() => {
       // Auto-seeding only runs in development mode
-      process.env.NODE_ENV = 'development';
+      (process.env as any).NODE_ENV = 'development';
     });
 
     afterEach(() => {
-      process.env.NODE_ENV = originalEnv;
+      (process.env as any).NODE_ENV = originalEnv;
     });
 
     it('triggers bulk seed when backend returns empty and seed data is provided', async () => {

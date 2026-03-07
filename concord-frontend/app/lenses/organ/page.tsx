@@ -518,18 +518,6 @@ function MetricBar({ label, value, color }: { label: string; value: number; colo
       <div className="h-1.5 bg-lattice-deep rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${value * 100}%` }} />
       </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="organ"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
     </div>
   );
 }

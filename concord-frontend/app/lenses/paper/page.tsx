@@ -1583,18 +1583,6 @@ function CitationDetailFields({ item, citationStyle }: { item: LensItem; citatio
         <div>
           <span className={ds.label}>URL</span>
           <p className={cn(ds.textMono, 'text-neon-blue text-xs break-all')}>{d.url}</p>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="paper"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
       {d.citedByCount !== undefined && (

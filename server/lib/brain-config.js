@@ -62,22 +62,25 @@ export const SYSTEM_TO_BRAIN = Object.freeze({
   sovereign_decree: "conscious",
   entity_dialogue: "conscious",
 
-  // Subconscious brain — autonomous generation
+  // Subconscious brain — autonomous generation + unsaid analysis
   autogen: "subconscious",
   autogen_pipeline: "subconscious",
   meta_derivation: "subconscious",
   dream_synthesis: "subconscious",
+  chat_unsaid: "subconscious",
 
-  // Utility brain — analytical and support tasks
+  // Utility brain — analytical and support tasks + conversation compression
   hlr_engine: "utility",
   agent_system: "utility",
   hypothesis_engine: "utility",
   council_voices: "utility",
   research_jobs: "utility",
+  chat_summary: "utility",
 
-  // Repair brain — self-healing
+  // Repair brain — self-healing + entity consistency
   repair_cortex: "repair",
   repair_diagnosis: "repair",
+  chat_consistency: "repair",
 });
 
 /**

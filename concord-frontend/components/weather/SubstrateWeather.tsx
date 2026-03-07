@@ -148,11 +148,11 @@ export function SubstrateWeather({ className }: { className?: string }) {
               <h4 className="text-xs font-medium text-gray-400 mb-1">Domain Activity (24h)</h4>
               <div className="flex flex-wrap gap-1">
                 {Object.entries(stats.domainActivity)
-                  .sort(([, a]: [string, number], [, b]: [string, number]) => b - a)
+                  .sort(([, a], [, b]) => (b as number) - (a as number))
                   .slice(0, 10)
-                  .map(([domain, count]: [string, number]) => (
+                  .map(([domain, count]) => (
                     <span key={domain} className="px-2 py-0.5 bg-lattice-deep rounded text-[10px] text-gray-400">
-                      {domain}: {count}
+                      {domain}: {count as number}
                     </span>
                   ))}
               </div>

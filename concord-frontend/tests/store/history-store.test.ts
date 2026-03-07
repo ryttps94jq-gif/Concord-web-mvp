@@ -192,7 +192,7 @@ describe('History Store', () => {
     });
 
     it('does not undo while already undoing', async () => {
-      const undoFn = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 50)));
+      const undoFn = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 50))) as unknown as () => void | Promise<void>;
       useHistoryStore.getState().push({
         type: 'test',
         description: 'Test',
@@ -286,7 +286,7 @@ describe('History Store', () => {
     });
 
     it('does not redo while already redoing', async () => {
-      const redoFn = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 50)));
+      const redoFn = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 50))) as unknown as () => void | Promise<void>;
       useHistoryStore.getState().push({
         type: 'test',
         description: 'Test',

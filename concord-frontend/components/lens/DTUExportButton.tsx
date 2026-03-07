@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useApi } from '../../hooks/useApi';
+import { api } from '@/lib/api/client';
 
 interface DTUExportButtonProps {
   domain: string;
@@ -20,7 +20,6 @@ export function DTUExportButton({
   compact,
   className = '',
 }: DTUExportButtonProps) {
-  const api = useApi();
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState(false);
 

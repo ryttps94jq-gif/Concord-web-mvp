@@ -14,7 +14,7 @@ const makeStatus = (overrides = {}) => ({
   totalModules: 3,
   initializedModules: 2,
   ...overrides,
-});
+}) as any;
 
 const makeReadings = () => [
   {

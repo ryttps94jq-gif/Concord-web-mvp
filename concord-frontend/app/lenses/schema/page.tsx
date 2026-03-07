@@ -294,18 +294,6 @@ function CreateSchemaModal({ onClose, onCreate, creating }: { onClose: () => voi
             {creating ? 'Creating...' : 'Create Schema'}
           </button>
         </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="schema"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
     </div>
   );

@@ -209,6 +209,7 @@ function RealityExplorerSection() {
   const [constraints, setConstraints] = useState<ExploreConstraint[]>([{ key: '', min: '', max: '' }]);
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const addConstraint = () => setConstraints([...constraints, { key: '', min: '', max: '' }]);
   const removeConstraint = (idx: number) => setConstraints(constraints.filter((_, i) => i !== idx));
@@ -303,18 +304,6 @@ function RealityExplorerSection() {
               <p className="text-gray-400">{cfg.nextStep}</p>
             </div>
           ))}
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="lab"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
       )}
 

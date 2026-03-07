@@ -28,8 +28,9 @@ export function PersonalAgentPanel({ socket, onAction }: PersonalAgentPanelProps
 
   useEffect(() => {
     if (!socket) return;
-    const handler = (data: { insights: AgentInsight[] }) => {
-      setInsights(data.insights);
+    const handler = (data: unknown) => {
+      const d = data as { insights: AgentInsight[] };
+      if (d?.insights) setInsights(d.insights);
     };
     socket.on('agent:insights', handler);
     return () => {

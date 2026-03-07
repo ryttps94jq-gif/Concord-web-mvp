@@ -930,18 +930,6 @@ function ResultsDashboard({
             );
           })}
         </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="vote"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
     </div>
   );

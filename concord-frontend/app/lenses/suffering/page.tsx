@@ -284,18 +284,6 @@ function MetricCard({
           className={`h-full ${bgColors[color]}`}
           style={{ width: `${value * 100}%` }}
         />
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="suffering"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
       </div>
       <p className="text-xs text-gray-500">{description}</p>
     </div>

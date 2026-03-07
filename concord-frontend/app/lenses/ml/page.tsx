@@ -1400,18 +1400,6 @@ function NewExperimentModal({ models, datasets, onClose, onSubmit, submitting }:
               </select>
             </div>
           </div>
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="ml"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
         </div>
 
         <div className="flex gap-3 justify-end pt-4 border-t border-lattice-border">

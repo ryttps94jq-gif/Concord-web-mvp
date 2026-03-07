@@ -160,7 +160,7 @@ export function MorningBrief({ compact = false, className }: MorningBriefProps) 
             {brief.stats.topDomains.length > 0 && (
               <span className="flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-neon-cyan" />
-                Top: {brief.stats.topDomains.slice(0, 3).map(d => d.domain).join(', ')}
+                Top: {brief.stats.topDomains.slice(0, 3).map((d: { domain: string; count: number }) => d.domain).join(', ')}
               </span>
             )}
           </div>

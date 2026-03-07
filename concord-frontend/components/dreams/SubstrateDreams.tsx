@@ -29,10 +29,10 @@ export function SubstrateDreams({ className }: { className?: string }) {
   const [expanded, setExpanded] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: dreamState, isLoading } = useQuery({
+  const { data: dreamState, isLoading } = useQuery<{ isActive?: boolean; currentPhase?: { id: string; name: string; description: string }; progress?: number; stats?: Record<string, number> }>({
     queryKey: ['dream-state'],
     queryFn: () => api.get('/api/dreams/state').then(r => r.data),
-    refetchInterval: dreamState?.isActive ? 3000 : 30000,
+    refetchInterval: (query) => query.state.data?.isActive ? 3000 : 30000,
   });
 
   const { data: historyData } = useQuery({

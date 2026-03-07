@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useLensNav } from '@/hooks/useLensNav';
-import { apiHelpers } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import {
   Network, ArrowLeftRight, Shield, MessageSquare, Skull,
   Baby, Eye, AlertTriangle, CheckCircle2, XCircle,
@@ -27,6 +27,7 @@ interface Organism {
 
 interface BridgeLogEntry {
   id: string; action: string; at: string;
+  dtuId?: string; swarmName?: string;
   [key: string]: unknown;
 }
 
@@ -53,28 +54,28 @@ interface EmergentRole {
 /* ------------------------------------------------------------------ */
 
 async function fetchOrganisms(): Promise<Organism[]> {
-  const res = await apiHelpers.get('/api/bridge/organisms');
-  return res?.organisms || [];
+  const res = await api.get('/api/bridge/organisms');
+  return res?.data?.organisms || [];
 }
 
 async function fetchBridgeLog(limit = 50): Promise<BridgeLogEntry[]> {
-  const res = await apiHelpers.get(`/api/bridge/log?limit=${limit}`);
-  return res?.log || [];
+  const res = await api.get(`/api/bridge/log?limit=${limit}`);
+  return res?.data?.log || [];
 }
 
 async function fetchDebates(limit = 20): Promise<Debate[]> {
-  const res = await apiHelpers.get(`/api/bridge/debates?limit=${limit}`);
-  return res?.debates || [];
+  const res = await api.get(`/api/bridge/debates?limit=${limit}`);
+  return res?.data?.debates || [];
 }
 
 async function fetchBirths(): Promise<BirthCert[]> {
-  const res = await apiHelpers.get('/api/bridge/births');
-  return res?.births || [];
+  const res = await api.get('/api/bridge/births');
+  return res?.data?.births || [];
 }
 
 async function fetchEmergents(): Promise<EmergentRole[]> {
-  const res = await apiHelpers.get('/api/bridge/emergents');
-  return res?.emergents || [];
+  const res = await api.get('/api/bridge/emergents');
+  return res?.data?.emergents || [];
 }
 
 /* ------------------------------------------------------------------ */
@@ -344,18 +345,6 @@ function EmergentsTab({ emergents }: { emergents: EmergentRole[] }) {
           </div>
         </div>
       ))}
-
-      {/* Real-time Data Panel */}
-      {realtimeData && (
-        <RealtimeDataPanel
-          domain="bridge"
-          data={realtimeData}
-          isLive={isLive}
-          lastUpdated={lastUpdated}
-          insights={realtimeInsights}
-          compact
-        />
-      )}
     </div>
   );
 }

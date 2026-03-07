@@ -36,7 +36,7 @@ function BrainCard({ name, brain }: { name: string; brain: BrainData }) {
           Avg Response: {avgMs > 0 ? `${avgMs}ms` : 'N/A'}
         </div>
         <div>Requests: <span className="text-neutral-200">{brain.stats?.requests || 0}</span></div>
-        <div>Errors: <span className={brain.stats?.errors > 0 ? 'text-red-400' : 'text-neutral-200'}>
+        <div>Errors: <span className={(brain.stats?.errors ?? 0) > 0 ? 'text-red-400' : 'text-neutral-200'}>
           {brain.stats?.errors || 0}
         </span></div>
         <div>DTUs Generated: <span className="text-neutral-200">{brain.stats?.dtusGenerated || 0}</span></div>
@@ -84,10 +84,10 @@ export default function BrainHealthPanel() {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <BrainCard name="Conscious (7B)" brain={brainStatus.conscious} />
-        <BrainCard name="Subconscious (1.5B)" brain={brainStatus.subconscious} />
-        <BrainCard name="Utility (3B)" brain={brainStatus.utility} />
-        <BrainCard name="Repair (0.5B)" brain={brainStatus.repair} />
+        <BrainCard name="Conscious (7B)" brain={brainStatus.conscious as BrainData} />
+        <BrainCard name="Subconscious (1.5B)" brain={brainStatus.subconscious as BrainData} />
+        <BrainCard name="Utility (3B)" brain={brainStatus.utility as BrainData} />
+        <BrainCard name="Repair (0.5B)" brain={brainStatus.repair as BrainData} />
       </div>
     </div>
   );

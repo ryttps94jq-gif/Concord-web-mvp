@@ -294,7 +294,7 @@ function TopologyView({ topology }: { topology: TopologyData }) {
           {topology.nodes.map(node => (
             <div key={node.nodeId} className="flex items-center gap-2 p-2 bg-zinc-800 rounded text-xs">
               <span className="text-zinc-300 font-mono flex-1 truncate">{node.nodeId}</span>
-              {node.relay && <ArrowRightLeft size={12} className="text-cyan-500" title="Relay node" />}
+              {node.relay && <ArrowRightLeft size={12} className="text-cyan-500" />}
               <span className="text-zinc-500">{node.channels.length} ch</span>
             </div>
           ))}
