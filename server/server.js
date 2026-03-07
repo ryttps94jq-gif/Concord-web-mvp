@@ -217,6 +217,13 @@ import { runBootstrapIngestion, loadSeedPacks, getIngestionMetrics } from "./eme
 import { processQuery as contextProcessQuery, queryGlobalFallback } from "./emergent/context-engine.js";
 import { selectGlobalSynthesisCandidates } from "./emergent/scope-separation.js";
 
+// ---- Chat Response Pipeline: DTU-Enriched Context System ----
+import { isSummaryDue, compressConversation, getSessionSummary, getSummaryText } from "./lib/conversation-summarizer.js";
+import { runContextHarvest, harvestEntityState, formatEntityStateBlock } from "./lib/chat-context-pipeline.js";
+import { assembleWithTokenBudget, computeBudgetBreakdown } from "./lib/token-budget-assembler.js";
+import { createInputDTU, createOutputDTU, isConsolidationDue, consolidationCheck, forgeFromMessage } from "./lib/conversation-enrichment.js";
+import { runParallelBrains, recordParallelMetrics } from "./lib/chat-parallel-brains.js";
+
 // ---- Entity Growth, Web Exploration & Hive Communication ----
 import {
   createNewbornEntity, processExperience as processGrowthExperience,
@@ -15525,6 +15532,26 @@ const _mentionsSelf = Array.from(_selfTokens).some(t => _pLow.includes(t));
 
 sess.messages.push({ role: "user", content: prompt, ts: nowISO() });
 
+  // ===== DTU ENRICHMENT: Input DTU + Summary Compression =====
+  // Create input DTU from user message (fire-and-forget)
+  try {
+    createInputDTU(STATE, {
+      userId: ctx?.actor?.userId,
+      sessionId,
+      message: prompt,
+      timestamp: nowISO(),
+      intent: intentInfo?.intent || null,
+      topics: intentInfo?.topics || [],
+    });
+  } catch {}
+  // Trigger conversation summary compression if due (async, never blocks)
+  try {
+    if (isSummaryDue(STATE.sessions, sessionId)) {
+      compressConversation(STATE, sessionId, { structuredLog: ctx.log }).catch(() => {});
+    }
+  } catch {}
+  // ===== END DTU ENRICHMENT =====
+
   // --- Per-user personality growth (style vector) ---
   // Only react to explicit preference signals (offline-safe).
   const _low = tokenish(prompt);
@@ -16177,6 +16204,50 @@ let localReply = formatCrispResponse({
   // ===== END UNIFIED CONTEXT ENGINE =====
   // ===== END CONSCIOUS BRAIN ROUTING =====
 
+  // ===== DTU CONTEXT PIPELINE: Four-Source Harvest + Token Budget Assembly =====
+  let _pipelineHarvest = null;
+  let _pipelineBudget = null;
+  let _pipelineDtuCount = 0;
+  try {
+    // Phase 1: Context Harvest (4 sources)
+    _pipelineHarvest = runContextHarvest(STATE, {
+      sessionId,
+      prompt,
+      lens: mode,
+      userId: ctx?.actor?.userId,
+      workingSetDtus: _enrichedFocus,
+    });
+
+    // Phase 2: Token Budget Assembly
+    const _entityBlock = _pipelineHarvest.entityStateBlock || "";
+    const _convSummary = _pipelineHarvest.conversationSummary || "";
+    const _baseSystem = `You are ConcordOS. Be natural, concise but not dry. Use DTUs as memory. Never pretend features exist.\nMode: ${mode}.`;
+
+    _pipelineBudget = assembleWithTokenBudget({
+      systemPromptBase: _baseSystem,
+      entityStateBlock: _entityBlock,
+      conversationSummary: _convSummary,
+      userMessage: prompt,
+      workingSetDtus: _pipelineHarvest.consolidatedWorkingSet || _enrichedFocus,
+      activationMeta: (_pipelineHarvest.consolidatedWorkingSet || []).map(d => ({ dtuId: d.id, score: d._activationScore || 0.5 })),
+    });
+
+    _pipelineDtuCount = _pipelineBudget.dtuCount || 0;
+
+    ctx.log("chat_pipeline", "Context pipeline assembled", {
+      sessionId,
+      sources: _pipelineHarvest.sources,
+      dtuCount: _pipelineDtuCount,
+      tokenEstimate: _pipelineBudget.tokenEstimate,
+      truncatedCount: _pipelineBudget.truncatedCount,
+      budgetPct: _pipelineBudget.budgetUtilization?.total?.pct,
+    });
+  } catch (_pipeErr) {
+    // Pipeline is enhancement-only; failures fall through to original logic
+    ctx.log("chat_pipeline.error", "Context pipeline failed, using fallback", { error: String(_pipeErr?.message || _pipeErr) });
+  }
+  // ===== END DTU CONTEXT PIPELINE =====
+
   let finalReply = localReply;
   let llmUsed = false;
   const semanticUsed = Boolean(semanticEnhancement && semanticEnhancement.confidence > 0.4);
@@ -16314,8 +16385,33 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
   }
 
   const _qpMeta = _fusedContext ? { patternsApplied: _fusedContext.meta.patternsApplied, queryIntent: _qualityPipelineResult?.queryIntent, tokenEstimate: _fusedContext.meta.tokenEstimate } : null;
-  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta } });
-  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta });
+  sess.messages.push({ role: "assistant", content: finalReply, ts: nowISO(), meta: { llmUsed, semanticUsed, mode, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta, dtuCount: _pipelineDtuCount } });
+  ctx.log("chat", "Chat response generated", { sessionId, mode, llmUsed, semanticUsed, relevant: relevant.map(d=>d.id), qualityPipeline: _qpMeta, pipelineDtuCount: _pipelineDtuCount });
+
+  // ===== DTU ENRICHMENT: Output DTU + Consolidation Check =====
+  try {
+    createOutputDTU(STATE, {
+      sessionId,
+      response: finalReply,
+      entityId: null,
+      brain: llmUsed ? "conscious" : "local",
+      confidence: llmUsed ? 0.8 : 0.5,
+      workingSetDtuIds: (_pipelineHarvest?.consolidatedWorkingSet || relevant).map(d => d.id).slice(0, 20),
+    });
+  } catch {}
+  // Consolidation check every 10 exchanges
+  try {
+    if (isConsolidationDue(sess)) {
+      const _consResult = consolidationCheck(STATE, sessionId);
+      if (_consResult.shouldConsolidate) {
+        ctx.log("chat_enrichment", "Session DTUs flagged for consolidation", {
+          sessionId, flaggedCount: _consResult.flaggedCount, domains: _consResult.domains,
+        });
+      }
+      sess._lastConsolidationCheck = Math.floor(sess.messages.length / 2);
+    }
+  } catch {}
+  // ===== END DTU ENRICHMENT =====
 
   // ===== REFLECTIVE LOOP + EXPERIENCE RECORDING =====
   // Post-response: self-critique the response, record experience, complete attention thread
@@ -16415,6 +16511,13 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
   return {
     ok: true, reply: finalReply, sessionId, mode, llmUsed, semanticUsed,
     relevant: relevant.map(d=>({ id:d.id, title:d.title, tier:d.tier })),
+    dtuCount: _pipelineDtuCount,
+    pipeline: _pipelineHarvest ? {
+      sources: _pipelineHarvest.sources,
+      hardwareTier: _pipelineHarvest.hardwareTier,
+      tokenEstimate: _pipelineBudget?.tokenEstimate || null,
+      budgetPct: _pipelineBudget?.budgetUtilization?.total?.pct || null,
+    } : null,
     grc: _grcOutput,
     route: _routeMeta,
     forge: _forgeResult ? {
@@ -16446,6 +16549,76 @@ When helpful, reference DTU titles in plain language (do not dump ids unless ask
     } : null,
   };
 }, { description: "Mode-aware chat with DTU retrieval, universal lens routing, and inline artifact forge. Outputs GRC v1 envelope." });
+
+// ===== CHAT PIPELINE MACROS =====
+// New macros for the DTU-enriched context pipeline.
+
+register("chat", "harvest", (ctx, input) => {
+  const sessionId = String(input.sessionId || "default");
+  const prompt = String(input.prompt || input.message || "");
+  const harvest = runContextHarvest(STATE, {
+    sessionId,
+    prompt,
+    lens: input.lens || "chat",
+    userId: ctx?.actor?.userId,
+    workingSetDtus: [],
+  });
+  return {
+    ok: true,
+    dtus: (harvest.consolidatedWorkingSet || []).map(d => ({
+      id: d.id, title: d.title, score: d._activationScore || 0, tier: d.tier || "regular",
+      source: d.source || "substrate",
+    })),
+    entityState: harvest.entityState || {},
+    conversationSummary: harvest.conversationSummary || "",
+    hardwareTier: harvest.hardwareTier,
+    sources: harvest.sources,
+  };
+}, { description: "Run Phase 1 context harvest only. Returns ranked DTU candidates." });
+
+register("chat", "context", (ctx, input) => {
+  const sessionId = String(input.sessionId || "default");
+  const harvest = runContextHarvest(STATE, {
+    sessionId,
+    prompt: "",
+    lens: input.lens || "chat",
+    userId: ctx?.actor?.userId,
+    workingSetDtus: [],
+  });
+  const budget = computeBudgetBreakdown();
+  return {
+    ok: true,
+    workingSet: (harvest.consolidatedWorkingSet || []).map(d => ({
+      id: d.id, title: d.title, tier: d.tier || "regular",
+      tags: (d.tags || []).slice(0, 5),
+    })),
+    totalActivated: harvest.totalCandidates || 0,
+    entityState: harvest.entityState || {},
+    conversationSummary: harvest.conversationSummary || "",
+    tokenBudget: budget,
+    sources: harvest.sources,
+  };
+}, { description: "Get assembled working set for debugging. Returns context without generating a response." });
+
+register("chat", "summary", (ctx, input) => {
+  const sessionId = String(input.sessionId || "default");
+  return getSessionSummary(STATE, sessionId);
+}, { description: "Get conversation summary DTU for a session." });
+
+register("chat", "forge.message", (ctx, input) => {
+  const content = String(input.content || input.message || "");
+  const sessionId = String(input.sessionId || "default");
+  if (!content) return { ok: false, error: "content required" };
+  const result = forgeFromMessage(STATE, {
+    messageContent: content,
+    sessionId,
+    userId: ctx?.actor?.userId,
+    title: input.title || null,
+    tags: input.tags || [],
+  });
+  if (result.ok) saveStateDebounced();
+  return result;
+}, { description: "Promote a chat message to a permanent substrate DTU via Forge DTU button." });
 
 // ===== FORGE ARTIFACT ACTIONS =====
 // Save, delete, list, and iterate on forged DTUs from the chat pipeline.

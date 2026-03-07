@@ -36,6 +36,8 @@ import {
   Database,
   BookOpen,
   MessageSquare,
+  Eye,
+  Hammer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMode, ActionButton } from './ChatModeTypes';
@@ -485,9 +487,11 @@ interface ResponseActionsProps {
   responseContent: string;
   currentLens: string;
   onSendMessage: (content: string) => void;
+  onViewContext?: () => void;
+  onForgeDTU?: (content: string) => void;
 }
 
-export function ResponseActions({ mode, responseContent, currentLens, onSendMessage }: ResponseActionsProps) {
+export function ResponseActions({ mode, responseContent, currentLens, onSendMessage, onViewContext, onForgeDTU }: ResponseActionsProps) {
   const getActions = (): { label: string; prompt: string; icon: React.ComponentType<{ className?: string }> }[] => {
     switch (mode) {
       case 'assist':
@@ -553,6 +557,28 @@ export function ResponseActions({ mode, responseContent, currentLens, onSendMess
           </button>
         );
       })}
+
+      {/* DTU Pipeline Actions */}
+      {onViewContext && (
+        <button
+          onClick={onViewContext}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
+          title="View DTU context that informed this response"
+        >
+          <Eye className="w-2.5 h-2.5" />
+          Context
+        </button>
+      )}
+      {onForgeDTU && (
+        <button
+          onClick={() => onForgeDTU(responseContent)}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-neon-purple/60 hover:text-neon-purple hover:bg-neon-purple/10 transition-colors"
+          title="Promote this exchange to a permanent DTU"
+        >
+          <Hammer className="w-2.5 h-2.5" />
+          Forge DTU
+        </button>
+      )}
     </div>
   );
 }

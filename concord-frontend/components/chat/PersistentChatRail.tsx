@@ -43,6 +43,7 @@ import {
   Minimize2,
   Maximize2,
   Layers,
+  Database,
 } from 'lucide-react';
 
 // ── Mode system imports ─────────────────────────────────────────
@@ -62,6 +63,7 @@ import {
 } from './ChatModePanels';
 import { useChatProactive } from './useChatProactive';
 import { useCrossLensMemory } from './useCrossLensMemory';
+import { ContextOverlay } from './ContextOverlay';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -74,6 +76,10 @@ interface ChatMessage {
   lensRecommendation?: LensRecommendation | null;
   suggestedAction?: string | null;
   sources?: { title: string; url: string; source: string }[];
+  // DTU context pipeline metadata
+  dtuCount?: number;
+  dtuIds?: string[];
+  brain?: string;
 }
 
 interface LensRecommendation {
@@ -117,6 +123,8 @@ export function PersistentChatRail({
   const [streamingText, setStreamingText] = useState('');
   const [webResults, setWebResults] = useState<WebResult[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [lastDtuCount, setLastDtuCount] = useState(0);
+  const [contextOverlayOpen, setContextOverlayOpen] = useState(false);
 
   // ── Mode state ─────────────────────────────────────────────
 
@@ -235,6 +243,9 @@ export function PersistentChatRail({
         response?: string;
         lensRecommendation?: LensRecommendation;
         sources?: { title: string; url: string; source: string }[];
+        dtuCount?: number;
+        dtuIds?: string[];
+        brain?: string;
       };
       if (d.sessionId === sessionId) {
         const msg: ChatMessage = {
@@ -245,11 +256,16 @@ export function PersistentChatRail({
           timestamp: new Date().toISOString(),
           lensRecommendation: d.lensRecommendation || null,
           sources: d.sources || [],
+          dtuCount: d.dtuCount ?? 0,
+          dtuIds: d.dtuIds || [],
+          brain: d.brain || undefined,
         };
         setMessages(prev => [...prev, msg]);
         setStreamingText('');
         setChatStatus('idle');
         setWebResults([]);
+        // Update DTU context depth counter
+        if (d.dtuCount != null) setLastDtuCount(d.dtuCount);
       }
     };
 
@@ -339,8 +355,10 @@ export function PersistentChatRail({
           lens: currentLens,
           timestamp: new Date().toISOString(),
           lensRecommendation: data?.lensRecommendation || null,
+          dtuCount: data?.dtuCount ?? 0,
         };
         setMessages(prev => [...prev, assistantMsg]);
+        if (data?.dtuCount != null) setLastDtuCount(data.dtuCount);
       } catch (err) {
         const errorMsg: ChatMessage = {
           id: `msg-${Date.now()}-err`,
@@ -527,6 +545,16 @@ export function PersistentChatRail({
               {currentLens}
             </span>
           )}
+          {lastDtuCount > 0 && (
+            <button
+              onClick={() => setContextOverlayOpen(true)}
+              className="flex items-center gap-1 text-[10px] text-neon-green px-1.5 py-0.5 rounded-full bg-neon-green/10 border border-neon-green/20 hover:bg-neon-green/20 transition-colors"
+              title="View DTU context"
+            >
+              <Database className="w-2.5 h-2.5" />
+              {lastDtuCount} DTUs
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -687,6 +715,15 @@ export function PersistentChatRail({
                       responseContent={msg.content}
                       currentLens={currentLens}
                       onSendMessage={sendMessage}
+                      onViewContext={() => setContextOverlayOpen(true)}
+                      onForgeDTU={async (content) => {
+                        try {
+                          await api.post('/api/chat/forge/message', {
+                            content,
+                            sessionId,
+                          });
+                        } catch {}
+                      }}
                     />
                   )}
                 </div>
@@ -697,9 +734,17 @@ export function PersistentChatRail({
 
         {/* Status indicators */}
         {chatStatus === 'thinking' && (
-          <div className="flex items-center gap-2 text-sm text-zinc-400 px-2 py-1">
-            <Brain className="w-4 h-4 animate-pulse" />
-            Thinking...
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-zinc-400 px-2 py-1">
+              <Brain className="w-4 h-4 animate-pulse" />
+              Thinking...
+            </div>
+            {lastDtuCount > 0 && (
+              <div className="flex items-center gap-2 text-[10px] text-zinc-500 px-2">
+                <Database className="w-3 h-3 animate-pulse text-neon-green/50" />
+                Harvesting context from {lastDtuCount} DTUs...
+              </div>
+            )}
           </div>
         )}
         {chatStatus === 'searching' && (
@@ -848,6 +893,14 @@ export function PersistentChatRail({
           </button>
         </div>
       </form>
+
+      {/* Context Overlay */}
+      <ContextOverlay
+        sessionId={sessionId}
+        lens={currentLens ?? undefined}
+        isOpen={contextOverlayOpen}
+        onClose={() => setContextOverlayOpen(false)}
+      />
     </div>
   );
 }
