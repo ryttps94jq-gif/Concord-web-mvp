@@ -3,6 +3,7 @@
     "name": "Concord",
     "slug": "concord-mobile",
     "version": "0.1.0",
+    "scheme": "concordapp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -16,6 +17,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.concord.mobile",
       "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["concordapp"],
+            "CFBundleURLName": "com.concord.mobile"
+          }
+        ],
         "NSBluetoothAlwaysUsageDescription": "Concord uses Bluetooth to discover and communicate with nearby mesh peers for decentralized data exchange.",
         "NSBluetoothPeripheralUsageDescription": "Concord advertises over Bluetooth to participate in the mesh network.",
         "NSLocalNetworkUsageDescription": "Concord uses the local network for WiFi Direct peer-to-peer data transfer.",
@@ -35,6 +42,15 @@
         "backgroundColor": "#000000"
       },
       "package": "com.concord.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": [
+            { "scheme": "concordapp" }
+          ]
+        }
+      ],
       "permissions": [
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",

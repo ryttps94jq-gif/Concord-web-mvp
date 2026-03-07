@@ -176,12 +176,15 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
       if (purpose === "TOKEN_PURCHASE" && userId && tokens) {
         const tokenCount = parseInt(tokens, 10);
         if (tokenCount > 0) {
+          // Determine purchase source (web, ios_app, android_app)
+          const purchaseSource = session.metadata?.source || "web";
+
           // Credit tokens through the ledger (atomic, idempotent via refId)
           const result = executePurchase(db, {
             userId,
             amount: tokenCount,
             metadata: {
-              source: "stripe_checkout",
+              source: purchaseSource,
               stripeSessionId: session.id,
               stripePaymentIntentId: session.payment_intent,
             },
@@ -195,6 +198,8 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
             return { ok: false, error: "token_credit_failed", detail: result.error };
           }
 
+          console.log(`[ECONOMY] Checkout complete: ${tokenCount} tokens for user ${userId} via ${purchaseSource}`);
+
           economyAudit(db, {
             action: "token_purchase_completed",
             userId,
@@ -205,6 +210,7 @@ export async function handleWebhook(db, { rawBody, signature, requestId, ip }) {
               stripePaymentIntentId: session.payment_intent,
               fee: result.fee,
               net: result.net,
+              source: purchaseSource,
             },
             requestId,
             ip,

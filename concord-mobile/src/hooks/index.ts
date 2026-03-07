@@ -13,3 +13,5 @@ export { useBattery } from './useBattery';
 export { useWallet } from './useWallet';
 
 export { useIdentity } from './useIdentity';
+
+export { openExternalPurchase } from './useExternalPurchase';

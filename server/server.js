@@ -22498,6 +22498,12 @@ app.use("/api/lens-features", createLensFeatureRouter(db, LENS_FEATURES));
 import createConnectiveTissueRouter from "./routes/connective-tissue.js";
 app.use("/api/ct", createConnectiveTissueRouter(db));
 
+// ===== MOBILE EXTERNAL PAYMENT (iOS External Purchase Link) =====
+import mobileCheckoutRouter from "./routes/mobile-checkout.js";
+app.locals.verifyToken = verifyToken;
+app.locals.db = db;
+app.use("/", mobileCheckoutRouter);
+
 // ===== OPENAPI DOCUMENTATION =====
 import createOpenAPIRouter from "./routes/openapi.js";
 app.use("/api", createOpenAPIRouter());
