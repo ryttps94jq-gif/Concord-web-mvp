@@ -232,6 +232,91 @@ describe("Primary Type Determination", () => {
   });
 });
 
+describe("Domain Type Determination", () => {
+  it("maps sensor_reading contentType to DOMAIN_SENSOR_READING", () => {
+    assert.equal(determinePrimaryType(null, "sensor_reading"), DTU_FORMAT_CONSTANTS.DOMAIN_SENSOR_READING);
+  });
+
+  it("maps sensor shorthand to DOMAIN_SENSOR_READING", () => {
+    assert.equal(determinePrimaryType(null, "sensor"), DTU_FORMAT_CONSTANTS.DOMAIN_SENSOR_READING);
+  });
+
+  it("maps shield_threat contentType to DOMAIN_SHIELD_THREAT", () => {
+    assert.equal(determinePrimaryType(null, "shield_threat"), DTU_FORMAT_CONSTANTS.DOMAIN_SHIELD_THREAT);
+  });
+
+  it("maps threat shorthand to DOMAIN_SHIELD_THREAT", () => {
+    assert.equal(determinePrimaryType(null, "threat"), DTU_FORMAT_CONSTANTS.DOMAIN_SHIELD_THREAT);
+  });
+
+  it("maps economy_transaction contentType to DOMAIN_ECONOMY_TRANSACTION", () => {
+    assert.equal(determinePrimaryType(null, "economy_transaction"), DTU_FORMAT_CONSTANTS.DOMAIN_ECONOMY_TRANSACTION);
+  });
+
+  it("maps transaction shorthand to DOMAIN_ECONOMY_TRANSACTION", () => {
+    assert.equal(determinePrimaryType(null, "transaction"), DTU_FORMAT_CONSTANTS.DOMAIN_ECONOMY_TRANSACTION);
+  });
+
+  it("maps identity_assertion to DOMAIN_IDENTITY_ASSERTION", () => {
+    assert.equal(determinePrimaryType(null, "identity_assertion"), DTU_FORMAT_CONSTANTS.DOMAIN_IDENTITY_ASSERTION);
+  });
+
+  it("maps identity shorthand to DOMAIN_IDENTITY_ASSERTION", () => {
+    assert.equal(determinePrimaryType(null, "identity"), DTU_FORMAT_CONSTANTS.DOMAIN_IDENTITY_ASSERTION);
+  });
+
+  it("maps mesh_control to DOMAIN_MESH_CONTROL", () => {
+    assert.equal(determinePrimaryType(null, "mesh_control"), DTU_FORMAT_CONSTANTS.DOMAIN_MESH_CONTROL);
+  });
+
+  it("maps emergency_alert to DOMAIN_EMERGENCY_ALERT", () => {
+    assert.equal(determinePrimaryType(null, "emergency_alert"), DTU_FORMAT_CONSTANTS.DOMAIN_EMERGENCY_ALERT);
+  });
+
+  it("maps emergency shorthand to DOMAIN_EMERGENCY_ALERT", () => {
+    assert.equal(determinePrimaryType(null, "emergency"), DTU_FORMAT_CONSTANTS.DOMAIN_EMERGENCY_ALERT);
+  });
+
+  it("maps broadcast_relay to DOMAIN_BROADCAST_RELAY", () => {
+    assert.equal(determinePrimaryType(null, "broadcast_relay"), DTU_FORMAT_CONSTANTS.DOMAIN_BROADCAST_RELAY);
+  });
+
+  it("maps broadcast shorthand to DOMAIN_BROADCAST_RELAY", () => {
+    assert.equal(determinePrimaryType(null, "broadcast"), DTU_FORMAT_CONSTANTS.DOMAIN_BROADCAST_RELAY);
+  });
+
+  it("maps atlas_signal to DOMAIN_ATLAS_SIGNAL", () => {
+    assert.equal(determinePrimaryType(null, "atlas_signal"), DTU_FORMAT_CONSTANTS.DOMAIN_ATLAS_SIGNAL);
+  });
+
+  it("maps lineage_ref to DOMAIN_LINEAGE_REF", () => {
+    assert.equal(determinePrimaryType(null, "lineage_ref"), DTU_FORMAT_CONSTANTS.DOMAIN_LINEAGE_REF);
+  });
+
+  it("maps geospatial to DOMAIN_GEOSPATIAL", () => {
+    assert.equal(determinePrimaryType(null, "geospatial"), DTU_FORMAT_CONSTANTS.DOMAIN_GEOSPATIAL);
+  });
+
+  it("maps time_series to DOMAIN_TIME_SERIES", () => {
+    assert.equal(determinePrimaryType(null, "time_series"), DTU_FORMAT_CONSTANTS.DOMAIN_TIME_SERIES);
+  });
+
+  it("maps structured_knowledge to DOMAIN_STRUCTURED_KNOWLEDGE", () => {
+    assert.equal(determinePrimaryType(null, "structured_knowledge"), DTU_FORMAT_CONSTANTS.DOMAIN_STRUCTURED_KNOWLEDGE);
+  });
+
+  it("domain types take precedence over generic text fallback", () => {
+    // When contentType is a domain type, it should match domain map before generic text/image/audio/video
+    assert.equal(determinePrimaryType(null, "sensor"), DTU_FORMAT_CONSTANTS.DOMAIN_SENSOR_READING);
+    assert.notEqual(determinePrimaryType(null, "sensor"), DTU_FORMAT_CONSTANTS.PRIMARY_CONDENSED);
+  });
+
+  it("artifact type still takes precedence over domain contentType", () => {
+    // If an artifact type is known, it wins over contentType domain mapping
+    assert.equal(determinePrimaryType("beat", "sensor"), DTU_FORMAT_CONSTANTS.PRIMARY_PLAY_AUDIO);
+  });
+});
+
 // ═════════════════════════════════════════════════════════════════════
 // LAYER BITFIELD
 // ═════════════════════════════════════════════════════════════════════
