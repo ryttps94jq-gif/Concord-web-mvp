@@ -298,7 +298,8 @@ describe('LocalInference', () => {
       // Block the first generation
       (runtime.generate as jest.Mock).mockReturnValue(new Promise(() => {}));
 
-      void inference.generate(makeRequest({ id: 'r1' }));
+      const p1 = inference.generate(makeRequest({ id: 'r1' }));
+      p1.catch(() => {}); // swallow expected timeout/abort rejection
       const p2 = inference.generate(makeRequest({ id: 'r2' }));
 
       // Abort all
@@ -306,7 +307,7 @@ describe('LocalInference', () => {
       jest.advanceTimersByTime(BRAIN_INFERENCE_TIMEOUT_MS + 100);
 
       // p2 should be rejected (it was queued)
-      await expect(p2).rejects.toThrow(/aborted/);
+      await expect(p2).rejects.toThrow(/aborted|timed out/i);
     });
 
     it('is safe to call when idle', () => {

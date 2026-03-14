@@ -69,18 +69,6 @@ function createMockDB(): SQLiteDatabase & { _store: Map<string, MockRow>; _sqlLo
         return makeResult(row ? [row] : []);
       }
 
-      // SELECT pending
-      if (sql.includes("status = 'pending'")) {
-        const rows = Array.from(store.values()).filter(r => r.status === 'pending');
-        return makeResult(rows);
-      }
-
-      // SELECT unpropagated
-      if (sql.includes('propagated = 0')) {
-        const rows = Array.from(store.values()).filter(r => r.propagated === 0);
-        return makeResult(rows);
-      }
-
       // UPDATE propagated
       if (sql.includes('UPDATE transactions SET propagated')) {
         const id = params?.[0] as string;
@@ -91,7 +79,7 @@ function createMockDB(): SQLiteDatabase & { _store: Map<string, MockRow>; _sqlLo
         return { rows: { length: 0, item: () => ({}), raw: () => [] }, rowsAffected: row ? 1 : 0 };
       }
 
-      // SUM queries for balance
+      // SUM queries for balance (must come before plain status/propagated checks)
       if (sql.includes('SUM(amount)') && sql.includes("status = 'confirmed'")) {
         const rows = Array.from(store.values()).filter(r => r.status === 'confirmed');
         let total = 0;
@@ -124,6 +112,18 @@ function createMockDB(): SQLiteDatabase & { _store: Map<string, MockRow>; _sqlLo
           }
         }
         return makeResult([{ total }]);
+      }
+
+      // SELECT pending
+      if (sql.includes("status = 'pending'")) {
+        const rows = Array.from(store.values()).filter(r => r.status === 'pending');
+        return makeResult(rows);
+      }
+
+      // SELECT unpropagated
+      if (sql.includes('propagated = 0')) {
+        const rows = Array.from(store.values()).filter(r => r.propagated === 0);
+        return makeResult(rows);
       }
 
       // SELECT all (for getTransactions and verifyBalance)

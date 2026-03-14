@@ -54,6 +54,16 @@ function createMockDB(): SQLiteDatabase & { _store: Map<string, MockRow> } {
         return { rows: { length: 0, item: () => ({}), raw: () => [] }, rowsAffected: 1 };
       }
 
+      // UPDATE active = 0 (must come before SELECT by ID since both match 'WHERE id = ?')
+      if (sql.includes('UPDATE marketplace_listings SET active = 0')) {
+        const id = params?.[0] as string;
+        const row = store.get(id);
+        if (row) {
+          row.active = 0;
+        }
+        return { rows: { length: 0, item: () => ({}), raw: () => [] }, rowsAffected: row ? 1 : 0 };
+      }
+
       // SELECT by ID
       if (sql.includes('WHERE id = ?')) {
         const id = params?.[0] as string;
@@ -71,16 +81,6 @@ function createMockDB(): SQLiteDatabase & { _store: Map<string, MockRow> } {
       if (sql.includes('COUNT(*)')) {
         const active = Array.from(store.values()).filter(r => r.active === 1);
         return makeResult([{ count: active.length }]);
-      }
-
-      // UPDATE active = 0
-      if (sql.includes('UPDATE marketplace_listings SET active = 0')) {
-        const id = params?.[0] as string;
-        const row = store.get(id);
-        if (row) {
-          row.active = 0;
-        }
-        return { rows: { length: 0, item: () => ({}), raw: () => [] }, rowsAffected: row ? 1 : 0 };
       }
 
       // SELECT with filters

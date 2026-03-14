@@ -241,7 +241,9 @@ describe('compress', () => {
   });
 
   it('uses default content type when none provided', async () => {
-    const content = new Uint8Array(1000).fill(0x41);
+    // Content must compress well with mock (trailing zeros get stripped)
+    const content = new Uint8Array(1000);
+    content.fill(0x41, 0, 100); // first 100 bytes non-zero, rest are zeros
     const result = await compress(content);
     // default is application/octet-stream, 1000 bytes => gzip
     expect(result.algorithm).toBe(COMPRESSION_ALGORITHMS.GZIP);

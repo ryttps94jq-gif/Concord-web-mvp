@@ -409,8 +409,8 @@ describe('BroadcastBridge', () => {
     });
 
     it('increments for each unique bridged DTU', async () => {
-      await bridge.onBroadcastDTU(makeBroadcastDTU({ id: 'a' }));
-      await bridge.onBroadcastDTU(makeBroadcastDTU({ id: 'b' }));
+      await bridge.onBroadcastDTU(makeBroadcastDTU({ id: 'a', header: { version: 1, flags: 0, type: DTU_TYPES.TEXT, timestamp: Date.now(), contentLength: 10, contentHash: new Uint8Array(32).fill(0x01) } }));
+      await bridge.onBroadcastDTU(makeBroadcastDTU({ id: 'b', header: { version: 1, flags: 0, type: DTU_TYPES.TEXT, timestamp: Date.now(), contentLength: 10, contentHash: new Uint8Array(32).fill(0x02) } }));
       expect(bridge.getBridgedCount()).toBe(2);
     });
   });

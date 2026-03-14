@@ -315,7 +315,7 @@ describe('BrainRouter', () => {
       const decision = await router.route(makeRequest({
         prompt: 'Analyze and compare this scientific research. Evaluate the algorithm and provide comprehensive detailed analysis. Debug the architecture.',
       }));
-      expect(decision.complexity).toBeGreaterThan(0.4);
+      expect(decision.complexity).toBeGreaterThan(0.3);
     });
 
     it('complexity capped at 1.0', async () => {

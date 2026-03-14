@@ -490,8 +490,8 @@ describe('IdentityManager', () => {
     });
 
     it('should reject auth response with invalid signature', async () => {
-      (cryptoProvider.ed25519Verify as jest.Mock).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       await manager.initialize();
+      (cryptoProvider.ed25519Verify as jest.Mock).mockResolvedValueOnce(false);
 
       const challenge = manager.createAuthChallenge();
       const response = await manager.respondToChallenge(challenge);
