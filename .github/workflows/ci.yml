@@ -68,7 +68,7 @@ jobs:
         working-directory: ./concord-frontend
         run: |
           echo "Coverage thresholds enforced via vitest.config.ts:"
-          echo "  statements: 55%, branches: 45%, functions: 45%, lines: 55%"
+          echo "  statements: 70%, branches: 60%, functions: 60%, lines: 70%"
           echo "If this step passed, all thresholds are met."
 
       - name: Upload coverage report
@@ -84,7 +84,7 @@ jobs:
           NODE_ENV: test
           JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
           ADMIN_PASSWORD: testpassword123
-        run: npx c8 --check-coverage --statements 40 --branches 30 --functions 30 --lines 40 node --test tests/*.test.js
+        run: npx c8 --check-coverage --statements 60 --branches 50 --functions 50 --lines 60 node --test tests/*.test.js
 
   mobile-test:
     name: Mobile Lint, Typecheck & Test
