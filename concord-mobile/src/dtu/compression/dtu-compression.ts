@@ -60,7 +60,6 @@ export function getCompressionProvider(): CompressionProvider | null {
 // ── Size thresholds for algorithm selection ──────────────────────────────────
 
 const MIN_SIZE_FOR_COMPRESSION = 64;       // don't compress tiny payloads
-const BROTLI_MIN_SIZE = 1024;              // brotli shines for larger content
 const LZ4_PREFERRED_MAX_SIZE = 512;        // lz4 for small-to-medium, fast decode
 const BROTLI_PREFERRED_MIN_SIZE = 4096;    // brotli preferred for larger text
 

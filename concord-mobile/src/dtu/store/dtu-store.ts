@@ -172,21 +172,17 @@ const SQL_INSERT = `
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
-const SQL_SELECT_BY_ID = `SELECT * FROM dtus WHERE id = ?`;
 const SQL_DELETE_BY_ID = `DELETE FROM dtus WHERE id = ?`;
 const SQL_SELECT_ALL = `SELECT * FROM dtus`;
-const SQL_SELECT_BY_TYPE = `SELECT * FROM dtus WHERE type = ?`;
-const SQL_COUNT = `SELECT COUNT(*) as cnt FROM dtus`;
 const SQL_DELETE_ALL = `DELETE FROM dtus`;
 
 // ── Store factory ────────────────────────────────────────────────────────────
 
 export function createDTUStore(db: SQLiteDatabase): DTUStore {
   const cache = new Map<string, DTU>();
-  let initialized = false;
 
   // Initialize DB schema synchronously-ish: the first operation will await init
-  const initPromise = initializeSchema(db);
+  void initializeSchema(db);
 
   async function initializeSchema(database: SQLiteDatabase): Promise<void> {
     await database.executeSql(SQL_CREATE_TABLE);
@@ -202,7 +198,6 @@ export function createDTUStore(db: SQLiteDatabase): DTUStore {
       cache.set(dtu.id, dtu);
     }
 
-    initialized = true;
   }
 
   function ensureInit(): void {

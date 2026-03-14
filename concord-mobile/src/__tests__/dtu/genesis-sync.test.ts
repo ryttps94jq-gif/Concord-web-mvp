@@ -132,7 +132,7 @@ function createMockFetch(
   failManifest = false,
   failChunks = false
 ): FetchFunction {
-  return jest.fn(async (url: string, options?: any) => {
+  return jest.fn(async (url: string, _options?: any) => {
     if (url.includes('/manifest')) {
       if (failManifest) {
         return { ok: false, status: 500, json: async () => ({}) };

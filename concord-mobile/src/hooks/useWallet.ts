@@ -1,6 +1,5 @@
 // Concord Mobile — Wallet Hook
 
-import { useCallback } from 'react';
 import { useEconomyStore } from '../store/economy-store';
 import type { CoinBalance, Transaction, TransactionType } from '../utils/types';
 

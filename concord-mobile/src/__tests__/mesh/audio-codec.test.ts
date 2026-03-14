@@ -9,9 +9,8 @@ import {
   applyFEC,
   decodeFEC,
 } from '../../mesh/rf/audio-codec';
-import type { AudioCodec } from '../../mesh/rf/audio-codec';
 import { DTU_TYPES, DTU_VERSION } from '../../utils/constants';
-import type { DTU, AudioCodecConfig, AudioEncodedDTU } from '../../utils/types';
+import type { DTU, AudioCodecConfig } from '../../utils/types';
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -55,13 +54,6 @@ function corruptData(data: Uint8Array, corruptionRate: number): Uint8Array {
 
   return corrupted;
 }
-
-const DEFAULT_CONFIG: AudioCodecConfig = {
-  sampleRate: 8000,
-  bitsPerSymbol: 1,
-  fecRate: 0.5,
-  preambleMs: 100,
-};
 
 // ── applyFEC / decodeFEC ─────────────────────────────────────────────────────
 
@@ -430,7 +422,7 @@ describe('createAudioCodec', () => {
       const codec = createAudioCodec();
       const original = makeDTU('roundtrip', 'concord test');
       const encoded = codec.encode(original);
-      const { dtu: decoded, errors } = codec.decode(encoded.samples);
+      const { dtu: decoded } = codec.decode(encoded.samples);
 
       // With clean encode/decode, should recover
       if (decoded) {

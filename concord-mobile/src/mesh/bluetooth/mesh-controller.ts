@@ -128,7 +128,7 @@ export function createMeshController(deps: MeshControllerDeps): MeshController {
     getMeshState(): MeshState {
       const allPeers = peerManager.getAllPeers();
       const activePeers = peerManager.getActivePeers();
-      const stats = relay.getQueueStats();
+      relay.getQueueStats();
 
       const peersMap = new Map<string, MeshPeer>();
       for (const peer of allPeers) {

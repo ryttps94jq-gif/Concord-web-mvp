@@ -9,9 +9,9 @@ import {
   serializeDTUForSync,
   deserializeDTUFromSync,
 } from '../../mesh/wifi-direct/lattice-sync';
-import type { DTUStore, LatticeSyncResult } from '../../mesh/wifi-direct/lattice-sync';
+import type { DTUStore } from '../../mesh/wifi-direct/lattice-sync';
 import type { WiFiDirectManager } from '../../mesh/wifi-direct/wifi-direct-manager';
-import type { DTU, LatticeSyncState } from '../../utils/types';
+import type { DTU } from '../../utils/types';
 import { DTU_TYPES, DTU_VERSION } from '../../utils/constants';
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────

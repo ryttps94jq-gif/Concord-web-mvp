@@ -10,7 +10,6 @@ import {
 import type {
   NFCManagerModule,
   NFCTag,
-  NFCNdefRecord,
 } from '../../mesh/nfc/nfc-transfer';
 import { NFC_MAX_PAYLOAD_BYTES, DTU_TYPES, DTU_VERSION } from '../../utils/constants';
 import { toBase64 } from '../../utils/crypto';

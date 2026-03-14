@@ -29,7 +29,7 @@ const mockSha256 = jest.fn(async (data: Uint8Array) => {
 
 const mockCryptoProvider: CryptoProvider = {
   sha256: mockSha256,
-  hmacSha256: jest.fn(async (data, key) => new Uint8Array(32).fill(0xaa)),
+  hmacSha256: jest.fn(async () => new Uint8Array(32).fill(0xaa)),
   crc32: jest.fn(() => 0x12345678),
   randomBytes: jest.fn((size) => new Uint8Array(size).fill(0x42)),
   ed25519GenerateKeypair: jest.fn(async () => ({

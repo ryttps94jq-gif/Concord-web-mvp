@@ -7,11 +7,10 @@ import {
   DTUForge,
 } from '../../foundation/capture/foundation-capture';
 import { SensorManager } from '../../foundation/sensors/sensor-manager';
-import { SensorReading, DTU } from '../../utils/types';
+import { SensorReading } from '../../utils/types';
 import {
   DTU_TYPES,
   DTU_VERSION,
-  FOUNDATION_MAX_DTUS_PER_DAY,
   FOUNDATION_SENSOR_MAX_DTU_BYTES,
 } from '../../utils/constants';
 

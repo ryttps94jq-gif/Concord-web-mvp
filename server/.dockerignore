@@ -19,12 +19,7 @@ yarn-error.log
 *.swo
 .DS_Store
 
-# Test files
-test
-tests
-__tests__
-*.test.js
-*.spec.js
+# Test files (keep tests/ for in-container test step)
 coverage
 
 # Documentation

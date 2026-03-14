@@ -8,7 +8,6 @@ import {
   serializeChunk,
   deserializeChunk,
 } from '../../mesh/bluetooth/ble-transfer';
-import type { TransferResult } from '../../mesh/bluetooth/ble-transfer';
 import type { BLEManager, BLECharacteristic } from '../../mesh/bluetooth/ble-advertiser';
 import type { DTU, BLETransferSession } from '../../utils/types';
 import {
@@ -17,7 +16,6 @@ import {
   CONCORD_BLE_DTU_HEADER_CHAR,
   CONCORD_BLE_DTU_CONTENT_CHAR,
   DTU_TYPES,
-  DTU_FLAGS,
   DEFAULT_DTU_TTL,
 } from '../../utils/constants';
 
@@ -690,7 +688,6 @@ describe('BLE Transfer', () => {
     });
 
     it('should handle mixed success/failure concurrent transfers', async () => {
-      let callIndex = 0;
       const manager = createMockBLEManager({
         writeCharacteristicForDevice: jest.fn().mockImplementation(
           (deviceId: string) => {

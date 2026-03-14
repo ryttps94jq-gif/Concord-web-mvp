@@ -2,7 +2,6 @@
 // WiFi Direct group formation and data transfer for mesh sync
 
 import {
-  WIFI_DIRECT_PORT,
   WIFI_DIRECT_GROUP_TIMEOUT_MS,
 } from '../../utils/constants';
 import type { WiFiDirectGroup } from '../../utils/types';
@@ -134,17 +133,6 @@ export function createWiFiDirectManager(
       clearInterval(listeningInterval);
       listeningInterval = null;
     }
-  }
-
-  /**
-   * Determine if this device should be group owner.
-   * Device with lower battery never becomes owner to preserve battery life.
-   */
-  function shouldBeGroupOwner(): boolean {
-    if (!getBattery) return false;
-    const battery = getBattery();
-    // If battery is above 50%, willing to be owner
-    return battery.level > 0.5;
   }
 
   return {

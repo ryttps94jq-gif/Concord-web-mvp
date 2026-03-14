@@ -1,6 +1,6 @@
 // Concord Mobile — Local DTU Search Hook
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { useLatticeStore } from '../store/lattice-store';
 import type { DTUSearchResult } from '../utils/types';
 

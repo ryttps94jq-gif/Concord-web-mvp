@@ -7,7 +7,6 @@ import {
   DTUHeader,
   DTUMeta,
   SensorReading,
-  GeoGrid,
 } from '../../utils/types';
 import {
   DTU_VERSION,

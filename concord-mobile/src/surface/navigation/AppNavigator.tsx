@@ -2,7 +2,7 @@
 // Bottom tab navigation with core screens
 
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type NavigatorScreenParams, type LinkingOptions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -24,7 +24,7 @@ export type RootTabParamList = {
 };
 
 export type RootStackParamList = {
-  Main: undefined;
+  Main: NavigatorScreenParams<RootTabParamList>;
   Atlas: undefined;
   Settings: undefined;
   BuyCoins: undefined;
@@ -81,7 +81,7 @@ function MainTabs() {
 }
 
 // Deep linking configuration for checkout return flow
-const linking = {
+const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['concordapp://'],
   config: {
     screens: {

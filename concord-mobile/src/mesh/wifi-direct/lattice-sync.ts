@@ -2,7 +2,7 @@
 // Merkle-tree based lattice synchronization over WiFi Direct
 // Only exchange the diff — minimum data transfer for maximum sync
 
-import { crc32, toHex, concatBytes, encodeUTF8 } from '../../utils/crypto';
+import { crc32, toHex, encodeUTF8 } from '../../utils/crypto';
 import type { DTU, LatticeSyncState } from '../../utils/types';
 import type { WiFiDirectManager } from './wifi-direct-manager';
 
@@ -170,7 +170,7 @@ export function deserializeDTUFromSync(json: string): DTU | null {
 
 // ── Implementation ───────────────────────────────────────────────────────────
 
-export function createLatticeSync(store: DTUStore): LatticeSync {
+export function createLatticeSync(_store: DTUStore): LatticeSync {
   let syncState: LatticeSyncState = {
     localMerkleRoot: '00000000',
     remoteMerkleRoot: '00000000',
@@ -186,7 +186,7 @@ export function createLatticeSync(store: DTUStore): LatticeSync {
 
     computeDiff(
       localIds: string[],
-      remoteRoot: string,
+      _remoteRoot: string,
       remoteIds: string[],
     ): { missingLocal: string[]; missingRemote: string[] } {
       const localSet = new Set(localIds);

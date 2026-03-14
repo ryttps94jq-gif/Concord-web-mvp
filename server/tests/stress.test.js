@@ -617,7 +617,7 @@ function createHeartbeatSystem(STATE, registry) {
         break;
       default:
         // Minimal async work to simulate I/O
-        await new Promise((resolve) => setImmediate(resolve));
+        await new Promise((resolve) => { setImmediate(resolve); });
         break;
     }
   }
@@ -986,7 +986,7 @@ describe("Stress Test 2: Heartbeat Tick Under Load", () => {
         }
       }
       // All other modules: no-op
-      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => { setImmediate(resolve); });
     };
 
     const result = await heartbeat.tick({ moduleRunner: mutatingRunner });

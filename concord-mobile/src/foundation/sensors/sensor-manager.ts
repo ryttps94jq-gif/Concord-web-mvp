@@ -17,7 +17,6 @@ import {
 import {
   FOUNDATION_GEO_GRID_METERS,
   FOUNDATION_SAMPLING_INTERVAL_MS,
-  FOUNDATION_LOW_BATTERY_MULTIPLIER,
 } from '../../utils/constants';
 
 // ── Native Module Interfaces ─────────────────────────────────────────────────

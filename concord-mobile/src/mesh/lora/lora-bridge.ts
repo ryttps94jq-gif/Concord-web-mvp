@@ -6,8 +6,8 @@ import {
   LORA_DEFAULT_SPREADING_FACTOR,
   DTU_TYPES,
 } from '../../utils/constants';
-import { toHex, toBase64, fromBase64, crc32 } from '../../utils/crypto';
-import type { DTU, LoRaConfig, LoRaPacket } from '../../utils/types';
+import { toBase64, fromBase64, crc32 } from '../../utils/crypto';
+import type { DTU, DTUTypeCode, LoRaConfig } from '../../utils/types';
 
 // ── External BLE Manager Interface ───────────────────────────────────────────
 
@@ -244,7 +244,7 @@ export function createLoRaBridge(bleManager: BLEManager): LoRaBridge {
               const version = bytes[0];
               const type = bytes[1];
               const flags = bytes[2];
-              const priority = bytes[3];
+              // bytes[3] is priority (unused in reconstruction)
 
               const packetView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
               const storedCrc = packetView.getUint32(4, false);
@@ -268,7 +268,7 @@ export function createLoRaBridge(bleManager: BLEManager): LoRaBridge {
                 header: {
                   version,
                   flags,
-                  type,
+                  type: type as DTUTypeCode,
                   timestamp: Date.now(),
                   contentLength: content.length,
                   contentHash: new Uint8Array(32), // Placeholder; real hash computed by receiver

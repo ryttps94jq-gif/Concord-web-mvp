@@ -17,14 +17,14 @@ import {
   DTU_VERSION,
 } from '../../utils/constants';
 import { toBase64, fromBase64, crc32 } from '../../utils/crypto';
-import type { DTU, LoRaConfig } from '../../utils/types';
+import type { DTU, DTUTypeCode } from '../../utils/types';
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────
 
 function makeDTU(
   id: string,
   contentSize: number = 50,
-  type: number = DTU_TYPES.TEXT,
+  type: DTUTypeCode = DTU_TYPES.TEXT,
 ): DTU {
   const content = new Uint8Array(contentSize);
   for (let i = 0; i < contentSize; i++) content[i] = i % 256;

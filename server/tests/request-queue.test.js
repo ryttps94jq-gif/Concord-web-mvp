@@ -154,7 +154,7 @@ describe("requestQueue", () => {
       q.setCallFn(mock.fn(async () => {
         concurrent++;
         maxConcurrent = Math.max(maxConcurrent, concurrent);
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => { setTimeout(r, 10); });
         concurrent--;
         return { ok: true };
       }));
@@ -204,7 +204,7 @@ describe("requestQueue", () => {
       const p3 = q.enqueue("waiting2", {}, 5);
 
       // Give async time to start processing
-      await new Promise(r => setTimeout(r, 5));
+      await new Promise(r => { setTimeout(r, 5); });
 
       const stats = q.getStats();
       assert.equal(stats.active, 1);

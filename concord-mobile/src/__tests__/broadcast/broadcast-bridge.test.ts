@@ -10,7 +10,7 @@ import type {
   MeshController,
   DTUStore,
 } from '../../broadcast/bridge/broadcast-bridge';
-import type { BroadcastConfig, BroadcastDTU, DTU, DTUHeader } from '../../utils/types';
+import type { BroadcastConfig, BroadcastDTU, DTU } from '../../utils/types';
 import { DTU_TYPES } from '../../utils/constants';
 
 // ── Mock Mesh Controller ─────────────────────────────────────────────────────

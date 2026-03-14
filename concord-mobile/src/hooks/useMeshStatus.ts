@@ -1,7 +1,6 @@
 // Concord Mobile — Mesh Status Hook
 // Provides real-time mesh health information to UI components
 
-import { useCallback, useEffect, useState } from 'react';
 import { useMeshStore } from '../store/mesh-store';
 import type { MeshHealth, TransportStatus, ConnectionState } from '../utils/types';
 

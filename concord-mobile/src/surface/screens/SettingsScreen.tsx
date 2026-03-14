@@ -6,7 +6,6 @@ import { View, Text, Switch, StyleSheet, ScrollView, TouchableOpacity } from 're
 import { useIdentity } from '../../hooks/useIdentity';
 import { useBattery } from '../../hooks/useBattery';
 import { useBrainStore } from '../../store/brain-store';
-import { useMeshStore } from '../../store/mesh-store';
 
 function SettingRow({ label, value, onToggle }: { label: string; value: boolean; onToggle: (v: boolean) => void }) {
   return (
@@ -26,7 +25,6 @@ export function SettingsScreen() {
   const { identity, hardware } = useIdentity();
   const { level: batteryLevel, isCharging } = useBattery();
   const models = useBrainStore(s => s.availableModels);
-  const transports = useMeshStore(s => s.transports);
 
   return (
     <ScrollView style={styles.container}>

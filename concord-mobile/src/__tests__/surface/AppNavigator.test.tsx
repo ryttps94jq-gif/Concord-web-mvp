@@ -155,7 +155,8 @@ describe('AppNavigator', () => {
       DTUDetail: true,
       PeerDetail: true,
       TransactionDetail: true,
+      BuyCoins: true,
     };
-    expect(Object.keys(stackKeys)).toHaveLength(7);
+    expect(Object.keys(stackKeys)).toHaveLength(8);
   });
 });

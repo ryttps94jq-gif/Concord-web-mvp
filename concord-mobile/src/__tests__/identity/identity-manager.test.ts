@@ -655,7 +655,7 @@ describe('IdentityManager', () => {
       // Check all setItem calls — private key should only be stored via PRIVATE_KEY key
       const setItemCalls = (secureStorage.setItem as jest.Mock).mock.calls;
       const privateKeyCalls = setItemCalls.filter(
-        ([key, value]: [string, string]) => value === MOCK_PRIVATE_KEY_HEX
+        ([_key, value]: [string, string]) => value === MOCK_PRIVATE_KEY_HEX
       );
 
       // Should be stored exactly once, under the correct key

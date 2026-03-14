@@ -49,7 +49,7 @@ function createMockSQLite(): SQLiteDatabase {
             price: params[4], creator_key: params[5], category: params[6], tags: params[7],
             created_at: params[8], active: params[9] });
         }
-        idx >= 0 ? (tables[t][idx] = row) : tables[t].push(row);
+        if (idx >= 0) { tables[t][idx] = row; } else { tables[t].push(row); }
         return { ...emptyResult, rowsAffected: 1 };
       }
 

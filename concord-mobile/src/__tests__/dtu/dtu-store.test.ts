@@ -94,11 +94,10 @@ function makeDTUWithTimestamp(id: string, timestamp: number, painTagged = false)
 
 describe('createDTUStore', () => {
   let db: ReturnType<typeof createMockDB>;
-  let store: DTUStore;
 
   beforeEach(() => {
     db = createMockDB();
-    store = createDTUStore(db);
+    createDTUStore(db);
   });
 
   it('initializes the database schema', () => {

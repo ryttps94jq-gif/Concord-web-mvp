@@ -9,7 +9,7 @@ import {
 } from '../../utils/constants';
 import { toBase64, fromBase64, toHex } from '../../utils/crypto';
 import type { DTU, BLETransferChunk, BLETransferSession } from '../../utils/types';
-import type { BLEManager, BLECharacteristic } from './ble-advertiser';
+import type { BLEManager } from './ble-advertiser';
 
 // ── Transfer Types ────────────────────────────────────────────────────────────
 
@@ -172,56 +172,6 @@ export function deserializeChunk(base64Value: string): BLETransferChunk {
 export function createBLETransfer(bleManager: BLEManager): BLETransfer {
   const activeSessions = new Map<string, BLETransferSession>();
   const receiveCallbacks: Array<(dtu: DTU, peerId: string) => void> = [];
-  const monitorSubscriptions: Array<{ remove(): void }> = [];
-
-  function getOrCreateSession(
-    dtuId: string,
-    peerId: string,
-    totalChunks: number,
-  ): BLETransferSession {
-    const key = `${peerId}:${dtuId}`;
-    let session = activeSessions.get(key);
-    if (!session) {
-      session = {
-        dtuId,
-        peerId,
-        totalChunks,
-        receivedChunks: new Map(),
-        startedAt: Date.now(),
-        lastChunkAt: Date.now(),
-      };
-      activeSessions.set(key, session);
-    }
-    return session;
-  }
-
-  function handleReceivedChunk(chunk: BLETransferChunk, peerId: string): void {
-    const session = getOrCreateSession(chunk.dtuId, peerId, chunk.totalChunks);
-    session.receivedChunks.set(chunk.sequenceNumber, chunk.data);
-    session.lastChunkAt = Date.now();
-
-    // Check if all chunks received
-    if (session.receivedChunks.size === session.totalChunks) {
-      const assembled = reassembleChunks(session);
-      if (assembled) {
-        try {
-          const dtu = deserializeDTU(assembled);
-          // Verify content integrity
-          if (dtu.content.length === dtu.header.contentLength) {
-            for (const cb of receiveCallbacks) {
-              cb(dtu, peerId);
-            }
-          }
-        } catch (_e) {
-          // Corrupt data, discard silently
-        }
-      }
-      // Clean up session
-      const key = `${peerId}:${chunk.dtuId}`;
-      activeSessions.delete(key);
-    }
-  }
-
   return {
     async sendDTU(peerId: string, dtu: DTU): Promise<TransferResult> {
       const startTime = Date.now();

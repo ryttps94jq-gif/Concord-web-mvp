@@ -9,7 +9,6 @@ import {
   COIN_DECIMALS,
 } from '../../utils/constants';
 import { generateId, toHex, randomBytes } from '../../utils/crypto';
-import type { CryptoProvider } from '../../utils/crypto';
 import type { Transaction } from '../../utils/types';
 import type { LocalLedger } from '../wallet/local-ledger';
 

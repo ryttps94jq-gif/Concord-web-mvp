@@ -1,7 +1,7 @@
 // Concord Mobile — RF Layer
 // RF layer for ham radio / digital modes (JS8Call compatible)
 
-import { toHex, toBase64, fromBase64, crc32 } from '../../utils/crypto';
+import { toBase64, fromBase64, toHex } from '../../utils/crypto';
 import type { DTU, AudioCodecConfig } from '../../utils/types';
 import type { AudioCodec } from './audio-codec';
 
@@ -14,10 +14,6 @@ const RF_CONFIG: AudioCodecConfig = {
   fecRate: 0.5,   // 50% redundancy for noisy HF channels
   preambleMs: 200, // Longer preamble for HF propagation
 };
-
-// JS8Call-compatible framing
-const JS8_HEADER = '@CONCORD ';
-const JS8_FOOTER = ' @@';
 
 // ── RF Layer Interface ───────────────────────────────────────────────────────
 
@@ -108,7 +104,7 @@ export function createRFLayer(codec: AudioCodec): RFLayer {
 
     decodeDTUFromRF(audio: Float32Array): DTU | null {
       // Step 1: Decode AFSK to FEC-protected bytes
-      const { data: fecBytes, errors: afskErrors } = codec.decodeAFSK(audio, RF_CONFIG);
+      const { data: fecBytes } = codec.decodeAFSK(audio, RF_CONFIG);
 
       if (fecBytes.length === 0) {
         return null;

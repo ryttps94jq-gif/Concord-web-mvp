@@ -9,7 +9,7 @@ import {
 import { createAudioCodec } from '../../mesh/rf/audio-codec';
 import type { AudioCodec } from '../../mesh/rf/audio-codec';
 import { DTU_TYPES, DTU_VERSION } from '../../utils/constants';
-import type { DTU, AudioCodecConfig } from '../../utils/types';
+import type { DTU } from '../../utils/types';
 
 // ── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ describe('deserializeDTUFromPhone', () => {
   });
 
   it('handles all DTU type codes', () => {
-    for (const [name, typeCode] of Object.entries(DTU_TYPES)) {
+    for (const [_name, typeCode] of Object.entries(DTU_TYPES)) {
       const dtu = makeDTU(`type_phone_${typeCode}`);
       dtu.header.type = typeCode;
       const serialized = serializeDTUForPhone(dtu);

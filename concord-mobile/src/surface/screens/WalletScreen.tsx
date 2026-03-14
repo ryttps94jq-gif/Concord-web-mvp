@@ -34,7 +34,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
 type Tab = 'balance' | 'send' | 'receive';
 
 export function WalletScreen() {
-  const { balance, transactions, pendingCount, unpropagatedCount } = useWallet();
+  const { balance, transactions, unpropagatedCount } = useWallet();
   const connectionState = useIdentityStore(s => s.connectionState);
   const [activeTab, setActiveTab] = useState<Tab>('balance');
 

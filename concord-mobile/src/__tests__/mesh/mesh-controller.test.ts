@@ -1,6 +1,6 @@
 // Tests for Mesh Controller
 import { createMeshController } from '../../mesh/bluetooth/mesh-controller';
-import type { MeshController, MeshControllerDeps } from '../../mesh/bluetooth/mesh-controller';
+import type { MeshControllerDeps } from '../../mesh/bluetooth/mesh-controller';
 import type { BLEAdvertiser } from '../../mesh/bluetooth/ble-advertiser';
 import type { BLEScanner } from '../../mesh/bluetooth/ble-scanner';
 import type { BLETransfer, TransferResult } from '../../mesh/bluetooth/ble-transfer';
@@ -43,7 +43,7 @@ function createMockTransfer(overrides?: Partial<BLETransfer>): BLETransfer & { _
   const callbacks: DTUReceivedCallback[] = [];
   const mock: BLETransfer & { _receiveCallbacks: DTUReceivedCallback[] } = {
     _receiveCallbacks: callbacks,
-    sendDTU: jest.fn().mockImplementation(async (peerId: string, dtu: DTU): Promise<TransferResult> => ({
+    sendDTU: jest.fn().mockImplementation(async (_peerId: string, dtu: DTU): Promise<TransferResult> => ({
       success: true,
       dtuId: dtu.id,
       bytesTransferred: 100,

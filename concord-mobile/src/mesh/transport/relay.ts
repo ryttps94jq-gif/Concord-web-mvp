@@ -5,7 +5,6 @@ import {
   MAX_RELAY_QUEUE_SIZE,
   RELAY_DEDUP_WINDOW_MS,
   DTU_TYPES,
-  DEFAULT_DTU_TTL,
 } from '../../utils/constants';
 import type { DTU, RelayQueueEntry } from '../../utils/types';
 

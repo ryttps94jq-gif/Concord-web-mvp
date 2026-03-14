@@ -1,8 +1,8 @@
 // Tests for lattice-store.ts
 
 import { useLatticeStore } from '../../store/lattice-store';
-import { DTU_TYPES, DTU_FLAGS } from '../../utils/constants';
-import type { DTU, DTUHeader, DTUMeta } from '../../utils/types';
+import { DTU_TYPES } from '../../utils/constants';
+import type { DTU } from '../../utils/types';
 
 function createMockDTU(overrides: Partial<DTU> = {}): DTU {
   const id = overrides.id || `dtu_${Math.random().toString(36).slice(2)}`;

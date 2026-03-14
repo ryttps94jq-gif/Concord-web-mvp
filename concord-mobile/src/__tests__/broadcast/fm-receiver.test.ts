@@ -19,24 +19,23 @@ function createMockRadioModule(available: boolean = true): FMRadioModule & {
   _sampleCallback: ((samples: Float32Array) => void) | null;
   _listening: boolean;
 } {
-  let sampleCallback: ((samples: Float32Array) => void) | null = null;
+  let cbRef: ((samples: Float32Array) => void) | null = null;
   let listening = false;
 
   return {
-    _sampleCallback: null,
-    _listening: false,
     isAvailable: jest.fn(() => available),
     startListening: jest.fn(async (_freq: number, onSamples: (samples: Float32Array) => void) => {
-      sampleCallback = onSamples;
+      cbRef = onSamples;
       listening = true;
     }),
     stopListening: jest.fn(async () => {
-      sampleCallback = null;
+      cbRef = null;
       listening = false;
     }),
     isListening: jest.fn(() => listening),
     getSignalStrength: jest.fn(() => 0.75),
-    get _actualSampleCallback() { return sampleCallback; },
+    get _sampleCallback() { return cbRef; },
+    get _listening() { return listening; },
   };
 }
 
@@ -78,7 +77,7 @@ function bytesToBits(bytes: Uint8Array): number[] {
   return bits;
 }
 
-function createTestDTUSignal(): Float32Array {
+function _createTestDTUSignal(): Float32Array {
   // Build a valid DTU header
   const header = new Uint8Array(DTU_HEADER_SIZE);
   const view = new DataView(header.buffer);
@@ -118,6 +117,9 @@ function createTestDTUSignal(): Float32Array {
 
   return generateDBPSKSignal(allBits, SAMPLES_PER_SYMBOL, SUBCARRIER_FREQUENCY, SAMPLE_RATE);
 }
+
+// Exported to suppress unused warning — available for integration tests
+void _createTestDTUSignal;
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -384,7 +386,7 @@ describe('FMReceiver', () => {
       // The radio module would call the sample callback with short samples
       // which should be caught and not crash
       const shortSamples = new Float32Array(10);
-      const callbackFn = (radioModule as any)._actualSampleCallback;
+      const callbackFn = (radioModule as any)._sampleCallback;
       if (callbackFn) {
         expect(() => callbackFn(shortSamples)).not.toThrow();
       }

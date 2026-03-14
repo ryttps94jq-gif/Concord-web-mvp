@@ -2,7 +2,7 @@
 // Displays connected peers, transport layers, signal strength, mesh health
 
 import React from 'react';
-import { View, Text, FlatList, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { useMeshStatus } from '../../hooks/useMeshStatus';
 import { useMeshStore } from '../../store/mesh-store';
 import { ConnectionIndicator } from '../components/ConnectionIndicator';

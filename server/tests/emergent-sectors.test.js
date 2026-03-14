@@ -295,7 +295,7 @@ describe("sectors", () => {
       const r = getSectorHealth(STATE);
       assert.equal(r.ok, true);
       assert.equal(r.sectors.length, 13);
-      assert.ok(r.sectors[0].hasOwnProperty("residentCount"));
+      assert.ok(Object.prototype.hasOwnProperty.call(r.sectors[0], "residentCount"));
     });
   });
 

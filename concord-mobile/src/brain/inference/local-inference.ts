@@ -54,7 +54,6 @@ interface QueueEntry {
 
 export function createLocalInference(runtime: InferenceRuntime): LocalInference {
   let modelLoaded = false;
-  let currentModelPath: string | null = null;
   let isGenerating = false;
   let aborted = false;
   const queue: QueueEntry[] = [];
@@ -67,7 +66,6 @@ export function createLocalInference(runtime: InferenceRuntime): LocalInference 
       if (modelLoaded) {
         await runtime.unloadModel();
         modelLoaded = false;
-        currentModelPath = null;
       }
     }
 
@@ -75,12 +73,10 @@ export function createLocalInference(runtime: InferenceRuntime): LocalInference 
       const success = await runtime.loadModel(modelPath);
       if (success) {
         modelLoaded = true;
-        currentModelPath = modelPath;
       }
       return success;
     } catch {
       modelLoaded = false;
-      currentModelPath = null;
       return false;
     }
   }
@@ -89,7 +85,6 @@ export function createLocalInference(runtime: InferenceRuntime): LocalInference 
     if (modelLoaded) {
       await runtime.unloadModel();
       modelLoaded = false;
-      currentModelPath = null;
     }
   }
 

@@ -33,6 +33,6 @@
       "@utils/*": ["src/utils/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "e2e/**/*.ts"],
-  "exclude": ["node_modules", "native"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "native", "e2e"]
 }

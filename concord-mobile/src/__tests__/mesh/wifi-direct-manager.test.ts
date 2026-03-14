@@ -13,7 +13,7 @@ import type {
   WiFiP2PGroupInfo,
   BatteryInfo,
 } from '../../mesh/wifi-direct/wifi-direct-manager';
-import { WIFI_DIRECT_PORT, WIFI_DIRECT_GROUP_TIMEOUT_MS } from '../../utils/constants';
+import { WIFI_DIRECT_GROUP_TIMEOUT_MS } from '../../utils/constants';
 
 // ── Mock WiFi P2P Module ─────────────────────────────────────────────────────
 

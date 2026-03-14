@@ -5,7 +5,7 @@
 import type {
   MarketplaceListing,
 } from '../../utils/types';
-import type { SQLiteDatabase, SQLiteResultSet } from '../wallet/local-ledger';
+import type { SQLiteDatabase } from '../wallet/local-ledger';
 import type { PeerTransfer } from '../coin/peer-transfer';
 
 // ── Local Marketplace Interface ──────────────────────────────────────────────

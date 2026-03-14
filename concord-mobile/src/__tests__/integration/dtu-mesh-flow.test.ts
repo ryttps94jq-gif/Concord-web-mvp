@@ -39,7 +39,7 @@ const mockCryptoProvider: CryptoProvider = {
 function createMockDb(): SQLiteDatabase {
   const rows: any[] = [];
   return {
-    executeSql: jest.fn(async (sql: string, params?: any[]) => ({
+    executeSql: jest.fn(async (_sql: string, _params?: any[]) => ({
       rows: { length: rows.length, item: (i: number) => rows[i] },
     })),
   };

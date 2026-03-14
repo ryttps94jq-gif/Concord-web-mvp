@@ -14,7 +14,7 @@ import {
   DTU_HASH_SIZE,
   DEFAULT_DTU_TTL,
 } from '../../utils/constants';
-import type { DTU, DTUHeader, DTUMeta } from '../../utils/types';
+import type { DTU, DTUHeader, DTUMeta, DTUTypeCode } from '../../utils/types';
 
 // ── Mock SQLite ──────────────────────────────────────────────────────────────
 

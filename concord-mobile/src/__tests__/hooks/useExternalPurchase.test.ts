@@ -21,7 +21,7 @@ const mockExternalPurchaseLink = NativeModules.ExternalPurchaseLink as {
   open: jest.MockedFunction<(url: string) => Promise<boolean>>;
 };
 
-const mockLinking = Linking as {
+const mockLinking = Linking as unknown as {
   openURL: jest.MockedFunction<(url: string) => Promise<void>>;
 };
 

@@ -5,7 +5,7 @@
 import { createIdentityManager, SecureStorage } from '../../identity/identity-manager';
 import { createContentScanner } from '../../shield/scanner/content-scanner';
 import { createQuarantineManager } from '../../shield/quarantine/quarantine-manager';
-import { createDTU, CreateDTUOptions } from '../../dtu/creation/dtu-forge';
+import { createDTU } from '../../dtu/creation/dtu-forge';
 import { useShieldStore } from '../../store/shield-store';
 import { useIdentityStore } from '../../store/identity-store';
 import { setCryptoProvider } from '../../utils/crypto';

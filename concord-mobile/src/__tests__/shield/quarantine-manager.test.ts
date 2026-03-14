@@ -304,7 +304,7 @@ describe('QuarantineManager', () => {
       manager.quarantine(dtu1, 'test', createMockThreats());
 
       // Manually backdate the entry by getting and modifying
-      const entries = manager.getQuarantined();
+      manager.getQuarantined();
       // We can't easily backdate with the current API, so we test with a very large maxAgeDays
       const pruned = manager.pruneOld(0); // 0 days = prune everything
 

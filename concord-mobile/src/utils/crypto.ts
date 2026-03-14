@@ -1,8 +1,6 @@
 // Concord Mobile — Cryptographic Utilities
 // Wraps react-native-crypto for DTU integrity, identity, and mesh auth
 
-import { DTU_HASH_ALGORITHM } from './constants';
-
 // Platform-agnostic crypto interface for testability
 export interface CryptoProvider {
   sha256(data: Uint8Array): Promise<Uint8Array>;

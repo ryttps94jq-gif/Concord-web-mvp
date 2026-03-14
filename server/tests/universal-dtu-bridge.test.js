@@ -313,7 +313,7 @@ describe("inspectDTU error handling", () => {
 
   it("handles non-Error thrown values", () => {
     try {
-      throw "string error";
+      throw new Error("string error");
     } catch (e) {
       const result = { ok: false, error: String(e?.message || e) };
       assert.equal(result.error, "string error");

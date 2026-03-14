@@ -2,14 +2,14 @@
 
 import { createLocalInference } from '../../brain/inference/local-inference';
 import type { LocalInference, InferenceRuntime } from '../../brain/inference/local-inference';
-import type { InferenceRequest, InferenceResponse } from '../../utils/types';
+import type { InferenceRequest } from '../../utils/types';
 import { BRAIN_INFERENCE_TIMEOUT_MS, BRAIN_MAX_MEMORY_MB, BRAIN_MAX_CONTEXT_TOKENS } from '../../utils/constants';
 
 // ── Mock Inference Runtime ───────────────────────────────────────────────────
 
 function createMockRuntime(overrides: Partial<InferenceRuntime> = {}): InferenceRuntime {
   let loaded = false;
-  let memoryUsage = 50;
+  const memoryUsage = 50;
 
   return {
     loadModel: jest.fn(async (_path: string) => {
@@ -235,7 +235,7 @@ describe('LocalInference', () => {
       let resolveFirst: (v: any) => void;
       (runtime.generate as jest.Mock)
         .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
-        .mockImplementation(async (params) => ({
+        .mockImplementation(async () => ({
           text: 'second response',
           tokensGenerated: 10,
           durationMs: 100,
@@ -298,7 +298,7 @@ describe('LocalInference', () => {
       // Block the first generation
       (runtime.generate as jest.Mock).mockReturnValue(new Promise(() => {}));
 
-      const p1 = inference.generate(makeRequest({ id: 'r1' }));
+      void inference.generate(makeRequest({ id: 'r1' }));
       const p2 = inference.generate(makeRequest({ id: 'r2' }));
 
       // Abort all

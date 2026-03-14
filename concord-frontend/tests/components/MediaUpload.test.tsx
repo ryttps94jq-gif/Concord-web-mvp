@@ -7,6 +7,7 @@ import React from 'react';
 vi.mock('lucide-react', () => {
   const createIcon = (name: string) => {
     const Component = (props: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const React = require('react');
       return React.createElement('span', { 'data-testid': `icon-${name}`, ...props });
     };
@@ -36,6 +37,7 @@ vi.mock('lucide-react', () => {
 
 // Mock framer-motion to render plain DOM elements
 vi.mock('framer-motion', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
   const createMotionComponent = (tag: string) => {
     const Comp = React.forwardRef((props: any, ref: any) => {

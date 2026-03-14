@@ -1,18 +1,15 @@
 // Tests for Relay Engine
 import { createRelayEngine, RELAY_PRIORITY } from '../../mesh/transport/relay';
-import type { RelayEngine, RelayResult, RelayOptions } from '../../mesh/transport/relay';
-import type { DTU } from '../../utils/types';
+import type { DTU, DTUTypeCode } from '../../utils/types';
 import {
   DTU_TYPES,
   DEFAULT_DTU_TTL,
-  MAX_RELAY_QUEUE_SIZE,
-  RELAY_DEDUP_WINDOW_MS,
   EMERGENCY_DTU_TTL,
 } from '../../utils/constants';
 
 // ── Test Helpers ──────────────────────────────────────────────────────────────
 
-function createTestDTU(overrides?: Partial<DTU> & { type?: number; ttl?: number }): DTU {
+function createTestDTU(overrides?: Partial<DTU> & { type?: DTUTypeCode; ttl?: number }): DTU {
   const content = new Uint8Array([1, 2, 3, 4, 5]);
   const contentHash = new Uint8Array(32);
   // Make each DTU have a unique hash by default
@@ -51,7 +48,7 @@ function createTestDTU(overrides?: Partial<DTU> & { type?: number; ttl?: number 
   };
 }
 
-function createDTUWithHash(hashByte: number, type?: number, ttl?: number): DTU {
+function createDTUWithHash(hashByte: number, type?: DTUTypeCode, ttl?: number): DTU {
   const contentHash = new Uint8Array(32);
   contentHash[0] = hashByte;
 

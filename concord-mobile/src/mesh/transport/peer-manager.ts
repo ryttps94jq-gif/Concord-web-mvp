@@ -1,7 +1,6 @@
 // Concord Mobile — Peer Manager
 // Manages discovered peers across all transports with reputation tracking
 
-import { TRANSPORT_LAYERS } from '../../utils/constants';
 import type {
   MeshPeer,
   PeerReputation,

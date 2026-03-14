@@ -12,7 +12,6 @@ import {
   DTU_VERSION,
   DTU_FLAGS,
   DTU_TYPES,
-  DTU_HASH_SIZE,
   DTU_HEADER_SIZE,
   DEFAULT_DTU_TTL,
 } from '../../utils/constants';
@@ -33,7 +32,7 @@ const mockEd25519Verify = jest.fn(async () => true);
 
 const mockCryptoProvider: CryptoProvider = {
   sha256: mockSha256,
-  hmacSha256: jest.fn(async (data, _key) => new Uint8Array(32).fill(0xaa)),
+  hmacSha256: jest.fn(async () => new Uint8Array(32).fill(0xaa)),
   crc32: jest.fn(() => 0x12345678),
   randomBytes: jest.fn((size) => new Uint8Array(size).fill(0x42)),
   ed25519GenerateKeypair: jest.fn(async () => ({
@@ -371,9 +370,9 @@ describe('verifySignature', () => {
     await verifySignature(dtu, pubKey);
 
     expect(mockEd25519Verify).toHaveBeenCalledTimes(1);
-    const [message, passedSig, passedKey] = mockEd25519Verify.mock.calls[0];
+    const [message, passedSig, passedKey] = mockEd25519Verify.mock.calls[0] as any[];
     // message should be header (48 bytes) + content
-    expect(message.length).toBe(DTU_HEADER_SIZE + dtu.content.length);
+    expect(message!.length).toBe(DTU_HEADER_SIZE + dtu.content.length);
     expect(passedSig).toBe(sig);
     expect(passedKey).toBe(pubKey);
   });
@@ -403,10 +402,10 @@ describe('verifySignature', () => {
 
     await verifySignature(dtu, pubKey);
 
-    const [message] = mockEd25519Verify.mock.calls[0];
+    const [message] = mockEd25519Verify.mock.calls[0] as any[];
     const expectedHeader = encodeHeader(dtu.header);
     // First 48 bytes should match encoded header
-    const headerPortion = message.slice(0, DTU_HEADER_SIZE);
+    const headerPortion = message!.slice(0, DTU_HEADER_SIZE);
     expect(headerPortion).toEqual(expectedHeader);
   });
 
@@ -417,8 +416,8 @@ describe('verifySignature', () => {
 
     await verifySignature(dtu, pubKey);
 
-    const [message] = mockEd25519Verify.mock.calls[0];
-    const contentPortion = message.slice(DTU_HEADER_SIZE);
+    const [message] = mockEd25519Verify.mock.calls[0] as any[];
+    const contentPortion = message!.slice(DTU_HEADER_SIZE);
     expect(contentPortion).toEqual(dtu.content);
   });
 });

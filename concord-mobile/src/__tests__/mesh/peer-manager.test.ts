@@ -4,8 +4,7 @@ import {
   calculateReputationScore,
   calculatePeerScore,
 } from '../../mesh/transport/peer-manager';
-import type { PeerManager } from '../../mesh/transport/peer-manager';
-import type { MeshPeer, PeerReputation, TransportLayer } from '../../utils/types';
+import type { MeshPeer, PeerReputation } from '../../utils/types';
 import { TRANSPORT_LAYERS } from '../../utils/constants';
 
 // ── Test Helpers ──────────────────────────────────────────────────────────────

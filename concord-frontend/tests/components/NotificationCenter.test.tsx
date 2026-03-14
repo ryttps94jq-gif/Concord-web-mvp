@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('lucide-react', () => {
   const createIcon = (name: string) => {
     const Component = (props: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const React = require('react');
       return React.createElement('span', { 'data-testid': `icon-${name}`, ...props });
     };
@@ -42,15 +43,19 @@ vi.mock('lucide-react', () => {
 
 // Mock framer-motion
 vi.mock('framer-motion', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
   return {
     motion: {
+      // eslint-disable-next-line react/display-name
       div: React.forwardRef(({ children }: any, ref: any) =>
         React.createElement('div', { ref }, children)
       ),
+      // eslint-disable-next-line react/display-name
       button: React.forwardRef(({ children }: any, ref: any) =>
         React.createElement('button', { ref }, children)
       ),
+      // eslint-disable-next-line react/display-name
       span: React.forwardRef(({ children }: any, ref: any) =>
         React.createElement('span', { ref }, children)
       ),

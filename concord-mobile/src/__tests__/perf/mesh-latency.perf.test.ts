@@ -4,7 +4,6 @@ import { createBLEAdvertiser } from '../../mesh/bluetooth/ble-advertiser';
 import type { BLEManager } from '../../mesh/bluetooth/ble-advertiser';
 import {
   serializeDTU, deserializeDTU, chunkData, reassembleChunks,
-  serializeChunk, deserializeChunk,
 } from '../../mesh/bluetooth/ble-transfer';
 import { createRelayEngine } from '../../mesh/transport/relay';
 import { createTransportSelector } from '../../mesh/transport/transport-selector';

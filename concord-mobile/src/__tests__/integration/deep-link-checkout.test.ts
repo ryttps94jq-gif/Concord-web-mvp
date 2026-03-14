@@ -2,7 +2,7 @@
 // Verifies that concordapp:// deep links are handled correctly
 // when the user returns from the Stripe checkout in Safari.
 
-import { Linking, Alert } from 'react-native';
+import { Linking } from 'react-native';
 
 jest.mock('react-native', () => {
   const listeners: Map<string, (event: { url: string }) => void> = new Map();
@@ -29,7 +29,6 @@ jest.mock('react-native', () => {
 });
 
 const mockLinking = Linking as any;
-const mockAlert = Alert.alert as jest.MockedFunction<typeof Alert.alert>;
 
 describe('Deep link checkout flow', () => {
   beforeEach(() => {
