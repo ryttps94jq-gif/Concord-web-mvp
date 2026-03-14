@@ -1,6 +1,6 @@
-const tseslint = require('typescript-eslint');
+import tseslint from 'typescript-eslint';
 
-module.exports = tseslint.config(
+export default tseslint.config(
   {
     ignores: ['node_modules/', 'coverage/', 'android/', 'ios/', 'native/', 'babel.config.js'],
   },

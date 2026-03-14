@@ -75,7 +75,7 @@ function contentHashHex(dtu: DTU): string {
   return Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function createSyncResolver(deviceId: string): SyncResolver {
+export function createSyncResolver(_deviceId: string): SyncResolver {
   const metaMap = new Map<string, SyncMeta>();
 
   function detectConflict(local: DTU, remote: DTU): ConflictRecord | null {
