@@ -146,7 +146,7 @@ jobs:
 
       - name: Run performance benchmarks
         working-directory: ./concord-mobile
-        run: npx jest --testPathPattern='perf/' --no-coverage
+        run: npx jest --testPathPattern='perf/' --testPathIgnorePatterns='/node_modules/' '/e2e/' --no-coverage
 
   security-scan:
     name: Security Scan

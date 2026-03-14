@@ -87,7 +87,8 @@
     },
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/e2e/"
+      "/e2e/",
+      "/perf/"
     ],
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",

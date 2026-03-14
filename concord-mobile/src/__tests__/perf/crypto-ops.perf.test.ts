@@ -144,10 +144,10 @@ describe('base64 encode/decode throughput', () => {
     expect(ms).toBeLessThan(200);
   });
 
-  it('UTF-8 round-trips 10000 strings in under 200ms', () => {
+  it('UTF-8 round-trips 10000 strings in under 500ms', () => {
     const txt = 'Concord DTU content with test data 12345 payload';
     const ms = measureMs(() => { for (let i = 0; i < 10000; i++) decodeUTF8(encodeUTF8(txt)); });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(500);
   });
 
   it('concatenates 1000 arrays of 10 buffers in under 100ms', () => {

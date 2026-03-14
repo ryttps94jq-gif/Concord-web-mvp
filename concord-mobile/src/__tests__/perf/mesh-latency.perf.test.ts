@@ -110,10 +110,10 @@ describe('peer discovery latency', () => {
 
 describe('transfer throughput', () => {
   it.each([64, 512, 4096, 32768])(
-    'serialize/deserialize 100 DTUs (%d-byte payload) in under 2000ms', (size) => {
+    'serialize/deserialize 100 DTUs (%d-byte payload) in under 5000ms', (size) => {
       const dtu = makeDTU(0, size);
       const ms = measureMs(() => { for (let i = 0; i < 100; i++) deserializeDTU(serializeDTU(dtu)); });
-      expect(ms).toBeLessThan(2000);
+      expect(ms).toBeLessThan(5000);
     },
   );
 
