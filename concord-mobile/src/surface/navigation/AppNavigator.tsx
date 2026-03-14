@@ -13,6 +13,7 @@ import { WalletScreen } from '../screens/WalletScreen';
 import { MeshStatusScreen } from '../screens/MeshStatusScreen';
 import { AtlasScreen } from '../screens/AtlasScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { BuyCoinsScreen } from '../screens/BuyCoinsScreen';
 
 export type RootTabParamList = {
   Chat: undefined;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   Main: undefined;
   Atlas: undefined;
   Settings: undefined;
+  BuyCoins: undefined;
   LensDetail: { lensId: string };
   DTUDetail: { dtuId: string };
   PeerDetail: { peerId: string };
@@ -78,9 +80,24 @@ function MainTabs() {
   );
 }
 
+// Deep linking configuration for checkout return flow
+const linking = {
+  prefixes: ['concordapp://'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          Wallet: 'checkout-complete',
+        },
+      },
+      BuyCoins: 'buy-coins',
+    },
+  },
+};
+
 export function AppNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -90,6 +107,7 @@ export function AppNavigator() {
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Atlas" component={AtlasScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="BuyCoins" component={BuyCoinsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

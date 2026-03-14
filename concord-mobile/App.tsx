@@ -1,11 +1,12 @@
 // Concord Mobile — App Entry Point
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Linking, Alert } from 'react-native';
 import { AppNavigator } from './src/surface/navigation/AppNavigator';
 import { useIdentityStore } from './src/store/identity-store';
 import { useMeshStore } from './src/store/mesh-store';
+import { useEconomyStore } from './src/store/economy-store';
 import { detectHardwareCapabilities, getGracefulDegradation } from './src/utils/hardware-detect';
 import { createIdentityManager } from './src/identity/identity-manager';
 import type { SecureStorage } from './src/identity/identity-manager';
@@ -71,6 +72,36 @@ export default function App() {
   const setIdentity = useIdentityStore(s => s.setIdentity);
   const setHardware = useIdentityStore(s => s.setHardware);
   const setTransportStatus = useMeshStore(s => s.setTransportStatus);
+  const updateBalance = useEconomyStore(s => s.updateBalance);
+
+  // ── Deep Link Handler (checkout return flow) ──────────────────────────
+  const handleDeepLink = useCallback(({ url }: { url: string }) => {
+    if (!url) return;
+
+    if (url.includes('checkout-complete')) {
+      // Purchase succeeded — Stripe webhook handles the actual minting.
+      // Trigger a balance refresh to reflect new coins.
+      // In production, this would call the /api/economy/balance endpoint.
+      updateBalance({ lastUpdated: Date.now() });
+      Alert.alert('Coins Added', 'Your Concord Coins are ready in your wallet.');
+    } else if (url.includes('checkout-cancel')) {
+      Alert.alert('Purchase Cancelled', 'No charges were made. You can try again anytime.');
+    } else if (url.includes('error')) {
+      Alert.alert('Purchase Error', 'Something went wrong. Please try again from the wallet.');
+    }
+  }, [updateBalance]);
+
+  useEffect(() => {
+    // Listen for deep links when app is already open
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened via deep link (cold start)
+    Linking.getInitialURL().then(url => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => subscription.remove();
+  }, [handleDeepLink]);
 
   useEffect(() => {
     async function initialize() {
