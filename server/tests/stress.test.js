@@ -683,17 +683,6 @@ function createTransferEngine(ledger) {
           status: "complete",
           refId,
         },
-        {
-          id: ledger.generateTxId(),
-          type,
-          from: null,
-          to,
-          amount: net,
-          fee: 0,
-          net,
-          status: "complete",
-          refId,
-        },
       ];
 
       if (fee > 0) {
@@ -706,7 +695,6 @@ function createTransferEngine(ledger) {
           fee: 0,
           net: fee,
           status: "complete",
-          refId,
         });
       }
 
@@ -958,7 +946,7 @@ describe("Stress Test 2: Heartbeat Tick Under Load", () => {
     assert.equal(heartbeat.getTickCount(), 50, "Tick counter should be 50");
   });
 
-  it("heartbeat tick handles entity state mutations safely during iteration", { todo: "known concurrency issue with mid-tick entity mutation" }, async () => {
+  it("heartbeat tick handles entity state mutations safely during iteration", async () => {
     // Register entities
     for (let i = 0; i < 50; i++) {
       await registry.runMacro("emergent", "register", { name: `Entity ${i}` });
@@ -970,7 +958,7 @@ describe("Stress Test 2: Heartbeat Tick Under Load", () => {
         for (const entity of entities) {
           entity.homeostasis.energy -= 0.01;
           // Simulate adding a new entity mid-tick (should not crash the iterator)
-          if (entity.homeostasis.energy < 0.99 && !state.__emergent.emergents.has("late_joiner")) {
+          if (entity.homeostasis.energy < 1.0 && !state.__emergent.emergents.has("late_joiner")) {
             state.__emergent.emergents.set("late_joiner", {
               id: "late_joiner",
               name: "Late Joiner",
@@ -1533,7 +1521,7 @@ describe("Stress Test 5: 10,000 Concurrent Transactions with Ledger Consistency"
     assert.ok(ms < 30000, `10K mints should complete in <30s, took ${ms.toFixed(0)}ms`);
   });
 
-  it("10,000 transfers maintain total balance invariant (credits = debits + fees)", { todo: "known ledger conservation violation under concurrent transfers" }, async () => {
+  it("10,000 transfers maintain total balance invariant (credits = debits + fees)", async () => {
     // Seed 100 users with 10,000 tokens each
     const NUM_USERS = 100;
     const SEED_AMOUNT = 10000;
@@ -1578,7 +1566,7 @@ describe("Stress Test 5: 10,000 Concurrent Transactions with Ledger Consistency"
     );
   });
 
-  it("no money is created or destroyed in circular transfer chain", { todo: "known ledger conservation issue" }, async () => {
+  it("no money is created or destroyed in circular transfer chain", async () => {
     const CHAIN_SIZE = 100;
     const INITIAL_BALANCE = 1000;
     const TRANSFER_AMOUNT = 10;
@@ -1619,7 +1607,7 @@ describe("Stress Test 5: 10,000 Concurrent Transactions with Ledger Consistency"
     assert.ok(platformBalance > 0, "Platform should have collected fees from transfers");
   });
 
-  it("idempotent transfers are not double-counted", { todo: "known ledger idempotency issue" }, async () => {
+  it("idempotent transfers are not double-counted", async () => {
     engine.mintTokens("alice", 1000);
     engine.mintTokens("bob", 1000);
 
@@ -1690,7 +1678,7 @@ describe("Stress Test 5: 10,000 Concurrent Transactions with Ledger Consistency"
     assert.equal(balance, 5, "Balance should remain 5 after all failed transfers");
   });
 
-  it("10,000 concurrent operations: mixed mints + transfers + balance checks", { todo: "known ledger conservation issue under concurrency" }, async () => {
+  it("10,000 concurrent operations: mixed mints + transfers + balance checks", async () => {
     // Phase 1: Mint tokens to 50 users
     const NUM_USERS = 50;
     for (let i = 0; i < NUM_USERS; i++) {
@@ -1793,16 +1781,16 @@ describe("Stress Test 5: 10,000 Concurrent Transactions with Ledger Consistency"
       return result;
     });
 
-    // Each successful transfer creates 3 ledger entries (debit + credit + fee)
-    const expectedRows = mintRows + successCount * 3;
+    // Each successful transfer creates 2 ledger entries (transfer + fee)
+    const expectedRows = mintRows + successCount * 2;
     assert.equal(
       ledger.getRowCount(),
       expectedRows,
-      `Ledger should have ${expectedRows} rows (${mintRows} mints + ${successCount} * 3 transfer entries)`
+      `Ledger should have ${expectedRows} rows (${mintRows} mints + ${successCount} * 2 transfer entries)`
     );
   });
 
-  it("total debits equal total credits across the entire ledger", { todo: "known ledger conservation issue" }, async () => {
+  it("total debits equal total credits across the entire ledger", async () => {
     // Seed
     const NUM_USERS = 30;
     for (let i = 0; i < NUM_USERS; i++) {
