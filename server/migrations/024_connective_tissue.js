@@ -126,23 +126,31 @@ export function up(db) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_forks_fork ON dtu_forks(fork_dtu_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_forks_forker ON dtu_forks(forker_id)`);
 
-  // ── Marketplace Listings ─────────────────────────────────────────────
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS marketplace_listings (
-      id TEXT PRIMARY KEY,
-      dtu_id TEXT NOT NULL,
-      seller_id TEXT NOT NULL,
-      price REAL NOT NULL,
-      license_type TEXT DEFAULT 'standard',
-      status TEXT DEFAULT 'ACTIVE',
-      listed_at TEXT,
-      created_at TEXT NOT NULL,
-      UNIQUE(dtu_id, seller_id)
-    )
-  `);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_dtu ON marketplace_listings(dtu_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_seller ON marketplace_listings(seller_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_status ON marketplace_listings(status)`);
+  // ── Marketplace Listings (add columns to existing table from 001) ────
+  {
+    const mlCols = db.prepare("PRAGMA table_info(marketplace_listings)").all().map(c => c.name);
+    if (!mlCols.includes('dtu_id')) {
+      db.exec("ALTER TABLE marketplace_listings ADD COLUMN dtu_id TEXT");
+    }
+    if (!mlCols.includes('seller_id')) {
+      db.exec("ALTER TABLE marketplace_listings ADD COLUMN seller_id TEXT");
+    }
+    if (!mlCols.includes('price')) {
+      db.exec("ALTER TABLE marketplace_listings ADD COLUMN price REAL DEFAULT 0");
+    }
+    if (!mlCols.includes('license_type')) {
+      db.exec("ALTER TABLE marketplace_listings ADD COLUMN license_type TEXT DEFAULT 'standard'");
+    }
+    if (!mlCols.includes('listed_at')) {
+      db.exec("ALTER TABLE marketplace_listings ADD COLUMN listed_at TEXT");
+    }
+    if (mlCols.includes('dtu_id')) {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_dtu ON marketplace_listings(dtu_id)`);
+    }
+    if (mlCols.includes('owner_user_id')) {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_listings_seller ON marketplace_listings(owner_user_id)`);
+    }
+  }
 
   // ── Emergent Entities ────────────────────────────────────────────────
   db.exec(`
@@ -218,9 +226,10 @@ export function up(db) {
   }
 
   // ── Full-text search index for DTUs ──────────────────────────────────
+  // dtus table uses body_json (not content) and tags_json; lens_id added above
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS dtus_fts USING fts5(
-      title, content, tags_json, lens_id,
+      title, body_json, tags_json, lens_id,
       content='dtus', content_rowid='rowid'
     )
   `);
@@ -229,26 +238,26 @@ export function up(db) {
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS dtus_fts_insert AFTER INSERT ON dtus
     BEGIN
-      INSERT INTO dtus_fts(rowid, title, content, tags_json, lens_id)
-      VALUES (new.rowid, new.title, new.content, new.tags_json, new.lens_id);
+      INSERT INTO dtus_fts(rowid, title, body_json, tags_json, lens_id)
+      VALUES (new.rowid, new.title, new.body_json, new.tags_json, new.lens_id);
     END
   `);
 
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS dtus_fts_update AFTER UPDATE ON dtus
     BEGIN
-      INSERT INTO dtus_fts(dtus_fts, rowid, title, content, tags_json, lens_id)
-      VALUES ('delete', old.rowid, old.title, old.content, old.tags_json, old.lens_id);
-      INSERT INTO dtus_fts(rowid, title, content, tags_json, lens_id)
-      VALUES (new.rowid, new.title, new.content, new.tags_json, new.lens_id);
+      INSERT INTO dtus_fts(dtus_fts, rowid, title, body_json, tags_json, lens_id)
+      VALUES ('delete', old.rowid, old.title, old.body_json, old.tags_json, old.lens_id);
+      INSERT INTO dtus_fts(rowid, title, body_json, tags_json, lens_id)
+      VALUES (new.rowid, new.title, new.body_json, new.tags_json, new.lens_id);
     END
   `);
 
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS dtus_fts_delete AFTER DELETE ON dtus
     BEGIN
-      INSERT INTO dtus_fts(dtus_fts, rowid, title, content, tags_json, lens_id)
-      VALUES ('delete', old.rowid, old.title, old.content, old.tags_json, old.lens_id);
+      INSERT INTO dtus_fts(dtus_fts, rowid, title, body_json, tags_json, lens_id)
+      VALUES ('delete', old.rowid, old.title, old.body_json, old.tags_json, old.lens_id);
     END
   `);
 }

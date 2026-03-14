@@ -88,9 +88,13 @@ describe("Boot 1: Server module loads", () => {
     }
   });
 
-  it("should have STATE.dtus as a Map", () => {
+  it("should have STATE.dtus as a Map-like store", () => {
     if (loadError) return;
-    assert.ok(__TEST__.STATE.dtus instanceof Map, "STATE.dtus must be a Map");
+    const dtus = __TEST__.STATE.dtus;
+    // dtus may be a Map or a write-through DTU store with Map-like interface
+    const isMapLike = dtus instanceof Map ||
+      (typeof dtus.get === "function" && typeof dtus.set === "function" && typeof dtus.has === "function");
+    assert.ok(isMapLike, "STATE.dtus must be a Map or Map-like store");
   });
 
   it("should have STATE.shadowDtus as a Map", () => {

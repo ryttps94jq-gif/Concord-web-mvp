@@ -58,11 +58,11 @@ export function up(db) {
       scope TEXT NOT NULL,
       scope_id TEXT NOT NULL,
       category TEXT NOT NULL,
-      season TEXT,
+      season TEXT NOT NULL DEFAULT '',
       score REAL DEFAULT 0,
       rank INTEGER,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, scope, scope_id, category, COALESCE(season,''))
+      PRIMARY KEY (user_id, scope, scope_id, category, season)
     );
 
     CREATE INDEX IF NOT EXISTS idx_lb_entries_rank

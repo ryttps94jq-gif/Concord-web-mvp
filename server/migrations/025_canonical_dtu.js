@@ -80,6 +80,21 @@ export function up(db) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_rights_owner ON dtu_rights(owner_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_rights_scope ON dtu_rights(scope)`);
 
+  // ── Ensure dtu_store exists (normally created at runtime by dtu-store.js) ─
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dtu_store (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      tier TEXT DEFAULT 'regular',
+      scope TEXT DEFAULT 'global',
+      tags TEXT DEFAULT '[]',
+      source TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      data TEXT NOT NULL DEFAULT '{}'
+    )
+  `);
+
   // ── Add columns to dtu_store if they don't exist ────────────────────
   const dtuStoreCols = db.prepare("PRAGMA table_info(dtu_store)").all().map(c => c.name);
   if (!dtuStoreCols.includes("content_hash")) {

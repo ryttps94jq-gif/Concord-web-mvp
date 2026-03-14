@@ -10,30 +10,26 @@
  */
 
 export function up(db) {
-  db.exec(`
-    -- Lens registry (all active lenses)
-    CREATE TABLE IF NOT EXISTS lens_registry (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      classification TEXT NOT NULL
-        CHECK (classification IN ('KNOWLEDGE','CREATIVE','SOCIAL','CULTURE','UTILITY','HYBRID')),
-      version TEXT NOT NULL,
-      protection_mode TEXT NOT NULL
-        CHECK (protection_mode IN ('PROTECTED', 'OPEN', 'ISOLATED')),
-      creator_id TEXT NOT NULL,
-      creator_type TEXT NOT NULL DEFAULT 'system'
-        CHECK (creator_type IN ('system', 'user', 'emergent')),
-      status TEXT NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'disabled', 'pending_review', 'pending_compliance')),
-      federation_tiers_json TEXT NOT NULL DEFAULT '[]',
-      artifact_types_json TEXT DEFAULT '[]',
-      config_json TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      disabled_at TEXT,
-      disabled_reason TEXT
-    );
+  // Add columns to lens_registry that were not in migration 015
+  const cols = db.prepare("PRAGMA table_info(lens_registry)").all().map(c => c.name);
+  const additions = [
+    ['classification', "TEXT NOT NULL DEFAULT 'UTILITY'"],
+    ['version', "TEXT NOT NULL DEFAULT '1.0.0'"],
+    ['creator_id', "TEXT NOT NULL DEFAULT 'system'"],
+    ['creator_type', "TEXT NOT NULL DEFAULT 'system'"],
+    ['status', "TEXT NOT NULL DEFAULT 'active'"],
+    ['artifact_types_json', "TEXT DEFAULT '[]'"],
+    ['config_json', "TEXT"],
+    ['disabled_at', "TEXT"],
+    ['disabled_reason', "TEXT"],
+  ];
+  for (const [col, def] of additions) {
+    if (!cols.includes(col)) {
+      db.exec(`ALTER TABLE lens_registry ADD COLUMN ${col} ${def}`);
+    }
+  }
 
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_lens_classification
       ON lens_registry(classification);
     CREATE INDEX IF NOT EXISTS idx_lens_status

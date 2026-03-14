@@ -42,13 +42,13 @@ export function up(db) {
     CREATE TABLE IF NOT EXISTS user_xp (
       user_id TEXT NOT NULL,
       federation_tier TEXT NOT NULL,
-      regional TEXT,
-      national TEXT,
+      regional TEXT NOT NULL DEFAULT '',
+      national TEXT NOT NULL DEFAULT '',
       total_xp INTEGER DEFAULT 0,
       level INTEGER DEFAULT 1,
-      season TEXT,
+      season TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, federation_tier, COALESCE(regional,''), COALESCE(national,''), COALESCE(season,''))
+      PRIMARY KEY (user_id, federation_tier, regional, national, season)
     );
 
     -- ═══════════════════════════════════════════════════

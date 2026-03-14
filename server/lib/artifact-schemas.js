@@ -7,6 +7,8 @@
 
 const ARTIFACT_SCHEMAS = new Map();
 
+let _loaded = false;
+
 export function registerSchema(domain, action, schema) {
   ARTIFACT_SCHEMAS.set(`${domain}.${action}`, schema);
 }
@@ -21,14 +23,22 @@ export function getSchemaCount() {
   return ARTIFACT_SCHEMAS.size;
 }
 
-// Load all domain schemas
-import "./artifact-schemas/food-schemas.js";
-import "./artifact-schemas/fitness-schemas.js";
-import "./artifact-schemas/finance-schemas.js";
-import "./artifact-schemas/healthcare-schemas.js";
-import "./artifact-schemas/legal-schemas.js";
-import "./artifact-schemas/music-schemas.js";
-import "./artifact-schemas/realestate-schemas.js";
-import "./artifact-schemas/education-schemas.js";
-import "./artifact-schemas/trades-schemas.js";
-import "./artifact-schemas/insurance-schemas.js";
+// Lazy loader — called once on first access or explicitly at startup
+export async function loadSchemas() {
+  if (_loaded) return;
+  _loaded = true;
+  await import("./artifact-schemas/food-schemas.js");
+  await import("./artifact-schemas/fitness-schemas.js");
+  await import("./artifact-schemas/finance-schemas.js");
+  await import("./artifact-schemas/healthcare-schemas.js");
+  await import("./artifact-schemas/legal-schemas.js");
+  await import("./artifact-schemas/music-schemas.js");
+  await import("./artifact-schemas/realestate-schemas.js");
+  await import("./artifact-schemas/education-schemas.js");
+  await import("./artifact-schemas/trades-schemas.js");
+  await import("./artifact-schemas/insurance-schemas.js");
+}
+
+// Auto-load schemas on import (non-blocking, resolves before any getArtifactSchema call in practice)
+const _initPromise = loadSchemas();
+export { _initPromise as schemasReady };

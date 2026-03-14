@@ -3319,6 +3319,7 @@ function initDatabase() {
       CREATE TABLE IF NOT EXISTS archived_dtus (
         id TEXT PRIMARY KEY,
         data TEXT NOT NULL,
+        tier TEXT,
         consolidated_into TEXT,
         archived_at TEXT NOT NULL,
         rehydrated_count INTEGER DEFAULT 0,

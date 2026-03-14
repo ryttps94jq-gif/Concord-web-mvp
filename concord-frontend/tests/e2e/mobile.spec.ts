@@ -1,8 +1,8 @@
 import { test, expect, devices } from '@playwright/test';
 
-test.describe('Mobile Responsiveness', () => {
-  test.use({ ...devices['iPhone 13'] });
+test.use({ ...devices['iPhone 13'] });
 
+test.describe('Mobile Responsiveness', () => {
   test('should render main page on mobile', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');

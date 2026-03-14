@@ -1,7 +1,8 @@
 /**
  * Migration 001: Core tables for the "Everything Real" spec.
  *
- * Creates: dtus, dtu_versions, artifacts, artifact_versions, artifact_links,
+ * Creates: users, api_keys, sessions, audit_log,
+ *          dtus, dtu_versions, artifacts, artifact_versions, artifact_links,
  *          jobs, job_artifacts, marketplace_listings, marketplace_listing_assets,
  *          entitlements, events, lens_items,
  *          studio_projects, studio_tracks, studio_clips, studio_effect_chains,
@@ -10,6 +11,63 @@
 
 export function up(db) {
   db.exec(`
+    -- ═══════════════════════════════════════════════════
+    -- Users & Auth (required by all FK references below)
+    -- ═══════════════════════════════════════════════════
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      scopes TEXT NOT NULL DEFAULT '["read","write"]',
+      created_at TEXT NOT NULL,
+      last_login_at TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      key_hash TEXT NOT NULL,
+      key_prefix TEXT NOT NULL,
+      scopes TEXT NOT NULL DEFAULT '["read"]',
+      created_at TEXT NOT NULL,
+      last_used_at TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      is_revoked INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      timestamp TEXT NOT NULL,
+      category TEXT NOT NULL,
+      action TEXT NOT NULL,
+      user_id TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      request_id TEXT,
+      path TEXT,
+      method TEXT,
+      status_code INTEGER,
+      details TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     -- ═══════════════════════════════════════════════════
     -- DTUs (Discrete Thought Units)
     -- ═══════════════════════════════════════════════════
@@ -302,5 +360,9 @@ export function down(db) {
     DROP TABLE IF EXISTS artifacts;
     DROP TABLE IF EXISTS dtu_versions;
     DROP TABLE IF EXISTS dtus;
+    DROP TABLE IF EXISTS audit_log;
+    DROP TABLE IF EXISTS sessions;
+    DROP TABLE IF EXISTS api_keys;
+    DROP TABLE IF EXISTS users;
   `);
 }
