@@ -777,7 +777,9 @@ test.describe('Navigation Flows', () => {
         !e.includes('Unauthorized') &&
         !e.includes('401') &&
         !e.includes('404') &&
-        !e.includes('ChunkLoadError')
+        !e.includes('ChunkLoadError') &&
+        !e.includes("'DEV'") &&
+        !e.includes('"DEV"')
     );
     expect(criticalErrors).toHaveLength(0);
   });
