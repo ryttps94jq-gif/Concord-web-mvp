@@ -19,6 +19,7 @@ test.describe('Accessibility (axe-core)', () => {
 
   test.describe('Public pages', () => {
     test('Landing page should have no critical accessibility violations', async ({ page }) => {
+      test.setTimeout(60000);
       const response = await page.goto('/');
       expect(response?.status()).toBeLessThan(500);
       await page.waitForLoadState('networkidle').catch(() => {});

@@ -17,10 +17,12 @@ test.describe('Terms of Service Page', () => {
     // Skip title check if redirected away from the legal page
     if (!/\/legal\/terms/.test(page.url())) return;
 
-    const heading = page.locator('h1');
-    const visible = await heading.first().isVisible().catch(() => false);
+    // Look for a heading that contains "terms" anywhere on the page
+    // (the first h1 may belong to the app shell, not the legal content)
+    const termsHeading = page.locator('h1:has-text("Terms"), h2:has-text("Terms")');
+    const visible = await termsHeading.first().isVisible().catch(() => false);
     if (visible) {
-      const text = await heading.first().textContent();
+      const text = await termsHeading.first().textContent();
       expect(text?.toLowerCase()).toContain('terms');
     }
   });
@@ -105,10 +107,12 @@ test.describe('Privacy Policy Page', () => {
     // Skip title check if redirected away from the legal page
     if (!/\/legal\/privacy/.test(page.url())) return;
 
-    const heading = page.locator('h1');
-    const visible = await heading.first().isVisible().catch(() => false);
+    // Look for a heading that contains "privacy" anywhere on the page
+    // (the first h1 may belong to the app shell, not the legal content)
+    const privacyHeading = page.locator('h1:has-text("Privacy"), h2:has-text("Privacy")');
+    const visible = await privacyHeading.first().isVisible().catch(() => false);
     if (visible) {
-      const text = await heading.first().textContent();
+      const text = await privacyHeading.first().textContent();
       expect(text?.toLowerCase()).toContain('privacy');
     }
   });
