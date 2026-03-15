@@ -624,7 +624,8 @@ test.describe('Accessibility - Skip to Content', () => {
 test.describe('Responsive Design', () => {
   test('mobile viewport renders without horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
 
     // Page should not have horizontal scrollbar
     const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
@@ -638,7 +639,8 @@ test.describe('Responsive Design', () => {
 
   test('tablet viewport renders correctly', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
 
     const body = page.locator('body');
     if (await body.isVisible().catch(() => false)) {

@@ -108,7 +108,8 @@ test.describe('Privacy Policy Page', () => {
   });
 
   test('privacy page shows effective date', async ({ page }) => {
-    await page.goto('/legal/privacy');
+    const response = await page.goto('/legal/privacy');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const effectiveDate = page.locator('text=/Effective Date/i');
@@ -119,7 +120,8 @@ test.describe('Privacy Policy Page', () => {
   });
 
   test('privacy page has section anchors', async ({ page }) => {
-    await page.goto('/legal/privacy');
+    const response = await page.goto('/legal/privacy');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Check key section IDs exist
