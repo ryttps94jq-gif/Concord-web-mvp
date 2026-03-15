@@ -21,6 +21,7 @@ test.describe('Accessibility (axe-core)', () => {
     test('Landing page should have no critical accessibility violations', async ({ page }) => {
       const response = await page.goto('/');
       expect(response?.status()).toBeLessThan(500);
+      await page.waitForLoadState('networkidle').catch(() => {});
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -44,6 +45,7 @@ test.describe('Accessibility (axe-core)', () => {
     test('Login page should have no critical accessibility violations', async ({ page }) => {
       const response = await page.goto('/login');
       expect(response?.status()).toBeLessThan(500);
+      await page.waitForLoadState('networkidle').catch(() => {});
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa'])
@@ -67,6 +69,7 @@ test.describe('Accessibility (axe-core)', () => {
     test('Register page should have no critical accessibility violations', async ({ page }) => {
       const response = await page.goto('/register');
       expect(response?.status()).toBeLessThan(500);
+      await page.waitForLoadState('networkidle').catch(() => {});
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa'])
@@ -243,7 +246,10 @@ test.describe('Accessibility (axe-core)', () => {
 
       const response = await page.goto('/lenses/chat');
       expect(response?.status()).toBeLessThan(500);
-      await page.waitForLoadState('domcontentloaded');
+      await page.waitForLoadState('networkidle').catch(() => {});
+
+      // Wait for React hydration to complete (AppShell renders <main> after mount)
+      await page.waitForSelector('#main-content, [role="main"], main', { timeout: 5000 }).catch(() => {});
 
       // Should have main content area
       const mainVisible = await page.locator('#main-content, [role="main"], main').first().isVisible().catch(() => false);
