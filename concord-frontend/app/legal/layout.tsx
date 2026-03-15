@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useUIStore } from '@/store/ui';
 
 const NAV_ITEMS = [
   { href: '/legal/terms', label: 'Terms of Service' },
@@ -13,6 +15,15 @@ const LAST_UPDATED = 'March 1, 2026';
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const setFullPageMode = useUIStore((s) => s.setFullPageMode);
+
+  // Legal pages have their own chrome (header + sidebar nav), so disable the
+  // AppShell Topbar/Sidebar to avoid a duplicate h1 ("Chat") conflicting with
+  // the page's own h1 (e.g. "DMCA Policy").
+  useEffect(() => {
+    setFullPageMode(true);
+    return () => setFullPageMode(false);
+  }, [setFullPageMode]);
 
   return (
     <div className="min-h-screen bg-lattice-deep">
