@@ -298,7 +298,8 @@ test.describe('Topbar', () => {
   });
 
   test('topbar has user menu button', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const userButton = page.getByRole('button', { name: /user menu/i });
@@ -308,7 +309,8 @@ test.describe('Topbar', () => {
   });
 
   test('user menu opens and shows sign out option', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const userButton = page.getByRole('button', { name: /user menu/i });
@@ -340,7 +342,8 @@ test.describe('Topbar', () => {
   });
 
   test('topbar has notifications button', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const notificationsButton = page.getByRole('button', { name: /notifications/i });
@@ -352,7 +355,8 @@ test.describe('Topbar', () => {
   test('topbar has mobile menu button', async ({ page }) => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const menuButton = page.getByRole('button', { name: /open navigation menu/i });
@@ -370,7 +374,8 @@ test.describe('Command Palette', () => {
   });
 
   test('command palette opens with Ctrl+K keyboard shortcut', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Press Ctrl+K to open command palette

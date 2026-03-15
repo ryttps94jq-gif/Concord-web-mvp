@@ -19,7 +19,8 @@ test.describe('Accessibility (axe-core)', () => {
 
   test.describe('Public pages', () => {
     test('Landing page should have no critical accessibility violations', async ({ page }) => {
-      await page.goto('/');
+      const response = await page.goto('/');
+      expect(response?.status()).toBeLessThan(500);
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -41,7 +42,8 @@ test.describe('Accessibility (axe-core)', () => {
     });
 
     test('Login page should have no critical accessibility violations', async ({ page }) => {
-      await page.goto('/login');
+      const response = await page.goto('/login');
+      expect(response?.status()).toBeLessThan(500);
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa'])
@@ -63,7 +65,8 @@ test.describe('Accessibility (axe-core)', () => {
     });
 
     test('Register page should have no critical accessibility violations', async ({ page }) => {
-      await page.goto('/register');
+      const response = await page.goto('/register');
+      expect(response?.status()).toBeLessThan(500);
       try {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa'])
@@ -109,7 +112,8 @@ test.describe('Accessibility (axe-core)', () => {
           });
         });
 
-        await page.goto(lens.path);
+        const response = await page.goto(lens.path);
+        expect(response?.status()).toBeLessThan(500);
         await page.waitForLoadState('networkidle').catch(() => {});
 
         try {
@@ -138,7 +142,8 @@ test.describe('Accessibility (axe-core)', () => {
 
   test.describe('Form accessibility', () => {
     test('Login form should have proper labels and ARIA attributes', async ({ page }) => {
-      await page.goto('/login');
+      const response = await page.goto('/login');
+      expect(response?.status()).toBeLessThan(500);
 
       // Check form has aria-describedby when error shown
       const formVisible = await page.locator('form').isVisible().catch(() => false);
@@ -165,7 +170,8 @@ test.describe('Accessibility (axe-core)', () => {
     });
 
     test('Register form should have proper labels and hint text', async ({ page }) => {
-      await page.goto('/register');
+      const response = await page.goto('/register');
+      expect(response?.status()).toBeLessThan(500);
 
       // Username hint should be linked via aria-describedby
       const usernameVisible = await page.locator('#username').isVisible().catch(() => false);
