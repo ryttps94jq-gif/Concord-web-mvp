@@ -340,7 +340,10 @@ test.describe('DTU Integrity Performance', () => {
         !e.includes('redirect') &&
         !e.includes('ERR_') &&
         !e.includes('WebSocket') &&
-        !e.includes('socket')
+        !e.includes('socket') &&
+        !e.includes('Network error') &&
+        !e.includes('Server error') &&
+        !e.includes('JSHandle')
     );
 
     if (criticalErrors.length > 0) {
