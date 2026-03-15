@@ -233,7 +233,8 @@ test.describe('DMCA Policy Page', () => {
   });
 
   test('dmca form accepts input in fields', async ({ page }) => {
-    await page.goto('/legal/dmca');
+    const response = await page.goto('/legal/dmca');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Fill in claimant name if visible
@@ -258,7 +259,8 @@ test.describe('DMCA Policy Page', () => {
   });
 
   test('dmca page has counter-notification section', async ({ page }) => {
-    await page.goto('/legal/dmca');
+    const response = await page.goto('/legal/dmca');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // The DMCA page should mention counter-notification process
@@ -274,7 +276,8 @@ test.describe('DMCA Policy Page', () => {
 
 test.describe('Legal Footer Links', () => {
   test('landing page has link to terms of service', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const termsLink = page.locator('a[href="/legal/terms"]');
@@ -284,7 +287,8 @@ test.describe('Legal Footer Links', () => {
   });
 
   test('landing page has link to privacy policy', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const privacyLink = page.locator('a[href="/legal/privacy"]');
