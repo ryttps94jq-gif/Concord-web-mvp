@@ -260,7 +260,7 @@ export function NowPlayingBar() {
               <p className="text-sm font-medium truncate">{track.title}</p>
               <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
             </div>
-            <button className="text-gray-500 hover:text-neon-pink transition-colors flex-shrink-0">
+            <button className="text-gray-500 hover:text-neon-pink transition-colors flex-shrink-0" aria-label="Like track">
               <Heart className="w-4 h-4" />
             </button>
           </div>
@@ -271,6 +271,7 @@ export function NowPlayingBar() {
               <button
                 onClick={toggleShuffle}
                 className={cn('p-1 transition-colors', shuffle ? 'text-neon-cyan' : 'text-gray-500 hover:text-white')}
+                aria-label={shuffle ? 'Disable shuffle' : 'Enable shuffle'}
               >
                 <Shuffle className="w-4 h-4" />
               </button>
@@ -278,12 +279,14 @@ export function NowPlayingBar() {
                 onClick={handlePrevious}
                 disabled={!hasPrevious()}
                 className="p-1 text-gray-300 hover:text-white disabled:text-gray-600 transition-colors"
+                aria-label="Previous track"
               >
                 <SkipBack className="w-5 h-5" />
               </button>
               <button
                 onClick={handlePlayPause}
                 className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:scale-105 transition-transform"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
                   <Pause className="w-5 h-5 text-black" />
@@ -295,12 +298,14 @@ export function NowPlayingBar() {
                 onClick={handleNext}
                 disabled={!hasNext()}
                 className="p-1 text-gray-300 hover:text-white disabled:text-gray-600 transition-colors"
+                aria-label="Next track"
               >
                 <SkipForward className="w-5 h-5" />
               </button>
               <button
                 onClick={cycleRepeat}
                 className={cn('p-1 transition-colors', repeat !== 'off' ? 'text-neon-cyan' : 'text-gray-500 hover:text-white')}
+                aria-label={repeat === 'off' ? 'Enable repeat' : repeat === 'one' ? 'Repeat all' : 'Disable repeat'}
               >
                 {repeat === 'one' ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
               </button>
@@ -320,7 +325,7 @@ export function NowPlayingBar() {
               onMouseEnter={() => setShowVolume(true)}
               onMouseLeave={() => setShowVolume(false)}
             >
-              <button onClick={handleMuteToggle} className="text-gray-400 hover:text-white transition-colors">
+              <button onClick={handleMuteToggle} className="text-gray-400 hover:text-white transition-colors" aria-label={muted || volume === 0 ? 'Unmute' : 'Mute'}>
                 {muted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
               {showVolume && (
@@ -340,6 +345,7 @@ export function NowPlayingBar() {
             <button
               onClick={() => setShowQueue(!showQueue)}
               className={cn('p-1 transition-colors', showQueue ? 'text-neon-cyan' : 'text-gray-500 hover:text-white')}
+              aria-label={showQueue ? 'Hide queue' : 'Show queue'}
             >
               <ListMusic className="w-4 h-4" />
             </button>
@@ -348,6 +354,7 @@ export function NowPlayingBar() {
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-gray-500 hover:text-white transition-colors"
+              aria-label={expanded ? 'Collapse player' : 'Expand player'}
             >
               {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
