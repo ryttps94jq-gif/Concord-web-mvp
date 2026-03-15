@@ -248,8 +248,8 @@ test.describe('Accessibility (axe-core)', () => {
       expect(response?.status()).toBeLessThan(500);
       await page.waitForLoadState('networkidle').catch(() => {});
 
-      // Wait for React hydration to complete (AppShell renders <main> after mount)
-      await page.waitForSelector('#main-content, [role="main"], main', { timeout: 5000 }).catch(() => {});
+      // Wait for AppShell to fully mount (sidebar only renders after mounted=true)
+      await page.waitForSelector('aside[role="navigation"], nav[aria-label]', { timeout: 10000 }).catch(() => {});
 
       // Should have main content area
       const mainVisible = await page.locator('#main-content, [role="main"], main').first().isVisible().catch(() => false);
@@ -260,7 +260,7 @@ test.describe('Accessibility (axe-core)', () => {
       }
 
       // Should have navigation
-      const navVisible = await page.locator('nav, [role="navigation"]').first().isVisible().catch(() => false);
+      const navVisible = await page.locator('aside[role="navigation"], nav, [role="navigation"]').first().isVisible().catch(() => false);
       if (navVisible) {
         // Navigation landmark present - good
       } else {

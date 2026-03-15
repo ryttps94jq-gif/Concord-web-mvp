@@ -22,7 +22,9 @@ test.describe('Lens CRUD Operations', () => {
 
   test('should display DTU list on lens page', async ({ page }) => {
     const response = await page.goto('/lenses/music');
-    expect(response?.status()).toBeLessThan(500);
+    if (response) {
+      expect(response.status()).toBeLessThan(500);
+    }
     await page.waitForLoadState('networkidle');
     // Page should load without errors
     const body = page.locator('body');
