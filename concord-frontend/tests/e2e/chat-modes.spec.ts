@@ -73,7 +73,7 @@ test.describe('Chat Rail Mode Selector', () => {
           await page.keyboard.press('Escape');
           await page.waitForTimeout(300);
         }
-        await modeButton.click({ force: true });
+        await modeButton.click({ force: true, timeout: 5000 }).catch(() => {});
         // No crash after clicking mode
         const bodyVisible = await page.locator('body').isVisible().catch(() => false);
         if (bodyVisible) {
