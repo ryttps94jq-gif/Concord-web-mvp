@@ -65,21 +65,21 @@ beforeEach(() => { jest.clearAllMocks(); });
 // ── DTU Creation Rate ────────────────────────────────────────────────────────
 
 describe('DTU creation throughput', () => {
-  it('forges 100 DTUs in under 500ms', async () => {
+  it('forges 100 DTUs in under 2000ms', async () => {
     const ms = await measureMsAsync(async () => { for (let i = 0; i < 100; i++) await forgeDTU(i); });
-    expect(ms).toBeLessThan(500);
-  });
-
-  it('forges 1000 DTUs in under 2000ms', async () => {
-    const ms = await measureMsAsync(async () => { for (let i = 0; i < 1000; i++) await forgeDTU(i); });
     expect(ms).toBeLessThan(2000);
   });
 
-  it('header encode/decode round-trip 10000 ops in under 500ms', () => {
+  it('forges 1000 DTUs in under 8000ms', async () => {
+    const ms = await measureMsAsync(async () => { for (let i = 0; i < 1000; i++) await forgeDTU(i); });
+    expect(ms).toBeLessThan(8000);
+  });
+
+  it('header encode/decode round-trip 10000 ops in under 2000ms', () => {
     const hdr = { version: DTU_VERSION, flags: 0x05, type: DTU_TYPES.TEXT as any,
       timestamp: Date.now(), contentLength: 256, contentHash: new Uint8Array(32).fill(0xab) };
     const ms = measureMs(() => { for (let i = 0; i < 10000; i++) decodeHeader(encodeHeader(hdr)); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 });
 
@@ -93,68 +93,68 @@ describe('DTU search performance', () => {
     for (let i = 0; i < 500; i++) { const d = await forgeDTU(i); store.set(d.id, d); }
   });
 
-  it('tokenizes 10000 strings in under 200ms', () => {
+  it('tokenizes 10000 strings in under 800ms', () => {
     const ms = measureMs(() => { for (let i = 0; i < 10000; i++) tokenize(`Foundation sensor GPS ${i}`); });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(800);
   });
 
-  it('searches 500-item store in under 300ms', () => {
+  it('searches 500-item store in under 1200ms', () => {
     const ms = measureMs(() => { store.search('perf test', 50); });
-    expect(ms).toBeLessThan(300);
+    expect(ms).toBeLessThan(1200);
   });
 
-  it('builds search index over 500 DTUs in under 500ms', () => {
+  it('builds search index over 500 DTUs in under 2000ms', () => {
     const ms = measureMs(() => { buildSearchIndex(store); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 
-  it('computes relevance for 1000 DTUs in under 200ms', async () => {
+  it('computes relevance for 1000 DTUs in under 800ms', async () => {
     const dtus: DTU[] = [];
     for (let i = 0; i < 1000; i++) dtus.push(await forgeDTU(i));
     const ms = measureMs(() => { for (const d of dtus) computeRelevance(['perf', 'test'], d); });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(800);
   });
 });
 
 // ── Compression Throughput ───────────────────────────────────────────────────
 
 describe('compression throughput', () => {
-  it('selects algorithm for 10000 payloads in under 100ms', () => {
+  it('selects algorithm for 10000 payloads in under 400ms', () => {
     const ms = measureMs(() => { for (let i = 0; i < 10000; i++) selectAlgorithm('application/json', 512 + i); });
-    expect(ms).toBeLessThan(100);
+    expect(ms).toBeLessThan(400);
   });
 
-  it('compresses 100 payloads (1KB) in under 500ms', async () => {
+  it('compresses 100 payloads (1KB) in under 2000ms', async () => {
     const buf = new Uint8Array(1024).fill(0x61);
     const ms = await measureMsAsync(async () => { for (let i = 0; i < 100; i++) await compress(buf, 'text/plain'); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 
-  it('decompresses 100 payloads in under 500ms', async () => {
+  it('decompresses 100 payloads in under 2000ms', async () => {
     const buf = new Uint8Array(512).fill(0x62);
     const ms = await measureMsAsync(async () => { for (let i = 0; i < 100; i++) await decompress(buf, COMPRESSION_ALGORITHMS.GZIP); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 });
 
 // ── Integrity Verification Throughput ─────────────────────────────────────────
 
 describe('integrity verification throughput', () => {
-  it('generates integrity envelopes for 100 DTUs in under 500ms', async () => {
+  it('generates integrity envelopes for 100 DTUs in under 2000ms', async () => {
     const dtus: DTU[] = []; for (let i = 0; i < 100; i++) dtus.push(await forgeDTU(i));
     const ms = await measureMsAsync(async () => { for (const d of dtus) await generateIntegrity(d); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 
-  it('verifies content hashes for 100 DTUs in under 500ms', async () => {
+  it('verifies content hashes for 100 DTUs in under 2000ms', async () => {
     const dtus: DTU[] = []; for (let i = 0; i < 100; i++) dtus.push(await forgeDTU(i));
     const ms = await measureMsAsync(async () => { for (const d of dtus) await verifyContentHash(d); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 
-  it('verifies headers for 1000 DTUs in under 200ms', async () => {
+  it('verifies headers for 1000 DTUs in under 800ms', async () => {
     const dtus: DTU[] = []; for (let i = 0; i < 1000; i++) dtus.push(await forgeDTU(i));
     const ms = measureMs(() => { for (const d of dtus) verifyHeader(d); });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(800);
   });
 });

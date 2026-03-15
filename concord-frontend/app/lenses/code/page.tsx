@@ -863,6 +863,7 @@ export default function CodeLensPage() {
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
             className="p-2 rounded-lg hover:bg-lattice-elevated text-gray-400"
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -922,6 +923,7 @@ export default function CodeLensPage() {
             <button
               onClick={() => setShowFileTree(!showFileTree)}
               className="p-1.5 rounded hover:bg-lattice-elevated text-gray-400 flex-shrink-0"
+              aria-label={showFileTree ? 'Hide file tree' : 'Show file tree'}
             >
               <FolderTree className="w-4 h-4" />
             </button>
@@ -950,6 +952,7 @@ export default function CodeLensPage() {
                         closeTab(tab.id);
                       }}
                       className="p-0.5 rounded hover:bg-lattice-border/50"
+                      aria-label={`Close ${tab.name}`}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1036,6 +1039,7 @@ export default function CodeLensPage() {
                         <button
                           onClick={() => setShowApiRef(false)}
                           className="p-1 rounded hover:bg-lattice-elevated text-gray-400"
+                          aria-label="Close API reference"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -1083,6 +1087,7 @@ export default function CodeLensPage() {
                         <button
                           onClick={() => setShowOutput(false)}
                           className="p-1 rounded hover:bg-lattice-elevated text-gray-400"
+                          aria-label="Close output panel"
                         >
                           <X className="w-4 h-4" />
                         </button>

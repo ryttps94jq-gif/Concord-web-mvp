@@ -114,7 +114,7 @@ export function SystemGuidePanel() {
           <Lightbulb className="w-4 h-4 text-neon-blue" />
           Guide
         </span>
-        <button onClick={() => setCollapsed(true)} className="text-gray-500 hover:text-white">
+        <button onClick={() => setCollapsed(true)} className="text-gray-500 hover:text-white" aria-label="Collapse guide panel">
           <Minimize2 className="w-3.5 h-3.5" />
         </button>
       </div>

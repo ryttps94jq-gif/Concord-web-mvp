@@ -57,7 +57,7 @@ export function AppShell({ children }: AppShellProps) {
     // Minimal shell during hydration to prevent CLS flash
     return (
       <div className="flex h-screen overflow-hidden bg-lattice-void">
-        <div className="flex-1" />
+        <main id="main-content" role="main" className="flex-1" />
       </div>
     );
   }

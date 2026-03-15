@@ -101,7 +101,7 @@ export function FirstWinWizard() {
           <span className="text-xs text-gray-500">
             {resolved.completedCount}/{resolved.steps.length}
           </span>
-          <button onClick={handleDismiss} className="text-gray-500 hover:text-white">
+          <button onClick={handleDismiss} className="text-gray-500 hover:text-white" aria-label="Dismiss wizard">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>

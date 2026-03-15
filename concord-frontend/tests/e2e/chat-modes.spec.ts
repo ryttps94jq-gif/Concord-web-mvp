@@ -35,7 +35,8 @@ test.describe('Chat Rail Mode Selector', () => {
   });
 
   test('chat rail renders mode selector with 5 modes', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // The 5 modes: Welcome, Assist, Explore, Connect, Chat
@@ -54,7 +55,8 @@ test.describe('Chat Rail Mode Selector', () => {
   });
 
   test('mode selector buttons are clickable', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const modeLabels = ['Assist', 'Explore', 'Connect', 'Chat'];
@@ -84,7 +86,8 @@ test.describe('Welcome Mode', () => {
   });
 
   test('welcome mode shows greeting content', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Welcome mode is the default when 0 messages
@@ -100,7 +103,8 @@ test.describe('Welcome Mode', () => {
   });
 
   test('welcome mode shows quick action buttons', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Quick actions should be clickable buttons
@@ -124,7 +128,8 @@ test.describe('Assist Mode', () => {
   });
 
   test('assist mode renders task-focused interface', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Switch to Assist mode
@@ -155,7 +160,8 @@ test.describe('Explore Mode', () => {
   });
 
   test('explore mode renders discovery interface', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Switch to Explore mode
@@ -178,7 +184,8 @@ test.describe('Explore Mode', () => {
   });
 
   test('explore mode has surprise me button', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const exploreButton = page.locator(
@@ -207,7 +214,8 @@ test.describe('Connect Mode', () => {
   });
 
   test('connect mode renders collaboration options', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const connectButton = page.locator(
@@ -237,7 +245,8 @@ test.describe('Mode Switch Behavior', () => {
   });
 
   test('switching between modes preserves page state', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const errors: string[] = [];
@@ -265,7 +274,8 @@ test.describe('Mode Switch Behavior', () => {
   });
 
   test('chat input placeholder changes with mode', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // The chat input should exist
@@ -304,7 +314,8 @@ test.describe('Cross-Lens Memory Bar', () => {
   });
 
   test('memory bar renders in chat rail', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Look for the cross-lens memory bar or lens trail indicator
@@ -319,7 +330,8 @@ test.describe('Cross-Lens Memory Bar', () => {
   });
 
   test('navigating between lenses updates memory context', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Navigate to another lens
@@ -352,7 +364,8 @@ test.describe('Proactive Message Chips', () => {
   });
 
   test('proactive chips render when triggered', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Proactive chips may appear after idle time or lens navigation
@@ -368,7 +381,8 @@ test.describe('Proactive Message Chips', () => {
   });
 
   test('proactive chips can be dismissed', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const dismissButton = page.locator(
