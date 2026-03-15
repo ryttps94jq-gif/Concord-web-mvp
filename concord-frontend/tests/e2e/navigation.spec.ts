@@ -29,7 +29,8 @@ test.describe('Landing Page', () => {
   });
 
   test('landing page displays hero content', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
 
     // SSR hero section: "Your Personal Cognitive Engine"
     const h1 = page.locator('h1');
@@ -43,7 +44,8 @@ test.describe('Landing Page', () => {
   });
 
   test('landing page displays feature cards', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
 
     // SSR renders four feature cards: Domain Lenses, DTU Memory, Local-First AI, Sovereign
     const lenses = page.locator('text=/domain lenses|76.*lenses/i');
@@ -61,7 +63,8 @@ test.describe('Landing Page', () => {
   });
 
   test('landing page has Concord branding', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
 
     // The header should show "Concord OS" branding
     const branding = page.locator('text=/Concord/i').first();
@@ -71,7 +74,8 @@ test.describe('Landing Page', () => {
   });
 
   test('landing page has sign in and get started links', async ({ page }) => {
-    await page.goto('/');
+    const response = await page.goto('/');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // The interactive LandingPage renders sign in and register links
@@ -92,7 +96,11 @@ test.describe('Landing Page', () => {
 
 test.describe('404 Page', () => {
   test('unknown routes show 404 content', async ({ page }) => {
-    await page.goto('/this-route-does-not-exist-99999');
+    const response = await page.goto('/this-route-does-not-exist-99999');
+    // 404 is expected, just ensure no server error
+    if (response?.status()) {
+      expect(response.status()).toBeLessThan(500);
+    }
 
     // The not-found.tsx renders a 404 page with "Page not found"
     const pageContent = await page.content();
@@ -103,7 +111,10 @@ test.describe('404 Page', () => {
   });
 
   test('404 page has link back to dashboard', async ({ page }) => {
-    await page.goto('/this-route-does-not-exist-99999');
+    const response = await page.goto('/this-route-does-not-exist-99999');
+    if (response?.status()) {
+      expect(response.status()).toBeLessThan(500);
+    }
 
     // If on 404 page, should have a "Go to Dashboard" link
     const dashboardLink = page.locator('a[href="/"]');
@@ -124,7 +135,8 @@ test.describe('App Shell Navigation', () => {
   });
 
   test('sidebar renders with main navigation landmark', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Sidebar has role="navigation" with aria-label="Main navigation"
@@ -138,7 +150,8 @@ test.describe('App Shell Navigation', () => {
   });
 
   test('sidebar shows Dashboard link', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Dashboard link pointing to /
@@ -149,7 +162,8 @@ test.describe('App Shell Navigation', () => {
   });
 
   test('sidebar shows core workspace lenses', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // The five core lenses: Chat, Board, Graph, Code, Studio
@@ -172,7 +186,8 @@ test.describe('App Shell Navigation', () => {
   });
 
   test('sidebar shows Lens Hub link', async ({ page }) => {
-    await page.goto('/lenses/chat');
+    const response = await page.goto('/lenses/chat');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const hubLink = page.locator('aside a[href="/hub"]');

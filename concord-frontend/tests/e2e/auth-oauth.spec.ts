@@ -8,7 +8,8 @@ test.describe('Auth Page OAuth Buttons', () => {
   });
 
   test('login page renders OAuth sign-in buttons', async ({ page }) => {
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     // Look for Google and Apple OAuth buttons
@@ -41,7 +42,8 @@ test.describe('Auth Page OAuth Buttons', () => {
       });
     });
 
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const googleButton = page.locator(
@@ -76,7 +78,8 @@ test.describe('Auth Page OAuth Buttons', () => {
       });
     });
 
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
     await page.waitForLoadState('networkidle');
 
     const appleButton = page.locator(
@@ -108,7 +111,8 @@ test.describe('Sign In / Sign Up Toggle', () => {
   });
 
   test('login page has link to register', async ({ page }) => {
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
 
     const registerLink = page.locator('a[href="/register"]');
     const visible = await registerLink.first().isVisible().catch(() => false);
@@ -119,7 +123,8 @@ test.describe('Sign In / Sign Up Toggle', () => {
   });
 
   test('register page has link to login', async ({ page }) => {
-    await page.goto('/register');
+    const response = await page.goto('/register');
+    expect(response?.status()).toBeLessThan(500);
 
     const loginLink = page.locator('a[href="/login"]');
     const visible = await loginLink.first().isVisible().catch(() => false);
@@ -130,7 +135,8 @@ test.describe('Sign In / Sign Up Toggle', () => {
   });
 
   test('can toggle between sign in and sign up pages', async ({ page }) => {
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
 
     const registerLink = page.locator('a[href="/register"]');
     const visible = await registerLink.first().isVisible().catch(() => false);
@@ -160,7 +166,8 @@ test.describe('Email/Password Form Validation', () => {
   });
 
   test('login form shows required field validation', async ({ page }) => {
-    await page.goto('/login');
+    const response = await page.goto('/login');
+    expect(response?.status()).toBeLessThan(500);
 
     // Fields should have required attribute
     const usernameInput = page.locator('#username');
@@ -184,7 +191,8 @@ test.describe('Email/Password Form Validation', () => {
       route.fulfill({ status: 200, body: JSON.stringify({ token: 'mock' }) })
     );
 
-    await page.goto('/register');
+    const response = await page.goto('/register');
+    expect(response?.status()).toBeLessThan(500);
 
     const usernameInput = page.locator('#username');
     const emailInput = page.locator('#email');
@@ -218,7 +226,8 @@ test.describe('Email/Password Form Validation', () => {
       route.fulfill({ status: 200, body: JSON.stringify({ token: 'mock' }) })
     );
 
-    await page.goto('/register');
+    const response = await page.goto('/register');
+    expect(response?.status()).toBeLessThan(500);
 
     const usernameInput = page.locator('#username');
     const emailInput = page.locator('#email');

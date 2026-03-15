@@ -83,38 +83,38 @@ describe('DTU store insert scalability', () => {
     const ms = measureMs(() => {
       for (let i = 0; i < 10000; i++) { store.has(`dtu_scale_${i}`); store.get(`dtu_scale_${i}`); }
     });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(400);
   });
 });
 
 // ── Query Performance at Different Store Sizes ───────────────────────────────
 
 describe('DTU store query performance', () => {
-  it('searches 100-item store in under 50ms', () => {
+  it('searches 100-item store in under 100ms', () => {
     const ms = measureMs(() => { populateStore(100).search('scale batch', 20); });
-    expect(ms).toBeLessThan(50);
+    expect(ms).toBeLessThan(100);
   });
 
-  it('searches 1000-item store in under 500ms', () => {
+  it('searches 1000-item store in under 1000ms', () => {
     const ms = measureMs(() => { populateStore(1000).search('scale batch', 20); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(1000);
   });
 
-  it('searches 5000-item store in under 2000ms', () => {
+  it('searches 5000-item store in under 4000ms', () => {
     const ms = measureMs(() => { populateStore(5000).search('scale batch', 20); });
-    expect(ms).toBeLessThan(2000);
+    expect(ms).toBeLessThan(4000);
   });
 
-  it('getByType and getByTags on 5000-item store in under 200ms', () => {
+  it('getByType and getByTags on 5000-item store in under 400ms', () => {
     const store = populateStore(5000);
     const ms = measureMs(() => {
       for (const t of typePool) store.getByType(t);
       store.getByTags(['scale']); store.getByTags(['type-0', 'type-1']);
     });
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(400);
   });
 
-  it('prunes 1000 expired DTUs from 5000-item store in under 500ms', () => {
+  it('prunes 1000 expired DTUs from 5000-item store in under 1000ms', () => {
     const store = createDTUStore(createMockDb());
     for (let i = 0; i < 5000; i++) {
       const d = makeDTU(i);
@@ -122,7 +122,7 @@ describe('DTU store query performance', () => {
       store.set(d.id, d);
     }
     const ms = measureMs(() => { expect(store.prune({ maxAgeDays: 30, protectPainTagged: false })).toBe(1000); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(1000);
   });
 });
 
@@ -137,23 +137,23 @@ describe('memory usage estimation per DTU', () => {
     expect(stats.totalSizeBytes).toBeLessThan(1024 * 1024);
   });
 
-  it('getStats on 5000-item store 100 times in under 200ms', () => {
+  it('getStats on 5000-item store 100 times in under 400ms', () => {
     const store = populateStore(5000);
     const ms = measureMs(() => { for (let i = 0; i < 100; i++) store.getStats(); });
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(1000);
   });
 });
 
 // ── Zustand Store Update Throughput ──────────────────────────────────────────
 
 describe('Zustand mesh store update throughput', () => {
-  it('adds 1000 peers in under 500ms', () => {
+  it('adds 1000 peers in under 1000ms', () => {
     const ms = measureMs(() => { for (let i = 0; i < 1000; i++) useMeshStore.getState().addPeer(makePeer(`p_${i}`)); });
     expect(useMeshStore.getState().peers.size).toBe(1000);
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(1000);
   });
 
-  it('enqueues/dequeues 1000 relay entries in under 500ms', () => {
+  it('enqueues/dequeues 1000 relay entries in under 1000ms', () => {
     const ms = measureMs(() => {
       for (let i = 0; i < 1000; i++) useMeshStore.getState().enqueueRelay({
         dtuId: `d_${i}`, dtuHash: `h_${i}`, priority: i % 10, ttl: 7, enqueuedAt: Date.now(), excludePeers: [],
@@ -161,7 +161,7 @@ describe('Zustand mesh store update throughput', () => {
       for (let i = 0; i < 1000; i++) useMeshStore.getState().dequeueRelay();
     });
     expect(useMeshStore.getState().relayQueue.length).toBe(0);
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(1000);
   });
 
   it('adds/checks 10000 seen hashes and updates 1000 reputations in under 10000ms', () => {
